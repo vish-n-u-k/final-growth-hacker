@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --version && npm --version)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\" && npx create-next-app@latest web --typescript --tailwind --app --no-eslint --no-src-dir --import-alias \"@/*\" --no-git 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm install drizzle-orm drizzle-kit @supabase/supabase-js @supabase/ssr postgres dotenv 2>&1)",
+      "Bash(ls \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\node_modules\\\\next\\\\dist\\\\docs\\\\\" 2>/dev/null || echo \"no docs dir\")",
+      "Bash(cd 'C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web' && npm pkg set scripts.db:generate=\"drizzle-kit generate\" scripts.db:migrate=\"drizzle-kit migrate\" scripts.db:push=\"drizzle-kit push\" scripts.db:studio=\"drizzle-kit studio\")",
+      "Bash(cd 'C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web' && npx tsc --noEmit 2>&1)",
+      "Bash(cd 'C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web' && npm run db:generate 2>&1)",
+      "Bash(cd 'C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web' && npm run db:push 2>&1)",
+      "Bash(cd 'C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web' && npm install @anthropic-ai/sdk 2>&1)"
+    ]
+  }
+}
