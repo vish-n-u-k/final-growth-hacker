@@ -1,0 +1,627 @@
+'use client'
+
+import { useState, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { type ModuleDefinition, type ModuleCategoryDefinition, type DBItemFull } from '@/lib/modules/types'
+
+export interface DBItemState {
+  id: string
+  aiDetail: string | null
+  aiNarrative: string | null
+  aiAction: string | null
+  aiVerified: boolean
+  userChecked: boolean
+  completedBy: string | null
+}
+
+interface ModuleSummary {
+  id: string
+  type: string
+  name: string
+  order: number
+  status: string
+  score: number
+}
+
+interface Props {
+  brand: { id: string; name: string }
+  module: { id: string; type: string; name: string; status: string; lastAnalyzedAt: string | null }
+  definition: ModuleDefinition
+  itemStates: Record<string, DBItemState>   // static modules: keyed by slug
+  fullItems?: DBItemFull[]                  // dynamic modules: full item rows from DB
+  allModules: ModuleSummary[]
+  userEmail: string
+}
+
+function timeAgo(iso: string | null): string {
+  if (!iso) return 'Never analysed'
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (diff < 60) return 'Just now'
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return `${Math.floor(diff / 86400)}d ago`
+}
+
+function getCatStats(cat: ModuleCategoryDefinition, states: Record<string, DBItemState>) {
+  const items = cat.subCategories.flatMap((s) => s.items)
+  const totalWeight = items.reduce((sum, i) => sum + i.weight, 0)
+  const aiWeight = items.filter((i) => states[i.slug]?.aiVerified).reduce((sum, i) => sum + i.weight, 0)
+  const doneWeight = items
+    .filter((i) => states[i.slug]?.aiVerified || states[i.slug]?.userChecked)
+    .reduce((sum, i) => sum + i.weight, 0)
+  const done = items.filter((i) => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).length
+  return {
+    total: items.length,
+    done,
+    totalWeight,
+    doneWeight,
+    aiWeight,
+    pct: totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0,
+  }
+}
+
+function getOverall(def: ModuleDefinition, states: Record<string, DBItemState>) {
+  const items = (def.categories as ModuleCategoryDefinition[]).flatMap((c) => c.subCategories.flatMap((s) => s.items))
+  const totalWeight = items.reduce((sum, i) => sum + i.weight, 0)
+  const aiWeight = items.filter((i) => states[i.slug]?.aiVerified).reduce((sum, i) => sum + i.weight, 0)
+  const doneWeight = items
+    .filter((i) => states[i.slug]?.aiVerified || states[i.slug]?.userChecked)
+    .reduce((sum, i) => sum + i.weight, 0)
+  const aiVerified = items.filter((i) => states[i.slug]?.aiVerified).length
+  const selfOnly = items.filter((i) => !states[i.slug]?.aiVerified && states[i.slug]?.userChecked).length
+  const total = items.length
+  const done = aiVerified + selfOnly
+  return {
+    total, aiVerified, selfOnly, done, open: total - done,
+    totalWeight, doneWeight, aiWeight,
+    pct: totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0,
+  }
+}
+
+// ── Dynamic module helpers (items come from DB, not definition) ───────────────
+
+function getDynamicOverall(items: DBItemFull[]) {
+  const totalWeight = items.reduce((s, i) => s + i.weight, 0)
+  const aiWeight = items.filter((i) => i.aiVerified).reduce((s, i) => s + i.weight, 0)
+  const doneWeight = items.filter((i) => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
+  const aiVerified = items.filter((i) => i.aiVerified).length
+  const selfOnly = items.filter((i) => !i.aiVerified && i.userChecked).length
+  const total = items.length
+  const done = aiVerified + selfOnly
+  return {
+    total, aiVerified, selfOnly, done, open: total - done,
+    totalWeight, doneWeight, aiWeight,
+    pct: totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0,
+  }
+}
+
+function getDynamicCatStats(categorySlug: string, items: DBItemFull[]) {
+  const catItems = items.filter((i) => i.categorySlug === categorySlug)
+  const totalWeight = catItems.reduce((s, i) => s + i.weight, 0)
+  const aiWeight = catItems.filter((i) => i.aiVerified).reduce((s, i) => s + i.weight, 0)
+  const doneWeight = catItems.filter((i) => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
+  const done = catItems.filter((i) => i.aiVerified || i.userChecked).length
+  return {
+    total: catItems.length, done, totalWeight, doneWeight, aiWeight,
+    pct: totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0,
+  }
+}
+
+function userCountToBarPct(count: number): number {
+  if (count <= 0) return 0
+  if (count <= 10) return (count / 10) * 25
+  if (count <= 50) return 25 + ((count - 10) / 40) * 25
+  if (count <= 100) return 50 + ((count - 50) / 50) * 25
+  return 75 + Math.min((count - 100) / 400, 1) * 25
+}
+
+export default function ModuleDashboard({ brand, module: mod, definition: def, itemStates: initial, fullItems: initialFullItems, allModules, userEmail }: Props) {
+  const [states, setStates] = useState(initial)
+  const [dynItems, setDynItems] = useState<DBItemFull[]>(initialFullItems ?? [])
+  const [openCats, setOpenCats] = useState<Set<string>>(() => new Set([def.categories[0]?.slug ?? '']))
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  const [verifyingItems, setVerifyingItems] = useState<Set<string>>(new Set())
+  const [reanalyzing, setReanalyzing] = useState(false)
+  const [userCount, setUserCount] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0
+    return parseInt(localStorage.getItem('gh_user_count') ?? '0', 10) || 0
+  })
+  const [editingCount, setEditingCount] = useState(false)
+  const router = useRouter()
+
+  const overall = def.dynamic ? getDynamicOverall(dynItems) : getOverall(def, states)
+
+  const currentLevel = allModules.find((m) => m.id === mod.id)?.order ?? 0
+  const barPct = userCountToBarPct(userCount)
+
+  const toggleCat = (slug: string) =>
+    setOpenCats((prev) => {
+      const next = new Set(prev)
+      next.has(slug) ? next.delete(slug) : next.add(slug)
+      return next
+    })
+
+  const toggleExpand = (slug: string, e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('.md-cb')) return
+    setExpandedItems((prev) => {
+      const next = new Set(prev)
+      next.has(slug) ? next.delete(slug) : next.add(slug)
+      return next
+    })
+  }
+
+  const toggleItem = useCallback(
+    async (itemId: string, slug: string, current: boolean, e: React.MouseEvent) => {
+      e.stopPropagation()
+      const next = !current
+
+      // Optimistic update
+      if (def.dynamic) {
+        setDynItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, userChecked: next } : i)))
+      } else {
+        setStates((prev) => ({
+          ...prev,
+          [slug]: {
+            ...(prev[slug] ?? { id: itemId, aiDetail: null, aiNarrative: null, aiAction: null, aiVerified: false, completedBy: null }),
+            userChecked: next,
+          },
+        }))
+      }
+
+      await fetch('/api/items/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, checked: next }),
+      })
+
+      // Step 3: For static (Foundation) items being checked, run verification in background
+      if (!def.dynamic && next) {
+        setVerifyingItems((prev) => new Set(prev).add(slug))
+        try {
+          const res = await fetch('/api/items/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemId }),
+          })
+          const data = await res.json()
+          if (data.canVerify && data.aiVerified) {
+            setStates((prev) => ({
+              ...prev,
+              [slug]: { ...prev[slug], aiVerified: true, aiDetail: data.detail ?? prev[slug]?.aiDetail ?? null },
+            }))
+          }
+        } catch {
+          // Verification failure is non-fatal — item stays as user_checked
+        } finally {
+          setVerifyingItems((prev) => {
+            const next = new Set(prev)
+            next.delete(slug)
+            return next
+          })
+        }
+      }
+    },
+    [def.dynamic],
+  )
+
+  const handleReanalyze = async () => {
+    setReanalyzing(true)
+    const res = await fetch('/api/modules/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ moduleId: mod.id }),
+    })
+    if (res.ok) router.refresh()
+    else setReanalyzing(false)
+    setReanalyzing(false)
+  }
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
+  return (
+    <>
+      {/* Header */}
+      <header>
+        <div className="wrap md-header-inner">
+          <div className="logo" style={{ cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
+            <span className="mark">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M5 12h4l2-6 3 12 2-6h3" stroke="#06140c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </span>
+            {brand.name}
+          </div>
+          <div className="md-header-actions">
+            <button onClick={handleReanalyze} disabled={reanalyzing} className="md-btn-reanalyze">
+              {reanalyzing ? (
+                <><span className="md-spin" />Re-analysing…</>
+              ) : (
+                <>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <path d="M4 4v6h6M20 20v-6h-6M4.06 15a9 9 0 1 0 .94-6.93" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Re-analyse
+                </>
+              )}
+            </button>
+            <button onClick={() => router.push('/settings')} className="md-btn-settings" title="Settings">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <button onClick={handleLogout} className="logout-btn">{userEmail} · Sign out</button>
+          </div>
+        </div>
+      </header>
+
+      {/* Journey Hero */}
+      <div className="wrap">
+        <div className="hero">
+          <h1>Your road to 500 users</h1>
+          <p>One level at a time. Clear each gate before you level up — don't skip ahead.</p>
+        </div>
+        <div className="overview">
+          <div
+            className="big-num"
+            onClick={() => !editingCount && setEditingCount(true)}
+            title="Click to update your user count"
+          >
+            {editingCount ? (
+              <input
+                autoFocus
+                type="number"
+                min={0}
+                max={9999}
+                defaultValue={userCount}
+                onBlur={(e) => {
+                  const val = Math.max(0, parseInt(e.target.value, 10) || 0)
+                  setUserCount(val)
+                  localStorage.setItem('gh_user_count', String(val))
+                  setEditingCount(false)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                  if (e.key === 'Escape') setEditingCount(false)
+                }}
+              />
+            ) : (
+              userCount
+            )}
+            <span>/500</span>
+          </div>
+          <div className="meta">
+            <div className="lvl">Currently · Level {currentLevel}</div>
+            <div className="desc">{def.description}</div>
+            <div className="journey-bar">
+              <div className="journey-track">
+                <div className="journey-fill" style={{ width: `${barPct}%` }} />
+              </div>
+              <div className="journey-labels">
+                <span>0</span>
+                <span>10</span>
+                <span>50</span>
+                <span>100</span>
+                <span>500</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="md-layout wrap">
+        {/* Sidebar */}
+        <aside className="md-sidebar">
+          <div className="md-sidebar-label">Modules</div>
+          {[...allModules].sort((a, b) => a.order - b.order).map((m) => (
+            <button
+              key={m.id}
+              disabled={m.status === 'locked'}
+              className={`md-sidebar-item${m.id === mod.id ? ' md-sidebar-item-active' : ''}${m.status === 'locked' ? ' md-sidebar-item-locked' : ''}`}
+              onClick={() => m.status !== 'locked' && router.push(`/dashboard/${m.id}`)}
+            >
+              <div className="md-sidebar-item-top">
+                <span className="md-sidebar-item-name">{m.name}</span>
+                {m.status === 'locked' ? (
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                    <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
+                    <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                ) : (
+                  <span className="md-sidebar-item-pct">{m.score}%</span>
+                )}
+              </div>
+              {m.status !== 'locked' && (
+                <div className="md-sidebar-bar">
+                  <div className="md-sidebar-bar-fill" style={{ width: `${m.score}%` }} />
+                </div>
+              )}
+            </button>
+          ))}
+        </aside>
+
+        {/* Main content */}
+        <div className="md-main">
+
+        {/* Overview */}
+        <div className="md-overview">
+          <div className="md-ov-top">
+            <div>
+              <div className="md-ov-label">{def.name}</div>
+              <div className="md-ov-url">{def.description}</div>
+            </div>
+            <div className="md-ov-meta">
+              <span className="md-ov-time">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+                  <path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                {timeAgo(mod.lastAnalyzedAt)}
+              </span>
+            </div>
+          </div>
+
+          <div className="md-ov-score-row">
+            <span className="md-ov-pct">{overall.pct}<span>%</span></span>
+            <div className="md-ov-bar-wrap">
+              <div className="md-ov-bar">
+                <div className="md-ov-bar-self" style={{ width: `${Math.round((overall.doneWeight / overall.totalWeight) * 100)}%` }} />
+                <div className="md-ov-bar-ai" style={{ width: `${Math.round((overall.aiWeight / overall.totalWeight) * 100)}%` }} />
+              </div>
+              <div className="md-ov-legend">
+                <span className="md-leg-ai" />AI verified
+                <span className="md-leg-self" />Self-reported
+              </div>
+            </div>
+          </div>
+
+          <div className="md-ov-stats">
+            <div className="md-ov-stat">
+              <span className="md-ov-stat-num md-ov-stat-num-ai">{overall.aiVerified}</span>
+              <span className="md-ov-stat-lbl">AI verified</span>
+            </div>
+            <div className="md-ov-divider" />
+            <div className="md-ov-stat">
+              <span className="md-ov-stat-num md-ov-stat-num-self">{overall.selfOnly}</span>
+              <span className="md-ov-stat-lbl">Self-reported</span>
+            </div>
+            <div className="md-ov-divider" />
+            <div className="md-ov-stat">
+              <span className="md-ov-stat-num">{overall.open}</span>
+              <span className="md-ov-stat-lbl">Open</span>
+            </div>
+            <div className="md-ov-divider" />
+            <div className="md-ov-stat">
+              <span className="md-ov-stat-num">{overall.total}</span>
+              <span className="md-ov-stat-lbl">Total checks</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Categories */}
+        <div className="md-cats">
+          {def.dynamic
+            ? /* ── Dynamic module: items come from DB grouped by category ── */
+              def.categories.map((cat) => {
+                const stats = getDynamicCatStats(cat.slug, dynItems)
+                const isOpen = openCats.has(cat.slug)
+                const catItems = [...dynItems.filter((i) => i.categorySlug === cat.slug)].sort((a, b) => {
+                  const aDone = (a.aiVerified || a.userChecked) ? 1 : 0
+                  const bDone = (b.aiVerified || b.userChecked) ? 1 : 0
+                  if (aDone !== bDone) return aDone - bDone
+                  return b.weight - a.weight
+                })
+
+                return (
+                  <div key={cat.slug} className={`md-cat${isOpen ? ' md-cat-open' : ''}`}>
+                    <button className="md-cat-hd" onClick={() => toggleCat(cat.slug)}>
+                      <div className="md-cat-hd-left">
+                        <span className="md-cat-hd-name">{cat.label}</span>
+                        <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
+                      </div>
+                      <div className="md-cat-hd-right">
+                        <div className="md-cat-mini-bar">
+                          <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
+                          <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
+                        </div>
+                        <span className="md-cat-pct">{stats.pct}%</span>
+                        <svg className={`md-chev${isOpen ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
+                          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                      </div>
+                    </button>
+
+                    {isOpen && (
+                      <div className="md-cat-body">
+                        {catItems.length === 0 ? (
+                          <p style={{ padding: '16px 20px', color: 'var(--text-faint)', fontSize: '13px' }}>
+                            No issues found in this category.
+                          </p>
+                        ) : (
+                          <div className="md-items" style={{ padding: '8px 0' }}>
+                            {catItems.map((item) => {
+                              const aiV = item.aiVerified
+                              const userC = item.userChecked
+                              const done = aiV || userC
+                              const needsAttention = !aiV && !userC
+                              const isExpanded = expandedItems.has(item.slug)
+                              const hasDetail = !!(item.aiNarrative || item.aiAction)
+
+                              return (
+                                <div
+                                  key={item.slug}
+                                  className={`md-item sm-item${done ? ' md-item-done' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
+                                  onClick={(e) => hasDetail && toggleExpand(item.slug, e)}
+                                  style={{ cursor: hasDetail ? 'pointer' : 'default' }}
+                                >
+                                  <span
+                                    className={`md-cb${aiV ? ' md-cb-ai' : userC ? ' md-cb-self' : ''}`}
+                                    onClick={(e) => toggleItem(item.id, item.slug, userC, e)}
+                                    style={{ cursor: 'pointer' }}
+                                  >
+                                    {(aiV || userC) && (
+                                      <svg viewBox="0 0 24 24" fill="none">
+                                        <path d="M5 13l4 4L19 7" stroke={aiV ? '#06140c' : 'var(--lime)'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                                      </svg>
+                                    )}
+                                  </span>
+                                  <div className="md-item-body">
+                                    <div className="md-item-top">
+                                      <span className="md-item-lbl">{item.label}</span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+                                        {!done && item.weight === 3 && <span className="md-tag md-tag-critical">Critical</span>}
+                                        {!done && item.weight === 2 && <span className="md-tag md-tag-important">Important</span>}
+                                        {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
+                                        {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
+                                        {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
+                                      </div>
+                                    </div>
+                                    {item.aiDetail && <p className="md-item-detail">{item.aiDetail}</p>}
+                                    {isExpanded && hasDetail && (
+                                      <div className="sm-expanded-body">
+                                        {item.aiNarrative && <p className="sm-narrative">{item.aiNarrative}</p>}
+                                        {item.aiAction && (
+                                          <div className="sm-action-box">
+                                            <span className="sm-action-label">Action</span>
+                                            <p className="sm-action-text">{item.aiAction}</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })
+            : /* ── Static module: items come from definition (Foundation) ── */
+              (def.categories as ModuleCategoryDefinition[]).map((cat) => {
+                const stats = getCatStats(cat, states)
+                const isOpen = openCats.has(cat.slug)
+
+                return (
+                  <div key={cat.slug} className={`md-cat${isOpen ? ' md-cat-open' : ''}`}>
+                    <button className="md-cat-hd" onClick={() => toggleCat(cat.slug)}>
+                      <div className="md-cat-hd-left">
+                        <span className="md-cat-hd-name">{cat.label}</span>
+                        <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
+                      </div>
+                      <div className="md-cat-hd-right">
+                        <div className="md-cat-mini-bar">
+                          <div className="md-cat-mini-self" style={{ width: `${Math.round((stats.doneWeight / stats.totalWeight) * 100)}%` }} />
+                          <div className="md-cat-mini-ai" style={{ width: `${Math.round((stats.aiWeight / stats.totalWeight) * 100)}%` }} />
+                        </div>
+                        <span className="md-cat-pct">{stats.pct}%</span>
+                        <svg className={`md-chev${isOpen ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
+                          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                      </div>
+                    </button>
+
+                    {isOpen && (
+                      <div className="md-cat-body">
+                        {cat.subCategories.map((sub, si) => {
+                          const subDone = sub.items.filter(
+                            (i) => states[i.slug]?.aiVerified || states[i.slug]?.userChecked,
+                          ).length
+                          return (
+                            <div key={sub.slug} className={`md-sub${si > 0 ? ' md-sub-border' : ''}`}>
+                              <div className="md-sub-hd">
+                                <span className="md-sub-name">{sub.label}</span>
+                                <span className="md-sub-count">{subDone}/{sub.items.length}</span>
+                              </div>
+                              <div className="md-items">
+                                {[...sub.items]
+                                  .sort((a, b) => {
+                                    const aDone = (states[a.slug]?.aiVerified || states[a.slug]?.userChecked) ? 1 : 0
+                                    const bDone = (states[b.slug]?.aiVerified || states[b.slug]?.userChecked) ? 1 : 0
+                                    if (aDone !== bDone) return aDone - bDone
+                                    return b.weight - a.weight
+                                  })
+                                  .map((item) => {
+                                    const s = states[item.slug]
+                                    const aiV = s?.aiVerified ?? false
+                                    const userC = s?.userChecked ?? false
+                                    const done = aiV || userC
+                                    const needsAttention = s && !aiV && !userC
+                                    const isExpanded = expandedItems.has(item.slug)
+                                    const hasDetail = !!(s?.aiNarrative || s?.aiAction)
+                                    const isVerifying = verifyingItems.has(item.slug)
+
+                                    return (
+                                      <div
+                                        key={item.slug}
+                                        className={`md-item sm-item${done ? ' md-item-done' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
+                                        onClick={(e) => hasDetail && toggleExpand(item.slug, e)}
+                                        style={{ cursor: hasDetail ? 'pointer' : 'default' }}
+                                      >
+                                        <span
+                                          className={`md-cb${aiV ? ' md-cb-ai' : userC ? ' md-cb-self' : ''}`}
+                                          onClick={(e) => toggleItem(s?.id ?? '', item.slug, userC, e)}
+                                          style={{ cursor: 'pointer' }}
+                                        >
+                                          {isVerifying ? (
+                                            <span className="md-spin" style={{ width: '10px', height: '10px' }} />
+                                          ) : (aiV || userC) ? (
+                                            <svg viewBox="0 0 24 24" fill="none">
+                                              <path d="M5 13l4 4L19 7" stroke={aiV ? '#06140c' : 'var(--lime)'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                          ) : null}
+                                        </span>
+                                        <div className="md-item-body">
+                                          <div className="md-item-top">
+                                            <span className="md-item-lbl">{item.label}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+                                              {!done && item.weight === 3 && <span className="md-tag md-tag-critical">Critical</span>}
+                                              {!done && item.weight === 2 && <span className="md-tag md-tag-important">Important</span>}
+                                              {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
+                                              {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
+                                              {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
+                                            </div>
+                                          </div>
+                                          {s?.aiDetail && <p className="md-item-detail">{s.aiDetail}</p>}
+                                          {isExpanded && hasDetail && (
+                                            <div className="sm-expanded-body">
+                                              {s?.aiNarrative && <p className="sm-narrative">{s.aiNarrative}</p>}
+                                              {s?.aiAction && (
+                                                <div className="sm-action-box">
+                                                  <span className="sm-action-label">Action</span>
+                                                  <p className="sm-action-text">{s.aiAction}</p>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+        </div>
+
+        <p className="foot-note" style={{ marginTop: '16px' }}>
+          Click any item to see full analysis and action · AI verified = confirmed by Claude · Self-reported = marked by you
+        </p>
+        </div> {/* end md-main */}
+      </div> {/* end md-layout */}
+    </>
+  )
+}

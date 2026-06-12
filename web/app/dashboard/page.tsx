@@ -1,56 +1,29 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands, channels, channelItems } from '@/lib/db/schema'
+import { brands, modules } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import MarketingDashboard, { type DBItemState } from '@/components/MarketingDashboard'
+import { MODULE_MAP } from '@/lib/modules/registry'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-
   if (!user) redirect('/login')
 
-  // Gate: onboarding check
   const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
   if (!brand) redirect('/onboarding')
 
-  // Get website channel
-  const [channel] = await db
+  const allModules = await db
     .select()
-    .from(channels)
-    .where(eq(channels.brandId, brand.id))
-    .limit(1)
+    .from(modules)
+    .where(eq(modules.brandId, brand.id))
+    .orderBy(modules.order)
 
-  if (!channel) redirect('/onboarding')
+  if (allModules.length === 0) redirect('/onboarding')
 
-  // Get all analysed items for this channel
-  const items = await db
-    .select()
-    .from(channelItems)
-    .where(eq(channelItems.channelId, channel.id))
-
-  const itemStates: Record<string, DBItemState> = {}
-  for (const item of items) {
-    itemStates[item.itemSlug] = {
-      aiDetail: item.aiDetail,
-      aiVerified: item.aiVerified ?? false,
-      userChecked: item.userChecked ?? false,
-    }
-  }
-
-  return (
-    <MarketingDashboard
-      brand={{ id: brand.id, name: brand.name }}
-      channel={{
-        id: channel.id,
-        url: channel.url,
-        lastAnalyzedAt: channel.lastAnalyzedAt?.toISOString() ?? null,
-      }}
-      itemStates={itemStates}
-      userEmail={user.email ?? ''}
-    />
-  )
+  // Redirect to the first non-locked module (Foundation)
+  const active = allModules.find((m) => m.status !== 'locked') ?? allModules[0]
+  redirect(`/dashboard/${active.id}`)
 }

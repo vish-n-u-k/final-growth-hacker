@@ -1,7 +1,8 @@
-export interface FetchedContent {
+export interface SeoFetchResult {
   html: string
   robotsTxt: string | null
   sitemapXml: string | null
+  url: string
 }
 
 async function safeFetch(url: string, timeoutMs = 10000): Promise<string | null> {
@@ -10,7 +11,7 @@ async function safeFetch(url: string, timeoutMs = 10000): Promise<string | null>
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'GrowthTrackerBot/1.0 (SEO Analyser)' },
+      headers: { 'User-Agent': 'GrowthHackerBot/1.0 (SEO Analyser)' },
     })
     clearTimeout(timer)
     if (!res.ok) return null
@@ -30,21 +31,18 @@ function stripNoise(html: string): string {
     .trim()
 }
 
-/**
- * Extract <head> in full (SEO tags live here), truncate only the body.
- * Head is preserved entirely — title, meta, canonical, OG, schema JSON-LD all live there.
- */
-function stripHtml(html: string, bodyMaxChars = 30000): string {
+function extractContent(html: string, bodyMaxChars = 30000): string {
   const headMatch = html.match(/<head[\s\S]*?<\/head>/i)
   const bodyMatch = html.match(/<body[\s\S]*?<\/body>/i)
-
   const head = headMatch ? stripNoise(headMatch[0]) : ''
-  const body = bodyMatch ? stripNoise(bodyMatch[0]).slice(0, bodyMaxChars) : stripNoise(html).slice(0, bodyMaxChars)
-
+  const body = bodyMatch
+    ? stripNoise(bodyMatch[0]).slice(0, bodyMaxChars)
+    : stripNoise(html).slice(0, bodyMaxChars)
   return `${head}\n${body}`.trim()
 }
 
-export async function fetchWebsiteContent(rawUrl: string): Promise<FetchedContent> {
+export async function fetchSeoData(requirements: Record<string, string>): Promise<SeoFetchResult> {
+  const rawUrl = requirements['website_url'] ?? ''
   const url = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`
   const origin = new URL(url).origin
 
@@ -55,8 +53,9 @@ export async function fetchWebsiteContent(rawUrl: string): Promise<FetchedConten
   ])
 
   return {
-    html: html ? stripHtml(html) : '',
+    html: html ? extractContent(html) : '',
     robotsTxt: robotsTxt ? robotsTxt.slice(0, 4000) : null,
     sitemapXml: sitemapXml ? sitemapXml.slice(0, 6000) : null,
+    url,
   }
 }

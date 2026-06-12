@@ -1,0 +1,316 @@
+# Social Media Analysis & Growth Strategy
+
+Analyze the business's social media presence and provide a comprehensive audit, performance evaluation, and growth strategy.
+
+IMPORTANT:
+
+* Only analyze platforms that are available and active.
+* Do NOT include sections for platforms that do not exist or cannot be found.
+* If data is unavailable for a specific metric, state "Data Not Available" instead of making assumptions.
+* Tailor all recommendations to the business industry, audience, goals, and current social media maturity level.
+
+## 1. Social Media Presence Overview
+
+Identify all active social media platforms, including but not limited to:
+
+* Instagram
+* Facebook
+* LinkedIn
+* X (Twitter)
+* YouTube
+* TikTok
+* Pinterest
+* Threads
+* Other relevant platforms
+
+For each active platform provide:
+
+* Profile URL
+* Followers/Subscribers
+* Following count (if relevant)
+* Total posts/content published
+* Account age (if available)
+* Overall platform health score (0-100)
+
+## 2. Profile & Brand Audit
+
+Evaluate:
+
+* Profile photo quality
+* Brand consistency
+* Bio/About section effectiveness
+* Keywords used in profile
+* Contact information
+* Website links
+* Call-to-action effectiveness
+* Story highlights (if applicable)
+* Cover/banner images
+* Profile completeness
+
+Identify:
+
+* Missing elements
+* Optimization opportunities
+* Branding inconsistencies
+
+Provide a Profile Optimization Score (0-100).
+
+## 3. Audience Analysis
+
+Analyze:
+
+* Follower count
+* Follower quality
+* Audience relevance
+* Audience engagement behavior
+* Community strength
+* Audience demographics (if available)
+
+Identify:
+
+* Whether followers align with business goals
+* Growth opportunities
+* Audience gaps
+
+Provide an Audience Quality Score (0-100).
+
+## 4. Content Performance Analysis
+
+Review recent content and categorize it into:
+
+* Educational
+* Promotional
+* Entertaining
+* Informational
+* Industry insights
+* Customer stories
+* Product/service showcases
+* Thought leadership
+* User-generated content
+
+Identify:
+
+* Best-performing content types
+* Worst-performing content types
+* Content gaps
+* Content consistency issues
+
+For each platform provide:
+
+* Engagement trends
+* Reach trends
+* Content effectiveness
+
+Provide a Content Performance Score (0-100).
+
+## 5. Engagement Analysis
+
+Evaluate:
+
+* Likes
+* Comments
+* Shares
+* Saves
+* Video views
+* Engagement rate
+
+Identify:
+
+* High-performing posts
+* Low-performing posts
+* Engagement strengths
+* Engagement weaknesses
+
+Explain possible reasons behind engagement patterns.
+
+Provide an Engagement Score (0-100).
+
+## 6. Posting Strategy Review
+
+Analyze:
+
+* Posting frequency
+* Posting consistency
+* Content distribution
+* Publishing habits
+
+Recommend:
+
+* Ideal posting frequency
+* Best days to post
+* Best times to post
+* Recommended content mix
+
+Create a suggested weekly posting schedule.
+
+Provide a Consistency Score (0-100).
+
+## 7. Competitor Benchmarking
+
+Identify key competitors and compare:
+
+* Followers
+* Engagement
+* Content quality
+* Posting frequency
+* Growth activity
+
+Highlight:
+
+* Competitor strengths
+* Competitor weaknesses
+* Opportunities to outperform competitors
+
+Provide a Competitive Position Score (0-100).
+
+## 8. Growth Opportunities
+
+Identify:
+
+* Quick wins
+* Organic growth opportunities
+* Community-building opportunities
+* Brand awareness opportunities
+* Lead generation opportunities
+* Conversion opportunities
+
+Prioritize recommendations by:
+
+* High Impact
+* Medium Impact
+* Low Impact
+
+## 9. Content Strategy Recommendations
+
+Create a content strategy tailored to the business.
+
+Recommend:
+
+* Educational content ideas
+* Promotional content ideas
+* Industry content ideas
+* Authority-building content ideas
+* Engagement-focused content ideas
+* Lead generation content ideas
+* Video content ideas
+* Carousel content ideas
+* Story content ideas
+* Short-form content ideas
+
+Provide at least:
+
+* 20 content topics
+* 10 reel/video ideas
+* 10 carousel ideas
+* 10 engagement post ideas
+
+## 10. Paid Advertising Recommendations
+
+If social media advertising is recommended, provide:
+
+### Campaign Objectives
+
+Examples:
+
+* Brand Awareness
+* Reach
+* Engagement
+* Traffic
+* Lead Generation
+* Sales
+* Retargeting
+
+### Recommended Platforms
+
+Only include relevant platforms.
+
+### Target Audience
+
+Define:
+
+* Age groups
+* Interests
+* Location targeting
+* Behavioral targeting
+
+### Campaign Structure
+
+Recommend:
+
+* Campaign types
+* Ad formats
+* Creative approach
+* Funnel strategy
+
+### Budget Recommendations
+
+Provide:
+
+* Starter Budget
+* Growth Budget
+* Aggressive Growth Budget
+
+Include estimated monthly spend and rationale.
+
+### Expected Outcomes
+
+Estimate:
+
+* Reach potential
+* Engagement potential
+* Lead generation potential
+* Conversion opportunities
+
+## 11. 30-Day Action Plan
+
+Create a prioritized action plan with:
+
+* Week 1 tasks
+* Week 2 tasks
+* Week 3 tasks
+* Week 4 tasks
+
+Focus on the highest-impact improvements first.
+
+## 12. 90-Day Growth Roadmap
+
+Provide:
+
+* Short-term goals
+* Mid-term goals
+* Long-term goals
+
+Include measurable KPIs.
+
+## 13. Final Scorecard
+
+Provide:
+
+### Overall Social Media Score (0-100)
+
+### Platform Scores
+
+Only show platforms that exist.
+
+### Strengths
+
+List the top strengths.
+
+### Weaknesses
+
+List the biggest weaknesses.
+
+### Highest Priority Recommendations
+
+List the top actions that will produce the greatest business impact.
+
+## Output Requirements
+
+* Do not show sections for unavailable platforms.
+* Do not make assumptions when data is unavailable.
+* Provide practical and actionable recommendations.
+* Use scoring wherever possible.
+* Prioritize recommendations by impact.
+* Focus on improving brand awareness, engagement, followers, leads, and conversions.
+* Explain why each recommendation matters.
+* Present findings in a professional business-report format.

@@ -9,7 +9,17 @@
       "Bash(cd 'C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web' && npx tsc --noEmit 2>&1)",
       "Bash(cd 'C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web' && npm run db:generate 2>&1)",
       "Bash(cd 'C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web' && npm run db:push 2>&1)",
-      "Bash(cd 'C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web' && npm install @anthropic-ai/sdk 2>&1)"
+      "Bash(cd 'C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web' && npm install @anthropic-ai/sdk 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx next build 2>&1 | tail -30)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && rm -rf \\\\\n  lib/db/schema.ts \\\\\n  lib/data/skeleton.ts \\\\\n  lib/data/levels.ts \\\\\n  lib/analyzer \\\\\n  app/api/analyze \\\\\n  app/api/analyze-social \\\\\n  app/api/channels \\\\\n  app/api/items \\\\\n  app/api/onboarding \\\\\n  app/api/tasks \\\\\n  app/api/progress \\\\\n  app/dashboard \\\\\n  app/onboarding \\\\\n  components/MarketingDashboard.tsx \\\\\n  components/SocialDashboard.tsx \\\\\n  components/GrowthTracker.tsx 2>/dev/null; echo \"done\")",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && rm -rf .next && npx tsc --noEmit 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx next build 2>&1 | tail -25)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx drizzle-kit generate 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx drizzle-kit push 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && node -e \"const { Client } = require\\('pg'\\); const c = new Client\\({ connectionString: 'postgresql://postgres:Us5SoSm2pd73dqwN@db.vdxuebfzphbzwshitqsf.supabase.co:5432/postgres', connectionTimeoutMillis: 10000 }\\); c.connect\\(\\).then\\(\\(\\) => { console.log\\('connected'\\); return c.query\\('SELECT 1'\\) }\\).then\\(\\(\\) => { console.log\\('ok'\\); c.end\\(\\) }\\).catch\\(e => { console.error\\('FAIL:', e.message\\); }\\)\" 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && node -e \"\nconst net = require\\('net'\\);\nconst s = net.createConnection\\({ host: 'db.vdxuebfzphbzwshitqsf.supabase.co', port: 5432 }\\);\ns.setTimeout\\(8000\\);\ns.on\\('connect', \\(\\) => { console.log\\('TCP connected'\\); s.destroy\\(\\); }\\);\ns.on\\('timeout', \\(\\) => { console.log\\('TIMEOUT'\\); s.destroy\\(\\); }\\);\ns.on\\('error', \\(e\\) => { console.log\\('ERROR:', e.message\\); }\\);\n\" 2>&1)",
+      "Bash(node -e \"\nconst net = require\\('net'\\);\nconst s = net.createConnection\\({ host: 'aws-1-ap-southeast-2.pooler.supabase.com', port: 6543 }\\);\ns.setTimeout\\(8000\\);\ns.on\\('connect', \\(\\) => { console.log\\('TCP connected on 6543'\\); s.destroy\\(\\); }\\);\ns.on\\('timeout', \\(\\) => { console.log\\('TIMEOUT'\\); s.destroy\\(\\); }\\);\ns.on\\('error', \\(e\\) => { console.log\\('ERROR:', e.message\\); }\\);\n\" 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit 2>&1; echo \"EXIT:$?\")"
     ]
   }
 }

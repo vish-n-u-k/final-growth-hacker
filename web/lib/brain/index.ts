@@ -1,0 +1,217 @@
+import Anthropic from '@anthropic-ai/sdk'
+import { db } from '@/lib/db'
+import { brainContext } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
+import type { ModuleAnalysisResult, DynamicModuleAnalysisResult } from '@/lib/modules/types'
+
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+// ── 1. Filter brain context for relevance before a module runs ────────────────
+// Called before each module's agent runs (skip for Foundation — it runs first).
+// Uses Haiku: fast + cheap, just a filtering/summarising task.
+
+export async function getRelevantContext(
+  brandId: string,
+  moduleType: string,
+  modulePurpose: string,
+): Promise<string> {
+  const [ctx] = await db.select().from(brainContext).where(eq(brainContext.brandId, brandId))
+  if (!ctx) return ''
+
+  const facts = ctx.facts as Record<string, unknown> | null
+  const userResolved = (ctx.userResolved as string[]) ?? []
+
+  if (!facts && !ctx.summary) return ''
+
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 400,
+    messages: [
+      {
+        role: 'user',
+        content: `Accumulated knowledge about this brand from previous module analyses:
+
+FACTS:
+${facts ? JSON.stringify(facts, null, 2) : 'None yet'}
+
+SUMMARY:
+${ctx.summary ?? 'Not yet available'}
+
+USER SELF-REPORTED AS FIXED (not yet AI-verified):
+${userResolved.length > 0 ? userResolved.join(', ') : 'None'}
+
+The next module to run is: "${moduleType}"
+Its purpose: ${modulePurpose}
+
+Extract only what is directly relevant to this module's analysis.
+Return 3–6 concise bullet points. Plain text only, no JSON.
+If nothing is relevant return exactly: "No prior context."`,
+      },
+    ],
+  })
+
+  return message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+}
+
+// ── 2. Extract facts after a module runs and merge into brain_context ─────────
+// Foundation: deterministic extraction from known slugs (no extra Claude call for facts).
+// Dynamic modules: Claude decides what facts are worth storing for future modules.
+// Both get an updated narrative summary.
+
+export async function extractAndMergeFacts(
+  brandId: string,
+  moduleType: string,
+  results: ModuleAnalysisResult[] | DynamicModuleAnalysisResult[],
+): Promise<void> {
+  const newFacts =
+    moduleType === 'foundation'
+      ? extractFoundationFacts(results as ModuleAnalysisResult[])
+      : await extractDynamicFacts(moduleType, results as DynamicModuleAnalysisResult[])
+
+  const summary = await buildSummary(brandId, moduleType, results)
+
+  const [existing] = await db.select().from(brainContext).where(eq(brainContext.brandId, brandId))
+  const existingFacts = (existing?.facts as Record<string, unknown>) ?? {}
+
+  if (existing) {
+    await db
+      .update(brainContext)
+      .set({ facts: { ...existingFacts, [moduleType]: newFacts }, summary, lastUpdated: new Date() })
+      .where(eq(brainContext.brandId, brandId))
+  } else {
+    await db.insert(brainContext).values({
+      brandId,
+      facts: { [moduleType]: newFacts },
+      summary,
+      userResolved: [],
+    })
+  }
+}
+
+// ── 3. Update user_resolved when user checks/unchecks an item ─────────────────
+// No Claude call — pure DB update.
+
+export async function updateUserResolved(
+  brandId: string,
+  slug: string,
+  checked: boolean,
+): Promise<void> {
+  const [existing] = await db.select().from(brainContext).where(eq(brainContext.brandId, brandId))
+  const current = (existing?.userResolved as string[]) ?? []
+  const updated = checked
+    ? [...new Set([...current, slug])]
+    : current.filter((s) => s !== slug)
+
+  if (existing) {
+    await db
+      .update(brainContext)
+      .set({ userResolved: updated })
+      .where(eq(brainContext.brandId, brandId))
+  } else {
+    // Brain context doesn't exist yet — create a minimal row
+    await db.insert(brainContext).values({ brandId, userResolved: updated, facts: {} })
+  }
+}
+
+// ── Internal: Foundation fact extraction (deterministic, no Claude) ───────────
+
+function extractFoundationFacts(results: ModuleAnalysisResult[]): Record<string, unknown> {
+  const slugToKey: Record<string, string> = {
+    'site-accessible':    'site_live',
+    'ssl-active':         'ssl_active',
+    'no-noindex':         'indexable',
+    'mobile-viewport':    'mobile_ready',
+    'no-placeholder':     'has_real_content',
+    'ga4-installed':      'ga4_installed',
+    'gsc-linked':         'gsc_linked',
+    'privacy-policy':     'has_privacy_policy',
+    'contact-accessible': 'has_contact_page',
+    'value-prop-exists':  'value_prop_clear',
+    'cta-exists':         'has_cta',
+    'favicon-present':    'has_favicon',
+    'business-name-clear':'business_name_visible',
+    'page-title-set':     'has_page_title',
+  }
+
+  const facts: Record<string, unknown> = {}
+  for (const r of results) {
+    const key = slugToKey[r.slug]
+    if (key) {
+      facts[key] = r.verified
+      // Store the detail string too — contains actual values (e.g. CTA text, business name)
+      if (r.detail) facts[`${key}_detail`] = r.detail
+    }
+  }
+  return facts
+}
+
+// ── Internal: Dynamic module fact extraction (Claude/Haiku) ───────────────────
+
+async function extractDynamicFacts(
+  moduleType: string,
+  results: DynamicModuleAnalysisResult[],
+): Promise<Record<string, unknown>> {
+  if (results.length === 0) return {}
+
+  const findings = results
+    .map((r) => `[${r.verified ? 'PASS' : 'FAIL'}] ${r.label}: ${r.detail}`)
+    .join('\n')
+
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 500,
+    messages: [
+      {
+        role: 'user',
+        content: `Given these ${moduleType} audit findings, extract 5–10 key facts that would be useful context for future marketing modules.
+
+${findings}
+
+Return ONLY a flat JSON object with snake_case keys and concrete values.
+Examples: { "primary_keyword": "AI news", "has_schema_markup": false, "og_tags_complete": true }
+No explanation, no markdown — just the JSON object.`,
+      },
+    ],
+  })
+
+  const raw = message.content[0].type === 'text' ? message.content[0].text : '{}'
+  const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
+  try {
+    return JSON.parse(clean)
+  } catch {
+    return {}
+  }
+}
+
+// ── Internal: Build updated narrative summary ─────────────────────────────────
+
+async function buildSummary(
+  brandId: string,
+  moduleType: string,
+  results: ModuleAnalysisResult[] | DynamicModuleAnalysisResult[],
+): Promise<string> {
+  const [existing] = await db.select().from(brainContext).where(eq(brainContext.brandId, brandId))
+  const prior = existing?.summary ?? ''
+
+  const open = results.filter((r) => !r.verified).length
+  const pass = results.filter((r) => r.verified).length
+  const lines = results.map((r) => `[${r.verified ? '✓' : '✗'}] ${r.detail}`).join('\n')
+
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 150,
+    messages: [
+      {
+        role: 'user',
+        content: `Prior summary: "${prior}"
+
+New ${moduleType} results (${pass} passing, ${open} open issues):
+${lines}
+
+Write an updated 2-sentence summary of this brand's overall growth health. Be specific. No preamble.`,
+      },
+    ],
+  })
+
+  return message.content[0].type === 'text' ? message.content[0].text.trim() : prior
+}
