@@ -9,6 +9,7 @@ import { analyzeFoundation } from '@/lib/modules/foundation/agent'
 import { fetchSeoData } from '@/lib/modules/seo/fetcher'
 import { analyzeSeo } from '@/lib/modules/seo/agent'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult } from '@/lib/modules/types'
+import { getAllItems } from '@/lib/modules/types'
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
 
 export const maxDuration = 90
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
           userChecked: wasChecked,
           userCheckedAt: wasChecked ? new Date() : null,
           completedBy: r.verified ? 'ai' : wasChecked ? 'user' : null,
+          fixable: (r as DynamicModuleAnalysisResult).fixable ?? false,
           updatedAt: new Date(),
         })
       }),
@@ -122,6 +124,7 @@ export async function POST(request: NextRequest) {
   } else {
     // ── Static module: items pre-seeded, update findings by slug ──────────
     const staticResults = results as ModuleAnalysisResult[]
+    const defItemMap = new Map(getAllItems(def).map((i) => [i.slug, i]))
     await Promise.all(
       staticResults.map((r) =>
         db
@@ -133,6 +136,7 @@ export async function POST(request: NextRequest) {
             aiVerified: r.verified,
             aiVerifiedAt: r.verified ? new Date() : null,
             completedBy: r.verified ? 'ai' : null,
+            fixable: defItemMap.get(r.slug)?.fixable ?? false,
             updatedAt: new Date(),
           })
           .where(and(eq(moduleItems.moduleId, moduleId), eq(moduleItems.slug, r.slug))),

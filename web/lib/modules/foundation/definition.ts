@@ -131,6 +131,7 @@ Rules:
               prompt: 'Look for a link to a privacy policy page in the page content, footer, or navigation. A privacy policy is legally required in most jurisdictions and required by Google Ads, Meta Ads, and other platforms. Report whether a link or reference is found.',
               order: 1,
               weight: 2,
+              fixable: true,
             },
             {
               slug: 'contact-accessible',

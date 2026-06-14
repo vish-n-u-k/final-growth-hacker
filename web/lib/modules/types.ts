@@ -6,6 +6,7 @@ export interface ModuleItemDefinition {
   prompt: string
   order: number
   weight: 1 | 2 | 3
+  fixable?: boolean  // true = this item can be auto-fixed via GitHub
 }
 
 export interface ModuleSubCategoryDefinition {
@@ -84,6 +85,7 @@ export interface DynamicModuleAnalysisResult {
   narrative: string     // 2–3 sentence explanation
   action: string        // specific next step
   verified: boolean     // true = passes | false = needs attention
+  fixable: boolean      // true = safe to auto-fix via GitHub (meta/title/canonical/OG tags only)
 }
 
 // ── Full item row passed to dashboard for dynamic modules ─────────────────────
@@ -100,6 +102,7 @@ export interface DBItemFull {
   aiVerified: boolean
   userChecked: boolean
   completedBy: string | null
+  fixable: boolean
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -25,6 +25,8 @@ export const modules = pgTable('modules', {
   requirements: jsonb('requirements'),    // { website_url: "https://..." }
   score: integer('score').default(0),     // 0-100 completion %
   lastAnalyzedAt: timestamp('last_analyzed_at', { withTimezone: true }),
+  agentBranch: text('agent_branch'),      // shared GitHub branch for this module's fixes
+  agentPrUrl: text('agent_pr_url'),       // GitHub PR URL for the shared fixes branch
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 
@@ -57,7 +59,8 @@ export const moduleItems = pgTable(
     aiVerifiedAt: timestamp('ai_verified_at', { withTimezone: true }),
     userChecked: boolean('user_checked').default(false),
     userCheckedAt: timestamp('user_checked_at', { withTimezone: true }),
-    completedBy: text('completed_by'),     // 'ai' | 'user' | null
+    completedBy: text('completed_by'),     // 'ai' | 'user' | 'agent' | null
+    fixable: boolean('fixable').default(false), // true = Claude can auto-fix via GitHub
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   },
   (table) => ({

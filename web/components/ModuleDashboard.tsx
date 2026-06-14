@@ -13,6 +13,7 @@ export interface DBItemState {
   aiVerified: boolean
   userChecked: boolean
   completedBy: string | null
+  fixable: boolean
 }
 
 interface ModuleSummary {
@@ -32,6 +33,8 @@ interface Props {
   fullItems?: DBItemFull[]                  // dynamic modules: full item rows from DB
   allModules: ModuleSummary[]
   userEmail: string
+  githubConnected: boolean
+  modulePrUrl: string | null
 }
 
 function timeAgo(iso: string | null): string {
@@ -116,12 +119,14 @@ function userCountToBarPct(count: number): number {
   return 75 + Math.min((count - 100) / 400, 1) * 25
 }
 
-export default function ModuleDashboard({ brand, module: mod, definition: def, itemStates: initial, fullItems: initialFullItems, allModules, userEmail }: Props) {
+export default function ModuleDashboard({ brand, module: mod, definition: def, itemStates: initial, fullItems: initialFullItems, allModules, userEmail, githubConnected, modulePrUrl: initialPrUrl }: Props) {
   const [states, setStates] = useState(initial)
   const [dynItems, setDynItems] = useState<DBItemFull[]>(initialFullItems ?? [])
   const [openCats, setOpenCats] = useState<Set<string>>(() => new Set([def.categories[0]?.slug ?? '']))
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
   const [verifyingItems, setVerifyingItems] = useState<Set<string>>(new Set())
+  const [applyingFix, setApplyingFix] = useState<Set<string>>(new Set())
+  const [prUrl, setPrUrl] = useState<string | null>(initialPrUrl)
   const [reanalyzing, setReanalyzing] = useState(false)
   const [userCount, setUserCount] = useState<number>(() => {
     if (typeof window === 'undefined') return 0
@@ -217,6 +222,41 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
     setReanalyzing(false)
   }
 
+  const handleApplyFix = useCallback(async (itemId: string, slug: string) => {
+    setApplyingFix((prev) => new Set(prev).add(slug))
+    try {
+      const res = await fetch('/api/items/apply-fix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId }),
+      })
+      const data = await res.json()
+      if (res.ok && data.prUrl) {
+        setPrUrl(data.prUrl)
+        if (def.dynamic) {
+          setDynItems((prev) =>
+            prev.map((i) => (i.id === itemId ? { ...i, completedBy: 'agent', aiVerified: true } : i)),
+          )
+        } else {
+          setStates((prev) => ({
+            ...prev,
+            [slug]: { ...prev[slug], completedBy: 'agent', aiVerified: true },
+          }))
+        }
+      } else {
+        alert(data.error ?? 'Fix failed — please try again.')
+      }
+    } catch {
+      alert('Fix failed — please check your connection and try again.')
+    } finally {
+      setApplyingFix((prev) => {
+        const next = new Set(prev)
+        next.delete(slug)
+        return next
+      })
+    }
+  }, [def.dynamic])
+
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -235,7 +275,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                 <path d="M5 12h4l2-6 3 12 2-6h3" stroke="#06140c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </span>
-            {brand.name}
+            Growth Hacker
           </div>
           <div className="md-header-actions">
             <button onClick={handleReanalyze} disabled={reanalyzing} className="md-btn-reanalyze">
@@ -492,6 +532,52 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                             <p className="sm-action-text">{item.aiAction}</p>
                                           </div>
                                         )}
+                                        {/* Apply fix button — only for fixable unresolved items */}
+                                        {item.fixable && !aiV && item.completedBy !== 'agent' && (
+                                          <div className="md-fix-row">
+                                            {githubConnected ? (
+                                              applyingFix.has(item.slug) ? (
+                                                <span className="md-fix-applying">
+                                                  <span className="md-spin" />
+                                                  Applying fix…
+                                                </span>
+                                              ) : (
+                                                <button
+                                                  className="md-fix-btn"
+                                                  onClick={(e) => { e.stopPropagation(); handleApplyFix(item.id, item.slug) }}
+                                                >
+                                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                                                    <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                  </svg>
+                                                  Apply fix via GitHub
+                                                </button>
+                                              )
+                                            ) : (
+                                              <p className="md-fix-hint">
+                                                Connect GitHub in{' '}
+                                                <a href="/settings" className="md-fix-hint-link">Settings</a>
+                                                {' '}to apply this fix automatically.
+                                              </p>
+                                            )}
+                                          </div>
+                                        )}
+                                        {/* PR link — shown when this item was fixed by the agent */}
+                                        {item.completedBy === 'agent' && prUrl && (
+                                          <a
+                                            href={prUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="md-fix-pr-link"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                                              <circle cx="18" cy="18" r="3" stroke="currentColor" strokeWidth="2"/>
+                                              <circle cx="6" cy="6" r="3" stroke="currentColor" strokeWidth="2"/>
+                                              <path d="M6 21V9a9 9 0 0 0 9 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                            </svg>
+                                            Applied — view on GitHub
+                                          </a>
+                                        )}
                                       </div>
                                     )}
                                   </div>
@@ -599,6 +685,50 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                                   <span className="sm-action-label">Action</span>
                                                   <p className="sm-action-text">{s.aiAction}</p>
                                                 </div>
+                                              )}
+                                              {s?.fixable && !aiV && s.completedBy !== 'agent' && (
+                                                <div className="md-fix-row">
+                                                  {githubConnected ? (
+                                                    applyingFix.has(item.slug) ? (
+                                                      <span className="md-fix-applying">
+                                                        <span className="md-spin" />
+                                                        Applying fix…
+                                                      </span>
+                                                    ) : (
+                                                      <button
+                                                        className="md-fix-btn"
+                                                        onClick={(e) => { e.stopPropagation(); handleApplyFix(s.id, item.slug) }}
+                                                      >
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                                                          <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                        </svg>
+                                                        Apply fix via GitHub
+                                                      </button>
+                                                    )
+                                                  ) : (
+                                                    <p className="md-fix-hint">
+                                                      Connect GitHub in{' '}
+                                                      <a href="/settings" className="md-fix-hint-link">Settings</a>
+                                                      {' '}to apply this fix automatically.
+                                                    </p>
+                                                  )}
+                                                </div>
+                                              )}
+                                              {s?.completedBy === 'agent' && prUrl && (
+                                                <a
+                                                  href={prUrl}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="md-fix-pr-link"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                >
+                                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                                                    <circle cx="18" cy="18" r="3" stroke="currentColor" strokeWidth="2"/>
+                                                    <circle cx="6" cy="6" r="3" stroke="currentColor" strokeWidth="2"/>
+                                                    <path d="M6 21V9a9 9 0 0 0 9 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                  </svg>
+                                                  Applied — view on GitHub
+                                                </a>
                                               )}
                                             </div>
                                           )}

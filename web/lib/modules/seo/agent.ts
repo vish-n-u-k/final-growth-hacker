@@ -33,6 +33,7 @@ For each issue or notable win you find, return an object with:
 - "narrative": string — 2–3 sentences explaining why this matters for this specific site's SEO
 - "action": string — one specific, immediately actionable instruction starting with a verb, with exact values or code where useful
 - "verified": boolean — true if this is a pass, false if it needs fixing
+- "fixable": boolean — true ONLY if this fix is a safe, targeted change to one of: <title> tag, <meta name="description">, canonical link, Open Graph tags (og:*), Twitter card meta tags, robots meta tag, viewport meta tag, or JSON-LD structured data. Set false for anything structural, content-related, URL-based, or that requires framework config changes.
 
 Return ONLY a valid JSON array. No markdown fences, no text outside the array.`
 
@@ -55,16 +56,18 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array.`
 
   const validCategories = new Set(categories.map((c) => c.slug))
 
-  return results.filter(
-    (r) =>
-      typeof r.category === 'string' &&
-      validCategories.has(r.category) &&
-      typeof r.slug === 'string' &&
-      typeof r.label === 'string' &&
-      (r.weight === 1 || r.weight === 2 || r.weight === 3) &&
-      typeof r.detail === 'string' &&
-      typeof r.narrative === 'string' &&
-      typeof r.action === 'string' &&
-      typeof r.verified === 'boolean',
-  )
+  return results
+    .filter(
+      (r) =>
+        typeof r.category === 'string' &&
+        validCategories.has(r.category) &&
+        typeof r.slug === 'string' &&
+        typeof r.label === 'string' &&
+        (r.weight === 1 || r.weight === 2 || r.weight === 3) &&
+        typeof r.detail === 'string' &&
+        typeof r.narrative === 'string' &&
+        typeof r.action === 'string' &&
+        typeof r.verified === 'boolean',
+    )
+    .map((r) => ({ ...r, fixable: r.fixable === true }))
 }
