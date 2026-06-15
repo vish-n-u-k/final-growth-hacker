@@ -299,7 +299,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
             Growth Hacker
           </div>
           <div className="md-header-actions">
-            <button onClick={handleReanalyze} disabled={reanalyzing} className="md-btn-reanalyze">
+            <button onClick={() => handleReanalyze()} disabled={reanalyzing} className="md-btn-reanalyze">
               {reanalyzing ? (
                 <><span className="md-spin" />Re-analysing…</>
               ) : (
