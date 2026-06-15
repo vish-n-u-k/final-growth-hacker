@@ -1,10 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { callAI } from '@/lib/ai/client'
 import type { AuditResult, Finding } from '@/lib/audit/audit'
 import type { ModuleAnalysisResult } from '../types'
 import { WEBSITE_MODULE } from './definition'
 import { getAllItems } from '../types'
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // Build a flat slug → Finding map from all 8 sections
 function buildFindingMap(audit: AuditResult): Map<string, Finding> {
@@ -28,14 +26,9 @@ async function generateNarratives(
     .map((i, idx) => `${idx + 1}. [${i.slug}] ${i.label}\n   Finding: ${i.detail}\n   Fix: ${i.action || 'No specific fix available'}`)
     .join('\n\n')
 
-  const message = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4000,
+  const raw = await callAI({
     system: WEBSITE_MODULE.systemPrompt,
-    messages: [
-      {
-        role: 'user',
-        content: `Website: ${websiteUrl}
+    prompt: `Website: ${websiteUrl}
 
 For each failing check below, write 1–2 sentences of business impact — why this specific issue hurts growth, conversions, or trust for this site. Be specific, not generic.
 
@@ -44,11 +37,8 @@ ${itemList}
 Return ONLY a valid JSON array:
 [{ "slug": "...", "narrative": "..." }, ...]
 No markdown fences, no text outside the array.`,
-      },
-    ],
+    maxTokens: 4000,
   })
-
-  const raw = message.content[0].type === 'text' ? message.content[0].text : '[]'
   const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
 
   try {

@@ -101,8 +101,25 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Call 0: Plan all changes needed ──────────────────────────────────────────
+  // Auto-read assisted fix values from saved integrations
+  let userInput: Record<string, string> | undefined
+  if (item.fixInputKey && item.fixIntegrationProvider) {
+    const [assistedIntegration] = await db
+      .select()
+      .from(brandIntegrations)
+      .where(and(
+        eq(brandIntegrations.brandId, brand.id),
+        eq(brandIntegrations.provider, item.fixIntegrationProvider),
+        eq(brandIntegrations.status, 'connected'),
+      ))
+      .limit(1)
+    const value = (assistedIntegration?.metadata as Record<string, string> | null)?.[item.fixInputKey]
+    if (!value) return NextResponse.json({ error: `${item.fixIntegrationProvider === 'google_analytics' ? 'Google Analytics' : 'Google Search Console'} integration is not connected. Go to Settings → Integrations to set it up.` }, { status: 400 })
+    userInput = { [item.fixInputKey]: value }
+  }
+
   t('claude call 0 — planning')
-  const plan = await planFix(item.label, item.aiAction ?? '', framework, fileTree)
+  const plan = await planFix(item.label, item.aiAction ?? '', framework, fileTree, userInput)
   console.log(`[apply-fix] plan:`, JSON.stringify(plan, null, 2))
   if (plan.files_to_read.length === 0 && plan.files_to_create.length === 0) {
     return NextResponse.json({ error: 'Could not build a fix plan for this item.' }, { status: 422 })
@@ -150,6 +167,7 @@ export async function POST(request: NextRequest) {
       framework,
       fileContents.map(({ path, content }) => ({ path, content })),
       plan,
+      userInput,
     )
   } catch (err) {
     return NextResponse.json(

@@ -39,11 +39,16 @@ export async function planFix(
   action: string,
   framework: string,
   fileTree: string[],
+  userInput?: Record<string, string>,
 ): Promise<FixPlan> {
-  const prompt = `You are a code assistant planning a fix for an SEO issue in a ${framework} project.
+  const userInputStr = userInput && Object.keys(userInput).length > 0
+    ? `\nUser-provided values:\n${Object.entries(userInput).map(([k, v]) => `- ${k}: ${v}`).join('\n')}`
+    : ''
+
+  const prompt = `You are a code assistant planning a fix for an issue in a ${framework} project.
 
 Fix needed: ${label}
-Instruction: ${action}
+Instruction: ${action}${userInputStr}
 
 File tree:
 ${fileTree.join('\n')}
@@ -120,6 +125,7 @@ export async function generateFix(
   framework: string,
   files: { path: string; content: string }[],
   plan: FixPlan,
+  userInput?: Record<string, string>,
 ): Promise<{ path: string; content: string }[]> {
   const filesStr = files.length > 0
     ? files.map((f) => `=== FILE: ${f.path} ===\n${f.content}`).join('\n\n')
@@ -129,10 +135,14 @@ export async function generateFix(
     .map((c) => `- ${c.path}: ${c.what}`)
     .join('\n')
 
+  const userInputStr = userInput && Object.keys(userInput).length > 0
+    ? `\n## User-provided values (use these exactly):\n${Object.entries(userInput).map(([k, v]) => `- ${k}: ${v}`).join('\n')}`
+    : ''
+
   const prompt = `You are a code assistant. Implement the following fix in this ${framework} project.
 
 Fix: ${label}
-Instruction: ${action}
+Instruction: ${action}${userInputStr}
 
 ## Agreed plan (implement ALL of these):
 ${planStr}

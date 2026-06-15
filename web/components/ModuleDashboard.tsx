@@ -14,6 +14,8 @@ export interface DBItemState {
   userChecked: boolean
   completedBy: string | null
   fixable: boolean
+  fixInputKey: string | null
+  fixIntegrationProvider: string | null
 }
 
 interface ModuleSummary {
@@ -34,6 +36,7 @@ interface Props {
   allModules: ModuleSummary[]
   userEmail: string
   githubConnected: boolean
+  connectedIntegrations: Record<string, boolean>
   modulePrUrl: string | null
 }
 
@@ -119,7 +122,7 @@ function userCountToBarPct(count: number): number {
   return 75 + Math.min((count - 100) / 400, 1) * 25
 }
 
-export default function ModuleDashboard({ brand, module: mod, definition: def, itemStates: initial, fullItems: initialFullItems, allModules, userEmail, githubConnected, modulePrUrl: initialPrUrl }: Props) {
+export default function ModuleDashboard({ brand, module: mod, definition: def, itemStates: initial, fullItems: initialFullItems, allModules, userEmail, githubConnected, connectedIntegrations, modulePrUrl: initialPrUrl }: Props) {
   const [states, setStates] = useState(initial)
   const [dynItems, setDynItems] = useState<DBItemFull[]>(initialFullItems ?? [])
   const [openCats, setOpenCats] = useState<Set<string>>(() => new Set([def.categories[0]?.slug ?? '']))
@@ -519,6 +522,22 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                         {!done && item.weight === 2 && <span className="md-tag md-tag-important">Important</span>}
                                         {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
                                         {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
+                                        {item.fixable && !aiV && item.completedBy !== 'agent' && (
+                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                            <span className={`md-tag ${githubConnected ? 'md-tag-fix' : 'md-tag-fix-off'}`}>
+                                              ⚡ {item.fixInputKey ? 'Assisted fix' : 'Auto-fixable'}
+                                            </span>
+                                            {item.fixInputKey && (
+                                              <span className="md-info-wrap">
+                                                <svg className="md-info-icon" width="13" height="13" viewBox="0 0 24 24" fill="none">
+                                                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                                                  <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                                </svg>
+                                                <span className="md-tooltip">{item.fixInputKey === 'ga4_measurement_id' ? 'Go to analytics.google.com → create a GA4 property → copy your Measurement ID (G-XXXXXXXXXX) → save it in Settings → Integrations → Google Analytics.' : item.fixInputKey === 'gsc_verification_code' ? 'Go to search.google.com/search-console → add property → choose HTML tag verification → copy the content value → save it in Settings → Integrations → Google Search Console.' : 'Save the required value in Settings → Integrations to enable this fix.'}</span>
+                                              </span>
+                                            )}
+                                          </span>
+                                        )}
                                         {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
                                       </div>
                                     </div>
@@ -535,12 +554,19 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                         {/* Apply fix button — only for fixable unresolved items */}
                                         {item.fixable && !aiV && item.completedBy !== 'agent' && (
                                           <div className="md-fix-row">
-                                            {githubConnected ? (
-                                              applyingFix.has(item.slug) ? (
-                                                <span className="md-fix-applying">
-                                                  <span className="md-spin" />
-                                                  Applying fix…
-                                                </span>
+                                            {(() => {
+                                              const integrationReady = !item.fixIntegrationProvider || connectedIntegrations[item.fixIntegrationProvider]
+                                              if (!githubConnected) return (
+                                                <p className="md-fix-hint">Connect GitHub in <a href="/settings" className="md-fix-hint-link">Settings</a> to apply this fix automatically.</p>
+                                              )
+                                              if (!integrationReady) return (
+                                                <p className="md-fix-hint">
+                                                  Set up {item.fixIntegrationProvider === 'google_analytics' ? 'Google Analytics' : item.fixIntegrationProvider === 'google_search_console' ? 'Google Search Console' : 'the required integration'} in{' '}
+                                                  <a href="/settings" className="md-fix-hint-link">Settings → Integrations</a> to enable this fix.
+                                                </p>
+                                              )
+                                              return applyingFix.has(item.slug) ? (
+                                                <span className="md-fix-applying"><span className="md-spin" />Applying fix…</span>
                                               ) : (
                                                 <button
                                                   className="md-fix-btn"
@@ -552,13 +578,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                                   Apply fix via GitHub
                                                 </button>
                                               )
-                                            ) : (
-                                              <p className="md-fix-hint">
-                                                Connect GitHub in{' '}
-                                                <a href="/settings" className="md-fix-hint-link">Settings</a>
-                                                {' '}to apply this fix automatically.
-                                              </p>
-                                            )}
+                                            })()}
                                           </div>
                                         )}
                                         {/* PR link — shown when this item was fixed by the agent */}
@@ -673,6 +693,22 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                               {!done && item.weight === 2 && <span className="md-tag md-tag-important">Important</span>}
                                               {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
                                               {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
+                                              {s?.fixable && !aiV && s.completedBy !== 'agent' && (
+                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                  <span className={`md-tag ${githubConnected ? 'md-tag-fix' : 'md-tag-fix-off'}`}>
+                                                    ⚡ {s.fixInputKey ? 'Assisted fix' : 'Auto-fixable'}
+                                                  </span>
+                                                  {s.fixInputKey && (
+                                                    <span className="md-info-wrap">
+                                                      <svg className="md-info-icon" width="13" height="13" viewBox="0 0 24 24" fill="none">
+                                                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                                                        <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                                      </svg>
+                                                      <span className="md-tooltip">{s.fixInputKey === 'ga4_measurement_id' ? 'Go to analytics.google.com → create a GA4 property → copy your Measurement ID (G-XXXXXXXXXX) → save it in Settings → Integrations → Google Analytics.' : s.fixInputKey === 'gsc_verification_code' ? 'Go to search.google.com/search-console → add property → choose HTML tag verification → copy the content value → save it in Settings → Integrations → Google Search Console.' : 'Save the required value in Settings → Integrations to enable this fix.'}</span>
+                                                    </span>
+                                                  )}
+                                                </span>
+                                              )}
                                               {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
                                             </div>
                                           </div>
@@ -688,12 +724,19 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                               )}
                                               {s?.fixable && !aiV && s.completedBy !== 'agent' && (
                                                 <div className="md-fix-row">
-                                                  {githubConnected ? (
-                                                    applyingFix.has(item.slug) ? (
-                                                      <span className="md-fix-applying">
-                                                        <span className="md-spin" />
-                                                        Applying fix…
-                                                      </span>
+                                                  {(() => {
+                                                    const integrationReady = !s.fixIntegrationProvider || connectedIntegrations[s.fixIntegrationProvider]
+                                                    if (!githubConnected) return (
+                                                      <p className="md-fix-hint">Connect GitHub in <a href="/settings" className="md-fix-hint-link">Settings</a> to apply this fix automatically.</p>
+                                                    )
+                                                    if (!integrationReady) return (
+                                                      <p className="md-fix-hint">
+                                                        Set up {s.fixIntegrationProvider === 'google_analytics' ? 'Google Analytics' : s.fixIntegrationProvider === 'google_search_console' ? 'Google Search Console' : 'the required integration'} in{' '}
+                                                        <a href="/settings" className="md-fix-hint-link">Settings → Integrations</a> to enable this fix.
+                                                      </p>
+                                                    )
+                                                    return applyingFix.has(item.slug) ? (
+                                                      <span className="md-fix-applying"><span className="md-spin" />Applying fix…</span>
                                                     ) : (
                                                       <button
                                                         className="md-fix-btn"
@@ -705,13 +748,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                                         Apply fix via GitHub
                                                       </button>
                                                     )
-                                                  ) : (
-                                                    <p className="md-fix-hint">
-                                                      Connect GitHub in{' '}
-                                                      <a href="/settings" className="md-fix-hint-link">Settings</a>
-                                                      {' '}to apply this fix automatically.
-                                                    </p>
-                                                  )}
+                                                  })()}
                                                 </div>
                                               )}
                                               {s?.completedBy === 'agent' && prUrl && (

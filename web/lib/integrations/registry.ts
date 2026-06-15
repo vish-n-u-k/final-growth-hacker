@@ -46,6 +46,40 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     ],
   },
   {
+    provider: 'google_analytics',
+    name: 'Google Analytics',
+    description: 'Connect GA4 so the agent can inject your tracking script directly into your codebase.',
+    type: 'api_key',
+    docsUrl: 'https://support.google.com/analytics/answer/9304153',
+    fields: [
+      {
+        key: 'ga4_measurement_id',
+        label: 'GA4 Measurement ID',
+        placeholder: 'G-XXXXXXXXXX',
+        inputType: 'text',
+        helpText: 'Found in GA4 → Admin → Data Streams → your stream → Measurement ID.',
+        isMetadata: true,
+      },
+    ],
+  },
+  {
+    provider: 'google_search_console',
+    name: 'Google Search Console',
+    description: 'Connect GSC so the agent can add the verification meta tag to your site automatically.',
+    type: 'api_key',
+    docsUrl: 'https://support.google.com/webmasters/answer/9008080',
+    fields: [
+      {
+        key: 'gsc_verification_code',
+        label: 'Verification Code',
+        placeholder: 'Paste the content value from the HTML meta tag',
+        inputType: 'text',
+        helpText: 'In GSC → Add Property → HTML tag method → copy only the content="..." value.',
+        isMetadata: true,
+      },
+    ],
+  },
+  {
     provider: 'openai',
     name: 'OpenAI',
     description: 'Store your OpenAI API key for use in upcoming AI-powered features.',

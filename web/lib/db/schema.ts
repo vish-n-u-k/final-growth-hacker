@@ -61,6 +61,8 @@ export const moduleItems = pgTable(
     userCheckedAt: timestamp('user_checked_at', { withTimezone: true }),
     completedBy: text('completed_by'),     // 'ai' | 'user' | 'agent' | null
     fixable: boolean('fixable').default(false), // true = Claude can auto-fix via GitHub
+    fixInputKey: text('fix_input_key'),                    // metadata key to read from brandIntegrations (e.g. 'ga4_measurement_id')
+    fixIntegrationProvider: text('fix_integration_provider'), // which integration to read from (e.g. 'google_analytics')
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   },
   (table) => ({

@@ -134,8 +134,9 @@ export async function POST(request: NextRequest) {
     const staticResults = results as ModuleAnalysisResult[]
     const defItemMap = new Map(getAllItems(def).map((i) => [i.slug, i]))
     await Promise.all(
-      staticResults.map((r) =>
-        db
+      staticResults.map((r) => {
+        const defItem = defItemMap.get(r.slug)
+        return db
           .update(moduleItems)
           .set({
             aiDetail: r.detail,
@@ -144,11 +145,13 @@ export async function POST(request: NextRequest) {
             aiVerified: r.verified,
             aiVerifiedAt: r.verified ? new Date() : null,
             completedBy: r.verified ? 'ai' : null,
-            fixable: defItemMap.get(r.slug)?.fixable ?? false,
+            fixable: !!(defItem?.fixable || defItem?.assistedInput),
+            fixInputKey: defItem?.assistedInput?.key ?? null,
+            fixIntegrationProvider: defItem?.assistedInput?.integrationProvider ?? null,
             updatedAt: new Date(),
           })
-          .where(and(eq(moduleItems.moduleId, moduleId), eq(moduleItems.slug, r.slug))),
-      ),
+          .where(and(eq(moduleItems.moduleId, moduleId), eq(moduleItems.slug, r.slug)))
+      }),
     )
   }
 

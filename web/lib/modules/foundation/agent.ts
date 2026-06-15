@@ -1,9 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { callAI } from '@/lib/ai/client'
 import { FOUNDATION_MODULE } from './definition'
 import { getAllItems, type ModuleAnalysisResult } from '../types'
 import type { FoundationFetchResult } from './fetcher'
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function analyzeFoundation(data: FoundationFetchResult): Promise<ModuleAnalysisResult[]> {
   const items = getAllItems(FOUNDATION_MODULE).map((item) => ({
@@ -30,14 +28,11 @@ For each check return exactly:
 
 Return ONLY a valid JSON array. No markdown, no text outside the JSON.`
 
-  const message = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 6000,
+  const raw = await callAI({
     system: FOUNDATION_MODULE.systemPrompt,
-    messages: [{ role: 'user', content: userPrompt }],
+    prompt: userPrompt,
+    maxTokens: 6000,
   })
-
-  const raw = message.content[0].type === 'text' ? message.content[0].text : '[]'
   const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
 
   let results: ModuleAnalysisResult[]

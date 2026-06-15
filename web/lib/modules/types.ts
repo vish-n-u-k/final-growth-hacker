@@ -7,6 +7,11 @@ export interface ModuleItemDefinition {
   order: number
   weight: 1 | 2 | 3
   fixable?: boolean  // true = this item can be auto-fixed via GitHub
+  assistedInput?: {  // if set, user must save this value in Settings → Integrations first
+    key: string                 // metadata key stored in brandIntegrations e.g. 'ga4_measurement_id'
+    integrationProvider: string // provider slug e.g. 'google_analytics'
+    setupInstructions: string   // tooltip: what user needs to do before fix can run
+  }
 }
 
 export interface ModuleSubCategoryDefinition {
@@ -103,6 +108,8 @@ export interface DBItemFull {
   userChecked: boolean
   completedBy: string | null
   fixable: boolean
+  fixInputKey: string | null
+  fixIntegrationProvider: string | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

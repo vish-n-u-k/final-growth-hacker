@@ -57,6 +57,7 @@ Rules:
               prompt: 'Check for <meta name="robots" content="noindex"> or any robots meta tag that would prevent Google from indexing the site. This is a critical mistake that makes the site invisible to search engines. Report what you find.',
               order: 3,
               weight: 3,
+              fixable: true,
             },
           ],
         },
@@ -71,6 +72,7 @@ Rules:
               prompt: 'Check for <meta name="viewport"> tag. Without it, the site renders broken on mobile devices. Report the tag value if found.',
               order: 1,
               weight: 2,
+              fixable: true,
             },
             {
               slug: 'no-placeholder',
@@ -101,6 +103,12 @@ Rules:
               prompt: 'Check the HTML for Google Analytics GA4 tracking code. Look for gtag.js, G-XXXXXXXX measurement IDs, or Google Tag Manager (GTM) containers which may load GA4. Report what you find. If none is detected, flag this as critical — without analytics, no growth decision can be data-driven.',
               order: 1,
               weight: 3,
+              fixable: true,
+              assistedInput: {
+                key: 'ga4_measurement_id',
+                integrationProvider: 'google_analytics',
+                setupInstructions: 'Go to analytics.google.com → create a GA4 property → copy your Measurement ID (starts with G-) → save it in Settings → Integrations → Google Analytics.',
+              },
             },
             {
               slug: 'gsc-linked',
@@ -108,6 +116,12 @@ Rules:
               prompt: 'Check for Google Search Console verification meta tags (google-site-verification) in the HTML head. Note: GSC can also be verified via DNS or file — if the meta tag is not found, state it needs manual verification. Report what you find.',
               order: 2,
               weight: 2,
+              fixable: true,
+              assistedInput: {
+                key: 'gsc_verification_code',
+                integrationProvider: 'google_search_console',
+                setupInstructions: 'Go to search.google.com/search-console → add your property → choose "HTML tag" verification → copy the content value from the meta tag shown → save it in Settings → Integrations → Google Search Console.',
+              },
             },
           ],
         },
@@ -183,6 +197,7 @@ Rules:
               prompt: 'Check the HTML <head> for a <link rel="icon"> or <link rel="shortcut icon"> tag. A missing favicon signals an unfinished or unprofessional website. Report what you find.',
               order: 1,
               weight: 1,
+              fixable: true,
             },
             {
               slug: 'business-name-clear',
@@ -197,6 +212,7 @@ Rules:
               prompt: 'Check the <title> tag. Is it set to something meaningful and specific to this business? Flag if it is empty, says "Untitled", "Home", "WordPress", or any framework default. Report the current title.',
               order: 3,
               weight: 2,
+              fixable: true,
             },
           ],
         },

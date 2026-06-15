@@ -45,6 +45,13 @@ export default async function ModulePage({
 
   const githubConnected = githubIntegration.length > 0
 
+  // Build a map of all connected integrations for the brand
+  const allIntegrations = await db.select().from(brandIntegrations).where(eq(brandIntegrations.brandId, brand.id))
+  const connectedIntegrations: Record<string, boolean> = {}
+  for (const row of allIntegrations) {
+    connectedIntegrations[row.provider] = row.status === 'connected'
+  }
+
   const moduleNavList = allModules.map((m) => ({
     id: m.id,
     type: m.type,
@@ -74,6 +81,8 @@ export default async function ModulePage({
       userChecked: item.userChecked ?? false,
       completedBy: item.completedBy,
       fixable: item.fixable ?? false,
+      fixInputKey: item.fixInputKey ?? null,
+      fixIntegrationProvider: item.fixIntegrationProvider ?? null,
     }))
 
     return (
@@ -86,6 +95,7 @@ export default async function ModulePage({
         allModules={moduleNavList}
         userEmail={user.email ?? ''}
         githubConnected={githubConnected}
+        connectedIntegrations={connectedIntegrations}
         modulePrUrl={mod.agentPrUrl ?? null}
       />
     )
@@ -103,6 +113,8 @@ export default async function ModulePage({
       userChecked: item.userChecked ?? false,
       completedBy: item.completedBy,
       fixable: item.fixable ?? false,
+      fixInputKey: item.fixInputKey ?? null,
+      fixIntegrationProvider: item.fixIntegrationProvider ?? null,
     }
   }
 
@@ -115,6 +127,7 @@ export default async function ModulePage({
       allModules={moduleNavList}
       userEmail={user.email ?? ''}
       githubConnected={githubConnected}
+      connectedIntegrations={connectedIntegrations}
       modulePrUrl={mod.agentPrUrl ?? null}
     />
   )

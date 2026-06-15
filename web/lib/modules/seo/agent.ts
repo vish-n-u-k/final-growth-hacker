@@ -1,9 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { callAI } from '@/lib/ai/client'
 import { SEO_MODULE } from './definition'
 import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } from '../types'
 import type { SeoFetchResult } from './fetcher'
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 export async function analyzeSeo(data: SeoFetchResult, brainContext?: string): Promise<DynamicModuleAnalysisResult[]> {
   const categories = SEO_MODULE.categories as DynamicModuleCategoryDefinition[]
@@ -37,14 +35,11 @@ For each issue or notable win you find, return an object with:
 
 Return ONLY a valid JSON array. No markdown fences, no text outside the array.`
 
-  const message = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 8000,
+  const raw = await callAI({
     system: SEO_MODULE.systemPrompt,
-    messages: [{ role: 'user', content: userPrompt }],
+    prompt: userPrompt,
+    maxTokens: 8000,
   })
-
-  const raw = message.content[0].type === 'text' ? message.content[0].text : '[]'
   const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
 
   let results: DynamicModuleAnalysisResult[]
