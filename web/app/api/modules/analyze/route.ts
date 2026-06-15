@@ -6,6 +6,8 @@ import { eq, and } from 'drizzle-orm'
 import { MODULE_MAP } from '@/lib/modules/registry'
 import { fetchFoundationData } from '@/lib/modules/foundation/fetcher'
 import { analyzeFoundation } from '@/lib/modules/foundation/agent'
+import { fetchWebsiteData } from '@/lib/modules/website/fetcher'
+import { analyzeWebsite } from '@/lib/modules/website/agent'
 import { fetchSeoData } from '@/lib/modules/seo/fetcher'
 import { analyzeSeo } from '@/lib/modules/seo/agent'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult } from '@/lib/modules/types'
@@ -24,6 +26,12 @@ async function runAnalysis(
       const data = await fetchFoundationData(requirements)
       if (!data.html) throw new Error(`Could not fetch ${requirements['website_url']}`)
       return analyzeFoundation(data)
+    }
+    case 'website': {
+      const data = await fetchWebsiteData(requirements)
+      if ('error' in data) throw new Error(data.error)
+      const url = requirements['website_url'] ?? ''
+      return analyzeWebsite(data, url)
     }
     case 'seo': {
       const data = await fetchSeoData(requirements)

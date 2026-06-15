@@ -20,7 +20,10 @@
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && node -e \"\nconst net = require\\('net'\\);\nconst s = net.createConnection\\({ host: 'db.vdxuebfzphbzwshitqsf.supabase.co', port: 5432 }\\);\ns.setTimeout\\(8000\\);\ns.on\\('connect', \\(\\) => { console.log\\('TCP connected'\\); s.destroy\\(\\); }\\);\ns.on\\('timeout', \\(\\) => { console.log\\('TIMEOUT'\\); s.destroy\\(\\); }\\);\ns.on\\('error', \\(e\\) => { console.log\\('ERROR:', e.message\\); }\\);\n\" 2>&1)",
       "Bash(node -e \"\nconst net = require\\('net'\\);\nconst s = net.createConnection\\({ host: 'aws-1-ap-southeast-2.pooler.supabase.com', port: 6543 }\\);\ns.setTimeout\\(8000\\);\ns.on\\('connect', \\(\\) => { console.log\\('TCP connected on 6543'\\); s.destroy\\(\\); }\\);\ns.on\\('timeout', \\(\\) => { console.log\\('TIMEOUT'\\); s.destroy\\(\\); }\\);\ns.on\\('error', \\(e\\) => { console.log\\('ERROR:', e.message\\); }\\);\n\" 2>&1)",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit 2>&1; echo \"EXIT:$?\")",
-      "Bash(find \"C:/Users/vishn/Desktop/Final Growth Hacker/web/lib\" -name \"*.ts\" 2>/dev/null | grep -v node_modules | sort)"
+      "Bash(find \"C:/Users/vishn/Desktop/Final Growth Hacker/web/lib\" -name \"*.ts\" 2>/dev/null | grep -v node_modules | sort)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm install cheerio)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit --skipLibCheck 2>&1 | head -40)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit --skipLibCheck 2>&1)"
     ]
   }
 }

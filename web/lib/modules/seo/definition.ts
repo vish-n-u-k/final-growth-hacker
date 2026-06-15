@@ -4,7 +4,7 @@ export const SEO_MODULE: ModuleDefinition = {
   type: 'seo',
   name: 'SEO Audit',
   description: 'Deep audit of on-page SEO, technical SEO, and content quality — items generated specifically for your site.',
-  order: 1,
+  order: 2,
   unlockThreshold: 70,
   dynamic: true,
   requirements: [
