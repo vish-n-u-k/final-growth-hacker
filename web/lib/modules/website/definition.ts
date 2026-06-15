@@ -147,7 +147,6 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               prompt: 'Checked by rule engine.',
               order: 4,
               weight: 1,
-              fixable: true,
             },
           ],
         },
@@ -329,7 +328,6 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               prompt: 'Checked by rule engine.',
               order: 4,
               weight: 1,
-              fixable: true,
             },
           ],
         },
@@ -377,7 +375,6 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               prompt: 'Checked by rule engine.',
               order: 4,
               weight: 2,
-              fixable: true,
             },
             {
               slug: 'robots-txt',

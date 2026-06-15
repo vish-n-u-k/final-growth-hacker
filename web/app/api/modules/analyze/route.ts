@@ -10,7 +10,9 @@ import { fetchWebsiteData } from '@/lib/modules/website/fetcher'
 import { analyzeWebsite } from '@/lib/modules/website/agent'
 import { fetchSeoData } from '@/lib/modules/seo/fetcher'
 import { analyzeSeo } from '@/lib/modules/seo/agent'
-import type { ModuleAnalysisResult, DynamicModuleAnalysisResult } from '@/lib/modules/types'
+import { fetchCompetitorAuditData } from '@/lib/modules/competitor-audit/fetcher'
+import { analyzeCompetitorAudit } from '@/lib/modules/competitor-audit/agent'
+import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
 
@@ -35,8 +37,16 @@ async function runAnalysis(
     }
     case 'seo': {
       const data = await fetchSeoData(requirements)
-      if (!data.html) throw new Error(`Could not fetch ${requirements['website_url']}`)
-      return analyzeSeo(data, brainCtx)
+      if ('error' in data) throw new Error(data.error)
+      const url = requirements['website_url'] ?? ''
+      return analyzeSeo(data, url, brainCtx)
+    }
+    case 'competitor-audit': {
+      if (!requirements['competitor_urls']) {
+        throw new Error('No competitor URLs provided. Add at least one competitor URL to run this audit.')
+      }
+      const data = await fetchCompetitorAuditData(requirements, requirements['website_url'])
+      return analyzeCompetitorAudit(data, brainCtx)
     }
     default:
       throw new Error(`No analyzer registered for module type: ${moduleType}`)
@@ -50,10 +60,21 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { moduleId } = await request.json()
+  const body = await request.json()
+  const { moduleId, requirements: incomingRequirements } = body as {
+    moduleId: string
+    requirements?: Record<string, string>
+  }
 
   const [mod] = await db.select().from(modules).where(eq(modules.id, moduleId))
   if (!mod) return NextResponse.json({ error: 'Module not found' }, { status: 404 })
+
+  // If the caller is passing new requirement values (e.g. competitor URLs), merge and save them
+  if (incomingRequirements && Object.keys(incomingRequirements).length > 0) {
+    const merged = { ...(mod.requirements as Record<string, string> | null ?? {}), ...incomingRequirements }
+    await db.update(modules).set({ requirements: merged }).where(eq(modules.id, moduleId))
+    mod.requirements = merged
+  }
 
   const [brand] = await db.select().from(brands).where(eq(brands.id, mod.brandId))
   if (!brand || brand.userId !== user.id) {
@@ -75,9 +96,15 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Ensure website_url is always available in requirements (some modules like competitor-audit need it for comparison)
+  const baseRequirements = (mod.requirements as Record<string, string> | null) ?? {}
+  const requirements = brand.websiteUrl && !baseRequirements['website_url']
+    ? { ...baseRequirements, website_url: brand.websiteUrl }
+    : baseRequirements
+
   let results: ModuleAnalysisResult[] | DynamicModuleAnalysisResult[]
   try {
-    results = await runAnalysis(mod.type, (mod.requirements as Record<string, string>) ?? {}, brainCtx)
+    results = await runAnalysis(mod.type, requirements, brainCtx)
   } catch (err) {
     await db.update(modules).set({ status: 'pending' }).where(eq(modules.id, moduleId))
     console.error('Module analysis failed:', err)
@@ -133,6 +160,36 @@ export async function POST(request: NextRequest) {
     // ── Static module: items pre-seeded, update findings by slug ──────────
     const staticResults = results as ModuleAnalysisResult[]
     const defItemMap = new Map(getAllItems(def).map((i) => [i.slug, i]))
+
+    // Handle migration: if expected slugs are missing (e.g. module was previously dynamic),
+    // wipe stale items/categories and re-seed the structure from the current definition
+    const expectedSlugs = [...defItemMap.keys()]
+    if (expectedSlugs.length > 0) {
+      const existingForModule = await db.select({ slug: moduleItems.slug }).from(moduleItems).where(eq(moduleItems.moduleId, moduleId))
+      const hasExpectedItem = existingForModule.some((i) => expectedSlugs.includes(i.slug))
+      if (!hasExpectedItem) {
+        await db.delete(moduleItems).where(eq(moduleItems.moduleId, moduleId))
+        await db.delete(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+        // Re-seed categories and items from definition
+        for (const cat of def.categories as ModuleCategoryDefinition[]) {
+          // eslint-disable-next-line no-await-in-loop
+          const [parentCat] = await db.insert(moduleCategories)
+            .values({ moduleId, parentId: null, slug: cat.slug, label: cat.label, order: cat.order })
+            .returning()
+          for (const sub of cat.subCategories) {
+            // eslint-disable-next-line no-await-in-loop
+            const [subCat] = await db.insert(moduleCategories)
+              .values({ moduleId, parentId: parentCat.id, slug: sub.slug, label: sub.label, order: sub.order })
+              .returning()
+            for (const item of sub.items) {
+              // eslint-disable-next-line no-await-in-loop
+              await db.insert(moduleItems).values({ moduleId, categoryId: subCat.id, slug: item.slug, label: item.label, weight: item.weight })
+            }
+          }
+        }
+      }
+    }
+
     await Promise.all(
       staticResults.map((r) => {
         const defItem = defItemMap.get(r.slug)

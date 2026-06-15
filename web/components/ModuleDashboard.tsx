@@ -29,7 +29,7 @@ interface ModuleSummary {
 
 interface Props {
   brand: { id: string; name: string }
-  module: { id: string; type: string; name: string; status: string; lastAnalyzedAt: string | null }
+  module: { id: string; type: string; name: string; status: string; lastAnalyzedAt: string | null; requirements: Record<string, string> }
   definition: ModuleDefinition
   itemStates: Record<string, DBItemState>   // static modules: keyed by slug
   fullItems?: DBItemFull[]                  // dynamic modules: full item rows from DB
@@ -131,12 +131,20 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
   const [applyingFix, setApplyingFix] = useState<Set<string>>(new Set())
   const [prUrl, setPrUrl] = useState<string | null>(initialPrUrl)
   const [reanalyzing, setReanalyzing] = useState(false)
+  const [reqValues, setReqValues] = useState<Record<string, string>>(mod.requirements ?? {})
+  const [setupError, setSetupError] = useState<string | null>(null)
   const [userCount, setUserCount] = useState<number>(() => {
     if (typeof window === 'undefined') return 0
     return parseInt(localStorage.getItem('gh_user_count') ?? '0', 10) || 0
   })
   const [editingCount, setEditingCount] = useState(false)
   const router = useRouter()
+
+  // Whether any required requirement is missing a value
+  const missingRequirements = def.requirements.filter(
+    (r) => r.required !== false && !reqValues[r.key]?.trim(),
+  )
+  const needsSetup = missingRequirements.length > 0
 
   const overall = def.dynamic ? getDynamicOverall(dynItems) : getOverall(def, states)
 
@@ -213,15 +221,25 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
     [def.dynamic],
   )
 
-  const handleReanalyze = async () => {
+  const handleReanalyze = async (overrideReqs?: Record<string, string>) => {
+    setSetupError(null)
     setReanalyzing(true)
+    const body: Record<string, unknown> = { moduleId: mod.id }
+    const reqs = overrideReqs ?? reqValues
+    const nonEmpty = Object.fromEntries(Object.entries(reqs).filter(([, v]) => v.trim()))
+    if (Object.keys(nonEmpty).length > 0) body.requirements = nonEmpty
     const res = await fetch('/api/modules/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ moduleId: mod.id }),
+      body: JSON.stringify(body),
     })
-    if (res.ok) router.refresh()
-    else setReanalyzing(false)
+    if (res.ok) {
+      router.refresh()
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setSetupError((data as { error?: string }).error ?? 'Analysis failed. Please try again.')
+      setReanalyzing(false)
+    }
     setReanalyzing(false)
   }
 
@@ -447,8 +465,64 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
           </div>
         </div>
 
+        {/* Requirements setup — shown when module has unfilled required inputs */}
+        {needsSetup && (
+          <div className="md-setup-card">
+            <div className="md-setup-title">Set up {def.name}</div>
+            <p className="md-setup-desc">Provide the information below before running the analysis.</p>
+            <div className="md-setup-fields">
+              {def.requirements.map((req) => (
+                <div key={req.key} className="md-setup-field">
+                  <label className="md-setup-label">
+                    {req.label}
+                    {req.required !== false && <span className="md-setup-required"> *</span>}
+                  </label>
+                  {req.type === 'url_list' || req.type === 'text_list' ? (
+                    <textarea
+                      className="md-setup-input md-setup-textarea"
+                      placeholder={req.placeholder}
+                      value={reqValues[req.key] ?? ''}
+                      onChange={(e) => setReqValues((prev) => ({ ...prev, [req.key]: e.target.value }))}
+                      rows={3}
+                    />
+                  ) : (
+                    <input
+                      className="md-setup-input"
+                      type={req.type === 'url' ? 'url' : 'text'}
+                      placeholder={req.placeholder}
+                      value={reqValues[req.key] ?? ''}
+                      onChange={(e) => setReqValues((prev) => ({ ...prev, [req.key]: e.target.value }))}
+                    />
+                  )}
+                  {(req.type === 'url_list' || req.type === 'text_list') && (
+                    <span className="md-setup-hint">Separate multiple values with commas</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            {setupError && <p className="md-setup-error">{setupError}</p>}
+            <button
+              className="md-btn-reanalyze"
+              disabled={reanalyzing || missingRequirements.length > 0}
+              onClick={() => handleReanalyze(reqValues)}
+              style={{ marginTop: '12px' }}
+            >
+              {reanalyzing ? (
+                <><span className="md-spin" />Analysing…</>
+              ) : (
+                <>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 12h4l2-6 3 12 2-6h3" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Run Analysis
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
         {/* Categories */}
-        <div className="md-cats">
+        <div className="md-cats" style={needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
           {def.dynamic
             ? /* ── Dynamic module: items come from DB grouped by category ── */
               def.categories.map((cat) => {

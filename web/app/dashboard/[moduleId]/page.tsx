@@ -88,7 +88,7 @@ export default async function ModulePage({
     return (
       <ModuleDashboard
         brand={{ id: brand.id, name: brand.name }}
-        module={{ id: mod.id, type: mod.type, name: mod.name, status: mod.status, lastAnalyzedAt: mod.lastAnalyzedAt?.toISOString() ?? null }}
+        module={{ id: mod.id, type: mod.type, name: mod.name, status: mod.status, lastAnalyzedAt: mod.lastAnalyzedAt?.toISOString() ?? null, requirements: (mod.requirements as Record<string, string> | null) ?? {} }}
         definition={def}
         itemStates={{}}
         fullItems={fullItems}
@@ -121,7 +121,7 @@ export default async function ModulePage({
   return (
     <ModuleDashboard
       brand={{ id: brand.id, name: brand.name }}
-      module={{ id: mod.id, type: mod.type, name: mod.name, status: mod.status, lastAnalyzedAt: mod.lastAnalyzedAt?.toISOString() ?? null }}
+      module={{ id: mod.id, type: mod.type, name: mod.name, status: mod.status, lastAnalyzedAt: mod.lastAnalyzedAt?.toISOString() ?? null, requirements: (mod.requirements as Record<string, string> | null) ?? {} }}
       definition={def}
       itemStates={itemStates}
       allModules={moduleNavList}

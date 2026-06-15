@@ -559,6 +559,35 @@ header {
 }
 .md-info-wrap:hover .md-tooltip { visibility: visible; opacity: 1; }
 
+/* ── Module Requirements Setup Card ─────────────────────────────────────── */
+
+.md-setup-card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: 16px; padding: 24px; margin-bottom: 16px;
+}
+.md-setup-title {
+  font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px;
+}
+.md-setup-desc {
+  font-size: 13px; color: var(--text-dim); margin-bottom: 20px; line-height: 1.5;
+}
+.md-setup-fields { display: flex; flex-direction: column; gap: 16px; }
+.md-setup-field { display: flex; flex-direction: column; gap: 6px; }
+.md-setup-label {
+  font-size: 12.5px; font-weight: 500; color: var(--text-dim); letter-spacing: 0.02em;
+}
+.md-setup-required { color: #e05252; }
+.md-setup-input {
+  background: #0d1f18; border: 1px solid var(--line); border-radius: 8px;
+  padding: 9px 12px; font-size: 13px; color: var(--text); font-family: inherit;
+  outline: none; transition: border-color 0.15s ease;
+  width: 100%;
+}
+.md-setup-input:focus { border-color: var(--green); }
+.md-setup-textarea { resize: vertical; min-height: 72px; }
+.md-setup-hint { font-size: 11.5px; color: var(--text-faint); }
+.md-setup-error { font-size: 12.5px; color: #e05252; margin-top: 10px; }
+
 /* ── Social Media Panel (in MarketingDashboard) ─────────────────────────── */
 
 .sm-panel {

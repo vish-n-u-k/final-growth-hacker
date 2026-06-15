@@ -1,68 +1,98 @@
 import { callAI } from '@/lib/ai/client'
+import type { SeoAuditResult } from '@/lib/audit/seo-audit'
+import type { ModuleAnalysisResult } from '../types'
 import { SEO_MODULE } from './definition'
-import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } from '../types'
-import type { SeoFetchResult } from './fetcher'
+import { getAllItems } from '../types'
 
-export async function analyzeSeo(data: SeoFetchResult, brainContext?: string): Promise<DynamicModuleAnalysisResult[]> {
-  const categories = SEO_MODULE.categories as DynamicModuleCategoryDefinition[]
+function buildFindingMap(audit: SeoAuditResult): Map<string, { text: string; level: string; fix?: string }> {
+  const map = new Map<string, { text: string; level: string; fix?: string }>()
+  for (const finding of audit.findings) {
+    map.set(finding.key, { text: finding.text, level: finding.level, fix: finding.fix })
+  }
+  return map
+}
 
-  const userPrompt = `${brainContext ? `=== What we already know about this brand ===\n${brainContext}\n\n` : ''}Audit this website and generate specific, relevant checklist items for each category below.
+async function generateNarratives(
+  websiteUrl: string,
+  failedItems: { slug: string; label: string; detail: string; action: string }[],
+): Promise<Map<string, string>> {
+  if (failedItems.length === 0) return new Map()
 
-URL: ${data.url}
-
-=== HTML (full head + truncated body) ===
-${data.html || 'Unable to fetch — flag all checks as needing manual review'}
-
-=== robots.txt ===
-${data.robotsTxt ?? 'Not found'}
-
-=== sitemap.xml ===
-${data.sitemapXml ?? 'Not found'}
-
-=== Categories to audit ===
-${categories.map((c) => `Category slug: "${c.slug}"\nLabel: "${c.label}"\nWhat to check: ${c.prompt}`).join('\n\n')}
-
-For each issue or notable win you find, return an object with:
-- "category": string — exactly one of: ${categories.map((c) => `"${c.slug}"`).join(', ')}
-- "slug": string — kebab-case, unique, stable (e.g. "seo-missing-meta-description", "seo-title-too-long")
-- "label": string — short, specific label for this checklist item (e.g. "Homepage title tag is 82 characters — too long")
-- "weight": number — 1, 2, or 3 only
-- "detail": string — one sentence with the exact finding and actual values from the site
-- "narrative": string — 2–3 sentences explaining why this matters for this specific site's SEO
-- "action": string — one specific, immediately actionable instruction starting with a verb, with exact values or code where useful
-- "verified": boolean — true if this is a pass, false if it needs fixing
-- "fixable": boolean — true ONLY if this fix is a safe, targeted change to one of: <title> tag, <meta name="description">, canonical link, Open Graph tags (og:*), Twitter card meta tags, robots meta tag, viewport meta tag, or JSON-LD structured data. Set false for anything structural, content-related, URL-based, or that requires framework config changes.
-
-Return ONLY a valid JSON array. No markdown fences, no text outside the array.`
+  const itemList = failedItems
+    .map((i, idx) => `${idx + 1}. [${i.slug}] ${i.label}\n   Finding: ${i.detail}\n   Fix: ${i.action || 'No specific fix available'}`)
+    .join('\n\n')
 
   const raw = await callAI({
     system: SEO_MODULE.systemPrompt,
-    prompt: userPrompt,
-    maxTokens: 8000,
+    prompt: `Website: ${websiteUrl}
+
+For each failing SEO check below, write 1–2 sentences of business impact — why this specific issue hurts search rankings, click-through rates, or organic traffic. Be concrete, not generic.
+
+${itemList}
+
+Return ONLY a valid JSON array:
+[{ "slug": "...", "narrative": "..." }, ...]
+No markdown fences, no text outside the array.`,
+    maxTokens: 4000,
   })
+
   const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
-
-  let results: DynamicModuleAnalysisResult[]
   try {
-    results = JSON.parse(clean)
+    const rows = JSON.parse(clean) as { slug: string; narrative: string }[]
+    return new Map(rows.filter((r) => r.slug && r.narrative).map((r) => [r.slug, r.narrative]))
   } catch {
-    throw new Error(`SEO agent returned invalid JSON: ${clean.slice(0, 200)}`)
+    return new Map()
   }
+}
 
-  const validCategories = new Set(categories.map((c) => c.slug))
+export async function analyzeSeo(
+  audit: SeoAuditResult,
+  websiteUrl: string,
+  brainContext?: string,
+): Promise<ModuleAnalysisResult[]> {
+  const findingMap = buildFindingMap(audit)
+  const allItems = getAllItems(SEO_MODULE)
 
-  return results
-    .filter(
-      (r) =>
-        typeof r.category === 'string' &&
-        validCategories.has(r.category) &&
-        typeof r.slug === 'string' &&
-        typeof r.label === 'string' &&
-        (r.weight === 1 || r.weight === 2 || r.weight === 3) &&
-        typeof r.detail === 'string' &&
-        typeof r.narrative === 'string' &&
-        typeof r.action === 'string' &&
-        typeof r.verified === 'boolean',
-    )
-    .map((r) => ({ ...r, fixable: r.fixable === true }))
+  const baseResults: (ModuleAnalysisResult & { isFail: boolean })[] = allItems.map((item) => {
+    const finding = findingMap.get(item.slug)
+
+    if (!finding) {
+      // Item wasn't returned by engine (e.g. no images on page → image checks return nothing)
+      return {
+        slug: item.slug,
+        detail: 'Could not be checked automatically for this page.',
+        narrative: '',
+        action: '',
+        verified: false,
+        isFail: false,
+      }
+    }
+
+    const verified = finding.level === 'good' || finding.level === 'info'
+    return {
+      slug: item.slug,
+      detail: finding.text,
+      narrative: '',
+      action: finding.fix ?? '',
+      verified,
+      isFail: !verified,
+    }
+  })
+
+  // Generate narratives for failing items in one batch call
+  const failedItems = baseResults
+    .filter((r) => r.isFail)
+    .map((r) => ({
+      slug: r.slug,
+      label: allItems.find((i) => i.slug === r.slug)?.label ?? r.slug,
+      detail: r.detail,
+      action: r.action,
+    }))
+
+  const narrativeMap = await generateNarratives(websiteUrl, failedItems)
+
+  return baseResults.map(({ isFail: _, ...r }) => ({
+    ...r,
+    narrative: narrativeMap.get(r.slug) ?? '',
+  }))
 }

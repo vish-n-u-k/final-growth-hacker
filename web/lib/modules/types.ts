@@ -51,8 +51,9 @@ export function isDynamicCategory(
 export interface ModuleRequirement {
   key: string
   label: string
-  type: 'url' | 'text'
+  type: 'url' | 'text' | 'url_list' | 'text_list'
   placeholder?: string
+  required?: boolean  // defaults to true if not specified
 }
 
 // ── The full definition every module must export ──────────────────────────────
