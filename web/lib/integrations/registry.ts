@@ -80,6 +80,30 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     ],
   },
   {
+    provider: 'brand_assets',
+    name: 'Brand Assets',
+    description: 'Provide asset URLs (OG image, logo) so auto-fix can produce complete results instead of partial ones.',
+    type: 'api_key',
+    fields: [
+      {
+        key: 'og_image_url',
+        label: 'OG Image URL',
+        placeholder: 'https://yourdomain.com/og-image.jpg',
+        inputType: 'url',
+        helpText: 'A 1200×630px image used when your pages are shared on social media. Required for a complete og:image fix.',
+        isMetadata: true,
+      },
+      {
+        key: 'logo_url',
+        label: 'Logo URL',
+        placeholder: 'https://yourdomain.com/logo.png',
+        inputType: 'url',
+        helpText: 'Your brand logo URL, included in JSON-LD structured data for search engines.',
+        isMetadata: true,
+      },
+    ],
+  },
+  {
     provider: 'openai',
     name: 'OpenAI',
     description: 'Store your OpenAI API key for use in upcoming AI-powered features.',

@@ -6,136 +6,303 @@ Copy and paste everything below this line into Claude chat.
 
 ## Your task
 
-You are helping build a modular growth audit tool. I need you to generate a structured `.md` specification file for a new audit module. The developer will use this file to wire it into the app — so every field must be precise, complete, and follow the format exactly.
+You are helping build a modular growth audit tool. I need you to generate a structured `.md` specification file for a new audit module. A developer will use this file to wire it directly into the app — so every field must be precise, complete, and developer-ready. No placeholders, no hand-waving.
 
-Read all the context below before you start. Then ask me the questions at the bottom, one section at a time, and produce the final `.md` file when you have everything you need.
+Read all the context below carefully. Then ask me the questions at the bottom **one section at a time**, waiting for my answer before continuing. If any answer is unclear or incomplete, ask a follow-up before moving on. Once you have everything, produce the final `.md` file.
 
 ---
 
 ## App context
 
-The app runs a series of audit modules for a business. Each module checks a specific domain (website, SEO, social media, Google Ads, email, etc.). Modules unlock in sequence — the user must reach a score threshold on the previous module before the next one becomes available.
+The app runs a series of audit modules for a business. Each module checks a specific domain (website SEO, competitor landscape, social media, Google Ads, email, etc.). Modules unlock in sequence — the user must reach a score threshold on the previous module before the next one becomes available.
 
-Every module produces a scored checklist that the user works through. Items can be evaluated by AI (by fetching the site/profile/data and analysing it) or checked manually by the user.
+Every module produces a scored checklist. Items can be:
+- Evaluated automatically (by fetching public data and running checks)
+- Checked manually by the user (toggling a checkbox in the dashboard)
+- Flagged as informational (checks that require a full crawl, external API, or human judgment — these are surfaced as guidance, not scored failures)
 
----
-
-## Two module modes
-
-### Static mode
-The checklist items are fixed and defined in advance. Claude evaluates each pre-defined item and returns a pass/fail with explanation. Good for audits where the checks are always the same regardless of the business (e.g. "Does the site have a title tag?" is always relevant).
-
-### Dynamic mode
-Claude generates the checklist items itself based on what it actually finds. The categories are fixed but the items inside them are generated per-site. Good for audits where findings are highly variable (e.g. SEO issues vary per site — one site has a missing meta description, another has duplicate H1s).
+### Module chain so far
+```
+Foundation (0) → Website Audit (1) → SEO Audit (2) → Competitor Audit (3) → [next module here]
+```
 
 ---
 
-## Output format I need
+## Three module modes
 
-Produce a `.md` file with exactly this structure:
+### Mode A — Rule Engine + AI Narratives (static items, deterministic checks)
+Used by: Website Audit, SEO Audit.
+
+The checklist items are **fixed and defined in advance**. A deterministic JavaScript rule engine (using Cheerio, fetch, TLS, etc.) makes every pass/fail decision from the fetched data. Claude is called **once at the end**, only to write 1–2 sentence business-impact narratives for failing items. Claude does NOT make any pass/fail decisions.
+
+Choose this mode when:
+- The checks are always the same regardless of the business
+- Each check has a clear, objective pass/fail condition (e.g. "title tag is 50–60 chars" — measurable in code)
+- You want consistent, reproducible results that don't vary between runs on the same data
+
+### Mode B — AI Evaluates Static Items (static items, Claude decides)
+Used by: Foundation Audit.
+
+The checklist items are **fixed and defined in advance**. Claude receives the fetched data and evaluates each pre-defined item, deciding pass/fail and writing a detail sentence. No separate rule engine.
+
+Choose this mode when:
+- The checks are always the same across businesses
+- But the pass/fail condition requires judgment Claude is better at (e.g. "Does the homepage clearly explain the value proposition?" — subjective)
+
+### Mode C — AI Generates Items Dynamically (Claude generates items + evaluates)
+Used by: Competitor Audit.
+
+The category structure is fixed, but Claude generates the actual checklist items based on what it finds. No pre-defined item slugs. Claude decides what to surface, how to label it, and whether it passes or fails.
+
+Choose this mode when:
+- Findings are highly variable between businesses (one competitor is weak on SEO, another on pricing, another on social — you can't predict what will matter)
+- A fixed checklist would miss the point
+
+---
+
+## How data flows through a module
+
+Every module has three files:
+
+1. **fetcher** — fetches raw data from the web (HTML, API response, XML, etc.) and returns a structured object
+2. **agent** — receives the fetched data and produces results per item (using rule engine + Claude, or Claude alone)
+3. **definition** — declares the module metadata, requirements, categories, and items (static modes) or category prompts (dynamic mode)
+
+The spec you produce must give the developer everything they need to write all three files without making assumptions.
+
+---
+
+## Requirement input types
+
+These are the input fields shown to the user before analysis can run:
+
+| Type | Use when |
+|------|----------|
+| `url` | Single URL (e.g. website homepage) |
+| `text` | Single free-text value (e.g. brand name, target keyword) |
+| `url_list` | Multiple URLs, one per line (e.g. competitor URLs) |
+| `text_list` | Multiple text values, comma-separated (e.g. target keywords) |
+
+Mark each requirement as `required: yes` or `required: no` (optional requirements are shown but analysis can run without them).
+
+---
+
+## Info-level items (important concept)
+
+Some checks cannot be done from a single page fetch. They require:
+- A full site crawl (e.g. finding orphan pages, checking all internal links)
+- An external API with credentials (e.g. Google PageSpeed Insights, Facebook Graph API)
+- Human judgment (e.g. "does this design feel trustworthy?")
+
+These items should still appear in the checklist as **info-level** — they surface guidance and recommended next steps, but they always count as "passed" so they don't penalise the score for something the system can't check. The finding text should tell the user what to check manually and how.
+
+In the spec, mark these items as: `Level: info`
+
+---
+
+## Fixable flag — precise definition
+
+Mark `Fixable: yes` **only** when all three of these are true:
+1. The fix is a change to a single HTML tag, meta tag, or JSON-LD block (e.g. adding `<title>`, updating `<meta name="description">`, adding OG tags, fixing canonical href)
+2. The fix could be made as an automated GitHub PR with no human judgment required
+3. The change is safe to apply without knowing anything about the site's framework or CMS
+
+**Do not mark fixable for:** copy changes, design decisions, adding pages, configuring servers, changing URL structures, anything that requires knowing the tech stack, or anything structural.
+
+---
+
+## Weight guide
+
+| Weight | Meaning | Examples |
+|--------|---------|---------|
+| 3 — Critical | Directly blocks ranking, indexing, or conversions. Fix immediately. | No title tag, noindex on live page, SSL invalid, no CTA |
+| 2 — Important | Meaningfully hurts performance if left. Fix soon. | Missing meta description, no sitemap, weak heading structure |
+| 1 — Minor | Nice to have. Small uplift when fixed. | Twitter card tags, image lazy loading, brand in title |
+
+---
+
+## Output format
+
+Produce a `.md` file with exactly this structure. Do not add or remove sections.
 
 ```
 # Module: [Name]
 
 ## Metadata
-- Type: [slug] — lowercase kebab-case, used in DB and URLs (e.g. seo, social-instagram, google-ads)
-- Name: [Display name shown in the dashboard navigation]
-- Description: [One sentence shown below the module name. What does this module audit?]
-- Order: [Integer. Position in the module sequence. Foundation=0, Website=1, SEO=2, next is 3, etc.]
-- Unlock threshold: [0–100. The score the PREVIOUS module must reach before this one unlocks. Use 0 if always unlocked.]
-- Mode: [static | dynamic]
+- Type: [slug] — lowercase kebab-case (e.g. seo, google-ads, email-marketing)
+- Name: [Display name shown in the dashboard]
+- Description: [One sentence. What does this module audit?]
+- Order: [Integer — position in module sequence]
+- Unlock threshold: [0–100 — score the previous module must reach]
+- Mode: [A — Rule Engine + AI Narratives | B — AI Evaluates Static | C — AI Dynamic]
 
-## Data requirements
-[List every piece of input the module needs from the user before it can run an analysis.
-Format each as:]
-- Key: [machine key, e.g. website_url]
-  Label: [Human label shown in the UI, e.g. "Your website URL"]
-  Type: [url | text]
-  Placeholder: [Example value shown in the input field]
+## Requirements
+[Every input the module needs from the user before it can run.]
+
+- Key: [machine_key]
+  Label: [Human-readable label shown in UI]
+  Type: [url | text | url_list | text_list]
+  Required: [yes | no]
+  Placeholder: [Example value]
+
+## Data fetching
+
+### What to fetch
+[List every HTTP request the fetcher must make. For each one:]
+- URL pattern: [e.g. the page itself, {origin}/robots.txt, an API endpoint]
+- Method: [GET | HEAD | POST]
+- Auth required: [none | API key (env var name) | OAuth | user-provided credential]
+- Format returned: [HTML | JSON | XML | plain text | binary]
+- How much to use: [full response | first N chars | specific fields]
+- Timeout: [recommended ms]
+
+### What to do if fetch fails
+[Describe the fallback for each fetch. Options: throw error and abort analysis | return partial result | mark affected items as info-level | show specific error message to user]
+
+### Structured result shape
+[Show the TypeScript interface the fetcher returns. Be exact — the agent depends on this.]
+
+```typescript
+interface [ModuleName]FetchResult {
+  // ...
+}
+```
 
 ## System prompt
-[Write the AI persona and rules in full. This is what Claude receives as the system prompt
-when it analyses this module. Be specific about:
-- The role/persona Claude takes on
-- The tone (direct, consultant-style, etc.)
-- The rules Claude must follow (e.g. only report what you can verify, be specific, no generic advice)
-- What "pass" vs "fail" means in this context]
+[The AI persona and rules. Sent to Claude as the system prompt for this module's analysis.
+Specify:
+- Role and expertise Claude takes on
+- Tone (direct, consultant, technical, etc.)
+- Core rules (e.g. only report what you can verify, reference exact values, no generic advice)
+- What "pass" means vs "fail" vs "info" in this context
+- Any output format constraints]
 
 ## Categories
-[List all categories. For each category:]
 
-### [Category order]. [Category Label]
+[For each category, follow the format for your chosen mode:]
+
+---
+
+### [N]. [Category Label]
 Slug: [category-slug]
 
-[IF STATIC MODE — add sub-categories and items:]
+[MODE A or B — Static items:]
 
 #### [Sub-category Label]
 Slug: [sub-category-slug]
 
 Items:
-| Order | Label | Slug | Weight | Fixable | Prompt |
-|-------|-------|------|--------|---------|--------|
-| 1 | [Short checklist label] | [kebab-case-slug] | [1/2/3] | [yes/no] | [What Claude checks. Be specific — reference exact HTML tags, attributes, values, or data to look for. Tell Claude what a pass looks like and what a fail looks like.] |
-| 2 | ... | ... | ... | ... | ... |
+| Slug | Label | Weight | Level | Fixable | Check logic (rule engine) | Pass condition | Fail condition |
+|------|-------|--------|-------|---------|--------------------------|----------------|----------------|
+| [kebab.slug] | [Short checklist label] | [1/2/3] | [good/bad/ok/info] | [yes/no] | [Exact code logic: what field/attribute/value to read from the fetched data] | [What the result looks like when passing] | [What the result looks like when failing + what fix text to return] |
 
-[IF DYNAMIC MODE — add only a category prompt, no items:]
+[MODE C — Dynamic items:]
 
 Category prompt:
-[Detailed instructions for what Claude should look for within this category.
-Tell it: which specific signals to check, what data to reference (HTML, API response, profile page),
-what to count or measure, what constitutes a finding worth reporting, and what weight to assign.
-Claude will generate 3–8 items per category based on what it actually finds.]
+[Detailed instructions for Claude for this category. Include:
+- What signals to look for in the fetched data
+- What constitutes a finding worth surfacing (specific, not generic)
+- How to weight findings (critical/important/minor)
+- What "verified: true" means here (a genuine positive, not absence of a problem)
+- Slug format to use (e.g. "competitor-[signal]-[finding]")]
+
+---
+
+## Edge cases
+[Describe how the module should behave in unusual situations. For each:]
+- Scenario: [what happens]
+  Handling: [what the fetcher/agent should do]
+
+## Known limitations
+[List checks that CANNOT be done automatically with a single page fetch and why. For each:]
+- Check: [what would ideally be checked]
+  Reason it's info-level: [why it can't be automated]
+  Guidance text: [what the info-level finding text should say to the user]
 ```
 
 ---
 
-## Weight guide (for static mode items and dynamic mode item generation)
+## Questions — ask these in order, one section at a time
 
-| Weight | Meaning | Examples |
-|--------|---------|---------|
-| 3 — Critical | Missing this directly blocks growth, visibility, or conversions | No title tag, site not indexed, no CTA, SSL invalid |
-| 2 — Important | Fix soon; meaningfully hurts performance if left unfixed | Missing meta description, no sitemap, low social proof |
-| 1 — Minor | Nice to have; small uplift | Twitter card tags, favicon, image file names |
+Before writing the spec, ask me the following. Wait for my full answer before moving to the next question. If something is ambiguous, ask a follow-up.
 
 ---
 
-## Fixable flag (static mode only)
-
-Mark `fixable: yes` only for items where the fix is a direct code/config change that a developer could automate (e.g. adding a meta tag, canonical URL, robots.txt entry, OG tag). Do NOT mark fixable for things that require human judgment (copy, strategy, design decisions).
-
----
-
-## Slug rules
-
-- All slugs are kebab-case, lowercase, no spaces
-- Category slugs should reflect the grouping (e.g. `on-page-seo`, `profile-branding`)
-- Item slugs must be stable — the same logical check should always use the same slug so re-runs can upsert rather than duplicate
-- Item slugs should be unique within the module
+**1. Module topic**
+What does this module audit? Give me:
+- A short description of what it covers
+- Who the target audience is (the business owner? their developer? their marketing team?)
+- What outcome the user should have after completing this module (what do they know / what have they fixed?)
 
 ---
 
-## Questions to ask me before writing the spec
+**2. Position and unlock**
+- Where in the module sequence does this sit? (Current chain: Foundation → Website → SEO → Competitor → ?)
+- What score does the previous module need to reach before this one unlocks? (Use 0 if it should always be available or unlock immediately)
 
-Ask me these in order. Wait for my answer before moving to the next section.
+---
 
-1. **Module topic**: What does this module audit? Give me a short description of what it covers.
+**3. Mode selection**
+Based on the module topic, I'll suggest a mode — but confirm with me:
+- Are the checks always the same for every business, or do they vary significantly per site/account?
+- For each check, is the pass/fail condition objectively measurable (e.g. a character count, a tag being present) — or does it require judgment?
+- Suggested mode: [I will suggest one based on answers above]
 
-2. **Mode**: Should this be static (fixed checklist, same items for every business) or dynamic (Claude generates items based on what it finds)?
+---
 
-3. **Position and unlock**: What order should this module appear in the sequence? What score does the previous module need to reach before this one unlocks? (If this is always available, say 0.)
+**4. Data requirements — user inputs**
+What does the module need the user to provide before analysis can run?
+For each input:
+- What is it? (e.g. their Google Ads account ID, their Instagram handle, a list of target keywords)
+- Is it a single value or multiple values?
+- Is it required or optional?
+- Will the system be able to auto-fill it from what was already collected at onboarding (website URL, brand name)?
 
-4. **Data needed**: What information does the module need from the user to run the analysis? (e.g. website URL, Instagram profile URL, Google Ads account ID) For each piece of data, give me the label and an example placeholder.
+---
 
-5. **AI persona**: What role should Claude take when auditing this module? Describe the tone, the standard it holds things to, and any specific rules (e.g. "only report what you can verify from the data fetched", "reference exact values found").
+**5. Data fetching**
+This is the most critical section. For the module to run automatically, the data must be publicly fetchable or accessible via an API key the user provides.
 
-6. **Categories**: List the top-level categories for this module. These are the sections the checklist is grouped into (e.g. "Profile & Branding", "Content Performance", "Engagement"). Aim for 3–6 categories.
+For each data source the module needs:
+- What is the URL or endpoint?
+- Is it publicly accessible without auth, or does it need an API key / OAuth token?
+  - If API key: which service? What env var name? Is there a free tier?
+  - If OAuth: which provider? What scopes are needed?
+- What format does it return? (HTML page, JSON API, XML feed, etc.)
+- Are there rate limits or bot detection that could block automated fetches?
+- What should happen if this fetch fails — abort the whole analysis, or continue with partial data?
 
-7. **Items per category** (if static): For each category, list the specific checks. For each check give me: what it looks for, what a pass looks like, what a fail looks like, and how critical it is (critical/important/minor).
+If any data source is not publicly accessible and requires credentials the user must provide, flag this — it changes the requirement type to a credential input, not a URL.
 
-   OR
+---
 
-   **Category focus** (if dynamic): For each category, describe in detail what Claude should look for within it. What signals matter? What should it count or measure? What makes something worth flagging?
+**6. Checks and categories**
+List the top-level categories for this module (aim for 3–6). For each category:
+- Category name and what it covers
+- The specific checks within it
 
-8. **Edge cases**: Are there any scenarios the AI should handle specially? (e.g. "if the profile is private, flag all social checks as unverifiable", "if no ads are running, mark the whole module as not applicable")
+For each check, tell me:
+- What exactly are you checking? (Be specific — reference the exact field, tag, attribute, metric, or value)
+- What does a pass look like?
+- What does a fail look like? (Include specific thresholds if applicable — e.g. "title under 30 chars = fail")
+- How critical is it? (Critical / Important / Minor)
+- Can this be checked automatically from the data you described in question 5? Or does it need a full crawl / external API / manual review? (→ info-level)
+- Is the fix a simple tag/attribute edit that could be auto-applied as a code change? (→ fixable)
 
-Once you have all my answers, generate the complete `.md` file following the exact format above. Do not add sections that aren't in the format. Do not summarise or skip items I provided.
+---
+
+**7. AI role**
+- For Mode A: What persona should Claude take when writing narratives for failing items? (e.g. "senior Google Ads consultant", "direct response copywriter") What tone? Any rules about what it should or shouldn't say?
+- For Mode B: What persona evaluates each item? What data does Claude receive? What does it return per item?
+- For Mode C: What persona generates the findings? What makes a finding worth surfacing vs noise? What output format does it return?
+
+---
+
+**8. Edge cases and error handling**
+- What should happen if the main data source is unreachable? (e.g. site is down, API rate limit hit, private account)
+- Are there any scenarios where the module shouldn't run at all? (e.g. "no ads are active", "no posts in the last 90 days")
+- Any checks that behave differently depending on the type of business? (e.g. schema type check differs for e-commerce vs blog)
+
+---
+
+Once you have answers to all 8 sections, write the complete `.md` spec file. Do not summarise, skip items, or leave placeholders. Every check must have a slug, weight, level, check logic, pass condition, and fail condition filled in completely.

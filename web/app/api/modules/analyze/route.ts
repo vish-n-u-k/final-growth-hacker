@@ -202,9 +202,9 @@ export async function POST(request: NextRequest) {
             aiVerified: r.verified,
             aiVerifiedAt: r.verified ? new Date() : null,
             completedBy: r.verified ? 'ai' : null,
-            fixable: !!(defItem?.fixable || defItem?.assistedInput),
-            fixInputKey: defItem?.assistedInput?.key ?? null,
-            fixIntegrationProvider: defItem?.assistedInput?.integrationProvider ?? null,
+            fixable: !!(defItem?.fixable || defItem?.assistedInput || defItem?.upgradeInput),
+            fixInputKey: defItem?.assistedInput?.key ?? defItem?.upgradeInput?.key ?? null,
+            fixIntegrationProvider: defItem?.assistedInput?.integrationProvider ?? (defItem?.upgradeInput ? 'brand_assets' : null),
             updatedAt: new Date(),
           })
           .where(and(eq(moduleItems.moduleId, moduleId), eq(moduleItems.slug, r.slug)))

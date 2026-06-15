@@ -114,8 +114,14 @@ export async function POST(request: NextRequest) {
       ))
       .limit(1)
     const value = (assistedIntegration?.metadata as Record<string, string> | null)?.[item.fixInputKey]
-    if (!value) return NextResponse.json({ error: `${item.fixIntegrationProvider === 'google_analytics' ? 'Google Analytics' : 'Google Search Console'} integration is not connected. Go to Settings → Integrations to set it up.` }, { status: 400 })
-    userInput = { [item.fixInputKey]: value }
+    if (item.fixIntegrationProvider === 'brand_assets') {
+      // Upgrade input — optional. Fix proceeds in partial mode without it.
+      if (value) userInput = { [item.fixInputKey]: value }
+    } else {
+      // Assisted fix — required. Block if not set up.
+      if (!value) return NextResponse.json({ error: `${item.fixIntegrationProvider === 'google_analytics' ? 'Google Analytics' : 'Google Search Console'} integration is not connected. Go to Settings → Integrations to set it up.` }, { status: 400 })
+      userInput = { [item.fixInputKey]: value }
+    }
   }
 
   t('claude call 0 — planning')

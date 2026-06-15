@@ -226,7 +226,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
     setReanalyzing(true)
     const body: Record<string, unknown> = { moduleId: mod.id }
     const reqs = overrideReqs ?? reqValues
-    const nonEmpty = Object.fromEntries(Object.entries(reqs).filter(([, v]) => v.trim()))
+    const nonEmpty = Object.fromEntries(Object.entries(reqs).filter(([, v]) => typeof v === 'string' && v.trim()))
     if (Object.keys(nonEmpty).length > 0) body.requirements = nonEmpty
     const res = await fetch('/api/modules/analyze', {
       method: 'POST',
@@ -234,7 +234,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
       body: JSON.stringify(body),
     })
     if (res.ok) {
-      router.refresh()
+      window.location.reload()
     } else {
       const data = await res.json().catch(() => ({}))
       setSetupError((data as { error?: string }).error ?? 'Analysis failed. Please try again.')
@@ -596,22 +596,31 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                         {!done && item.weight === 2 && <span className="md-tag md-tag-important">Important</span>}
                                         {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
                                         {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
-                                        {item.fixable && !aiV && item.completedBy !== 'agent' && (
-                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                            <span className={`md-tag ${githubConnected ? 'md-tag-fix' : 'md-tag-fix-off'}`}>
-                                              ⚡ {item.fixInputKey ? 'Assisted fix' : 'Auto-fixable'}
-                                            </span>
-                                            {item.fixInputKey && (
-                                              <span className="md-info-wrap">
-                                                <svg className="md-info-icon" width="13" height="13" viewBox="0 0 24 24" fill="none">
-                                                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                                                  <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                                                </svg>
-                                                <span className="md-tooltip">{item.fixInputKey === 'ga4_measurement_id' ? 'Go to analytics.google.com → create a GA4 property → copy your Measurement ID (G-XXXXXXXXXX) → save it in Settings → Integrations → Google Analytics.' : item.fixInputKey === 'gsc_verification_code' ? 'Go to search.google.com/search-console → add property → choose HTML tag verification → copy the content value → save it in Settings → Integrations → Google Search Console.' : 'Save the required value in Settings → Integrations to enable this fix.'}</span>
+                                        {item.fixable && !aiV && item.completedBy !== 'agent' && (() => {
+                                          const isAssisted = !!(item.fixInputKey && item.fixIntegrationProvider !== 'brand_assets')
+                                          const badgeLabel = isAssisted ? 'Assisted fix' : 'Auto-fixable'
+                                          const tooltip = isAssisted
+                                            ? (item.fixInputKey === 'ga4_measurement_id' ? 'Go to analytics.google.com → create a GA4 property → copy your Measurement ID (G-XXXXXXXXXX) → save it in Settings → Integrations → Google Analytics.'
+                                              : item.fixInputKey === 'gsc_verification_code' ? 'Go to search.google.com/search-console → add property → choose HTML tag verification → copy the content value → save it in Settings → Integrations → Google Search Console.'
+                                              : 'Save the required value in Settings → Integrations to enable this fix.')
+                                            : null
+                                          return (
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                              <span className={`md-tag ${githubConnected ? 'md-tag-fix' : 'md-tag-fix-off'}`}>
+                                                ⚡ {badgeLabel}
                                               </span>
-                                            )}
-                                          </span>
-                                        )}
+                                              {tooltip && (
+                                                <span className="md-info-wrap">
+                                                  <svg className="md-info-icon" width="13" height="13" viewBox="0 0 24 24" fill="none">
+                                                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                                                    <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                                  </svg>
+                                                  <span className="md-tooltip">{tooltip}</span>
+                                                </span>
+                                              )}
+                                            </span>
+                                          )
+                                        })()}
                                         {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
                                       </div>
                                     </div>
@@ -629,7 +638,8 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                         {item.fixable && !aiV && item.completedBy !== 'agent' && (
                                           <div className="md-fix-row">
                                             {(() => {
-                                              const integrationReady = !item.fixIntegrationProvider || connectedIntegrations[item.fixIntegrationProvider]
+                                              const needsIntegration = !!(item.fixIntegrationProvider && item.fixIntegrationProvider !== 'brand_assets')
+                                              const integrationReady = !needsIntegration || !!connectedIntegrations[item.fixIntegrationProvider!]
                                               if (!githubConnected) return (
                                                 <p className="md-fix-hint">Connect GitHub in <a href="/settings" className="md-fix-hint-link">Settings</a> to apply this fix automatically.</p>
                                               )
@@ -767,22 +777,39 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                               {!done && item.weight === 2 && <span className="md-tag md-tag-important">Important</span>}
                                               {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
                                               {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
-                                              {s?.fixable && !aiV && s.completedBy !== 'agent' && (
-                                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                  <span className={`md-tag ${githubConnected ? 'md-tag-fix' : 'md-tag-fix-off'}`}>
-                                                    ⚡ {s.fixInputKey ? 'Assisted fix' : 'Auto-fixable'}
-                                                  </span>
-                                                  {s.fixInputKey && (
-                                                    <span className="md-info-wrap">
-                                                      <svg className="md-info-icon" width="13" height="13" viewBox="0 0 24 24" fill="none">
-                                                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                                                        <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                                                      </svg>
-                                                      <span className="md-tooltip">{s.fixInputKey === 'ga4_measurement_id' ? 'Go to analytics.google.com → create a GA4 property → copy your Measurement ID (G-XXXXXXXXXX) → save it in Settings → Integrations → Google Analytics.' : s.fixInputKey === 'gsc_verification_code' ? 'Go to search.google.com/search-console → add property → choose HTML tag verification → copy the content value → save it in Settings → Integrations → Google Search Console.' : 'Save the required value in Settings → Integrations to enable this fix.'}</span>
+                                              {s?.fixable && !aiV && s.completedBy !== 'agent' && (() => {
+                                                const isAssisted = !!(s.fixInputKey && s.fixIntegrationProvider !== 'brand_assets')
+                                                const isUpgradeable = !!(s.fixInputKey && s.fixIntegrationProvider === 'brand_assets')
+                                                const upgradeReady = isUpgradeable && !!connectedIntegrations['brand_assets']
+                                                const isAlwaysPartial = !!(item.partialFix && !s.fixInputKey)
+                                                const badgeLabel = isAssisted ? 'Assisted fix'
+                                                  : (isUpgradeable && !upgradeReady) || isAlwaysPartial ? 'Partially fixable'
+                                                  : 'Auto-fixable'
+                                                const tooltip = isAssisted
+                                                  ? (s.fixInputKey === 'ga4_measurement_id' ? 'Go to analytics.google.com → create a GA4 property → copy your Measurement ID (G-XXXXXXXXXX) → save it in Settings → Integrations → Google Analytics.'
+                                                    : s.fixInputKey === 'gsc_verification_code' ? 'Go to search.google.com/search-console → add property → choose HTML tag verification → copy the content value → save it in Settings → Integrations → Google Search Console.'
+                                                    : 'Save the required value in Settings → Integrations to enable this fix.')
+                                                  : isUpgradeable && !upgradeReady
+                                                  ? (item.upgradeInput?.setupInstructions ?? 'Save the required asset in Settings → Brand Assets to upgrade to a complete fix.')
+                                                  : isAlwaysPartial ? (item.partialFix ?? null)
+                                                  : null
+                                                return (
+                                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                                    <span className={`md-tag ${githubConnected ? 'md-tag-fix' : 'md-tag-fix-off'}`}>
+                                                      ⚡ {badgeLabel}
                                                     </span>
-                                                  )}
-                                                </span>
-                                              )}
+                                                    {tooltip && (
+                                                      <span className="md-info-wrap">
+                                                        <svg className="md-info-icon" width="13" height="13" viewBox="0 0 24 24" fill="none">
+                                                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                                                          <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                                        </svg>
+                                                        <span className="md-tooltip">{tooltip}</span>
+                                                      </span>
+                                                    )}
+                                                  </span>
+                                                )
+                                              })()}
                                               {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
                                             </div>
                                           </div>
@@ -799,7 +826,8 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                               {s?.fixable && !aiV && s.completedBy !== 'agent' && (
                                                 <div className="md-fix-row">
                                                   {(() => {
-                                                    const integrationReady = !s.fixIntegrationProvider || connectedIntegrations[s.fixIntegrationProvider]
+                                                    const needsIntegration = !!(s.fixIntegrationProvider && s.fixIntegrationProvider !== 'brand_assets')
+                                                    const integrationReady = !needsIntegration || !!connectedIntegrations[s.fixIntegrationProvider!]
                                                     if (!githubConnected) return (
                                                       <p className="md-fix-hint">Connect GitHub in <a href="/settings" className="md-fix-hint-link">Settings</a> to apply this fix automatically.</p>
                                                     )

@@ -25,7 +25,8 @@
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit --skipLibCheck 2>&1 | head -40)",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit --skipLibCheck 2>&1)",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm install @google/generative-ai 2>&1 | tail -5)",
-      "Bash(echo \"\" >> \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\.env.local\" && echo \"# AI provider toggle \\(set USE_GEMINI=true to use Gemini Flash instead of Claude\\)\" >> \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\.env.local\" && echo \"USE_GEMINI=false\" >> \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\.env.local\" && echo \"GEMINI_API_KEY=\" >> \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\.env.local\")"
+      "Bash(echo \"\" >> \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\.env.local\" && echo \"# AI provider toggle \\(set USE_GEMINI=true to use Gemini Flash instead of Claude\\)\" >> \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\.env.local\" && echo \"USE_GEMINI=false\" >> \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\.env.local\" && echo \"GEMINI_API_KEY=\" >> \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\.env.local\")",
+      "mcp__ide__getDiagnostics"
     ]
   }
 }

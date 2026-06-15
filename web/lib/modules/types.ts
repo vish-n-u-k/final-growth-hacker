@@ -7,11 +7,18 @@ export interface ModuleItemDefinition {
   order: number
   weight: 1 | 2 | 3
   fixable?: boolean  // true = this item can be auto-fixed via GitHub
-  assistedInput?: {  // if set, user must save this value in Settings → Integrations first
+  assistedInput?: {  // fix is BLOCKED until user saves this value in an integration
     key: string                 // metadata key stored in brandIntegrations e.g. 'ga4_measurement_id'
     integrationProvider: string // provider slug e.g. 'google_analytics'
     setupInstructions: string   // tooltip: what user needs to do before fix can run
   }
+  upgradeInput?: {   // fix runs now (partial), becomes complete once user saves this in Brand Assets
+    key: string              // metadata key in brandIntegrations 'brand_assets' e.g. 'og_image_url'
+    label: string            // human label e.g. "OG Image URL"
+    placeholder: string      // e.g. "https://yourdomain.com/og-image.jpg"
+    setupInstructions: string // tooltip explaining what to save and where
+  }
+  partialFix?: string  // fix always runs but is inherently incomplete — this string explains the gap
 }
 
 export interface ModuleSubCategoryDefinition {

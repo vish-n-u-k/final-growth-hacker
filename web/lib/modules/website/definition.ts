@@ -230,6 +230,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               order: 4,
               weight: 2,
               fixable: true,
+              partialFix: 'Adds a Privacy Policy link to your footer. Your /privacy-policy page must already exist — the agent cannot create the page content.',
             },
             {
               slug: 'has-contact-page',
@@ -238,6 +239,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               order: 5,
               weight: 1,
               fixable: true,
+              partialFix: 'Adds a Contact link to your footer. Your /contact page must already exist — the agent cannot create the page content.',
             },
           ],
         },
@@ -368,6 +370,12 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               order: 3,
               weight: 2,
               fixable: true,
+              upgradeInput: {
+                key: 'og_image_url',
+                label: 'OG Image URL',
+                placeholder: 'https://yourdomain.com/og-image.jpg',
+                setupInstructions: 'Agent sets og:title and og:description from page content but cannot determine og:image. Save your OG image URL in Settings → Brand Assets to get a complete fix.',
+              },
             },
             {
               slug: 'image-alt-text',
@@ -391,6 +399,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               order: 6,
               weight: 2,
               fixable: true,
+              partialFix: 'Creates a skeleton sitemap.xml with your root URL only. Does not auto-discover other pages — extend it manually after the fix is applied.',
             },
             {
               slug: 'structured-data',
@@ -399,6 +408,12 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               order: 7,
               weight: 1,
               fixable: true,
+              upgradeInput: {
+                key: 'logo_url',
+                label: 'Logo URL',
+                placeholder: 'https://yourdomain.com/logo.png',
+                setupInstructions: 'Agent creates a basic Organisation schema with name and URL but cannot determine your logo. Save your logo URL in Settings → Brand Assets to include it in the JSON-LD.',
+              },
             },
             {
               slug: 'lang-attr',
