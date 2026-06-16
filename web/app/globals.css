@@ -805,6 +805,41 @@ header {
   font-size: 13px; color: var(--text); line-height: 1.6;
 }
 
+/* ── AI Draft section ─────────────────────────────────────────────────────── */
+.sm-draft-section { display: flex; flex-direction: column; gap: 8px; }
+.sm-draft-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  background: #0e1f14; border: 1px solid var(--green);
+  color: var(--green-bright); cursor: pointer; transition: background .15s, border-color .15s;
+  align-self: flex-start;
+}
+.sm-draft-btn:hover:not(:disabled) { background: #1a3526; border-color: var(--green-bright); }
+.sm-draft-btn:disabled { opacity: .5; cursor: default; }
+.sm-draft-header { display: flex; align-items: center; justify-content: space-between; }
+.sm-draft-label {
+  font-size: 10px; font-weight: 700; color: var(--lime);
+  letter-spacing: .8px; text-transform: uppercase;
+}
+.sm-draft-copy {
+  font-size: 11px; font-weight: 600; color: var(--green-bright);
+  background: #0e1f14; border: 1px solid var(--green); border-radius: 6px;
+  padding: 3px 10px; cursor: pointer; transition: background .15s;
+}
+.sm-draft-copy:hover { background: #1a3526; }
+.sm-draft-content {
+  font-size: 12.5px; color: var(--text); line-height: 1.65;
+  background: #0a1a10; border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px 14px; white-space: pre-wrap; word-break: break-word;
+  font-family: inherit; margin: 0;
+}
+.sm-draft-regen {
+  font-size: 11px; color: var(--text-faint); background: none; border: none;
+  cursor: pointer; padding: 0; text-decoration: underline; align-self: flex-start;
+}
+.sm-draft-regen:hover { color: var(--text-dim); }
+.sm-draft-regen:disabled { opacity: .4; cursor: default; }
+
 /* ── Apply-fix row ──────────────────────────────────────────────────────────── */
 .md-fix-row {
   display: flex; align-items: center;

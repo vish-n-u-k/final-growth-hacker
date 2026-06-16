@@ -136,6 +136,8 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
   const [reanalyzing, setReanalyzing] = useState(false)
   const [reqValues, setReqValues] = useState<Record<string, string>>(mod.requirements ?? {})
   const [setupError, setSetupError] = useState<string | null>(null)
+  const [generatingDraft, setGeneratingDraft] = useState<Set<string>>(new Set())
+  const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
   const [userCount, setUserCount] = useState<number>(() => {
     if (typeof window === 'undefined') return 0
     return parseInt(localStorage.getItem('gh_user_count') ?? '0', 10) || 0
@@ -280,6 +282,29 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
       })
     }
   }, [def.dynamic])
+
+  const handleGenerateDraft = async (itemId: string, slug: string) => {
+    setGeneratingDraft((prev) => new Set(prev).add(slug))
+    try {
+      const res = await fetch('/api/items/draft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId }),
+      })
+      const data = await res.json()
+      if (data.draft) {
+        setDynItems((prev) => prev.map((i) => (i.id === itemId ? { ...i, aiDraft: data.draft } : i)))
+      }
+    } catch {
+      // non-fatal — user can retry
+    } finally {
+      setGeneratingDraft((prev) => {
+        const next = new Set(prev)
+        next.delete(slug)
+        return next
+      })
+    }
+  }
 
   const handleLogout = async () => {
     const supabase = createClient()
@@ -582,7 +607,9 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                             No issues found in this category.
                           </p>
                         ) : (
-                          <div className="md-items" style={{ padding: '8px 0' }}>
+                          <div className="md-sub">
+                            <div className="md-sub-hd" />
+                            <div className="md-items">
                             {catItems.map((item) => {
                               const aiV = item.aiVerified
                               const userC = item.userChecked
@@ -655,6 +682,49 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                             <p className="sm-action-text">{item.aiAction}</p>
                                           </div>
                                         )}
+                                        {/* AI Draft — only for failing, non-fixable dynamic module items */}
+                                        {!aiV && !item.fixable && (
+                                          <div className="sm-draft-section">
+                                            {item.aiDraft ? (
+                                              <>
+                                                <div className="sm-draft-header">
+                                                  <span className="sm-draft-label">AI Draft</span>
+                                                  <button
+                                                    className="sm-draft-copy"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation()
+                                                      navigator.clipboard.writeText(item.aiDraft!)
+                                                      setCopiedSlug(item.slug)
+                                                      setTimeout(() => setCopiedSlug(null), 2000)
+                                                    }}
+                                                  >
+                                                    {copiedSlug === item.slug ? 'Copied!' : 'Copy'}
+                                                  </button>
+                                                </div>
+                                                <pre className="sm-draft-content">{item.aiDraft}</pre>
+                                                <button
+                                                  className="sm-draft-regen"
+                                                  disabled={generatingDraft.has(item.slug)}
+                                                  onClick={(e) => { e.stopPropagation(); handleGenerateDraft(item.id, item.slug) }}
+                                                >
+                                                  {generatingDraft.has(item.slug) ? 'Regenerating…' : 'Regenerate'}
+                                                </button>
+                                              </>
+                                            ) : (
+                                              <button
+                                                className="sm-draft-btn"
+                                                disabled={generatingDraft.has(item.slug)}
+                                                onClick={(e) => { e.stopPropagation(); handleGenerateDraft(item.id, item.slug) }}
+                                              >
+                                                {generatingDraft.has(item.slug) ? (
+                                                  <><span className="md-spin" />Generating draft…</>
+                                                ) : (
+                                                  '✦ Generate AI draft'
+                                                )}
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
                                         {/* Apply fix button — only for fixable unresolved items */}
                                         {item.fixable && !aiV && item.completedBy !== 'agent' && (
                                           <div className="md-fix-row">
@@ -711,6 +781,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                 </div>
                               )
                             })}
+                            </div>
                           </div>
                         )}
                       </div>

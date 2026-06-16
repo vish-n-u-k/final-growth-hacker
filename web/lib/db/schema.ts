@@ -67,6 +67,7 @@ export const moduleItems = pgTable(
     fixable: boolean('fixable').default(false), // true = Claude can auto-fix via GitHub
     fixInputKey: text('fix_input_key'),                    // metadata key to read from brandIntegrations (e.g. 'ga4_measurement_id')
     fixIntegrationProvider: text('fix_integration_provider'), // which integration to read from (e.g. 'google_analytics')
+    aiDraft: text('ai_draft'),             // on-demand AI-generated draft content (copy, outline, template)
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   },
   (table) => ({

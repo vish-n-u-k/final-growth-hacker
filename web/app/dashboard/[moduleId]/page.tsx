@@ -77,6 +77,7 @@ export default async function ModulePage({
       aiDetail: item.aiDetail,
       aiNarrative: item.aiNarrative,
       aiAction: item.aiAction,
+      aiDraft: item.aiDraft ?? null,
       aiVerified: item.aiVerified ?? false,
       userChecked: item.userChecked ?? false,
       completedBy: item.completedBy,

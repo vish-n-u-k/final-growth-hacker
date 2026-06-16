@@ -68,7 +68,7 @@ Rules:
 3. Slug format: {category-slug}-{short-descriptor} e.g. brand-positioning-vague-h1
 4. Weight: 3 = directly blocks trust, conversions, or discovery | 2 = measurably hurts performance | 1 = nice-to-have
 5. verified: true = passes best practice or user is ahead | verified: false = gap exists, action needed
-6. fixable: always false for this module
+6. fixable: true ONLY if the fix is a direct code change — adding an H1, rewriting a meta description, adding OG tags, adding JSON-LD schema markup, adding a privacy/terms link to the footer. fixable: false for everything else (create social accounts, install pixels, strategic rewrites, external platform actions, brand voice changes)
 7. All action steps must be completable by a non-technical person within a week`,
   categories: [
     {

@@ -107,7 +107,7 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. E
   "narrative": string — 2–3 sentences explaining business impact,
   "action": string — specific step starting with a verb, completable within one week by a non-technical person,
   "verified": boolean — true if this check passes or user is ahead; false if gap exists,
-  "fixable": false
+  "fixable": boolean — true ONLY for direct code changes (add H1, rewrite meta description, add OG tags, add JSON-LD schema, add footer privacy/terms link). false for everything else
 }`
 }
 
@@ -162,5 +162,5 @@ export async function analyzeBrandAudit(
       typeof r.action === 'string' &&
       typeof r.verified === 'boolean',
     )
-    .map(r => ({ ...r, fixable: false as const }))
+    .map(r => ({ ...r, fixable: typeof r.fixable === 'boolean' ? r.fixable : false }))
 }

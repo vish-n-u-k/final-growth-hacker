@@ -112,6 +112,7 @@ export interface DBItemFull {
   aiDetail: string | null
   aiNarrative: string | null
   aiAction: string | null
+  aiDraft: string | null
   aiVerified: boolean
   userChecked: boolean
   completedBy: string | null
