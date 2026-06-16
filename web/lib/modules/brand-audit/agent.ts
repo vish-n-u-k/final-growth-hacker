@@ -122,7 +122,7 @@ export async function analyzeBrandAudit(
   const raw = await callAI({
     system: BRAND_AUDIT_MODULE.systemPrompt,
     prompt,
-    maxTokens: 10000,
+    maxTokens: 16000,
   })
 
   const clean = raw

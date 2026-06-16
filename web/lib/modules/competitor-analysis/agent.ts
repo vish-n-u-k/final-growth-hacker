@@ -221,7 +221,7 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. E
   const raw = await callAI({
     system: COMPETITOR_ANALYSIS_MODULE.systemPrompt,
     prompt,
-    maxTokens: 8000,
+    maxTokens: 16000,
   })
 
   const clean = raw
