@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 type State = 'step1' | 'step2' | 'analyzing' | 'error'
 
@@ -112,9 +114,12 @@ export default function OnboardingPage() {
               <div className="ob-label" style={{ color: '#f87171' }}>Error</div>
               <h1 className="ob-heading" style={{ fontSize: '24px' }}>Something went wrong</h1>
               <p className="auth-error">{error}</p>
-              <button onClick={() => { setState('step2'); setError('') }} className="ob-btn-primary">
+              <Button
+                onClick={() => { setState('step2'); setError('') }}
+                className="w-full h-12 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90"
+              >
                 Try again
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -131,17 +136,22 @@ export default function OnboardingPage() {
               <div className="ob-label">Step 1 of 2</div>
               <h1 className="ob-heading">What&apos;s your product called?</h1>
               <p className="ob-desc">We&apos;ll personalise your entire growth dashboard around your brand.</p>
-              <input
+              <Input
                 autoFocus type="text" placeholder="e.g. AIFeed"
                 value={brandName} onChange={(e) => setBrandName(e.target.value)}
-                required className="ob-input"
+                required
+                className="h-12 bg-[var(--bg-soft)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:border-[var(--green)] focus-visible:ring-[var(--green)]/20 text-base"
               />
-              <button type="submit" disabled={!brandName.trim()} className="ob-btn-primary">
+              <Button
+                type="submit"
+                disabled={!brandName.trim()}
+                className="w-full h-12 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90 disabled:opacity-50"
+              >
                 Continue
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-              </button>
+              </Button>
             </form>
           </div>
         )}
@@ -175,18 +185,27 @@ export default function OnboardingPage() {
                 />
               </div>
               <div className="ob-btn-row">
-                <button type="button" onClick={() => setState('step1')} className="ob-btn-back">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setState('step1')}
+                  className="h-12 gap-1.5 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--text-faint)] bg-transparent"
+                >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                     <path d="M19 12H5M11 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   Back
-                </button>
-                <button type="submit" disabled={!websiteUrl.trim()} className="ob-btn-primary" style={{ flex: 1 }}>
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!websiteUrl.trim()}
+                  className="h-12 flex-1 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90 disabled:opacity-50"
+                >
                   Run Foundation Audit
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                     <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                </button>
+                </Button>
               </div>
             </form>
           </div>

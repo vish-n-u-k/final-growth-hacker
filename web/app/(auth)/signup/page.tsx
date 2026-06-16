@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 export default function SignupPage() {
   const [email, setEmail] = useState('')
@@ -70,27 +72,31 @@ export default function SignupPage() {
       <h1>Create account</h1>
       <p className="auth-sub">Start tracking your road to 500 users</p>
       <form onSubmit={handleSubmit} className="auth-form">
-        <input
+        <Input
           type="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="auth-input"
+          className="h-11 bg-[var(--bg-soft)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:border-[var(--green)] focus-visible:ring-[var(--green)]/20"
         />
-        <input
+        <Input
           type="password"
           placeholder="Password (min 6 characters)"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
           minLength={6}
-          className="auth-input"
+          className="h-11 bg-[var(--bg-soft)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:border-[var(--green)] focus-visible:ring-[var(--green)]/20"
         />
         {error && <p className="auth-error">{error}</p>}
-        <button type="submit" disabled={loading} className="auth-btn">
+        <Button
+          type="submit"
+          disabled={loading}
+          className="w-full h-11 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90 mt-1"
+        >
           {loading ? 'Creating account…' : 'Create account'}
-        </button>
+        </Button>
       </form>
       <p className="auth-switch">
         Already have an account? <Link href="/login">Sign in</Link>

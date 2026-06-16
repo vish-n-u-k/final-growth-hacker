@@ -4,6 +4,9 @@ import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { type ModuleDefinition, type ModuleCategoryDefinition, type DBItemFull } from '@/lib/modules/types'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
 
 export interface DBItemState {
   id: string
@@ -299,7 +302,13 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
             Growth Hacker
           </div>
           <div className="md-header-actions">
-            <button onClick={() => handleReanalyze()} disabled={reanalyzing} className="md-btn-reanalyze">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleReanalyze()}
+              disabled={reanalyzing}
+              className="gap-1.5 border-[var(--green)] text-[var(--green-bright)] hover:bg-[#1a3526] hover:text-[var(--green-bright)] bg-[var(--card)]"
+            >
               {reanalyzing ? (
                 <><span className="md-spin" />Re-analysing…</>
               ) : (
@@ -310,14 +319,27 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                   Re-analyse
                 </>
               )}
-            </button>
-            <button onClick={() => router.push('/settings')} className="md-btn-settings" title="Settings">
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => router.push('/settings')}
+              title="Settings"
+              className="w-8 h-8 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--green)] hover:text-[var(--text)] bg-transparent"
+            >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
                 <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
-            </button>
-            <button onClick={handleLogout} className="logout-btn">{userEmail} · Sign out</button>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="text-[var(--text-faint)] hover:text-[var(--text-dim)] border border-[var(--line)] hover:border-[var(--green)] text-xs"
+            >
+              {userEmail} · Sign out
+            </Button>
           </div>
         </div>
       </header>
@@ -410,8 +432,8 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
         {/* Main content */}
         <div className="md-main">
 
-        {/* Overview */}
-        <div className="md-overview">
+        {/* Overview — hidden for now */}
+        <div className="md-overview" style={{ display: 'none' }}>
           <div className="md-ov-top">
             <div>
               <div className="md-ov-label">{def.name}</div>
@@ -486,12 +508,12 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                       rows={3}
                     />
                   ) : (
-                    <input
-                      className="md-setup-input"
+                    <Input
                       type={req.type === 'url' ? 'url' : 'text'}
                       placeholder={req.placeholder}
                       value={reqValues[req.key] ?? ''}
                       onChange={(e) => setReqValues((prev) => ({ ...prev, [req.key]: e.target.value }))}
+                      className="bg-[#0d1f18] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:ring-[var(--green)] focus-visible:border-[var(--green)]"
                     />
                   )}
                   {(req.type === 'url_list' || req.type === 'text_list') && (
@@ -501,14 +523,13 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
               ))}
             </div>
             {setupError && <p className="md-setup-error">{setupError}</p>}
-            <button
-              className="md-btn-reanalyze"
+            <Button
               disabled={reanalyzing || missingRequirements.length > 0}
               onClick={() => handleReanalyze(reqValues)}
-              style={{ marginTop: '12px' }}
+              className="mt-3 gap-1.5 bg-[var(--green)] text-[#06140c] hover:bg-[var(--green-bright)] font-semibold"
             >
               {reanalyzing ? (
-                <><span className="md-spin" />Analysing…</>
+                <><span className="md-spin" style={{ borderTopColor: '#06140c', borderColor: '#06140c40' }} />Analysing…</>
               ) : (
                 <>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
@@ -517,7 +538,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                   Run Analysis
                 </>
               )}
-            </button>
+            </Button>
           </div>
         )}
 
@@ -592,10 +613,10 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                     <div className="md-item-top">
                                       <span className="md-item-lbl">{item.label}</span>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-                                        {!done && item.weight === 3 && <span className="md-tag md-tag-critical">Critical</span>}
-                                        {!done && item.weight === 2 && <span className="md-tag md-tag-important">Important</span>}
-                                        {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
-                                        {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
+                                        {!done && item.weight === 3 && <Badge className="md-tag md-tag-critical">Critical</Badge>}
+                                        {!done && item.weight === 2 && <Badge className="md-tag md-tag-important">Important</Badge>}
+                                        {aiV && <Badge className="md-tag md-tag-ai">AI ✓</Badge>}
+                                        {!aiV && userC && <Badge className="md-tag md-tag-self">Self</Badge>}
                                         {item.fixable && !aiV && item.completedBy !== 'agent' && (() => {
                                           const isAssisted = !!(item.fixInputKey && item.fixIntegrationProvider !== 'brand_assets')
                                           const badgeLabel = isAssisted ? 'Assisted fix' : 'Auto-fixable'
@@ -652,15 +673,17 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                               return applyingFix.has(item.slug) ? (
                                                 <span className="md-fix-applying"><span className="md-spin" />Applying fix…</span>
                                               ) : (
-                                                <button
-                                                  className="md-fix-btn"
+                                                <Button
+                                                  variant="outline"
+                                                  size="sm"
+                                                  className="gap-1.5 border-[var(--green)] text-[var(--green)] hover:bg-[#0d2e1a] hover:text-[var(--green-bright)] hover:border-[var(--green-bright)] bg-transparent text-xs"
                                                   onClick={(e) => { e.stopPropagation(); handleApplyFix(item.id, item.slug) }}
                                                 >
                                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
                                                     <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                                                   </svg>
                                                   Apply fix via GitHub
-                                                </button>
+                                                </Button>
                                               )
                                             })()}
                                           </div>
@@ -795,9 +818,9 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                                   : null
                                                 return (
                                                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                                                    <span className={`md-tag ${githubConnected ? 'md-tag-fix' : 'md-tag-fix-off'}`}>
+                                                    <Badge className={`md-tag ${githubConnected ? 'md-tag-fix' : 'md-tag-fix-off'}`}>
                                                       ⚡ {badgeLabel}
-                                                    </span>
+                                                    </Badge>
                                                     {tooltip && (
                                                       <span className="md-info-wrap">
                                                         <svg className="md-info-icon" width="13" height="13" viewBox="0 0 24 24" fill="none">
@@ -840,15 +863,17 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                                     return applyingFix.has(item.slug) ? (
                                                       <span className="md-fix-applying"><span className="md-spin" />Applying fix…</span>
                                                     ) : (
-                                                      <button
-                                                        className="md-fix-btn"
+                                                      <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="gap-1.5 border-[var(--green)] text-[var(--green)] hover:bg-[#0d2e1a] hover:text-[var(--green-bright)] hover:border-[var(--green-bright)] bg-transparent text-xs"
                                                         onClick={(e) => { e.stopPropagation(); handleApplyFix(s.id, item.slug) }}
                                                       >
                                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
                                                           <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                                                         </svg>
                                                         Apply fix via GitHub
-                                                      </button>
+                                                      </Button>
                                                     )
                                                   })()}
                                                 </div>

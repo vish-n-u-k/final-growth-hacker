@@ -1,6 +1,9 @@
 import type { Metadata } from 'next'
-import { Fraunces, Outfit } from 'next/font/google'
+import { Fraunces, Outfit, Geist } from 'next/font/google'
 import './globals.css'
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const fraunces = Fraunces({
   subsets: ['latin'],
@@ -21,7 +24,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${outfit.variable}`}>
+    <html lang="en" className={cn(fraunces.variable, outfit.variable, "font-sans", geist.variable)}>
       <body>{children}</body>
     </html>
   )
