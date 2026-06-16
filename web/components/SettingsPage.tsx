@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { IntegrationDefinition } from '@/lib/integrations/registry'
+import { INTEGRATION_GROUPS } from '@/lib/integrations/registry'
 
 interface ConnectedIntegration {
   status: string
@@ -160,21 +161,44 @@ function IntegrationsSection({
   registry: IntegrationDefinition[]
   connected: Record<string, ConnectedIntegration>
 }) {
+  // Group integrations by their group field
+  const grouped = registry.reduce<Record<string, IntegrationDefinition[]>>((acc, def) => {
+    const g = def.group ?? 'developer'
+    if (!acc[g]) acc[g] = []
+    acc[g].push(def)
+    return acc
+  }, {})
+
+  const groupOrder = ['developer', 'analytics', 'social']
+
   return (
     <div className="st-section">
       <div className="st-section-hd">
         <h2 className="st-section-title">Integrations</h2>
         <p className="st-section-desc">Connect external services to unlock automated fixes and richer analysis.</p>
       </div>
-      <div className="st-integrations">
-        {registry.map((def) => (
-          <IntegrationCard
-            key={def.provider}
-            def={def}
-            connected={connected[def.provider] ?? null}
-          />
-        ))}
-      </div>
+      {groupOrder.map((groupKey) => {
+        const defs = grouped[groupKey]
+        if (!defs || defs.length === 0) return null
+        const groupMeta = INTEGRATION_GROUPS[groupKey]
+        return (
+          <div key={groupKey} className="st-int-group">
+            <div className="st-int-group-hd">
+              <span className="st-int-group-label">{groupMeta.label}</span>
+              <span className="st-int-group-desc">{groupMeta.description}</span>
+            </div>
+            <div className="st-integrations">
+              {defs.map((def) => (
+                <IntegrationCard
+                  key={def.provider}
+                  def={def}
+                  connected={connected[def.provider] ?? null}
+                />
+              ))}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -271,7 +295,7 @@ function IntegrationCard({
                 placeholder={field.placeholder}
                 value={fields[field.key] ?? ''}
                 onChange={(e) => setFields((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                required
+                required={!field.optional}
                 autoComplete="off"
               />
               {field.helpText && <p className="st-field-hint">{field.helpText}</p>}

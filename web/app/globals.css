@@ -1001,6 +1001,11 @@ header {
 .st-btn-danger:disabled { opacity: .55; cursor: default; }
 
 /* Integrations */
+.st-int-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+.st-int-group:last-child { margin-bottom: 0; }
+.st-int-group-hd { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.st-int-group-label { font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
+.st-int-group-desc { font-size: .78rem; color: var(--text-faint); }
 .st-integrations { display: flex; flex-direction: column; gap: 10px; }
 .st-int-card {
   background: var(--card); border: 1px solid var(--line);
