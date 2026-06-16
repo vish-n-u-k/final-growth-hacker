@@ -1,6 +1,42 @@
+const FREE_HOSTING_DOMAINS: { pattern: RegExp; platform: string }[] = [
+  { pattern: /\.vercel\.app$/i,        platform: 'Vercel' },
+  { pattern: /\.netlify\.app$/i,       platform: 'Netlify' },
+  { pattern: /\.github\.io$/i,         platform: 'GitHub Pages' },
+  { pattern: /\.pages\.dev$/i,         platform: 'Cloudflare Pages' },
+  { pattern: /\.web\.app$/i,           platform: 'Firebase Hosting' },
+  { pattern: /\.firebaseapp\.com$/i,   platform: 'Firebase Hosting' },
+  { pattern: /\.herokuapp\.com$/i,     platform: 'Heroku' },
+  { pattern: /\.onrender\.com$/i,      platform: 'Render' },
+  { pattern: /\.railway\.app$/i,       platform: 'Railway' },
+  { pattern: /\.fly\.dev$/i,           platform: 'Fly.io' },
+  { pattern: /\.amplifyapp\.com$/i,    platform: 'AWS Amplify' },
+  { pattern: /\.azurewebsites\.net$/i, platform: 'Azure App Service' },
+  { pattern: /\.wixsite\.com$/i,       platform: 'Wix' },
+  { pattern: /\.webflow\.io$/i,        platform: 'Webflow' },
+  { pattern: /\.myshopify\.com$/i,     platform: 'Shopify (dev store)' },
+  { pattern: /\.glitch\.me$/i,         platform: 'Glitch' },
+  { pattern: /\.replit\.dev$/i,        platform: 'Replit' },
+  { pattern: /\.repl\.co$/i,           platform: 'Replit' },
+  { pattern: /\.surge\.sh$/i,          platform: 'Surge' },
+]
+
+function detectFreeHosting(url: string): { customDomain: boolean; hostingPlatform: string | null } {
+  try {
+    const hostname = new URL(url).hostname
+    for (const { pattern, platform } of FREE_HOSTING_DOMAINS) {
+      if (pattern.test(hostname)) return { customDomain: false, hostingPlatform: platform }
+    }
+    return { customDomain: true, hostingPlatform: null }
+  } catch {
+    return { customDomain: true, hostingPlatform: null }
+  }
+}
+
 export interface FoundationFetchResult {
   html: string
   url: string
+  customDomain: boolean
+  hostingPlatform: string | null
 }
 
 async function safeFetch(url: string, timeoutMs = 12000): Promise<string | null> {
@@ -42,9 +78,14 @@ function extractContent(html: string, bodyMaxChars = 30000): string {
 export async function fetchFoundationData(requirements: Record<string, string>): Promise<FoundationFetchResult> {
   const rawUrl = requirements['website_url'] ?? ''
   const url = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`
-  const html = await safeFetch(url)
+  const [html, { customDomain, hostingPlatform }] = await Promise.all([
+    safeFetch(url),
+    Promise.resolve(detectFreeHosting(url)),
+  ])
   return {
     html: html ? extractContent(html) : '',
     url,
+    customDomain,
+    hostingPlatform,
   }
 }

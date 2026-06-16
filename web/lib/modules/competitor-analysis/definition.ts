@@ -32,7 +32,7 @@ Rules:
 4. Slug format: {category-slug}-{short-descriptor} e.g. keyword-gap-predictive-scoring
 5. Weight: 3 = gap directly costs revenue or rankings | 2 = measurably hurts performance | 1 = nice-to-have
 6. verified: true = user at parity or ahead | verified: false = gap exists, action needed
-7. fixable: always false for this module`,
+7. fixable: true ONLY if the fix is a direct code change to an existing file — rewriting a meta description or title tag to include a missing keyword, adding OG tags, adding JSON-LD schema markup, creating a new comparison landing page file (/vs-competitor or /alternatives). fixable: false for everything else (build features, change pricing, create social accounts, strategic repositioning, external platform actions)`,
   categories: [
     {
       slug: 'competitor-discovery',

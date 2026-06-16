@@ -52,6 +52,13 @@ Rules:
               weight: 3,
             },
             {
+              slug: 'custom-domain',
+              label: 'Website uses a custom domain',
+              prompt: 'Check the "Custom domain" value provided above. If it says "No — hosted on [platform]", the site is running on a free hosting subdomain rather than a custom domain. A free subdomain (e.g. myapp.vercel.app) signals to visitors, investors, and partners that the business is not established. If the custom domain value is "Yes", this passes. Report the exact URL and hosting platform if flagged.',
+              order: 0,
+              weight: 2,
+            },
+            {
               slug: 'no-noindex',
               label: 'Site is not accidentally blocking search engines',
               prompt: 'Check for <meta name="robots" content="noindex"> or any robots meta tag that would prevent Google from indexing the site. This is a critical mistake that makes the site invisible to search engines. Report what you find.',

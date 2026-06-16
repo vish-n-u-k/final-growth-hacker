@@ -251,7 +251,7 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. E
       typeof r.action === 'string' &&
       typeof r.verified === 'boolean',
     )
-    .map(r => ({ ...r, fixable: false as const }))
+    .map(r => ({ ...r, fixable: typeof r.fixable === 'boolean' ? r.fixable : false }))
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────

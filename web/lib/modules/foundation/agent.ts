@@ -12,6 +12,7 @@ export async function analyzeFoundation(data: FoundationFetchResult): Promise<Mo
   const userPrompt = `Audit this website's foundational infrastructure.
 
 URL: ${data.url}
+Custom domain: ${data.customDomain ? 'Yes' : `No — hosted on ${data.hostingPlatform ?? 'a free hosting platform'}`}
 
 === HTML (full head preserved + truncated body) ===
 ${data.html || 'Unable to fetch — flag all checks as needing manual review'}
