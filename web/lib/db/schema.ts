@@ -10,6 +10,10 @@ export const brands = pgTable('brands', {
   userId: uuid('user_id').notNull(),
   name: text('name').notNull(),
   websiteUrl: text('website_url').notNull(),
+  industry: text('industry'),
+  targetAudience: text('target_audience'),
+  usp: text('usp'),
+  brandVoice: text('brand_voice'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 

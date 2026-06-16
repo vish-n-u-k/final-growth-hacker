@@ -28,7 +28,9 @@
       "Bash(echo \"\" >> \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\.env.local\" && echo \"# AI provider toggle \\(set USE_GEMINI=true to use Gemini Flash instead of Claude\\)\" >> \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\.env.local\" && echo \"USE_GEMINI=false\" >> \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\.env.local\" && echo \"GEMINI_API_KEY=\" >> \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\.env.local\")",
       "mcp__ide__getDiagnostics",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx shadcn@latest init --defaults 2>&1)",
-      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx shadcn@latest add badge progress input --yes 2>&1)"
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx shadcn@latest add badge progress input --yes 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm install natural)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm install compromise sentiment @types/sentiment)"
     ]
   }
 }

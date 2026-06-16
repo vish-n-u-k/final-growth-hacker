@@ -12,6 +12,10 @@ import { fetchSeoData } from '@/lib/modules/seo/fetcher'
 import { analyzeSeo } from '@/lib/modules/seo/agent'
 import { fetchCompetitorAuditData } from '@/lib/modules/competitor-audit/fetcher'
 import { analyzeCompetitorAudit } from '@/lib/modules/competitor-audit/agent'
+import { fetchCompetitorAnalysisData } from '@/lib/modules/competitor-analysis/fetcher'
+import { analyzeCompetitorAnalysis } from '@/lib/modules/competitor-analysis/agent'
+import { fetchBrandAuditData } from '@/lib/modules/brand-audit/fetcher'
+import { analyzeBrandAudit } from '@/lib/modules/brand-audit/agent'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
@@ -47,6 +51,14 @@ async function runAnalysis(
       }
       const data = await fetchCompetitorAuditData(requirements, requirements['website_url'])
       return analyzeCompetitorAudit(data, brainCtx)
+    }
+    case 'competitor-analysis': {
+      const data = await fetchCompetitorAnalysisData(requirements, requirements['website_url'])
+      return analyzeCompetitorAnalysis(data, brainCtx)
+    }
+    case 'brand-audit': {
+      const data = await fetchBrandAuditData(requirements)
+      return analyzeBrandAudit(data, brainCtx)
     }
     default:
       throw new Error(`No analyzer registered for module type: ${moduleType}`)

@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ moduleId: foundationMod[0]?.id })
   }
 
-  const { brandName, websiteUrl } = await request.json()
+  const { brandName, websiteUrl, industry, targetAudience, usp, brandVoice } = await request.json()
   if (!brandName?.trim() || !websiteUrl?.trim()) {
     return NextResponse.json({ error: 'Brand name and website URL are required' }, { status: 400 })
   }
@@ -67,16 +67,33 @@ export async function POST(request: NextRequest) {
   // Create brand
   const [brand] = await db
     .insert(brands)
-    .values({ userId: user.id, name: brandName.trim(), websiteUrl: url })
+    .values({
+      userId: user.id,
+      name: brandName.trim(),
+      websiteUrl: url,
+      industry: industry?.trim() || null,
+      targetAudience: targetAudience?.trim() || null,
+      usp: usp?.trim() || null,
+      brandVoice: brandVoice?.trim() || null,
+    })
     .returning()
 
   // Create all modules from registry (Foundation unlocked, rest locked)
   const createdModules: { id: string; type: string; order: number }[] = []
 
   for (const def of MODULE_REGISTRY) {
+    const brandFields: Record<string, string | null> = {
+      website_url: url,
+      brand_name: brand.name,
+      industry: brand.industry,
+      target_audience: brand.targetAudience,
+      usp: brand.usp,
+      brand_voice: brand.brandVoice,
+    }
     const requirements: Record<string, string> = {}
     for (const req of def.requirements) {
-      if (req.key === 'website_url') requirements[req.key] = url
+      const val = brandFields[req.key]
+      if (val) requirements[req.key] = val
     }
 
     const [mod] = await db
@@ -86,7 +103,7 @@ export async function POST(request: NextRequest) {
         type: def.type,
         name: def.name,
         order: def.order,
-        status: def.order === 0 ? 'pending' : 'locked',
+        status: (def.order === 0 || def.unlockThreshold === 0) ? 'pending' : 'locked',
         requirements,
       })
       .returning()
