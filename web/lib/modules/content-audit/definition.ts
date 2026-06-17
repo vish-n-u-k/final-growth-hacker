@@ -46,7 +46,7 @@ Rules:
 4. Slug format: {category-slug}-{short-descriptor} e.g. content-gap-missing-agile-content
 5. Weight: 3 = directly losing traffic, leads, or conversions | 2 = measurably hurting content performance | 1 = nice-to-have improvement
 6. verified: true = this check passes or content is strong | verified: false = gap or issue exists
-7. fixable: false for ALL content audit findings — content creation, editing, and strategy are user actions, not code changes
+7. fixable: true ONLY if the specific fix is changing a <title>, <meta description>, or <h1> tag on a specific named page — these are direct code changes the AI agent can make. fixable: false for everything else: adding content, creating new pages, expanding word count, adding images, internal linking strategy, content calendars, and competitor gap recommendations are all user actions, not code changes.
 8. Be specific: cite exact page titles, exact word counts, exact competitor names. Never say "some pages" — name them.`,
   categories: [
     {

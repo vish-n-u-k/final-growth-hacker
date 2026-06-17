@@ -133,7 +133,7 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. E
   "narrative": string — 2–3 sentences on business impact,
   "action": string — specific next step (for content-calendar-30-day: ONLY the raw JSON array, no other text),
   "verified": boolean,
-  "fixable": false
+  "fixable": boolean — true ONLY if fix = changing a <title>, <meta description>, or <h1> on a specific named page. false for all other content findings.
 }`
 }
 
@@ -312,7 +312,7 @@ export async function analyzeContentAudit(
     const parsed = parseJsonArray<unknown>(findingsRaw)
     findings = parsed
       .filter(validateFinding)
-      .map(r => ({ ...r, fixable: false }))
+      .map(r => ({ ...r, fixable: typeof r.fixable === 'boolean' ? r.fixable : false }))
   } catch (err) {
     throw new Error(`Content audit findings agent returned invalid JSON: ${err instanceof Error ? err.message : findingsRaw.slice(0, 300)}`)
   }

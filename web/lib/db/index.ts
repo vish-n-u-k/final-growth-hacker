@@ -8,7 +8,12 @@ declare global {
 }
 
 function createDb() {
-  const client = postgres(process.env.DATABASE_URL!)
+  const client = postgres(process.env.DATABASE_URL!, {
+    max: 1,            // One connection per serverless invocation
+    idle_timeout: 20,  // Release idle connections quickly
+    connect_timeout: 10,
+    prepare: false,    // Required: Supabase transaction pooler (PgBouncer) doesn't support prepared statements
+  })
   return drizzle(client, { schema })
 }
 

@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { spawnSync } from 'child_process'
 
 interface CallAIOptions {
   system: string
@@ -9,16 +10,48 @@ interface CallAIOptions {
 }
 
 const useGemini = process.env.USE_GEMINI === 'true'
+const useClaudeCLI = process.env.USE_CLAUDE_CLI === 'true'
+
+function callViaCLI(system: string, prompt: string, model: string): string {
+  // Map SDK model IDs to CLI aliases
+  const cliModel = model.includes('haiku') ? 'haiku' : 'sonnet'
+
+  const input = `SYSTEM:\n${system}\n\nUSER:\n${prompt}`
+
+  const result = spawnSync(
+    'claude',
+    ['-p', '--output-format', 'json', '--no-session-persistence', '--model', cliModel],
+    {
+      input,
+      encoding: 'utf8',
+      timeout: 120_000,
+      maxBuffer: 10 * 1024 * 1024,
+      env: { ...process.env, CLAUDECODE: undefined },
+    },
+  )
+
+  if (result.error) throw result.error
+  if (result.status !== 0) {
+    throw new Error(`claude CLI exited ${result.status}: ${result.stderr?.slice(0, 300)}`)
+  }
+
+  const parsed = JSON.parse(result.stdout) as { result: string }
+  return parsed.result
+}
 
 export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet-4-6' }: CallAIOptions): Promise<string> {
+  if (useClaudeCLI) {
+    return callViaCLI(system, prompt, model)
+  }
+
   if (useGemini) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
-    const model = genAI.getGenerativeModel({
+    const geminiModel = genAI.getGenerativeModel({
       model: 'gemini-2.0-flash',
       systemInstruction: system,
       generationConfig: { maxOutputTokens: maxTokens },
     })
-    const result = await model.generateContent(prompt)
+    const result = await geminiModel.generateContent(prompt)
     return result.response.text()
   }
 
