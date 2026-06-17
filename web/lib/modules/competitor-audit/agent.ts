@@ -2,6 +2,7 @@ import { callAI } from '@/lib/ai/client'
 import { COMPETITOR_AUDIT_MODULE } from './definition'
 import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } from '../types'
 import type { CompetitorAuditFetchResult } from './fetcher'
+import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 
 export async function analyzeCompetitorAudit(
   data: CompetitorAuditFetchResult,
@@ -59,20 +60,14 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array.`
   const raw = await callAI({
     system: COMPETITOR_AUDIT_MODULE.systemPrompt,
     prompt: userPrompt,
-    maxTokens: 10000,
+    maxTokens: 14000,
   })
-
-  const clean = raw
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim()
 
   let results: DynamicModuleAnalysisResult[]
   try {
-    results = JSON.parse(clean)
-  } catch {
-    throw new Error(`Competitor audit agent returned invalid JSON: ${clean.slice(0, 200)}`)
+    results = parseClaudeJsonArray(raw) as DynamicModuleAnalysisResult[]
+  } catch (err) {
+    throw new Error(`Competitor audit agent returned invalid JSON: ${err instanceof Error ? err.message : raw.slice(0, 200)}`)
   }
 
   const validCategories = new Set(categories.map((c) => c.slug))

@@ -113,6 +113,7 @@ export interface DBItemFull {
   aiNarrative: string | null
   aiAction: string | null
   aiDraft: string | null
+  aiData: unknown | null   // structured payload e.g. CalendarEntry[] for content-calendar-30-day
   aiVerified: boolean
   userChecked: boolean
   completedBy: string | null

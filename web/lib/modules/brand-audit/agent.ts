@@ -2,6 +2,7 @@ import { callAI } from '@/lib/ai/client'
 import { BRAND_AUDIT_MODULE } from './definition'
 import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } from '../types'
 import type { BrandAuditFetchResult } from './fetcher'
+import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 
 // ── Format helpers ─────────────────────────────────────────────────────────────
 
@@ -125,17 +126,11 @@ export async function analyzeBrandAudit(
     maxTokens: 16000,
   })
 
-  const clean = raw
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim()
-
   let results: DynamicModuleAnalysisResult[]
   try {
-    results = JSON.parse(clean)
-  } catch {
-    throw new Error(`Brand audit agent returned invalid JSON: ${clean.slice(0, 300)}`)
+    results = parseClaudeJsonArray(raw) as DynamicModuleAnalysisResult[]
+  } catch (err) {
+    throw new Error(`Brand audit agent returned invalid JSON: ${err instanceof Error ? err.message : raw.slice(0, 300)}`)
   }
 
   const allowed = new Set([

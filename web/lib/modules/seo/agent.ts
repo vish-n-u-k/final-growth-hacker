@@ -34,6 +34,7 @@ Return ONLY a valid JSON array:
 [{ "slug": "...", "narrative": "..." }, ...]
 No markdown fences, no text outside the array.`,
     maxTokens: 4000,
+    model: 'claude-haiku-4-5-20251001',
   })
 
   const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()

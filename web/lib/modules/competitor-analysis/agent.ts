@@ -2,6 +2,7 @@ import { callAI } from '@/lib/ai/client'
 import { COMPETITOR_ANALYSIS_MODULE } from './definition'
 import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } from '../types'
 import type { CompetitorAnalysisFetchResult, PsiScore } from './fetcher'
+import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 
 // ── Deterministic constants ───────────────────────────────────────────────────
 
@@ -224,17 +225,11 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. E
     maxTokens: 16000,
   })
 
-  const clean = raw
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim()
-
   let results: DynamicModuleAnalysisResult[]
   try {
-    results = JSON.parse(clean)
-  } catch {
-    throw new Error(`Competitor analysis agent returned invalid JSON: ${clean.slice(0, 300)}`)
+    results = parseClaudeJsonArray(raw) as DynamicModuleAnalysisResult[]
+  } catch (err) {
+    throw new Error(`Competitor analysis agent returned invalid JSON: ${err instanceof Error ? err.message : raw.slice(0, 300)}`)
   }
 
   const allowed = new Set(['competitor-discovery', 'keyword-gap', 'content-gap', 'seo-gap', 'positioning', 'swot'])

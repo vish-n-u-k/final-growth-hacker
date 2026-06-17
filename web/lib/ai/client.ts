@@ -5,11 +5,12 @@ interface CallAIOptions {
   system: string
   prompt: string
   maxTokens: number
+  model?: string
 }
 
 const useGemini = process.env.USE_GEMINI === 'true'
 
-export async function callAI({ system, prompt, maxTokens }: CallAIOptions): Promise<string> {
+export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet-4-6' }: CallAIOptions): Promise<string> {
   if (useGemini) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
     const model = genAI.getGenerativeModel({
@@ -23,7 +24,7 @@ export async function callAI({ system, prompt, maxTokens }: CallAIOptions): Prom
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   const message = await client.messages.create({
-    model: 'claude-sonnet-4-6',
+    model,
     max_tokens: maxTokens,
     system,
     messages: [{ role: 'user', content: prompt }],

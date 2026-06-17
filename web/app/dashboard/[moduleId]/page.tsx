@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands, modules, moduleCategories, moduleItems, brandIntegrations } from '@/lib/db/schema'
+import { brands, modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { MODULE_MAP } from '@/lib/modules/registry'
 import ModuleDashboard, { type DBItemState } from '@/components/ModuleDashboard'
@@ -29,7 +29,7 @@ export default async function ModulePage({
   const def = MODULE_MAP[mod.type]
   if (!def) redirect('/dashboard')
 
-  const [items, allModulesRaw, githubIntegration] = await Promise.all([
+  const [items, allModulesRaw, githubIntegration, pageVerdictsRaw] = await Promise.all([
     db.select().from(moduleItems).where(eq(moduleItems.moduleId, moduleId)),
     db.select().from(modules).where(eq(modules.brandId, brand.id)).orderBy(modules.order),
     db.select().from(brandIntegrations).where(
@@ -39,6 +39,9 @@ export default async function ModulePage({
         eq(brandIntegrations.status, 'connected'),
       ),
     ).limit(1),
+    mod.type === 'content-audit'
+      ? db.select().from(modulePageAudit).where(eq(modulePageAudit.moduleId, moduleId))
+      : Promise.resolve([]),
   ])
 
   const allModules = allModulesRaw
@@ -78,6 +81,7 @@ export default async function ModulePage({
       aiNarrative: item.aiNarrative,
       aiAction: item.aiAction,
       aiDraft: item.aiDraft ?? null,
+      aiData: item.aiData ?? null,
       aiVerified: item.aiVerified ?? false,
       userChecked: item.userChecked ?? false,
       completedBy: item.completedBy,
@@ -98,6 +102,15 @@ export default async function ModulePage({
         githubConnected={githubConnected}
         connectedIntegrations={connectedIntegrations}
         modulePrUrl={mod.agentPrUrl ?? null}
+        pageVerdicts={pageVerdictsRaw.map(v => ({
+          url: v.url,
+          title: v.title ?? null,
+          wordCount: v.wordCount ?? 0,
+          verdict: v.verdict,
+          urgency: v.urgency,
+          reason: v.reason ?? null,
+          action: v.action ?? null,
+        }))}
       />
     )
   }

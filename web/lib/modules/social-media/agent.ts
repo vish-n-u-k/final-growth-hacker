@@ -2,6 +2,7 @@ import { callAI } from '@/lib/ai/client'
 import { SOCIAL_MEDIA_MODULE } from './definition'
 import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } from '../types'
 import type { SocialMediaFetchResult, SocialPlatformData } from './fetcher'
+import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 
 // ── Format helpers ─────────────────────────────────────────────────────────────
 
@@ -107,17 +108,11 @@ export async function analyzeSocialMedia(
     maxTokens: 12000,
   })
 
-  const clean = raw
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim()
-
   let results: DynamicModuleAnalysisResult[]
   try {
-    results = JSON.parse(clean)
-  } catch {
-    throw new Error(`Social media agent returned invalid JSON: ${clean.slice(0, 300)}`)
+    results = parseClaudeJsonArray(raw) as DynamicModuleAnalysisResult[]
+  } catch (err) {
+    throw new Error(`Social media agent returned invalid JSON: ${err instanceof Error ? err.message : raw.slice(0, 300)}`)
   }
 
   const allowed = new Set([

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands, modules, moduleCategories, moduleItems } from '@/lib/db/schema'
+import { brands, modules, moduleCategories, moduleItems, modulePageAudit, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { MODULE_MAP } from '@/lib/modules/registry'
 import { fetchFoundationData } from '@/lib/modules/foundation/fetcher'
@@ -18,6 +18,10 @@ import { fetchBrandAuditData } from '@/lib/modules/brand-audit/fetcher'
 import { analyzeBrandAudit } from '@/lib/modules/brand-audit/agent'
 import { fetchSocialMediaData } from '@/lib/modules/social-media/fetcher'
 import { analyzeSocialMedia } from '@/lib/modules/social-media/agent'
+import { fetchContentAuditData } from '@/lib/modules/content-audit/fetcher'
+import { analyzeContentAudit } from '@/lib/modules/content-audit/agent'
+import { fetchMetaAdsData } from '@/lib/modules/meta-ads/fetcher'
+import { analyzeMetaAds } from '@/lib/modules/meta-ads/agent'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
@@ -65,6 +69,29 @@ async function runAnalysis(
     case 'brand-audit': {
       const data = await fetchBrandAuditData(requirements)
       return analyzeBrandAudit(data, brainCtx)
+    }
+    case 'meta-ads': {
+      const [metaIntegration] = await db
+        .select()
+        .from(brandIntegrations)
+        .where(
+          and(
+            eq(brandIntegrations.brandId, requirements['brand_id']),
+            eq(brandIntegrations.provider, 'meta_ads'),
+            eq(brandIntegrations.status, 'connected'),
+          ),
+        )
+        .limit(1)
+      if (!metaIntegration?.accessToken) {
+        throw new Error('Connect Meta Ads in Settings → Integrations before running this analysis.')
+      }
+      const metaReqs = {
+        ...requirements,
+        access_token: metaIntegration.accessToken,
+        ad_account_id: (metaIntegration.metadata as Record<string, string> | null)?.['ad_account_id'] ?? '',
+      }
+      const data = await fetchMetaAdsData(metaReqs)
+      return analyzeMetaAds(data, brainCtx)
     }
     default:
       throw new Error(`No analyzer registered for module type: ${moduleType}`)
@@ -121,6 +148,112 @@ export async function POST(request: NextRequest) {
     brand_id: brand.id,
     brand_name: brand.name,
     ...(brand.websiteUrl && !baseRequirements['website_url'] ? { website_url: brand.websiteUrl } : {}),
+  }
+
+  // ── Content Audit: special pipeline (parallel Claude calls + page verdicts) ──
+  if (mod.type === 'content-audit') {
+    let contentAuditOutput: Awaited<ReturnType<typeof analyzeContentAudit>>
+    try {
+      const data = await fetchContentAuditData(requirements)
+      contentAuditOutput = await analyzeContentAudit(data, brainCtx)
+    } catch (err) {
+      await db.update(modules).set({ status: 'pending' }).where(eq(modules.id, moduleId))
+      console.error('Content audit analysis failed:', err)
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Content audit failed. Please try again.' },
+        { status: 500 },
+      )
+    }
+
+    const { findings, pageVerdicts, calendarData } = contentAuditOutput
+
+    // Preserve user_checked state before wiping items
+    const existingItems = await db.select().from(moduleItems).where(eq(moduleItems.moduleId, moduleId))
+    const userCheckedSlugs = new Set(existingItems.filter(i => i.userChecked).map(i => i.slug))
+
+    if (existingItems.length > 0) {
+      await db.delete(moduleItems).where(eq(moduleItems.moduleId, moduleId))
+    }
+
+    // Build category slug → id map
+    const cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+    const catMap = new Map(cats.filter(c => !c.parentId).map(c => [c.slug, c.id]))
+
+    // Insert findings into module_items
+    await Promise.all(
+      findings.map(r => {
+        const categoryId = catMap.get(r.category)
+        if (!categoryId) return Promise.resolve()
+        const wasChecked = userCheckedSlugs.has(r.slug)
+        const isCalendar = r.slug === 'content-calendar-30-day'
+        return db.insert(moduleItems).values({
+          moduleId,
+          categoryId,
+          slug: r.slug,
+          label: r.label,
+          weight: r.weight,
+          aiDetail: r.detail,
+          aiNarrative: r.narrative,
+          aiAction: r.action,
+          aiData: isCalendar && calendarData ? calendarData : null,
+          aiVerified: r.verified,
+          aiVerifiedAt: r.verified ? new Date() : null,
+          userChecked: wasChecked,
+          userCheckedAt: wasChecked ? new Date() : null,
+          completedBy: r.verified ? 'ai' : wasChecked ? 'user' : null,
+          fixable: false,
+          updatedAt: new Date(),
+        })
+      }),
+    )
+
+    // Upsert page verdicts — wipe old, insert new
+    await db.delete(modulePageAudit).where(eq(modulePageAudit.moduleId, moduleId))
+    if (pageVerdicts.length > 0) {
+      await Promise.all(
+        pageVerdicts.map(v =>
+          db.insert(modulePageAudit).values({
+            moduleId,
+            url: v.url,
+            title: v.title,
+            wordCount: v.wordCount ?? 0,
+            verdict: v.verdict,
+            urgency: v.urgency,
+            reason: v.reason,
+            action: v.action,
+          }),
+        ),
+      )
+    }
+
+    // Compute score and update module
+    const allItems = await db.select().from(moduleItems).where(eq(moduleItems.moduleId, moduleId))
+    const totalWeight = allItems.reduce((s, i) => s + i.weight, 0)
+    const doneWeight = allItems.filter(i => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
+    const score = totalWeight > 0 ? Math.round((doneWeight / totalWeight) * 100) : 0
+
+    await db.update(modules)
+      .set({ status: 'complete', score, lastAnalyzedAt: new Date() })
+      .where(eq(modules.id, moduleId))
+
+    // Unlock next module if threshold met
+    const nextDef = Object.values(MODULE_MAP).find(m => m.order === def.order + 1)
+    if (nextDef && score >= nextDef.unlockThreshold) {
+      const brandMods = await db.select().from(modules).where(eq(modules.brandId, brand.id))
+      const nextMod = brandMods.find(m => m.type === nextDef.type)
+      if (nextMod && nextMod.status === 'locked') {
+        await db.update(modules).set({ status: 'pending' }).where(eq(modules.id, nextMod.id))
+      }
+    }
+
+    // Extract brain facts
+    try {
+      await extractAndMergeFacts(brand.id, mod.type, findings)
+    } catch (err) {
+      console.error('Brain fact extraction failed (non-fatal):', err)
+    }
+
+    return NextResponse.json({ ok: true, itemCount: findings.length, pageCount: pageVerdicts.length })
   }
 
   let results: ModuleAnalysisResult[] | DynamicModuleAnalysisResult[]

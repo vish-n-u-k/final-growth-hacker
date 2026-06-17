@@ -68,6 +68,7 @@ export const moduleItems = pgTable(
     fixInputKey: text('fix_input_key'),                    // metadata key to read from brandIntegrations (e.g. 'ga4_measurement_id')
     fixIntegrationProvider: text('fix_integration_provider'), // which integration to read from (e.g. 'google_analytics')
     aiDraft: text('ai_draft'),             // on-demand AI-generated draft content (copy, outline, template)
+    aiData: jsonb('ai_data'),              // structured data payload (e.g. calendar entries JSON for content-calendar-30-day)
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   },
   (table) => ({
@@ -129,3 +130,24 @@ export const brainInsights = pgTable('brain_insights', {
   resolved: boolean('resolved').default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
+
+// ── Module Page Audit (content audit per-page verdicts) ───────────────────────
+
+export const modulePageAudit = pgTable(
+  'module_page_audit',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    moduleId: uuid('module_id').notNull().references(() => modules.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    title: text('title'),
+    wordCount: integer('word_count').default(0),
+    verdict: text('verdict').notNull(),   // 'Keep' | 'Refresh' | 'Consolidate' | 'Repurpose' | 'Remove'
+    urgency: text('urgency').notNull(),   // 'High' | 'Medium' | 'Low'
+    reason: text('reason'),
+    action: text('action'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    uniq: unique('module_page_audit_unique').on(table.moduleId, table.url),
+  }),
+)

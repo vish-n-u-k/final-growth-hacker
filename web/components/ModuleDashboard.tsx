@@ -41,6 +41,7 @@ interface Props {
   githubConnected: boolean
   connectedIntegrations: Record<string, boolean>
   modulePrUrl: string | null
+  pageVerdicts?: { url: string; title: string | null; wordCount: number; verdict: string; urgency: string; reason: string | null; action: string | null }[]
 }
 
 function timeAgo(iso: string | null): string {
@@ -125,7 +126,7 @@ function userCountToBarPct(count: number): number {
   return 75 + Math.min((count - 100) / 400, 1) * 25
 }
 
-export default function ModuleDashboard({ brand, module: mod, definition: def, itemStates: initial, fullItems: initialFullItems, allModules, userEmail, githubConnected, connectedIntegrations, modulePrUrl: initialPrUrl }: Props) {
+export default function ModuleDashboard({ brand, module: mod, definition: def, itemStates: initial, fullItems: initialFullItems, allModules, userEmail, githubConnected, connectedIntegrations, modulePrUrl: initialPrUrl, pageVerdicts }: Props) {
   const [states, setStates] = useState(initial)
   const [dynItems, setDynItems] = useState<DBItemFull[]>(initialFullItems ?? [])
   const [openCats, setOpenCats] = useState<Set<string>>(() => new Set([def.categories[0]?.slug ?? '']))
@@ -682,6 +683,33 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                             <p className="sm-action-text">{item.aiAction}</p>
                                           </div>
                                         )}
+                                        {/* Calendar CSV download — only for the 30-day content calendar item */}
+                                        {item.slug === 'content-calendar-30-day' && item.aiData && (
+                                          <a
+                                            href={`/api/modules/${mod.id}/calendar`}
+                                            download
+                                            onClick={(e) => e.stopPropagation()}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '6px',
+                                              marginTop: '10px',
+                                              padding: '6px 14px',
+                                              borderRadius: '6px',
+                                              border: '1px solid var(--green)',
+                                              color: 'var(--green-bright)',
+                                              fontSize: '12px',
+                                              fontWeight: 500,
+                                              textDecoration: 'none',
+                                              background: 'transparent',
+                                            }}
+                                          >
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                            </svg>
+                                            Download Calendar CSV
+                                          </a>
+                                        )}
                                         {/* AI Draft — only for failing, non-fixable dynamic module items */}
                                         {!aiV && !item.fixable && (
                                           <div className="sm-draft-section">
@@ -981,6 +1009,106 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                 )
               })}
         </div>
+
+        {/* Page Content Audit Table — content-audit module only */}
+        {mod.type === 'content-audit' && pageVerdicts && pageVerdicts.length > 0 && (
+          <div style={{ marginTop: '24px' }}>
+            <div className={`md-cat${openCats.has('__page-audit__') ? ' md-cat-open' : ''}`}>
+              <button className="md-cat-hd" onClick={() => toggleCat('__page-audit__')}>
+                <div className="md-cat-hd-left">
+                  <span className="md-cat-hd-name">Page Content Audit</span>
+                  <span className="md-cat-hd-count">{pageVerdicts.length} pages</span>
+                </div>
+                <div className="md-cat-hd-right">
+                  <svg className={`md-chev${openCats.has('__page-audit__') ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </div>
+              </button>
+              {openCats.has('__page-audit__') && (
+                <div className="md-cat-body" style={{ padding: 0 }}>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--text-dim)' }}>
+                          <th style={{ padding: '10px 20px', textAlign: 'left', fontWeight: 500 }}>Page</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 500 }}>Words</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 500 }}>Verdict</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 500 }}>Urgency</th>
+                          <th style={{ padding: '10px 20px', textAlign: 'left', fontWeight: 500 }}>Reason</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pageVerdicts.map((v, i) => {
+                          const verdictColor =
+                            v.verdict === 'Keep' ? 'var(--green)' :
+                            v.verdict === 'Refresh' ? 'var(--gold)' :
+                            v.verdict === 'Consolidate' ? '#60a5fa' :
+                            v.verdict === 'Repurpose' ? '#a78bfa' :
+                            '#f87171'
+                          const urgencyColor =
+                            v.urgency === 'High' ? '#f87171' :
+                            v.urgency === 'Medium' ? 'var(--gold)' :
+                            'var(--text-dim)'
+                          const shortUrl = v.url.replace(/^https?:\/\/[^/]+/, '') || '/'
+                          return (
+                            <tr key={i} style={{ borderBottom: '1px solid var(--line)', color: 'var(--text)' }}>
+                              <td style={{ padding: '10px 20px', maxWidth: '240px' }}>
+                                <a
+                                  href={v.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ color: 'var(--text)', textDecoration: 'none', fontSize: '12px' }}
+                                  title={v.url}
+                                >
+                                  {shortUrl.length > 40 ? shortUrl.slice(0, 40) + '…' : shortUrl}
+                                </a>
+                                {v.title && (
+                                  <div style={{ color: 'var(--text-faint)', fontSize: '11px', marginTop: '2px' }}>
+                                    {v.title.length > 50 ? v.title.slice(0, 50) + '…' : v.title}
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--text-dim)' }}>
+                                {v.wordCount ?? 0}
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                <span style={{
+                                  color: verdictColor,
+                                  fontWeight: 600,
+                                  fontSize: '11px',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  border: `1px solid ${verdictColor}40`,
+                                  background: `${verdictColor}15`,
+                                }}>
+                                  {v.verdict}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                <span style={{ color: urgencyColor, fontSize: '11px', fontWeight: 500 }}>
+                                  {v.urgency}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 20px', color: 'var(--text-dim)', fontSize: '12px', maxWidth: '280px' }}>
+                                {v.reason && <span>{v.reason}</span>}
+                                {v.action && (
+                                  <div style={{ marginTop: '4px', color: 'var(--text-faint)', fontSize: '11px' }}>
+                                    {v.action}
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <p className="foot-note" style={{ marginTop: '16px' }}>
           Click any item to see full analysis and action · AI verified = confirmed by Claude · Self-reported = marked by you
