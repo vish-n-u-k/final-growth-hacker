@@ -686,7 +686,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                           </div>
                                         )}
                                         {/* Calendar CSV download — only for the 30-day content calendar item */}
-                                        {item.slug === 'content-calendar-30-day' && item.aiData && (
+                                        {item.slug === 'content-calendar-30-day' && !!item.aiData && (
                                           <a
                                             href={`/api/modules/${mod.id}/calendar`}
                                             download
