@@ -29,7 +29,7 @@ export default function ThemeToggle() {
     <button
       onClick={toggle}
       title={light ? 'Switch to dark mode' : 'Switch to light mode'}
-      className="w-8 h-8 border border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--green)] hover:text-[var(--text)] bg-transparent rounded-lg grid place-items-center transition-all duration-150 flex-shrink-0 cursor-pointer"
+      className="w-10 h-10 border border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--green)] hover:text-[var(--text)] bg-transparent rounded-[10px] grid place-items-center transition-all duration-150 flex-shrink-0 cursor-pointer"
     >
       {light ? (
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

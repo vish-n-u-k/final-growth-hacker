@@ -255,7 +255,7 @@ export default function OnboardingPage() {
               <p className="ob-desc">
                 Used to personalise your Brand Audit and competitor analysis. You can skip and fill these in later.
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <Input
                   type="text"
                   placeholder="Industry (e.g. SaaS, E-commerce, Healthcare)"
@@ -285,7 +285,7 @@ export default function OnboardingPage() {
                   className="h-12 bg-[var(--bg-soft)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:border-[var(--green)] focus-visible:ring-[var(--green)]/20 text-base"
                 />
               </div>
-              <div className="ob-btn-row" style={{ marginTop: '8px' }}>
+              <div className="ob-btn-row" style={{ marginTop: '20px' }}>
                 <Button
                   type="button"
                   variant="outline"
