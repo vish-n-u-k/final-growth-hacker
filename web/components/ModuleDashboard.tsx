@@ -7,6 +7,7 @@ import { type ModuleDefinition, type ModuleCategoryDefinition, type DBItemFull }
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import ThemeToggle from '@/components/ThemeToggle'
 
 export interface DBItemState {
   id: string
@@ -333,7 +334,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
               size="sm"
               onClick={() => handleReanalyze()}
               disabled={reanalyzing}
-              className="gap-1.5 border-[var(--green)] text-[var(--green-bright)] hover:bg-[#1a3526] hover:text-[var(--green-bright)] bg-[var(--card)]"
+              className="gap-1.5 border-[var(--green)] text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)]"
             >
               {reanalyzing ? (
                 <><span className="md-spin" />Re-analysing…</>
@@ -346,6 +347,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                 </>
               )}
             </Button>
+            <ThemeToggle />
             <Button
               variant="outline"
               size="icon"
@@ -539,7 +541,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                       placeholder={req.placeholder}
                       value={reqValues[req.key] ?? ''}
                       onChange={(e) => setReqValues((prev) => ({ ...prev, [req.key]: e.target.value }))}
-                      className="bg-[#0d1f18] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:ring-[var(--green)] focus-visible:border-[var(--green)]"
+                      className="bg-[var(--input)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:ring-[var(--green)] focus-visible:border-[var(--green)]"
                     />
                   )}
                   {(req.type === 'url_list' || req.type === 'text_list') && (
@@ -774,7 +776,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                                 <Button
                                                   variant="outline"
                                                   size="sm"
-                                                  className="gap-1.5 border-[var(--green)] text-[var(--green)] hover:bg-[#0d2e1a] hover:text-[var(--green-bright)] hover:border-[var(--green-bright)] bg-transparent text-xs"
+                                                  className="gap-1.5 border-[var(--green)] text-[var(--green)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] hover:border-[var(--green-bright)] bg-transparent text-xs"
                                                   onClick={(e) => { e.stopPropagation(); handleApplyFix(item.id, item.slug) }}
                                                 >
                                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
@@ -965,7 +967,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                                       <Button
                                                         variant="outline"
                                                         size="sm"
-                                                        className="gap-1.5 border-[var(--green)] text-[var(--green)] hover:bg-[#0d2e1a] hover:text-[var(--green-bright)] hover:border-[var(--green-bright)] bg-transparent text-xs"
+                                                        className="gap-1.5 border-[var(--green)] text-[var(--green)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] hover:border-[var(--green-bright)] bg-transparent text-xs"
                                                         onClick={(e) => { e.stopPropagation(); handleApplyFix(s.id, item.slug) }}
                                                       >
                                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none">

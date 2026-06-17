@@ -34,7 +34,8 @@
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx next build 2>&1 | tail -40)",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && cat .env.local 2>/dev/null | grep -v \"KEY\\\\|TOKEN\\\\|SECRET\\\\|PASSWORD\\\\|URL\" | head -20; echo \"---\"; ls .env* 2>/dev/null)",
       "Bash(echo \"Say 'hello' in one word\" | claude -p --output-format json --tools \"\" 2>/dev/null)",
-      "Bash(claude -p \"Say hello in one word\" --output-format json --tools \"\" 2>&1)"
+      "Bash(claude -p \"Say hello in one word\" --output-format json --tools \"\" 2>&1)",
+      "Bash(grep -n \"bg-\\\\\\\\\\\\\\\\\" \"C:/Users/vishn/Desktop/Final Growth Hacker/web/app/globals.css\")"
     ]
   }
 }
