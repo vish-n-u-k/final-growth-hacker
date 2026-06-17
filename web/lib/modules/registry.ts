@@ -2,6 +2,7 @@ import { FOUNDATION_MODULE } from './foundation/definition'
 import { WEBSITE_MODULE } from './website/definition'
 import { SEO_MODULE } from './seo/definition'
 import { COMPETITOR_ANALYSIS_MODULE } from './competitor-analysis/definition'
+import { SOCIAL_MEDIA_MODULE } from './social-media/definition'
 import { BRAND_AUDIT_MODULE } from './brand-audit/definition'
 import type { ModuleDefinition } from './types'
 
@@ -14,6 +15,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
   WEBSITE_MODULE,                 // order: 1
   SEO_MODULE,                     // order: 2
   COMPETITOR_ANALYSIS_MODULE,     // order: 3
+  SOCIAL_MEDIA_MODULE,            // order: 4
   BRAND_AUDIT_MODULE,             // order: 5
 ]
 

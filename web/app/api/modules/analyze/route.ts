@@ -16,6 +16,8 @@ import { fetchCompetitorAnalysisData } from '@/lib/modules/competitor-analysis/f
 import { analyzeCompetitorAnalysis } from '@/lib/modules/competitor-analysis/agent'
 import { fetchBrandAuditData } from '@/lib/modules/brand-audit/fetcher'
 import { analyzeBrandAudit } from '@/lib/modules/brand-audit/agent'
+import { fetchSocialMediaData } from '@/lib/modules/social-media/fetcher'
+import { analyzeSocialMedia } from '@/lib/modules/social-media/agent'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
@@ -55,6 +57,10 @@ async function runAnalysis(
     case 'competitor-analysis': {
       const data = await fetchCompetitorAnalysisData(requirements, requirements['website_url'])
       return analyzeCompetitorAnalysis(data, brainCtx)
+    }
+    case 'social-media': {
+      const data = await fetchSocialMediaData(requirements)
+      return analyzeSocialMedia(data, brainCtx)
     }
     case 'brand-audit': {
       const data = await fetchBrandAuditData(requirements)
@@ -108,11 +114,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Ensure website_url is always available in requirements (some modules like competitor-audit need it for comparison)
+  // Ensure website_url, brand_id, and brand_name are always available in requirements
   const baseRequirements = (mod.requirements as Record<string, string> | null) ?? {}
-  const requirements = brand.websiteUrl && !baseRequirements['website_url']
-    ? { ...baseRequirements, website_url: brand.websiteUrl }
-    : baseRequirements
+  const requirements: Record<string, string> = {
+    ...baseRequirements,
+    brand_id: brand.id,
+    brand_name: brand.name,
+    ...(brand.websiteUrl && !baseRequirements['website_url'] ? { website_url: brand.websiteUrl } : {}),
+  }
 
   let results: ModuleAnalysisResult[] | DynamicModuleAnalysisResult[]
   try {

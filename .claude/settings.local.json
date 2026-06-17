@@ -30,7 +30,9 @@
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx shadcn@latest init --defaults 2>&1)",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx shadcn@latest add badge progress input --yes 2>&1)",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm install natural)",
-      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm install compromise sentiment @types/sentiment)"
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm install compromise sentiment @types/sentiment)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx next build 2>&1 | tail -40)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && cat .env.local 2>/dev/null | grep -v \"KEY\\\\|TOKEN\\\\|SECRET\\\\|PASSWORD\\\\|URL\" | head -20; echo \"---\"; ls .env* 2>/dev/null)"
     ]
   }
 }
