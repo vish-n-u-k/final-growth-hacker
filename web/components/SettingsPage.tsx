@@ -152,6 +152,168 @@ function BrandSection({ brand }: { brand: { name: string; websiteUrl: string } }
   )
 }
 
+// ── Social Profiles Card ──────────────────────────────────────────────────────
+
+const FIXED_PLATFORMS = [
+  { key: 'instagram_url', label: 'Instagram',  placeholder: 'https://instagram.com/yourbrand' },
+  { key: 'facebook_url',  label: 'Facebook',   placeholder: 'https://facebook.com/yourbrand' },
+  { key: 'linkedin_url',  label: 'LinkedIn',   placeholder: 'https://linkedin.com/company/yourbrand' },
+  { key: 'youtube_url',   label: 'YouTube',    placeholder: 'https://youtube.com/@yourbrand' },
+  { key: 'twitter_url',   label: 'X (Twitter)',placeholder: 'https://x.com/yourbrand' },
+  { key: 'tiktok_url',    label: 'TikTok',     placeholder: 'https://tiktok.com/@yourbrand' },
+]
+
+function detectPlatformName(url: string): string {
+  try {
+    const host = new URL(url).hostname.replace('www.', '')
+    const known: Record<string, string> = {
+      'pinterest.com': 'Pinterest', 'threads.net': 'Threads',
+      'snapchat.com': 'Snapchat', 'reddit.com': 'Reddit',
+      'tumblr.com': 'Tumblr', 'bsky.app': 'Bluesky',
+    }
+    if (known[host]) return known[host]
+    const part = host.split('.')[0]
+    return part.charAt(0).toUpperCase() + part.slice(1)
+  } catch {
+    return 'Custom'
+  }
+}
+
+function SocialProfilesCard({ connected }: { connected: ConnectedIntegration | null }) {
+  const [urls, setUrls] = useState<Record<string, string>>(() => {
+    const m = connected?.metadata ?? {}
+    return Object.fromEntries(FIXED_PLATFORMS.map((p) => [p.key, m[p.key] ?? '']))
+  })
+  const [customPlatforms, setCustomPlatforms] = useState<{ name: string; url: string }[]>(() => {
+    try { return JSON.parse(connected?.metadata?.custom_links ?? '[]') }
+    catch { return [] }
+  })
+  const [customInput, setCustomInput] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+  const router = useRouter()
+
+  const activeCount = [
+    ...FIXED_PLATFORMS.filter((p) => urls[p.key]?.trim()),
+    ...customPlatforms.filter((p) => p.url?.trim()),
+  ].length
+
+  const insight =
+    activeCount === 0
+      ? 'Add your social media URLs to improve audit accuracy.'
+      : activeCount < 3
+      ? `Active on ${activeCount} platform(s). Consider expanding to 3+ platforms for a stronger presence.`
+      : `Active on ${activeCount} platform(s). Keep posting 3–4x/week for best results.`
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError('')
+    const fields: Record<string, string> = {}
+    for (const p of FIXED_PLATFORMS) fields[p.key] = urls[p.key] ?? ''
+    fields.custom_links = JSON.stringify(customPlatforms)
+    const res = await fetch('/api/settings/integrations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: 'social_profiles', fields }),
+    })
+    if (res.ok) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+      router.refresh()
+    } else {
+      const d = await res.json()
+      setError(d.error ?? 'Failed to save')
+    }
+    setSaving(false)
+  }
+
+  const handleAddCustom = () => {
+    const trimmed = customInput.trim()
+    if (!trimmed) return
+    const url = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`
+    const name = detectPlatformName(url)
+    setCustomPlatforms((prev) => [...prev, { name, url }])
+    setCustomInput('')
+  }
+
+  return (
+    <div className="sp-card">
+      <div className="sp-card-hd">
+        <span className="sp-card-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+          Social Media Details
+        </span>
+        {activeCount > 0 && <span className="sp-active-badge">{activeCount} active</span>}
+      </div>
+
+      <div className="sp-platforms">
+        {FIXED_PLATFORMS.map((p) => (
+          <div key={p.key} className="sp-platform-row">
+            <span className="sp-platform-label">{p.label}</span>
+            <input
+              className="sp-platform-input"
+              type="url"
+              placeholder={p.placeholder}
+              value={urls[p.key]}
+              onChange={(e) => setUrls((prev) => ({ ...prev, [p.key]: e.target.value }))}
+            />
+            <span className={`sp-indicator ${urls[p.key]?.trim() ? 'sp-indicator-on' : 'sp-indicator-off'}`}>
+              {urls[p.key]?.trim() ? '✓' : '—'}
+            </span>
+          </div>
+        ))}
+        {customPlatforms.map((cp, i) => (
+          <div key={i} className="sp-platform-row">
+            <span className="sp-platform-label">{cp.name}</span>
+            <input
+              className="sp-platform-input"
+              type="url"
+              value={cp.url}
+              onChange={(e) => {
+                const updated = [...customPlatforms]
+                updated[i] = { ...updated[i], url: e.target.value }
+                setCustomPlatforms(updated)
+              }}
+            />
+            <button
+              className="sp-indicator sp-indicator-remove"
+              onClick={() => setCustomPlatforms((prev) => prev.filter((_, j) => j !== i))}
+              type="button"
+              title="Remove"
+            >×</button>
+          </div>
+        ))}
+      </div>
+
+      <div className="sp-custom-row">
+        <input
+          className="sp-custom-input"
+          placeholder="Add custom platform..."
+          value={customInput}
+          onChange={(e) => setCustomInput(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleAddCustom()}
+        />
+        <button className="sp-add-btn" onClick={handleAddCustom} type="button">+ Add</button>
+      </div>
+
+      <div className="sp-insight">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <span><strong>Insight:</strong> {insight}</span>
+      </div>
+
+      {error && <p className="st-error">{error}</p>}
+      <button className="st-btn-primary" onClick={handleSave} disabled={saving} type="button">
+        {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Changes'}
+      </button>
+    </div>
+  )
+}
+
 // ── Integrations Section ──────────────────────────────────────────────────────
 
 function IntegrationsSection({
@@ -161,13 +323,15 @@ function IntegrationsSection({
   registry: IntegrationDefinition[]
   connected: Record<string, ConnectedIntegration>
 }) {
-  // Group integrations by their group field
-  const grouped = registry.reduce<Record<string, IntegrationDefinition[]>>((acc, def) => {
-    const g = def.group ?? 'developer'
-    if (!acc[g]) acc[g] = []
-    acc[g].push(def)
-    return acc
-  }, {})
+  // Group integrations by their group field, excluding customUI entries from the card grid
+  const grouped = registry
+    .filter((def) => !def.customUI)
+    .reduce<Record<string, IntegrationDefinition[]>>((acc, def) => {
+      const g = def.group ?? 'developer'
+      if (!acc[g]) acc[g] = []
+      acc[g].push(def)
+      return acc
+    }, {})
 
   const groupOrder = ['developer', 'analytics', 'social']
 
@@ -179,7 +343,6 @@ function IntegrationsSection({
       </div>
       {groupOrder.map((groupKey) => {
         const defs = grouped[groupKey]
-        if (!defs || defs.length === 0) return null
         const groupMeta = INTEGRATION_GROUPS[groupKey]
         return (
           <div key={groupKey} className="st-int-group">
@@ -187,15 +350,20 @@ function IntegrationsSection({
               <span className="st-int-group-label">{groupMeta.label}</span>
               <span className="st-int-group-desc">{groupMeta.description}</span>
             </div>
-            <div className="st-integrations">
-              {defs.map((def) => (
-                <IntegrationCard
-                  key={def.provider}
-                  def={def}
-                  connected={connected[def.provider] ?? null}
-                />
-              ))}
-            </div>
+            {groupKey === 'social' && (
+              <SocialProfilesCard connected={connected['social_profiles'] ?? null} />
+            )}
+            {defs && defs.length > 0 && (
+              <div className="st-integrations">
+                {defs.map((def) => (
+                  <IntegrationCard
+                    key={def.provider}
+                    def={def}
+                    connected={connected[def.provider] ?? null}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )
       })}

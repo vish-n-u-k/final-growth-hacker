@@ -20,6 +20,7 @@ export interface IntegrationDefinition {
   group: 'developer' | 'analytics' | 'social'
   fields: IntegrationField[]
   docsUrl?: string
+  customUI?: boolean    // true = skip standard IntegrationCard rendering
 }
 
 export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
@@ -134,6 +135,23 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
   },
 
   // ── Social Media ────────────────────────────────────────────────────────────
+  {
+    provider: 'social_profiles',
+    name: 'Social Media Profiles',
+    description: 'Add your social media profile URLs for richer analysis without API tokens.',
+    type: 'api_key',
+    group: 'social',
+    customUI: true,
+    fields: [
+      { key: 'instagram_url',  label: 'Instagram',  placeholder: 'https://instagram.com/yourbrand',         inputType: 'url',  isMetadata: true, optional: true },
+      { key: 'facebook_url',   label: 'Facebook',   placeholder: 'https://facebook.com/yourbrand',          inputType: 'url',  isMetadata: true, optional: true },
+      { key: 'linkedin_url',   label: 'LinkedIn',   placeholder: 'https://linkedin.com/company/yourbrand',  inputType: 'url',  isMetadata: true, optional: true },
+      { key: 'youtube_url',    label: 'YouTube',    placeholder: 'https://youtube.com/@yourbrand',          inputType: 'url',  isMetadata: true, optional: true },
+      { key: 'twitter_url',    label: 'X (Twitter)',placeholder: 'https://x.com/yourbrand',                 inputType: 'url',  isMetadata: true, optional: true },
+      { key: 'tiktok_url',     label: 'TikTok',     placeholder: 'https://tiktok.com/@yourbrand',           inputType: 'url',  isMetadata: true, optional: true },
+      { key: 'custom_links',   label: 'Custom Links',placeholder: '',                                       inputType: 'text', isMetadata: true, optional: true },
+    ],
+  },
   {
     provider: 'youtube',
     name: 'YouTube',

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 
 export default function SignupPage() {
   const [email, setEmail] = useState('')
@@ -72,22 +71,22 @@ export default function SignupPage() {
       <h1>Create account</h1>
       <p className="auth-sub">Start tracking your road to 500 users</p>
       <form onSubmit={handleSubmit} className="auth-form">
-        <Input
+        <input
           type="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="h-12 bg-[var(--bg-soft)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:border-[var(--green)] focus-visible:ring-[var(--green)]/20 text-base"
+          className="auth-input"
         />
-        <Input
+        <input
           type="password"
           placeholder="Password (min 6 characters)"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
           minLength={6}
-          className="h-12 bg-[var(--bg-soft)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:border-[var(--green)] focus-visible:ring-[var(--green)]/20 text-base"
+          className="auth-input"
         />
         {error && <p className="auth-error">{error}</p>}
         <Button

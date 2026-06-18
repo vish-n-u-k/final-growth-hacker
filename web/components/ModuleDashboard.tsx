@@ -331,16 +331,15 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
           <div className="md-header-actions">
             <Button
               variant="outline"
-              size="sm"
               onClick={() => handleReanalyze()}
               disabled={reanalyzing}
-              className="gap-1.5 border-[var(--green)] text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)]"
+              className="gap-2 w-30 border-[var(--green)] px-5 h-10 text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)] text-sm font-semibold"
             >
               {reanalyzing ? (
-                <><span className="md-spin" />Re-analysing…</>
+                <><span className="md-spin px-4" />Re-analysing…</>
               ) : (
                 <>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className='px-4'>
                     <path d="M4 4v6h6M20 20v-6h-6M4.06 15a9 9 0 1 0 .94-6.93" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   Re-analyse
@@ -362,9 +361,8 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
             </Button>
             <Button
               variant="ghost"
-              size="sm"
               onClick={handleLogout}
-              className="text-[var(--text-faint)] hover:text-[var(--text-dim)] border border-[var(--line)] hover:border-[var(--green)] text-xs"
+              className="text-[var(--text-faint)] hover:text-[var(--text-dim)] w-48 border border-[var(--line)] hover:border-[var(--green)] text-sm"
             >
               {userEmail} · Sign out
             </Button>

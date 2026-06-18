@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 
 type State = 'step1' | 'step2' | 'step3' | 'analyzing' | 'error'
 
@@ -154,11 +153,11 @@ export default function OnboardingPage() {
               <div className="ob-label">Step 1 of 2</div>
               <h1 className="ob-heading">What&apos;s your product called?</h1>
               <p className="ob-desc">We&apos;ll personalise your entire growth dashboard around your brand.</p>
-              <Input
+              <input
                 autoFocus type="text" placeholder="e.g. AIFeed"
                 value={brandName} onChange={(e) => setBrandName(e.target.value)}
                 required
-                className="h-12 bg-[var(--bg-soft)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:border-[var(--green)] focus-visible:ring-[var(--green)]/20 text-base"
+                className="ob-input"
               />
               <Button
                 type="submit"
@@ -256,33 +255,33 @@ export default function OnboardingPage() {
                 Used to personalise your Brand Audit and competitor analysis. You can skip and fill these in later.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <Input
+                <input
                   type="text"
                   placeholder="Industry (e.g. SaaS, E-commerce, Healthcare)"
                   value={industry}
                   onChange={(e) => setIndustry(e.target.value)}
-                  className="h-12 bg-[var(--bg-soft)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:border-[var(--green)] focus-visible:ring-[var(--green)]/20 text-base"
+                  className="ob-input"
                 />
-                <Input
+                <input
                   type="text"
                   placeholder="Target audience (e.g. Shopify sellers, Marketing managers)"
                   value={targetAudience}
                   onChange={(e) => setTargetAudience(e.target.value)}
-                  className="h-12 bg-[var(--bg-soft)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:border-[var(--green)] focus-visible:ring-[var(--green)]/20 text-base"
+                  className="ob-input"
                 />
-                <Input
+                <input
                   type="text"
                   placeholder="Your USP (e.g. No expertise required, AI-powered)"
                   value={usp}
                   onChange={(e) => setUsp(e.target.value)}
-                  className="h-12 bg-[var(--bg-soft)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:border-[var(--green)] focus-visible:ring-[var(--green)]/20 text-base"
+                  className="ob-input"
                 />
-                <Input
+                <input
                   type="text"
                   placeholder="Brand voice (e.g. Professional, friendly, direct)"
                   value={brandVoice}
                   onChange={(e) => setBrandVoice(e.target.value)}
-                  className="h-12 bg-[var(--bg-soft)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:border-[var(--green)] focus-visible:ring-[var(--green)]/20 text-base"
+                  className="ob-input"
                 />
               </div>
               <div className="ob-btn-row" style={{ marginTop: '20px' }}>

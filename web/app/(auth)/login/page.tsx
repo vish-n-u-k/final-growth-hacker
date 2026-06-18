@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -44,21 +43,21 @@ export default function LoginPage() {
       <h1>Welcome back</h1>
       <p className="auth-sub">Sign in to your account</p>
       <form onSubmit={handleSubmit} className="auth-form">
-        <Input
+        <input
           type="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="h-12 bg-[var(--bg-soft)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:border-[var(--green)] focus-visible:ring-[var(--green)]/20 text-base"
+          className="auth-input"
         />
-        <Input
+        <input
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="h-12 bg-[var(--bg-soft)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:border-[var(--green)] focus-visible:ring-[var(--green)]/20 text-base"
+          className="auth-input"
         />
         {error && <p className="auth-error">{error}</p>}
         <Button

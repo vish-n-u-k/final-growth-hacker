@@ -424,9 +424,22 @@ export async function fetchSocialMediaData(
 
   const integrationMap = new Map(integrations.map((i) => [i.provider, i]))
 
+  // Extract manually-provided social profile URLs (no API token required)
+  const socialProfilesMeta = (integrationMap.get('social_profiles')?.metadata as Record<string, string> | null) ?? {}
+  const customLinks: { name: string; url: string }[] = (() => {
+    try { return JSON.parse(socialProfilesMeta.custom_links ?? '[]') }
+    catch { return [] }
+  })()
+
   // Fetch homepage HTML for social link detection
   const html = await fetchWebsiteHtml(websiteUrl)
   const socialLinksOnWebsite = html ? extractSocialLinksFromHtml(html) : []
+  // Merge in custom links the user manually provided (skip duplicates)
+  for (const cl of customLinks) {
+    if (cl.url && !socialLinksOnWebsite.some((l) => l.url === cl.url)) {
+      socialLinksOnWebsite.push({ platform: cl.name.toLowerCase(), url: cl.url })
+    }
+  }
   const websitePlatforms = new Set(socialLinksOnWebsite.map((l) => l.platform))
 
   // Fetch each connected platform in parallel
@@ -436,8 +449,9 @@ export async function fetchSocialMediaData(
       const base: SocialPlatformData = {
         platform: 'youtube',
         connected: !!integration,
-        detectedOnWebsite: websitePlatforms.has('youtube'),
-        profileUrl: null, handle: null, followerCount: null, followingCount: null,
+        detectedOnWebsite: websitePlatforms.has('youtube') || !!socialProfilesMeta.youtube_url,
+        profileUrl: socialProfilesMeta.youtube_url || null,
+        handle: null, followerCount: null, followingCount: null,
         postCount: null, bio: null, websiteInBio: false, profileImageSet: false,
         lastPostDate: null, postsPerWeek: null, engagementRate: null, fetchError: null,
       }
@@ -453,8 +467,9 @@ export async function fetchSocialMediaData(
       const base: SocialPlatformData = {
         platform: 'twitter',
         connected: !!integration,
-        detectedOnWebsite: websitePlatforms.has('twitter'),
-        profileUrl: null, handle: null, followerCount: null, followingCount: null,
+        detectedOnWebsite: websitePlatforms.has('twitter') || !!socialProfilesMeta.twitter_url,
+        profileUrl: socialProfilesMeta.twitter_url || null,
+        handle: null, followerCount: null, followingCount: null,
         postCount: null, bio: null, websiteInBio: false, profileImageSet: false,
         lastPostDate: null, postsPerWeek: null, engagementRate: null, fetchError: null,
       }
@@ -470,8 +485,9 @@ export async function fetchSocialMediaData(
       const base: SocialPlatformData = {
         platform: 'instagram',
         connected: !!integration,
-        detectedOnWebsite: websitePlatforms.has('instagram'),
-        profileUrl: null, handle: null, followerCount: null, followingCount: null,
+        detectedOnWebsite: websitePlatforms.has('instagram') || !!socialProfilesMeta.instagram_url,
+        profileUrl: socialProfilesMeta.instagram_url || null,
+        handle: null, followerCount: null, followingCount: null,
         postCount: null, bio: null, websiteInBio: false, profileImageSet: false,
         lastPostDate: null, postsPerWeek: null, engagementRate: null, fetchError: null,
       }
@@ -487,8 +503,9 @@ export async function fetchSocialMediaData(
       const base: SocialPlatformData = {
         platform: 'facebook',
         connected: !!integration,
-        detectedOnWebsite: websitePlatforms.has('facebook'),
-        profileUrl: null, handle: null, followerCount: null, followingCount: null,
+        detectedOnWebsite: websitePlatforms.has('facebook') || !!socialProfilesMeta.facebook_url,
+        profileUrl: socialProfilesMeta.facebook_url || null,
+        handle: null, followerCount: null, followingCount: null,
         postCount: null, bio: null, websiteInBio: false, profileImageSet: false,
         lastPostDate: null, postsPerWeek: null, engagementRate: null, fetchError: null,
       }
@@ -504,8 +521,9 @@ export async function fetchSocialMediaData(
       const base: SocialPlatformData = {
         platform: 'linkedin',
         connected: !!integration,
-        detectedOnWebsite: websitePlatforms.has('linkedin'),
-        profileUrl: null, handle: null, followerCount: null, followingCount: null,
+        detectedOnWebsite: websitePlatforms.has('linkedin') || !!socialProfilesMeta.linkedin_url,
+        profileUrl: socialProfilesMeta.linkedin_url || null,
+        handle: null, followerCount: null, followingCount: null,
         postCount: null, bio: null, websiteInBio: false, profileImageSet: false,
         lastPostDate: null, postsPerWeek: null, engagementRate: null, fetchError: null,
       }
@@ -521,8 +539,9 @@ export async function fetchSocialMediaData(
       const base: SocialPlatformData = {
         platform: 'tiktok',
         connected: !!integration,
-        detectedOnWebsite: websitePlatforms.has('tiktok'),
-        profileUrl: null, handle: null, followerCount: null, followingCount: null,
+        detectedOnWebsite: websitePlatforms.has('tiktok') || !!socialProfilesMeta.tiktok_url,
+        profileUrl: socialProfilesMeta.tiktok_url || null,
+        handle: null, followerCount: null, followingCount: null,
         postCount: null, bio: null, websiteInBio: false, profileImageSet: false,
         lastPostDate: null, postsPerWeek: null, engagementRate: null, fetchError: null,
       }
