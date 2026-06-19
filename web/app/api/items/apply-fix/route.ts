@@ -166,10 +166,23 @@ export async function POST(request: NextRequest) {
     t(`value — fetching ${filePath}`)
     const { content: html, sha } = await getFileContent(owner, repo, filePath, pat)
 
+    // Extract existing head values so AI can rewrite/shorten rather than invent from scratch
+    const cheerio = await import('cheerio')
+    const $h = cheerio.load(html, { decodeEntities: false })
+    const existingValues: Record<string, string> = {
+      'title.length':        $h('title').text().trim(),
+      'title.keyword':       $h('title').text().trim(),
+      'title.brand':         $h('title').text().trim(),
+      'description.length':  $h('meta[name="description"]').attr('content') ?? '',
+      'description.keyword': $h('meta[name="description"]').attr('content') ?? '',
+      'description.cta':     $h('meta[name="description"]').attr('content') ?? '',
+    }
+    const existingValue = existingValues[item.slug] ?? ''
+
     t('value — calling AI for string value')
     let newValue: string
     try {
-      newValue = await getValueFromAI(item.slug, brandCtx, item.aiDetail ?? '', item.aiAction ?? '')
+      newValue = await getValueFromAI(item.slug, brandCtx, item.aiDetail ?? '', item.aiAction ?? '', existingValue)
     } catch (err) {
       return NextResponse.json(
         { error: err instanceof Error ? err.message : 'Value generation failed' },
@@ -252,6 +265,15 @@ export async function POST(request: NextRequest) {
         { status: 422 },
       )
     }
+
+    console.log(`\n${'═'.repeat(60)}`)
+    console.log(`[apply-fix] ── PATCHES APPLIED (${patches.length} patch(es)) ──`)
+    console.log(`[apply-fix] Patches:\n${JSON.stringify(patches, null, 2)}`)
+    console.log(`[apply-fix] ── FINAL HTML SNAPSHOT (img tags after patch) ──`)
+    const imgTags = modified.match(/<img[^>]+>/g) ?? []
+    imgTags.forEach((tag, i) => console.log(`  [img ${i + 1}] ${tag}`))
+    console.log(`[apply-fix] ── FULL MODIFIED HTML (${modified.length} chars) ──\n${modified}`)
+    console.log(`${'═'.repeat(60)}\n`)
 
     t('patch — committing')
     await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)

@@ -175,6 +175,7 @@ export async function getValueFromAI(
   brand: BrandContext,
   aiDetail: string,
   aiAction: string,
+  existingValue = '',
 ): Promise<string> {
   const brandCtx = [
     `Brand: ${brand.name}`,
@@ -195,15 +196,20 @@ export async function getValueFromAI(
       'title.brand':   `Brand name missing or poorly placed. ${aiDetail}`,
     }
 
+    const existingLine = existingValue
+      ? `Current title (${existingValue.length} chars): "${existingValue}"\n`
+      : ''
+
     prompt = `${brandCtx}
 
 Audit finding: ${issueMap[slug] ?? aiDetail}
 Recommended fix: ${aiAction}
-
+${existingLine}
 Write a replacement page title:
 - 50–60 characters
 - Brand name at the end after a pipe: "Page Topic | Brand"
 - Naturally reflects what the site offers
+${existingValue ? '- Preserve the core topic/intent of the existing title' : ''}
 
 Return ONLY the title text. No quotes, no explanation.`
     maxTokens = 80
@@ -211,18 +217,26 @@ Return ONLY the title text. No quotes, no explanation.`
   } else if (slug.startsWith('description.')) {
     const issueMap: Record<string, string> = {
       'description.present': 'Meta description is completely missing.',
-      'description.length':  `Description length is wrong. ${aiDetail}`,
+      'description.length':  `Description is too long. ${aiDetail}`,
       'description.keyword': `Primary keyword not in description. ${aiDetail}`,
       'description.cta':     `Description lacks a call-to-action. ${aiDetail}`,
     }
+
+    const existingLine = existingValue
+      ? `Current description (${existingValue.length} chars): "${existingValue}"\n`
+      : ''
+
+    const taskLine = slug === 'description.length' && existingValue
+      ? 'Shorten the current description to 140–155 characters. Keep the core message and selling points — just trim the excess.'
+      : 'Write a replacement meta description:'
 
     prompt = `${brandCtx}
 
 Audit finding: ${issueMap[slug] ?? aiDetail}
 Recommended fix: ${aiAction}
-
-Write a replacement meta description:
-- 140–155 characters
+${existingLine}
+${taskLine}
+- 140–155 characters (hard limit — count carefully)
 - Include the primary keyword naturally
 - End with a clear call-to-action
 - Specific to this brand, not generic
@@ -245,19 +259,38 @@ Return ONLY the JSON object. No <script> tags, no markdown fences, no explanatio
 
   console.log(`\n${'─'.repeat(60)}`)
   console.log(`[getValueFromAI] slug: ${slug} | model: haiku | max_tokens: ${maxTokens}`)
-  console.log(`[getValueFromAI] ── PROMPT ──\n${prompt}`)
+  console.log(`[getValueFromAI] ── PROMPT THAT WOULD GO TO CLAUDE ──\n${prompt}`)
   console.log(`${'─'.repeat(60)}`)
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: prompt }],
-  })
+  // ── MOCK MODE — no real Claude call ──────────────────────────────────────────
+  const mockValues: Record<string, string> = {
+    'title.present':        `${brand.name} | ${brand.industry ?? 'Home'}`,
+    'title.length':         `${brand.name} | ${brand.usp?.slice(0, 30) ?? 'Home'}`,
+    'title.keyword':        `${brand.name} | ${brand.usp?.slice(0, 30) ?? 'Home'}`,
+    'title.brand':          `${brand.name} | ${brand.usp?.slice(0, 30) ?? 'Home'}`,
+    'description.present':  `${brand.name} helps ${brand.targetAudience ?? 'businesses'} with ${brand.usp ?? 'industry-leading solutions'}. Get started today.`,
+    'description.length':   existingValue ? existingValue.slice(0, 150).replace(/\s+\S*$/, '') + '.' : `${brand.name} helps ${brand.targetAudience ?? 'businesses'} with ${brand.usp ?? 'industry-leading solutions'}. Get started today.`,
+    'description.keyword':  `${brand.name} helps ${brand.targetAudience ?? 'businesses'} with ${brand.usp ?? 'industry-leading solutions'}. Get started today.`,
+    'description.cta':      `${brand.name} helps ${brand.targetAudience ?? 'businesses'} with ${brand.usp ?? 'industry-leading solutions'}. Get started today.`,
+    'schema.present':       JSON.stringify({ '@context': 'https://schema.org', '@type': 'Organization', name: brand.name, url: brand.websiteUrl }, null, 2),
+  }
 
-  const result = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-  console.log(`[getValueFromAI] ── RESPONSE (${message.usage.output_tokens} tokens) ──\n${result}`)
+  const result = mockValues[slug] ?? `[MOCK] Fixed value for ${slug}`
+  console.log(`[getValueFromAI] ── MOCK RESPONSE (skipped real Claude call) ──\n${result}`)
+  console.log(`[getValueFromAI] ── WHAT CLAUDE WOULD RETURN: a plain string, ~${result.length} chars ──`)
   console.log(`${'─'.repeat(60)}\n`)
   return result
+  // ── END MOCK — remove above block and uncomment below to go live ──────────────
+
+  // const message = await client.messages.create({
+  //   model: 'claude-haiku-4-5-20251001',
+  //   max_tokens: maxTokens,
+  //   messages: [{ role: 'user', content: prompt }],
+  // })
+  // const result = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+  // console.log(`[getValueFromAI] ── RESPONSE (${message.usage.output_tokens} tokens) ──\n${result}`)
+  // console.log(`${'─'.repeat(60)}\n`)
+  // return result
 }
 
 // Step 2b — apply the value to the HTML using cheerio
@@ -426,11 +459,11 @@ Rules:
 Return ONLY a valid JSON array. No markdown fences, no explanation.`
 
   const domMapJson = JSON.stringify(domMap, null, 2)
-  console.log(`\n${'─'.repeat(60)}`)
-  console.log(`[getBodyPatches] slug: ${slug} | model: haiku | max_tokens: 600`)
+  console.log(`\n${'═'.repeat(60)}`)
+  console.log(`[getBodyPatches] slug: ${slug} | model: claude-haiku-4-5 | max_tokens: 600`)
   console.log(`[getBodyPatches] ── DOM MAP SENT TO CLAUDE (${domMapJson.length} chars) ──\n${domMapJson}`)
-  console.log(`[getBodyPatches] ── FULL PROMPT ──\n${prompt}`)
-  console.log(`${'─'.repeat(60)}`)
+  console.log(`[getBodyPatches] ── FULL PROMPT (${prompt.length} chars) ──\n${prompt}`)
+  console.log(`${'═'.repeat(60)}`)
 
   const message = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -438,9 +471,21 @@ Return ONLY a valid JSON array. No markdown fences, no explanation.`
     messages: [{ role: 'user', content: prompt }],
   })
 
+  const inputTokens = message.usage.input_tokens
+  const outputTokens = message.usage.output_tokens
+  // claude-haiku-4-5 pricing: $0.80/MTok input, $4.00/MTok output
+  const inputCost  = (inputTokens  / 1_000_000) * 0.80
+  const outputCost = (outputTokens / 1_000_000) * 4.00
+  const totalCost  = inputCost + outputCost
+
   const raw = message.content[0].type === 'text' ? message.content[0].text : '[]'
-  console.log(`[getBodyPatches] ── RAW RESPONSE (${message.usage.output_tokens} tokens) ──\n${raw}`)
-  console.log(`${'─'.repeat(60)}\n`)
+  console.log(`[getBodyPatches] ── CLAUDE RESPONSE ──`)
+  console.log(`[getBodyPatches] Raw output:\n${raw}`)
+  console.log(`[getBodyPatches] ── TOKEN USAGE & COST ──`)
+  console.log(`[getBodyPatches] Input tokens : ${inputTokens}  ($${inputCost.toFixed(6)})`)
+  console.log(`[getBodyPatches] Output tokens: ${outputTokens}  ($${outputCost.toFixed(6)})`)
+  console.log(`[getBodyPatches] Total cost   : $${totalCost.toFixed(6)}`)
+  console.log(`${'═'.repeat(60)}\n`)
 
   const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
 

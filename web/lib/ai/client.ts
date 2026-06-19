@@ -40,11 +40,19 @@ function callViaCLI(system: string, prompt: string, model: string): string {
 }
 
 export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet-4-6' }: CallAIOptions): Promise<string> {
-  if (useClaudeCLI) {
-    return callViaCLI(system, prompt, model)
-  }
+  console.log('\n' + '═'.repeat(80))
+  console.log(`[AI] model=${model}  maxTokens=${maxTokens}  provider=${useClaudeCLI ? 'cli' : useGemini ? 'gemini' : 'anthropic'}`)
+  console.log('─── SYSTEM ───────────────────────────────────────────────────────────────────')
+  console.log(system)
+  console.log('─── PROMPT ───────────────────────────────────────────────────────────────────')
+  console.log(prompt)
+  console.log('─── SENDING... ───────────────────────────────────────────────────────────────')
 
-  if (useGemini) {
+  let response: string
+
+  if (useClaudeCLI) {
+    response = callViaCLI(system, prompt, model)
+  } else if (useGemini) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
     const geminiModel = genAI.getGenerativeModel({
       model: 'gemini-2.0-flash',
@@ -52,15 +60,21 @@ export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet
       generationConfig: { maxOutputTokens: maxTokens },
     })
     const result = await geminiModel.generateContent(prompt)
-    return result.response.text()
+    response = result.response.text()
+  } else {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const message = await client.messages.create({
+      model,
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    response = message.content[0].type === 'text' ? message.content[0].text : '[]'
   }
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-  const message = await client.messages.create({
-    model,
-    max_tokens: maxTokens,
-    system,
-    messages: [{ role: 'user', content: prompt }],
-  })
-  return message.content[0].type === 'text' ? message.content[0].text : '[]'
+  console.log('─── RESPONSE ─────────────────────────────────────────────────────────────────')
+  console.log(response)
+  console.log('═'.repeat(80) + '\n')
+
+  return response
 }
