@@ -238,14 +238,17 @@ function SocialProfilesCard({ connected }: { connected: ConnectedIntegration | n
   }
 
   return (
-    <div className="sp-card">
+    <div className={`sp-card${activeCount > 0 ? ' sp-card-connected' : ''}`}>
       <div className="sp-card-hd">
-        <span className="sp-card-title">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-          </svg>
-          Social Media Details
-        </span>
+        <div className="sp-card-info">
+          <span className="sp-card-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+            </svg>
+            Social Media Profiles
+          </span>
+          <p className="sp-card-desc">Add your profile URLs for richer analysis — no API tokens required.</p>
+        </div>
         {activeCount > 0 && <span className="sp-active-badge">{activeCount} active</span>}
       </div>
 
@@ -260,9 +263,9 @@ function SocialProfilesCard({ connected }: { connected: ConnectedIntegration | n
               value={urls[p.key]}
               onChange={(e) => setUrls((prev) => ({ ...prev, [p.key]: e.target.value }))}
             />
-            <span className={`sp-indicator ${urls[p.key]?.trim() ? 'sp-indicator-on' : 'sp-indicator-off'}`}>
-              {urls[p.key]?.trim() ? '✓' : '—'}
-            </span>
+            <div className="sp-platform-cell">
+              <span className={`sp-dot${urls[p.key]?.trim() ? ' sp-dot-on' : ''}`} />
+            </div>
           </div>
         ))}
         {customPlatforms.map((cp, i) => (
@@ -278,12 +281,14 @@ function SocialProfilesCard({ connected }: { connected: ConnectedIntegration | n
                 setCustomPlatforms(updated)
               }}
             />
-            <button
-              className="sp-indicator sp-indicator-remove"
-              onClick={() => setCustomPlatforms((prev) => prev.filter((_, j) => j !== i))}
-              type="button"
-              title="Remove"
-            >×</button>
+            <div className="sp-platform-cell">
+              <button
+                className="sp-remove-btn"
+                onClick={() => setCustomPlatforms((prev) => prev.filter((_, j) => j !== i))}
+                type="button"
+                title="Remove"
+              >×</button>
+            </div>
           </div>
         ))}
       </div>
@@ -299,17 +304,18 @@ function SocialProfilesCard({ connected }: { connected: ConnectedIntegration | n
         <button className="sp-add-btn" onClick={handleAddCustom} type="button">+ Add</button>
       </div>
 
-      <div className="sp-insight">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <span><strong>Insight:</strong> {insight}</span>
+      <div className="sp-footer">
+        <div className="sp-insight">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span>{insight}</span>
+        </div>
+        {error && <p className="st-error" style={{ margin: 0 }}>{error}</p>}
+        <button className="st-btn-primary" onClick={handleSave} disabled={saving} type="button" style={{ flexShrink: 0 }}>
+          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Changes'}
+        </button>
       </div>
-
-      {error && <p className="st-error">{error}</p>}
-      <button className="st-btn-primary" onClick={handleSave} disabled={saving} type="button">
-        {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Changes'}
-      </button>
     </div>
   )
 }

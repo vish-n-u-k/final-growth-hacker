@@ -1,5 +1,10 @@
 // ── Static module types (Foundation — items hardcoded in definition) ──────────
 
+export type FixType =
+  | 'template'  // head tag, no AI — cheerio applies a known tag/value directly
+  | 'value'     // head tag, tiny AI call returns the string only — cheerio applies it
+  | 'patch'     // body tag, full file sent to Claude — Claude returns find/replace pair only, cheerio applies
+
 export interface ModuleItemDefinition {
   slug: string
   label: string
@@ -7,6 +12,7 @@ export interface ModuleItemDefinition {
   order: number
   weight: 1 | 2 | 3
   fixable?: boolean  // true = this item can be auto-fixed via GitHub
+  fixType?: FixType  // controls which fix path is used (undefined = legacy full-file Claude flow)
   assistedInput?: {  // fix is BLOCKED until user saves this value in an integration
     key: string                 // metadata key stored in brandIntegrations e.g. 'ga4_measurement_id'
     integrationProvider: string // provider slug e.g. 'google_analytics'
@@ -99,6 +105,7 @@ export interface DynamicModuleAnalysisResult {
   action: string        // specific next step
   verified: boolean     // true = passes | false = needs attention
   fixable: boolean      // true = safe to auto-fix via GitHub (meta/title/canonical/OG tags only)
+  fixType?: FixType     // controls which fix path is used
 }
 
 // ── Full item row passed to dashboard for dynamic modules ─────────────────────
@@ -118,6 +125,7 @@ export interface DBItemFull {
   userChecked: boolean
   completedBy: string | null
   fixable: boolean
+  fixType: FixType | null
   fixInputKey: string | null
   fixIntegrationProvider: string | null
 }

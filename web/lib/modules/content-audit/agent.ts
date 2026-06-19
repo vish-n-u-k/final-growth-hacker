@@ -303,7 +303,7 @@ export async function analyzeContentAudit(
   const findingsRaw = await callAI({
     system: CONTENT_AUDIT_MODULE.systemPrompt,
     prompt: findingsPrompt,
-    maxTokens: 16000,
+    maxTokens: 12000,
   })
 
   // Parse findings

@@ -10,9 +10,38 @@ import {
   getFileContent,
   commitFile,
 } from '@/lib/github'
-import { planFix, generateFix, detectFramework } from '@/lib/modules/seo/fix-agent'
+import {
+  applyTemplateFix,
+  getValueFromAI,
+  applyValueFix,
+  buildDomMap,
+  getBodyPatches,
+  applyPatches,
+  planFix,
+  generateFix,
+  detectFramework,
+  type BrandContext,
+  type SelectorPatch,
+} from '@/lib/modules/seo/fix-agent'
 
 export const maxDuration = 60
+
+// Deterministic HTML file lookup for static sites — no Claude needed
+function findMainHtmlFile(fileTree: string[]): string | null {
+  for (const candidate of ['index.html', 'index.htm', 'home.html']) {
+    if (fileTree.includes(candidate)) return candidate
+  }
+  // Fall back to first .html at repo root (no subdirectory)
+  return fileTree.find((f) => f.endsWith('.html') && !f.includes('/')) ?? null
+}
+
+// Mark item as agent-fixed in DB
+async function markFixed(itemId: string) {
+  await db
+    .update(moduleItems)
+    .set({ completedBy: 'agent', aiVerified: true, aiVerifiedAt: new Date(), updatedAt: new Date() })
+    .where(eq(moduleItems.id, itemId))
+}
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -21,12 +50,12 @@ export async function POST(request: NextRequest) {
 
   const { itemId } = await request.json() as { itemId: string }
 
-  // ── Load + validate item ──────────────────────────────────────────────────────
+  // ── Load + validate item ──────────────────────────────────────────────────
   const [item] = await db.select().from(moduleItems).where(eq(moduleItems.id, itemId))
   if (!item) return NextResponse.json({ error: 'Item not found' }, { status: 404 })
   if (!item.fixable) return NextResponse.json({ error: 'This item cannot be auto-fixed' }, { status: 400 })
 
-  // ── Verify ownership via module → brand chain ─────────────────────────────────
+  // ── Verify ownership via module → brand chain ─────────────────────────────
   const [mod] = await db.select().from(modules).where(eq(modules.id, item.moduleId))
   if (!mod) return NextResponse.json({ error: 'Module not found' }, { status: 404 })
 
@@ -35,17 +64,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // ── Load GitHub integration ───────────────────────────────────────────────────
+  // ── Load GitHub integration ───────────────────────────────────────────────
   const [integration] = await db
     .select()
     .from(brandIntegrations)
-    .where(
-      and(
-        eq(brandIntegrations.brandId, brand.id),
-        eq(brandIntegrations.provider, 'github'),
-        eq(brandIntegrations.status, 'connected'),
-      ),
-    )
+    .where(and(
+      eq(brandIntegrations.brandId, brand.id),
+      eq(brandIntegrations.provider, 'github'),
+      eq(brandIntegrations.status, 'connected'),
+    ))
     .limit(1)
 
   if (!integration) {
@@ -57,7 +84,6 @@ export async function POST(request: NextRequest) {
 
   const pat = integration.apiKey
   const repoUrl = (integration.metadata as Record<string, string> | null)?.repo_url
-
   if (!pat || !repoUrl) {
     return NextResponse.json(
       { error: 'GitHub PAT or repo URL is missing. Update your GitHub integration in Settings.' },
@@ -65,7 +91,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // ── Parse repo ────────────────────────────────────────────────────────────────
+  // ── Parse repo ────────────────────────────────────────────────────────────
   let owner: string, repo: string
   try {
     ;({ owner, repo } = parseRepoUrl(repoUrl))
@@ -75,32 +101,186 @@ export async function POST(request: NextRequest) {
 
   const t = (label: string) => console.log(`[apply-fix] ${label} — ${Date.now()}ms`)
 
-  // ── Commit directly to default branch ────────────────────────────────────────
   t('getting default branch')
   const defaultBranch = await getDefaultBranch(owner, repo, pat)
-  console.log(`[apply-fix] default branch: ${defaultBranch}`)
-  const activeBranch = defaultBranch
+  const repoHomeUrl = `https://github.com/${owner}/${repo}`
 
-  // ── Detect framework ──────────────────────────────────────────────────────────
-  t('detecting framework')
+  const brandCtx: BrandContext = {
+    name: brand.name,
+    websiteUrl: brand.websiteUrl,
+    industry: brand.industry,
+    targetAudience: brand.targetAudience,
+    usp: brand.usp,
+  }
+
+  const fixType = item.fixType ?? null
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PATH 1 — TEMPLATE (no AI)
+  // Deterministic head tag — cheerio applies a known value directly.
+  // 0 Claude calls. Cost: $0.
+  // ══════════════════════════════════════════════════════════════════════════
+  if (fixType === 'template') {
+    t('template — fetching file tree')
+    const fileTree = await getFileTree(owner, repo, defaultBranch, pat)
+    const filePath = findMainHtmlFile(fileTree)
+    if (!filePath) {
+      return NextResponse.json({ error: 'No HTML file found in repo root.' }, { status: 422 })
+    }
+
+    t(`template — fetching ${filePath}`)
+    const { content: html, sha } = await getFileContent(owner, repo, filePath, pat)
+
+    t('template — applying fix')
+    let modified: string
+    try {
+      modified = applyTemplateFix(html, item.slug, brandCtx)
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Template fix failed' },
+        { status: 422 },
+      )
+    }
+
+    t('template — committing')
+    await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)
+    await markFixed(itemId)
+
+    t('done — template (0 AI calls)')
+    return NextResponse.json({ ok: true, prUrl: repoHomeUrl })
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PATH 2 — VALUE (1 tiny AI call, cheerio applies)
+  // AI returns only the new string. File content never sent to Claude.
+  // max_tokens: 80–600 depending on slug (vs 16,000 in legacy).
+  // ══════════════════════════════════════════════════════════════════════════
+  if (fixType === 'value') {
+    t('value — fetching file tree')
+    const fileTree = await getFileTree(owner, repo, defaultBranch, pat)
+    const filePath = findMainHtmlFile(fileTree)
+    if (!filePath) {
+      return NextResponse.json({ error: 'No HTML file found in repo root.' }, { status: 422 })
+    }
+
+    t(`value — fetching ${filePath}`)
+    const { content: html, sha } = await getFileContent(owner, repo, filePath, pat)
+
+    t('value — calling AI for string value')
+    let newValue: string
+    try {
+      newValue = await getValueFromAI(item.slug, brandCtx, item.aiDetail ?? '', item.aiAction ?? '')
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Value generation failed' },
+        { status: 500 },
+      )
+    }
+    if (!newValue) {
+      return NextResponse.json({ error: 'AI returned an empty value — cannot apply fix.' }, { status: 422 })
+    }
+    console.log(`[apply-fix] new value for ${item.slug}: "${newValue.slice(0, 80)}"`)
+
+    t('value — applying fix')
+    const modified = applyValueFix(html, item.slug, newValue)
+
+    t('value — committing')
+    await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)
+    await markFixed(itemId)
+
+    t('done — value (1 tiny AI call)')
+    return NextResponse.json({ ok: true, prUrl: repoHomeUrl })
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PATH 3 — PATCH (full file in, find/replace out, cheerio applies)
+  // Body-level changes. Claude sees the file but returns only { find, replace }.
+  // max_tokens: 400 (vs 16,000 in legacy). No full-file rewrite.
+  // ══════════════════════════════════════════════════════════════════════════
+  if (fixType === 'patch') {
+    t('patch — detecting framework')
+    let framework = 'static HTML'
+    try {
+      const { content } = await getFileContent(owner, repo, 'package.json', pat)
+      framework = detectFramework(content)
+    } catch { /* not a Node project — default is fine */ }
+    console.log(`[apply-fix] framework: ${framework}`)
+
+    t('patch — fetching file tree')
+    const fileTree = await getFileTree(owner, repo, defaultBranch, pat)
+    if (fileTree.length === 0) {
+      return NextResponse.json({ error: 'Repo file tree is empty or inaccessible.' }, { status: 422 })
+    }
+
+    t('patch — planning (which file?)')
+    const plan = await planFix(item.label, item.aiAction ?? '', framework, fileTree)
+    if (plan.files_to_read.length === 0) {
+      return NextResponse.json({ error: 'Could not identify which file needs to change.' }, { status: 422 })
+    }
+
+    const filePath = plan.files_to_read[0]
+    t(`patch — fetching ${filePath}`)
+    const { content: html, sha } = await getFileContent(owner, repo, filePath, pat)
+
+    // Build DOM map locally — full HTML never sent to Claude
+    t('patch — building DOM map')
+    const domMap = buildDomMap(html)
+    console.log(`[apply-fix] DOM map: ${domMap.images.length} images, ${domMap.headings.length} headings, ${domMap.sections.length} sections`)
+
+    t('patch — getting patches from AI (DOM map only)')
+    let patches: SelectorPatch[]
+    try {
+      patches = await getBodyPatches(domMap, item.slug, item.label, item.aiAction ?? '', brandCtx)
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Patch generation failed' },
+        { status: 500 },
+      )
+    }
+    if (patches.length === 0) {
+      return NextResponse.json({ error: 'Patch agent returned no changes.' }, { status: 422 })
+    }
+    console.log(`[apply-fix] ${patches.length} patch(es) to apply`)
+
+    t('patch — applying patches')
+    let modified: string
+    try {
+      modified = applyPatches(html, patches)
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Patch application failed' },
+        { status: 422 },
+      )
+    }
+
+    t('patch — committing')
+    await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)
+    await markFixed(itemId)
+
+    t('done — patch (2 AI calls, small output)')
+    return NextResponse.json({ ok: true, prUrl: repoHomeUrl })
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // LEGACY PATH — full file rewrite (fixType === null)
+  // Used for og.image, image.dimensions, and any items without fixType.
+  // Unchanged from original implementation.
+  // ══════════════════════════════════════════════════════════════════════════
+
+  t('legacy — detecting framework')
   let framework = 'static HTML'
   try {
     const { content } = await getFileContent(owner, repo, 'package.json', pat)
     framework = detectFramework(content)
-  } catch {
-    // Not a Node project — default is fine
-  }
+  } catch { /* not a Node project */ }
   console.log(`[apply-fix] framework: ${framework}`)
 
-  // ── Get file tree ─────────────────────────────────────────────────────────────
-  t('fetching file tree')
+  t('legacy — fetching file tree')
   const fileTree = await getFileTree(owner, repo, defaultBranch, pat)
-  console.log(`[apply-fix] file tree size: ${fileTree.length} files`)
   if (fileTree.length === 0) {
     return NextResponse.json({ error: 'Repo file tree is empty or inaccessible.' }, { status: 422 })
   }
 
-  // ── Call 0: Plan all changes needed ──────────────────────────────────────────
   // Auto-read assisted fix values from saved integrations
   let userInput: Record<string, string> | undefined
   if (item.fixInputKey && item.fixIntegrationProvider) {
@@ -115,32 +295,30 @@ export async function POST(request: NextRequest) {
       .limit(1)
     const value = (assistedIntegration?.metadata as Record<string, string> | null)?.[item.fixInputKey]
     if (item.fixIntegrationProvider === 'brand_assets') {
-      // Upgrade input — optional. Fix proceeds in partial mode without it.
       if (value) userInput = { [item.fixInputKey]: value }
     } else {
-      // Assisted fix — required. Block if not set up.
-      if (!value) return NextResponse.json({ error: `${item.fixIntegrationProvider === 'google_analytics' ? 'Google Analytics' : 'Google Search Console'} integration is not connected. Go to Settings → Integrations to set it up.` }, { status: 400 })
+      if (!value) {
+        return NextResponse.json({
+          error: `${item.fixIntegrationProvider === 'google_analytics' ? 'Google Analytics' : 'Google Search Console'} integration is not connected. Go to Settings → Integrations to set it up.`,
+        }, { status: 400 })
+      }
       userInput = { [item.fixInputKey]: value }
     }
   }
 
-  t('claude call 0 — planning')
+  t('legacy — planning')
   const plan = await planFix(item.label, item.aiAction ?? '', framework, fileTree, userInput)
-  console.log(`[apply-fix] plan:`, JSON.stringify(plan, null, 2))
   if (plan.files_to_read.length === 0 && plan.files_to_create.length === 0) {
     return NextResponse.json({ error: 'Could not build a fix plan for this item.' }, { status: 422 })
   }
 
-  // ── Fetch existing file contents ──────────────────────────────────────────────
-  t('fetching file contents')
+  t('legacy — fetching file contents')
   const fileContents: { path: string; content: string; sha: string; originalContent: string; headOnly: boolean }[] = []
   for (const path of plan.files_to_read) {
     try {
       const { content, sha } = await getFileContent(owner, repo, path, pat)
       console.log(`[apply-fix] fetched ${path} — ${content.length} chars`)
 
-      // For large HTML files that only need <head> changes, extract just that section to reduce Claude input size.
-      // Skip this optimisation if the plan says the file needs body changes (e.g. adding footer links).
       const isHtml = path.endsWith('.html') || path.endsWith('.htm')
       const planEntry = plan.changes.find((c) => c.path === path)
       const needsBodyChange = planEntry && /footer|link|nav|body|menu/i.test(planEntry.what)
@@ -163,8 +341,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Could not fetch any of the target files from GitHub.' }, { status: 422 })
   }
 
-  // ── Call 1: generate all file changes from the plan ──────────────────────────
-  t('claude call 1 — code generation')
+  t('legacy — generating full file rewrite')
   let modifiedFiles: { path: string; content: string }[]
   try {
     modifiedFiles = await generateFix(
@@ -181,13 +358,12 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     )
   }
-  console.log(`[apply-fix] modified files: ${modifiedFiles.map((f) => f.path).join(', ')}`)
 
   if (modifiedFiles.length === 0) {
     return NextResponse.json({ error: 'Fix agent determined no changes were needed.' }, { status: 422 })
   }
 
-  // ── For head-only files, splice modified head back into the full original file ──
+  // Splice modified head back into full original file where needed
   const headOnlyMap = Object.fromEntries(
     fileContents.filter((f) => f.headOnly).map((f) => [f.path, f.originalContent]),
   )
@@ -195,36 +371,20 @@ export async function POST(request: NextRequest) {
     const original = headOnlyMap[path]
     if (original) {
       const reconstructed = original.replace(/<head[^>]*>[\s\S]*?<\/head>/i, content)
-      console.log(`[apply-fix] reconstructed full ${path} (${reconstructed.length} chars)`)
       return { path, content: reconstructed }
     }
     return { path, content }
   })
 
-  // ── Commit each changed file ──────────────────────────────────────────────────
-  t('committing files')
+  t('legacy — committing files')
   const shaMap = Object.fromEntries(fileContents.map((f) => [f.path, f.sha]))
   for (const { path, content } of finalFiles) {
-    console.log(`[apply-fix] committing ${path}`)
-    await commitFile(
-      owner, repo, path, content,
-      shaMap[path] ?? null,
-      activeBranch,
-      `fix(seo): ${item.label}`,
-      pat,
-    )
+    await commitFile(owner, repo, path, content, shaMap[path] ?? null, defaultBranch, `fix(seo): ${item.label}`, pat)
     console.log(`[apply-fix] committed ${path}`)
   }
 
-  // ── Build repo URL to return to client ───────────────────────────────────────
-  t('done')
-  const repoHomeUrl = `https://github.com/${owner}/${repo}`
+  await markFixed(itemId)
 
-  // ── Mark item as agent-fixed ──────────────────────────────────────────────────
-  await db
-    .update(moduleItems)
-    .set({ completedBy: 'agent', aiVerified: true, aiVerifiedAt: new Date(), updatedAt: new Date() })
-    .where(eq(moduleItems.id, itemId))
-
+  t('done — legacy (2 AI calls, full file rewrite)')
   return NextResponse.json({ ok: true, prUrl: repoHomeUrl })
 }

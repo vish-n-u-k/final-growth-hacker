@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { type ModuleDefinition, type ModuleCategoryDefinition, type DBItemFull } from '@/lib/modules/types'
@@ -140,10 +140,10 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
   const [setupError, setSetupError] = useState<string | null>(null)
   const [generatingDraft, setGeneratingDraft] = useState<Set<string>>(new Set())
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
-  const [userCount, setUserCount] = useState<number>(() => {
-    if (typeof window === 'undefined') return 0
-    return parseInt(localStorage.getItem('gh_user_count') ?? '0', 10) || 0
-  })
+  const [userCount, setUserCount] = useState<number>(0)
+  useEffect(() => {
+    setUserCount(parseInt(localStorage.getItem('gh_user_count') ?? '0', 10) || 0)
+  }, [])
   const [editingCount, setEditingCount] = useState(false)
   const router = useRouter()
 

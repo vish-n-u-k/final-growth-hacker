@@ -100,7 +100,8 @@ export async function analyzeMetaAds(
   const raw = await callAI({
     system: META_ADS_MODULE.systemPrompt,
     prompt,
-    maxTokens: 12000,
+    maxTokens: 8000,
+    model: 'claude-haiku-4-5-20251001',
   })
 
   let results: DynamicModuleAnalysisResult[]

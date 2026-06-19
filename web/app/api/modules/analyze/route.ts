@@ -357,6 +357,7 @@ export async function POST(request: NextRequest) {
             aiVerifiedAt: r.verified ? new Date() : null,
             completedBy: r.verified ? 'ai' : null,
             fixable: !!(defItem?.fixable || defItem?.assistedInput || defItem?.upgradeInput),
+            fixType: defItem?.fixType ?? null,
             fixInputKey: defItem?.assistedInput?.key ?? defItem?.upgradeInput?.key ?? null,
             fixIntegrationProvider: defItem?.assistedInput?.integrationProvider ?? (defItem?.upgradeInput ? 'brand_assets' : null),
             updatedAt: new Date(),

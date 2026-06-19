@@ -123,7 +123,7 @@ export async function analyzeBrandAudit(
   const raw = await callAI({
     system: BRAND_AUDIT_MODULE.systemPrompt,
     prompt,
-    maxTokens: 16000,
+    maxTokens: 10000,
   })
 
   let results: DynamicModuleAnalysisResult[]

@@ -32,7 +32,8 @@ Return ONLY a valid JSON array. No markdown, no text outside the JSON.`
   const raw = await callAI({
     system: FOUNDATION_MODULE.systemPrompt,
     prompt: userPrompt,
-    maxTokens: 6000,
+    maxTokens: 3000,
+    model: 'claude-haiku-4-5-20251001',
   })
   const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
 

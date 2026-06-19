@@ -222,7 +222,7 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. E
   const raw = await callAI({
     system: COMPETITOR_ANALYSIS_MODULE.systemPrompt,
     prompt,
-    maxTokens: 16000,
+    maxTokens: 10000,
   })
 
   let results: DynamicModuleAnalysisResult[]
