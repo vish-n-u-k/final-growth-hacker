@@ -22,6 +22,8 @@ import { fetchContentAuditData } from '@/lib/modules/content-audit/fetcher'
 import { analyzeContentAudit } from '@/lib/modules/content-audit/agent'
 import { fetchMetaAdsData } from '@/lib/modules/meta-ads/fetcher'
 import { analyzeMetaAds } from '@/lib/modules/meta-ads/agent'
+import { fetchOutreachTargetsData } from '@/lib/modules/outreach-targets/fetcher'
+import { analyzeOutreachTargets } from '@/lib/modules/outreach-targets/agent'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
@@ -92,6 +94,13 @@ async function runAnalysis(
       }
       const data = await fetchMetaAdsData(metaReqs)
       return analyzeMetaAds(data, brainCtx)
+    }
+    case 'outreach-targets': {
+      if (!requirements['competitor_urls']) {
+        throw new Error('No competitor URLs provided. Add at least one competitor URL to run this analysis.')
+      }
+      const data = await fetchOutreachTargetsData(requirements)
+      return analyzeOutreachTargets(data, brainCtx)
     }
     default:
       throw new Error(`No analyzer registered for module type: ${moduleType}`)
@@ -318,8 +327,8 @@ export async function POST(request: NextRequest) {
     // Handle migration: if expected slugs are missing (e.g. module was previously dynamic),
     // wipe stale items/categories and re-seed the structure from the current definition
     const expectedSlugs = [...defItemMap.keys()]
+    const existingForModule = await db.select({ slug: moduleItems.slug }).from(moduleItems).where(eq(moduleItems.moduleId, moduleId))
     if (expectedSlugs.length > 0) {
-      const existingForModule = await db.select({ slug: moduleItems.slug }).from(moduleItems).where(eq(moduleItems.moduleId, moduleId))
       const hasExpectedItem = existingForModule.some((i) => expectedSlugs.includes(i.slug))
       if (!hasExpectedItem) {
         await db.delete(moduleItems).where(eq(moduleItems.moduleId, moduleId))
@@ -338,6 +347,50 @@ export async function POST(request: NextRequest) {
             for (const item of sub.items) {
               // eslint-disable-next-line no-await-in-loop
               await db.insert(moduleItems).values({ moduleId, categoryId: subCat.id, slug: item.slug, label: item.label, weight: item.weight })
+            }
+          }
+        }
+      }
+    }
+
+    // Seed any items added to the definition after the module was already created
+    // (e.g. lb-* link-building items added to an existing SEO module)
+    const existingSlugsSet = new Set(existingForModule.map((i) => i.slug))
+    const newDefItems = getAllItems(def).filter((item) => !existingSlugsSet.has(item.slug))
+    if (newDefItems.length > 0) {
+      const allCats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+      const parentCatMap = new Map(allCats.filter((c) => !c.parentId).map((c) => [c.slug, c.id]))
+      const subCatMap = new Map(allCats.filter((c) => c.parentId).map((c) => [c.slug, c.id]))
+
+      for (const cat of def.categories as ModuleCategoryDefinition[]) {
+        // Ensure parent category exists
+        if (!parentCatMap.has(cat.slug)) {
+          // eslint-disable-next-line no-await-in-loop
+          const [newCat] = await db.insert(moduleCategories)
+            .values({ moduleId, parentId: null, slug: cat.slug, label: cat.label, order: cat.order })
+            .returning()
+          parentCatMap.set(cat.slug, newCat.id)
+        }
+        for (const sub of cat.subCategories) {
+          // Ensure sub-category exists
+          if (!subCatMap.has(sub.slug)) {
+            // eslint-disable-next-line no-await-in-loop
+            const [newSub] = await db.insert(moduleCategories)
+              .values({ moduleId, parentId: parentCatMap.get(cat.slug)!, slug: sub.slug, label: sub.label, order: sub.order })
+              .returning()
+            subCatMap.set(sub.slug, newSub.id)
+          }
+          // Insert missing items
+          for (const item of sub.items) {
+            if (!existingSlugsSet.has(item.slug)) {
+              // eslint-disable-next-line no-await-in-loop
+              await db.insert(moduleItems).values({
+                moduleId,
+                categoryId: subCatMap.get(sub.slug)!,
+                slug: item.slug,
+                label: item.label,
+                weight: item.weight,
+              })
             }
           }
         }
