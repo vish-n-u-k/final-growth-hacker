@@ -190,7 +190,7 @@ header {
 
 /* ── Task body ── */
 .level-body { max-height: 0; overflow: hidden; transition: max-height .35s ease; }
-.level.open .level-body { max-height: 600px; }
+.level.open .level-body { max-height: 9999px; }
 .tasks { padding: 8px 28px 28px 28px; border-top: 1px solid var(--line); }
 .task {
   display: flex; align-items: flex-start; gap: 14px;

@@ -134,6 +134,50 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     ],
   },
 
+  {
+    provider: 'serpapi',
+    name: 'SerpAPI',
+    description: 'Enables People Also Ask question data in the Keyword Research module. Free tier includes 100 searches/month.',
+    type: 'api_key',
+    group: 'analytics',
+    docsUrl: 'https://serpapi.com/manage-api-key',
+    fields: [
+      {
+        key: 'api_key',
+        label: 'SerpAPI Key',
+        placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+        inputType: 'password',
+        helpText: 'Get your free API key at serpapi.com → Dashboard. Free plan: 100 searches/month.',
+      },
+    ],
+  },
+  {
+    provider: 'gsc_api',
+    name: 'Google Search Console API',
+    description: 'Unlocks real ranking data — top queries, click-through rates, and keyword positions — in the Keyword Research module. Uses a Service Account key, no OAuth flow needed.',
+    type: 'api_key',
+    group: 'analytics',
+    docsUrl: 'https://developers.google.com/webmaster-tools/v1/api_reference_index',
+    fields: [
+      {
+        key: 'client_email',
+        label: 'Service Account Email',
+        placeholder: 'myapp@myproject.iam.gserviceaccount.com',
+        inputType: 'text',
+        helpText: 'Google Cloud Console → IAM & Admin → Service Accounts → create account → create JSON key → copy client_email value. Then add this email as a user in your GSC property settings.',
+        isMetadata: true,
+      },
+      {
+        key: 'private_key',
+        label: 'Private Key',
+        placeholder: '-----BEGIN RSA PRIVATE KEY-----\n...',
+        inputType: 'password',
+        helpText: 'The private_key field from the downloaded JSON key file. Paste the full key including the BEGIN and END lines.',
+        isMetadata: true,
+      },
+    ],
+  },
+
   // ── Social Media ────────────────────────────────────────────────────────────
   {
     provider: 'social_profiles',

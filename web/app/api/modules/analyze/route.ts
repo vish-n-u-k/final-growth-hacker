@@ -9,7 +9,7 @@ import { analyzeFoundation } from '@/lib/modules/foundation/agent'
 import { fetchWebsiteData } from '@/lib/modules/website/fetcher'
 import { analyzeWebsite } from '@/lib/modules/website/agent'
 import { fetchSeoData } from '@/lib/modules/seo/fetcher'
-import { analyzeSeo } from '@/lib/modules/seo/agent'
+import { analyzeSeo, type SeoIntegrations } from '@/lib/modules/seo/agent'
 import { fetchCompetitorAuditData } from '@/lib/modules/competitor-audit/fetcher'
 import { analyzeCompetitorAudit } from '@/lib/modules/competitor-audit/agent'
 import { fetchCompetitorAnalysisData } from '@/lib/modules/competitor-analysis/fetcher'
@@ -51,7 +51,20 @@ async function runAnalysis(
       const data = await fetchSeoData(requirements)
       if ('error' in data) throw new Error(data.error)
       const url = requirements['website_url'] ?? ''
-      return analyzeSeo(data, url, brainCtx)
+      // Fetch keyword research integrations saved by the user
+      const seoIntRows = await db
+        .select()
+        .from(brandIntegrations)
+        .where(and(eq(brandIntegrations.brandId, requirements['brand_id']), eq(brandIntegrations.status, 'connected')))
+      const serpRow = seoIntRows.find((i) => i.provider === 'serpapi')
+      const gscRow = seoIntRows.find((i) => i.provider === 'gsc_api')
+      const gscMeta = (gscRow?.metadata as Record<string, string> | null) ?? {}
+      const seoIntegrations: SeoIntegrations = {
+        serpApiKey: serpRow?.apiKey ?? undefined,
+        gscClientEmail: gscMeta['client_email'],
+        gscPrivateKey: gscMeta['private_key'],
+      }
+      return analyzeSeo(data, url, brainCtx, seoIntegrations)
     }
     case 'competitor-audit': {
       if (!requirements['competitor_urls']) {

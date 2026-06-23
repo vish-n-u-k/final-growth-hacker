@@ -850,9 +850,50 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                           return (
                             <div key={sub.slug} className={`md-sub${si > 0 ? ' md-sub-border' : ''}`}>
                               <div className="md-sub-hd">
-                                <span className="md-sub-name">{sub.label}</span>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                  <span className="md-sub-name">{sub.label}</span>
+                                  {sub.requires && sub.requires.filter((p) => !connectedIntegrations[p]).map((p) => (
+                                    <span
+                                      key={p}
+                                      title="Connect this integration in Settings → Integrations for full data"
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '3px',
+                                        fontSize: '10px',
+                                        fontWeight: 600,
+                                        padding: '2px 7px',
+                                        borderRadius: '4px',
+                                        background: 'rgba(231,200,115,0.1)',
+                                        border: '1px solid rgba(231,200,115,0.35)',
+                                        color: 'var(--gold)',
+                                        letterSpacing: '0.02em',
+                                        cursor: 'default',
+                                      }}
+                                    >
+                                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                                        <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2"/>
+                                        <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                      </svg>
+                                      {p === 'gsc_api' ? 'Needs GSC API' : p === 'serpapi' ? 'Needs SerpAPI' : `Needs ${p}`}
+                                    </span>
+                                  ))}
+                                </span>
                                 <span className="md-sub-count">{subDone}/{sub.items.length}</span>
                               </div>
+                              {sub.description && (
+                                <div style={{
+                                  padding: '8px 16px',
+                                  margin: '0 0 4px 0',
+                                  background: 'rgba(47,191,113,0.05)',
+                                  borderLeft: '2px solid var(--green)',
+                                  fontSize: '11.5px',
+                                  color: 'var(--text-dim)',
+                                  lineHeight: '1.55',
+                                }}>
+                                  {sub.description}
+                                </div>
+                              )}
                               <div className="md-items">
                                 {[...sub.items]
                                   .sort((a, b) => {

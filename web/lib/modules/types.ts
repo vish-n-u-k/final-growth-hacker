@@ -31,6 +31,8 @@ export interface ModuleSubCategoryDefinition {
   slug: string
   label: string
   order: number
+  description?: string   // optional info notice shown at the top of the sub-category
+  requires?: string[]    // integration provider slugs needed for full functionality (e.g. ['gsc_api', 'serpapi'])
   items: ModuleItemDefinition[]
 }
 
@@ -38,6 +40,7 @@ export interface ModuleCategoryDefinition {
   slug: string
   label: string
   order: number
+  description?: string   // optional info shown inside the category when expanded
   subCategories: ModuleSubCategoryDefinition[]
 }
 
