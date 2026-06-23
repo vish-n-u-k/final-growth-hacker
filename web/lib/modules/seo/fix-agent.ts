@@ -52,7 +52,7 @@ export interface BrandContext {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function applyTemplateFix(html: string, slug: string, brand: BrandContext): string {
-  const $ = cheerio.load(html, { decodeEntities: false })
+  const $ = cheerio.load(html, { decodeEntities: false } as any)
 
   switch (slug) {
 
@@ -295,7 +295,7 @@ Return ONLY the JSON object. No <script> tags, no markdown fences, no explanatio
 
 // Step 2b — apply the value to the HTML using cheerio
 export function applyValueFix(html: string, slug: string, newValue: string): string {
-  const $ = cheerio.load(html, { decodeEntities: false })
+  const $ = cheerio.load(html, { decodeEntities: false } as any)
 
   if (slug.startsWith('title.')) {
     if ($('title').length) {
@@ -342,13 +342,13 @@ export interface DomMap {
 }
 
 export function buildDomMap(html: string): DomMap {
-  const $ = cheerio.load(html, { decodeEntities: false })
+  const $ = cheerio.load(html, { decodeEntities: false } as any)
 
   // Major structural sections (direct children of body/main, excluding invisible tags)
   const SKIP_TAGS = new Set(['script', 'style', 'link', 'meta', 'title', 'head', 'noscript'])
   const sections: string[] = []
   $('body > *, main > *').each((_, el) => {
-    const tag = (el as cheerio.Element & { tagName: string }).tagName
+    const tag = (el as unknown as { tagName: string }).tagName
     if (SKIP_TAGS.has(tag)) return
     const id = $(el).attr('id')
     const cls = $(el).attr('class')?.split(/\s+/).filter(Boolean).slice(0, 2).join('.')
@@ -360,7 +360,7 @@ export function buildDomMap(html: string): DomMap {
   // All headings with usable selectors
   const headings: DomMap['headings'] = []
   $('h1, h2, h3').each((i, el) => {
-    const tag = (el as cheerio.Element & { tagName: string }).tagName
+    const tag = (el as unknown as { tagName: string }).tagName
     const text = $(el).text().trim().slice(0, 80)
     const id = $(el).attr('id')
     const cls = $(el).attr('class')?.split(/\s+/).filter(Boolean).slice(0, 1).join('.')
@@ -379,7 +379,7 @@ export function buildDomMap(html: string): DomMap {
     // null = attribute missing entirely, '' = present but empty (both need fixing for alt.not_empty)
     const alt = altAttr === undefined ? null : altAttr === '' ? null : altAttr
     const parent = $(el).parent()
-    const parentTag = ((parent[0] as cheerio.Element & { tagName: string })?.tagName ?? 'div')
+    const parentTag = ((parent[0] as unknown as { tagName: string })?.tagName ?? 'div')
     const parentCls = parent.attr('class')?.split(/\s+/).filter(Boolean).slice(0, 1).join('.') ?? ''
     const context = parentCls ? `${parentTag}.${parentCls}` : parentTag
     const filename = src.split('/').pop()?.split('?')[0] ?? src
@@ -503,7 +503,7 @@ Return ONLY a valid JSON array. No markdown fences, no explanation.`
 // ── Apply patches using Cheerio selectors ─────────────────────────────────────
 
 export function applyPatches(html: string, patches: SelectorPatch[]): string {
-  const $ = cheerio.load(html, { decodeEntities: false })
+  const $ = cheerio.load(html, { decodeEntities: false } as any)
 
   for (const patch of patches) {
     const el = $(patch.selector)

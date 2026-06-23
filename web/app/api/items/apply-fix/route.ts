@@ -168,7 +168,8 @@ export async function POST(request: NextRequest) {
 
     // Extract existing head values so AI can rewrite/shorten rather than invent from scratch
     const cheerio = await import('cheerio')
-    const $h = cheerio.load(html, { decodeEntities: false })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const $h = cheerio.load(html, { decodeEntities: false } as any)
     const existingValues: Record<string, string> = {
       'title.length':        $h('title').text().trim(),
       'title.keyword':       $h('title').text().trim(),
