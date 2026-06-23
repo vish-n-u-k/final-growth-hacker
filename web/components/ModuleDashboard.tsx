@@ -411,7 +411,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
             <Button
               variant="ghost"
               onClick={handleLogout}
-              className="text-[var(--text-faint)] hover:text-[var(--text-dim)] w-48 border border-[var(--line)] hover:border-[var(--green)] text-sm"
+              className="text-[var(--text-faint)] hover:text-[var(--text-dim)] w-54 border border-[var(--line)] hover:border-[var(--green)] text-sm"
             >
               {userEmail} · Sign out
             </Button>
