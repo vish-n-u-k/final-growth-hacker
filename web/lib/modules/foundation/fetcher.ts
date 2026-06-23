@@ -1,3 +1,122 @@
+import * as cheerio from 'cheerio'
+
+export interface FoundationExtracted {
+  title: string
+  metaRobots: string
+  metaViewport: string
+  metaDescription: string
+  favicon: string
+  gscVerification: string
+  ga4Id: string
+  gtmId: string
+  hasAnalyticsScript: boolean
+  h1: string
+  h2s: string[]
+  bodyTextSnippet: string
+  footerLinks: { text: string; href: string }[]
+  navLinks: { text: string; href: string }[]
+  allLinks: { text: string; href: string }[]
+  ctaTexts: string[]
+}
+
+function extractFoundationData(html: string): FoundationExtracted {
+  const $ = cheerio.load(html)
+
+  // title
+  const title = $('title').first().text().trim()
+
+  // meta tags
+  const metaRobots = $('meta[name="robots"]').attr('content') ?? ''
+  const metaViewport = $('meta[name="viewport"]').attr('content') ?? ''
+  const metaDescription = $('meta[name="description"]').attr('content') ?? ''
+
+  // favicon
+  const favicon =
+    $('link[rel="icon"]').attr('href') ??
+    $('link[rel="shortcut icon"]').attr('href') ??
+    ''
+
+  // Google verification
+  const gscVerification = $('meta[name="google-site-verification"]').attr('content') ?? ''
+
+  // GA4 / GTM detection — must run BEFORE scripts are stripped
+  let ga4Id = ''
+  let gtmId = ''
+  let hasAnalyticsScript = false
+  $('script').each((_, el) => {
+    const src = $(el).attr('src') ?? ''
+    const inline = $(el).html() ?? ''
+    if (src.includes('googletagmanager.com') || src.includes('gtag/js')) hasAnalyticsScript = true
+    if (src.includes('gtm.js')) hasAnalyticsScript = true
+    const ga4Match = inline.match(/['"]?(G-[A-Z0-9]+)['"]?/) ?? src.match(/[?&]id=(G-[A-Z0-9]+)/)
+    if (ga4Match) { ga4Id = ga4Match[1]; hasAnalyticsScript = true }
+    const gtmMatch = inline.match(/['"]?(GTM-[A-Z0-9]+)['"]?/) ?? src.match(/[?&]id=(GTM-[A-Z0-9]+)/)
+    if (gtmMatch) { gtmId = gtmMatch[1]; hasAnalyticsScript = true }
+    if (inline.includes('gtag(') || inline.includes('dataLayer')) hasAnalyticsScript = true
+  })
+
+  // remove noise before text extraction
+  $('script, style, svg, noscript').remove()
+
+  // headings
+  const h1 = $('h1').first().text().trim()
+  const h2s = $('h2').map((_, el) => $(el).text().trim()).get().slice(0, 5)
+
+  // body text snippet (first 800 chars of visible text)
+  const bodyText = $('body').text().replace(/\s+/g, ' ').trim()
+  const bodyTextSnippet = bodyText.slice(0, 800)
+
+  // nav links
+  const navLinks: { text: string; href: string }[] = []
+  $('nav a, header a').each((_, el) => {
+    const text = $(el).text().trim()
+    const href = $(el).attr('href') ?? ''
+    if (text && href) navLinks.push({ text, href })
+  })
+
+  // footer links
+  const footerLinks: { text: string; href: string }[] = []
+  $('footer a, [class*="footer"] a, [id*="footer"] a').each((_, el) => {
+    const text = $(el).text().trim()
+    const href = $(el).attr('href') ?? ''
+    if (text && href) footerLinks.push({ text, href })
+  })
+
+  // all links (for contact/privacy detection)
+  const allLinks: { text: string; href: string }[] = []
+  $('a').each((_, el) => {
+    const text = $(el).text().trim()
+    const href = $(el).attr('href') ?? ''
+    if (text || href) allLinks.push({ text, href })
+  })
+
+  // CTA detection: buttons and prominent links
+  const ctaTexts: string[] = []
+  $('button, [class*="btn"], [class*="cta"], a[class*="button"]').each((_, el) => {
+    const text = $(el).text().trim()
+    if (text) ctaTexts.push(text)
+  })
+
+  return {
+    title,
+    metaRobots,
+    metaViewport,
+    metaDescription,
+    favicon,
+    gscVerification,
+    ga4Id,
+    gtmId,
+    hasAnalyticsScript,
+    h1,
+    h2s,
+    bodyTextSnippet,
+    footerLinks,
+    navLinks,
+    allLinks: allLinks.slice(0, 50),
+    ctaTexts: ctaTexts.slice(0, 10),
+  }
+}
+
 const FREE_HOSTING_DOMAINS: { pattern: RegExp; platform: string }[] = [
   { pattern: /\.vercel\.app$/i,        platform: 'Vercel' },
   { pattern: /\.netlify\.app$/i,       platform: 'Netlify' },
@@ -33,7 +152,7 @@ function detectFreeHosting(url: string): { customDomain: boolean; hostingPlatfor
 }
 
 export interface FoundationFetchResult {
-  html: string
+  extracted: FoundationExtracted | null
   url: string
   customDomain: boolean
   hostingPlatform: string | null
@@ -55,25 +174,6 @@ async function safeFetch(url: string, timeoutMs = 12000): Promise<string | null>
   }
 }
 
-function stripNoise(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<svg[\s\S]*?<\/svg>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-}
-
-function extractContent(html: string, bodyMaxChars = 30000): string {
-  const headMatch = html.match(/<head[\s\S]*?<\/head>/i)
-  const bodyMatch = html.match(/<body[\s\S]*?<\/body>/i)
-  const head = headMatch ? stripNoise(headMatch[0]) : ''
-  const body = bodyMatch
-    ? stripNoise(bodyMatch[0]).slice(0, bodyMaxChars)
-    : stripNoise(html).slice(0, bodyMaxChars)
-  return `${head}\n${body}`.trim()
-}
 
 export async function fetchFoundationData(requirements: Record<string, string>): Promise<FoundationFetchResult> {
   const rawUrl = requirements['website_url'] ?? ''
@@ -83,7 +183,7 @@ export async function fetchFoundationData(requirements: Record<string, string>):
     Promise.resolve(detectFreeHosting(url)),
   ])
   return {
-    html: html ? extractContent(html) : '',
+    extracted: html ? extractFoundationData(html) : null,
     url,
     customDomain,
     hostingPlatform,

@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
   // Re-fetch the site
   const requirements = (mod.requirements as Record<string, string>) ?? {}
   const data = await fetchFoundationData(requirements)
-  if (!data.html) {
+  if (!data.extracted) {
     return NextResponse.json({ canVerify: false, reason: 'Could not reach the site' })
   }
 
@@ -62,8 +62,8 @@ export async function POST(request: NextRequest) {
         role: 'user',
         content: `Re-check this single item for the website at ${data.url}.
 
-=== HTML ===
-${data.html}
+=== Extracted site data ===
+${JSON.stringify(data.extracted, null, 2)}
 
 === Check ===
 slug: "${itemDef.slug}"

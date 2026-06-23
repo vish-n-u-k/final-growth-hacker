@@ -107,7 +107,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [editingCount, setEditingCount] = useState(false)
 
   useEffect(() => {
-    setUserCount(parseInt(localStorage.getItem('gh_user_count') ?? '0', 10) || 0)
+    setUserCount( 0)
   }, [])
 
   const router = useRouter()

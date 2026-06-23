@@ -144,7 +144,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
   const [userCount, setUserCount] = useState<number>(0)
   useEffect(() => {
-    setUserCount(parseInt(localStorage.getItem('gh_user_count') ?? '0', 10) || 0)
+    setUserCount( 0)
   }, [])
   const [editingCount, setEditingCount] = useState(false)
   const router = useRouter()

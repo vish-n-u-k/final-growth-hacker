@@ -40,7 +40,7 @@ async function runAnalysis(
   switch (moduleType) {
     case 'foundation': {
       const data = await fetchFoundationData(requirements)
-      if (!data.html) throw new Error(`Could not fetch ${requirements['website_url']}`)
+      if (!data.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)
       return analyzeFoundation(data)
     }
     case 'website': {

@@ -14,28 +14,30 @@ export async function analyzeFoundation(data: FoundationFetchResult): Promise<Mo
 URL: ${data.url}
 Custom domain: ${data.customDomain ? 'Yes' : `No — hosted on ${data.hostingPlatform ?? 'a free hosting platform'}`}
 
-=== HTML (full head preserved + truncated body) ===
-${data.html || 'Unable to fetch — flag all checks as needing manual review'}
+=== Extracted site data ===
+${data.extracted ? JSON.stringify(data.extracted, null, 2) : 'Unable to fetch — flag all checks as needing manual review'}
 
 === Checks to run ===
 ${JSON.stringify(items, null, 2)}
 
 For each check return exactly:
 - "slug": string — exactly as given
-- "detail": string — one sentence: state what was found (with actual values) if it passes; state the specific problem if it fails
-- "narrative": string — 2–3 sentences explaining WHY this matters for this business's ability to grow. Be specific to the check.
-- "action": string — one concrete, immediately actionable instruction starting with a verb. Include exact steps, tag names, or tool names where relevant.
+- "detail": string — ONE sentence, max 120 chars: what was found (with actual values) if passes; exact problem if fails
+- "narrative": string — ONE sentence, max 150 chars: why this matters for growth or trust
+- "action": string — ONE sentence, max 120 chars: single concrete next step starting with a verb
 - "verified": boolean — true if clearly passes, false if fails or cannot be confirmed
 
-Return ONLY a valid JSON array. No markdown, no text outside the JSON.`
+Be extremely concise. No filler. Return ONLY a valid JSON array. No markdown, no text outside the JSON.`
 
   const raw = await callAI({
     system: FOUNDATION_MODULE.systemPrompt,
     prompt: userPrompt,
-    maxTokens: 3000,
+    maxTokens: 8192,
     model: 'claude-haiku-4-5-20251001',
   })
-  const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
+  const start = raw.indexOf('[')
+  const end = raw.lastIndexOf(']')
+  const clean = start !== -1 && end !== -1 ? raw.slice(start, end + 1) : raw.trim()
 
   let results: ModuleAnalysisResult[]
   try {
