@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 
-type State = 'step1' | 'step2' | 'step3' | 'analyzing' | 'error'
+type State = 'step1' | 'step2' | 'analyzing' | 'error'
 
 const ANALYZING_MESSAGES = [
   'Checking your domain and SSL…',
@@ -16,6 +16,12 @@ const ANALYZING_MESSAGES = [
   'Building your Foundation audit…',
 ]
 
+const CHECK_ICON = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+    <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
 export default function OnboardingPage() {
   const [state, setState] = useState<State>('step1')
   const [brandName, setBrandName] = useState('')
@@ -26,6 +32,7 @@ export default function OnboardingPage() {
   const [brandVoice, setBrandVoice] = useState('')
   const [error, setError] = useState('')
   const [msgIdx, setMsgIdx] = useState(0)
+  const [prefilling, setPrefilling] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -34,16 +41,44 @@ export default function OnboardingPage() {
     return () => clearInterval(interval)
   }, [state])
 
-  const handleStep1 = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!brandName.trim()) return
-    setState('step2')
+  const autoResize = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
   }
 
-  const handleStep2 = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (prefilling) return
+    document.querySelectorAll<HTMLTextAreaElement>('.ob-textarea').forEach((el) => {
+      el.style.height = 'auto'
+      el.style.height = `${el.scrollHeight}px`
+    })
+  }, [prefilling])
+
+  const handleStep1 = (e: React.FormEvent) => {
     e.preventDefault()
     if (!websiteUrl.trim()) return
-    setState('step3')
+    setState('step2')
+    setPrefilling(true)
+
+    const url = websiteUrl.trim().startsWith('http') ? websiteUrl.trim() : `https://${websiteUrl.trim()}`
+    fetch('/api/onboarding/prefill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ websiteUrl: url }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) {
+          if (data.brandName) setBrandName(data.brandName)
+          if (data.industry) setIndustry(data.industry)
+          if (data.targetAudience) setTargetAudience(data.targetAudience)
+          if (data.usp) setUsp(data.usp)
+          if (data.brandVoice) setBrandVoice(data.brandVoice)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setPrefilling(false))
   }
 
   const handleSubmit = async (skip = false) => {
@@ -51,7 +86,6 @@ export default function OnboardingPage() {
     setState('analyzing')
     setMsgIdx(0)
 
-    // Step A: create brand + all modules
     const onboardRes = await fetch('/api/onboarding', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -71,7 +105,6 @@ export default function OnboardingPage() {
       return
     }
 
-    // Step B: analyse Foundation module
     const analyzeRes = await fetch('/api/modules/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -130,7 +163,7 @@ export default function OnboardingPage() {
               <h1 className="ob-heading" style={{ fontSize: '24px' }}>Something went wrong</h1>
               <p className="auth-error">{error}</p>
               <Button
-                onClick={() => { setState('step3'); setError('') }}
+                onClick={() => { setState('step2'); setError('') }}
                 className="w-full h-12 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90"
               >
                 Try again
@@ -139,59 +172,17 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 1 */}
+        {/* Step 1 — Website URL */}
         {state === 'step1' && (
           <div className="ob-card">
             <div className="ob-steps">
               <div className="ob-pill ob-pill-active">1</div>
               <div className="ob-pill-connector" />
               <div className="ob-pill ob-pill-idle">2</div>
-              <div className="ob-pill-connector" />
-              <div className="ob-pill ob-pill-idle">3</div>
             </div>
             <form onSubmit={handleStep1} className="ob-form">
               <div className="ob-label">Step 1 of 2</div>
-              <h1 className="ob-heading">What&apos;s your product called?</h1>
-              <p className="ob-desc">We&apos;ll personalise your entire growth dashboard around your brand.</p>
-              <input
-                autoFocus type="text" placeholder="e.g. AIFeed"
-                value={brandName} onChange={(e) => setBrandName(e.target.value)}
-                required
-                className="ob-input"
-              />
-              <Button
-                type="submit"
-                disabled={!brandName.trim()}
-                className="w-full h-12 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90 disabled:opacity-50"
-              >
-                Continue
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                  <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </Button>
-            </form>
-          </div>
-        )}
-
-        {/* Step 2 */}
-        {state === 'step2' && (
-          <div className="ob-card">
-            <div className="ob-steps">
-              <div className="ob-pill ob-pill-done">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                  <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-              <div className="ob-pill-connector" />
-              <div className="ob-pill ob-pill-active">2</div>
-              <div className="ob-pill-connector" />
-              <div className="ob-pill ob-pill-idle">3</div>
-            </div>
-            <form onSubmit={handleStep2} className="ob-form">
-              <div className="ob-label">Step 2 of 3</div>
-              <h1 className="ob-heading">
-                Where&apos;s <span className="ob-brand-name">{brandName}</span> online?
-              </h1>
+              <h1 className="ob-heading">Where&apos;s your business online?</h1>
               <p className="ob-desc">
                 We&apos;ll run a Foundation audit first — checking your domain, analytics, and essential pages are in place before we get into SEO and growth.
               </p>
@@ -203,118 +194,130 @@ export default function OnboardingPage() {
                   required className="ob-url-input"
                 />
               </div>
-              <div className="ob-btn-row">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setState('step1')}
-                  className="h-12 gap-1.5 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--text-faint)] bg-transparent"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M19 12H5M11 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Back
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={!websiteUrl.trim()}
-                  className="h-12 flex-1 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90 disabled:opacity-50"
-                >
-                  Continue
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </Button>
-              </div>
+              <Button
+                type="submit"
+                disabled={!websiteUrl.trim()}
+                className="w-full h-12 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90 disabled:opacity-50"
+              >
+                Continue
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </Button>
             </form>
           </div>
         )}
 
-        {/* Step 3 */}
-        {state === 'step3' && (
+        {/* Step 2 — Brand details (pre-filled) */}
+        {state === 'step2' && (
           <div className="ob-card">
             <div className="ob-steps">
-              <div className="ob-pill ob-pill-done">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                  <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
+              <div className="ob-pill ob-pill-done">{CHECK_ICON}</div>
               <div className="ob-pill-connector" />
-              <div className="ob-pill ob-pill-done">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                  <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </div>
-              <div className="ob-pill-connector" />
-              <div className="ob-pill ob-pill-active">3</div>
+              <div className="ob-pill ob-pill-active">2</div>
             </div>
             <div className="ob-form">
-              <div className="ob-label">Step 3 of 3</div>
-              <h1 className="ob-heading">Tell us about your brand</h1>
+              <div className="ob-label">Step 2 of 2</div>
+              <h1 className="ob-heading">Your Brand Details</h1>
               <p className="ob-desc">
-                Used to personalise your Brand Audit and competitor analysis. You can skip and fill these in later.
+                Used to personalise your Brand Audit and competitor analysis.
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <input
-                  type="text"
-                  placeholder="Industry (e.g. SaaS, E-commerce, Healthcare)"
-                  value={industry}
-                  onChange={(e) => setIndustry(e.target.value)}
-                  className="ob-input"
-                />
-                <input
-                  type="text"
-                  placeholder="Target audience (e.g. Shopify sellers, Marketing managers)"
-                  value={targetAudience}
-                  onChange={(e) => setTargetAudience(e.target.value)}
-                  className="ob-input"
-                />
-                <input
-                  type="text"
-                  placeholder="Your USP (e.g. No expertise required, AI-powered)"
-                  value={usp}
-                  onChange={(e) => setUsp(e.target.value)}
-                  className="ob-input"
-                />
-                <input
-                  type="text"
-                  placeholder="Brand voice (e.g. Professional, friendly, direct)"
-                  value={brandVoice}
-                  onChange={(e) => setBrandVoice(e.target.value)}
-                  className="ob-input"
-                />
-              </div>
-              <div className="ob-btn-row" style={{ marginTop: '20px' }}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setState('step2')}
-                  className="h-12 gap-1.5 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--text-faint)] bg-transparent"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M19 12H5M11 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Back
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleSubmit(true)}
-                  className="h-12 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--text-faint)] bg-transparent"
-                >
-                  Skip
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => handleSubmit(false)}
-                  className="h-12 flex-1 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90"
-                >
-                  Run Foundation Audit
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </Button>
-              </div>
+              {prefilling ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '32px 0', color: 'var(--text-dim)', fontSize: '12px' }}>
+                  <div style={{ width: '32px', height: '32px' }}>
+                    <svg viewBox="0 0 50 50" className="ob-spinner-svg">
+                      <circle cx="25" cy="25" r="20" fill="none" stroke="var(--line)" strokeWidth="5" />
+                      <circle cx="25" cy="25" r="20" fill="none" stroke="var(--green-bright)" strokeWidth="5" strokeDasharray="40 90" strokeLinecap="round" />
+                    </svg>
+                  </div>
+                  Reading your website…
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span className="ob-field-label">Brand name</span>
+                    <textarea
+                      autoFocus rows={1}
+                      placeholder="e.g. Acme Inc"
+                      value={brandName}
+                      onChange={(e) => setBrandName(e.target.value)}
+                      onInput={autoResize}
+                      className="ob-textarea"
+                    />
+                  </label>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span className="ob-field-label">Industry</span>
+                    <textarea
+                      rows={1}
+                      placeholder="e.g. SaaS, E-commerce, Healthcare"
+                      value={industry}
+                      onChange={(e) => setIndustry(e.target.value)}
+                      onInput={autoResize}
+                      className="ob-textarea"
+                    />
+                  </label>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span className="ob-field-label">Target audience</span>
+                    <textarea
+                      rows={1}
+                      placeholder="e.g. Shopify sellers, Marketing managers"
+                      value={targetAudience}
+                      onChange={(e) => setTargetAudience(e.target.value)}
+                      onInput={autoResize}
+                      className="ob-textarea"
+                    />
+                  </label>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span className="ob-field-label">Unique selling point</span>
+                    <textarea
+                      rows={1}
+                      placeholder="e.g. No expertise required, AI-powered"
+                      value={usp}
+                      onChange={(e) => setUsp(e.target.value)}
+                      onInput={autoResize}
+                      className="ob-textarea"
+                    />
+                  </label>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span className="ob-field-label">Brand voice</span>
+                    <textarea
+                      rows={1}
+                      placeholder="e.g. Professional, friendly, direct"
+                      value={brandVoice}
+                      onChange={(e) => setBrandVoice(e.target.value)}
+                      onInput={autoResize}
+                      className="ob-textarea"
+                    />
+                  </label>
+                </div>
+              )}
+              {!prefilling && (
+                <div className="ob-btn-row" style={{ marginTop: '20px' }}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setState('step1')}
+                    className="h-14 px-8 gap-2 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--text-faint)] bg-transparent text-sm font-medium"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M19 12H5M11 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Back
+                  </Button>
+                  
+                  <Button
+                    type="button"
+                    disabled={!brandName.trim()}
+                    onClick={() => handleSubmit(false)}
+                    className="h-14 flex-1 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90 disabled:opacity-50"
+                  >
+                    Run Foundation Audit
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                      <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )}
