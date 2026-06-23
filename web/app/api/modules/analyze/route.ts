@@ -24,6 +24,8 @@ import { fetchMetaAdsData } from '@/lib/modules/meta-ads/fetcher'
 import { analyzeMetaAds } from '@/lib/modules/meta-ads/agent'
 import { fetchOutreachTargetsData } from '@/lib/modules/outreach-targets/fetcher'
 import { analyzeOutreachTargets } from '@/lib/modules/outreach-targets/agent'
+import { fetchGeoData } from '@/lib/modules/geo/fetcher'
+import { analyzeGeo } from '@/lib/modules/geo/agent'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
@@ -114,6 +116,11 @@ async function runAnalysis(
       }
       const data = await fetchOutreachTargetsData(requirements)
       return analyzeOutreachTargets(data, brainCtx)
+    }
+    case 'geo': {
+      const data = await fetchGeoData(requirements)
+      if ('error' in data) throw new Error(data.error)
+      return analyzeGeo(data, brainCtx)
     }
     default:
       throw new Error(`No analyzer registered for module type: ${moduleType}`)
