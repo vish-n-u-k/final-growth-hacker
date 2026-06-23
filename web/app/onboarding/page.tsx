@@ -187,7 +187,7 @@ export default function OnboardingPage() {
                 We&apos;ll run a Foundation audit first — checking your domain, analytics, and essential pages are in place before we get into SEO and growth.
               </p>
               <div className="ob-url-wrap">
-                <span className="ob-url-prefix">https://</span>
+                {/* <span className="ob-url-prefix">https://</span> */}
                 <input
                   autoFocus type="text" placeholder="yourdomain.com"
                   value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)}
