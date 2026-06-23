@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import type { FixPlan } from '@/lib/modules/seo/fix-agent'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { type ModuleDefinition, type ModuleCategoryDefinition, type DBItemFull } from '@/lib/modules/types'
@@ -135,6 +136,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
   const [verifyingItems, setVerifyingItems] = useState<Set<string>>(new Set())
   const [applyingFix, setApplyingFix] = useState<Set<string>>(new Set())
   const [prUrl, setPrUrl] = useState<string | null>(initialPrUrl)
+  const [fixPlanModal, setFixPlanModal] = useState<{ itemId: string; slug: string; plan: FixPlan } | null>(null)
   const [reanalyzing, setReanalyzing] = useState(false)
   const [reqValues, setReqValues] = useState<Record<string, string>>(mod.requirements ?? {})
   const [setupError, setSetupError] = useState<string | null>(null)
@@ -250,13 +252,16 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
     setReanalyzing(false)
   }
 
-  const handleApplyFix = useCallback(async (itemId: string, slug: string) => {
+  const applyFixExecute = useCallback(async (itemId: string, slug: string, plan?: FixPlan) => {
     setApplyingFix((prev) => new Set(prev).add(slug))
+    setFixPlanModal(null)
     try {
+      const body: Record<string, unknown> = { itemId, mode: 'execute' }
+      if (plan) body.plan = plan
       const res = await fetch('/api/items/apply-fix', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId }),
+        body: JSON.stringify(body),
       })
       const data = await res.json()
       if (res.ok && data.prUrl) {
@@ -284,6 +289,38 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
       })
     }
   }, [def.dynamic])
+
+  const handleApplyFix = useCallback(async (itemId: string, slug: string) => {
+    setApplyingFix((prev) => new Set(prev).add(slug))
+    try {
+      const res = await fetch('/api/items/apply-fix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, mode: 'plan' }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        alert(data.error ?? 'Could not build a fix plan — please try again.')
+        return
+      }
+      if (data.plan === null) {
+        // Template/value paths — no plan preview, apply directly
+        await applyFixExecute(itemId, slug)
+      } else {
+        // Patch/legacy paths — show plan modal
+        setApplyingFix((prev) => { const next = new Set(prev); next.delete(slug); return next })
+        setFixPlanModal({ itemId, slug, plan: data.plan as FixPlan })
+      }
+    } catch {
+      alert('Could not reach the server — please check your connection.')
+    } finally {
+      setApplyingFix((prev) => {
+        const next = new Set(prev)
+        next.delete(slug)
+        return next
+      })
+    }
+  }, [applyFixExecute])
 
   const handleGenerateDraft = async (itemId: string, slug: string) => {
     setGeneratingDraft((prev) => new Set(prev).add(slug))
@@ -317,6 +354,18 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
 
   return (
     <>
+      {/* Fix Plan Modal */}
+      {fixPlanModal && (
+        <FixPlanModal
+          itemId={fixPlanModal.itemId}
+          slug={fixPlanModal.slug}
+          initialPlan={fixPlanModal.plan}
+          applying={applyingFix.has(fixPlanModal.slug)}
+          onCancel={() => setFixPlanModal(null)}
+          onConfirm={(plan) => applyFixExecute(fixPlanModal.itemId, fixPlanModal.slug, plan)}
+        />
+      )}
+
       {/* Header */}
       <header>
         <div className="wrap md-header-inner">
@@ -1058,5 +1107,109 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
         </div> {/* end md-main */}
       </div> {/* end md-layout */}
     </>
+  )
+}
+
+// ── Fix Plan Modal ─────────────────────────────────────────────────────────────
+
+function FixPlanModal({
+  initialPlan,
+  applying,
+  onCancel,
+  onConfirm,
+}: {
+  itemId: string
+  slug: string
+  initialPlan: FixPlan
+  applying: boolean
+  onCancel: () => void
+  onConfirm: (plan: FixPlan) => void
+}) {
+  const [filesToRead, setFilesToRead] = useState<string[]>(initialPlan.files_to_read)
+  const [filesToCreate, setFilesToCreate] = useState<string[]>(initialPlan.files_to_create)
+  const [changes, setChanges] = useState<{ path: string; what: string }[]>(initialPlan.changes)
+
+  const updateReadFile = (i: number, val: string) =>
+    setFilesToRead((prev) => prev.map((f, idx) => (idx === i ? val : f)))
+  const removeReadFile = (i: number) =>
+    setFilesToRead((prev) => prev.filter((_, idx) => idx !== i))
+
+  const updateCreateFile = (i: number, val: string) =>
+    setFilesToCreate((prev) => prev.map((f, idx) => (idx === i ? val : f)))
+  const removeCreateFile = (i: number) =>
+    setFilesToCreate((prev) => prev.filter((_, idx) => idx !== i))
+
+  const updateChangeWhat = (i: number, val: string) =>
+    setChanges((prev) => prev.map((c, idx) => (idx === i ? { ...c, what: val } : c)))
+
+  const handleConfirm = () => {
+    onConfirm({
+      files_to_read: filesToRead.filter(Boolean),
+      files_to_create: filesToCreate.filter(Boolean),
+      changes,
+    })
+  }
+
+  return (
+    <div className="fp-overlay" onClick={onCancel}>
+      <div className="fp-modal" onClick={(e) => e.stopPropagation()}>
+        <p className="fp-title">Review fix plan</p>
+        <p className="fp-subtitle">Claude will make these changes to your repo. Edit before applying.</p>
+
+        <div className="fp-section">
+          <span className="fp-section-label">Files to read</span>
+          {filesToRead.length === 0 && <span className="fp-empty">none</span>}
+          {filesToRead.map((f, i) => (
+            <div key={i} className="fp-file-row">
+              <input
+                className="fp-file-input"
+                value={f}
+                onChange={(e) => updateReadFile(i, e.target.value)}
+              />
+              <button className="fp-remove-btn" onClick={() => removeReadFile(i)}>×</button>
+            </div>
+          ))}
+          <button className="fp-add-btn" onClick={() => setFilesToRead((p) => [...p, ''])}>+ Add file</button>
+        </div>
+
+        <div className="fp-section">
+          <span className="fp-section-label">Files to create</span>
+          {filesToCreate.length === 0 && <span className="fp-empty">none</span>}
+          {filesToCreate.map((f, i) => (
+            <div key={i} className="fp-file-row">
+              <input
+                className="fp-file-input"
+                value={f}
+                onChange={(e) => updateCreateFile(i, e.target.value)}
+              />
+              <button className="fp-remove-btn" onClick={() => removeCreateFile(i)}>×</button>
+            </div>
+          ))}
+          <button className="fp-add-btn" onClick={() => setFilesToCreate((p) => [...p, ''])}>+ Add file</button>
+        </div>
+
+        <div className="fp-section">
+          <span className="fp-section-label">Changes</span>
+          {changes.length === 0 && <span className="fp-empty">none</span>}
+          {changes.map((c, i) => (
+            <div key={i} className="fp-change-row">
+              <span className="fp-change-path">{c.path}</span>
+              <input
+                className="fp-change-input"
+                value={c.what}
+                onChange={(e) => updateChangeWhat(i, e.target.value)}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="fp-actions">
+          <button className="fp-btn-cancel" onClick={onCancel}>Cancel</button>
+          <button className="fp-btn-apply" disabled={applying} onClick={handleConfirm}>
+            {applying ? 'Applying…' : 'Apply Fix'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

@@ -17,11 +17,15 @@ import {
   buildDomMap,
   getBodyPatches,
   applyPatches,
+  extractFooterSnippet,
+  getFooterPatch,
+  applyFooterReplacement,
   planFix,
   generateFix,
   detectFramework,
   type BrandContext,
   type SelectorPatch,
+  type FixPlan,
 } from '@/lib/modules/seo/fix-agent'
 
 export const maxDuration = 60
@@ -48,7 +52,11 @@ export async function POST(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { itemId } = await request.json() as { itemId: string }
+  const { itemId, mode = 'execute', plan: providedPlan } = await request.json() as {
+    itemId: string
+    mode?: 'plan' | 'execute'
+    plan?: FixPlan
+  }
 
   // ── Load + validate item ──────────────────────────────────────────────────
   const [item] = await db.select().from(moduleItems).where(eq(moduleItems.id, itemId))
@@ -121,6 +129,9 @@ export async function POST(request: NextRequest) {
   // 0 Claude calls. Cost: $0.
   // ══════════════════════════════════════════════════════════════════════════
   if (fixType === 'template') {
+    // Template fixes are deterministic — no plan preview needed
+    if (mode === 'plan') return NextResponse.json({ plan: null })
+
     t('template — fetching file tree')
     const fileTree = await getFileTree(owner, repo, defaultBranch, pat)
     const filePath = findMainHtmlFile(fileTree)
@@ -156,6 +167,9 @@ export async function POST(request: NextRequest) {
   // max_tokens: 80–600 depending on slug (vs 16,000 in legacy).
   // ══════════════════════════════════════════════════════════════════════════
   if (fixType === 'value') {
+    // Value fixes generate a string via AI — no plan preview needed
+    if (mode === 'plan') return NextResponse.json({ plan: null })
+
     t('value — fetching file tree')
     const fileTree = await getFileTree(owner, repo, defaultBranch, pat)
     const filePath = findMainHtmlFile(fileTree)
@@ -227,60 +241,106 @@ export async function POST(request: NextRequest) {
     }
 
     t('patch — planning (which file?)')
-    const plan = await planFix(item.label, item.aiAction ?? '', framework, fileTree)
+    let plan: FixPlan
+    if (mode === 'execute' && providedPlan) {
+      plan = providedPlan
+    } else {
+      plan = await planFix(item.label, item.aiAction ?? '', framework, fileTree)
+      if (mode === 'plan') return NextResponse.json({ plan })
+    }
     if (plan.files_to_read.length === 0) {
       return NextResponse.json({ error: 'Could not identify which file needs to change.' }, { status: 422 })
     }
 
-    const filePath = plan.files_to_read[0]
-    t(`patch — fetching ${filePath}`)
-    const { content: html, sha } = await getFileContent(owner, repo, filePath, pat)
+    let anyPatched = false
 
-    // Build DOM map locally — full HTML never sent to Claude
-    t('patch — building DOM map')
-    const domMap = buildDomMap(html)
-    console.log(`[apply-fix] DOM map: ${domMap.images.length} images, ${domMap.headings.length} headings, ${domMap.sections.length} sections`)
+    for (const filePath of plan.files_to_read) {
+      t(`patch — fetching ${filePath}`)
+      let html: string, sha: string
+      try {
+        ;({ content: html, sha } = await getFileContent(owner, repo, filePath, pat))
+      } catch {
+        console.warn(`[apply-fix] could not fetch ${filePath} — skipping`)
+        continue
+      }
 
-    t('patch — getting patches from AI (DOM map only)')
-    let patches: SelectorPatch[]
-    try {
-      patches = await getBodyPatches(domMap, item.slug, item.label, item.aiAction ?? '', brandCtx)
-    } catch (err) {
-      return NextResponse.json(
-        { error: err instanceof Error ? err.message : 'Patch generation failed' },
-        { status: 500 },
-      )
+      // Use per-file action from plan if available, else fall back to item action
+      const fileAction = plan.changes.find((c) => c.path === filePath)?.what ?? item.aiAction ?? ''
+
+      const isFooterFix = /footer|link|nav|header|privacy|contact|terms/i.test(fileAction)
+
+      let modified: string
+
+      if (isFooterFix) {
+        // ── Footer snippet path — extract footer, patch it, splice back ──────
+        t(`patch — extracting footer from ${filePath}`)
+        const snippet = extractFooterSnippet(html)
+
+        if (snippet) {
+          console.log(`[apply-fix] footer found via "${snippet.selector}" (${snippet.outerHtml.length} chars)`)
+          let newFooterHtml: string
+          try {
+            newFooterHtml = await getFooterPatch(snippet.outerHtml, item.label, fileAction, brandCtx)
+          } catch (err) {
+            console.warn(`[apply-fix] footer patch failed for ${filePath}: ${err instanceof Error ? err.message : err}`)
+            continue
+          }
+          if (!newFooterHtml) {
+            console.warn(`[apply-fix] footer patch returned empty for ${filePath} — skipping`)
+            continue
+          }
+          modified = applyFooterReplacement(html, snippet.selector, newFooterHtml)
+        } else {
+          // No footer found — fall back to DOM map
+          console.log(`[apply-fix] no footer element found in ${filePath} — falling back to DOM map`)
+          const domMap = buildDomMap(html)
+          let patches: SelectorPatch[]
+          try {
+            patches = await getBodyPatches(domMap, item.slug, item.label, fileAction, brandCtx)
+          } catch (err) {
+            console.warn(`[apply-fix] fallback patch failed for ${filePath}: ${err instanceof Error ? err.message : err}`)
+            continue
+          }
+          if (patches.length === 0) { console.log(`[apply-fix] no patches for ${filePath} — skipping`); continue }
+          try { modified = applyPatches(html, patches) } catch { continue }
+        }
+      } else {
+        // ── DOM map path — for non-footer fixes (alt text, H1, etc.) ─────────
+        t(`patch — building DOM map for ${filePath}`)
+        const domMap = buildDomMap(html)
+        console.log(`[apply-fix] ${filePath} DOM map: ${domMap.images.length} images, ${domMap.headings.length} headings, ${domMap.sections.length} sections`)
+
+        let patches: SelectorPatch[]
+        try {
+          patches = await getBodyPatches(domMap, item.slug, item.label, fileAction, brandCtx)
+        } catch (err) {
+          console.warn(`[apply-fix] patch generation failed for ${filePath}: ${err instanceof Error ? err.message : err}`)
+          continue
+        }
+        if (patches.length === 0) {
+          console.log(`[apply-fix] no patches needed for ${filePath} — skipping`)
+          continue
+        }
+        console.log(`[apply-fix] ${patches.length} patch(es) to apply to ${filePath}:\n${JSON.stringify(patches, null, 2)}`)
+        try {
+          modified = applyPatches(html, patches)
+        } catch (err) {
+          console.warn(`[apply-fix] patch application failed for ${filePath}: ${err instanceof Error ? err.message : err}`)
+          continue
+        }
+      }
+
+      t(`patch — committing ${filePath}`)
+      await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)
+      anyPatched = true
     }
-    if (patches.length === 0) {
-      return NextResponse.json({ error: 'Patch agent returned no changes.' }, { status: 422 })
-    }
-    console.log(`[apply-fix] ${patches.length} patch(es) to apply`)
 
-    t('patch — applying patches')
-    let modified: string
-    try {
-      modified = applyPatches(html, patches)
-    } catch (err) {
-      return NextResponse.json(
-        { error: err instanceof Error ? err.message : 'Patch application failed' },
-        { status: 422 },
-      )
+    if (!anyPatched) {
+      return NextResponse.json({ error: 'Patch agent found no changes to apply across any of the target files.' }, { status: 422 })
     }
 
-    console.log(`\n${'═'.repeat(60)}`)
-    console.log(`[apply-fix] ── PATCHES APPLIED (${patches.length} patch(es)) ──`)
-    console.log(`[apply-fix] Patches:\n${JSON.stringify(patches, null, 2)}`)
-    console.log(`[apply-fix] ── FINAL HTML SNAPSHOT (img tags after patch) ──`)
-    const imgTags = modified.match(/<img[^>]+>/g) ?? []
-    imgTags.forEach((tag, i) => console.log(`  [img ${i + 1}] ${tag}`))
-    console.log(`[apply-fix] ── FULL MODIFIED HTML (${modified.length} chars) ──\n${modified}`)
-    console.log(`${'═'.repeat(60)}\n`)
-
-    t('patch — committing')
-    await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)
     await markFixed(itemId)
-
-    t('done — patch (2 AI calls, small output)')
+    t(`done — patch (${plan.files_to_read.length} file(s), DOM map only)`)
     return NextResponse.json({ ok: true, prUrl: repoHomeUrl })
   }
 
@@ -329,8 +389,40 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Keyword map: slug prefix → terms to search in file tree
+  const SLUG_KEYWORDS: Record<string, string[]> = {
+    'privacy':   ['privacy'],
+    'terms':     ['terms', 'tos'],
+    'contact':   ['contact'],
+    'sitemap':   ['sitemap'],
+    'robots':    ['robots'],
+    'cookie':    ['cookie'],
+    'about':     ['about'],
+    'faq':       ['faq'],
+    'blog':      ['blog'],
+    'schema':    ['schema', 'structured-data'],
+    'footer':    ['footer', 'layout'],
+    'nav':       ['nav', 'header', 'layout'],
+  }
+
+  const slugKey = Object.keys(SLUG_KEYWORDS).find((k) => item.slug.includes(k))
+  const keywords = slugKey ? SLUG_KEYWORDS[slugKey] : []
+  const existingRelevantFiles = keywords.length > 0
+    ? fileTree.filter((p) => keywords.some((k) => p.toLowerCase().includes(k)))
+    : []
+
+  if (existingRelevantFiles.length > 0) {
+    console.log(`[apply-fix] existing relevant files for "${item.slug}": ${existingRelevantFiles.join(', ')}`)
+  }
+
   t('legacy — planning')
-  const plan = await planFix(item.label, item.aiAction ?? '', framework, fileTree, userInput)
+  let plan: FixPlan
+  if (mode === 'execute' && providedPlan) {
+    plan = providedPlan
+  } else {
+    plan = await planFix(item.label, item.aiAction ?? '', framework, fileTree, userInput, existingRelevantFiles)
+    if (mode === 'plan') return NextResponse.json({ plan })
+  }
   if (plan.files_to_read.length === 0 && plan.files_to_create.length === 0) {
     return NextResponse.json({ error: 'Could not build a fix plan for this item.' }, { status: 422 })
   }

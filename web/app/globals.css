@@ -881,6 +881,62 @@ header {
 }
 .md-fix-pr-link:hover { color: var(--lime); }
 
+/* ── Fix Plan Modal ─────────────────────────────────────────────────────────── */
+.fp-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,.6); backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.fp-modal {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 12px; padding: 24px; width: 100%; max-width: 560px;
+  max-height: 80vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 18px;
+}
+.fp-title { font-size: 15px; font-weight: 700; color: var(--text); margin: 0; }
+.fp-subtitle { font-size: 12px; color: var(--text-dim); margin: -10px 0 0; }
+.fp-section { display: flex; flex-direction: column; gap: 8px; }
+.fp-section-label { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: .05em; }
+.fp-file-row { display: flex; align-items: center; gap: 6px; }
+.fp-file-input {
+  flex: 1; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 5px 9px; font-size: 12px; font-family: monospace;
+  color: var(--text); outline: none;
+}
+.fp-file-input:focus { border-color: var(--green); }
+.fp-remove-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-dim); font-size: 16px; line-height: 1; padding: 2px 4px;
+}
+.fp-remove-btn:hover { color: var(--text); }
+.fp-add-btn {
+  background: none; border: 1px dashed var(--border); border-radius: 6px;
+  padding: 5px 10px; font-size: 12px; color: var(--text-dim);
+  cursor: pointer; width: 100%; text-align: left;
+}
+.fp-add-btn:hover { border-color: var(--green); color: var(--green); }
+.fp-change-row { display: flex; flex-direction: column; gap: 4px; }
+.fp-change-path { font-size: 11px; font-family: monospace; color: var(--green); }
+.fp-change-input {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 5px 9px; font-size: 12px;
+  color: var(--text); outline: none; width: 100%;
+}
+.fp-change-input:focus { border-color: var(--green); }
+.fp-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+.fp-btn-cancel {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  padding: 7px 16px; font-size: 13px; color: var(--text-dim); cursor: pointer;
+}
+.fp-btn-cancel:hover { border-color: var(--text-dim); color: var(--text); }
+.fp-btn-apply {
+  background: var(--green); border: none; border-radius: 6px;
+  padding: 7px 16px; font-size: 13px; font-weight: 600; color: #0a1410; cursor: pointer;
+}
+.fp-btn-apply:hover { background: var(--green-bright); }
+.fp-btn-apply:disabled { opacity: .5; cursor: not-allowed; }
+.fp-empty { font-size: 12px; color: var(--text-faint); font-style: italic; }
+
 /* ── Settings gear button ──────────────────────────────────────────────────── */
 .md-btn-settings {
   display: grid; place-items: center;

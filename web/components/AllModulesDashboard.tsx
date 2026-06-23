@@ -719,10 +719,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         variant="outline"
                         onClick={() => handleReanalyze(modData.id, reqValues)}
                         disabled={reanalyzing}
-                        className="gap-2 border-[var(--green)] px-4 h-9 text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)] text-sm font-semibold"
+                        className="gap-2 border-[var(--green)] w-30 px-4 h-9 text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)] text-sm font-semibold"
                       >
                         {reanalyzing ? (
-                          <><span className="md-spin" />Re-analysing…</>
+                          <><span className="md-spin p-3" />Re-analysing…</>
                         ) : (
                           <>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none">

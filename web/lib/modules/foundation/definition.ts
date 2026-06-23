@@ -39,32 +39,33 @@ Rules:
           items: [
             {
               slug: 'site-accessible',
-              label: 'Website is live and accessible',
+              label: 'Website accessibility',
               prompt: 'Check whether the website is returning a successful response (not 404, 500, or any error page). If the HTML was fetched successfully, it passes. Report what you observe.',
               order: 1,
               weight: 3,
             },
             {
               slug: 'ssl-active',
-              label: 'SSL certificate is active (HTTPS)',
+              label: 'SSL certificate (HTTPS)',
               prompt: 'Check whether the site URL uses HTTPS. A non-HTTPS site is penalised by Google and flagged as insecure by browsers. Report the protocol in use.',
               order: 2,
               weight: 3,
             },
             {
               slug: 'custom-domain',
-              label: 'Website uses a custom domain',
+              label: 'Custom domain',
               prompt: 'Check the "Custom domain" value provided above. If it says "No — hosted on [platform]", the site is running on a free hosting subdomain rather than a custom domain. A free subdomain (e.g. myapp.vercel.app) signals to visitors, investors, and partners that the business is not established. If the custom domain value is "Yes", this passes. Report the exact URL and hosting platform if flagged.',
               order: 0,
               weight: 2,
             },
             {
               slug: 'no-noindex',
-              label: 'Site is not accidentally blocking search engines',
+              label: 'Search engine indexing',
               prompt: 'Check for <meta name="robots" content="noindex"> or any robots meta tag that would prevent Google from indexing the site. This is a critical mistake that makes the site invisible to search engines. Report what you find.',
               order: 3,
               weight: 3,
               fixable: true,
+              fixType: 'patch',
             },
           ],
         },
@@ -75,15 +76,16 @@ Rules:
           items: [
             {
               slug: 'mobile-viewport',
-              label: 'Mobile viewport meta tag is present',
+              label: 'Mobile viewport meta tag',
               prompt: 'Check for <meta name="viewport"> tag. Without it, the site renders broken on mobile devices. Report the tag value if found.',
               order: 1,
               weight: 2,
               fixable: true,
+              fixType: 'patch',
             },
             {
               slug: 'no-placeholder',
-              label: 'Homepage is not a placeholder or coming-soon page',
+              label: 'Homepage content',
               prompt: 'Read the page content. Is this a real, live website with actual content? Or does it appear to be a placeholder, "coming soon", or under construction page? Report what the homepage actually shows.',
               order: 2,
               weight: 3,
@@ -106,7 +108,7 @@ Rules:
           items: [
             {
               slug: 'ga4-installed',
-              label: 'Google Analytics GA4 is installed',
+              label: 'Google Analytics GA4',
               prompt: 'Check the HTML for Google Analytics GA4 tracking code. Look for gtag.js, G-XXXXXXXX measurement IDs, or Google Tag Manager (GTM) containers which may load GA4. Report what you find. If none is detected, flag this as critical — without analytics, no growth decision can be data-driven.',
               order: 1,
               weight: 3,
@@ -119,7 +121,7 @@ Rules:
             },
             {
               slug: 'gsc-linked',
-              label: 'Google Search Console is set up',
+              label: 'Google Search Console',
               prompt: 'Check for Google Search Console verification meta tags (google-site-verification) in the HTML head. Note: GSC can also be verified via DNS or file — if the meta tag is not found, state it needs manual verification. Report what you find.',
               order: 2,
               weight: 2,
@@ -148,15 +150,16 @@ Rules:
           items: [
             {
               slug: 'privacy-policy',
-              label: 'Privacy policy page exists',
+              label: 'Privacy policy page',
               prompt: 'Look for a link to a privacy policy page in the page content, footer, or navigation. A privacy policy is legally required in most jurisdictions and required by Google Ads, Meta Ads, and other platforms. Report whether a link or reference is found.',
               order: 1,
               weight: 2,
               fixable: true,
+              fixType: 'patch',
             },
             {
               slug: 'contact-accessible',
-              label: 'Contact information is publicly accessible',
+              label: 'Contact information',
               prompt: 'Check whether an email address, phone number, contact form link, or "Contact us" page link is present on the homepage (often in the header, footer, or navigation). Report what contact details or links are found.',
               order: 2,
               weight: 2,
@@ -170,14 +173,14 @@ Rules:
           items: [
             {
               slug: 'value-prop-exists',
-              label: 'Homepage clearly communicates what the business does',
+              label: 'Homepage value proposition',
               prompt: 'Read the above-the-fold content. Can a first-time visitor immediately understand what this business does and who it is for? Report what the homepage says and whether the value proposition is clear.',
               order: 1,
               weight: 3,
             },
             {
               slug: 'cta-exists',
-              label: 'At least one clear call-to-action is present',
+              label: 'Call-to-action',
               prompt: 'Check whether the homepage has at least one clear call-to-action button or link (e.g. "Get started", "Sign up free", "Contact us", "Shop now"). Report the CTA text found, or flag as missing if none exists.',
               order: 2,
               weight: 2,
@@ -200,26 +203,28 @@ Rules:
           items: [
             {
               slug: 'favicon-present',
-              label: 'Favicon is present',
+              label: 'Favicon',
               prompt: 'Check the HTML <head> for a <link rel="icon"> or <link rel="shortcut icon"> tag. A missing favicon signals an unfinished or unprofessional website. Report what you find.',
               order: 1,
               weight: 1,
               fixable: true,
+              fixType: 'patch',
             },
             {
               slug: 'business-name-clear',
-              label: 'Business name is clearly visible on the homepage',
+              label: 'Business name visibility',
               prompt: 'Check whether the business name appears in the page title, header, logo alt text, or prominent heading. Report the name as it appears, or flag if it cannot be identified.',
               order: 2,
               weight: 1,
             },
             {
               slug: 'page-title-set',
-              label: 'Homepage has a title tag set (not default/empty)',
+              label: 'Homepage title tag',
               prompt: 'Check the <title> tag. Is it set to something meaningful and specific to this business? Flag if it is empty, says "Untitled", "Home", "WordPress", or any framework default. Report the current title.',
               order: 3,
               weight: 2,
               fixable: true,
+              fixType: 'patch',
             },
           ],
         },

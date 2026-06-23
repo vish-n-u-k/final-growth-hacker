@@ -262,35 +262,15 @@ Return ONLY the JSON object. No <script> tags, no markdown fences, no explanatio
   console.log(`[getValueFromAI] ── PROMPT THAT WOULD GO TO CLAUDE ──\n${prompt}`)
   console.log(`${'─'.repeat(60)}`)
 
-  // ── MOCK MODE — no real Claude call ──────────────────────────────────────────
-  const mockValues: Record<string, string> = {
-    'title.present':        `${brand.name} | ${brand.industry ?? 'Home'}`,
-    'title.length':         `${brand.name} | ${brand.usp?.slice(0, 30) ?? 'Home'}`,
-    'title.keyword':        `${brand.name} | ${brand.usp?.slice(0, 30) ?? 'Home'}`,
-    'title.brand':          `${brand.name} | ${brand.usp?.slice(0, 30) ?? 'Home'}`,
-    'description.present':  `${brand.name} helps ${brand.targetAudience ?? 'businesses'} with ${brand.usp ?? 'industry-leading solutions'}. Get started today.`,
-    'description.length':   existingValue ? existingValue.slice(0, 150).replace(/\s+\S*$/, '') + '.' : `${brand.name} helps ${brand.targetAudience ?? 'businesses'} with ${brand.usp ?? 'industry-leading solutions'}. Get started today.`,
-    'description.keyword':  `${brand.name} helps ${brand.targetAudience ?? 'businesses'} with ${brand.usp ?? 'industry-leading solutions'}. Get started today.`,
-    'description.cta':      `${brand.name} helps ${brand.targetAudience ?? 'businesses'} with ${brand.usp ?? 'industry-leading solutions'}. Get started today.`,
-    'schema.present':       JSON.stringify({ '@context': 'https://schema.org', '@type': 'Organization', name: brand.name, url: brand.websiteUrl }, null, 2),
-  }
-
-  const result = mockValues[slug] ?? `[MOCK] Fixed value for ${slug}`
-  console.log(`[getValueFromAI] ── MOCK RESPONSE (skipped real Claude call) ──\n${result}`)
-  console.log(`[getValueFromAI] ── WHAT CLAUDE WOULD RETURN: a plain string, ~${result.length} chars ──`)
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: maxTokens,
+    messages: [{ role: 'user', content: prompt }],
+  })
+  const result = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+  console.log(`[getValueFromAI] ── RESPONSE (${message.usage.output_tokens} tokens) ──\n${result}`)
   console.log(`${'─'.repeat(60)}\n`)
   return result
-  // ── END MOCK — remove above block and uncomment below to go live ──────────────
-
-  // const message = await client.messages.create({
-  //   model: 'claude-haiku-4-5-20251001',
-  //   max_tokens: maxTokens,
-  //   messages: [{ role: 'user', content: prompt }],
-  // })
-  // const result = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
-  // console.log(`[getValueFromAI] ── RESPONSE (${message.usage.output_tokens} tokens) ──\n${result}`)
-  // console.log(`${'─'.repeat(60)}\n`)
-  // return result
 }
 
 // Step 2b — apply the value to the HTML using cheerio
@@ -347,15 +327,25 @@ export function buildDomMap(html: string): DomMap {
   // Major structural sections (direct children of body/main, excluding invisible tags)
   const SKIP_TAGS = new Set(['script', 'style', 'link', 'meta', 'title', 'head', 'noscript'])
   const sections: string[] = []
-  $('body > *, main > *').each((_, el) => {
+  const seenSelectors = new Set<string>()
+
+  const addSection = (el: ReturnType<typeof $>[0]) => {
     const tag = (el as unknown as { tagName: string }).tagName
     if (SKIP_TAGS.has(tag)) return
     const id = $(el).attr('id')
     const cls = $(el).attr('class')?.split(/\s+/).filter(Boolean).slice(0, 2).join('.')
-    if (id) sections.push(`#${id}`)
-    else if (cls) sections.push(`${tag}.${cls}`)
-    else sections.push(tag)
-  })
+    const selector = id ? `#${id}` : cls ? `${tag}.${cls}` : tag
+    if (!seenSelectors.has(selector)) {
+      seenSelectors.add(selector)
+      sections.push(selector)
+    }
+  }
+
+  // Direct children of body/main
+  $('body > *, main > *').each((_, el) => addSection(el))
+
+  // Footer-like elements anywhere in the DOM (handles nested footers)
+  $('footer, [class*="footer"], [class*="fbase"], [id*="footer"], [class*="foot"]').each((_, el) => addSection(el))
 
   // All headings with usable selectors
   const headings: DomMap['headings'] = []
@@ -527,6 +517,87 @@ export function applyPatches(html: string, patches: SelectorPatch[]): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FOOTER SNIPPET PATH — for link/footer/nav fixes
+// Extracts just the footer element, sends it to Claude, splices result back in.
+// Far more reliable than DOM map selectors for nested footers.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FOOTER_SELECTORS = [
+  'footer',
+  '[class*="fbase"]',
+  '[class*="footer"]',
+  '[class*="foot"]',
+  '[id*="footer"]',
+]
+
+export function extractFooterSnippet(html: string): { selector: string; outerHtml: string } | null {
+  const $ = cheerio.load(html, { decodeEntities: false } as any)
+
+  for (const sel of FOOTER_SELECTORS) {
+    const el = $(sel).first()
+    if (!el.length) continue
+    const id = el.attr('id')
+    const cls = el.attr('class')?.split(/\s+/).filter(Boolean)[0]
+    const tag = (el[0] as unknown as { tagName: string }).tagName
+    const stableSel = id ? `#${id}` : cls ? `${tag}.${cls}` : sel
+    return { selector: stableSel, outerHtml: $.html(el) }
+  }
+
+  return null
+}
+
+export async function getFooterPatch(
+  footerHtml: string,
+  label: string,
+  action: string,
+  brand: BrandContext,
+): Promise<string> {
+  const brandCtx = [
+    `Brand: ${brand.name}`,
+    `Website: ${brand.websiteUrl}`,
+    brand.industry       ? `Industry: ${brand.industry}`             : null,
+    brand.targetAudience ? `Target audience: ${brand.targetAudience}` : null,
+  ].filter(Boolean).join('\n')
+
+  const prompt = `You are fixing an HTML footer.
+
+${brandCtx}
+
+Fix needed: ${label}
+What to do: ${action}
+
+Current footer HTML:
+${footerHtml}
+
+Rules:
+- Keep ALL existing content intact — only add what is needed
+- Match the existing link style exactly (same tag, class, formatting)
+- Do not add inline styles
+- Return ONLY the modified footer HTML. No explanation, no markdown fences.`
+
+  console.log(`\n${'─'.repeat(60)}`)
+  console.log(`[getFooterPatch] footer size: ${footerHtml.length} chars | model: haiku | max_tokens: 800`)
+  console.log(`${'─'.repeat(60)}`)
+
+  const message = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 800,
+    messages: [{ role: 'user', content: prompt }],
+  })
+
+  const result = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+  console.log(`[getFooterPatch] response (${message.usage.input_tokens} in / ${message.usage.output_tokens} out tokens):\n${result}`)
+  console.log(`${'─'.repeat(60)}\n`)
+  return result
+}
+
+export function applyFooterReplacement(html: string, selector: string, newFooterHtml: string): string {
+  const $ = cheerio.load(html, { decodeEntities: false } as any)
+  $(selector).first().replaceWith(newFooterHtml)
+  return $.html()
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // LEGACY PATH — full file rewrite (kept for og.image, image.dimensions)
 // Only used when item.fixType is undefined.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -543,16 +614,21 @@ export async function planFix(
   framework: string,
   fileTree: string[],
   userInput?: Record<string, string>,
+  existingRelevantFiles?: string[],
 ): Promise<FixPlan> {
   const userInputStr = userInput && Object.keys(userInput).length > 0
     ? `\nUser-provided values:\n${Object.entries(userInput).map(([k, v]) => `- ${k}: ${v}`).join('\n')}`
+    : ''
+
+  const existingFilesStr = existingRelevantFiles && existingRelevantFiles.length > 0
+    ? `\nIMPORTANT — these relevant files already exist in the repo. Do NOT create them. Reference or link to them instead:\n${existingRelevantFiles.map(f => `- ${f}`).join('\n')}\n`
     : ''
 
   const prompt = `You are a code assistant planning a fix for an issue in a ${framework} project.
 
 Fix needed: ${label}
 Instruction: ${action}${userInputStr}
-
+${existingFilesStr}
 File tree:
 ${fileTree.join('\n')}
 
