@@ -268,6 +268,111 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     router.refresh()
   }
 
+  const downloadModuleMd = (modData: ModuleData, states: Record<string, DBItemState>, dynItems: DBItemFull[]) => {
+    const lines: string[] = []
+    lines.push(`# ${modData.name} — Action Items`)
+    lines.push(`> ${brand.name}`)
+    lines.push(`> Generated: ${new Date().toLocaleDateString()}`)
+    lines.push('')
+    if (modData.definition.dynamic) {
+      const incomplete = dynItems.filter(i => !i.aiVerified && !i.userChecked)
+      if (incomplete.length === 0) return
+      const byCat = new Map<string, DBItemFull[]>()
+      incomplete.forEach(i => { const a = byCat.get(i.categorySlug) ?? []; a.push(i); byCat.set(i.categorySlug, a) })
+      byCat.forEach((items, catSlug) => {
+        const catDef = modData.definition.categories.find(c => c.slug === catSlug)
+        lines.push(`## ${catDef?.label ?? catSlug}`); lines.push('')
+        items.forEach((item, idx) => {
+          lines.push(`### ${idx + 1}. ${item.label}`); lines.push('')
+          if (item.aiDetail) { lines.push(`**What:** ${item.aiDetail}`); lines.push('') }
+          if (item.aiNarrative) { lines.push(`**Why this matters:**`); lines.push(item.aiNarrative); lines.push('') }
+          if (item.aiAction) { lines.push(`**Your action:**`); lines.push(item.aiAction); lines.push('') }
+          lines.push('---'); lines.push('')
+        })
+      })
+    } else {
+      const cats = modData.definition.categories as ModuleCategoryDefinition[]
+      let itemNum = 0
+      cats.forEach(cat => {
+        const catLines: string[] = []
+        cat.subCategories.forEach(sub => {
+          const incomplete = sub.items.filter(item => { const s = states[item.slug]; return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction) })
+          if (incomplete.length === 0) return
+          catLines.push(`### ${sub.label}`); catLines.push('')
+          incomplete.forEach(item => {
+            const s = states[item.slug]!; itemNum++
+            catLines.push(`#### ${itemNum}. ${item.label}`); catLines.push('')
+            if (s.aiDetail) { catLines.push(`**What:** ${s.aiDetail}`); catLines.push('') }
+            if (s.aiNarrative) { catLines.push(`**Why this matters:**`); catLines.push(s.aiNarrative); catLines.push('') }
+            if (s.aiAction) { catLines.push(`**Your action:**`); catLines.push(s.aiAction); catLines.push('') }
+            catLines.push('---'); catLines.push('')
+          })
+        })
+        if (catLines.length > 0) { lines.push(`## ${cat.label}`); lines.push(''); lines.push(...catLines) }
+      })
+      if (itemNum === 0) return
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `${modData.type}-todo.md`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadDynamicCategoryMd = (modName: string, cat: { slug: string; label: string }, items: DBItemFull[]) => {
+    const incomplete = items.filter(item => !item.aiVerified && !item.userChecked)
+    if (incomplete.length === 0) return
+    const lines: string[] = []
+    lines.push(`# ${cat.label} — Action Items`)
+    lines.push(`> ${modName} — ${brand.name}`)
+    lines.push(`> Generated: ${new Date().toLocaleDateString()}`)
+    lines.push('')
+    incomplete.forEach((item, i) => {
+      lines.push(`## ${i + 1}. ${item.label}`)
+      lines.push('')
+      if (item.aiDetail) { lines.push(`**What:** ${item.aiDetail}`); lines.push('') }
+      if (item.aiNarrative) { lines.push(`**Why this matters:**`); lines.push(item.aiNarrative); lines.push('') }
+      if (item.aiAction) { lines.push(`**Your action:**`); lines.push(item.aiAction); lines.push('') }
+      lines.push('---'); lines.push('')
+    })
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${cat.slug}-todo.md`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadStaticCategoryMd = (modName: string, cat: ModuleCategoryDefinition, states: Record<string, DBItemState>) => {
+    const lines: string[] = []
+    lines.push(`# ${cat.label} — Action Items`)
+    lines.push(`> ${modName} — ${brand.name}`)
+    lines.push(`> Generated: ${new Date().toLocaleDateString()}`)
+    lines.push('')
+    let itemNum = 0
+    cat.subCategories.forEach(sub => {
+      const incomplete = sub.items.filter(item => {
+        const s = states[item.slug]
+        return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction)
+      })
+      if (incomplete.length === 0) return
+      lines.push(`## ${sub.label}`); lines.push('')
+      incomplete.forEach(item => {
+        const s = states[item.slug]!
+        itemNum++
+        lines.push(`### ${itemNum}. ${item.label}`); lines.push('')
+        if (s.aiDetail) { lines.push(`**What:** ${s.aiDetail}`); lines.push('') }
+        if (s.aiNarrative) { lines.push(`**Why this matters:**`); lines.push(s.aiNarrative); lines.push('') }
+        if (s.aiAction) { lines.push(`**Your action:**`); lines.push(s.aiAction); lines.push('') }
+        lines.push('---'); lines.push('')
+      })
+    })
+    if (itemNum === 0) return
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${cat.slug}-todo.md`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // ── Dynamic item renderer ────────────────────────────────────────────────────
   const renderDynamicItem = (modId: string, prUrl: string | null, item: DBItemFull) => {
     const aiV = item.aiVerified
@@ -732,6 +837,17 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                           </>
                         )}
                       </Button>
+                      {(def.dynamic ? dynItems.some(i => !i.aiVerified && !i.userChecked) : (def.categories as ModuleCategoryDefinition[]).some(cat => cat.subCategories.some(sub => sub.items.some(item => { const s = states[item.slug]; return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction) })))) && (
+                        <button
+                          onClick={() => downloadModuleMd(modData, states, dynItems)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '12px', fontWeight: 500, background: 'transparent', cursor: 'pointer' }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          Export incomplete
+                        </button>
+                      )}
                       <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}>{timeAgo(modData.lastAnalyzedAt)}</span>
                     </div>
 
@@ -801,12 +917,23 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                             })
                             return (
                               <div key={cat.slug} className={`md-cat${isOpenCat ? ' md-cat-open' : ''}`}>
-                                <button className="md-cat-hd" onClick={() => toggleCat(modData.id, cat.slug)}>
+                                <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => toggleCat(modData.id, cat.slug)}>
                                   <div className="md-cat-hd-left">
                                     <span className="md-cat-hd-name">{cat.label}</span>
                                     <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
                                   </div>
                                   <div className="md-cat-hd-right">
+                                    {catItems.some(item => !item.aiVerified && !item.userChecked) && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); downloadDynamicCategoryMd(modData.name, cat, catItems) }}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '11px', fontWeight: 500, background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+                                      >
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                        Export
+                                      </button>
+                                    )}
                                     <div className="md-cat-mini-bar">
                                       <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
                                       <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
@@ -816,7 +943,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                       <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                                     </svg>
                                   </div>
-                                </button>
+                                </div>
                                 {isOpenCat && (
                                   <div className="md-cat-body">
                                     {catItems.length === 0 ? (
@@ -841,12 +968,23 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                             const isOpenCat = openCats.has(cat.slug)
                             return (
                               <div key={cat.slug} className={`md-cat${isOpenCat ? ' md-cat-open' : ''}`}>
-                                <button className="md-cat-hd" onClick={() => toggleCat(modData.id, cat.slug)}>
+                                <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => toggleCat(modData.id, cat.slug)}>
                                   <div className="md-cat-hd-left">
                                     <span className="md-cat-hd-name">{cat.label}</span>
                                     <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
                                   </div>
                                   <div className="md-cat-hd-right">
+                                    {cat.subCategories.some(sub => sub.items.some(item => !states[item.slug]?.aiVerified && !states[item.slug]?.userChecked)) && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); downloadStaticCategoryMd(modData.name, cat, states) }}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '11px', fontWeight: 500, background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+                                      >
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                        Export
+                                      </button>
+                                    )}
                                     <div className="md-cat-mini-bar">
                                       <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
                                       <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
@@ -856,7 +994,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                       <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                                     </svg>
                                   </div>
-                                </button>
+                                </div>
                                 {isOpenCat && (
                                   <div className="md-cat-body">
                                     {cat.subCategories.map((sub, si) => {

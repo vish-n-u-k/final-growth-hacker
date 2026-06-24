@@ -345,6 +345,91 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
     }
   }
 
+  const downloadCategoryMd = (cat: { slug: string; label: string }, items: DBItemFull[]) => {
+    const incomplete = items.filter(item => !item.aiVerified && !item.userChecked && (item.aiDetail || item.aiNarrative || item.aiAction))
+    if (incomplete.length === 0) return
+    const lines: string[] = []
+    lines.push(`# ${cat.label} — Action Items`)
+    lines.push(`> ${mod.name} — ${brand.name}`)
+    lines.push(`> Generated: ${new Date().toLocaleDateString()}`)
+    lines.push('')
+    incomplete.forEach((item, i) => {
+      lines.push(`## ${i + 1}. ${item.label}`)
+      lines.push('')
+      if (item.aiDetail) {
+        lines.push(`**What:** ${item.aiDetail}`)
+        lines.push('')
+      }
+      if (item.aiNarrative) {
+        lines.push(`**Why this matters:**`)
+        lines.push(item.aiNarrative)
+        lines.push('')
+      }
+      if (item.aiAction) {
+        lines.push(`**Your action:**`)
+        lines.push(item.aiAction)
+        lines.push('')
+      }
+      lines.push('---')
+      lines.push('')
+    })
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${cat.slug}-todo.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadStaticCategoryMd = (cat: ModuleCategoryDefinition) => {
+    const lines: string[] = []
+    lines.push(`# ${cat.label} — Action Items`)
+    lines.push(`> ${mod.name} — ${brand.name}`)
+    lines.push(`> Generated: ${new Date().toLocaleDateString()}`)
+    lines.push('')
+    let itemNum = 0
+    cat.subCategories.forEach(sub => {
+      const incompleteItems = sub.items.filter(item => {
+        const s = states[item.slug]
+        return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction)
+      })
+      if (incompleteItems.length === 0) return
+      lines.push(`## ${sub.label}`)
+      lines.push('')
+      incompleteItems.forEach(item => {
+        const s = states[item.slug]!
+        itemNum++
+        lines.push(`### ${itemNum}. ${item.label}`)
+        lines.push('')
+        if (s.aiDetail) {
+          lines.push(`**What:** ${s.aiDetail}`)
+          lines.push('')
+        }
+        if (s.aiNarrative) {
+          lines.push(`**Why this matters:**`)
+          lines.push(s.aiNarrative)
+          lines.push('')
+        }
+        if (s.aiAction) {
+          lines.push(`**Your action:**`)
+          lines.push(s.aiAction)
+          lines.push('')
+        }
+        lines.push('---')
+        lines.push('')
+      })
+    })
+    if (itemNum === 0) return
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${cat.slug}-todo.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -633,12 +718,29 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
 
                 return (
                   <div key={cat.slug} className={`md-cat${isOpen ? ' md-cat-open' : ''}`}>
-                    <button className="md-cat-hd" onClick={() => toggleCat(cat.slug)}>
+                    <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => toggleCat(cat.slug)}>
                       <div className="md-cat-hd-left">
                         <span className="md-cat-hd-name">{cat.label}</span>
                         <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
                       </div>
                       <div className="md-cat-hd-right">
+                        {catItems.some(item => !item.aiVerified && !item.userChecked) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); downloadCategoryMd(cat, catItems) }}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '5px',
+                              padding: '4px 10px', borderRadius: '6px',
+                              border: '1px solid var(--green)', color: 'var(--green-bright)',
+                              fontSize: '11px', fontWeight: 500, background: 'transparent', cursor: 'pointer',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            Export
+                          </button>
+                        )}
                         <div className="md-cat-mini-bar">
                           <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
                           <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
@@ -648,7 +750,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                           <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                         </svg>
                       </div>
-                    </button>
+                    </div>
 
                     {isOpen && (
                       <div className="md-cat-body">
@@ -694,7 +796,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                         {!done && item.weight === 2 && <Badge className="md-tag md-tag-important">Important</Badge>}
                                         {aiV && <Badge className="md-tag md-tag-ai">AI ✓</Badge>}
                                         {!aiV && userC && <Badge className="md-tag md-tag-self">Self</Badge>}
-                                        {item.fixable && !aiV && item.completedBy !== 'agent' && (() => {
+                                        {false && item.fixable && !aiV && item.completedBy !== 'agent' && (() => {
                                           const isAssisted = !!(item.fixInputKey && item.fixIntegrationProvider !== 'brand_assets')
                                           const badgeLabel = isAssisted ? 'Assisted fix' : 'Auto-fixable'
                                           const tooltip = isAssisted
@@ -803,7 +905,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                           </div>
                                         )}
                                         {/* Apply fix button — only for fixable unresolved items */}
-                                        {item.fixable && !aiV && item.completedBy !== 'agent' && (
+                                        {false && item.fixable && !aiV && item.completedBy !== 'agent' && (
                                           <div className="md-fix-row">
                                             {(() => {
                                               const needsIntegration = !!(item.fixIntegrationProvider && item.fixIntegrationProvider !== 'brand_assets')
@@ -873,12 +975,32 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
 
                 return (
                   <div key={cat.slug} className={`md-cat${isOpen ? ' md-cat-open' : ''}`}>
-                    <button className="md-cat-hd" onClick={() => toggleCat(cat.slug)}>
+                    <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => toggleCat(cat.slug)}>
                       <div className="md-cat-hd-left">
                         <span className="md-cat-hd-name">{cat.label}</span>
                         <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
                       </div>
                       <div className="md-cat-hd-right">
+                        {cat.subCategories.some(sub => sub.items.some(item => {
+                          const s = states[item.slug]
+                          return !s?.aiVerified && !s?.userChecked
+                        })) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); downloadStaticCategoryMd(cat) }}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '5px',
+                              padding: '4px 10px', borderRadius: '6px',
+                              border: '1px solid var(--green)', color: 'var(--green-bright)',
+                              fontSize: '11px', fontWeight: 500, background: 'transparent', cursor: 'pointer',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            Export
+                          </button>
+                        )}
                         <div className="md-cat-mini-bar">
                           <div className="md-cat-mini-self" style={{ width: `${Math.round((stats.doneWeight / stats.totalWeight) * 100)}%` }} />
                           <div className="md-cat-mini-ai" style={{ width: `${Math.round((stats.aiWeight / stats.totalWeight) * 100)}%` }} />
@@ -888,7 +1010,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                           <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                         </svg>
                       </div>
-                    </button>
+                    </div>
 
                     {isOpen && (
                       <div className="md-cat-body">
@@ -989,7 +1111,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                               {!done && item.weight === 2 && <span className="md-tag md-tag-important">Important</span>}
                                               {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
                                               {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
-                                              {s?.fixable && !aiV && s.completedBy !== 'agent' && (() => {
+                                              {false && s?.fixable && !aiV && s.completedBy !== 'agent' && (() => {
                                                 const isAssisted = !!(s.fixInputKey && s.fixIntegrationProvider !== 'brand_assets')
                                                 const isUpgradeable = !!(s.fixInputKey && s.fixIntegrationProvider === 'brand_assets')
                                                 const upgradeReady = isUpgradeable && !!connectedIntegrations['brand_assets']
@@ -1035,7 +1157,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                                   <p className="sm-action-text">{s.aiAction}</p>
                                                 </div>
                                               )}
-                                              {s?.fixable && !aiV && s.completedBy !== 'agent' && (
+                                              {false && s?.fixable && !aiV && s.completedBy !== 'agent' && (
                                                 <div className="md-fix-row">
                                                   {(() => {
                                                     const needsIntegration = !!(s.fixIntegrationProvider && s.fixIntegrationProvider !== 'brand_assets')
