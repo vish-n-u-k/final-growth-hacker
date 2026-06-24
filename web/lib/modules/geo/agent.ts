@@ -2,6 +2,7 @@ import * as cheerio from 'cheerio'
 import { callAI } from '@/lib/ai/client'
 import { GEO_MODULE } from './definition'
 import { getAllItems, type ModuleAnalysisResult } from '../types'
+import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 import type { GeoFetchData } from './fetcher'
 
 // ── Robots.txt parser ─────────────────────────────────────────────────────────
@@ -135,7 +136,7 @@ function extractPageData(html: string) {
 
 // ── Pre-compute rule findings ─────────────────────────────────────────────────
 
-function buildRuleFindings(data: GeoFetchData) {
+export function buildRuleFindings(data: GeoFetchData) {
   const tier1Bots = ['GPTBot', 'ClaudeBot', 'Google-Extended', 'Amazonbot', 'CCBot', 'Meta-ExternalAgent']
   const tier2Bots = ['OAI-SearchBot', 'PerplexityBot', 'YouBot', 'anthropic-ai']
   const tier3Bots = ['ChatGPT-User', 'Claude-User', 'Perplexity-User']
@@ -160,6 +161,9 @@ function buildRuleFindings(data: GeoFetchData) {
   const llmsBlockquote = llmsPresent && /^>\s/m.test(data.llmsTxt ?? '')
   const llmsSections = llmsPresent && /^##\s/m.test(data.llmsTxt ?? '')
   const llmsLinks = llmsPresent && /\[.+\]\(https?:\/\/.+\)/m.test(data.llmsTxt ?? '')
+  const llmsLinkCount = llmsPresent ? ((data.llmsTxt ?? '').match(/\[.+?\]\(https?:\/\/.+?\)/g) ?? []).length : 0
+  const llmsSectionCount = llmsPresent ? ((data.llmsTxt ?? '').match(/^##\s/gm) ?? []).length : 0
+  const llmsDepth = llmsLinkCount >= 5 && llmsSectionCount >= 2
 
   // dateModified in JSON-LD
   const hasDateModified = schemas.some((s) => !!(s as Record<string, unknown>)['dateModified'])
@@ -168,9 +172,12 @@ function buildRuleFindings(data: GeoFetchData) {
     tier1, tier2, tier3,
     hasFaq, hasWebSite, hasArticle, hasOrg, hasSameAs,
     llmsPresent, llmsH1, llmsBlockquote, llmsSections, llmsLinks,
+    llmsDepth, llmsLinkCount, llmsSectionCount,
     llmsTxtContent: data.llmsTxt?.slice(0, 500) ?? null,
     aiTxtPresent: data.aiTxt !== null,
     aiSummaryPresent: data.aiSummaryJson !== null,
+    aiFaqPresent: data.aiFaqJson !== null,
+    aiServicePresent: data.aiServiceJson !== null,
     page,
     hasDateModified,
   }
@@ -197,8 +204,9 @@ function buildRuleContext(f: ReturnType<typeof buildRuleFindings>): string {
     `Present: ${f.llmsPresent ? 'yes' : 'no (404)'}`,
     f.llmsPresent ? `Has H1 (#): ${f.llmsH1}` : '',
     f.llmsPresent ? `Has blockquote (>): ${f.llmsBlockquote}` : '',
-    f.llmsPresent ? `Has sections (##): ${f.llmsSections}` : '',
-    f.llmsPresent ? `Has links: ${f.llmsLinks}` : '',
+    f.llmsPresent ? `Has sections (##): ${f.llmsSections} (${f.llmsSectionCount} sections found)` : '',
+    f.llmsPresent ? `Has links: ${f.llmsLinks} (${f.llmsLinkCount} links found)` : '',
+    f.llmsPresent ? `Has depth (5+ links, 2+ sections): ${f.llmsDepth}` : '',
     f.llmsTxtContent ? `Content preview:\n${f.llmsTxtContent}` : '',
     '',
     '── JSON-LD schema types found ──',
@@ -214,6 +222,8 @@ function buildRuleContext(f: ReturnType<typeof buildRuleFindings>): string {
     `RSS/Atom feed link: ${f.page.rssLink || 'not found'}`,
     `/.well-known/ai.txt: ${f.aiTxtPresent ? 'present (200)' : 'not found (404)'}`,
     `/ai/summary.json: ${f.aiSummaryPresent ? 'present (200)' : 'not found (404)'}`,
+    `/ai/faq.json: ${f.aiFaqPresent ? 'present (200)' : 'not found (404)'}`,
+    `/ai/service.json: ${f.aiServicePresent ? 'present (200)' : 'not found (404)'}`,
     '',
     '── Page content signals ──',
     `Title: ${f.page.title || 'none'}`,
@@ -232,6 +242,7 @@ function buildRuleContext(f: ReturnType<typeof buildRuleFindings>): string {
 export async function analyzeGeo(
   data: GeoFetchData,
   brainContext?: string,
+  brandName?: string,
 ): Promise<ModuleAnalysisResult[]> {
   const findings = buildRuleFindings(data)
   const ruleContext = buildRuleContext(findings)
@@ -243,7 +254,7 @@ export async function analyzeGeo(
 
   const raw = await callAI({
     system: GEO_MODULE.systemPrompt,
-    prompt: `Website: ${data.url}
+    prompt: `Website: ${data.url}${brandName ? `\nBrand name: ${brandName}` : ''}
 ${brainContext ? `\nBrand context:\n${brainContext}\n` : ''}
 ── Pre-computed rule findings ──
 ${ruleContext}
@@ -253,32 +264,30 @@ For each check below, return:
 - slug: exactly as given
 - detail: one sentence — state the specific finding using the pre-computed data above for structural checks; evaluate from page content signals for content checks
 - narrative: 1–2 sentences — why this matters for AI citation visibility
-- action: concrete next step with exact code, file content, or commands where applicable
+- action: concrete next step — max 2 sentences, include a short code snippet only if essential
 - verified: true if the check passes, false if it fails or is missing
 
 ${itemList}
 
 Start your response with [
 [{"slug": "...", "detail": "...", "narrative": "...", "action": "...", "verified": true}]`,
-    maxTokens: 6000,
-    model: 'claude-haiku-4-5-20251001',
+    maxTokens: 8000,
+    model: 'claude-sonnet-4-6',
   })
 
-  const start = raw.indexOf('[')
-  const end = raw.lastIndexOf(']')
-  if (start === -1 || end === -1 || end < start) return []
-
+  let rows: unknown[]
   try {
-    const rows = JSON.parse(raw.slice(start, end + 1)) as ModuleAnalysisResult[]
-    const validSlugs = new Set(allItems.map((i) => i.slug))
-    return rows.filter(
-      (r) =>
-        typeof r.slug === 'string' &&
-        validSlugs.has(r.slug) &&
-        typeof r.detail === 'string' &&
-        typeof r.verified === 'boolean',
-    )
+    rows = parseClaudeJsonArray(raw)
   } catch {
     return []
   }
+
+  const validSlugs = new Set(allItems.map((i) => i.slug))
+  return (rows as ModuleAnalysisResult[]).filter(
+    (r) =>
+      typeof r.slug === 'string' &&
+      validSlugs.has(r.slug) &&
+      typeof r.detail === 'string' &&
+      typeof r.verified === 'boolean',
+  )
 }

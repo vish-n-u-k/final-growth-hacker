@@ -23,8 +23,9 @@ Rules:
 - For structural checks (robots, llms.txt, schema, signals): the pre-computed finding is the fact — your job is to explain why it matters and what to do.
 - For content checks: evaluate directly from the page data provided.
 - Always be specific: name exact bot names, exact schema types, exact missing elements.
-- Actions must be concrete: include exact code snippets, file paths, or commands where relevant.
-- Never invent data not present in the pre-computed findings or page content.`,
+- Actions must be concrete but brief: 1–2 sentences max. Include a short inline code snippet only when strictly necessary.
+- Never invent data not present in the pre-computed findings or page content.
+- For brand sentiment checks (geo-sentiment-*): use your own training knowledge about the brand name provided. Be honest — if you don't recognise the brand, say so clearly (verified: false). Do not invent knowledge you don't have.`,
   categories: [
     // ── 1. AI Crawler Access ─────────────────────────────────────────────────
     {
@@ -36,7 +37,7 @@ Rules:
           slug: 'robots-ai-bots',
           label: 'robots.txt AI Bot Rules',
           order: 1,
-          description: 'Fetched automatically from /robots.txt — no setup required. If any AI bot is blocked, your content cannot be indexed or cited by that AI engine.',
+          description: 'Most sites have no explicit rules for AI bots — which means crawlers can get silently blocked by a wildcard rule without the site owner realising. This checks whether training bots (GPTBot, ClaudeBot), search bots (PerplexityBot, OAI-SearchBot), and real-time user bots (ChatGPT-User, Claude-User) can actually reach your content.',
           items: [
             {
               slug: 'geo-robots-tier1',
@@ -74,7 +75,7 @@ Rules:
           slug: 'llms-txt-checks',
           label: 'LLMs.txt File',
           order: 1,
-          description: 'Fetched automatically from /llms.txt — no setup required. This is the emerging standard for telling AI models what your site is about and what content to prioritise.',
+          description: 'Think of llms.txt as a welcome mat for AI — it tells AI models exactly what your site does and which pages matter most. Without it, AI has to guess your site\'s purpose from unstructured content, often getting it wrong.',
           items: [
             {
               slug: 'geo-llms-present',
@@ -111,6 +112,13 @@ Rules:
               order: 5,
               weight: 2,
             },
+            {
+              slug: 'geo-llms-depth',
+              label: 'llms.txt has sufficient depth (5+ links across multiple sections)',
+              prompt: 'Check whether llms.txt has meaningful depth: at least 5 markdown links spread across 2 or more ## sections. A minimal llms.txt with only 1–2 links gives AI models almost nothing to navigate. Rich depth significantly increases the chance of being cited for specific queries.',
+              order: 6,
+              weight: 1,
+            },
           ],
         },
       ],
@@ -126,7 +134,7 @@ Rules:
           slug: 'schema-types',
           label: 'JSON-LD Schema Types',
           order: 1,
-          description: 'Fetched automatically from your page HTML — no setup required. JSON-LD schema lets AI engines extract structured facts about your business rather than guessing from unstructured text.',
+          description: 'A neatly labelled filing cabinet vs a pile of papers. JSON-LD schema lets AI engines pull clean facts about your business instantly — your name, what you do, your FAQ answers — without having to interpret unstructured text.',
           items: [
             {
               slug: 'geo-schema-faq',
@@ -171,7 +179,7 @@ Rules:
           slug: 'citation-signals',
           label: 'Citation Quality Signals',
           order: 1,
-          description: 'Evaluated from your page content automatically. These signals determine whether AI models consider your content worth citing in generated answers.',
+          description: 'AI prefers to quote pages that look like research — with specific stats, data points, and references to authoritative sources. These checks determine whether your content has the signals that make AI models trust it enough to cite it.',
           items: [
             {
               slug: 'geo-content-stats',
@@ -200,7 +208,7 @@ Rules:
           slug: 'answer-structure',
           label: 'Answer-Ready Structure',
           order: 2,
-          description: 'Evaluated from your page content. Answer-ready structure makes it easy for AI to extract and cite a specific, well-scoped answer.',
+          description: 'AI lifts answers in bite-sized, self-contained chunks. These checks look at whether your content is structured so AI can pull a clean, specific answer rather than having to interpret dense paragraphs.',
           items: [
             {
               slug: 'geo-structure-h1',
@@ -231,7 +239,7 @@ Rules:
           slug: 'freshness-signals',
           label: 'Freshness & Language Signals',
           order: 1,
-          description: 'Fetched automatically from your page HTML — no setup required. These signals tell AI models whether your content is fresh, authoritative, and internationally accessible.',
+          description: 'If your page has no date signals, AI treats it as potentially stale and may prefer fresher sources. This checks your html lang attribute, last-modified timestamps, and whether you have an RSS feed AI crawlers can follow.',
           items: [
             {
               slug: 'geo-signals-lang',
@@ -260,7 +268,7 @@ Rules:
           slug: 'ai-discovery',
           label: 'AI Discovery Endpoints',
           order: 2,
-          description: 'Fetched automatically from well-known paths — no setup required. These emerging endpoints let AI engines discover structured summaries of your content without crawling every page.',
+          description: 'Emerging machine-readable endpoints that give AI engines a structured picture of your site without crawling every page. Not yet industry-standard, but early adopters get a structural advantage as AI engines begin relying on them.',
           items: [
             {
               slug: 'geo-discovery-aitxt',
@@ -274,6 +282,65 @@ Rules:
               label: '/ai/summary.json is present',
               prompt: 'Check whether /ai/summary.json exists and returns a 200 response. This endpoint provides AI engines with a machine-readable summary of your site — name, description, key features, and primary use cases — without requiring full page crawls.',
               order: 2,
+              weight: 1,
+            },
+            {
+              slug: 'geo-discovery-faq',
+              label: '/ai/faq.json is present',
+              prompt: 'Check whether /ai/faq.json exists and returns a 200 response. This endpoint exposes a structured FAQ dataset to AI engines — enabling direct Q&A extraction without parsing unstructured HTML. It is especially valuable for voice assistants and AI answer engines.',
+              order: 3,
+              weight: 1,
+            },
+            {
+              slug: 'geo-discovery-service',
+              label: '/ai/service.json is present',
+              prompt: 'Check whether /ai/service.json exists and returns a 200 response. This endpoint describes your product or service in a machine-readable format — category, pricing model, target audience, key differentiators — allowing AI engines to accurately describe your offering in generated answers.',
+              order: 4,
+              weight: 1,
+            },
+          ],
+        },
+      ],
+    },
+
+    // ── 6. Brand Sentiment ────────────────────────────────────────────────────
+    {
+      slug: 'brand-sentiment',
+      label: 'Brand Sentiment in AI',
+      order: 6,
+      subCategories: [
+        {
+          slug: 'ai-perception',
+          label: 'AI Brand Perception',
+          order: 1,
+          description: 'What AI engines currently say about your brand when users ask — evaluated against Claude\'s training knowledge. This checks whether AI accurately describes what you do, whether the framing is positive, and whether it recommends competitors instead of you for your own core use-case.',
+          items: [
+            {
+              slug: 'geo-sentiment-known',
+              label: 'Brand is recognised and accurately described by AI engines',
+              prompt: 'Using your own training knowledge, do you recognise this brand by name? Can you describe what it does, who it serves, and its primary value proposition? If you have little or no knowledge of this brand, verified=false — that itself is the key finding: the brand is not visible in AI training data and is unlikely to be cited in AI-generated answers.',
+              order: 1,
+              weight: 3,
+            },
+            {
+              slug: 'geo-sentiment-framing',
+              label: 'AI description is accurate and positively framed',
+              prompt: 'Based on your training knowledge of this brand and the homepage content provided, how do AI engines currently frame this brand? Is there any negative framing (e.g. "expensive", "limited", "only for X niche", "outdated")? Compare the AI framing against what the homepage actually says. verified=true only if the AI description is accurate and not negatively framed.',
+              order: 2,
+              weight: 2,
+            },
+            {
+              slug: 'geo-sentiment-use-cases',
+              label: 'AI correctly identifies the primary use-cases',
+              prompt: 'Based on your training knowledge and the homepage content provided, does what AI engines know about this brand\'s use-cases match what the brand actually offers? Identify any use-cases prominent on the homepage that are absent from AI knowledge. verified=false if major use-cases are missing from AI understanding.',
+              order: 3,
+              weight: 2,
+            },
+            {
+              slug: 'geo-sentiment-competitors',
+              label: 'AI does not default to competitors for this brand\'s core use-case',
+              prompt: 'Based on your training knowledge, when users ask AI engines about this brand\'s core use-case (as described on the homepage), does AI tend to prominently recommend competitors as alternatives instead? verified=false if competitors are consistently cited ahead of this brand for its own stated core use-case.',
+              order: 4,
               weight: 1,
             },
           ],

@@ -8,6 +8,8 @@ import { CONTENT_AUDIT_MODULE } from './content-audit/definition'
 import { META_ADS_MODULE } from './meta-ads/definition'
 import { OUTREACH_TARGETS_MODULE } from './outreach-targets/definition'
 import { GEO_MODULE } from './geo/definition'
+import { GEO_COMPETITOR_GAP_MODULE } from './geo-competitor-gap/definition'
+import { USER_ANALYTICS_MODULE } from './user-analytics/definition'
 import type { ModuleDefinition } from './types'
 
 // ── Module Registry ───────────────────────────────────────────────────────────
@@ -25,6 +27,8 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
   META_ADS_MODULE,                // order: 7
   OUTREACH_TARGETS_MODULE,        // order: 8
   GEO_MODULE,                     // order: 9
+  GEO_COMPETITOR_GAP_MODULE,      // order: 10
+  USER_ANALYTICS_MODULE,          // order: 12
 ]
 
 export const MODULE_MAP: Record<string, ModuleDefinition> = Object.fromEntries(

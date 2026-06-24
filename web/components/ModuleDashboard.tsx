@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react'
 import type { FixPlan } from '@/lib/modules/seo/fix-agent'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { type ModuleDefinition, type ModuleCategoryDefinition, type DBItemFull } from '@/lib/modules/types'
+import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull } from '@/lib/modules/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -345,89 +345,167 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
     }
   }
 
-  const downloadCategoryMd = (cat: { slug: string; label: string }, items: DBItemFull[]) => {
-    const incomplete = items.filter(item => !item.aiVerified && !item.userChecked && (item.aiDetail || item.aiNarrative || item.aiAction))
-    if (incomplete.length === 0) return
-    const lines: string[] = []
-    lines.push(`# ${cat.label} — Action Items`)
-    lines.push(`> ${mod.name} — ${brand.name}`)
-    lines.push(`> Generated: ${new Date().toLocaleDateString()}`)
-    lines.push('')
-    incomplete.forEach((item, i) => {
-      lines.push(`## ${i + 1}. ${item.label}`)
-      lines.push('')
-      if (item.aiDetail) {
-        lines.push(`**What:** ${item.aiDetail}`)
-        lines.push('')
-      }
-      if (item.aiNarrative) {
-        lines.push(`**Why this matters:**`)
-        lines.push(item.aiNarrative)
-        lines.push('')
-      }
-      if (item.aiAction) {
-        lines.push(`**Your action:**`)
-        lines.push(item.aiAction)
-        lines.push('')
-      }
-      lines.push('---')
-      lines.push('')
-    })
+  const priorityLabel = (weight: number) =>
+    weight === 3 ? 'Critical' : weight === 2 ? 'Important' : 'Minor'
+
+  const triggerMdDownload = (lines: string[], filename: string) => {
     const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${cat.slug}-todo.md`
+    a.download = filename
     a.click()
     URL.revokeObjectURL(url)
   }
 
-  const downloadStaticCategoryMd = (cat: ModuleCategoryDefinition) => {
-    const lines: string[] = []
-    lines.push(`# ${cat.label} — Action Items`)
-    lines.push(`> ${mod.name} — ${brand.name}`)
-    lines.push(`> Generated: ${new Date().toLocaleDateString()}`)
+  const buildMdHeader = (title: string): string[] => [
+    `# ${title}`,
+    `> ${mod.name} — ${brand.name}`,
+    `> Score: ${overall.pct}% complete (${overall.open} item${overall.open === 1 ? '' : 's'} pending)`,
+    `> Generated: ${new Date().toLocaleDateString()}`,
+    '',
+  ]
+
+  const renderDynItem = (lines: string[], item: DBItemFull, num: number) => {
+    lines.push(`### ${num}. ${item.label} — ${priorityLabel(item.weight)}`)
     lines.push('')
-    let itemNum = 0
-    cat.subCategories.forEach(sub => {
-      const incompleteItems = sub.items.filter(item => {
-        const s = states[item.slug]
-        return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction)
-      })
-      if (incompleteItems.length === 0) return
-      lines.push(`## ${sub.label}`)
+    if (item.aiDetail) { lines.push(`**What:** ${item.aiDetail}`); lines.push('') }
+    if (item.aiNarrative) { lines.push('**Why this matters:**'); lines.push(item.aiNarrative); lines.push('') }
+    if (item.aiAction) { lines.push('**Action:**'); lines.push(item.aiAction); lines.push('') }
+    lines.push('---')
+    lines.push('')
+  }
+
+  const appendDynSections = (lines: string[], items: DBItemFull[]) => {
+    const fixable = items.filter(i => i.fixable)
+    const external = items.filter(i => !i.fixable)
+    if (fixable.length > 0) {
+      lines.push('## For your developer (code changes)')
       lines.push('')
-      incompleteItems.forEach(item => {
-        const s = states[item.slug]!
-        itemNum++
-        lines.push(`### ${itemNum}. ${item.label}`)
-        lines.push('')
-        if (s.aiDetail) {
-          lines.push(`**What:** ${s.aiDetail}`)
-          lines.push('')
-        }
-        if (s.aiNarrative) {
-          lines.push(`**Why this matters:**`)
-          lines.push(s.aiNarrative)
-          lines.push('')
-        }
-        if (s.aiAction) {
-          lines.push(`**Your action:**`)
-          lines.push(s.aiAction)
-          lines.push('')
-        }
-        lines.push('---')
-        lines.push('')
+      fixable.forEach((item, i) => renderDynItem(lines, item, i + 1))
+    }
+    if (external.length > 0) {
+      lines.push('## Requires external action')
+      lines.push('')
+      external.forEach((item, i) => renderDynItem(lines, item, i + 1))
+    }
+  }
+
+  const downloadCategoryMd = (cat: { slug: string; label: string }, items: DBItemFull[]) => {
+    const incomplete = items
+      .filter(item => !item.aiVerified && !item.userChecked && (item.aiDetail || item.aiNarrative || item.aiAction))
+      .sort((a, b) => b.weight - a.weight)
+    if (incomplete.length === 0) return
+    const lines = buildMdHeader(`${cat.label} — Action Items`)
+    appendDynSections(lines, incomplete)
+    triggerMdDownload(lines, `${cat.slug}-todo.md`)
+  }
+
+  const downloadStaticCategoryMd = (cat: ModuleCategoryDefinition) => {
+    type StaticEntry = { item: ModuleItemDefinition; s: DBItemState; subLabel: string }
+    const fixableEntries: StaticEntry[] = []
+    const externalEntries: StaticEntry[] = []
+
+    cat.subCategories.forEach(sub => {
+      sub.items.forEach(item => {
+        const s = states[item.slug]
+        if (!s || s.aiVerified || s.userChecked) return
+        if (!s.aiDetail && !s.aiNarrative && !s.aiAction) return
+        const entry = { item, s, subLabel: sub.label }
+        if (item.fixable) fixableEntries.push(entry)
+        else externalEntries.push(entry)
       })
     })
-    if (itemNum === 0) return
-    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${cat.slug}-todo.md`
-    a.click()
-    URL.revokeObjectURL(url)
+
+    fixableEntries.sort((a, b) => b.item.weight - a.item.weight)
+    externalEntries.sort((a, b) => b.item.weight - a.item.weight)
+
+    if (fixableEntries.length === 0 && externalEntries.length === 0) return
+
+    const lines = buildMdHeader(`${cat.label} — Action Items`)
+
+    const renderStaticEntry = (entry: StaticEntry, num: number) => {
+      lines.push(`### ${num}. ${entry.item.label} — ${priorityLabel(entry.item.weight)}`)
+      lines.push('')
+      if (entry.s.aiDetail) { lines.push(`**What:** ${entry.s.aiDetail}`); lines.push('') }
+      if (entry.s.aiNarrative) { lines.push('**Why this matters:**'); lines.push(entry.s.aiNarrative); lines.push('') }
+      if (entry.s.aiAction) { lines.push('**Action:**'); lines.push(entry.s.aiAction); lines.push('') }
+      lines.push('---')
+      lines.push('')
+    }
+
+    if (fixableEntries.length > 0) {
+      lines.push('## For your developer (code changes)')
+      lines.push('')
+      fixableEntries.forEach((entry, i) => renderStaticEntry(entry, i + 1))
+    }
+    if (externalEntries.length > 0) {
+      lines.push('## Requires external action')
+      lines.push('')
+      externalEntries.forEach((entry, i) => renderStaticEntry(entry, i + 1))
+    }
+
+    triggerMdDownload(lines, `${cat.slug}-todo.md`)
+  }
+
+  const downloadFullModuleMd = () => {
+    if (def.dynamic) {
+      const incomplete = dynItems
+        .filter(item => !item.aiVerified && !item.userChecked && (item.aiDetail || item.aiNarrative || item.aiAction))
+        .sort((a, b) => b.weight - a.weight)
+      if (incomplete.length === 0) return
+      const lines = buildMdHeader(`${mod.name} — Full Action Report`)
+      appendDynSections(lines, incomplete)
+      triggerMdDownload(lines, `${mod.type}-full-report.md`)
+    } else {
+      type StaticEntry = { item: ModuleItemDefinition; s: DBItemState; catLabel: string; subLabel: string }
+      const fixableEntries: StaticEntry[] = []
+      const externalEntries: StaticEntry[] = []
+
+      ;(def.categories as ModuleCategoryDefinition[]).forEach(cat => {
+        cat.subCategories.forEach(sub => {
+          sub.items.forEach(item => {
+            const s = states[item.slug]
+            if (!s || s.aiVerified || s.userChecked) return
+            if (!s.aiDetail && !s.aiNarrative && !s.aiAction) return
+            const entry = { item, s, catLabel: cat.label, subLabel: sub.label }
+            if (item.fixable) fixableEntries.push(entry)
+            else externalEntries.push(entry)
+          })
+        })
+      })
+
+      fixableEntries.sort((a, b) => b.item.weight - a.item.weight)
+      externalEntries.sort((a, b) => b.item.weight - a.item.weight)
+
+      if (fixableEntries.length === 0 && externalEntries.length === 0) return
+
+      const lines = buildMdHeader(`${mod.name} — Full Action Report`)
+
+      const renderStaticEntry = (entry: StaticEntry, num: number) => {
+        lines.push(`### ${num}. ${entry.item.label} — ${priorityLabel(entry.item.weight)}`)
+        lines.push(`> ${entry.catLabel} / ${entry.subLabel}`)
+        lines.push('')
+        if (entry.s.aiDetail) { lines.push(`**What:** ${entry.s.aiDetail}`); lines.push('') }
+        if (entry.s.aiNarrative) { lines.push('**Why this matters:**'); lines.push(entry.s.aiNarrative); lines.push('') }
+        if (entry.s.aiAction) { lines.push('**Action:**'); lines.push(entry.s.aiAction); lines.push('') }
+        lines.push('---')
+        lines.push('')
+      }
+
+      if (fixableEntries.length > 0) {
+        lines.push('## For your developer (code changes)')
+        lines.push('')
+        fixableEntries.forEach((entry, i) => renderStaticEntry(entry, i + 1))
+      }
+      if (externalEntries.length > 0) {
+        lines.push('## Requires external action')
+        lines.push('')
+        externalEntries.forEach((entry, i) => renderStaticEntry(entry, i + 1))
+      }
+
+      triggerMdDownload(lines, `${mod.type}-full-report.md`)
+    }
   }
 
   const handleLogout = async () => {
@@ -463,6 +541,19 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
             Growth Hacker
           </div>
           <div className="md-header-actions">
+            {overall.open > 0 && (
+              <Button
+                variant="outline"
+                onClick={downloadFullModuleMd}
+                className="gap-2 border-[var(--green)] px-4 h-10 text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)] text-sm font-semibold"
+                title="Download full action report as Markdown"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Download Report
+              </Button>
+            )}
             <Button
               variant="outline"
               onClick={() => handleReanalyze()}
