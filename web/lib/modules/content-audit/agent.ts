@@ -32,7 +32,7 @@ export interface ContentAuditAnalysisOutput {
 
 // ── Format helpers ─────────────────────────────────────────────────────────────
 
-function formatPageSummary(p: PageSummary, index: number): string {
+function formatPageSummary(p: PageSummary, index: number, includeBody: boolean = true): string {
   const lines: string[] = []
   lines.push(`[${index + 1}] ${p.url}`)
   if (p.fetchError) {
@@ -42,7 +42,7 @@ function formatPageSummary(p: PageSummary, index: number): string {
   if (p.title)           lines.push(`  Title: ${p.title}`)
   if (p.metaDescription) lines.push(`  Meta: ${p.metaDescription.slice(0, 160)}`)
   if (p.h1)              lines.push(`  H1: ${p.h1}`)
-  if (p.bodyExcerpt)     lines.push(`  Body: ${p.bodyExcerpt.slice(0, 300)}`)
+  if (includeBody && p.bodyExcerpt)     lines.push(`  Body: ${p.bodyExcerpt.slice(0, 200)}`)
   lines.push(`  Stats: ${p.wordCount} words | ${p.imageCount} images | ${p.internalLinkCount} internal links | ${p.externalLinkCount} external links`)
   return lines.join('\n')
 }
@@ -88,7 +88,8 @@ function buildSiteStats(pages: PageSummary[]): string {
 function buildFindingsPrompt(data: ContentAuditFetchResult, brainContext?: string): string {
   const categories = CONTENT_AUDIT_MODULE.categories as DynamicModuleCategoryDefinition[]
 
-  const pagesSection = data.pages.map((p, i) => formatPageSummary(p, i)).join('\n\n')
+  const includeBodyText = data.pages.length < 30
+  const pagesSection = data.pages.map((p, i) => formatPageSummary(p, i, includeBodyText)).join('\n\n')
 
   const competitorSection = data.competitorPages.length > 0
     ? data.competitorPages.map(formatCompetitorPage).join('\n\n')

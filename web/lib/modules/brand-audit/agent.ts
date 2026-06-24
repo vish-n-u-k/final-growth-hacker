@@ -90,7 +90,7 @@ Comparison page (/vs, /compare, /alternatives): ${data.hasComparisonPage ? 'Yes 
 ${formatSocialProfiles(data.socialProfiles)}
 
 === Homepage copy sample ===
-${data.bodyCopy.slice(0, 3500)}
+${data.bodyCopy.slice(0, 2000)}
 
 === Category instructions ===
 ${categoryInstructions}

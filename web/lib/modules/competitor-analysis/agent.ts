@@ -140,7 +140,7 @@ Internal links: ~${u.internalLinks}
 Distinctive TF-IDF terms: ${data.userTopTerms.join(', ')}
 PageSpeed (mobile): ${formatPsi(data.userPsi)}
 Body content sample:
-${u.bodyText.slice(0, 2500)}`
+${u.bodyText.slice(0, 1200)}`
 }
 
 function formatCompetitorSection(c: CompetitorAnalysisFetchResult['competitors'][number], index: number): string {
@@ -161,7 +161,7 @@ Internal links: ~${p.internalLinks}
 Distinctive TF-IDF terms: ${c.topTerms.join(', ')}
 PageSpeed (mobile): ${formatPsi(c.psi)}
 Body content sample:
-${p.bodyText.slice(0, 2000)}`
+${p.bodyText.slice(0, 1000)}`
 }
 
 async function runClaudeAnalysis(

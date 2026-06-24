@@ -3,6 +3,37 @@ import { COMPETITOR_AUDIT_MODULE } from './definition'
 import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } from '../types'
 import type { CompetitorAuditFetchResult } from './fetcher'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
+import * as cheerio from 'cheerio'
+
+function extractMetadataFromHtml(html: string): string {
+  try {
+    const $ = cheerio.load(html)
+    const metadata: string[] = []
+
+    const title = $('title').text().trim()
+    if (title) metadata.push(`Title: "${title}"`)
+
+    const metaDescription = $('meta[name="description"]').attr('content') ?? ''
+    if (metaDescription) metadata.push(`Meta: "${metaDescription.slice(0, 160)}"`)
+
+    const h1 = $('h1').first().text().trim()
+    if (h1) metadata.push(`H1: "${h1}"`)
+
+    const h2s = $('h2').map((_, el) => $(el).text().trim()).get().filter(Boolean).slice(0, 5)
+    if (h2s.length > 0) metadata.push(`Key sections: ${h2s.join(' | ')}`)
+
+    $('script, style, nav, footer, header').remove()
+    const bodyText = ($('main, article, [role="main"], body').first().text() ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 800)
+    if (bodyText) metadata.push(`Content: ${bodyText}`)
+
+    return metadata.join('\n')
+  } catch {
+    return 'Could not extract metadata from HTML'
+  }
+}
 
 export async function analyzeCompetitorAudit(
   data: CompetitorAuditFetchResult,
@@ -15,12 +46,13 @@ export async function analyzeCompetitorAudit(
       if (!c.html) {
         return `=== Competitor ${i + 1}: ${c.url} ===\n${c.error ?? 'Inaccessible — skip checks that require content analysis'}\n`
       }
-      return `=== Competitor ${i + 1}: ${c.url} ===\n${c.html}\n`
+      const metadata = extractMetadataFromHtml(c.html)
+      return `=== Competitor ${i + 1}: ${c.url} ===\n${metadata}\n`
     })
     .join('\n')
 
   const userSection = data.userHtml
-    ? `=== User's own site (${data.userUrl}) ===\n${data.userHtml}\n`
+    ? `=== User's own site (${data.userUrl}) ===\n${extractMetadataFromHtml(data.userHtml)}\n`
     : `=== User's own site (${data.userUrl}) ===\nCould not fetch HTML — compare competitors against each other and note what the user should do.\n`
 
   const keywordsNote =

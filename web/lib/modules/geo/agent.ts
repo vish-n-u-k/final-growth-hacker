@@ -112,7 +112,7 @@ function extractPageData(html: string) {
   const bodyText = ($('main, article, [role="main"], body').first().text() ?? '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 3000)
+    .slice(0, 1500)
 
   // Count signals for content checks
   const statPattern = /\d+(?:\.\d+)?(?:%|x|k|\+)|\$\d+|(?:increased?|decreased?|reduced?|improved?)\s+by\s+\d+/gi
@@ -178,7 +178,7 @@ function buildRuleFindings(data: GeoFetchData) {
 
 // ── Build context string for Claude ──────────────────────────────────────────
 
-function buildRuleContext(f: ReturnType<typeof buildRuleFindings>): string {
+function buildRuleContext(f: ReturnType<typeof buildRuleFindings>, itemSlugs?: string[]): string {
   const botLine = (tier: ReturnType<typeof checkTierBots>, name: string) => {
     const parts = []
     if (tier.blocked.length) parts.push(`BLOCKED: ${tier.blocked.join(', ')}`)
@@ -187,7 +187,9 @@ function buildRuleContext(f: ReturnType<typeof buildRuleFindings>): string {
     return `${name}: ${parts.join(' | ') || 'no bots found'}`
   }
 
-  return [
+  const needsContent = !itemSlugs || itemSlugs.some(s => s.includes('content') || s.includes('faq') || s.includes('stat'))
+
+  const sections = [
     '── robots.txt AI bot status ──',
     botLine(f.tier1, 'Training bots (Tier 1)'),
     botLine(f.tier2, 'Search bots (Tier 2)'),
@@ -214,17 +216,24 @@ function buildRuleContext(f: ReturnType<typeof buildRuleFindings>): string {
     `RSS/Atom feed link: ${f.page.rssLink || 'not found'}`,
     `/.well-known/ai.txt: ${f.aiTxtPresent ? 'present (200)' : 'not found (404)'}`,
     `/ai/summary.json: ${f.aiSummaryPresent ? 'present (200)' : 'not found (404)'}`,
-    '',
-    '── Page content signals ──',
-    `Title: ${f.page.title || 'none'}`,
-    `H1: ${f.page.h1 || 'none'}`,
-    `Headings: ${f.page.headings.slice(0, 8).join(' | ') || 'none'}`,
-    `Stats/numbers detected: ${f.page.statsCount} matches`,
-    `External links count: ${f.page.externalLinks}`,
-    `List items count: ${f.page.listItems} | Tables: ${f.page.tableCount}`,
-    `FAQ-style headings detected: ${f.page.hasFaqHeadings}`,
-    `Body excerpt: ${f.page.bodyText.slice(0, 800)}`,
-  ].filter(Boolean).join('\n')
+  ]
+
+  if (needsContent) {
+    sections.push(
+      '',
+      '── Page content signals ──',
+      `Title: ${f.page.title || 'none'}`,
+      `H1: ${f.page.h1 || 'none'}`,
+      `Headings: ${f.page.headings.slice(0, 8).join(' | ') || 'none'}`,
+      `Stats/numbers detected: ${f.page.statsCount} matches`,
+      `External links count: ${f.page.externalLinks}`,
+      `List items count: ${f.page.listItems} | Tables: ${f.page.tableCount}`,
+      `FAQ-style headings detected: ${f.page.hasFaqHeadings}`,
+      `Body excerpt: ${f.page.bodyText.slice(0, 600)}`,
+    )
+  }
+
+  return sections.filter(Boolean).join('\n')
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
@@ -234,8 +243,8 @@ export async function analyzeGeo(
   brainContext?: string,
 ): Promise<ModuleAnalysisResult[]> {
   const findings = buildRuleFindings(data)
-  const ruleContext = buildRuleContext(findings)
   const allItems = getAllItems(GEO_MODULE)
+  const ruleContext = buildRuleContext(findings, allItems.map(i => i.slug))
 
   const itemList = allItems
     .map((item, idx) => `${idx + 1}. [${item.slug}] ${item.label}\nInstructions: ${item.prompt}`)
