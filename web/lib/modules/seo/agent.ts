@@ -159,6 +159,94 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array:
   }
 }
 
+// ── Helper: filter external data based on item type ──────────────────────────
+
+function buildFilteredExternalData(
+  itemSlugs: string[],
+  externalDataCache: {
+    autocomplete: string[]
+    categorized: any
+    trendsScore: number | null
+    paaQuestions: string[]
+    gscQueries: any[]
+    gscConnected: boolean
+    seed: string
+  },
+): string {
+  const sections: string[] = []
+  const { autocomplete, categorized, trendsScore, paaQuestions, gscQueries, gscConnected, seed } = externalDataCache
+
+  const hasQuestionItems = itemSlugs.some((slug) => slug === 'kw-questions')
+  const hasComparisonItems = itemSlugs.some((slug) => slug === 'kw-comparisons')
+  const hasLongtailItems = itemSlugs.some((slug) => slug.startsWith('kw-longtail-'))
+  const hasGscItems = itemSlugs.some((slug) => slug.startsWith('gsc-'))
+
+  // Autocomplete and trends are relevant for all keyword items
+  if (itemSlugs.some((s) => s.startsWith('kw-') || s.startsWith('gsc-'))) {
+    if (autocomplete.length > 0) {
+      sections.push(`Google Autocomplete suggestions for "${seed}":\n${autocomplete.map((s) => `  - ${s}`).join('\n')}`)
+    }
+    if (trendsScore !== null) {
+      sections.push(`Google Trends interest score for "${seed}": ${trendsScore}/100 (average over last 12 months)`)
+    }
+  }
+
+  // Include categorized data only if longtail items are present
+  if (hasLongtailItems && categorized) {
+    const catSections: string[] = []
+    if (categorized.usecase.length > 0) {
+      catSections.push(`Use-case suggestions ("${seed} for ..."):\n${categorized.usecase.map((s) => `  - ${s}`).join('\n')}`)
+    }
+    if (categorized.questions.length > 0) {
+      catSections.push(`Question suggestions ("how to / what is ..."):\n${categorized.questions.map((s) => `  - ${s}`).join('\n')}`)
+    }
+    if (categorized.modifiers.length > 0) {
+      catSections.push(`Modifier suggestions ("best / free / top ..."):\n${categorized.modifiers.map((s) => `  - ${s}`).join('\n')}`)
+    }
+    if (catSections.length > 0) {
+      sections.push(catSections.join('\n\n'))
+    }
+  }
+
+  // Include comparison data only if comparison items are present
+  if (hasComparisonItems && categorized?.comparison.length > 0) {
+    sections.push(`Comparison/alternative suggestions:\n${categorized.comparison.map((s) => `  - ${s}`).join('\n')}`)
+  }
+
+  // Include PAA questions only if question items are present
+  if (hasQuestionItems && paaQuestions.length > 0) {
+    sections.push(`People Also Ask questions:\n${paaQuestions.map((q) => `  - ${q}`).join('\n')}`)
+  }
+
+  // Include GSC data only if GSC items are present
+  if (hasGscItems) {
+    if (!gscConnected) {
+      sections.push('GSC data: Not connected. User must add Service Account credentials in Settings → Integrations → Google Search Console API.')
+    } else if (gscQueries.length === 0) {
+      sections.push('GSC data: Connected but no search data returned. The site may be new, not yet verified in GSC, or the service account email may not have been added to the GSC property.')
+    } else {
+      const quickWins = gscQueries.filter((r) => r.position > 3 && r.position <= 20)
+      const lowCtr = gscQueries.filter((r) => r.impressions >= 50 && r.clicks / r.impressions < 0.05)
+      const gscSections: string[] = [
+        `GSC top queries (last 90 days, by impressions):\n${gscQueries.slice(0, 10).map((r) => `  "${r.query}" — ${r.impressions} impressions, ${r.clicks} clicks, pos ${r.position}`).join('\n')}`,
+      ]
+      if (quickWins.length > 0) {
+        gscSections.push(`GSC quick win keywords (positions 4–20):\n${quickWins.slice(0, 10).map((r) => `  "${r.query}" — pos ${r.position}, ${r.impressions} impressions`).join('\n')}`)
+      } else {
+        gscSections.push('GSC quick wins: No keywords currently ranking in positions 4–20.')
+      }
+      if (lowCtr.length > 0) {
+        gscSections.push(`GSC low CTR keywords (≥50 impressions, <5% CTR):\n${lowCtr.slice(0, 10).map((r) => `  "${r.query}" — ${r.impressions} impressions, CTR ${((r.clicks / r.impressions) * 100).toFixed(1)}%, pos ${r.position}`).join('\n')}`)
+      } else {
+        gscSections.push('GSC low CTR: No high-impression, low-CTR keywords found.')
+      }
+      sections.push(gscSections.join('\n\n'))
+    }
+  }
+
+  return sections.filter(Boolean).join('\n\n')
+}
+
 // ── Keyword research content generator ───────────────────────────────────────
 
 async function generateKeywordResearchContent(
@@ -186,17 +274,16 @@ async function generateKeywordResearchContent(
   const urlPath = pageContent.urlPath
   const urlLine = urlPath ? `URL slug: ${urlPath}` : `URL: homepage (${websiteUrl}) — no slug present`
 
-  // Extract seed keyword — pass undefined for brandName since brainContext is the full context string, not just the name
   const seed = extractSeedKeyword(title, h1)
   const hasLongtailItems = items.some((i) => i.slug.startsWith('kw-longtail-'))
   const [autocomplete, categorized, trendsScore, paaQuestions, gscQueries] = await Promise.all([
     fetchAutocompleteSuggestions(seed),
     hasLongtailItems ? fetchCategorizedAutocomplete(seed) : Promise.resolve(null),
     fetchGoogleTrends(seed),
-    integrations.serpApiKey
+    items.some((i) => i.slug === 'kw-questions') && integrations.serpApiKey
       ? fetchSerpApiPAA(seed, integrations.serpApiKey)
       : Promise.resolve([] as string[]),
-    integrations.gscClientEmail && integrations.gscPrivateKey
+    items.some((i) => i.slug.startsWith('gsc-')) && integrations.gscClientEmail && integrations.gscPrivateKey
       ? fetchGscTopQueries(integrations.gscClientEmail, integrations.gscPrivateKey, websiteUrl)
       : Promise.resolve([] as Awaited<ReturnType<typeof fetchGscTopQueries>>),
   ])
@@ -213,56 +300,19 @@ async function generateKeywordResearchContent(
     .filter(Boolean)
     .join('\n\n')
 
-  const externalData = [
-    autocomplete.length > 0
-      ? `Google Autocomplete suggestions for "${seed}":\n${autocomplete.map((s) => `  - ${s}`).join('\n')}`
-      : '',
-    categorized
-      ? [
-          categorized.usecase.length > 0
-            ? `Use-case suggestions ("${seed} for ..."):\n${categorized.usecase.map((s) => `  - ${s}`).join('\n')}`
-            : '',
-          categorized.comparison.length > 0
-            ? `Comparison/alternative suggestions:\n${categorized.comparison.map((s) => `  - ${s}`).join('\n')}`
-            : '',
-          categorized.questions.length > 0
-            ? `Question suggestions ("how to / what is ..."):\n${categorized.questions.map((s) => `  - ${s}`).join('\n')}`
-            : '',
-          categorized.modifiers.length > 0
-            ? `Modifier suggestions ("best / free / top ..."):\n${categorized.modifiers.map((s) => `  - ${s}`).join('\n')}`
-            : '',
-        ].filter(Boolean).join('\n\n')
-      : '',
-    trendsScore !== null
-      ? `Google Trends interest score for "${seed}": ${trendsScore}/100 (average over last 12 months)`
-      : '',
-    paaQuestions.length > 0
-      ? `People Also Ask questions:\n${paaQuestions.map((q) => `  - ${q}`).join('\n')}`
-      : '',
-    // GSC sections — include connection status so Claude can give the right message when not connected
-    (() => {
-      const gscConnected = !!(integrations.gscClientEmail && integrations.gscPrivateKey)
-      if (!gscConnected) {
-        return 'GSC data: Not connected. User must add Service Account credentials in Settings → Integrations → Google Search Console API.'
-      }
-      if (gscQueries.length === 0) {
-        return 'GSC data: Connected but no search data returned. The site may be new, not yet verified in GSC, or the service account email may not have been added to the GSC property.'
-      }
-      const quickWins = gscQueries.filter((r) => r.position > 3 && r.position <= 20)
-      const lowCtr = gscQueries.filter((r) => r.impressions >= 50 && r.clicks / r.impressions < 0.05)
-      return [
-        `GSC top queries (last 90 days, by impressions):\n${gscQueries.slice(0, 10).map((r) => `  "${r.query}" — ${r.impressions} impressions, ${r.clicks} clicks, pos ${r.position}`).join('\n')}`,
-        quickWins.length > 0
-          ? `GSC quick win keywords (positions 4–20):\n${quickWins.slice(0, 10).map((r) => `  "${r.query}" — pos ${r.position}, ${r.impressions} impressions`).join('\n')}`
-          : 'GSC quick wins: No keywords currently ranking in positions 4–20.',
-        lowCtr.length > 0
-          ? `GSC low CTR keywords (≥50 impressions, <5% CTR):\n${lowCtr.slice(0, 10).map((r) => `  "${r.query}" — ${r.impressions} impressions, CTR ${((r.clicks / r.impressions) * 100).toFixed(1)}%, pos ${r.position}`).join('\n')}`
-          : 'GSC low CTR: No high-impression, low-CTR keywords found.',
-      ].join('\n\n')
-    })(),
-  ]
-    .filter(Boolean)
-    .join('\n\n')
+  // Build external data with dynamic context pruning
+  const externalData = buildFilteredExternalData(
+    items.map((i) => i.slug),
+    {
+      autocomplete,
+      categorized,
+      trendsScore,
+      paaQuestions,
+      gscQueries,
+      gscConnected: !!(integrations.gscClientEmail && integrations.gscPrivateKey),
+      seed,
+    },
+  )
 
   const itemList = items
     .map((item, idx) => `${idx + 1}. [${item.slug}] ${item.label}\nInstructions: ${item.prompt}`)
