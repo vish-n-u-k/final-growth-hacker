@@ -10,7 +10,7 @@ interface CallAIOptions {
 }
 
 const useGemini = process.env.USE_GEMINI === 'true'
-const useClaudeCLI = process.env.USE_CLAUDE_CLI === 'true'
+const useClaudeCLI = process.env.USE_CLAUDE_CLI === 'true' && !process.env.ANTHROPIC_API_KEY
 
 function callViaCLI(system: string, prompt: string, model: string): string {
   // Map SDK model IDs to CLI aliases
@@ -24,7 +24,7 @@ function callViaCLI(system: string, prompt: string, model: string): string {
     {
       input,
       encoding: 'utf8',
-      timeout: 120_000,
+      timeout: 300_000,
       maxBuffer: 10 * 1024 * 1024,
       env: { ...process.env, CLAUDECODE: undefined },
     },
