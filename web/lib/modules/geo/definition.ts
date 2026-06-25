@@ -37,7 +37,7 @@ Rules:
           slug: 'robots-ai-bots',
           label: 'robots.txt AI Bot Rules',
           order: 1,
-          description: 'Most sites have no explicit rules for AI bots — which means crawlers can get silently blocked by a wildcard rule without the site owner realising. This checks whether training bots (GPTBot, ClaudeBot), search bots (PerplexityBot, OAI-SearchBot), and real-time user bots (ChatGPT-User, Claude-User) can actually reach your content.',
+          description: 'Your website has a bouncer (called robots.txt) that decides which AI tools are allowed in. Right now the bouncer is turning away ChatGPT, Claude, and Perplexity at the door. We just need to update the guest list so they\'re allowed in to read your content.',
           items: [
             {
               slug: 'geo-robots-tier1',
@@ -75,7 +75,7 @@ Rules:
           slug: 'llms-txt-checks',
           label: 'LLMs.txt File',
           order: 1,
-          description: 'Think of llms.txt as a welcome mat for AI — it tells AI models exactly what your site does and which pages matter most. Without it, AI has to guess your site\'s purpose from unstructured content, often getting it wrong.',
+          description: 'Think of this as putting up clear signs for AI robots arriving at your website. Right now there are no signs, so ChatGPT and Claude have to guess where the important stuff is. We fix this by leaving a small file at your front door that says "here\'s what we do, here are our best pages."',
           items: [
             {
               slug: 'geo-llms-present',
@@ -134,7 +134,7 @@ Rules:
           slug: 'schema-types',
           label: 'JSON-LD Schema Types',
           order: 1,
-          description: 'A neatly labelled filing cabinet vs a pile of papers. JSON-LD schema lets AI engines pull clean facts about your business instantly — your name, what you do, your FAQ answers — without having to interpret unstructured text.',
+          description: 'This is the difference between handing someone a messy stack of papers versus a neatly labeled folder. Schema is invisible labeling that tells AI "this is a FAQ, this is our company info, this was last updated yesterday." Without it, AI has to read everything and figure it out — and usually gets it wrong.',
           items: [
             {
               slug: 'geo-schema-faq',
@@ -179,7 +179,7 @@ Rules:
           slug: 'citation-signals',
           label: 'Citation Quality Signals',
           order: 1,
-          description: 'AI prefers to quote pages that look like research — with specific stats, data points, and references to authoritative sources. These checks determine whether your content has the signals that make AI models trust it enough to cite it.',
+          description: 'AI tools love quoting pages that look like research — ones with real statistics, expert quotes, and links to credible sources. Your page reads more like a sales pitch, so AI skips over it when looking for something to cite. We fix this by adding real numbers and authoritative references.',
           items: [
             {
               slug: 'geo-content-stats',
@@ -208,7 +208,7 @@ Rules:
           slug: 'answer-structure',
           label: 'Answer-Ready Structure',
           order: 2,
-          description: 'AI lifts answers in bite-sized, self-contained chunks. These checks look at whether your content is structured so AI can pull a clean, specific answer rather than having to interpret dense paragraphs.',
+          description: 'When someone asks ChatGPT a question, it grabs short, scannable answers — not 400-word paragraphs. Your content is written in long blocks of prose. We need to break it into the kind of bite-sized chunks AI can lift directly into its answers.',
           items: [
             {
               slug: 'geo-structure-h1',
@@ -239,7 +239,7 @@ Rules:
           slug: 'freshness-signals',
           label: 'Freshness & Language Signals',
           order: 1,
-          description: 'If your page has no date signals, AI treats it as potentially stale and may prefer fresher sources. This checks your html lang attribute, last-modified timestamps, and whether you have an RSS feed AI crawlers can follow.',
+          description: 'AI prefers recent content over stale content, but it can only tell how fresh your page is if you tell it. Right now your pages have no "last updated" timestamp, so AI assumes they\'re old and ignores them in favor of competitors with dated content.',
           items: [
             {
               slug: 'geo-signals-lang',

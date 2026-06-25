@@ -409,31 +409,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
               {!done && item.weight === 2 && <Badge className="md-tag md-tag-important">Important</Badge>}
               {aiV && <Badge className="md-tag md-tag-ai">AI ✓</Badge>}
               {!aiV && userC && <Badge className="md-tag md-tag-self">Self</Badge>}
-              {item.fixable && !aiV && item.completedBy !== 'agent' && (() => {
-                const isAssisted = !!(item.fixInputKey && item.fixIntegrationProvider !== 'brand_assets')
-                const badgeLabel = isAssisted ? 'Assisted fix' : 'Auto-fixable'
-                const tooltip = isAssisted
-                  ? (item.fixInputKey === 'ga4_measurement_id'
-                    ? 'Go to analytics.google.com → create a GA4 property → copy your Measurement ID (G-XXXXXXXXXX) → save it in Settings → Integrations → Google Analytics.'
-                    : item.fixInputKey === 'gsc_verification_code'
-                    ? 'Go to search.google.com/search-console → add property → choose HTML tag verification → copy the content value → save it in Settings → Integrations → Google Search Console.'
-                    : 'Save the required value in Settings → Integrations to enable this fix.')
-                  : null
-                return (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span className={`md-tag ${githubConnected ? 'md-tag-fix' : 'md-tag-fix-off'}`}>⚡ {badgeLabel}</span>
-                    {tooltip && (
-                      <span className="md-info-wrap">
-                        <svg className="md-info-icon" width="13" height="13" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-                          <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                        <span className="md-tooltip">{tooltip}</span>
-                      </span>
-                    )}
-                  </span>
-                )
-              })()}
               {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
             </div>
           </div>
@@ -460,7 +435,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   Download Calendar CSV
                 </a>
               )}
-              {!aiV && !item.fixable && (
+              {!aiV && (
                 <div className="sm-draft-section">
                   {item.aiDraft ? (
                     <>
@@ -497,33 +472,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     </button>
                   )}
                 </div>
-              )}
-              {item.fixable && !aiV && item.completedBy !== 'agent' && (
-                <div className="md-fix-row">
-                  {(() => {
-                    const needsIntegration = !!(item.fixIntegrationProvider && item.fixIntegrationProvider !== 'brand_assets')
-                    const integrationReady = !needsIntegration || !!connectedIntegrations[item.fixIntegrationProvider!]
-                    if (!githubConnected) return <p className="md-fix-hint">Connect GitHub in <a href="/settings" className="md-fix-hint-link">Settings</a> to apply this fix automatically.</p>
-                    if (!integrationReady) return <p className="md-fix-hint">Set up the required integration in <a href="/settings" className="md-fix-hint-link">Settings → Integrations</a> to enable this fix.</p>
-                    return applyingFix.has(itemKey) ? (
-                      <span className="md-fix-applying"><span className="md-spin" />Applying fix…</span>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5 border-[var(--green)] text-[var(--green)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] hover:border-[var(--green-bright)] bg-transparent text-xs"
-                        onClick={(e) => { e.stopPropagation(); handleApplyFix(modId, true, item.id, item.slug) }}
-                      >
-                        Apply fix via GitHub
-                      </Button>
-                    )
-                  })()}
-                </div>
-              )}
-              {item.completedBy === 'agent' && prUrl && (
-                <a href={prUrl} target="_blank" rel="noopener noreferrer" className="md-fix-pr-link" onClick={(e) => e.stopPropagation()}>
-                  Applied — view on GitHub
-                </a>
               )}
             </div>
           )}
@@ -571,38 +519,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
               {!done && item.weight === 2 && <span className="md-tag md-tag-important">Important</span>}
               {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
               {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
-              {s?.fixable && !aiV && s.completedBy !== 'agent' && (() => {
-                const isAssisted = !!(s.fixInputKey && s.fixIntegrationProvider !== 'brand_assets')
-                const isUpgradeable = !!(s.fixInputKey && s.fixIntegrationProvider === 'brand_assets')
-                const upgradeReady = isUpgradeable && !!connectedIntegrations['brand_assets']
-                const isAlwaysPartial = !!(item.partialFix && !s.fixInputKey)
-                const badgeLabel = isAssisted ? 'Assisted fix'
-                  : (isUpgradeable && !upgradeReady) || isAlwaysPartial ? 'Partially fixable'
-                  : 'Auto-fixable'
-                const tooltip = isAssisted
-                  ? (s.fixInputKey === 'ga4_measurement_id'
-                    ? 'Go to analytics.google.com → create a GA4 property → copy your Measurement ID (G-XXXXXXXXXX) → save it in Settings → Integrations → Google Analytics.'
-                    : s.fixInputKey === 'gsc_verification_code'
-                    ? 'Go to search.google.com/search-console → add property → choose HTML tag verification → copy the content value → save it in Settings → Integrations → Google Search Console.'
-                    : 'Save the required value in Settings → Integrations to enable this fix.')
-                  : isUpgradeable && !upgradeReady ? (item.upgradeInput?.setupInstructions ?? 'Save the required asset in Settings → Brand Assets to upgrade to a complete fix.')
-                  : isAlwaysPartial ? (item.partialFix ?? null)
-                  : null
-                return (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <Badge className={`md-tag ${githubConnected ? 'md-tag-fix' : 'md-tag-fix-off'}`}>⚡ {badgeLabel}</Badge>
-                    {tooltip && (
-                      <span className="md-info-wrap">
-                        <svg className="md-info-icon" width="13" height="13" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-                          <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                        <span className="md-tooltip">{tooltip}</span>
-                      </span>
-                    )}
-                  </span>
-                )
-              })()}
               {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
             </div>
           </div>
@@ -615,41 +531,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   <span className="sm-action-label">Action</span>
                   <p className="sm-action-text">{s.aiAction}</p>
                 </div>
-              )}
-              {s?.fixable && !aiV && s.completedBy !== 'agent' && (
-                <div className="md-fix-row">
-                  {(() => {
-                    const needsIntegration = !!(s.fixIntegrationProvider && s.fixIntegrationProvider !== 'brand_assets')
-                    const integrationReady = !needsIntegration || !!connectedIntegrations[s.fixIntegrationProvider!]
-                    if (!githubConnected) return <p className="md-fix-hint">Connect GitHub in <a href="/settings" className="md-fix-hint-link">Settings</a> to apply this fix automatically.</p>
-                    if (!integrationReady) return <p className="md-fix-hint">Set up the required integration in <a href="/settings" className="md-fix-hint-link">Settings → Integrations</a> to enable this fix.</p>
-                    return applyingFix.has(itemKey) ? (
-                      <span className="md-fix-applying"><span className="md-spin" />Applying fix…</span>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5 border-[var(--green)] text-[var(--green)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] hover:border-[var(--green-bright)] bg-transparent text-xs"
-                        onClick={(e) => { e.stopPropagation(); handleApplyFix(modId, false, s.id, item.slug) }}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                          <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        Apply fix via GitHub
-                      </Button>
-                    )
-                  })()}
-                </div>
-              )}
-              {s?.completedBy === 'agent' && prUrl && (
-                <a href={prUrl} target="_blank" rel="noopener noreferrer" className="md-fix-pr-link" onClick={(e) => e.stopPropagation()}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                    <circle cx="18" cy="18" r="3" stroke="currentColor" strokeWidth="2" />
-                    <circle cx="6" cy="6" r="3" stroke="currentColor" strokeWidth="2" />
-                    <path d="M6 21V9a9 9 0 0 0 9 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Applied — view on GitHub
-                </a>
               )}
             </div>
           )}
