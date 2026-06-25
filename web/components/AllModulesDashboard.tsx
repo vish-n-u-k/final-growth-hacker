@@ -584,7 +584,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             <Button
               variant="ghost"
               onClick={handleLogout}
-              className="text-[var(--text-faint)] hover:text-[var(--text-dim)] w-54 border border-[var(--line)] hover:border-[var(--green)] text-sm"
+              className="mob-hide text-[var(--text-faint)] hover:text-[var(--text-dim)] w-54 border border-[var(--line)] hover:border-[var(--green)] text-sm"
             >
               {userEmail} · Sign out
             </Button>
@@ -701,6 +701,19 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     </div>
                   )}
 
+                  {!isLocked && (def.dynamic ? dynItems.some(i => !i.aiVerified && !i.userChecked) : (def.categories as ModuleCategoryDefinition[]).some(cat => cat.subCategories.some(sub => sub.items.some(item => { const s = states[item.slug]; return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction) })))) && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadModuleMd(modData, states, dynItems) }}
+                      className="level-export-btn"
+                      title="Export incomplete items as a report"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <span className="level-export-label">Export Report</span>
+                    </button>
+                  )}
+
                   {!isLocked && (
                     <svg className="chev" width="16" height="16" viewBox="0 0 24 24" fill="none">
                       <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -731,17 +744,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                           </>
                         )}
                       </Button>
-                      {(def.dynamic ? dynItems.some(i => !i.aiVerified && !i.userChecked) : (def.categories as ModuleCategoryDefinition[]).some(cat => cat.subCategories.some(sub => sub.items.some(item => { const s = states[item.slug]; return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction) })))) && (
-                        <button
-                          onClick={() => downloadModuleMd(modData, states, dynItems)}
-                          style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '12px', fontWeight: 500, background: 'transparent', cursor: 'pointer' }}
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                          Export incomplete
-                        </button>
-                      )}
                       <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}>{timeAgo(modData.lastAnalyzedAt)}</span>
                     </div>
 
