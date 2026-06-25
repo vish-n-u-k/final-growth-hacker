@@ -165,10 +165,10 @@ function buildFilteredExternalData(
   itemSlugs: string[],
   externalDataCache: {
     autocomplete: string[]
-    categorized: any
+    categorized: { usecase: string[]; questions: string[]; modifiers: string[]; comparison: string[] } | null
     trendsScore: number | null
     paaQuestions: string[]
-    gscQueries: any[]
+    gscQueries: { query: string; impressions: number; clicks: number; position: number }[]
     gscConnected: boolean
     seed: string
   },
@@ -209,8 +209,8 @@ function buildFilteredExternalData(
   }
 
   // Include comparison data only if comparison items are present
-  if (hasComparisonItems && categorized?.comparison.length > 0) {
-    sections.push(`Comparison/alternative suggestions:\n${categorized.comparison.map((s) => `  - ${s}`).join('\n')}`)
+  if (hasComparisonItems && categorized && categorized.comparison.length > 0) {
+    sections.push(`Comparison/alternative suggestions:\n${categorized.comparison.map((s: string) => `  - ${s}`).join('\n')}`)
   }
 
   // Include PAA questions only if question items are present

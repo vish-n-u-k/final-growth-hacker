@@ -237,6 +237,7 @@ function buildRuleContext(f: ReturnType<typeof buildRuleFindings>, itemSlugs?: s
     `FAQ-style headings detected: ${f.page.hasFaqHeadings}`,
     `Body excerpt: ${f.page.bodyText.slice(0, 800)}`,
   ].filter(Boolean).join('\n')
+  return sections
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────

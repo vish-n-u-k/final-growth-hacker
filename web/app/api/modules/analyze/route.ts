@@ -124,7 +124,7 @@ async function runAnalysis(
     case 'geo': {
       const data = await fetchGeoData(requirements)
       if ('error' in data) throw new Error(data.error)
-      return analyzeGeo(data, brainCtx, brand.name)
+      return analyzeGeo(data, brainCtx, requirements['brand_name'] ?? '')
     }
     case 'geo-competitor-gap': {
       const data = await fetchCompetitorGapData(requirements)
