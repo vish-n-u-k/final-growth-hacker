@@ -29,7 +29,7 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  const isAuthPage = pathname === '/login' || pathname === '/signup'
+  const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname === '/auth/callback'
 
   if (!user && !isAuthPage) {
     const url = request.nextUrl.clone()
