@@ -297,7 +297,7 @@ export default function OnboardingPage() {
                     type="button"
                     variant="outline"
                     onClick={() => setState('step1')}
-                    className="h-14 px-8 gap-2 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--text-faint)] bg-transparent text-sm font-medium"
+                    className="h-14 px-8 flex-1 gap-2 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--text-faint)] bg-transparent text-sm font-medium"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                       <path d="M19 12H5M11 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
