@@ -148,6 +148,7 @@ header {
 .levels { padding-bottom: 80px; display: flex; flex-direction: column; gap: 28px; }
 
 .level {
+  padding: 5px;
   background: var(--card); border: 1px solid var(--line);
   border-radius: 18px; overflow: hidden; transition: .2s;
 }
@@ -595,7 +596,7 @@ header {
 .md-ov-stat-lbl { font-size: 11px; color: var(--text-faint); font-weight: 500; }
 
 /* Category cards */
-.md-cats { display: flex; flex-direction: column; gap: 20px; padding: 24px 0 48px; }
+.md-cats { display: flex; flex-direction: column; gap: 20px; padding: 20px 16px 40px; }
 
 .md-cat {
   background: var(--card); border: 1px solid var(--line);
@@ -925,41 +926,43 @@ header {
 /* Setup guide — dashboard checklist item */
 .sm-setup-guide {
   background: var(--bg-soft); border: 1px solid var(--line);
-  border-radius: 10px; overflow: hidden;
+  border-radius: 12px; overflow: hidden; margin-top: 4px;
 }
 .sm-setup-guide-hd {
   display: flex; align-items: center; gap: 7px;
-  padding: 9px 14px;
-  font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
-  color: var(--green-bright); background: var(--bg);
+  padding: 10px 16px;
+  font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--green-bright); background: #0c1a12;
   border-bottom: 1px solid var(--line);
 }
 .sm-setup-steps {
-  margin: 0; padding: 2px 14px 12px;
-  list-style: none; display: flex; flex-direction: column;
-  counter-reset: sm-step-counter;
+  margin: 0; padding: 8px 16px 14px;
+  list-style: none;
 }
 .sm-setup-step {
-  display: grid; grid-template-columns: 20px 1fr; gap: 9px; align-items: start;
-  font-size: 12px; color: var(--text-dim); line-height: 1.6;
-  counter-increment: sm-step-counter; padding-top: 10px;
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 12.5px; color: var(--text-dim); line-height: 1.6;
+  padding-top: 10px;
 }
-.sm-setup-step::before {
-  content: counter(sm-step-counter);
+.sm-setup-step-num {
   display: flex; align-items: center; justify-content: center;
-  width: 18px; height: 18px; border-radius: 50%;
+  min-width: 20px; height: 20px; border-radius: 50%;
   background: var(--accent); color: var(--green-bright);
-  font-size: 9px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+  font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
 }
 /* Inline integration form inside checklist item */
 .sm-inline-form {
-  display: flex; flex-direction: column; gap: 10px;
-  padding: 14px; border-top: 1px solid var(--line);
+  padding: 16px; border-top: 1px solid var(--line);
 }
-.sm-inline-field { display: flex; flex-direction: column; gap: 5px; }
+.sm-inline-field { display: block; margin-bottom: 12px; }
+.sm-inline-field:last-of-type { margin-bottom: 0; }
 .sm-inline-label {
-  display: flex; align-items: center; gap: 6px;
+  display: block;
   font-size: 12px; font-weight: 600; color: var(--text-dim);
+  margin-bottom: 5px;
+}
+.sm-inline-label-row {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 5px;
 }
 .sm-inline-optional {
   font-size: 10px; font-weight: 500; color: var(--text-faint);
@@ -967,19 +970,20 @@ header {
   border-radius: 4px; padding: 1px 5px;
 }
 .sm-inline-input {
-  width: 100%; padding: 8px 11px; border-radius: 8px;
+  display: block; width: 100%; padding: 9px 12px; border-radius: 8px;
   background: var(--bg); border: 1px solid var(--line);
-  color: var(--text); font-size: 12.5px; font-family: inherit;
+  color: var(--text); font-size: 13px; font-family: inherit;
   transition: border-color .15s; outline: none; box-sizing: border-box;
 }
 .sm-inline-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-glow); }
 .sm-inline-input::placeholder { color: var(--text-faint); }
-.sm-inline-hint { font-size: 11px; color: var(--text-faint); margin: 0; line-height: 1.5; }
-.sm-inline-error { font-size: 12px; color: #f87171; margin: 0; }
+.sm-inline-hint { display: block; font-size: 11px; color: var(--text-faint); margin: 5px 0 0; line-height: 1.5; }
+.sm-inline-error { display: block; font-size: 12px; color: #f87171; margin: 8px 0 0; }
 .sm-inline-btn {
-  align-self: flex-start; padding: 9px 18px; border-radius: 9px;
+  display: inline-flex; align-items: center; margin-top: 14px;
+  padding: 9px 20px; border-radius: 9px;
   background: var(--green); border: none; cursor: pointer;
-  font-size: 12.5px; font-weight: 700; color: #06140c;
+  font-size: 13px; font-weight: 700; color: #06140c;
   font-family: inherit; transition: background .15s;
 }
 .sm-inline-btn:hover:not(:disabled) { background: var(--green-bright); }
@@ -1394,9 +1398,9 @@ html.light .md-setup-input { background: var(--bg-soft); }
 
 html.light .sm-action-box { background: #eaf7f0; border-color: var(--green); }
 html.light .sm-action-label { color: var(--green); }
-html.light .sm-setup-guide { background: var(--bg-soft); border-color: var(--line); }
-html.light .sm-setup-guide-hd { background: var(--card); color: var(--green); }
-html.light .sm-setup-step::before { background: var(--accent); color: var(--green); }
+html.light .sm-setup-guide { background: #f0f8f4; border-color: #c8e8d8; }
+html.light .sm-setup-guide-hd { background: #e4f5ec; color: var(--green); }
+html.light .sm-setup-step-num { background: #d0eadb; color: var(--green); }
 html.light .sm-setup-link { background: var(--accent); color: var(--green); }
 html.light .st-guide { background: var(--bg-soft); }
 html.light .st-guide-step::before { color: #ffffff; }
@@ -1786,9 +1790,9 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
 
   /* ── Dashboard item setup guide + inline form ── */
   .sm-setup-step { font-size: 11.5px; padding-top: 9px; }
-  .sm-inline-form { padding: 12px; }
-  .sm-inline-input { font-size: 12px; padding: 9px 10px; }
-  .sm-inline-btn { width: 100%; align-self: stretch; padding: 11px 18px; }
+  .sm-inline-form { padding: 14px; }
+  .sm-inline-input { font-size: 12.5px; padding: 9px 11px; }
+  .sm-inline-btn { display: block; width: 100%; text-align: center; padding: 11px 18px; }
 }
 
 /* Dashboard mobile responsiveness */

@@ -105,10 +105,10 @@ function InlineIntegrationForm({ intDef, onConnected }: { intDef: IntegrationDef
     <form className="sm-inline-form" onSubmit={handleSave} onClick={(e) => e.stopPropagation()}>
       {intDef.fields.map((field) => (
         <div key={field.key} className="sm-inline-field">
-          <label className="sm-inline-label">
-            {field.label}
+          <div className="sm-inline-label-row">
+            <span className="sm-inline-label" style={{ marginBottom: 0 }}>{field.label}</span>
             {field.optional && <span className="sm-inline-optional">optional</span>}
-          </label>
+          </div>
           <input
             className="sm-inline-input"
             type={field.inputType}
@@ -634,7 +634,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     </div>
                     <ol className="sm-setup-steps">
                       {intDef.setupSteps.map((step, i) => (
-                        <li key={i} className="sm-setup-step">{step}</li>
+                        <li key={i} className="sm-setup-step">
+                          <span className="sm-setup-step-num">{i + 1}</span>
+                          <span>{step}</span>
+                        </li>
                       ))}
                     </ol>
                     <InlineIntegrationForm intDef={intDef} onConnected={() => router.refresh()} />
@@ -767,7 +770,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             const needsSetup = missingReqs.length > 0
 
             return (
-              <div key={modData.id} className={`level ${stateClass}${isOpen ? ' open' : ''}`}>
+              <div key={modData.id} className={`level ${stateClass}${isOpen ? ' open' : ''} `}>
 
                 {/* Level head */}
                 <div className="level-head" onClick={() => !isLocked && toggleModule(modData.id)}>
