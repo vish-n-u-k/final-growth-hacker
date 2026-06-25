@@ -1545,14 +1545,17 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
 
 /* ── Export button (level header) ─────────────────────────────────────────── */
 .level-export-btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 6px 12px; border-radius: 8px;
-  border: 1px solid var(--green); color: var(--green-bright);
-  font-size: 12px; font-weight: 500; background: transparent;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 8px;
+  background: transparent; border: 1px solid var(--green);
+  color: var(--green-bright); font-size: 13px; font-weight: 500;
   cursor: pointer; flex-shrink: 0; font-family: inherit;
-  transition: background .15s;
+  transition: border-color .15s, color .15s;
 }
-.level-export-btn:hover { background: #1a3526; }
+.level-export-btn:hover {
+  border-color: var(--green-bright);
+  color: var(--green);
+}
 
 /* ── Mobile Responsive ───────────────────────────────────────────────────── */
 
@@ -1659,6 +1662,68 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
   /* ── Fix plan modal ── */
   .fp-overlay { padding: 12px; }
   .fp-modal { max-height: 92vh; padding: 18px; }
+}
+
+/* Dashboard mobile responsiveness */
+@media (max-width: 768px) {
+  .md-layout {
+    display: block;
+    padding: 20px 16px;
+  }
+
+  .md-sidebar {
+    position: static;
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    overflow-x: auto;
+    margin-bottom: 24px;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .md-sidebar-label { display: none; }
+
+  .md-sidebar-item {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    gap: 4px;
+    min-width: fit-content;
+  }
+
+  .md-sidebar-item-name { font-size: 12px; }
+  .md-sidebar-item-pct { font-size: 10px; }
+  .md-sidebar-bar { display: none; }
+
+  .md-cat { margin-bottom: 16px; }
+  .md-cat-hd { padding: 16px 18px; gap: 12px; }
+  .md-cat-hd-name { font-size: 14px; }
+  .md-cat-mini-bar { width: 50px; }
+  .md-cat-pct { font-size: 12px; }
+
+  .md-item { padding: 12px 0; gap: 10px; }
+  .md-item-lbl { font-size: 13px; }
+  .md-item-detail { font-size: 11.5px; }
+
+  .level-head {
+    padding: 16px 18px;
+    gap: 12px;
+    display: flex;
+    flex-direction: row !important;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .level-info { flex: 1; min-width: 0; }
+  .level-info .name { font-size: 15px; white-space: nowrap; }
+  .level-info .focus { display: none; }
+  .level-prog { display: flex; gap: 6px; font-size: 11px; }
+  .mini-track { width: 50px; }
+  .level-export-btn { font-size: 12px; padding: 7px 14px; flex-shrink: 0; }
+
+  .md-ov-score-row { flex-direction: column; gap: 20px; }
+  .md-ov-pct { font-size: 42px; }
 }
 
 @media (max-width: 480px) {
