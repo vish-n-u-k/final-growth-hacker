@@ -24,7 +24,13 @@ type Tab = 'brand' | 'integrations' | 'account'
 
 export default function SettingsPage({ brand, userEmail, integrationRegistry, connectedIntegrations }: Props) {
   const [tab, setTab] = useState<Tab>('brand')
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const router = useRouter()
+
+  const handleTabClick = (key: Tab) => {
+    setTab(key)
+    setDrawerOpen(false)
+  }
 
   return (
     <>
@@ -36,20 +42,39 @@ export default function SettingsPage({ brand, userEmail, integrationRegistry, co
                 <path d="M5 12h4l2-6 3 12 2-6h3" stroke="#06140c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </span>
-            Settings
+            Growth Hacker
+
           </div>
           <button className="logout-btn" onClick={() => router.push('/dashboard')}>
-            ← Back to dashboard
+           Back 
           </button>
         </div>
       </header>
 
       <div className="wrap st-page-hd">
+        <button
+          className="st-drawer-toggle"
+          onClick={() => setDrawerOpen(!drawerOpen)}
+          aria-label="Toggle navigation menu"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
         <h1 className="st-page-title">Settings</h1>
         <p className="st-page-sub">Manage your brand, integrations, and account.</p>
       </div>
 
-      <div className="wrap st-layout">
+      <div
+        className={`wrap st-layout${drawerOpen ? ' drawer-open' : ''}`}
+        onClick={(e) => {
+          if ((e.target as HTMLElement).classList.contains('st-layout')) {
+            setDrawerOpen(false)
+          }
+        }}
+      >
         {/* Tab nav */}
         <nav className="st-tabs">
           {([
@@ -60,7 +85,7 @@ export default function SettingsPage({ brand, userEmail, integrationRegistry, co
             <button
               key={key}
               className={`st-tab${tab === key ? ' st-tab-active' : ''}`}
-              onClick={() => setTab(key)}
+              onClick={() => handleTabClick(key)}
             >
               {icon}
               {label}
