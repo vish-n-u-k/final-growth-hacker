@@ -5,6 +5,8 @@ export interface GeoFetchData {
   llmsTxt: string | null       // null = 404 / unreachable
   aiTxt: string | null         // /.well-known/ai.txt
   aiSummaryJson: string | null // /ai/summary.json
+  aiFaqJson: string | null     // /ai/faq.json
+  aiServiceJson: string | null // /ai/service.json
 }
 
 async function fetchText(url: string, timeoutMs = 8000): Promise<string | null> {
@@ -34,12 +36,14 @@ export async function fetchGeoData(
     return { error: `Invalid URL: ${rawUrl}` }
   }
 
-  const [html, robotsTxt, llmsTxt, aiTxt, aiSummaryJson] = await Promise.all([
+  const [html, robotsTxt, llmsTxt, aiTxt, aiSummaryJson, aiFaqJson, aiServiceJson] = await Promise.all([
     fetchText(url, 12000),
     fetchText(`${origin}/robots.txt`),
     fetchText(`${origin}/llms.txt`),
     fetchText(`${origin}/.well-known/ai.txt`),
     fetchText(`${origin}/ai/summary.json`),
+    fetchText(`${origin}/ai/faq.json`),
+    fetchText(`${origin}/ai/service.json`),
   ])
 
   if (!html) return { error: `Could not fetch ${url}` }
@@ -51,5 +55,7 @@ export async function fetchGeoData(
     llmsTxt,
     aiTxt,
     aiSummaryJson,
+    aiFaqJson,
+    aiServiceJson,
   }
 }

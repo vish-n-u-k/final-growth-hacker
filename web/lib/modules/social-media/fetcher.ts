@@ -6,12 +6,16 @@ import { eq, and } from 'drizzle-orm'
 
 export type SocialProvider = 'youtube' | 'twitter' | 'instagram' | 'facebook' | 'linkedin' | 'tiktok'
 
+export type SocialTier = 'none' | 'homepage' | 'url_provided' | 'api_connected'
+
 export interface SocialPlatformData {
   platform: SocialProvider
-  connected: boolean          // true = API integration connected
-  detectedOnWebsite: boolean  // true = social link found on homepage
+  tier: SocialTier
+  detectedOnWebsite: boolean
+  connected: boolean
   profileUrl: string | null
   handle: string | null
+  publicPageTitle: string | null   // scraped from og:title on public profile page
   followerCount: number | null
   followingCount: number | null
   postCount: number | null
@@ -20,7 +24,7 @@ export interface SocialPlatformData {
   profileImageSet: boolean
   lastPostDate: string | null
   postsPerWeek: number | null
-  engagementRate: number | null  // percentage, e.g. 3.2
+  engagementRate: number | null
   fetchError: string | null
 }
 
@@ -49,7 +53,6 @@ const SOCIAL_LINK_PATTERNS: { regex: RegExp; platform: string }[] = [
 
 function extractSocialLinksFromHtml(html: string): { platform: string; url: string }[] {
   const found = new Map<string, string>()
-  // Extract all href values
   const hrefMatches = html.match(/href=["']([^"']+)["']/gi) ?? []
   for (const match of hrefMatches) {
     const urlMatch = match.match(/href=["']([^"']+)["']/i)
@@ -64,24 +67,39 @@ function extractSocialLinksFromHtml(html: string): { platform: string; url: stri
   return [...found.entries()].map(([platform, url]) => ({ platform, url }))
 }
 
+// ── Handle extraction from profile URLs ───────────────────────────────────────
+
+const HANDLE_PATTERNS: Record<SocialProvider, RegExp> = {
+  instagram: /instagram\.com\/([^/?#\s]+)/i,
+  twitter:   /(?:twitter|x)\.com\/([^/?#\s]+)/i,
+  facebook:  /facebook\.com\/([^/?#\s]+)/i,
+  linkedin:  /linkedin\.com\/(?:company|in)\/([^/?#\s]+)/i,
+  youtube:   /youtube\.com\/@([^/?#\s]+)/i,
+  tiktok:    /tiktok\.com\/@([^/?#\s]+)/i,
+}
+
+function extractHandle(url: string, platform: SocialProvider): string | null {
+  const regex = HANDLE_PATTERNS[platform]
+  if (!regex) return null
+  const match = url.match(regex)
+  if (!match) return null
+  // Clean trailing slashes or query strings
+  return match[1].replace(/[/?#].*$/, '').trim() || null
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function calculatePostsPerWeek(timestamps: string[]): number | null {
-  if (timestamps.length < 2) return timestamps.length === 1 ? null : null
+  if (timestamps.length < 2) return null
   const ms = timestamps.map((t) => new Date(t).getTime()).sort((a, b) => b - a)
   const daySpan = (ms[0] - ms[ms.length - 1]) / (1000 * 60 * 60 * 24)
   if (daySpan === 0) return null
   return Math.round((timestamps.length / daySpan) * 7 * 10) / 10
 }
 
-function calculateEngagementRate(
-  totalInteractions: number,
-  postCount: number,
-  followerCount: number,
-): number | null {
+function calculateEngagementRate(totalInteractions: number, postCount: number, followerCount: number): number | null {
   if (followerCount === 0 || postCount === 0) return null
-  const avgInteractions = totalInteractions / postCount
-  return Math.round((avgInteractions / followerCount) * 100 * 100) / 100
+  return Math.round((totalInteractions / postCount / followerCount) * 100 * 100) / 100
 }
 
 async function safeFetch(url: string, headers: Record<string, string>): Promise<unknown | null> {
@@ -97,7 +115,7 @@ async function safeFetch(url: string, headers: Record<string, string>): Promise<
   }
 }
 
-async function fetchWebsiteHtml(url: string): Promise<string> {
+async function fetchHtml(url: string): Promise<string> {
   try {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 10000)
@@ -113,12 +131,27 @@ async function fetchWebsiteHtml(url: string): Promise<string> {
   }
 }
 
+// Scrape og:title or <title> from a public profile page
+async function fetchPublicPageTitle(url: string): Promise<string | null> {
+  try {
+    const html = await fetchHtml(url)
+    if (!html) return null
+    // og:title (two attribute orderings)
+    const og1 = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
+    const og2 = html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i)
+    const ogTitle = (og1 ?? og2)?.[1]?.trim()
+    if (ogTitle) return ogTitle
+    // <title> fallback
+    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+    return titleMatch?.[1]?.trim() ?? null
+  } catch {
+    return null
+  }
+}
+
 // ── Platform API fetchers ─────────────────────────────────────────────────────
 
-async function fetchYouTube(
-  apiKey: string,
-  channelId: string,
-): Promise<Partial<SocialPlatformData>> {
+async function fetchYouTube(apiKey: string, channelId: string): Promise<Partial<SocialPlatformData>> {
   const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${encodeURIComponent(channelId)}&key=${apiKey}`
   const data = await safeFetch(channelUrl, {}) as {
     items?: {
@@ -133,7 +166,6 @@ async function fetchYouTube(
   const followerCount = item.statistics.subscriberCount ? parseInt(item.statistics.subscriberCount) : null
   const postCount = item.statistics.videoCount ? parseInt(item.statistics.videoCount) : null
 
-  // Fetch recent videos for posting frequency
   const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${encodeURIComponent(channelId)}&type=video&order=date&maxResults=10&key=${apiKey}`
   const searchData = await safeFetch(searchUrl, {}) as {
     items?: { snippet: { publishedAt: string } }[]
@@ -150,23 +182,18 @@ async function fetchYouTube(
     followingCount: null,
     postCount,
     bio: item.snippet.description?.slice(0, 500) || null,
-    websiteInBio: false, // YouTube doesn't expose website-in-bio via basic snippet
+    websiteInBio: false,
     profileImageSet: !!item.snippet.thumbnails?.default?.url,
     lastPostDate,
     postsPerWeek,
-    engagementRate: null, // Would require fetching individual video stats
+    engagementRate: null,
     fetchError: null,
   }
 }
 
-async function fetchTwitter(
-  bearerToken: string,
-  username: string,
-): Promise<Partial<SocialPlatformData>> {
+async function fetchTwitter(bearerToken: string, username: string): Promise<Partial<SocialPlatformData>> {
   const url = `https://api.twitter.com/2/users/by/username/${encodeURIComponent(username)}?user.fields=public_metrics,description,profile_image_url,entities,url`
-  const data = await safeFetch(url, {
-    Authorization: `Bearer ${bearerToken}`,
-  }) as {
+  const data = await safeFetch(url, { Authorization: `Bearer ${bearerToken}` }) as {
     data?: {
       public_metrics: { followers_count: number; following_count: number; tweet_count: number }
       description?: string
@@ -176,9 +203,7 @@ async function fetchTwitter(
     errors?: unknown[]
   } | null
 
-  if (!data?.data) {
-    return { fetchError: 'User not found or Bearer Token invalid / rate limited' }
-  }
+  if (!data?.data) return { fetchError: 'User not found or Bearer Token invalid / rate limited' }
 
   const { public_metrics, description, profile_image_url, entities } = data.data
   const websiteUrl = entities?.url?.urls?.[0]?.expanded_url
@@ -193,32 +218,22 @@ async function fetchTwitter(
     bio: description?.slice(0, 500) || null,
     websiteInBio: !!websiteUrl,
     profileImageSet: !!profile_image_url && !isDefaultAvatar,
-    lastPostDate: null, // Requires timeline endpoint (paid tier)
-    postsPerWeek: null, // Requires timeline endpoint (paid tier)
-    engagementRate: null, // Requires per-tweet data (paid tier)
+    lastPostDate: null,
+    postsPerWeek: null,
+    engagementRate: null,
     fetchError: null,
   }
 }
 
-async function fetchInstagram(
-  accessToken: string,
-  accountId: string,
-): Promise<Partial<SocialPlatformData>> {
+async function fetchInstagram(accessToken: string, accountId: string): Promise<Partial<SocialPlatformData>> {
   const profileUrl = `https://graph.instagram.com/v18.0/${accountId}?fields=biography,followers_count,media_count,username,website&access_token=${accessToken}`
   const profileData = await safeFetch(profileUrl, {}) as {
-    biography?: string
-    followers_count?: number
-    media_count?: number
-    username?: string
-    website?: string
-    error?: { message: string }
+    biography?: string; followers_count?: number; media_count?: number
+    username?: string; website?: string; error?: { message: string }
   } | null
 
-  if (!profileData || profileData.error) {
-    return { fetchError: profileData?.error?.message ?? 'Invalid access token or account ID' }
-  }
+  if (!profileData || profileData.error) return { fetchError: profileData?.error?.message ?? 'Invalid access token or account ID' }
 
-  // Fetch recent media for posting frequency and engagement
   const mediaUrl = `https://graph.instagram.com/v18.0/${accountId}/media?fields=timestamp,like_count,comments_count&limit=20&access_token=${accessToken}`
   const mediaData = await safeFetch(mediaUrl, {}) as {
     data?: { timestamp: string; like_count?: number; comments_count?: number }[]
@@ -228,11 +243,7 @@ async function fetchInstagram(
   const timestamps = posts.map((p) => p.timestamp)
   const lastPostDate = timestamps[0] ?? null
   const postsPerWeek = calculatePostsPerWeek(timestamps)
-
-  const totalInteractions = posts.reduce(
-    (sum, p) => sum + (p.like_count ?? 0) + (p.comments_count ?? 0),
-    0,
-  )
+  const totalInteractions = posts.reduce((sum, p) => sum + (p.like_count ?? 0) + (p.comments_count ?? 0), 0)
   const engagementRate = profileData.followers_count && posts.length
     ? calculateEngagementRate(totalInteractions, posts.length, profileData.followers_count)
     : null
@@ -245,7 +256,7 @@ async function fetchInstagram(
     postCount: profileData.media_count ?? null,
     bio: profileData.biography?.slice(0, 500) || null,
     websiteInBio: !!profileData.website,
-    profileImageSet: true, // Instagram always has a profile image; can't check via API
+    profileImageSet: true,
     lastPostDate,
     postsPerWeek,
     engagementRate,
@@ -253,49 +264,27 @@ async function fetchInstagram(
   }
 }
 
-async function fetchFacebook(
-  accessToken: string,
-  pageId: string,
-): Promise<Partial<SocialPlatformData>> {
+async function fetchFacebook(accessToken: string, pageId: string): Promise<Partial<SocialPlatformData>> {
   const pageUrl = `https://graph.facebook.com/v18.0/${pageId}?fields=name,fan_count,followers_count,about,website,link,username&access_token=${accessToken}`
   const pageData = await safeFetch(pageUrl, {}) as {
-    name?: string
-    fan_count?: number
-    followers_count?: number
-    about?: string
-    website?: string
-    link?: string
-    username?: string
-    error?: { message: string }
+    name?: string; fan_count?: number; followers_count?: number; about?: string
+    website?: string; link?: string; username?: string; error?: { message: string }
   } | null
 
-  if (!pageData || pageData.error) {
-    return { fetchError: pageData?.error?.message ?? 'Invalid Page access token or Page ID' }
-  }
+  if (!pageData || pageData.error) return { fetchError: pageData?.error?.message ?? 'Invalid Page access token or Page ID' }
 
-  // Fetch recent posts for frequency and engagement
   const postsUrl = `https://graph.facebook.com/v18.0/${pageId}/posts?fields=created_time,reactions.summary(true),comments.summary(true)&limit=20&access_token=${accessToken}`
   const postsData = await safeFetch(postsUrl, {}) as {
-    data?: {
-      created_time: string
-      reactions?: { summary?: { total_count: number } }
-      comments?: { summary?: { total_count: number } }
-    }[]
+    data?: { created_time: string; reactions?: { summary?: { total_count: number } }; comments?: { summary?: { total_count: number } } }[]
   } | null
 
   const posts = postsData?.data ?? []
   const timestamps = posts.map((p) => p.created_time)
   const lastPostDate = timestamps[0] ?? null
   const postsPerWeek = calculatePostsPerWeek(timestamps)
-
   const followerCount = pageData.followers_count ?? pageData.fan_count ?? null
-  const totalInteractions = posts.reduce(
-    (sum, p) => sum + (p.reactions?.summary?.total_count ?? 0) + (p.comments?.summary?.total_count ?? 0),
-    0,
-  )
-  const engagementRate = followerCount && posts.length
-    ? calculateEngagementRate(totalInteractions, posts.length, followerCount)
-    : null
+  const totalInteractions = posts.reduce((sum, p) => sum + (p.reactions?.summary?.total_count ?? 0) + (p.comments?.summary?.total_count ?? 0), 0)
+  const engagementRate = followerCount && posts.length ? calculateEngagementRate(totalInteractions, posts.length, followerCount) : null
 
   return {
     handle: pageData.username ?? null,
@@ -313,31 +302,15 @@ async function fetchFacebook(
   }
 }
 
-async function fetchLinkedIn(
-  accessToken: string,
-  organizationId: string,
-): Promise<Partial<SocialPlatformData>> {
-  const headers = {
-    Authorization: `Bearer ${accessToken}`,
-    'X-Restli-Protocol-Version': '2.0.0',
-  }
-
-  const orgUrl = `https://api.linkedin.com/v2/organizations/${organizationId}`
-  const orgData = await safeFetch(orgUrl, headers) as {
-    localizedName?: string
-    localizedDescription?: string
-    vanityName?: string
-    error?: string
-    message?: string
+async function fetchLinkedIn(accessToken: string, organizationId: string): Promise<Partial<SocialPlatformData>> {
+  const headers = { Authorization: `Bearer ${accessToken}`, 'X-Restli-Protocol-Version': '2.0.0' }
+  const orgData = await safeFetch(`https://api.linkedin.com/v2/organizations/${organizationId}`, headers) as {
+    localizedName?: string; localizedDescription?: string; vanityName?: string; error?: string; message?: string
   } | null
 
-  if (!orgData || orgData.error) {
-    return { fetchError: orgData?.message ?? 'Invalid access token or Organization ID' }
-  }
+  if (!orgData || orgData.error) return { fetchError: orgData?.message ?? 'Invalid access token or Organization ID' }
 
-  // Fetch follower count
-  const followersUrl = `https://api.linkedin.com/v2/networkSizes/${organizationId}?edgeType=CompanyFollowedByMember`
-  const followersData = await safeFetch(followersUrl, headers) as {
+  const followersData = await safeFetch(`https://api.linkedin.com/v2/networkSizes/${organizationId}?edgeType=CompanyFollowedByMember`, headers) as {
     firstDegreeSize?: number
   } | null
 
@@ -348,43 +321,28 @@ async function fetchLinkedIn(
     followingCount: null,
     postCount: null,
     bio: orgData.localizedDescription?.slice(0, 500) || null,
-    websiteInBio: null as unknown as boolean, // Can't determine via basic API
-    profileImageSet: true, // Can't determine without media API scope
-    lastPostDate: null, // Requires ugcPosts endpoint
+    websiteInBio: null as unknown as boolean,
+    profileImageSet: true,
+    lastPostDate: null,
     postsPerWeek: null,
     engagementRate: null,
     fetchError: null,
   }
 }
 
-async function fetchTikTok(
-  accessToken: string,
-): Promise<Partial<SocialPlatformData>> {
+async function fetchTikTok(accessToken: string): Promise<Partial<SocialPlatformData>> {
   const url = `https://open.tiktokapis.com/v2/user/info/?fields=follower_count,following_count,video_count,bio_description,display_name`
-  const data = await safeFetch(url, {
-    Authorization: `Bearer ${accessToken}`,
-  }) as {
-    data?: {
-      user?: {
-        follower_count?: number
-        following_count?: number
-        video_count?: number
-        bio_description?: string
-        display_name?: string
-      }
-    }
+  const data = await safeFetch(url, { Authorization: `Bearer ${accessToken}` }) as {
+    data?: { user?: { follower_count?: number; following_count?: number; video_count?: number; bio_description?: string; display_name?: string } }
     error?: { code: string; message: string }
   } | null
 
-  if (!data?.data?.user || data.error) {
-    return { fetchError: data?.error?.message ?? 'Invalid TikTok access token' }
-  }
+  if (!data?.data?.user || data.error) return { fetchError: data?.error?.message ?? 'Invalid TikTok access token' }
 
   const user = data.data.user
-
   return {
     handle: user.display_name ?? null,
-    profileUrl: null, // Can't determine without username
+    profileUrl: null,
     followerCount: user.follower_count ?? null,
     followingCount: user.following_count ?? null,
     postCount: user.video_count ?? null,
@@ -409,151 +367,135 @@ export async function fetchSocialMediaData(
   const targetAudience = requirements['target_audience'] || null
   const brandName = requirements['brand_name'] || ''
 
-  // Load all social integrations for this brand
+  // Load API integrations
   const integrations = brandId
-    ? await db
-        .select()
-        .from(brandIntegrations)
-        .where(
-          and(
-            eq(brandIntegrations.brandId, brandId),
-            eq(brandIntegrations.status, 'connected'),
-          ),
-        )
+    ? await db.select().from(brandIntegrations).where(and(eq(brandIntegrations.brandId, brandId), eq(brandIntegrations.status, 'connected')))
     : []
-
   const integrationMap = new Map(integrations.map((i) => [i.provider, i]))
 
-  // Extract manually-provided social profile URLs (no API token required)
-  const socialProfilesMeta = (integrationMap.get('social_profiles')?.metadata as Record<string, string> | null) ?? {}
-  const customLinks: { name: string; url: string }[] = (() => {
-    try { return JSON.parse(socialProfilesMeta.custom_links ?? '[]') }
-    catch { return [] }
-  })()
-
-  // Fetch homepage HTML for social link detection
-  const html = await fetchWebsiteHtml(websiteUrl)
-  const socialLinksOnWebsite = html ? extractSocialLinksFromHtml(html) : []
-  // Merge in custom links the user manually provided (skip duplicates)
-  for (const cl of customLinks) {
-    if (cl.url && !socialLinksOnWebsite.some((l) => l.url === cl.url)) {
-      socialLinksOnWebsite.push({ platform: cl.name.toLowerCase(), url: cl.url })
-    }
+  // Social profile URLs: module requirements take priority over social_profiles integration
+  const savedProfilesMeta = (integrationMap.get('social_profiles')?.metadata as Record<string, string> | null) ?? {}
+  const profileUrls: Record<SocialProvider, string | null> = {
+    instagram: requirements['instagram_url'] || savedProfilesMeta['instagram_url'] || null,
+    twitter:   requirements['twitter_url']   || savedProfilesMeta['twitter_url']   || null,
+    linkedin:  requirements['linkedin_url']  || savedProfilesMeta['linkedin_url']  || null,
+    youtube:   requirements['youtube_url']   || savedProfilesMeta['youtube_url']   || null,
+    facebook:  requirements['facebook_url']  || savedProfilesMeta['facebook_url']  || null,
+    tiktok:    requirements['tiktok_url']    || savedProfilesMeta['tiktok_url']    || null,
   }
+
+  // Fetch homepage HTML → detect social links
+  const html = await fetchHtml(websiteUrl)
+  const socialLinksOnWebsite = html ? extractSocialLinksFromHtml(html) : []
   const websitePlatforms = new Set(socialLinksOnWebsite.map((l) => l.platform))
 
-  // Fetch each connected platform in parallel
-  const platformResults = await Promise.allSettled([
-    (async (): Promise<SocialPlatformData> => {
-      const integration = integrationMap.get('youtube')
-      const base: SocialPlatformData = {
-        platform: 'youtube',
-        connected: !!integration,
-        detectedOnWebsite: websitePlatforms.has('youtube') || !!socialProfilesMeta.youtube_url,
-        profileUrl: socialProfilesMeta.youtube_url || null,
-        handle: null, followerCount: null, followingCount: null,
-        postCount: null, bio: null, websiteInBio: false, profileImageSet: false,
-        lastPostDate: null, postsPerWeek: null, engagementRate: null, fetchError: null,
-      }
-      if (!integration) return base
-      const apiKey = integration.apiKey
-      const channelId = (integration.metadata as Record<string, string> | null)?.channel_id
-      if (!apiKey || !channelId) return { ...base, fetchError: 'API key or Channel ID not set in integration' }
-      return { ...base, ...await fetchYouTube(apiKey, channelId) }
-    })(),
+  // For each platform: extract handle from URL, scrape og:title from public page (in parallel)
+  const platforms: SocialProvider[] = ['youtube', 'twitter', 'instagram', 'facebook', 'linkedin', 'tiktok']
 
-    (async (): Promise<SocialPlatformData> => {
-      const integration = integrationMap.get('twitter')
-      const base: SocialPlatformData = {
-        platform: 'twitter',
-        connected: !!integration,
-        detectedOnWebsite: websitePlatforms.has('twitter') || !!socialProfilesMeta.twitter_url,
-        profileUrl: socialProfilesMeta.twitter_url || null,
-        handle: null, followerCount: null, followingCount: null,
-        postCount: null, bio: null, websiteInBio: false, profileImageSet: false,
-        lastPostDate: null, postsPerWeek: null, engagementRate: null, fetchError: null,
-      }
-      if (!integration) return base
-      const bearerToken = integration.apiKey
-      const username = (integration.metadata as Record<string, string> | null)?.twitter_username
-      if (!bearerToken || !username) return { ...base, fetchError: 'Bearer Token or username not set in integration' }
-      return { ...base, ...await fetchTwitter(bearerToken, username) }
-    })(),
+  const platformResults = await Promise.allSettled(
+    platforms.map(async (platform): Promise<SocialPlatformData> => {
+      const integration = integrationMap.get(platform)
+      const profileUrl = profileUrls[platform]
+      const onWebsite = websitePlatforms.has(platform)
 
-    (async (): Promise<SocialPlatformData> => {
-      const integration = integrationMap.get('instagram')
+      // Base with everything null
       const base: SocialPlatformData = {
-        platform: 'instagram',
+        platform,
+        tier: 'none',
+        detectedOnWebsite: onWebsite || !!profileUrl,
         connected: !!integration,
-        detectedOnWebsite: websitePlatforms.has('instagram') || !!socialProfilesMeta.instagram_url,
-        profileUrl: socialProfilesMeta.instagram_url || null,
-        handle: null, followerCount: null, followingCount: null,
-        postCount: null, bio: null, websiteInBio: false, profileImageSet: false,
-        lastPostDate: null, postsPerWeek: null, engagementRate: null, fetchError: null,
+        profileUrl: profileUrl || null,
+        handle: null,
+        publicPageTitle: null,
+        followerCount: null,
+        followingCount: null,
+        postCount: null,
+        bio: null,
+        websiteInBio: false,
+        profileImageSet: false,
+        lastPostDate: null,
+        postsPerWeek: null,
+        engagementRate: null,
+        fetchError: null,
       }
-      if (!integration) return base
-      const accessToken = integration.accessToken
-      const accountId = (integration.metadata as Record<string, string> | null)?.instagram_account_id
-      if (!accessToken || !accountId) return { ...base, fetchError: 'Access token or Account ID not set in integration' }
-      return { ...base, ...await fetchInstagram(accessToken, accountId) }
-    })(),
 
-    (async (): Promise<SocialPlatformData> => {
-      const integration = integrationMap.get('facebook')
-      const base: SocialPlatformData = {
-        platform: 'facebook',
-        connected: !!integration,
-        detectedOnWebsite: websitePlatforms.has('facebook') || !!socialProfilesMeta.facebook_url,
-        profileUrl: socialProfilesMeta.facebook_url || null,
-        handle: null, followerCount: null, followingCount: null,
-        postCount: null, bio: null, websiteInBio: false, profileImageSet: false,
-        lastPostDate: null, postsPerWeek: null, engagementRate: null, fetchError: null,
+      // Tier 3: API connected — call platform API
+      if (integration) {
+        let apiData: Partial<SocialPlatformData> = {}
+        try {
+          switch (platform) {
+            case 'youtube': {
+              const apiKey = integration.apiKey
+              const channelId = (integration.metadata as Record<string, string> | null)?.channel_id
+              if (!apiKey || !channelId) { apiData = { fetchError: 'API key or Channel ID not set' }; break }
+              apiData = await fetchYouTube(apiKey, channelId)
+              break
+            }
+            case 'twitter': {
+              const bearerToken = integration.apiKey
+              const username = (integration.metadata as Record<string, string> | null)?.twitter_username
+              if (!bearerToken || !username) { apiData = { fetchError: 'Bearer Token or username not set' }; break }
+              apiData = await fetchTwitter(bearerToken, username)
+              break
+            }
+            case 'instagram': {
+              const accessToken = integration.accessToken
+              const accountId = (integration.metadata as Record<string, string> | null)?.instagram_account_id
+              if (!accessToken || !accountId) { apiData = { fetchError: 'Access token or Account ID not set' }; break }
+              apiData = await fetchInstagram(accessToken, accountId)
+              break
+            }
+            case 'facebook': {
+              const accessToken = integration.accessToken
+              const pageId = (integration.metadata as Record<string, string> | null)?.page_id
+              if (!accessToken || !pageId) { apiData = { fetchError: 'Access token or Page ID not set' }; break }
+              apiData = await fetchFacebook(accessToken, pageId)
+              break
+            }
+            case 'linkedin': {
+              const accessToken = integration.accessToken
+              const orgId = (integration.metadata as Record<string, string> | null)?.organization_id
+              if (!accessToken || !orgId) { apiData = { fetchError: 'Access token or Organization ID not set' }; break }
+              apiData = await fetchLinkedIn(accessToken, orgId)
+              break
+            }
+            case 'tiktok': {
+              const accessToken = integration.accessToken
+              if (!accessToken) { apiData = { fetchError: 'Access token not set' }; break }
+              apiData = await fetchTikTok(accessToken)
+              break
+            }
+          }
+        } catch (e) {
+          apiData = { fetchError: e instanceof Error ? e.message : 'Unknown error' }
+        }
+        return { ...base, ...apiData, tier: 'api_connected' }
       }
-      if (!integration) return base
-      const accessToken = integration.accessToken
-      const pageId = (integration.metadata as Record<string, string> | null)?.page_id
-      if (!accessToken || !pageId) return { ...base, fetchError: 'Access token or Page ID not set in integration' }
-      return { ...base, ...await fetchFacebook(accessToken, pageId) }
-    })(),
 
-    (async (): Promise<SocialPlatformData> => {
-      const integration = integrationMap.get('linkedin')
-      const base: SocialPlatformData = {
-        platform: 'linkedin',
-        connected: !!integration,
-        detectedOnWebsite: websitePlatforms.has('linkedin') || !!socialProfilesMeta.linkedin_url,
-        profileUrl: socialProfilesMeta.linkedin_url || null,
-        handle: null, followerCount: null, followingCount: null,
-        postCount: null, bio: null, websiteInBio: false, profileImageSet: false,
-        lastPostDate: null, postsPerWeek: null, engagementRate: null, fetchError: null,
+      // Tier 2: Profile URL provided — extract handle + scrape public page title
+      if (profileUrl) {
+        const handle = extractHandle(profileUrl, platform)
+        // Scrape og:title for platforms whose public pages are accessible
+        // (YouTube, LinkedIn, Facebook pages are typically not JS-gated for title)
+        let publicPageTitle: string | null = null
+        if (['youtube', 'linkedin', 'facebook'].includes(platform)) {
+          publicPageTitle = await fetchPublicPageTitle(profileUrl)
+        }
+        return { ...base, handle: handle ? `@${handle}` : null, publicPageTitle, tier: 'url_provided' }
       }
-      if (!integration) return base
-      const accessToken = integration.accessToken
-      const orgId = (integration.metadata as Record<string, string> | null)?.organization_id
-      if (!accessToken || !orgId) return { ...base, fetchError: 'Access token or Organization ID not set in integration' }
-      return { ...base, ...await fetchLinkedIn(accessToken, orgId) }
-    })(),
 
-    (async (): Promise<SocialPlatformData> => {
-      const integration = integrationMap.get('tiktok')
-      const base: SocialPlatformData = {
-        platform: 'tiktok',
-        connected: !!integration,
-        detectedOnWebsite: websitePlatforms.has('tiktok') || !!socialProfilesMeta.tiktok_url,
-        profileUrl: socialProfilesMeta.tiktok_url || null,
-        handle: null, followerCount: null, followingCount: null,
-        postCount: null, bio: null, websiteInBio: false, profileImageSet: false,
-        lastPostDate: null, postsPerWeek: null, engagementRate: null, fetchError: null,
+      // Tier 1: Only detected on homepage (link found but no URL provided by user)
+      if (onWebsite) {
+        return { ...base, tier: 'homepage' }
       }
-      if (!integration) return base
-      const accessToken = integration.accessToken
-      if (!accessToken) return { ...base, fetchError: 'Access token not set in integration' }
-      return { ...base, ...await fetchTikTok(accessToken) }
-    })(),
-  ])
 
-  const platforms = platformResults.map((r) =>
-    r.status === 'fulfilled' ? r.value : (r.reason as SocialPlatformData),
+      // Tier 0: Not found anywhere
+      return { ...base, tier: 'none' }
+    }),
+  )
+
+  const resolvedPlatforms = platformResults.map((r) =>
+    r.status === 'fulfilled' ? r.value : (r as PromiseRejectedResult).reason as SocialPlatformData,
   )
 
   return {
@@ -561,7 +503,7 @@ export async function fetchSocialMediaData(
     brandName,
     industry,
     targetAudience,
-    platforms,
+    platforms: resolvedPlatforms,
     socialLinksOnWebsite,
   }
 }

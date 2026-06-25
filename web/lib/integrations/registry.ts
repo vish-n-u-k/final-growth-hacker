@@ -135,6 +135,40 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
   },
 
   {
+    provider: 'posthog',
+    name: 'PostHog',
+    description: 'Connect PostHog to unlock the User Analytics module — MAU, DAU, event tracking, conversion funnels, and growth health.',
+    type: 'api_key',
+    group: 'analytics',
+    docsUrl: 'https://posthog.com/docs/api',
+    fields: [
+      {
+        key: 'api_key',
+        label: 'Personal API Key',
+        placeholder: 'phx_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+        inputType: 'password',
+        helpText: 'PostHog → Settings → Personal API keys → Create personal API key. Give it "Read" access to the project.',
+      },
+      {
+        key: 'project_id',
+        label: 'Project ID',
+        placeholder: '12345',
+        inputType: 'text',
+        helpText: 'Found in PostHog → Project settings → Project ID (numeric). Also visible in your PostHog URL: app.posthog.com/project/12345',
+        isMetadata: true,
+      },
+      {
+        key: 'posthog_host',
+        label: 'PostHog Host (optional)',
+        placeholder: 'https://us.posthog.com',
+        inputType: 'url',
+        helpText: 'Leave blank for US cloud (default). Set to https://eu.posthog.com for EU cloud, or your self-hosted URL.',
+        isMetadata: true,
+        optional: true,
+      },
+    ],
+  },
+  {
     provider: 'serpapi',
     name: 'SerpAPI',
     description: 'Enables People Also Ask question data in the Keyword Research module. Free tier includes 100 searches/month.',

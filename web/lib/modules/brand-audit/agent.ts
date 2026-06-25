@@ -108,7 +108,7 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. E
   "narrative": string — 2–3 sentences explaining business impact,
   "action": string — specific step starting with a verb, completable within one week by a non-technical person,
   "verified": boolean — true if this check passes or user is ahead; false if gap exists,
-  "fixable": boolean — true ONLY for direct code changes (add H1, rewrite meta description, add OG tags, add JSON-LD schema, add footer privacy/terms link). false for everything else
+  "fixable": boolean — true if the fix can be made as a code/file change in a GitHub repo: add or rewrite H1, title, meta description, any OG tag, Twitter Card tags, canonical tag, viewport tag, any JSON-LD schema type, alt text, lazy loading, privacy policy page + footer link, terms page + footer link, robots.txt, sitemap.xml, comparison page stub, any missing footer/nav link. false ONLY for external actions: creating social accounts, earning Wikidata entries, getting backlinks/press, brand strategy overhauls, or original marketing content the agent cannot write.
 }`
 }
 
