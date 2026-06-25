@@ -164,7 +164,7 @@ export default function OnboardingPage() {
               <p className="auth-error">{error}</p>
               <Button
                 onClick={() => { setState('step2'); setError('') }}
-                className="w-full h-12 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90"
+                className="w-full gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90 py-3 sm:py-3 h-auto sm:h-12 rounded-12"
               >
                 Try again
               </Button>
@@ -197,7 +197,7 @@ export default function OnboardingPage() {
               <Button
                 type="submit"
                 disabled={!websiteUrl.trim()}
-                className="w-full h-12 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90 disabled:opacity-50"
+                className="w-full h-14 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:shadow-lg hover:shadow-[var(--green-glow)] disabled:opacity-50 rounded-14 transition-all"
               >
                 Continue
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -292,24 +292,24 @@ export default function OnboardingPage() {
                 </div>
               )}
               {!prefilling && (
-                <div className="ob-btn-row" style={{ marginTop: '20px' }}>
+                <div className="ob-btn-row">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setState('step1')}
-                    className="h-14 px-8 flex-1 gap-2 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--text-faint)] bg-transparent text-sm font-medium"
+                    className="w-full h-14 gap-2 border-2 border-[var(--line)] text-[var(--text-dim)] hover:text-[var(--text)] hover:border-[var(--green)] bg-transparent rounded-14 font-semibold transition-all"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                       <path d="M19 12H5M11 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     Back
                   </Button>
-                  
+
                   <Button
                     type="button"
                     disabled={!brandName.trim()}
                     onClick={() => handleSubmit(false)}
-                    className="h-14 flex-1 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90 disabled:opacity-50"
+                    className="w-full h-14 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:shadow-lg hover:shadow-[var(--green-glow)] disabled:opacity-50 rounded-14 transition-all"
                   >
                     Run Foundation Audit
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
