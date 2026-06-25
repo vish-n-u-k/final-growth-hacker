@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull } from '@/lib/modules/types'
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import ThemeToggle from '@/components/ThemeToggle'
 import { type DBItemState } from './ModuleDashboard'
+import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/registry'
 
 export interface ModuleData {
   id: string
@@ -76,6 +77,58 @@ function userCountToBarPct(count: number): number {
   return 75 + Math.min((count - 100) / 400, 1) * 25
 }
 
+function InlineIntegrationForm({ intDef, onConnected }: { intDef: IntegrationDefinition; onConnected: () => void }) {
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setSaving(true)
+    setError('')
+    const res = await fetch('/api/settings/integrations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: intDef.provider, fields: values }),
+    })
+    if (res.ok) {
+      onConnected()
+    } else {
+      const d = await res.json() as { error?: string }
+      setError(d.error ?? 'Failed to save')
+    }
+    setSaving(false)
+  }
+
+  return (
+    <form className="sm-inline-form" onSubmit={handleSave} onClick={(e) => e.stopPropagation()}>
+      {intDef.fields.map((field) => (
+        <div key={field.key} className="sm-inline-field">
+          <div className="sm-inline-label-row">
+            <span className="sm-inline-label" style={{ marginBottom: 0 }}>{field.label}</span>
+            {field.optional && <span className="sm-inline-optional">optional</span>}
+          </div>
+          <input
+            className="sm-inline-input"
+            type={field.inputType}
+            placeholder={field.placeholder}
+            value={values[field.key] ?? ''}
+            onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+            required={!field.optional}
+            autoComplete="off"
+          />
+          {field.helpText && <p className="sm-inline-hint">{field.helpText}</p>}
+        </div>
+      ))}
+      {error && <p className="sm-inline-error">{error}</p>}
+      <button type="submit" disabled={saving} className="sm-inline-btn">
+        {saving ? 'Connecting…' : `Connect ${intDef.name}`}
+      </button>
+    </form>
+  )
+}
+
 export default function AllModulesDashboard({ brand, allModulesData, userEmail, githubConnected, connectedIntegrations }: Props) {
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.itemStates]))
@@ -112,6 +165,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [userCount, setUserCount] = useState(0)
   const [editingCount, setEditingCount] = useState(false)
   const [posthogLoading, setPosthogLoading] = useState(false)
+  const autoAnalysisTriggered = useRef(false)
 
   useEffect(() => {
     if (!connectedIntegrations['posthog']) return
@@ -235,6 +289,17 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
       setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
     }
   }
+
+  // Auto-trigger Foundation analysis when user arrives from onboarding (never analyzed yet)
+  useEffect(() => {
+    if (autoAnalysisTriggered.current) return
+    const foundation = allModulesData.find(m => m.order === 0)
+    if (foundation && !foundation.lastAnalyzedAt) {
+      autoAnalysisTriggered.current = true
+      handleReanalyze(foundation.id, foundation.requirements)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleApplyFix = useCallback(async (modId: string, isDynamic: boolean, itemId: string, slug: string) => {
     const itemKey = `${modId}:${slug}`
@@ -554,6 +619,31 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   <p className="sm-action-text">{s.aiAction}</p>
                 </div>
               )}
+              {(() => {
+                const provider = item.assistedInput?.integrationProvider
+                if (!provider || connectedIntegrations[provider]) return null
+                const intDef = INTEGRATION_MAP[provider]
+                if (!intDef?.setupSteps?.length) return null
+                return (
+                  <div className="sm-setup-guide">
+                    <div className="sm-setup-guide-hd">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                      </svg>
+                      How to set up {intDef.name}
+                    </div>
+                    <ol className="sm-setup-steps">
+                      {intDef.setupSteps.map((step, i) => (
+                        <li key={i} className="sm-setup-step">
+                          <span className="sm-setup-step-num">{i + 1}</span>
+                          <span>{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+                    <InlineIntegrationForm intDef={intDef} onConnected={() => router.refresh()} />
+                  </div>
+                )
+              })()}
             </div>
           )}
         </div>
@@ -680,7 +770,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             const needsSetup = missingReqs.length > 0
 
             return (
-              <div key={modData.id} className={`level ${stateClass}${isOpen ? ' open' : ''}`}>
+              <div key={modData.id} className={`level ${stateClass}${isOpen ? ' open' : ''} `}>
 
                 {/* Level head */}
                 <div className="level-head" onClick={() => !isLocked && toggleModule(modData.id)}>
@@ -745,7 +835,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   <div className="level-body" style={{ maxHeight: isOpen ? '9999px' : undefined }}>
 
                     {/* Re-analyze toolbar */}
-                    <div style={{ padding: '14px 28px', borderTop: '1px solid var(--line)', display: 'flex', gap: '12px', alignItems: 'center', borderBottom: '1px solid var(--line)' }}>
+                    <div style={{ padding: '18px 28px', borderTop: '1px solid var(--line)', display: 'flex', gap: '12px', alignItems: 'center', borderBottom: '1px solid var(--line)' }}>
                       <Button
                         variant="outline"
                         onClick={() => handleReanalyze(modData.id, reqValues)}

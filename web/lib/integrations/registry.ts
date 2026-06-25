@@ -21,6 +21,7 @@ export interface IntegrationDefinition {
   fields: IntegrationField[]
   docsUrl?: string
   customUI?: boolean    // true = skip standard IntegrationCard rendering
+  setupSteps?: string[] // step-by-step guide shown in the card
 }
 
 export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
@@ -33,6 +34,13 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'developer',
     docsUrl: 'https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens',
+    setupSteps: [
+      'Go to github.com → Settings → Developer settings → Personal access tokens → Tokens (classic)',
+      'Click "Generate new token (classic)" → give it a name → tick the "repo" scope (read + write)',
+      'Click Generate token → copy it immediately (it is only shown once)',
+      'Enter your repository URL (e.g. https://github.com/yourname/yourrepo)',
+      'Paste both above and click Connect',
+    ],
     fields: [
       {
         key: 'api_key',
@@ -57,6 +65,12 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     description: 'Provide asset URLs (OG image, logo) so auto-fix can produce complete results instead of partial ones.',
     type: 'api_key',
     group: 'developer',
+    setupSteps: [
+      'Host your OG image (1200×630px) somewhere publicly accessible — your repo\'s /public folder or a CDN works fine',
+      'Host your logo image (PNG or SVG) at a public URL as well',
+      'Copy the direct URLs to each file (they must be reachable without a login)',
+      'Paste them above and click Save',
+    ],
     fields: [
       {
         key: 'og_image_url',
@@ -87,6 +101,13 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'analytics',
     docsUrl: 'https://support.google.com/analytics/answer/9304153',
+    setupSteps: [
+      'Go to analytics.google.com → Admin → Create property → choose "Web"',
+      'Follow the setup wizard to create a data stream for your website',
+      'Copy your Measurement ID — it starts with G- (found under Admin → Data Streams → your stream)',
+      'Add the GA4 snippet to your website\'s <head> tag (or install via Google Tag Manager)',
+      'Paste the Measurement ID above and click Connect',
+    ],
     fields: [
       {
         key: 'ga4_measurement_id',
@@ -105,6 +126,13 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'analytics',
     docsUrl: 'https://support.google.com/webmasters/answer/9008080',
+    setupSteps: [
+      'Go to search.google.com/search-console → Add property → enter your domain',
+      'Choose the "HTML tag" verification method',
+      'Copy only the content="..." value from the meta tag shown — not the whole tag, just the value inside the quotes',
+      'Add the meta tag to your website\'s <head> (or let our agent do it after you save)',
+      'Paste the content value above and click Connect',
+    ],
     fields: [
       {
         key: 'gsc_verification_code',
@@ -123,6 +151,13 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'analytics',
     docsUrl: 'https://developers.google.com/speed/docs/insights/v5/get-started',
+    setupSteps: [
+      'Go to console.cloud.google.com → select or create a project',
+      'APIs & Services → Library → search "PageSpeed Insights API" → Enable it',
+      'APIs & Services → Credentials → Create Credentials → API Key',
+      'Copy the generated API key',
+      'Paste it above and click Connect',
+    ],
     fields: [
       {
         key: 'api_key',
@@ -141,6 +176,13 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'analytics',
     docsUrl: 'https://posthog.com/docs/api',
+    setupSteps: [
+      'Go to posthog.com → sign up → create a new project for your product',
+      'Copy the JS snippet from PostHog\'s setup wizard and paste it into your website\'s <head> tag — this is what tracks users going forward',
+      'For the Personal API Key: PostHog → Settings → Personal API keys → Create personal API key → give it "Read" access',
+      'For the Project ID: PostHog → Project Settings → look for the numeric ID (also visible in your PostHog URL: app.posthog.com/project/12345)',
+      'Paste both above and click Connect — your live user count will appear on the dashboard',
+    ],
     fields: [
       {
         key: 'api_key',
@@ -175,6 +217,11 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'analytics',
     docsUrl: 'https://serpapi.com/manage-api-key',
+    setupSteps: [
+      'Go to serpapi.com → sign up for a free account (100 searches/month at no cost)',
+      'From your dashboard, copy your API key',
+      'Paste it above and click Connect',
+    ],
     fields: [
       {
         key: 'api_key',
@@ -192,6 +239,13 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'analytics',
     docsUrl: 'https://developers.google.com/webmaster-tools/v1/api_reference_index',
+    setupSteps: [
+      'Go to console.cloud.google.com → IAM & Admin → Service Accounts → Create service account',
+      'Once created, click the account → Keys tab → Add Key → Create new key → JSON → download the file',
+      'Open the downloaded JSON file — copy the client_email and private_key values',
+      'In Google Search Console → Settings → Users and permissions → Add user → paste the service account email → set permission to "Full"',
+      'Paste the client_email and private_key above and click Connect',
+    ],
     fields: [
       {
         key: 'client_email',
@@ -237,6 +291,12 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'social',
     docsUrl: 'https://console.cloud.google.com/apis/library/youtube.googleapis.com',
+    setupSteps: [
+      'Go to console.cloud.google.com → APIs & Services → Library → search "YouTube Data API v3" → Enable it',
+      'APIs & Services → Credentials → Create Credentials → API Key → copy it',
+      'Find your Channel ID: YouTube → click your profile picture → Settings → Advanced settings → copy the Channel ID (starts with UC)',
+      'Paste both above and click Connect',
+    ],
     fields: [
       {
         key: 'api_key',
@@ -262,6 +322,13 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'social',
     docsUrl: 'https://developer.twitter.com/en/portal/dashboard',
+    setupSteps: [
+      'Go to developer.twitter.com → sign up for a developer account (free tier available)',
+      'Create a project and an app inside it',
+      'Keys and Tokens → Bearer Token → copy it',
+      'Note: impressions and reach data require a paid Basic plan ($100/month) — follower count works on free',
+      'Enter your Twitter username (without the @) and paste the Bearer Token above, then click Connect',
+    ],
     fields: [
       {
         key: 'api_key',
@@ -287,6 +354,13 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'social',
     docsUrl: 'https://developers.facebook.com/docs/instagram-api/getting-started',
+    setupSteps: [
+      'You need a Business or Creator Instagram account linked to a Facebook Page — personal accounts do not work',
+      'Go to developers.facebook.com → My Apps → create an app → add "Instagram Graph API" product',
+      'Graph API Explorer → select your app → generate a token with instagram_basic and instagram_manage_insights scopes → extend it to a long-lived token (valid 60 days)',
+      'Find your Instagram Account ID: Graph API Explorer → GET /me/accounts → find your page → GET /{page-id}?fields=instagram_business_account → copy the id value',
+      'Paste the token and account ID above and click Connect',
+    ],
     fields: [
       {
         key: 'access_token',
@@ -312,6 +386,12 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'social',
     docsUrl: 'https://developers.facebook.com/docs/pages/access-tokens',
+    setupSteps: [
+      'Go to developers.facebook.com → My Apps → create an app → add "Pages API" product',
+      'Graph API Explorer → select your app → generate a token with pages_read_engagement and pages_read_user_content scopes → select your page',
+      'Find your Page ID: go to your Facebook Page → About → scroll to "Page Transparency" → Page ID (numeric)',
+      'Paste the token and Page ID above and click Connect',
+    ],
     fields: [
       {
         key: 'access_token',
@@ -337,6 +417,13 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'social',
     docsUrl: 'https://developer.linkedin.com/',
+    setupSteps: [
+      'Go to developer.linkedin.com → My Apps → Create app → link it to your LinkedIn Company Page',
+      'Request the r_organization_social and r_organization_followers product permissions (requires LinkedIn review — can take a few days)',
+      'Once approved: OAuth 2.0 Tools → generate an access token with those scopes',
+      'Find your Organization ID: it\'s the numeric part in your Company page URL or Admin Tools → look for your organization URN',
+      'Paste the token and Organization ID above and click Connect',
+    ],
     fields: [
       {
         key: 'access_token',
@@ -362,6 +449,13 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'social',
     docsUrl: 'https://developers.facebook.com/docs/marketing-api/get-started',
+    setupSteps: [
+      'Go to developers.facebook.com → My Apps → Create App → choose "Business" type',
+      'Add the "Marketing API" product to your app',
+      'Graph API Explorer → select your app → generate a token with ads_management, pages_read_engagement, and instagram_basic scopes',
+      'Find your Ad Account ID: Meta Ads Manager → top-left account selector → copy the numeric ID (without the "act_" prefix)',
+      'Paste the token and Ad Account ID above and click Connect',
+    ],
     fields: [
       {
         key: 'access_token',
@@ -405,6 +499,13 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     type: 'api_key',
     group: 'social',
     docsUrl: 'https://developers.tiktok.com/',
+    setupSteps: [
+      'Go to developers.tiktok.com → Register for a developer account',
+      'Create an app → submit it for review (TikTok app approval can take several days)',
+      'Once approved, generate an access token from your app dashboard',
+      'Enter your TikTok username (without the @)',
+      'Paste the token above and click Connect',
+    ],
     fields: [
       {
         key: 'access_token',

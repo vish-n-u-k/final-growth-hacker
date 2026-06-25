@@ -7,13 +7,9 @@ import { Button } from '@/components/ui/button'
 type State = 'step1' | 'step2' | 'analyzing' | 'error'
 
 const ANALYZING_MESSAGES = [
-  'Checking your domain and SSL…',
-  'Looking for Google Analytics…',
-  'Scanning for essential pages…',
-  'Checking contact info and privacy policy…',
-  'Evaluating your homepage content…',
-  'Verifying brand basics…',
-  'Building your Foundation audit…',
+  'Setting up your workspace…',
+  'Saving your brand details…',
+  'Almost ready…',
 ]
 
 const CHECK_ICON = (
@@ -105,18 +101,6 @@ export default function OnboardingPage() {
       return
     }
 
-    const analyzeRes = await fetch('/api/modules/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ moduleId: onboardData.moduleId }),
-    })
-    const analyzeData = await analyzeRes.json()
-    if (!analyzeRes.ok) {
-      setError(analyzeData.error ?? 'Analysis failed')
-      setState('error')
-      return
-    }
-
     router.push('/dashboard')
     router.refresh()
   }
@@ -148,10 +132,10 @@ export default function OnboardingPage() {
                   strokeDasharray="40 90" strokeLinecap="round" />
               </svg>
             </div>
-            <div className="ob-label">Foundation Audit</div>
+            <div className="ob-label">Getting ready</div>
             <h1 className="ob-heading" style={{ fontSize: '22px' }}>{displayUrl}</h1>
             <p className="ob-analyze-msg">{ANALYZING_MESSAGES[msgIdx]}</p>
-            <p className="ob-hint" style={{ marginTop: '8px' }}>Takes 20–40 seconds. Do not close this tab.</p>
+            <p className="ob-hint" style={{ marginTop: '8px' }}>Redirecting you to your dashboard…</p>
           </div>
         )}
 

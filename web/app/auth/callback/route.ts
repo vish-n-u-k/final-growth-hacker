@@ -14,23 +14,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (code) {
-    const cookiesToSet: { name: string; value: string; options: Record<string, unknown> }[] = []
-
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll()
-          },
-          setAll(incoming) {
-            cookiesToSet.push(...incoming)
-          },
-        },
-      }
-    )
-
+    const supabase = await createClient()
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
 
     if (exchangeError) {
@@ -39,11 +23,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const response = NextResponse.redirect(new URL('/dashboard', request.url))
-    cookiesToSet.forEach(({ name, value, options }) =>
-      response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2])
-    )
-    return response
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return NextResponse.redirect(new URL('/dashboard', origin))

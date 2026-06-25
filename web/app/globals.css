@@ -145,9 +145,10 @@ header {
 }
 
 /* ── Levels ── */
-.levels { padding-bottom: 80px; display: flex; flex-direction: column; gap: 20px; }
+.levels { padding-bottom: 80px; display: flex; flex-direction: column; gap: 28px; }
 
 .level {
+  padding: 5px;
   background: var(--card); border: 1px solid var(--line);
   border-radius: 18px; overflow: hidden; transition: .2s;
 }
@@ -595,7 +596,7 @@ header {
 .md-ov-stat-lbl { font-size: 11px; color: var(--text-faint); font-weight: 500; }
 
 /* Category cards */
-.md-cats { display: flex; flex-direction: column; gap: 14px; padding-bottom: 80px; }
+.md-cats { display: flex; flex-direction: column; gap: 20px; padding: 20px 16px 40px; }
 
 .md-cat {
   background: var(--card); border: 1px solid var(--line);
@@ -605,7 +606,7 @@ header {
 
 .md-cat-hd {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 24px; cursor: pointer; gap: 16px; width: 100%;
+  padding: 22px 28px; cursor: pointer; gap: 16px; width: 100%;
   background: transparent; border: none; color: var(--text); font-family: inherit;
   text-align: left;
 }
@@ -634,11 +635,11 @@ header {
 .md-cat-body { border-top: 1px solid var(--line); }
 
 /* Sub-categories */
-.md-sub { padding: 0 24px 8px; }
+.md-sub { padding: 0 28px 22px; }
 .md-sub-border { border-top: 1px solid var(--line); }
 .md-sub-hd {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 0 10px;
+  padding: 20px 0 14px;
 }
 .md-sub-name { font-size: 13px; font-weight: 600; color: var(--text-dim); }
 .md-sub-count { font-size: 12px; color: var(--text-faint); }
@@ -647,7 +648,7 @@ header {
 .md-items { display: flex; flex-direction: column; }
 .md-item {
   display: flex; align-items: flex-start; gap: 14px;
-  padding: 14px 0; border-top: 1px solid var(--line);
+  padding: 18px 0; border-top: 1px solid var(--line);
   cursor: pointer;
 }
 .md-item:first-child { border-top: none; }
@@ -922,6 +923,71 @@ header {
 .sm-action-text {
   font-size: 13px; color: var(--text); line-height: 1.6;
 }
+/* Setup guide — dashboard checklist item */
+.sm-setup-guide {
+  background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: 12px; overflow: hidden; margin-top: 4px;
+}
+.sm-setup-guide-hd {
+  display: flex; align-items: center; gap: 7px;
+  padding: 10px 16px;
+  font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--green-bright); background: #0c1a12;
+  border-bottom: 1px solid var(--line);
+}
+.sm-setup-steps {
+  margin: 0; padding: 8px 16px 14px;
+  list-style: none;
+}
+.sm-setup-step {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 12.5px; color: var(--text-dim); line-height: 1.6;
+  padding-top: 10px;
+}
+.sm-setup-step-num {
+  display: flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); color: var(--green-bright);
+  font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+}
+/* Inline integration form inside checklist item */
+.sm-inline-form {
+  padding: 16px; border-top: 1px solid var(--line);
+}
+.sm-inline-field { display: block; margin-bottom: 12px; }
+.sm-inline-field:last-of-type { margin-bottom: 0; }
+.sm-inline-label {
+  display: block;
+  font-size: 12px; font-weight: 600; color: var(--text-dim);
+  margin-bottom: 5px;
+}
+.sm-inline-label-row {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 5px;
+}
+.sm-inline-optional {
+  font-size: 10px; font-weight: 500; color: var(--text-faint);
+  background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: 4px; padding: 1px 5px;
+}
+.sm-inline-input {
+  display: block; width: 100%; padding: 9px 12px; border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--line);
+  color: var(--text); font-size: 13px; font-family: inherit;
+  transition: border-color .15s; outline: none; box-sizing: border-box;
+}
+.sm-inline-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-glow); }
+.sm-inline-input::placeholder { color: var(--text-faint); }
+.sm-inline-hint { display: block; font-size: 11px; color: var(--text-faint); margin: 5px 0 0; line-height: 1.5; }
+.sm-inline-error { display: block; font-size: 12px; color: #f87171; margin: 8px 0 0; }
+.sm-inline-btn {
+  display: inline-flex; align-items: center; margin-top: 14px;
+  padding: 9px 20px; border-radius: 9px;
+  background: var(--green); border: none; cursor: pointer;
+  font-size: 13px; font-weight: 700; color: #06140c;
+  font-family: inherit; transition: background .15s;
+}
+.sm-inline-btn:hover:not(:disabled) { background: var(--green-bright); }
+.sm-inline-btn:disabled { opacity: .5; cursor: default; }
 
 /* ── AI Draft section ─────────────────────────────────────────────────────── */
 .sm-draft-section { display: flex; flex-direction: column; gap: 8px; }
@@ -1223,6 +1289,38 @@ header {
 }
 .st-docs-link:hover { color: var(--green-bright); }
 
+/* Setup guide — Settings page */
+.st-guide {
+  background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: 12px; overflow: hidden;
+}
+.st-guide-toggle {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 12px 16px; background: transparent; border: none; cursor: pointer;
+  font-size: 13px; font-weight: 500; color: var(--text-dim);
+  font-family: inherit; text-align: left; transition: background .15s, color .15s;
+  min-height: 44px;
+}
+.st-guide-toggle:hover { color: var(--text); background: var(--accent); }
+.st-guide-toggle-label { flex: 1; }
+.st-guide-steps {
+  margin: 0; padding: 0 16px 14px; counter-reset: step-counter;
+  list-style: none; display: flex; flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+.st-guide-step {
+  display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start;
+  font-size: 13px; color: var(--text-dim); line-height: 1.6;
+  counter-increment: step-counter; padding-top: 12px;
+}
+.st-guide-step::before {
+  content: counter(step-counter);
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--green); color: #06140c;
+  font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+}
+
 /* Account */
 .st-divider { height: 1px; background: var(--line); margin: 6px 0; }
 .st-account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -1300,6 +1398,12 @@ html.light .md-setup-input { background: var(--bg-soft); }
 
 html.light .sm-action-box { background: #eaf7f0; border-color: var(--green); }
 html.light .sm-action-label { color: var(--green); }
+html.light .sm-setup-guide { background: #f0f8f4; border-color: #c8e8d8; }
+html.light .sm-setup-guide-hd { background: #e4f5ec; color: var(--green); }
+html.light .sm-setup-step-num { background: #d0eadb; color: var(--green); }
+html.light .sm-setup-link { background: var(--accent); color: var(--green); }
+html.light .st-guide { background: var(--bg-soft); }
+html.light .st-guide-step::before { color: #ffffff; }
 
 html.light .sm-draft-content { background: #f2f8f4; border-color: var(--line); }
 html.light .sm-draft-btn,
@@ -1624,18 +1728,18 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
   }
 
   /* ── Category headers ── */
-  .md-cat-hd { padding: 14px 16px; gap: 8px; }
+  .md-cat-hd { padding: 16px 18px; gap: 8px; }
   .md-cat-hd-right { gap: 6px; }
   .md-cat-mini-bar { width: 44px; }
   .md-cat-pct { font-size: 12px; min-width: 28px; }
 
   /* ── Sub-categories ── */
-  .md-sub { padding: 0 14px 8px; }
-  .md-sub-hd { padding: 12px 0 8px; }
+  .md-sub { padding: 0 16px 18px; }
+  .md-sub-hd { padding: 16px 0 10px; }
   .md-sub-name { font-size: 12.5px; }
 
   /* ── Items ── */
-  .md-item { gap: 10px; padding: 12px 0; }
+  .md-item { gap: 10px; padding: 15px 0; }
   .md-item-lbl { font-size: 13.5px; }
   .md-item-detail { font-size: 12px; }
   /* Hide Important tag on mobile to reduce clutter; Critical stays */
@@ -1662,6 +1766,33 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
   /* ── Fix plan modal ── */
   .fp-overlay { padding: 12px; }
   .fp-modal { max-height: 92vh; padding: 18px; }
+
+  /* ── Settings layout: stack sidebar above content ── */
+  .st-layout { grid-template-columns: 1fr; gap: 0; }
+  .st-tabs {
+    position: static; flex-direction: row; flex-wrap: nowrap;
+    padding: 16px 0 0; gap: 4px; overflow-x: auto;
+    border-bottom: 1px solid var(--line); margin-bottom: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+  .st-tab { padding: 8px 14px; font-size: 12.5px; white-space: nowrap; }
+  .st-content { padding: 24px 0 0; }
+  .st-int-card { padding: 18px 16px; border-radius: 12px; }
+  .st-int-card-hd { flex-direction: column; gap: 10px; }
+  .st-int-status-wrap { align-self: flex-start; }
+  .st-int-actions { flex-wrap: wrap; }
+  .st-int-form-actions { flex-wrap: wrap; }
+  .st-btn-primary, .st-btn-ghost, .st-btn-danger { width: 100%; justify-content: center; }
+
+  /* ── Settings guide ── */
+  .st-guide-step { font-size: 12.5px; }
+  .st-guide-toggle { font-size: 12.5px; }
+
+  /* ── Dashboard item setup guide + inline form ── */
+  .sm-setup-step { font-size: 11.5px; padding-top: 9px; }
+  .sm-inline-form { padding: 14px; }
+  .sm-inline-input { font-size: 12.5px; padding: 9px 11px; }
+  .sm-inline-btn { display: block; width: 100%; text-align: center; padding: 11px 18px; }
 }
 
 /* Settings mobile responsiveness */
@@ -1982,7 +2113,7 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
   .md-cat-mini-bar { width: 50px; }
   .md-cat-pct { font-size: 12px; }
 
-  .md-item { padding: 12px 0; gap: 10px; }
+  .md-item { padding: 14px 0; gap: 10px; }
   .md-item-lbl { font-size: 13px; }
   .md-item-detail { font-size: 11.5px; }
 
