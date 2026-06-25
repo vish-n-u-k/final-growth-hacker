@@ -84,8 +84,14 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     Object.fromEntries(allModulesData.map(m => [m.id, m.fullItems]))
   )
   const [openModules, setOpenModules] = useState<Set<string>>(() => {
-    const first = [...allModulesData].sort((a, b) => a.order - b.order).find(m => m.status !== 'locked')
-    return first ? new Set([first.id]) : new Set()
+    // Open the first module that isn't locked (previous scored < 80%)
+    const sorted = [...allModulesData].sort((a, b) => a.order - b.order)
+    const first = sorted.find(m => {
+      if (m.order === 0) return true
+      const prev = [...sorted].reverse().find(p => p.order < m.order)
+      return prev && prev.score >= 80
+    })
+    return first ? new Set([first.id]) : new Set([sorted[0]?.id ?? ''])
   })
   const [openCatsMap, setOpenCatsMap] = useState<Record<string, Set<string>>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, new Set([m.definition.categories[0]?.slug ?? ''])]))
@@ -112,7 +118,16 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
   const router = useRouter()
 
-  const activeModule = [...allModulesData].sort((a, b) => a.order - b.order).find(m => m.status !== 'locked')
+  // Compute lock state dynamically: a module is locked if its previous module (by order) scored < 80%.
+  // Foundation (order 0) is always unlocked. This works for all users regardless of DB status.
+  const sortedByOrder = [...allModulesData].sort((a, b) => a.order - b.order)
+  const isModuleLocked = (modData: ModuleData): boolean => {
+    if (modData.order <= 2) return false  // Foundation, Website Audit, SEO always unlocked
+    const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order)
+    return !prev || prev.score < 80
+  }
+
+  const activeModule = sortedByOrder.find(m => !isModuleLocked(m))
   const currentLevel = activeModule?.order ?? 0
   const barPct = userCountToBarPct(userCount)
 
@@ -628,12 +643,12 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
         {/* Module accordion stack */}
         <div className="levels">
-          {allModulesData.map((modData) => {
+          {sortedByOrder.map((modData) => {
             const isOpen = openModules.has(modData.id)
-            const isLocked = modData.status === 'locked'
-            const isDone = !isLocked && modData.score >= 70
+            const isLocked = isModuleLocked(modData)
+            const isDone = !isLocked && modData.score >= 80
             const isYouAreHere = !isLocked && !isDone && modData.id === activeModule?.id
-            const stateClass = isLocked ? 'locked' : isDone ? 'done' : 'active'
+            const stateClass = isLocked ? 'locked' : 'active'
             const reanalyzing = reanalyzingMap[modData.id] ?? false
             const reqValues = reqValuesMap[modData.id] ?? {}
             const setupError = setupErrorMap[modData.id] ?? null
@@ -656,10 +671,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
                         <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                       </svg>
-                    ) : isDone ? (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                        <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
                     ) : (
                       modData.order
                     )}
@@ -668,15 +679,17 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   <div className="level-info">
                     <div className="name">
                       {modData.name}
-                      {isLocked
-                        ? <span className="pill soon">Locked</span>
-                        : isDone
-                        ? <span className="pill clear">Cleared</span>
-                        : isYouAreHere
-                        ? <span className="pill now">You are here</span>
-                        : null}
+                      {isLocked && <span className="pill soon">Locked</span>}
                     </div>
-                    {!isOpen && <div className="focus">{def.description}</div>}
+                    {isLocked
+                      ? (() => {
+                          const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order)
+                          return prev
+                            ? <div className="focus">Complete <b>{prev.name}</b> at 80%+ to unlock — currently {prev.score}%</div>
+                            : <div className="focus">Complete the previous module at 80%+ to unlock</div>
+                        })()
+                      : !isOpen && <div className="focus">{def.description}</div>
+                    }
                   </div>
 
                   {!isLocked && (

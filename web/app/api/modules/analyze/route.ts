@@ -298,6 +298,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, itemCount: findings.length, pageCount: pageVerdicts.length })
   }
 
+  // Foundation: pre-fetch to capture social links and save them to requirements
+  if (mod.type === 'foundation') {
+    try {
+      const prefetch = await fetchFoundationData(requirements)
+      if (prefetch.extracted && Object.keys(prefetch.extracted.socialLinks).length > 0) {
+        const updatedReqs = { ...requirements }
+        for (const [platform, url] of Object.entries(prefetch.extracted.socialLinks)) {
+          const key = `social_${platform}`
+          if (!updatedReqs[key]) updatedReqs[key] = url
+        }
+        await db.update(modules).set({ requirements: updatedReqs }).where(eq(modules.id, moduleId))
+        Object.assign(requirements, updatedReqs)
+      }
+    } catch {
+      // Non-fatal — analysis continues without saving social links
+    }
+  }
+
   let results: ModuleAnalysisResult[] | DynamicModuleAnalysisResult[]
   try {
     results = await runAnalysis(mod.type, requirements, brainCtx)

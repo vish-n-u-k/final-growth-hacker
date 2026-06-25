@@ -5,7 +5,7 @@ export const SOCIAL_MEDIA_MODULE: ModuleDefinition = {
   name: 'Social Media Audit',
   description: 'Audit your social media presence across three tiers — what your website signals, what your profile URLs reveal, and what API metrics show.',
   order: 4,
-  unlockThreshold: 0,
+  unlockThreshold: 80,
   dynamic: true,
   requirements: [
     {

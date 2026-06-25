@@ -5,7 +5,7 @@ export const GEO_COMPETITOR_GAP_MODULE: ModuleDefinition = {
   name: 'GEO Competitor Gap',
   description: 'Compare your AI visibility signals against competitors to find exactly where they get cited and you don\'t.',
   order: 10,
-  unlockThreshold: 0,
+  unlockThreshold: 80,
   dynamic: true,
   requirements: [
     {

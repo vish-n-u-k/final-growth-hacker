@@ -160,6 +160,15 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
   const currentLevel = allModules.find((m) => m.id === mod.id)?.order ?? 0
   const barPct = userCountToBarPct(userCount)
 
+  // Compute lock state dynamically: a module is locked if the previous module (by order) scored < 80%
+  // Foundation (order 0) is always unlocked. This works for all users regardless of DB status.
+  const sortedModules = [...allModules].sort((a, b) => a.order - b.order)
+  const isModuleLocked = (m: ModuleSummary) => {
+    if (m.order <= 2) return false  // Foundation, Website Audit, SEO always unlocked
+    const prev = [...sortedModules].reverse().find((p) => p.order < m.order)
+    return !prev || prev.score < 80
+  }
+
   const toggleCat = (slug: string) =>
     setOpenCats((prev) => {
       const next = new Set(prev)
@@ -546,12 +555,12 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                 variant="outline"
                 onClick={downloadFullModuleMd}
                 className="gap-2 border-[var(--green)] px-4 h-10 text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)] text-sm font-semibold"
-                title="Download full action report as Markdown"
+                title="Export all incomplete items as a Markdown action plan"
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                Download Report
+                Export Incomplete
               </Button>
             )}
             <Button
@@ -653,31 +662,35 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
         {/* Sidebar */}
         <aside className="md-sidebar">
           <div className="md-sidebar-label">Modules</div>
-          {[...allModules].sort((a, b) => a.order - b.order).map((m) => (
-            <button
-              key={m.id}
-              disabled={m.status === 'locked'}
-              className={`md-sidebar-item${m.id === mod.id ? ' md-sidebar-item-active' : ''}${m.status === 'locked' ? ' md-sidebar-item-locked' : ''}`}
-              onClick={() => m.status !== 'locked' && router.push(`/dashboard/${m.id}`)}
-            >
-              <div className="md-sidebar-item-top">
-                <span className="md-sidebar-item-name">{m.name}</span>
-                {m.status === 'locked' ? (
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                    <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
-                    <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                ) : (
-                  <span className="md-sidebar-item-pct">{m.score}%</span>
-                )}
-              </div>
-              {m.status !== 'locked' && (
-                <div className="md-sidebar-bar">
-                  <div className="md-sidebar-bar-fill" style={{ width: `${m.score}%` }} />
+          {sortedModules.map((m) => {
+            const locked = isModuleLocked(m)
+            return (
+              <button
+                key={m.id}
+                disabled={locked}
+                title={locked ? 'Complete the previous module at 80%+ to unlock' : undefined}
+                className={`md-sidebar-item${m.id === mod.id ? ' md-sidebar-item-active' : ''}${locked ? ' md-sidebar-item-locked' : ''}`}
+                onClick={() => !locked && router.push(`/dashboard/${m.id}`)}
+              >
+                <div className="md-sidebar-item-top">
+                  <span className="md-sidebar-item-name">{m.name}</span>
+                  {locked ? (
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                      <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
+                      <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                  ) : (
+                    <span className="md-sidebar-item-pct">{m.score}%</span>
+                  )}
                 </div>
-              )}
-            </button>
-          ))}
+                {!locked && (
+                  <div className="md-sidebar-bar">
+                    <div className="md-sidebar-bar-fill" style={{ width: `${m.score}%` }} />
+                  </div>
+                )}
+              </button>
+            )
+          })}
         </aside>
 
         {/* Main content */}
@@ -815,23 +828,6 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                         <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
                       </div>
                       <div className="md-cat-hd-right">
-                        {catItems.some(item => !item.aiVerified && !item.userChecked) && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); downloadCategoryMd(cat, catItems) }}
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', gap: '5px',
-                              padding: '4px 10px', borderRadius: '6px',
-                              border: '1px solid var(--green)', color: 'var(--green-bright)',
-                              fontSize: '11px', fontWeight: 500, background: 'transparent', cursor: 'pointer',
-                              flexShrink: 0,
-                            }}
-                          >
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                            Export
-                          </button>
-                        )}
                         <div className="md-cat-mini-bar">
                           <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
                           <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
@@ -997,26 +993,6 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                         <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
                       </div>
                       <div className="md-cat-hd-right">
-                        {cat.subCategories.some(sub => sub.items.some(item => {
-                          const s = states[item.slug]
-                          return !s?.aiVerified && !s?.userChecked
-                        })) && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); downloadStaticCategoryMd(cat) }}
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', gap: '5px',
-                              padding: '4px 10px', borderRadius: '6px',
-                              border: '1px solid var(--green)', color: 'var(--green-bright)',
-                              fontSize: '11px', fontWeight: 500, background: 'transparent', cursor: 'pointer',
-                              flexShrink: 0,
-                            }}
-                          >
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                            Export
-                          </button>
-                        )}
                         <div className="md-cat-mini-bar">
                           <div className="md-cat-mini-self" style={{ width: `${Math.round((stats.doneWeight / stats.totalWeight) * 100)}%` }} />
                           <div className="md-cat-mini-ai" style={{ width: `${Math.round((stats.aiWeight / stats.totalWeight) * 100)}%` }} />
@@ -1158,12 +1134,142 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
         </div>
 
 
+        {/* Social profiles panel — Foundation module only */}
+        {mod.type === 'foundation' && (
+          <SocialProfilesPanel moduleId={mod.id} requirements={mod.requirements} />
+        )}
+
         <p className="foot-note" style={{ marginTop: '16px' }}>
           Click any item to see full analysis and action · AI verified = confirmed by Claude · Self-reported = marked by you
         </p>
         </div> {/* end md-main */}
       </div> {/* end md-layout */}
     </>
+  )
+}
+
+// ── Social Profiles Panel (Foundation module only) ─────────────────────────────
+
+const SOCIAL_PLATFORMS = [
+  { key: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/yourhandle' },
+  { key: 'linkedin', label: 'LinkedIn', placeholder: 'https://linkedin.com/company/yourcompany' },
+  { key: 'twitter', label: 'Twitter / X', placeholder: 'https://x.com/yourhandle' },
+  { key: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/yourpage' },
+  { key: 'youtube', label: 'YouTube', placeholder: 'https://youtube.com/@yourchannel' },
+  { key: 'tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@yourhandle' },
+  { key: 'pinterest', label: 'Pinterest', placeholder: 'https://pinterest.com/yourprofile' },
+]
+
+function SocialProfilesPanel({ moduleId, requirements }: { moduleId: string; requirements: Record<string, string> }) {
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(SOCIAL_PLATFORMS.map((p) => [p.key, requirements[`social_${p.key}`] ?? ''])),
+  )
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const detectedCount = SOCIAL_PLATFORMS.filter((p) => !!requirements[`social_${p.key}`]).length
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError(null)
+    const reqs: Record<string, string> = {}
+    for (const p of SOCIAL_PLATFORMS) reqs[`social_${p.key}`] = values[p.key] ?? ''
+    const res = await fetch('/api/modules/requirements', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ moduleId, requirements: reqs }),
+    })
+    if (res.ok) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } else {
+      setError('Failed to save. Please try again.')
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div style={{
+      marginTop: '24px',
+      background: 'var(--card)',
+      border: '1px solid var(--line)',
+      borderRadius: '12px',
+      padding: '20px 24px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>
+          Social Media Profiles
+        </span>
+        {detectedCount > 0 ? (
+          <span style={{
+            fontSize: '11px', padding: '2px 8px', borderRadius: '4px',
+            background: 'rgba(47,191,113,0.12)', border: '1px solid rgba(47,191,113,0.3)', color: 'var(--green)',
+          }}>
+            {detectedCount} detected from your website
+          </span>
+        ) : (
+          <span style={{
+            fontSize: '11px', padding: '2px 8px', borderRadius: '4px',
+            background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--text-dim)',
+          }}>
+            None detected on your website
+          </span>
+        )}
+      </div>
+
+      <p style={{ fontSize: '12px', color: 'var(--text-faint)', marginBottom: '16px', lineHeight: '1.5' }}>
+        {detectedCount > 0
+          ? 'These were detected from your website. Confirm they are correct or update them.'
+          : 'No social media links were found on your website. Add your profile URLs below so we can check your presence across platforms.'}
+      </p>
+
+      <div style={{ display: 'grid', gap: '10px' }}>
+        {SOCIAL_PLATFORMS.map((p) => {
+          const wasDetected = !!requirements[`social_${p.key}`]
+          return (
+            <div key={p.key} style={{ display: 'grid', gridTemplateColumns: '110px 1fr', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '12.5px', color: 'var(--text-dim)', fontWeight: 500 }}>{p.label}</span>
+                {wasDetected && (
+                  <span style={{
+                    fontSize: '9px', padding: '1px 5px', borderRadius: '3px',
+                    background: 'rgba(47,191,113,0.1)', color: 'var(--green)',
+                    border: '1px solid rgba(47,191,113,0.25)', fontWeight: 600, letterSpacing: '0.03em',
+                  }}>
+                    AI
+                  </span>
+                )}
+              </div>
+              <Input
+                type="url"
+                placeholder={p.placeholder}
+                value={values[p.key] ?? ''}
+                onChange={(e) => setValues((prev) => ({ ...prev, [p.key]: e.target.value }))}
+                className="bg-[var(--input)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:ring-[var(--green)] focus-visible:border-[var(--green)] h-8 text-xs"
+              />
+            </div>
+          )
+        })}
+      </div>
+
+      {error && <p style={{ fontSize: '12px', color: '#f87171', marginTop: '10px' }}>{error}</p>}
+
+      <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            background: saved ? 'rgba(47,191,113,0.15)' : 'var(--green)',
+            color: saved ? 'var(--green)' : '#06140c',
+            border: saved ? '1px solid var(--green)' : 'none',
+            fontSize: '12px', fontWeight: 600, height: '32px', padding: '0 16px',
+          }}
+        >
+          {saving ? 'Saving…' : saved ? 'Saved' : 'Save profiles'}
+        </Button>
+      </div>
+    </div>
   )
 }
 

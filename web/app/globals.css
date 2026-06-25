@@ -1437,3 +1437,99 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
     @apply font-sans;
   }
 }
+
+/* ── Mobile Responsive ───────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .wrap { padding: 0 16px; }
+
+  /* Header */
+  header { padding: 16px 0; flex-wrap: wrap; gap: 12px; }
+  .md-header-inner { flex-wrap: wrap; gap: 10px; }
+  .md-header-actions { gap: 8px; flex-wrap: wrap; }
+  .md-header-actions > button:last-child { display: none; } /* hide email/sign-out on mobile */
+
+  /* Hero */
+  .hero { padding: 28px 0 8px; }
+  .hero h1 { font-size: 26px; letter-spacing: -.5px; }
+  .hero p { font-size: 14px; }
+
+  /* Overview card */
+  .overview { padding: 20px; gap: 20px; margin: 18px 0 14px; }
+  .big-num { font-size: 44px; }
+  .big-num input { font-size: 44px; width: 90px; }
+
+  /* Dashboard layout: stack sidebar above main */
+  .md-layout {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding-top: 20px;
+  }
+
+  /* Sidebar: horizontal scrollable pills */
+  .md-sidebar {
+    position: static;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 14px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .md-sidebar::-webkit-scrollbar { display: none; }
+  .md-sidebar-label { display: none; }
+  .md-sidebar-item {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    width: auto;
+    padding: 8px 14px;
+    border-radius: 20px;
+  }
+  .md-sidebar-bar { display: none; }
+  .md-sidebar-item-top { gap: 6px; }
+  .md-sidebar-item-name { font-size: 12.5px; }
+
+  /* Category headers */
+  .md-cat-hd { padding: 14px 16px; gap: 10px; }
+  .md-cat-hd-right { gap: 6px; }
+  .md-cat-mini-bar { width: 48px; }
+
+  /* Category body padding */
+  .md-sub { padding: 0 14px 8px; }
+  .md-sub-hd { padding: 12px 0 8px; }
+
+  /* Items */
+  .md-item { gap: 10px; }
+  .md-item-lbl { font-size: 13.5px; }
+
+  /* Tags: hide less-critical labels on very small items */
+  .md-tag { padding: 3px 7px; font-size: 10px; }
+
+  /* Setup card */
+  .md-setup-card { padding: 20px; }
+
+  /* Fix plan modal */
+  .fp-modal { max-height: 90vh; padding: 18px; }
+
+  /* Overview section (hidden md-overview) */
+  .md-ov-score-row { gap: 18px; }
+  .md-ov-pct { font-size: 42px; }
+  .md-ov-stat { padding: 12px 8px; }
+  .md-ov-stat-num { font-size: 20px; }
+
+  /* Auth / onboarding */
+  .auth-card { padding: 28px 20px; }
+  .ob-card { padding: 28px 20px; border-radius: 20px; }
+  .ob-heading { font-size: 24px; }
+  .ob-center { padding: 32px 16px; }
+}
+
+@media (max-width: 480px) {
+  .wrap { padding: 0 12px; }
+  .hero h1 { font-size: 22px; }
+  .md-header-actions { gap: 6px; }
+  .md-cat-pct { display: none; }
+}

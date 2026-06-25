@@ -9,10 +9,17 @@ export async function analyzeFoundation(data: FoundationFetchResult): Promise<Mo
     prompt: item.prompt,
   }))
 
+  const socialLinksStr = data.extracted && Object.keys(data.extracted.socialLinks).length > 0
+    ? Object.entries(data.extracted.socialLinks).map(([k, v]) => `  ${k}: ${v}`).join('\n')
+    : '  None detected'
+
   const userPrompt = `Audit this website's foundational infrastructure.
 
 URL: ${data.url}
 Custom domain: ${data.customDomain ? 'Yes' : `No — hosted on ${data.hostingPlatform ?? 'a free hosting platform'}`}
+
+Social media links detected:
+${socialLinksStr}
 
 === Extracted site data ===
 ${data.extracted ? JSON.stringify(data.extracted, null, 2) : 'Unable to fetch — flag all checks as needing manual review'}

@@ -5,7 +5,7 @@ export const USER_ANALYTICS_MODULE: ModuleDefinition = {
   name: 'User Analytics',
   description: 'Connect PostHog to see who is using your product, where they drop off, and what to fix first.',
   order: 12,
-  unlockThreshold: 0,
+  unlockThreshold: 80,
   dynamic: true,
   requirements: [],
   systemPrompt: `You are a senior product analytics consultant embedded in a growth audit tool. You receive real usage data from PostHog and translate it into specific, prioritised growth actions.
