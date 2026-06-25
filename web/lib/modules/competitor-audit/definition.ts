@@ -5,7 +5,7 @@ export const COMPETITOR_AUDIT_MODULE: ModuleDefinition = {
   name: 'Competitor Audit',
   description: 'Analyze your competitors across 8 dimensions — discover who they are, find keyword and content gaps, benchmark SEO and social media, uncover ad strategies, and get a complete SWOT analysis.',
   order: 3,
-  unlockThreshold: 0,
+  unlockThreshold: 80,
   dynamic: true,
   requirements: [
     {

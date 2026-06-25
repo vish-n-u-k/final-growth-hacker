@@ -190,11 +190,34 @@ Rules:
       ],
     },
 
-    // ── 4. BRAND BASICS ──────────────────────────────────────────────────────
+    // ── 4. SOCIAL MEDIA PRESENCE ─────────────────────────────────────────────
+    {
+      slug: 'social-presence',
+      label: 'Social Media Presence',
+      order: 4,
+      subCategories: [
+        {
+          slug: 'social-profiles',
+          label: 'Social Profiles',
+          order: 1,
+          items: [
+            {
+              slug: 'social-presence',
+              label: 'Social media profiles linked',
+              prompt: 'Check whether the website links to any social media profiles (Instagram, LinkedIn, Twitter/X, Facebook, YouTube, TikTok, Pinterest) — typically in the footer, header, or navigation. Use the "Social media links detected" data provided. Report which platforms are linked and which are absent. Pass if at least 2 profile links are present.',
+              order: 1,
+              weight: 2,
+            },
+          ],
+        },
+      ],
+    },
+
+    // ── 5. BRAND BASICS ──────────────────────────────────────────────────────
     {
       slug: 'brand-basics',
       label: 'Brand Basics',
-      order: 4,
+      order: 5,
       subCategories: [
         {
           slug: 'identity',

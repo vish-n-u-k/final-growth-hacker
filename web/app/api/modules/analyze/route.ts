@@ -26,6 +26,10 @@ import { fetchOutreachTargetsData } from '@/lib/modules/outreach-targets/fetcher
 import { analyzeOutreachTargets } from '@/lib/modules/outreach-targets/agent'
 import { fetchGeoData } from '@/lib/modules/geo/fetcher'
 import { analyzeGeo } from '@/lib/modules/geo/agent'
+import { fetchCompetitorGapData } from '@/lib/modules/geo-competitor-gap/fetcher'
+import { analyzeCompetitorGap } from '@/lib/modules/geo-competitor-gap/agent'
+import { fetchUserAnalyticsData } from '@/lib/modules/user-analytics/fetcher'
+import { analyzeUserAnalytics } from '@/lib/modules/user-analytics/agent'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
@@ -120,7 +124,16 @@ async function runAnalysis(
     case 'geo': {
       const data = await fetchGeoData(requirements)
       if ('error' in data) throw new Error(data.error)
-      return analyzeGeo(data, brainCtx)
+      return analyzeGeo(data, brainCtx, requirements['brand_name'] ?? '')
+    }
+    case 'geo-competitor-gap': {
+      const data = await fetchCompetitorGapData(requirements)
+      if ('error' in data) throw new Error(data.error)
+      return analyzeCompetitorGap(data, brainCtx)
+    }
+    case 'user-analytics': {
+      const data = await fetchUserAnalyticsData(requirements)
+      return analyzeUserAnalytics(data, brainCtx)
     }
     default:
       throw new Error(`No analyzer registered for module type: ${moduleType}`)
@@ -283,6 +296,24 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ ok: true, itemCount: findings.length, pageCount: pageVerdicts.length })
+  }
+
+  // Foundation: pre-fetch to capture social links and save them to requirements
+  if (mod.type === 'foundation') {
+    try {
+      const prefetch = await fetchFoundationData(requirements)
+      if (prefetch.extracted && Object.keys(prefetch.extracted.socialLinks).length > 0) {
+        const updatedReqs = { ...requirements }
+        for (const [platform, url] of Object.entries(prefetch.extracted.socialLinks)) {
+          const key = `social_${platform}`
+          if (!updatedReqs[key]) updatedReqs[key] = url
+        }
+        await db.update(modules).set({ requirements: updatedReqs }).where(eq(modules.id, moduleId))
+        Object.assign(requirements, updatedReqs)
+      }
+    } catch {
+      // Non-fatal — analysis continues without saving social links
+    }
   }
 
   let results: ModuleAnalysisResult[] | DynamicModuleAnalysisResult[]

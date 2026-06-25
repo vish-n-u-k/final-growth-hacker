@@ -84,8 +84,14 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     Object.fromEntries(allModulesData.map(m => [m.id, m.fullItems]))
   )
   const [openModules, setOpenModules] = useState<Set<string>>(() => {
-    const first = [...allModulesData].sort((a, b) => a.order - b.order).find(m => m.status !== 'locked')
-    return first ? new Set([first.id]) : new Set()
+    // Open the first module that isn't locked (previous scored < 80%)
+    const sorted = [...allModulesData].sort((a, b) => a.order - b.order)
+    const first = sorted.find(m => {
+      if (m.order === 0) return true
+      const prev = [...sorted].reverse().find(p => p.order < m.order)
+      return prev && prev.score >= 80
+    })
+    return first ? new Set([first.id]) : new Set([sorted[0]?.id ?? ''])
   })
   const [openCatsMap, setOpenCatsMap] = useState<Record<string, Set<string>>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, new Set([m.definition.categories[0]?.slug ?? ''])]))
@@ -112,7 +118,16 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
   const router = useRouter()
 
-  const activeModule = [...allModulesData].sort((a, b) => a.order - b.order).find(m => m.status !== 'locked')
+  // Compute lock state dynamically: a module is locked if its previous module (by order) scored < 80%.
+  // Foundation (order 0) is always unlocked. This works for all users regardless of DB status.
+  const sortedByOrder = [...allModulesData].sort((a, b) => a.order - b.order)
+  const isModuleLocked = (modData: ModuleData): boolean => {
+    if (modData.order <= 2) return false  // Foundation, Website Audit, SEO always unlocked
+    const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order)
+    return !prev || prev.score < 80
+  }
+
+  const activeModule = sortedByOrder.find(m => !isModuleLocked(m))
   const currentLevel = activeModule?.order ?? 0
   const barPct = userCountToBarPct(userCount)
 
@@ -268,6 +283,111 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     router.refresh()
   }
 
+  const downloadModuleMd = (modData: ModuleData, states: Record<string, DBItemState>, dynItems: DBItemFull[]) => {
+    const lines: string[] = []
+    lines.push(`# ${modData.name} — Action Items`)
+    lines.push(`> ${brand.name}`)
+    lines.push(`> Generated: ${new Date().toLocaleDateString()}`)
+    lines.push('')
+    if (modData.definition.dynamic) {
+      const incomplete = dynItems.filter(i => !i.aiVerified && !i.userChecked)
+      if (incomplete.length === 0) return
+      const byCat = new Map<string, DBItemFull[]>()
+      incomplete.forEach(i => { const a = byCat.get(i.categorySlug) ?? []; a.push(i); byCat.set(i.categorySlug, a) })
+      byCat.forEach((items, catSlug) => {
+        const catDef = modData.definition.categories.find(c => c.slug === catSlug)
+        lines.push(`## ${catDef?.label ?? catSlug}`); lines.push('')
+        items.forEach((item, idx) => {
+          lines.push(`### ${idx + 1}. ${item.label}`); lines.push('')
+          if (item.aiDetail) { lines.push(`**What:** ${item.aiDetail}`); lines.push('') }
+          if (item.aiNarrative) { lines.push(`**Why this matters:**`); lines.push(item.aiNarrative); lines.push('') }
+          if (item.aiAction) { lines.push(`**Your action:**`); lines.push(item.aiAction); lines.push('') }
+          lines.push('---'); lines.push('')
+        })
+      })
+    } else {
+      const cats = modData.definition.categories as ModuleCategoryDefinition[]
+      let itemNum = 0
+      cats.forEach(cat => {
+        const catLines: string[] = []
+        cat.subCategories.forEach(sub => {
+          const incomplete = sub.items.filter(item => { const s = states[item.slug]; return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction) })
+          if (incomplete.length === 0) return
+          catLines.push(`### ${sub.label}`); catLines.push('')
+          incomplete.forEach(item => {
+            const s = states[item.slug]!; itemNum++
+            catLines.push(`#### ${itemNum}. ${item.label}`); catLines.push('')
+            if (s.aiDetail) { catLines.push(`**What:** ${s.aiDetail}`); catLines.push('') }
+            if (s.aiNarrative) { catLines.push(`**Why this matters:**`); catLines.push(s.aiNarrative); catLines.push('') }
+            if (s.aiAction) { catLines.push(`**Your action:**`); catLines.push(s.aiAction); catLines.push('') }
+            catLines.push('---'); catLines.push('')
+          })
+        })
+        if (catLines.length > 0) { lines.push(`## ${cat.label}`); lines.push(''); lines.push(...catLines) }
+      })
+      if (itemNum === 0) return
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = `${modData.type}-todo.md`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadDynamicCategoryMd = (modName: string, cat: { slug: string; label: string }, items: DBItemFull[]) => {
+    const incomplete = items.filter(item => !item.aiVerified && !item.userChecked)
+    if (incomplete.length === 0) return
+    const lines: string[] = []
+    lines.push(`# ${cat.label} — Action Items`)
+    lines.push(`> ${modName} — ${brand.name}`)
+    lines.push(`> Generated: ${new Date().toLocaleDateString()}`)
+    lines.push('')
+    incomplete.forEach((item, i) => {
+      lines.push(`## ${i + 1}. ${item.label}`)
+      lines.push('')
+      if (item.aiDetail) { lines.push(`**What:** ${item.aiDetail}`); lines.push('') }
+      if (item.aiNarrative) { lines.push(`**Why this matters:**`); lines.push(item.aiNarrative); lines.push('') }
+      if (item.aiAction) { lines.push(`**Your action:**`); lines.push(item.aiAction); lines.push('') }
+      lines.push('---'); lines.push('')
+    })
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${cat.slug}-todo.md`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const downloadStaticCategoryMd = (modName: string, cat: ModuleCategoryDefinition, states: Record<string, DBItemState>) => {
+    const lines: string[] = []
+    lines.push(`# ${cat.label} — Action Items`)
+    lines.push(`> ${modName} — ${brand.name}`)
+    lines.push(`> Generated: ${new Date().toLocaleDateString()}`)
+    lines.push('')
+    let itemNum = 0
+    cat.subCategories.forEach(sub => {
+      const incomplete = sub.items.filter(item => {
+        const s = states[item.slug]
+        return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction)
+      })
+      if (incomplete.length === 0) return
+      lines.push(`## ${sub.label}`); lines.push('')
+      incomplete.forEach(item => {
+        const s = states[item.slug]!
+        itemNum++
+        lines.push(`### ${itemNum}. ${item.label}`); lines.push('')
+        if (s.aiDetail) { lines.push(`**What:** ${s.aiDetail}`); lines.push('') }
+        if (s.aiNarrative) { lines.push(`**Why this matters:**`); lines.push(s.aiNarrative); lines.push('') }
+        if (s.aiAction) { lines.push(`**Your action:**`); lines.push(s.aiAction); lines.push('') }
+        lines.push('---'); lines.push('')
+      })
+    })
+    if (itemNum === 0) return
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `${cat.slug}-todo.md`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // ── Dynamic item renderer ────────────────────────────────────────────────────
   const renderDynamicItem = (modId: string, prUrl: string | null, item: DBItemFull) => {
     const aiV = item.aiVerified
@@ -304,31 +424,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
               {!done && item.weight === 2 && <Badge className="md-tag md-tag-important">Important</Badge>}
               {aiV && <Badge className="md-tag md-tag-ai">AI ✓</Badge>}
               {!aiV && userC && <Badge className="md-tag md-tag-self">Self</Badge>}
-              {item.fixable && !aiV && item.completedBy !== 'agent' && (() => {
-                const isAssisted = !!(item.fixInputKey && item.fixIntegrationProvider !== 'brand_assets')
-                const badgeLabel = isAssisted ? 'Assisted fix' : 'Auto-fixable'
-                const tooltip = isAssisted
-                  ? (item.fixInputKey === 'ga4_measurement_id'
-                    ? 'Go to analytics.google.com → create a GA4 property → copy your Measurement ID (G-XXXXXXXXXX) → save it in Settings → Integrations → Google Analytics.'
-                    : item.fixInputKey === 'gsc_verification_code'
-                    ? 'Go to search.google.com/search-console → add property → choose HTML tag verification → copy the content value → save it in Settings → Integrations → Google Search Console.'
-                    : 'Save the required value in Settings → Integrations to enable this fix.')
-                  : null
-                return (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <span className={`md-tag ${githubConnected ? 'md-tag-fix' : 'md-tag-fix-off'}`}>⚡ {badgeLabel}</span>
-                    {tooltip && (
-                      <span className="md-info-wrap">
-                        <svg className="md-info-icon" width="13" height="13" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-                          <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                        <span className="md-tooltip">{tooltip}</span>
-                      </span>
-                    )}
-                  </span>
-                )
-              })()}
               {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
             </div>
           </div>
@@ -355,7 +450,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   Download Calendar CSV
                 </a>
               )}
-              {!aiV && !item.fixable && (
+              {!aiV && (
                 <div className="sm-draft-section">
                   {item.aiDraft ? (
                     <>
@@ -392,33 +487,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     </button>
                   )}
                 </div>
-              )}
-              {item.fixable && !aiV && item.completedBy !== 'agent' && (
-                <div className="md-fix-row">
-                  {(() => {
-                    const needsIntegration = !!(item.fixIntegrationProvider && item.fixIntegrationProvider !== 'brand_assets')
-                    const integrationReady = !needsIntegration || !!connectedIntegrations[item.fixIntegrationProvider!]
-                    if (!githubConnected) return <p className="md-fix-hint">Connect GitHub in <a href="/settings" className="md-fix-hint-link">Settings</a> to apply this fix automatically.</p>
-                    if (!integrationReady) return <p className="md-fix-hint">Set up the required integration in <a href="/settings" className="md-fix-hint-link">Settings → Integrations</a> to enable this fix.</p>
-                    return applyingFix.has(itemKey) ? (
-                      <span className="md-fix-applying"><span className="md-spin" />Applying fix…</span>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5 border-[var(--green)] text-[var(--green)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] hover:border-[var(--green-bright)] bg-transparent text-xs"
-                        onClick={(e) => { e.stopPropagation(); handleApplyFix(modId, true, item.id, item.slug) }}
-                      >
-                        Apply fix via GitHub
-                      </Button>
-                    )
-                  })()}
-                </div>
-              )}
-              {item.completedBy === 'agent' && prUrl && (
-                <a href={prUrl} target="_blank" rel="noopener noreferrer" className="md-fix-pr-link" onClick={(e) => e.stopPropagation()}>
-                  Applied — view on GitHub
-                </a>
               )}
             </div>
           )}
@@ -466,38 +534,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
               {!done && item.weight === 2 && <span className="md-tag md-tag-important">Important</span>}
               {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
               {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
-              {s?.fixable && !aiV && s.completedBy !== 'agent' && (() => {
-                const isAssisted = !!(s.fixInputKey && s.fixIntegrationProvider !== 'brand_assets')
-                const isUpgradeable = !!(s.fixInputKey && s.fixIntegrationProvider === 'brand_assets')
-                const upgradeReady = isUpgradeable && !!connectedIntegrations['brand_assets']
-                const isAlwaysPartial = !!(item.partialFix && !s.fixInputKey)
-                const badgeLabel = isAssisted ? 'Assisted fix'
-                  : (isUpgradeable && !upgradeReady) || isAlwaysPartial ? 'Partially fixable'
-                  : 'Auto-fixable'
-                const tooltip = isAssisted
-                  ? (s.fixInputKey === 'ga4_measurement_id'
-                    ? 'Go to analytics.google.com → create a GA4 property → copy your Measurement ID (G-XXXXXXXXXX) → save it in Settings → Integrations → Google Analytics.'
-                    : s.fixInputKey === 'gsc_verification_code'
-                    ? 'Go to search.google.com/search-console → add property → choose HTML tag verification → copy the content value → save it in Settings → Integrations → Google Search Console.'
-                    : 'Save the required value in Settings → Integrations to enable this fix.')
-                  : isUpgradeable && !upgradeReady ? (item.upgradeInput?.setupInstructions ?? 'Save the required asset in Settings → Brand Assets to upgrade to a complete fix.')
-                  : isAlwaysPartial ? (item.partialFix ?? null)
-                  : null
-                return (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <Badge className={`md-tag ${githubConnected ? 'md-tag-fix' : 'md-tag-fix-off'}`}>⚡ {badgeLabel}</Badge>
-                    {tooltip && (
-                      <span className="md-info-wrap">
-                        <svg className="md-info-icon" width="13" height="13" viewBox="0 0 24 24" fill="none">
-                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-                          <path d="M12 16v-4M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                        <span className="md-tooltip">{tooltip}</span>
-                      </span>
-                    )}
-                  </span>
-                )
-              })()}
               {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
             </div>
           </div>
@@ -510,41 +546,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   <span className="sm-action-label">Action</span>
                   <p className="sm-action-text">{s.aiAction}</p>
                 </div>
-              )}
-              {s?.fixable && !aiV && s.completedBy !== 'agent' && (
-                <div className="md-fix-row">
-                  {(() => {
-                    const needsIntegration = !!(s.fixIntegrationProvider && s.fixIntegrationProvider !== 'brand_assets')
-                    const integrationReady = !needsIntegration || !!connectedIntegrations[s.fixIntegrationProvider!]
-                    if (!githubConnected) return <p className="md-fix-hint">Connect GitHub in <a href="/settings" className="md-fix-hint-link">Settings</a> to apply this fix automatically.</p>
-                    if (!integrationReady) return <p className="md-fix-hint">Set up the required integration in <a href="/settings" className="md-fix-hint-link">Settings → Integrations</a> to enable this fix.</p>
-                    return applyingFix.has(itemKey) ? (
-                      <span className="md-fix-applying"><span className="md-spin" />Applying fix…</span>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5 border-[var(--green)] text-[var(--green)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] hover:border-[var(--green-bright)] bg-transparent text-xs"
-                        onClick={(e) => { e.stopPropagation(); handleApplyFix(modId, false, s.id, item.slug) }}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                          <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                        Apply fix via GitHub
-                      </Button>
-                    )
-                  })()}
-                </div>
-              )}
-              {s?.completedBy === 'agent' && prUrl && (
-                <a href={prUrl} target="_blank" rel="noopener noreferrer" className="md-fix-pr-link" onClick={(e) => e.stopPropagation()}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                    <circle cx="18" cy="18" r="3" stroke="currentColor" strokeWidth="2" />
-                    <circle cx="6" cy="6" r="3" stroke="currentColor" strokeWidth="2" />
-                    <path d="M6 21V9a9 9 0 0 0 9 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Applied — view on GitHub
-                </a>
               )}
             </div>
           )}
@@ -583,7 +584,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             <Button
               variant="ghost"
               onClick={handleLogout}
-              className="text-[var(--text-faint)] hover:text-[var(--text-dim)] w-48 border border-[var(--line)] hover:border-[var(--green)] text-sm"
+              className="mob-hide text-[var(--text-faint)] hover:text-[var(--text-dim)] w-54 border border-[var(--line)] hover:border-[var(--green)] text-sm"
             >
               {userEmail} · Sign out
             </Button>
@@ -642,12 +643,12 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
         {/* Module accordion stack */}
         <div className="levels">
-          {allModulesData.map((modData) => {
+          {sortedByOrder.map((modData) => {
             const isOpen = openModules.has(modData.id)
-            const isLocked = modData.status === 'locked'
-            const isDone = !isLocked && modData.score >= 70
+            const isLocked = isModuleLocked(modData)
+            const isDone = !isLocked && modData.score >= 80
             const isYouAreHere = !isLocked && !isDone && modData.id === activeModule?.id
-            const stateClass = isLocked ? 'locked' : isDone ? 'done' : 'active'
+            const stateClass = isLocked ? 'locked' : 'active'
             const reanalyzing = reanalyzingMap[modData.id] ?? false
             const reqValues = reqValuesMap[modData.id] ?? {}
             const setupError = setupErrorMap[modData.id] ?? null
@@ -670,10 +671,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
                         <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                       </svg>
-                    ) : isDone ? (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                        <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
                     ) : (
                       modData.order
                     )}
@@ -682,15 +679,17 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   <div className="level-info">
                     <div className="name">
                       {modData.name}
-                      {isLocked
-                        ? <span className="pill soon">Locked</span>
-                        : isDone
-                        ? <span className="pill clear">Cleared</span>
-                        : isYouAreHere
-                        ? <span className="pill now">You are here</span>
-                        : null}
+                      {isLocked && <span className="pill soon">Locked</span>}
                     </div>
-                    {!isOpen && <div className="focus">{def.description}</div>}
+                    {isLocked
+                      ? (() => {
+                          const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order)
+                          return prev
+                            ? <div className="focus">Complete <b>{prev.name}</b> at 80%+ to unlock — currently {prev.score}%</div>
+                            : <div className="focus">Complete the previous module at 80%+ to unlock</div>
+                        })()
+                      : !isOpen && <div className="focus">{def.description}</div>
+                    }
                   </div>
 
                   {!isLocked && (
@@ -700,6 +699,19 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       </div>
                       {modData.score}%
                     </div>
+                  )}
+
+                  {!isLocked && (def.dynamic ? dynItems.some(i => !i.aiVerified && !i.userChecked) : (def.categories as ModuleCategoryDefinition[]).some(cat => cat.subCategories.some(sub => sub.items.some(item => { const s = states[item.slug]; return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction) })))) && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadModuleMd(modData, states, dynItems) }}
+                      className="level-export-btn"
+                      title="Export incomplete items as a report"
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <span className="level-export-label">Export Report</span>
+                    </button>
                   )}
 
                   {!isLocked && (
@@ -801,12 +813,23 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                             })
                             return (
                               <div key={cat.slug} className={`md-cat${isOpenCat ? ' md-cat-open' : ''}`}>
-                                <button className="md-cat-hd" onClick={() => toggleCat(modData.id, cat.slug)}>
+                                <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => toggleCat(modData.id, cat.slug)}>
                                   <div className="md-cat-hd-left">
                                     <span className="md-cat-hd-name">{cat.label}</span>
                                     <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
                                   </div>
                                   <div className="md-cat-hd-right">
+                                    {catItems.some(item => !item.aiVerified && !item.userChecked) && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); downloadDynamicCategoryMd(modData.name, cat, catItems) }}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '11px', fontWeight: 500, background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+                                      >
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                        Export
+                                      </button>
+                                    )}
                                     <div className="md-cat-mini-bar">
                                       <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
                                       <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
@@ -816,7 +839,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                       <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                                     </svg>
                                   </div>
-                                </button>
+                                </div>
                                 {isOpenCat && (
                                   <div className="md-cat-body">
                                     {catItems.length === 0 ? (
@@ -841,12 +864,23 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                             const isOpenCat = openCats.has(cat.slug)
                             return (
                               <div key={cat.slug} className={`md-cat${isOpenCat ? ' md-cat-open' : ''}`}>
-                                <button className="md-cat-hd" onClick={() => toggleCat(modData.id, cat.slug)}>
+                                <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => toggleCat(modData.id, cat.slug)}>
                                   <div className="md-cat-hd-left">
                                     <span className="md-cat-hd-name">{cat.label}</span>
                                     <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
                                   </div>
                                   <div className="md-cat-hd-right">
+                                    {cat.subCategories.some(sub => sub.items.some(item => !states[item.slug]?.aiVerified && !states[item.slug]?.userChecked)) && (
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); downloadStaticCategoryMd(modData.name, cat, states) }}
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '11px', fontWeight: 500, background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
+                                      >
+                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                        Export
+                                      </button>
+                                    )}
                                     <div className="md-cat-mini-bar">
                                       <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
                                       <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
@@ -856,7 +890,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                       <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                                     </svg>
                                   </div>
-                                </button>
+                                </div>
                                 {isOpenCat && (
                                   <div className="md-cat-body">
                                     {cat.subCategories.map((sub, si) => {

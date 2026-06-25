@@ -5,7 +5,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
   name: 'Website Audit',
   description: 'Rule-based audit across UX, speed, mobile, trust, conversion, forms, and technical health. Identifies issues and generates prioritised fixes.',
   order: 1,
-  unlockThreshold: 0,
+  unlockThreshold: 80,
   requirements: [
     {
       key: 'website_url',

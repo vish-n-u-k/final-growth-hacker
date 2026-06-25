@@ -1542,3 +1542,132 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
     @apply font-sans;
   }
 }
+
+/* ── Export button (level header) ─────────────────────────────────────────── */
+.level-export-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; border-radius: 8px;
+  border: 1px solid var(--green); color: var(--green-bright);
+  font-size: 12px; font-weight: 500; background: transparent;
+  cursor: pointer; flex-shrink: 0; font-family: inherit;
+  transition: background .15s;
+}
+.level-export-btn:hover { background: #1a3526; }
+
+/* ── Mobile Responsive ───────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  /* ── Globals ── */
+  .wrap { padding: 0 16px; }
+  .mob-hide { display: none !important; }
+
+  /* ── Header: keep logo + icons, hide sign-out text ── */
+  header { padding: 14px 0; }
+  .md-header-inner { gap: 8px; }
+  .md-header-actions { gap: 6px; }
+
+  /* ── Hero: shrink text, hide subtitle ── */
+  .hero { padding: 22px 0 6px; }
+  .hero h1 { font-size: 24px; letter-spacing: -.5px; }
+  .hero p { display: none; } /* redundant on small screens */
+
+  /* ── Overview card: stack vertically, shrink big number ── */
+  .overview {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 20px;
+    gap: 14px;
+    margin: 14px 0 12px;
+  }
+  .big-num { font-size: 42px; }
+  .big-num span { font-size: 18px; }
+  .big-num input { font-size: 42px; width: 80px; }
+  .overview .meta { width: 100%; }
+  /* Hide the module description under lvl — too long on mobile */
+  .overview .meta .desc { display: none; }
+  .journey-bar { margin-top: 10px; }
+  .journey-labels { font-size: 10px; }
+
+  /* ── Module levels ── */
+  .levels { gap: 12px; }
+  .level { border-radius: 14px; }
+
+  .level-head { padding: 16px 18px; gap: 10px; overflow: hidden; }
+  .level-info { min-width: 0; overflow: hidden; }
+  .level-badge { width: 36px; height: 36px; border-radius: 10px; font-size: 16px; flex-shrink: 0; }
+
+  /* Name: single line, no wrap */
+  .level-info .name { font-size: 15px; flex-wrap: nowrap; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Hide description in collapsed header — too long for mobile */
+  .level-info .focus { display: none; }
+  .level-info .range { display: none; }
+
+  /* Progress bar: shrink the track, hide % text */
+  .level-prog { gap: 6px; font-size: 11px; }
+  .mini-track { width: 50px; }
+
+  /* Export btn: icon only on mobile */
+  .level-export-btn { padding: 7px; gap: 0; }
+  .level-export-btn .level-export-label { display: none; }
+
+  /* ── Level body ── */
+  .tasks { padding: 6px 18px 20px; }
+
+  /* Toolbar inside body */
+  .level-body > div:first-child {
+    padding: 12px 18px !important;
+    flex-wrap: wrap;
+    gap: 8px !important;
+  }
+
+  /* ── Category headers ── */
+  .md-cat-hd { padding: 14px 16px; gap: 8px; }
+  .md-cat-hd-right { gap: 6px; }
+  .md-cat-mini-bar { width: 44px; }
+  .md-cat-pct { font-size: 12px; min-width: 28px; }
+
+  /* ── Sub-categories ── */
+  .md-sub { padding: 0 14px 8px; }
+  .md-sub-hd { padding: 12px 0 8px; }
+  .md-sub-name { font-size: 12.5px; }
+
+  /* ── Items ── */
+  .md-item { gap: 10px; padding: 12px 0; }
+  .md-item-lbl { font-size: 13.5px; }
+  .md-item-detail { font-size: 12px; }
+  /* Hide Important tag on mobile to reduce clutter; Critical stays */
+  .md-tag-important { display: none; }
+  .md-tag { padding: 3px 7px; font-size: 10px; }
+
+  /* ── Expanded item body ── */
+  .sm-expanded-body { gap: 10px; }
+  .sm-narrative { font-size: 12.5px; }
+  .sm-action-box { padding: 12px 14px; }
+  .sm-action-text { font-size: 12.5px; }
+
+  /* ── Setup card ── */
+  .md-setup-card { padding: 18px; margin: 14px 18px 0; }
+
+  /* ── Auth / onboarding ── */
+  .auth-card { padding: 28px 20px; }
+  .auth-card h1 { font-size: 24px; }
+  .ob-card { padding: 28px 20px; border-radius: 20px; }
+  .ob-heading { font-size: 24px; }
+  .ob-center { padding: 32px 16px; }
+  .ob-header { padding: 20px 16px; }
+
+  /* ── Fix plan modal ── */
+  .fp-overlay { padding: 12px; }
+  .fp-modal { max-height: 92vh; padding: 18px; }
+}
+
+@media (max-width: 480px) {
+  .wrap { padding: 0 12px; }
+  .hero h1 { font-size: 20px; }
+  .big-num { font-size: 36px; }
+  .level-head { padding: 14px 14px; gap: 8px; }
+  .level-badge { width: 32px; height: 32px; font-size: 14px; border-radius: 9px; }
+  .level-info .name { font-size: 14px; }
+  /* Hide progress bar on very small screens — too cramped */
+  .level-prog { display: none; }
+}

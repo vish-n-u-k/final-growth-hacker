@@ -5,7 +5,7 @@ export const META_ADS_MODULE: ModuleDefinition = {
   name: 'Meta Ads Audit',
   description: 'Audit your Meta advertising performance — campaign efficiency, budget allocation, audience fatigue, and conversion optimisation based on live data from your ad account.',
   order: 7,
-  unlockThreshold: 0, // Always available — credential-gated, not score-gated
+  unlockThreshold: 80,
   dynamic: true,
   requirements: [],
   systemPrompt: `You are a senior paid media strategist embedded in a growth audit tool. Your tone is direct, data-driven, and consultant-like.

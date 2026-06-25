@@ -17,6 +17,53 @@ export interface FoundationExtracted {
   navLinks: { text: string; href: string }[]
   allLinks: { text: string; href: string }[]
   ctaTexts: string[]
+  socialLinks: Record<string, string>
+}
+
+const SOCIAL_DETECTORS: { key: string; test: (href: string) => boolean }[] = [
+  {
+    key: 'instagram',
+    test: (h) => h.includes('instagram.com/') && !/instagram\.com\/(p\/|reel\/|stories\/|explore\/|accounts\/)/.test(h),
+  },
+  {
+    key: 'linkedin',
+    test: (h) => /linkedin\.com\/(company|in|school)\//.test(h),
+  },
+  {
+    key: 'twitter',
+    test: (h) =>
+      /(twitter\.com\/|x\.com\/)/.test(h) &&
+      !/(twitter|x)\.com\/(home|search|login|signup|intent|share|i\/)/.test(h),
+  },
+  {
+    key: 'facebook',
+    test: (h) =>
+      h.includes('facebook.com/') &&
+      !/facebook\.com\/(login|dialog|sharer|share|events\/)/.test(h),
+  },
+  {
+    key: 'youtube',
+    test: (h) => /youtube\.com\/(channel\/|c\/|@|user\/)/.test(h),
+  },
+  {
+    key: 'tiktok',
+    test: (h) => h.includes('tiktok.com/@'),
+  },
+  {
+    key: 'pinterest',
+    test: (h) => h.includes('pinterest.com/') && !/pinterest\.com\/(pin\/|search\/)/.test(h),
+  },
+]
+
+function detectSocialLinks(links: { href: string }[]): Record<string, string> {
+  const found: Record<string, string> = {}
+  for (const { href } of links) {
+    const lower = href.toLowerCase()
+    for (const { key, test } of SOCIAL_DETECTORS) {
+      if (!found[key] && test(lower)) found[key] = href
+    }
+  }
+  return found
 }
 
 function extractFoundationData(html: string): FoundationExtracted {
@@ -97,6 +144,8 @@ function extractFoundationData(html: string): FoundationExtracted {
     if (text) ctaTexts.push(text)
   })
 
+  const socialLinks = detectSocialLinks(allLinks)
+
   return {
     title,
     metaRobots,
@@ -114,6 +163,7 @@ function extractFoundationData(html: string): FoundationExtracted {
     navLinks,
     allLinks: allLinks.slice(0, 50),
     ctaTexts: ctaTexts.slice(0, 10),
+    socialLinks,
   }
 }
 
