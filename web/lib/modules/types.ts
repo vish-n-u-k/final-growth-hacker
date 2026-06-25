@@ -11,6 +11,7 @@ export interface ModuleItemDefinition {
   prompt: string
   order: number
   weight: 1 | 2 | 3
+  fixGuide?: string[]  // static step-by-step instructions shown in expanded item body (handoff doc)
   fixable?: boolean  // true = this item can be auto-fixed via GitHub
   fixType?: FixType  // controls which fix path is used (undefined = legacy full-file Claude flow)
   assistedInput?: {  // fix is BLOCKED until user saves this value in an integration

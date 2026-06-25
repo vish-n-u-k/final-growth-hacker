@@ -4,13 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 
-type State = 'step1' | 'step2' | 'analyzing' | 'error'
-
-const ANALYZING_MESSAGES = [
-  'Setting up your workspace…',
-  'Saving your brand details…',
-  'Almost ready…',
-]
+type State = 'step1' | 'step2' | 'error'
 
 const CHECK_ICON = (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
@@ -27,15 +21,9 @@ export default function OnboardingPage() {
   const [usp, setUsp] = useState('')
   const [brandVoice, setBrandVoice] = useState('')
   const [error, setError] = useState('')
-  const [msgIdx, setMsgIdx] = useState(0)
+  const [submitting, setSubmitting] = useState(false)
   const [prefilling, setPrefilling] = useState(false)
   const router = useRouter()
-
-  useEffect(() => {
-    if (state !== 'analyzing') return
-    const interval = setInterval(() => setMsgIdx((i) => (i + 1) % ANALYZING_MESSAGES.length), 2800)
-    return () => clearInterval(interval)
-  }, [state])
 
   const autoResize = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget
@@ -79,8 +67,7 @@ export default function OnboardingPage() {
 
   const handleSubmit = async (skip = false) => {
     setError('')
-    setState('analyzing')
-    setMsgIdx(0)
+    setSubmitting(true)
 
     const onboardRes = await fetch('/api/onboarding', {
       method: 'POST',
@@ -97,15 +84,12 @@ export default function OnboardingPage() {
     const onboardData = await onboardRes.json()
     if (!onboardRes.ok) {
       setError(onboardData.error ?? 'Something went wrong')
-      setState('error')
+      setSubmitting(false)
       return
     }
 
     router.push('/dashboard')
-    router.refresh()
   }
-
-  const displayUrl = websiteUrl.replace(/^https?:\/\//, '')
 
   return (
     <div className="ob-page">
@@ -121,23 +105,6 @@ export default function OnboardingPage() {
       </header>
 
       <div className="ob-center">
-
-        {/* Analyzing */}
-        {state === 'analyzing' && (
-          <div className="ob-card ob-analyzing">
-            <div className="ob-analyze-spinner">
-              <svg viewBox="0 0 50 50" className="ob-spinner-svg">
-                <circle cx="25" cy="25" r="20" fill="none" stroke="var(--line)" strokeWidth="3" />
-                <circle cx="25" cy="25" r="20" fill="none" stroke="var(--green-bright)" strokeWidth="3"
-                  strokeDasharray="40 90" strokeLinecap="round" />
-              </svg>
-            </div>
-            <div className="ob-label">Getting ready</div>
-            <h1 className="ob-heading" style={{ fontSize: '22px' }}>{displayUrl}</h1>
-            <p className="ob-analyze-msg">{ANALYZING_MESSAGES[msgIdx]}</p>
-            <p className="ob-hint" style={{ marginTop: '8px' }}>Redirecting you to your dashboard…</p>
-          </div>
-        )}
 
         {/* Error */}
         {state === 'error' && (
@@ -291,14 +258,19 @@ export default function OnboardingPage() {
 
                   <Button
                     type="button"
-                    disabled={!brandName.trim()}
+                    disabled={!brandName.trim() || submitting}
                     onClick={() => handleSubmit(false)}
                     className="w-full h-14 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:shadow-lg hover:shadow-[var(--green-glow)] disabled:opacity-50 rounded-14 transition-all"
                   >
-                    Run Foundation Audit
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                      <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
+                    {submitting ? (
+                      <><span className="md-spin" style={{ borderTopColor: '#06140c', borderColor: '#06140c40' }} />Setting up…</>
+                    ) : (
+                      <>Run Foundation Audit
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                          <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </>
+                    )}
                   </Button>
                 </div>
               )}
@@ -306,9 +278,7 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {state !== 'analyzing' && (
-          <p className="ob-footer-note">Your data is private. We only read your public website.</p>
-        )}
+        <p className="ob-footer-note">Your data is private. We only read your public website.</p>
       </div>
     </div>
   )

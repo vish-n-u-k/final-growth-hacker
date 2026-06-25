@@ -60,6 +60,15 @@ function getOverall(def: ModuleDefinition, states: Record<string, DBItemState>) 
   return { pct: totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0 }
 }
 
+function computeLiveScore(modData: ModuleData, states: Record<string, DBItemState>, dynItems: DBItemFull[]): number {
+  if (modData.definition.dynamic) {
+    const totalWeight = dynItems.reduce((s, i) => s + i.weight, 0)
+    const doneWeight = dynItems.filter(i => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
+    return totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0
+  }
+  return getOverall(modData.definition, states).pct
+}
+
 function getDynamicCatStats(categorySlug: string, items: DBItemFull[]) {
   const catItems = items.filter((i) => i.categorySlug === categorySlug)
   const totalWeight = catItems.reduce((s, i) => s + i.weight, 0)
@@ -182,10 +191,16 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   // Compute lock state dynamically: a module is locked if its previous module (by order) scored < 80%.
   // Foundation (order 0) is always unlocked. This works for all users regardless of DB status.
   const sortedByOrder = [...allModulesData].sort((a, b) => a.order - b.order)
+
+  // Live scores derived from client state — updates instantly on self-check without needing re-analyse
+  const liveScores = Object.fromEntries(
+    allModulesData.map(m => [m.id, computeLiveScore(m, statesMap[m.id] ?? {}, dynItemsMap[m.id] ?? [])])
+  )
+
   const isModuleLocked = (modData: ModuleData): boolean => {
     if (modData.order <= 2) return false  // Foundation, Website Audit, SEO always unlocked
     const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order)
-    return !prev || prev.score < 80
+    return !prev || liveScores[prev.id] < 80
   }
 
   const activeModule = sortedByOrder.find(m => !isModuleLocked(m))
@@ -383,15 +398,20 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
       cats.forEach(cat => {
         const catLines: string[] = []
         cat.subCategories.forEach(sub => {
-          const incomplete = sub.items.filter(item => { const s = states[item.slug]; return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction) })
+          const incomplete = sub.items.filter(item => { const s = states[item.slug]; return !s?.aiVerified && !s?.userChecked })
           if (incomplete.length === 0) return
           catLines.push(`### ${sub.label}`); catLines.push('')
           incomplete.forEach(item => {
-            const s = states[item.slug]!; itemNum++
+            const s = states[item.slug]; itemNum++
             catLines.push(`#### ${itemNum}. ${item.label}`); catLines.push('')
-            if (s.aiDetail) { catLines.push(`**What:** ${s.aiDetail}`); catLines.push('') }
-            if (s.aiNarrative) { catLines.push(`**Why this matters:**`); catLines.push(s.aiNarrative); catLines.push('') }
-            if (s.aiAction) { catLines.push(`**Your action:**`); catLines.push(s.aiAction); catLines.push('') }
+            if (s?.aiDetail) { catLines.push(`**What:** ${s.aiDetail}`); catLines.push('') }
+            if (s?.aiNarrative) { catLines.push(`**Why this matters:**`); catLines.push(s.aiNarrative); catLines.push('') }
+            if (s?.aiAction) { catLines.push(`**Your action:**`); catLines.push(s.aiAction); catLines.push('') }
+            if (item.fixGuide?.length) {
+              catLines.push(`**How to implement:**`)
+              item.fixGuide.forEach((step, i) => catLines.push(`${i + 1}. ${step}`))
+              catLines.push('')
+            }
             catLines.push('---'); catLines.push('')
           })
         })
@@ -436,19 +456,21 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     lines.push('')
     let itemNum = 0
     cat.subCategories.forEach(sub => {
-      const incomplete = sub.items.filter(item => {
-        const s = states[item.slug]
-        return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction)
-      })
+      const incomplete = sub.items.filter(item => { const s = states[item.slug]; return !s?.aiVerified && !s?.userChecked })
       if (incomplete.length === 0) return
       lines.push(`## ${sub.label}`); lines.push('')
       incomplete.forEach(item => {
-        const s = states[item.slug]!
+        const s = states[item.slug]
         itemNum++
         lines.push(`### ${itemNum}. ${item.label}`); lines.push('')
-        if (s.aiDetail) { lines.push(`**What:** ${s.aiDetail}`); lines.push('') }
-        if (s.aiNarrative) { lines.push(`**Why this matters:**`); lines.push(s.aiNarrative); lines.push('') }
-        if (s.aiAction) { lines.push(`**Your action:**`); lines.push(s.aiAction); lines.push('') }
+        if (s?.aiDetail) { lines.push(`**What:** ${s.aiDetail}`); lines.push('') }
+        if (s?.aiNarrative) { lines.push(`**Why this matters:**`); lines.push(s.aiNarrative); lines.push('') }
+        if (s?.aiAction) { lines.push(`**Your action:**`); lines.push(s.aiAction); lines.push('') }
+        if (item.fixGuide?.length) {
+          lines.push(`**How to implement:**`)
+          item.fixGuide.forEach((step, i) => lines.push(`${i + 1}. ${step}`))
+          lines.push('')
+        }
         lines.push('---'); lines.push('')
       })
     })
@@ -575,7 +597,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     const needsAttention = s && !aiV && !userC
     const itemKey = `${modId}:${item.slug}`
     const isExpanded = expandedItems.has(itemKey)
-    const hasDetail = !!(s?.aiNarrative || s?.aiAction)
+    const hasDetail = !!(s?.aiNarrative || s?.aiAction || item.fixGuide?.length)
     const isVerifying = verifyingItems.has(itemKey)
 
     return (
@@ -644,6 +666,19 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   </div>
                 )
               })()}
+              {item.fixGuide?.length && !done && (
+                <div className="sm-fix-guide">
+                  <div className="sm-fix-guide-hd">How to implement this</div>
+                  <ol className="sm-fix-guide-steps">
+                    {item.fixGuide.map((step, i) => (
+                      <li key={i} className="sm-fix-guide-step">
+                        <span className="sm-fix-guide-num">{i + 1}</span>
+                        <span style={{ whiteSpace: 'pre-wrap' }}>{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -706,7 +741,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
               style={connectedIntegrations['posthog'] ? { cursor: 'default' } : undefined}
             >
               {connectedIntegrations['posthog'] ? (
-                posthogLoading ? '…' : userCount.toLocaleString()
+                posthogLoading ? <span className="count-loading"><span /><span /><span /></span> : userCount.toLocaleString()
               ) : editingCount ? (
                 <input
                   autoFocus
@@ -755,7 +790,8 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           {sortedByOrder.map((modData) => {
             const isOpen = openModules.has(modData.id)
             const isLocked = isModuleLocked(modData)
-            const isDone = !isLocked && modData.score >= 80
+            const liveScore = liveScores[modData.id] ?? 0
+            const isDone = !isLocked && liveScore >= 80
             const isYouAreHere = !isLocked && !isDone && modData.id === activeModule?.id
             const stateClass = isLocked ? 'locked' : 'active'
             const reanalyzing = reanalyzingMap[modData.id] ?? false
@@ -794,7 +830,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       ? (() => {
                           const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order)
                           return prev
-                            ? <div className="focus">Complete <b>{prev.name}</b> at 80%+ to unlock — currently {prev.score}%</div>
+                            ? <div className="focus">Complete <b>{prev.name}</b> at 80%+ to unlock — currently {liveScores[prev.id] ?? 0}%</div>
                             : <div className="focus">Complete the previous module at 80%+ to unlock</div>
                         })()
                       : !isOpen && <div className="focus">{def.description}</div>
@@ -804,9 +840,9 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   {!isLocked && (
                     <div className="level-prog">
                       <div className="mini-track">
-                        <div className="mini-fill" style={{ width: `${modData.score}%` }} />
+                        <div className="mini-fill" style={{ width: `${liveScore}%` }} />
                       </div>
-                      {modData.score}%
+                      {liveScore}%
                     </div>
                   )}
 
