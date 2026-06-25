@@ -950,6 +950,30 @@ header {
   background: var(--accent); color: var(--green-bright);
   font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
 }
+/* Fix guide — static how-to steps inside checklist item */
+.sm-fix-guide {
+  background: var(--bg-soft); border: 1px solid var(--line);
+  border-radius: 8px; overflow: hidden; margin-top: 12px;
+}
+.sm-fix-guide-hd {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 14px; font-size: 11.5px; font-weight: 600;
+  color: var(--text-dim); background: var(--accent); border-bottom: 1px solid var(--line);
+}
+.sm-fix-guide-steps {
+  margin: 0; padding: 8px 16px 14px; list-style: none;
+}
+.sm-fix-guide-step {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 12.5px; color: var(--text-dim); line-height: 1.6;
+  padding-top: 10px;
+}
+.sm-fix-guide-num {
+  display: flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); color: var(--green-bright);
+  font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+}
 /* Inline integration form inside checklist item */
 .sm-inline-form {
   padding: 16px; border-top: 1px solid var(--line);
@@ -1401,6 +1425,9 @@ html.light .sm-action-label { color: var(--green); }
 html.light .sm-setup-guide { background: #f0f8f4; border-color: #c8e8d8; }
 html.light .sm-setup-guide-hd { background: #e4f5ec; color: var(--green); }
 html.light .sm-setup-step-num { background: #d0eadb; color: var(--green); }
+html.light .sm-fix-guide { background: #f0f8f4; border-color: #c8e8d8; }
+html.light .sm-fix-guide-hd { background: #e4f5ec; color: var(--green); }
+html.light .sm-fix-guide-num { background: #d0eadb; color: var(--green); }
 html.light .sm-setup-link { background: var(--accent); color: var(--green); }
 html.light .st-guide { background: var(--bg-soft); }
 html.light .st-guide-step::before { color: #ffffff; }
@@ -1647,6 +1674,16 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
   }
 }
 
+/* ── Skeleton loading ─────────────────────────────────────────────────────── */
+@keyframes skel-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .4; }
+}
+.skel {
+  background: var(--card); border: 1px solid var(--line);
+  animation: skel-pulse 1.6s ease-in-out infinite;
+}
+
 /* ── Export button (level header) ─────────────────────────────────────────── */
 .level-export-btn {
   display: inline-flex; align-items: center; gap: 6px;
@@ -1790,6 +1827,7 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
 
   /* ── Dashboard item setup guide + inline form ── */
   .sm-setup-step { font-size: 11.5px; padding-top: 9px; }
+  .sm-fix-guide-step { font-size: 11.5px; padding-top: 9px; }
   .sm-inline-form { padding: 14px; }
   .sm-inline-input { font-size: 12.5px; padding: 9px 11px; }
   .sm-inline-btn { display: block; width: 100%; text-align: center; padding: 11px 18px; }

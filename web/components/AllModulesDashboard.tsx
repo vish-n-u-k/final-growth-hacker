@@ -383,15 +383,20 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
       cats.forEach(cat => {
         const catLines: string[] = []
         cat.subCategories.forEach(sub => {
-          const incomplete = sub.items.filter(item => { const s = states[item.slug]; return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction) })
+          const incomplete = sub.items.filter(item => { const s = states[item.slug]; return !s?.aiVerified && !s?.userChecked })
           if (incomplete.length === 0) return
           catLines.push(`### ${sub.label}`); catLines.push('')
           incomplete.forEach(item => {
-            const s = states[item.slug]!; itemNum++
+            const s = states[item.slug]; itemNum++
             catLines.push(`#### ${itemNum}. ${item.label}`); catLines.push('')
-            if (s.aiDetail) { catLines.push(`**What:** ${s.aiDetail}`); catLines.push('') }
-            if (s.aiNarrative) { catLines.push(`**Why this matters:**`); catLines.push(s.aiNarrative); catLines.push('') }
-            if (s.aiAction) { catLines.push(`**Your action:**`); catLines.push(s.aiAction); catLines.push('') }
+            if (s?.aiDetail) { catLines.push(`**What:** ${s.aiDetail}`); catLines.push('') }
+            if (s?.aiNarrative) { catLines.push(`**Why this matters:**`); catLines.push(s.aiNarrative); catLines.push('') }
+            if (s?.aiAction) { catLines.push(`**Your action:**`); catLines.push(s.aiAction); catLines.push('') }
+            if (item.fixGuide?.length) {
+              catLines.push(`**How to implement:**`)
+              item.fixGuide.forEach((step, i) => catLines.push(`${i + 1}. ${step}`))
+              catLines.push('')
+            }
             catLines.push('---'); catLines.push('')
           })
         })
@@ -436,19 +441,21 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     lines.push('')
     let itemNum = 0
     cat.subCategories.forEach(sub => {
-      const incomplete = sub.items.filter(item => {
-        const s = states[item.slug]
-        return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction)
-      })
+      const incomplete = sub.items.filter(item => { const s = states[item.slug]; return !s?.aiVerified && !s?.userChecked })
       if (incomplete.length === 0) return
       lines.push(`## ${sub.label}`); lines.push('')
       incomplete.forEach(item => {
-        const s = states[item.slug]!
+        const s = states[item.slug]
         itemNum++
         lines.push(`### ${itemNum}. ${item.label}`); lines.push('')
-        if (s.aiDetail) { lines.push(`**What:** ${s.aiDetail}`); lines.push('') }
-        if (s.aiNarrative) { lines.push(`**Why this matters:**`); lines.push(s.aiNarrative); lines.push('') }
-        if (s.aiAction) { lines.push(`**Your action:**`); lines.push(s.aiAction); lines.push('') }
+        if (s?.aiDetail) { lines.push(`**What:** ${s.aiDetail}`); lines.push('') }
+        if (s?.aiNarrative) { lines.push(`**Why this matters:**`); lines.push(s.aiNarrative); lines.push('') }
+        if (s?.aiAction) { lines.push(`**Your action:**`); lines.push(s.aiAction); lines.push('') }
+        if (item.fixGuide?.length) {
+          lines.push(`**How to implement:**`)
+          item.fixGuide.forEach((step, i) => lines.push(`${i + 1}. ${step}`))
+          lines.push('')
+        }
         lines.push('---'); lines.push('')
       })
     })
@@ -575,7 +582,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     const needsAttention = s && !aiV && !userC
     const itemKey = `${modId}:${item.slug}`
     const isExpanded = expandedItems.has(itemKey)
-    const hasDetail = !!(s?.aiNarrative || s?.aiAction)
+    const hasDetail = !!(s?.aiNarrative || s?.aiAction || item.fixGuide?.length)
     const isVerifying = verifyingItems.has(itemKey)
 
     return (
@@ -644,6 +651,19 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   </div>
                 )
               })()}
+              {item.fixGuide?.length && !done && (
+                <div className="sm-fix-guide">
+                  <div className="sm-fix-guide-hd">How to implement this</div>
+                  <ol className="sm-fix-guide-steps">
+                    {item.fixGuide.map((step, i) => (
+                      <li key={i} className="sm-fix-guide-step">
+                        <span className="sm-fix-guide-num">{i + 1}</span>
+                        <span style={{ whiteSpace: 'pre-wrap' }}>{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
             </div>
           )}
         </div>
