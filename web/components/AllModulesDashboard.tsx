@@ -111,9 +111,16 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   )
   const [userCount, setUserCount] = useState(0)
   const [editingCount, setEditingCount] = useState(false)
+  const [posthogLoading, setPosthogLoading] = useState(false)
 
   useEffect(() => {
-    setUserCount( 0)
+    if (!connectedIntegrations['posthog']) return
+    setPosthogLoading(true)
+    fetch('/api/posthog/user-count')
+      .then((r) => r.json())
+      .then((d: { count?: number }) => { if (d.count != null) setUserCount(d.count) })
+      .catch(() => {})
+      .finally(() => setPosthogLoading(false))
   }, [])
 
   const router = useRouter()
@@ -601,31 +608,43 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
         {/* Overview */}
         <div className="overview">
-          <div
-            className="big-num"
-            onClick={() => !editingCount && setEditingCount(true)}
-            title="Click to update your user count"
-          >
-            {editingCount ? (
-              <input
-                autoFocus
-                type="number"
-                min={0}
-                max={9999}
-                defaultValue={userCount}
-                onBlur={(e) => {
-                  const val = Math.max(0, parseInt(e.target.value, 10) || 0)
-                  setUserCount(val)
-                  localStorage.setItem('gh_user_count', String(val))
-                  setEditingCount(false)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                  if (e.key === 'Escape') setEditingCount(false)
-                }}
-              />
-            ) : userCount}
-            <span>/500</span>
+          <div>
+            <div
+              className="big-num"
+              onClick={connectedIntegrations['posthog'] ? undefined : () => !editingCount && setEditingCount(true)}
+              title={connectedIntegrations['posthog'] ? 'Live user count from PostHog' : 'Click to update your user count'}
+              style={connectedIntegrations['posthog'] ? { cursor: 'default' } : undefined}
+            >
+              {connectedIntegrations['posthog'] ? (
+                posthogLoading ? '…' : userCount.toLocaleString()
+              ) : editingCount ? (
+                <input
+                  autoFocus
+                  type="number"
+                  min={0}
+                  max={9999}
+                  defaultValue={userCount}
+                  onBlur={(e) => {
+                    const val = Math.max(0, parseInt(e.target.value, 10) || 0)
+                    setUserCount(val)
+                    setEditingCount(false)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                    if (e.key === 'Escape') setEditingCount(false)
+                  }}
+                />
+              ) : userCount}
+              <span>/500</span>
+            </div>
+            {!connectedIntegrations['posthog'] && (
+              <a
+                href="/settings"
+                style={{ display: 'block', fontSize: '11px', color: 'var(--green)', marginTop: '6px', textDecoration: 'none', fontFamily: 'var(--font-body)', fontWeight: 400 }}
+              >
+                Connect PostHog to track automatically →
+              </a>
+            )}
           </div>
           <div className="meta">
             <div className="lvl">Currently · Level {currentLevel}</div>
@@ -701,7 +720,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     </div>
                   )}
 
-                  {!isLocked && (def.dynamic ? dynItems.some(i => !i.aiVerified && !i.userChecked) : (def.categories as ModuleCategoryDefinition[]).some(cat => cat.subCategories.some(sub => sub.items.some(item => { const s = states[item.slug]; return s && !s.aiVerified && !s.userChecked && (s.aiDetail || s.aiNarrative || s.aiAction) })))) && (
+                  {!isLocked && !!modData.lastAnalyzedAt && (
                     <button
                       onClick={(e) => { e.stopPropagation(); downloadModuleMd(modData, states, dynItems) }}
                       className="level-export-btn"
@@ -734,13 +753,13 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         className="gap-2 border-[var(--green)] w-30 px-4 h-9 text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)] text-sm font-semibold"
                       >
                         {reanalyzing ? (
-                          <><span className="md-spin p-3" />Re-analysing…</>
+                          <><span className="md-spin p-3" />{modData.lastAnalyzedAt ? 'Re-analysing…' : 'Analysing…'}</>
                         ) : (
                           <>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
                               <path d="M4 4v6h6M20 20v-6h-6M4.06 15a9 9 0 1 0 .94-6.93" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
-                            Re-analyse
+                            {modData.lastAnalyzedAt ? 'Re-analyse' : 'Analyse'}
                           </>
                         )}
                       </Button>
@@ -819,17 +838,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                     <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
                                   </div>
                                   <div className="md-cat-hd-right">
-                                    {catItems.some(item => !item.aiVerified && !item.userChecked) && (
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); downloadDynamicCategoryMd(modData.name, cat, catItems) }}
-                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '11px', fontWeight: 500, background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
-                                      >
-                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                        </svg>
-                                        Export
-                                      </button>
-                                    )}
                                     <div className="md-cat-mini-bar">
                                       <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
                                       <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
@@ -870,17 +878,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                     <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
                                   </div>
                                   <div className="md-cat-hd-right">
-                                    {cat.subCategories.some(sub => sub.items.some(item => !states[item.slug]?.aiVerified && !states[item.slug]?.userChecked)) && (
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); downloadStaticCategoryMd(modData.name, cat, states) }}
-                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '11px', fontWeight: 500, background: 'transparent', cursor: 'pointer', flexShrink: 0 }}
-                                      >
-                                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                        </svg>
-                                        Export
-                                      </button>
-                                    )}
                                     <div className="md-cat-mini-bar">
                                       <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
                                       <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
