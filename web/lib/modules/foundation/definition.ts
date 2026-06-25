@@ -138,6 +138,11 @@ Rules:
               prompt: 'Check the HTML scripts for PostHog analytics. Look for posthog-js in script src attributes, posthog.init( calls in inline scripts, or scripts loading from us.posthog.com, eu.posthog.com, or app.posthog.com. Report exactly what you find. If none is detected, flag it as missing — PostHog is essential for tracking user behaviour, funnels, and growth metrics.',
               order: 3,
               weight: 2,
+              assistedInput: {
+                key: 'posthog_project_id',
+                integrationProvider: 'posthog',
+                setupInstructions: 'Go to posthog.com → sign up → copy the JS snippet into your site\'s <head> → then get your Personal API Key and Project ID from PostHog → Project Settings and save them in Settings → Integrations → PostHog.',
+              },
             },
           ],
         },

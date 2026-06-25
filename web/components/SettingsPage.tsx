@@ -398,6 +398,7 @@ function IntegrationCard({
   const [saving, setSaving] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const [error, setError] = useState('')
+  const [showGuide, setShowGuide] = useState(false)
   const router = useRouter()
 
   const isConnected = !!connected && connected.status === 'connected'
@@ -460,6 +461,33 @@ function IntegrationCard({
         </div>
       ) : (
         <form onSubmit={handleSave} className="st-int-form">
+          {def.setupSteps && def.setupSteps.length > 0 && (
+            <div className="st-guide">
+              <button
+                type="button"
+                className="st-guide-toggle"
+                onClick={() => setShowGuide((v) => !v)}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span className="st-guide-toggle-label">How to set up {def.name}</span>
+                <svg
+                  width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ flexShrink: 0, transform: showGuide ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+                >
+                  <path d="M6 9l6 6 6-6"/>
+                </svg>
+              </button>
+              {showGuide && (
+                <ol className="st-guide-steps">
+                  {def.setupSteps.map((step, i) => (
+                    <li key={i} className="st-guide-step">{step}</li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
           {def.fields.map((field) => (
             <div key={field.key} className="st-field">
               <label className="st-label">{field.label}</label>

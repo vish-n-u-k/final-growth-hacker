@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import ThemeToggle from '@/components/ThemeToggle'
 import { type DBItemState } from './ModuleDashboard'
+import { INTEGRATION_MAP } from '@/lib/integrations/registry'
 
 export interface ModuleData {
   id: string
@@ -554,6 +555,33 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   <p className="sm-action-text">{s.aiAction}</p>
                 </div>
               )}
+              {(() => {
+                const provider = item.assistedInput?.integrationProvider
+                if (!provider || connectedIntegrations[provider]) return null
+                const intDef = INTEGRATION_MAP[provider]
+                if (!intDef?.setupSteps?.length) return null
+                return (
+                  <div className="sm-setup-guide">
+                    <div className="sm-setup-guide-hd">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                      </svg>
+                      How to set up {intDef.name}
+                    </div>
+                    <ol className="sm-setup-steps">
+                      {intDef.setupSteps.map((step, i) => (
+                        <li key={i} className="sm-setup-step">{step}</li>
+                      ))}
+                    </ol>
+                    <a href="/settings" className="sm-setup-link">
+                      Go to Settings → Integrations
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto' }}>
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                      </svg>
+                    </a>
+                  </div>
+                )
+              })()}
             </div>
           )}
         </div>
