@@ -183,7 +183,7 @@ header {
 .pill.clear { background: #1d3a2a; color: var(--green-bright); border: 1px solid var(--green); }
 .pill.soon { background: var(--bg-soft); color: var(--text-faint); border: 1px solid var(--line); }
 
-.level-prog { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-dim); }
+.level-prog { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-dim); flex-shrink: 0; }
 .mini-track { width: 70px; height: 6px; background: var(--bg-soft); border-radius: 4px; overflow: hidden; }
 .mini-fill { height: 100%; background: var(--green-bright); border-radius: 4px; }
 .chev { color: var(--text-faint); transition: transform .25s; flex-shrink: 0; }
@@ -2183,6 +2183,6 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
   .level-head { padding: 14px 14px; gap: 8px; }
   .level-badge { width: 32px; height: 32px; font-size: 14px; border-radius: 9px; }
   .level-info .name { font-size: 14px; }
-  /* Hide progress bar on very small screens — too cramped */
-  .level-prog { display: none; }
+  .level-prog { display: flex; gap: 4px; font-size: 12px; font-weight: 600; color: var(--green-bright); }
+  .mini-track { display: none; }
 }
