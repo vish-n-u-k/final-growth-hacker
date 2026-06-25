@@ -10,6 +10,7 @@ export interface FoundationExtracted {
   ga4Id: string
   gtmId: string
   hasAnalyticsScript: boolean
+  posthogDetected: boolean
   h1: string
   h2s: string[]
   bodyTextSnippet: string
@@ -86,10 +87,11 @@ function extractFoundationData(html: string): FoundationExtracted {
   // Google verification
   const gscVerification = $('meta[name="google-site-verification"]').attr('content') ?? ''
 
-  // GA4 / GTM detection — must run BEFORE scripts are stripped
+  // GA4 / GTM / PostHog detection — must run BEFORE scripts are stripped
   let ga4Id = ''
   let gtmId = ''
   let hasAnalyticsScript = false
+  let posthogDetected = false
   $('script').each((_, el) => {
     const src = $(el).attr('src') ?? ''
     const inline = $(el).html() ?? ''
@@ -100,6 +102,16 @@ function extractFoundationData(html: string): FoundationExtracted {
     const gtmMatch = inline.match(/['"]?(GTM-[A-Z0-9]+)['"]?/) ?? src.match(/[?&]id=(GTM-[A-Z0-9]+)/)
     if (gtmMatch) { gtmId = gtmMatch[1]; hasAnalyticsScript = true }
     if (inline.includes('gtag(') || inline.includes('dataLayer')) hasAnalyticsScript = true
+    // PostHog detection
+    if (
+      src.includes('posthog-js') ||
+      src.includes('us.posthog.com') ||
+      src.includes('eu.posthog.com') ||
+      src.includes('app.posthog.com') ||
+      inline.includes('posthog.init(') ||
+      inline.includes("require('posthog-js')") ||
+      inline.includes('require("posthog-js")')
+    ) posthogDetected = true
   })
 
   // remove noise before text extraction
@@ -156,6 +168,7 @@ function extractFoundationData(html: string): FoundationExtracted {
     ga4Id,
     gtmId,
     hasAnalyticsScript,
+    posthogDetected,
     h1,
     h2s,
     bodyTextSnippet,
