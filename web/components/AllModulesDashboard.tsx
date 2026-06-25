@@ -741,7 +741,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
               style={connectedIntegrations['posthog'] ? { cursor: 'default' } : undefined}
             >
               {connectedIntegrations['posthog'] ? (
-                posthogLoading ? '…' : userCount.toLocaleString()
+                posthogLoading ? <span className="count-loading"><span /><span /><span /></span> : userCount.toLocaleString()
               ) : editingCount ? (
                 <input
                   autoFocus
