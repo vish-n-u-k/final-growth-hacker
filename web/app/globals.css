@@ -1833,6 +1833,287 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
   .sm-inline-btn { display: block; width: 100%; text-align: center; padding: 11px 18px; }
 }
 
+/* Settings mobile responsiveness */
+@media (max-width: 768px) {
+  .st-page-hd {
+    padding: 20px 16px 28px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 14px;
+  }
+
+  .st-drawer-toggle {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    transition: all .15s;
+    flex-shrink: 0;
+  }
+
+  .st-drawer-toggle:hover {
+    background: var(--card-hi);
+    border-color: var(--green);
+    color: var(--green-bright);
+  }
+
+  .st-page-title {
+    display: block !important;
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0;
+  }
+
+  .st-page-sub {
+    display: none !important;
+  }
+
+  .st-layout {
+    display: block !important;
+    border-top: none !important;
+    padding: 24px 16px 60px !important;
+    grid-template-columns: auto !important;
+    gap: auto !important;
+    position: relative;
+  }
+
+  .st-section {
+    gap: 16px !important;
+    margin-bottom: 24px !important;
+  }
+
+  .st-section-hd {
+    margin-bottom: 12px !important;
+  }
+
+  .st-section-title {
+    font-size: 20px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .st-section-desc {
+    font-size: 13px !important;
+    margin: 0 !important;
+  }
+
+  .st-card {
+    padding: 24px !important;
+    border-radius: 14px !important;
+  }
+
+  .st-form {
+    gap: 18px !important;
+  }
+
+  .st-field {
+    gap: 8px !important;
+  }
+
+  .st-layout::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    z-index: 999;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+  }
+
+  .st-layout.drawer-open::before {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .st-tabs {
+    position: fixed !important;
+    top: 0 !important;
+    left: -280px !important;
+    width: 280px !important;
+    height: 100vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1px !important;
+    padding: 80px 20px 24px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    background: var(--bg) !important;
+    border-right: 1px solid var(--line) !important;
+    border-bottom: none !important;
+    z-index: 1000 !important;
+    transition: left 0.3s ease !important;
+  }
+
+  .st-layout.drawer-open .st-tabs {
+    left: 0 !important;
+  }
+
+  .st-tab {
+    border-left: 2px solid transparent !important;
+    border-bottom: none !important;
+  }
+
+  .st-content {
+    padding: 0 !important;
+  }
+}
+
+/* Desktop: restore sidebar and hide hamburger */
+@media (min-width: 769px) {
+  .st-drawer-toggle {
+    display: none !important;
+  }
+
+  .st-page-hd {
+    padding: 36px 40px 28px 200px;
+    border-bottom: none;
+    display: block;
+    margin: 0;
+    width: 100%;
+  }
+
+  .st-page-title {
+    display: block !important;
+    font-size: 26px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+
+  .st-page-sub {
+    display: block !important;
+    font-size: 14px;
+    color: var(--text-dim);
+    margin: 0;
+  }
+
+  .st-layout {
+    display: grid !important;
+    grid-template-columns: 164px 1fr !important;
+    padding: 28px 0 60px !important;
+    gap: 0 !important;
+    align-items: start !important;
+    position: relative;
+    border-top: 1px solid var(--line);
+  }
+
+  .st-layout::before {
+    display: none !important;
+  }
+
+  .st-layout.drawer-open::before {
+    display: none !important;
+  }
+
+  .st-layout.drawer-open .st-tabs {
+    left: auto !important;
+  }
+
+  .st-tabs {
+    position: sticky !important;
+    top: 24px !important;
+    left: auto !important;
+    width: auto !important;
+    height: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1px !important;
+    padding: 24px 20px 24px 0 !important;
+    padding-right: 20px !important;
+    overflow-y: visible !important;
+    background: transparent !important;
+    border-right: 0px solid var(--line) !important;
+    border-bottom: none !important;
+    z-index: auto !important;
+    transition: none !important;
+  }
+
+  .st-tabs.open {
+    left: auto !important;
+  }
+
+  .st-tab {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 11px 14px 11px 12px !important;
+    border-left: 2px solid transparent !important;
+    border-bottom: none !important;
+    border-radius: 9px !important;
+    width: 100% !important;
+    min-width: auto !important;
+    white-space: normal !important;
+    flex-shrink: auto !important;
+    border-bottom: none;
+    border-radius: 9px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .st-tab:hover {
+    background: var(--card-hi);
+    border-left-color: var(--line);
+  }
+
+  .st-tab-active {
+    background: #1a352688 !important;
+    border-left-color: var(--green) !important;
+  }
+
+  .st-content {
+    min-width: 0;
+    padding: 32px 0 0 40px;
+  }
+
+  .st-content {
+    min-width: 0;
+    padding: 24px 0 0;
+  }
+
+  .st-section { gap: 20px; }
+  .st-section-title { font-size: 18px; }
+  .st-section-desc { font-size: 13px; }
+
+  .st-form { max-width: 100%; }
+  .st-field { gap: 6px; }
+  .st-input { font-size: 14px; padding: 10px 12px; }
+  .st-label { font-size: 10px; }
+
+  .st-int-card {
+    padding: 18px 20px;
+    gap: 14px;
+  }
+
+  .st-int-card-hd {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .st-int-provider-name { font-size: 14px; }
+  .st-int-desc { font-size: 12px; }
+
+  .st-int-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .st-int-actions button {
+    width: 100%;
+  }
+}
+
 /* Dashboard mobile responsiveness */
 @media (max-width: 768px) {
   .md-layout {
