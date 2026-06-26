@@ -112,6 +112,6 @@ export async function POST(request: NextRequest) {
     createdModules.push({ id: mod.id, type: def.type, order: def.order })
   }
 
-  const foundationModule = createdModules.find((m) => m.order === 0)
-  return NextResponse.json({ moduleId: foundationModule?.id })
+  const firstModule = createdModules.find((m) => m.order === 0)
+  return NextResponse.json({ moduleId: firstModule?.id })
 }

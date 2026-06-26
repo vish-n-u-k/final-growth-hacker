@@ -4,7 +4,7 @@ export const USER_ANALYTICS_MODULE: ModuleDefinition = {
   type: 'user-analytics',
   name: 'User Analytics',
   description: 'Connect PostHog to see who is using your product, where they drop off, and what to fix first.',
-  order: 12,
+  order: 13,
   unlockThreshold: 80,
   dynamic: true,
   requirements: [],

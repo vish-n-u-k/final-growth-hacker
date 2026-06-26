@@ -30,6 +30,8 @@ import { fetchCompetitorGapData } from '@/lib/modules/geo-competitor-gap/fetcher
 import { analyzeCompetitorGap } from '@/lib/modules/geo-competitor-gap/agent'
 import { fetchUserAnalyticsData } from '@/lib/modules/user-analytics/fetcher'
 import { analyzeUserAnalytics } from '@/lib/modules/user-analytics/agent'
+import { fetchUserAcquisitionData } from '@/lib/modules/user-acquisition/fetcher'
+import { analyzeUserAcquisition } from '@/lib/modules/user-acquisition/agent'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
@@ -42,6 +44,10 @@ async function runAnalysis(
   brainCtx?: string,
 ): Promise<ModuleAnalysisResult[] | DynamicModuleAnalysisResult[]> {
   switch (moduleType) {
+    case 'user-acquisition': {
+      const data = await fetchUserAcquisitionData(requirements)
+      return analyzeUserAcquisition(data, brainCtx)
+    }
     case 'foundation': {
       const data = await fetchFoundationData(requirements)
       if (!data.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)
@@ -173,7 +179,7 @@ export async function POST(request: NextRequest) {
 
   await db.update(modules).set({ status: 'analyzing' }).where(eq(modules.id, moduleId))
 
-  // Get relevant brain context to inject into this module's agent (skip for Foundation — runs first)
+  // Get relevant brain context to inject into this module's agent (skip for User Acquisition — runs first, no prior context)
   let brainCtx: string | undefined
   if (def.order > 0) {
     try {
@@ -441,7 +447,7 @@ export async function POST(request: NextRequest) {
                 slug: item.slug,
                 label: item.label,
                 weight: item.weight,
-              })
+              }).onConflictDoNothing()
             }
           }
         }

@@ -4,7 +4,7 @@ export const SEO_MODULE: ModuleDefinition = {
   type: 'seo',
   name: 'SEO Audit',
   description: 'Rule-based SEO audit across meta tags, headings, images, internal links, structured data, and technical performance. Deterministic checks with AI-generated impact narratives.',
-  order: 2,
+  order: 3,
   unlockThreshold: 80,
   dynamic: false,
   requirements: [
