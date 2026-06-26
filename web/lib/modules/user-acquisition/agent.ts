@@ -76,7 +76,7 @@ export async function analyzeUserAcquisition(
   const raw = await callAI({
     system: USER_ACQUISITION_MODULE.systemPrompt,
     prompt,
-    maxTokens: 6000,
+    maxTokens: 10000,
     model: 'claude-haiku-4-5-20251001',
   })
 

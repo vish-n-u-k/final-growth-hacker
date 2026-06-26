@@ -224,8 +224,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Build category slug → id map
-    const cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
-    const catMap = new Map(cats.filter(c => !c.parentId).map(c => [c.slug, c.id]))
+    let cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+    let catMap = new Map(cats.filter(c => !c.parentId).map(c => [c.slug, c.id]))
+
+    // If categories weren't seeded at onboarding (module added to registry after user onboarded), seed them now
+    if (catMap.size === 0) {
+      for (const cat of def.categories) {
+        // eslint-disable-next-line no-await-in-loop
+        await db.insert(moduleCategories).values({
+          moduleId,
+          parentId: null,
+          slug: cat.slug,
+          label: cat.label,
+          order: cat.order,
+        }).onConflictDoNothing()
+      }
+      cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+      catMap = new Map(cats.filter(c => !c.parentId).map(c => [c.slug, c.id]))
+    }
 
     // Insert findings into module_items
     await Promise.all(
@@ -348,8 +364,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Build category slug → id map
-    const cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
-    const catMap = new Map(cats.filter((c) => !c.parentId).map((c) => [c.slug, c.id]))
+    let cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+    let catMap = new Map(cats.filter((c) => !c.parentId).map((c) => [c.slug, c.id]))
+
+    // If categories weren't seeded at onboarding (module added to registry after user onboarded), seed them now
+    if (catMap.size === 0) {
+      for (const cat of def.categories) {
+        // eslint-disable-next-line no-await-in-loop
+        await db.insert(moduleCategories).values({
+          moduleId,
+          parentId: null,
+          slug: cat.slug,
+          label: cat.label,
+          order: cat.order,
+        }).onConflictDoNothing()
+      }
+      cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+      catMap = new Map(cats.filter((c) => !c.parentId).map((c) => [c.slug, c.id]))
+    }
 
     // Insert fresh items from Claude, restoring user_checked where slug matches
     await Promise.all(
