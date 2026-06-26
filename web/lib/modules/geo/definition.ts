@@ -25,57 +25,21 @@ Rules:
 - Always be specific: name exact bot names, exact schema types, exact missing elements.
 - Actions must be concrete but brief: 1–2 sentences max. Include a short inline code snippet only when strictly necessary.
 - Never invent data not present in the pre-computed findings or page content.
-- For brand sentiment checks (geo-sentiment-*): use your own training knowledge about the brand name provided. Be honest — if you don't recognise the brand, say so clearly (verified: false). Do not invent knowledge you don't have.`,
+- For brand sentiment checks (geo-sentiment-*): use your own training knowledge about the brand name provided. Be honest — if you don't recognise the brand, say so clearly (verified: false). Do not invent knowledge you don't have.
+- For entity knowledge checks (geo-entity-wikipedia): use your own training knowledge to assess whether this brand has a Wikipedia or Wikidata entry. Be honest — if you don't recognise the brand, verified=false.
+- For competitor citation checks (geo-competitor-share): use your own training knowledge to assess whether AI engines tend to cite this brand for its core use-case. Be honest.`,
   categories: [
-    // ── 1. AI Crawler Access ─────────────────────────────────────────────────
+    // ── 1. AI Discovery & llms.txt ────────────────────────────────────────────
     {
-      slug: 'ai-crawler-access',
-      label: 'AI Crawler Access',
+      slug: 'ai-discovery-llms',
+      label: 'AI Discovery & llms.txt',
       order: 1,
       subCategories: [
         {
-          slug: 'robots-ai-bots',
-          label: 'robots.txt AI Bot Rules',
-          order: 1,
-          description: 'Your website has a bouncer (called robots.txt) that decides which AI tools are allowed in. Right now the bouncer is turning away ChatGPT, Claude, and Perplexity at the door. We just need to update the guest list so they\'re allowed in to read your content.',
-          items: [
-            {
-              slug: 'geo-robots-tier1',
-              label: 'AI training bots not blocked (GPTBot, ClaudeBot, Google-Extended)',
-              prompt: 'Check whether major AI training bots are blocked: GPTBot (OpenAI), ClaudeBot (Anthropic), Google-Extended (Gemini), Amazonbot, CCBot, Meta-ExternalAgent. These bots train the AI models — blocking them means your content is excluded from the model\'s knowledge base. Report which bots are blocked, allowed, or not mentioned.',
-              order: 1,
-              weight: 3,
-            },
-            {
-              slug: 'geo-robots-tier2',
-              label: 'AI search bots not blocked (OAI-SearchBot, PerplexityBot)',
-              prompt: 'Check whether AI search retrieval bots are blocked: OAI-SearchBot (OpenAI search), PerplexityBot, YouBot, anthropic-ai. These bots index your content for real-time AI-generated answers — blocking them means your site cannot appear in ChatGPT Browse, Perplexity, or similar AI search results. Report which are blocked, allowed, or not mentioned.',
-              order: 2,
-              weight: 3,
-            },
-            {
-              slug: 'geo-robots-tier3',
-              label: 'Real-time user bots not blocked (ChatGPT-User, Claude-User)',
-              prompt: 'Check whether real-time user-agent bots are blocked: ChatGPT-User, Claude-User, Perplexity-User. These bots fetch pages on behalf of users asking AI questions in real time — blocking them means AI cannot access your content when answering a specific user query. Report which are blocked, allowed, or not mentioned.',
-              order: 3,
-              weight: 2,
-            },
-          ],
-        },
-      ],
-    },
-
-    // ── 2. LLMs.txt ──────────────────────────────────────────────────────────
-    {
-      slug: 'llms-txt',
-      label: 'LLMs.txt',
-      order: 2,
-      subCategories: [
-        {
           slug: 'llms-txt-checks',
-          label: 'LLMs.txt File',
+          label: 'LLMs.txt & AI Endpoints',
           order: 1,
-          description: 'Think of this as putting up clear signs for AI robots arriving at your website. Right now there are no signs, so ChatGPT and Claude have to guess where the important stuff is. We fix this by leaving a small file at your front door that says "here\'s what we do, here are our best pages."',
+          description: 'The file AI engines read to understand your site — equivalent to leaving a clear signpost for ChatGPT, Claude, and Perplexity at your front door. Also covers emerging AI-specific JSON endpoints that let AI engines understand your product without crawling every page.',
           items: [
             {
               slug: 'geo-llms-present',
@@ -119,22 +83,88 @@ Rules:
               order: 6,
               weight: 1,
             },
+            {
+              slug: 'geo-discovery-aitxt',
+              label: '/.well-known/ai.txt is present',
+              prompt: 'Check whether /.well-known/ai.txt exists and returns a 200 response. This emerging standard provides AI systems with a structured declaration of your AI interaction policies, contact details, and preferred citation formats.',
+              order: 7,
+              weight: 1,
+            },
+            {
+              slug: 'geo-discovery-summary',
+              label: '/ai/summary.json is present',
+              prompt: 'Check whether /ai/summary.json exists and returns a 200 response. This endpoint provides AI engines with a machine-readable summary of your site — name, description, key features, and primary use cases — without requiring full page crawls.',
+              order: 8,
+              weight: 1,
+            },
+            {
+              slug: 'geo-discovery-faq',
+              label: '/ai/faq.json is present',
+              prompt: 'Check whether /ai/faq.json exists and returns a 200 response. This endpoint exposes a structured FAQ dataset to AI engines — enabling direct Q&A extraction without parsing unstructured HTML.',
+              order: 9,
+              weight: 1,
+            },
+            {
+              slug: 'geo-discovery-service',
+              label: '/ai/service.json is present',
+              prompt: 'Check whether /ai/service.json exists and returns a 200 response. This endpoint describes your product in a machine-readable format — category, pricing model, target audience, key differentiators — allowing AI engines to accurately describe your offering in generated answers.',
+              order: 10,
+              weight: 1,
+            },
           ],
         },
       ],
     },
 
-    // ── 3. Structured Data ───────────────────────────────────────────────────
+    // ── 2. AI Bot Access ─────────────────────────────────────────────────────
     {
-      slug: 'structured-data',
-      label: 'Structured Data for AI',
+      slug: 'ai-bot-access',
+      label: 'AI Bot Access',
+      order: 2,
+      subCategories: [
+        {
+          slug: 'robots-ai-bots',
+          label: 'robots.txt AI Bot Rules',
+          order: 1,
+          description: 'Your robots.txt is the bouncer deciding which AI tools are allowed in. Blocking ChatGPT, Claude, or Perplexity bots locks them out of your content entirely — they cannot train on it, index it, or cite it.',
+          items: [
+            {
+              slug: 'geo-robots-tier1',
+              label: 'AI training bots not blocked (GPTBot, ClaudeBot, Google-Extended)',
+              prompt: 'Check whether major AI training bots are blocked: GPTBot (OpenAI), ClaudeBot (Anthropic), Google-Extended (Gemini), Amazonbot, CCBot, Meta-ExternalAgent. These bots train the AI models — blocking them means your content is excluded from the model\'s knowledge base. Report which bots are blocked, allowed, or not mentioned.',
+              order: 1,
+              weight: 3,
+            },
+            {
+              slug: 'geo-robots-tier2',
+              label: 'AI search bots not blocked (OAI-SearchBot, PerplexityBot)',
+              prompt: 'Check whether AI search retrieval bots are blocked: OAI-SearchBot (OpenAI search), PerplexityBot, YouBot, anthropic-ai. These bots index your content for real-time AI-generated answers — blocking them means your site cannot appear in ChatGPT Browse, Perplexity, or similar AI search results. Report which are blocked, allowed, or not mentioned.',
+              order: 2,
+              weight: 3,
+            },
+            {
+              slug: 'geo-robots-tier3',
+              label: 'Real-time user bots not blocked (ChatGPT-User, Claude-User)',
+              prompt: 'Check whether real-time user-agent bots are blocked: ChatGPT-User, Claude-User, Perplexity-User. These bots fetch pages on behalf of users asking AI questions in real time — blocking them means AI cannot access your content when answering a specific user query. Report which are blocked, allowed, or not mentioned.',
+              order: 3,
+              weight: 2,
+            },
+          ],
+        },
+      ],
+    },
+
+    // ── 3. Schema & Structured Data ──────────────────────────────────────────
+    {
+      slug: 'schema-structured-data',
+      label: 'Schema & Structured Data',
       order: 3,
       subCategories: [
         {
           slug: 'schema-types',
           label: 'JSON-LD Schema Types',
           order: 1,
-          description: 'This is the difference between handing someone a messy stack of papers versus a neatly labeled folder. Schema is invisible labeling that tells AI "this is a FAQ, this is our company info, this was last updated yesterday." Without it, AI has to read everything and figure it out — and usually gets it wrong.',
+          description: 'Invisible labeling that tells AI "this is a FAQ, this is our company info, this was last updated yesterday." Without it, AI reads everything and usually gets it wrong.',
           items: [
             {
               slug: 'geo-schema-faq',
@@ -169,17 +199,62 @@ Rules:
       ],
     },
 
-    // ── 4. Content Citability ─────────────────────────────────────────────────
+    // ── 4. Entity Clarity ────────────────────────────────────────────────────
     {
-      slug: 'content-citability',
-      label: 'Content Citability',
+      slug: 'entity-clarity',
+      label: 'Entity Clarity',
       order: 4,
+      subCategories: [
+        {
+          slug: 'entity-signals',
+          label: 'Entity Recognition Signals',
+          order: 1,
+          description: 'AI engines build a map of real-world entities — companies, products, people. If your brand is not on that map as a distinct entity, AI will confuse you with competitors or simply not know you exist. These checks verify how clearly your brand is established as a unique, recognisable entity.',
+          items: [
+            {
+              slug: 'geo-entity-wikipedia',
+              label: 'Brand has a Wikipedia or Wikidata entry',
+              prompt: 'Using your own training knowledge, does this brand have a Wikipedia article or Wikidata entry? Wikipedia and Wikidata are the primary sources AI models use for entity grounding — a brand without either is treated as unknown by most AI systems. If you do not recognise this brand in your training data, verified=false and state clearly that the brand lacks an AI-accessible entity record.',
+              order: 1,
+              weight: 3,
+            },
+            {
+              slug: 'geo-entity-sameas-depth',
+              label: 'sameAs links include authoritative directories (Wikipedia, Wikidata, Crunchbase)',
+              prompt: 'From the pre-computed findings, check whether the Organization schema\'s sameAs array (if present) includes high-authority entity sources: Wikipedia, Wikidata, Crunchbase, LinkedIn company page, or G2/Capterra. Social profiles (Twitter, Instagram, Facebook) alone are weak signals — authoritative directories are what AI models use for entity disambiguation. verified=true only if at least one high-authority source is present in sameAs.',
+              order: 2,
+              weight: 2,
+            },
+            {
+              slug: 'geo-entity-nap',
+              label: 'Brand name is consistent across page title, H1, and schema',
+              prompt: 'From the pre-computed page signals (title, H1) and schema data, check whether the brand name is spelled and capitalised consistently across all three. Inconsistencies (e.g. "Frekto" in H1 but "Frekto AI" in schema) create entity disambiguation failures — AI models may treat these as different entities. verified=true if the brand name is consistent.',
+              order: 3,
+              weight: 2,
+            },
+            {
+              slug: 'geo-entity-about',
+              label: '/about or /company page is referenced with brand story',
+              prompt: 'From the page headings, navigation, and body content, check for links or references to an /about, /about-us, or /company page. Dedicated about pages with founding story, team, and mission are strong entity-building signals — AI models use them to build a factual profile of your brand. verified=true if such a page is clearly referenced.',
+              order: 4,
+              weight: 1,
+            },
+          ],
+        },
+      ],
+    },
+
+    // ── 5. Citation Friendliness ─────────────────────────────────────────────
+    {
+      slug: 'citation-friendliness',
+      label: 'Citation Friendliness',
+      order: 5,
       subCategories: [
         {
           slug: 'citation-signals',
           label: 'Citation Quality Signals',
           order: 1,
-          description: 'AI tools love quoting pages that look like research — ones with real statistics, expert quotes, and links to credible sources. Your page reads more like a sales pitch, so AI skips over it when looking for something to cite. We fix this by adding real numbers and authoritative references.',
+          description: 'AI tools love quoting pages that look like research — ones with real statistics, expert quotes, and links to credible sources. Pages written like sales copy get skipped. These checks verify your content has the signals that make AI want to cite it.',
           items: [
             {
               slug: 'geo-content-stats',
@@ -204,11 +279,20 @@ Rules:
             },
           ],
         },
+      ],
+    },
+
+    // ── 6. Answer Ready Content Structure ────────────────────────────────────
+    {
+      slug: 'answer-ready-content',
+      label: 'Answer Ready Content Structure',
+      order: 6,
+      subCategories: [
         {
           slug: 'answer-structure',
           label: 'Answer-Ready Structure',
-          order: 2,
-          description: 'When someone asks ChatGPT a question, it grabs short, scannable answers — not 400-word paragraphs. Your content is written in long blocks of prose. We need to break it into the kind of bite-sized chunks AI can lift directly into its answers.',
+          order: 1,
+          description: 'When someone asks ChatGPT a question, it grabs short, scannable answers — not 400-word paragraphs. Content needs to be broken into bite-sized chunks AI can lift directly into its answers.',
           items: [
             {
               slug: 'geo-structure-h1',
@@ -229,17 +313,17 @@ Rules:
       ],
     },
 
-    // ── 5. Technical Signals ─────────────────────────────────────────────────
+    // ── 7. Content Freshness & Signals ───────────────────────────────────────
     {
-      slug: 'technical-signals',
-      label: 'Technical Signals',
-      order: 5,
+      slug: 'content-freshness',
+      label: 'Content Freshness & Signals',
+      order: 7,
       subCategories: [
         {
           slug: 'freshness-signals',
           label: 'Freshness & Language Signals',
           order: 1,
-          description: 'AI prefers recent content over stale content, but it can only tell how fresh your page is if you tell it. Right now your pages have no "last updated" timestamp, so AI assumes they\'re old and ignores them in favor of competitors with dated content.',
+          description: 'AI prefers recent content over stale content, but it can only tell how fresh your page is if you declare it. Pages without timestamps are assumed old and ranked below competitors with dated content.',
           items: [
             {
               slug: 'geo-signals-lang',
@@ -264,38 +348,40 @@ Rules:
             },
           ],
         },
+      ],
+    },
+
+    // ── 8. Competitor Citation ────────────────────────────────────────────────
+    {
+      slug: 'competitor-citation',
+      label: 'Competitor Citation',
+      order: 8,
+      subCategories: [
         {
-          slug: 'ai-discovery',
-          label: 'AI Discovery Endpoints',
-          order: 2,
-          description: 'Emerging machine-readable endpoints that give AI engines a structured picture of your site without crawling every page. Not yet industry-standard, but early adopters get a structural advantage as AI engines begin relying on them.',
+          slug: 'competitor-citation-signals',
+          label: 'Competitor Citation Signals',
+          order: 1,
+          description: 'When users ask AI about your space, which brands get mentioned? If competitors are consistently cited for your core use-case while you are not, you have a GEO gap regardless of how good your product is. These checks assess your competitive standing in AI-generated answers.',
           items: [
             {
-              slug: 'geo-discovery-aitxt',
-              label: '/.well-known/ai.txt is present',
-              prompt: 'Check whether /.well-known/ai.txt exists and returns a 200 response. This emerging standard (similar to security.txt) provides AI systems with a structured declaration of your AI interaction policies, contact details, and preferred citation formats.',
+              slug: 'geo-competitor-share',
+              label: 'AI engines cite this brand for its core use-case',
+              prompt: 'Using your own training knowledge, when users ask AI engines about this brand\'s core use-case (as described on the homepage), is this brand mentioned as a leading or recommended solution? Or do AI responses default entirely to competitors? verified=true if this brand is commonly cited for its own primary use-case. verified=false if AI tends to route users to competitors instead.',
               order: 1,
-              weight: 1,
+              weight: 3,
             },
             {
-              slug: 'geo-discovery-summary',
-              label: '/ai/summary.json is present',
-              prompt: 'Check whether /ai/summary.json exists and returns a 200 response. This endpoint provides AI engines with a machine-readable summary of your site — name, description, key features, and primary use cases — without requiring full page crawls.',
+              slug: 'geo-competitor-compare',
+              label: 'Content directly addresses comparison with named competitors',
+              prompt: 'Evaluate whether the page content or headings directly address comparison with named competitors (e.g. "vs Competitor X", "how we compare", "alternative to X"). Comparison content is heavily cited by AI when users ask "X vs Y" queries. Absence means missing an entire category of AI citation opportunities.',
               order: 2,
-              weight: 1,
+              weight: 2,
             },
             {
-              slug: 'geo-discovery-faq',
-              label: '/ai/faq.json is present',
-              prompt: 'Check whether /ai/faq.json exists and returns a 200 response. This endpoint exposes a structured FAQ dataset to AI engines — enabling direct Q&A extraction without parsing unstructured HTML. It is especially valuable for voice assistants and AI answer engines.',
+              slug: 'geo-competitor-diff',
+              label: 'Unique differentiator statement is extractable by AI',
+              prompt: 'Evaluate whether the page contains a clear, specific differentiator statement that AI can extract and repeat — something beyond generic claims like "easy to use" or "powerful". A good differentiator is specific: "the only tool that does X for Y audience in Z way". Assess whether such a statement is present and prominent.',
               order: 3,
-              weight: 1,
-            },
-            {
-              slug: 'geo-discovery-service',
-              label: '/ai/service.json is present',
-              prompt: 'Check whether /ai/service.json exists and returns a 200 response. This endpoint describes your product or service in a machine-readable format — category, pricing model, target audience, key differentiators — allowing AI engines to accurately describe your offering in generated answers.',
-              order: 4,
               weight: 1,
             },
           ],
@@ -303,17 +389,17 @@ Rules:
       ],
     },
 
-    // ── 6. Brand Sentiment ────────────────────────────────────────────────────
+    // ── 9. Brand Sentiment in AI Outputs ─────────────────────────────────────
     {
-      slug: 'brand-sentiment',
-      label: 'Brand Sentiment in AI',
-      order: 6,
+      slug: 'brand-sentiment-ai',
+      label: 'Brand Sentiment in AI Outputs',
+      order: 9,
       subCategories: [
         {
           slug: 'ai-perception',
           label: 'AI Brand Perception',
           order: 1,
-          description: 'What AI engines currently say about your brand when users ask — evaluated against Claude\'s training knowledge. This checks whether AI accurately describes what you do, whether the framing is positive, and whether it recommends competitors instead of you for your own core use-case.',
+          description: 'What AI engines currently say about your brand when users ask — evaluated against Claude\'s training knowledge. Checks whether AI accurately describes what you do, whether the framing is positive, and whether it recommends competitors instead of you for your own core use-case.',
           items: [
             {
               slug: 'geo-sentiment-known',

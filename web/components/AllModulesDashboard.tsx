@@ -198,6 +198,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   )
 
   const isModuleLocked = (modData: ModuleData): boolean => {
+    if (process.env.NEXT_PUBLIC_APP_ENV !== 'production') return false
     if (modData.order <= 2) return false  // Foundation, Website Audit, SEO always unlocked
     const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order)
     return !prev || liveScores[prev.id] < 80
@@ -762,27 +763,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
               ) : userCount}
               <span>/500</span>
             </div>
-            {!connectedIntegrations['posthog'] && (
-              <div className="posthog-callout">
-                <div className="posthog-callout-top">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--gold)' }}>
-                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                  </svg>
-                  <span>Track real users automatically</span>
-                </div>
-                <p className="posthog-callout-desc">
-                  Connect PostHog to pull your live user count here and unlock the User Analytics module — MAU, DAU, funnels, and drop-off data.
-                </p>
-                <div className="posthog-callout-steps">
-                  <span>1. Sign up at posthog.com (free)</span>
-                  <span>2. Add the JS snippet to your site</span>
-                  <span>3. Paste your API Key + Project ID below</span>
-                </div>
-                <a href="/settings?tab=integrations" className="posthog-callout-btn">
-                  Connect PostHog in Settings →
-                </a>
-              </div>
-            )}
           </div>
           <div className="meta">
             <div className="lvl">Currently · Level {currentLevel}</div>
