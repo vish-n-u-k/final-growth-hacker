@@ -26,6 +26,37 @@ function extractQuotedText(text: string): string {
   return text.match(/[""''](.+?)[""'']/)?.[1] ?? ''
 }
 
+// Truncates body text to only include 3 sentences before and after the seed keyword
+function truncateToKeywordContext(bodyText: string, seedKeyword: string): string {
+  if (!bodyText || !seedKeyword) return bodyText.slice(0, 500)
+
+  const keywordLower = seedKeyword.toLowerCase()
+  const bodyLower = bodyText.toLowerCase()
+  const keywordIndex = bodyLower.indexOf(keywordLower)
+
+  if (keywordIndex === -1) return bodyText.slice(0, 500)
+
+  // Split by sentence markers
+  const sentences = bodyText.split(/(?<=[.!?])\s+/)
+
+  // Find which sentence contains the keyword
+  let currentPos = 0
+  let targetSentenceIdx = 0
+  for (let i = 0; i < sentences.length; i++) {
+    if (currentPos + sentences[i].length > keywordIndex) {
+      targetSentenceIdx = i
+      break
+    }
+    currentPos += sentences[i].length + 1
+  }
+
+  // Extract 3 sentences before and after (inclusive of target)
+  const startIdx = Math.max(0, targetSentenceIdx - 3)
+  const endIdx = Math.min(sentences.length - 1, targetSentenceIdx + 3)
+
+  return sentences.slice(startIdx, endIdx + 1).join(' ').trim()
+}
+
 async function fetchPageContent(websiteUrl: string): Promise<{
   title: string
   description: string
@@ -249,16 +280,63 @@ function buildFilteredExternalData(
 
 // ── Keyword research content generator ───────────────────────────────────────
 
+function chunk<T>(array: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size))
+  }
+  return chunks
+}
+
+async function callHaikuForBatch(
+  batchItems: ModuleItemDefinition[],
+  websiteUrl: string,
+  pageSnapshot: string,
+  externalData: string,
+  brainContext?: string,
+): Promise<{ slug: string; detail: string; narrative: string; action: string }[]> {
+  const itemList = batchItems
+    .map((item, idx) => `${idx + 1}. [${item.slug}] ${item.label}\nInstructions: ${item.prompt}`)
+    .join('\n\n')
+
+  const maxTokens = Math.min(batchItems.length * 60, 1200)
+
+  const raw = await callAI({
+    system: 'You are a senior SEO strategist specialising in keyword research. Output ONLY terse JSON. Keep responses concise: d (detail) under 10 words, n (narrative) under 15 words, a (action) under 20 words. Name actual keywords and questions, not generic advice.',
+    prompt: `Website: ${websiteUrl}
+${brainContext ? `\nBrand context:\n${brainContext}\n` : ''}
+── Page content ──
+${pageSnapshot}
+${externalData ? `\n── External keyword data ──\n${externalData}` : ''}
+
+For each check, respond with ONLY this schema:
+[{"slug": "...", "d": "...", "n": "...", "a": "..."}]
+
+${itemList}`,
+    maxTokens,
+    model: 'claude-haiku-4-5-20251001',
+  })
+
+  const start = raw.indexOf('[')
+  const end = raw.lastIndexOf(']')
+  if (start === -1 || end === -1 || end < start) return []
+  try {
+    const parsed = JSON.parse(raw.slice(start, end + 1)) as { slug: string; d: string; n: string; a: string }[]
+    return parsed.map(r => ({ slug: r.slug, detail: r.d, narrative: r.n, action: r.a }))
+  } catch {
+    return []
+  }
+}
+
 async function generateKeywordResearchContent(
   websiteUrl: string,
   items: ModuleItemDefinition[],
   audit: SeoAuditResult,
   integrations: SeoIntegrations,
+  pageContent: Awaited<ReturnType<typeof fetchPageContent>>,
   brainContext?: string,
 ): Promise<Map<string, { detail: string; narrative: string; action: string }>> {
   if (items.length === 0) return new Map()
-
-  const pageContent = await fetchPageContent(websiteUrl)
 
   // Fallback: when cheerio returns empty (JS-rendered site), extract from audit findings
   const findingText = (key: string) => audit.findings.find((f) => f.key === key)?.text ?? ''
@@ -288,6 +366,8 @@ async function generateKeywordResearchContent(
       : Promise.resolve([] as Awaited<ReturnType<typeof fetchGscTopQueries>>),
   ])
 
+  const truncatedBodyText = bodyText ? truncateToKeywordContext(bodyText, seed) : ''
+
   const pageSnapshot = [
     title ? `Title: ${title}` : '',
     description ? `Meta description: ${description}` : '',
@@ -295,7 +375,7 @@ async function generateKeywordResearchContent(
     urlLine,
     headings.length > 0 ? `Headings (H2/H3):\n${headings.map((h) => `  - ${h}`).join('\n')}` : 'Headings: none found',
     internalLinks.length > 0 ? `Internal links (anchor texts):\n${internalLinks.map((l) => `  - ${l}`).join('\n')}` : '',
-    bodyText ? `Body text excerpt:\n${bodyText}` : '',
+    truncatedBodyText ? `Body text excerpt:\n${truncatedBodyText}` : '',
   ]
     .filter(Boolean)
     .join('\n\n')
@@ -314,40 +394,25 @@ async function generateKeywordResearchContent(
     },
   )
 
-  const itemList = items
-    .map((item, idx) => `${idx + 1}. [${item.slug}] ${item.label}\nInstructions: ${item.prompt}`)
-    .join('\n\n')
+  // Split items into batches of 4 and call AI in parallel
+  const batches = chunk(items, 4)
+  const batchResults = await Promise.all(
+    batches.map((batchItems) =>
+      callHaikuForBatch(batchItems, websiteUrl, pageSnapshot, externalData, brainContext),
+    ),
+  )
 
-  const raw = await callAI({
-    system: 'You are a senior SEO strategist specialising in keyword research for early-stage SaaS and AI products. Analyse the page content and external data provided. Give specific, concrete findings — name actual keywords and questions, not generic advice.',
-    prompt: `Website: ${websiteUrl}
-${brainContext ? `\nBrand context:\n${brainContext}\n` : ''}
-── Page content ──
-${pageSnapshot}
-${externalData ? `\n── External keyword data ──\n${externalData}` : ''}
-
-For each keyword research check below, generate:
-- detail: 1–2 sentences — the specific finding grounded in the data above
-- narrative: 1–2 sentences — why this matters for organic traffic and rankings
-- action: Concrete next step — name actual keyword phrases or questions where possible
-
-${itemList}
-
-Return ONLY a valid JSON array. No markdown fences, no text outside the array. Start your response with [ immediately:
-[{"slug": "...", "detail": "...", "narrative": "...", "action": "..."}]`,
-    maxTokens: 8000,
-    model: 'claude-haiku-4-5-20251001',
-  })
-
-  const start = raw.indexOf('[')
-  const end = raw.lastIndexOf(']')
-  if (start === -1 || end === -1 || end < start) return new Map()
-  try {
-    const rows = JSON.parse(raw.slice(start, end + 1)) as { slug: string; detail: string; narrative: string; action: string }[]
-    return new Map(rows.filter((r) => r.slug && r.detail).map((r) => [r.slug, r]))
-  } catch {
-    return new Map()
+  // Merge all batch results into a single map
+  const resultMap = new Map<string, { detail: string; narrative: string; action: string }>()
+  for (const batchRows of batchResults) {
+    for (const row of batchRows) {
+      if (row.slug && row.detail) {
+        resultMap.set(row.slug, row)
+      }
+    }
   }
+
+  return resultMap
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
@@ -365,6 +430,9 @@ export async function analyzeSeo(
   const lbItems = allItems.filter((item) => item.slug.startsWith('lb-'))
   const kwItems = allItems.filter((item) => item.slug.startsWith('kw-') || item.slug.startsWith('gsc-'))
   const ruleItems = allItems.filter((item) => !item.slug.startsWith('lb-') && !item.slug.startsWith('kw-') && !item.slug.startsWith('gsc-'))
+
+  // Fetch page content once at the top (skip if no keyword items)
+  const pageContent = kwItems.length > 0 || lbItems.length > 0 ? await fetchPageContent(websiteUrl) : { title: '', description: '', h1: '', headings: [], bodyText: '', urlPath: '', internalLinks: [] }
 
   const baseResults: (ModuleAnalysisResult & { isFail: boolean })[] = ruleItems.map((item) => {
     const finding = findingMap.get(item.slug)
@@ -412,7 +480,7 @@ export async function analyzeSeo(
   // Generate personalised content for lb-* and kw-* items in parallel
   const [lbContentMap, kwContentMap] = await Promise.all([
     generateLinkBuildingContent(websiteUrl, lbItems, brainContext),
-    generateKeywordResearchContent(websiteUrl, kwItems, audit, integrations, brainContext),
+    generateKeywordResearchContent(websiteUrl, kwItems, audit, integrations, pageContent, brainContext),
   ])
 
   const lbResults: ModuleAnalysisResult[] = lbItems.map((item) => {

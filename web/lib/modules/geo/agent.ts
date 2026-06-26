@@ -235,7 +235,7 @@ function buildRuleContext(f: ReturnType<typeof buildRuleFindings>, itemSlugs?: s
     `External links count: ${f.page.externalLinks}`,
     `List items count: ${f.page.listItems} | Tables: ${f.page.tableCount}`,
     `FAQ-style headings detected: ${f.page.hasFaqHeadings}`,
-    `Body excerpt: ${f.page.bodyText.slice(0, 800)}`,
+    `Body excerpt: ${f.page.bodyText.slice(0, 400)}`,
   ].filter(Boolean).join('\n')
   return sections
 }
@@ -255,26 +255,21 @@ export async function analyzeGeo(
     .map((item, idx) => `${idx + 1}. [${item.slug}] ${item.label}\nInstructions: ${item.prompt}`)
     .join('\n\n')
 
+  const maxTokens = Math.min(allItems.length * 80, 2000)
+
   const raw = await callAI({
-    system: GEO_MODULE.systemPrompt,
+    system: 'You are an AI citation visibility auditor. Output ONLY terse JSON. Keep responses concise: d (detail) under 12 words, n (narrative) under 15 words, a (action) under 20 words.',
     prompt: `Website: ${data.url}${brandName ? `\nBrand name: ${brandName}` : ''}
 ${brainContext ? `\nBrand context:\n${brainContext}\n` : ''}
 ── Pre-computed rule findings ──
 ${ruleContext}
 
 ── Checks to complete ──
-For each check below, return:
-- slug: exactly as given
-- detail: one sentence — state the specific finding using the pre-computed data above for structural checks; evaluate from page content signals for content checks
-- narrative: 1–2 sentences — why this matters for AI citation visibility
-- action: concrete next step — max 2 sentences, include a short code snippet only if essential
-- verified: true if the check passes, false if it fails or is missing
+For each check, respond with ONLY this schema:
+[{"slug": "...", "d": "...", "n": "...", "a": "...", "verified": true}]
 
-${itemList}
-
-Start your response with [
-[{"slug": "...", "detail": "...", "narrative": "...", "action": "...", "verified": true}]`,
-    maxTokens: 8000,
+${itemList}`,
+    maxTokens,
     model: 'claude-sonnet-4-6',
   })
 
@@ -286,11 +281,18 @@ Start your response with [
   }
 
   const validSlugs = new Set(allItems.map((i) => i.slug))
-  return (rows as ModuleAnalysisResult[]).filter(
-    (r) =>
-      typeof r.slug === 'string' &&
-      validSlugs.has(r.slug) &&
-      typeof r.detail === 'string' &&
-      typeof r.verified === 'boolean',
-  )
+  return (rows as any[])
+    .map(r => ({
+      ...r,
+      detail: r.d || r.detail,
+      narrative: r.n || r.narrative,
+      action: r.a || r.action,
+    }))
+    .filter(
+      (r: any) =>
+        typeof r.slug === 'string' &&
+        validSlugs.has(r.slug) &&
+        typeof r.detail === 'string' &&
+        typeof r.verified === 'boolean',
+    ) as ModuleAnalysisResult[]
 }

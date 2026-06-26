@@ -6,6 +6,14 @@ import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 
 // ── Format helpers ─────────────────────────────────────────────────────────────
 
+function chunk<T>(array: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size))
+  }
+  return chunks
+}
+
 function formatTrustSignals(ts: BrandAuditFetchResult['trustSignals']): string {
   return [
     `HTTPS: ${ts.hasHttps ? 'Yes' : 'No'}`,
@@ -25,21 +33,15 @@ function formatSocialProfiles(profiles: BrandAuditFetchResult['socialProfiles'])
   return profiles
     .map(p => {
       if (p.fetchFailed || !p.bio) return `${p.handle}: fetch failed or no bio content extracted (JS-rendered page)`
-      return `${p.handle}:\n  Bio: "${p.bio.slice(0, 200)}"\n  Sentiment: ${p.sentimentScore.toFixed(2)}`
+      return `${p.handle}:\n  Bio: "${p.bio.slice(0, 100)}"\n  Sentiment: ${p.sentimentScore.toFixed(2)}`
     })
     .join('\n')
 }
 
-function buildPrompt(data: BrandAuditFetchResult, brainContext?: string): string {
-  const categories = BRAND_AUDIT_MODULE.categories as DynamicModuleCategoryDefinition[]
-
+function buildBaseContext(data: BrandAuditFetchResult, brainContext?: string): string {
   const toneSection = data.avgSocialSentiment !== null
     ? `Average social sentiment: ${data.avgSocialSentiment.toFixed(2)}\nTone delta (website vs social): ${data.toneDelta?.toFixed(2)}${(data.toneDelta ?? 0) > 0.4 ? ' ⚠ INCONSISTENT (delta > 0.4)' : ' (consistent)'}`
     : 'Social sentiment: no social profiles available'
-
-  const categoryInstructions = categories
-    .map(c => `--- Category: "${c.slug}" (label: "${c.label}") ---\n${c.prompt}`)
-    .join('\n\n')
 
   return `${brainContext ? `=== Prior context about this brand (from earlier modules) ===\n${brainContext}\n\n` : ''}=== Brand Inputs ===
 Brand name: ${data.brandName}
@@ -90,26 +92,74 @@ Comparison page (/vs, /compare, /alternatives): ${data.hasComparisonPage ? 'Yes 
 ${formatSocialProfiles(data.socialProfiles)}
 
 === Homepage copy sample ===
-${data.bodyCopy.slice(0, 2000)}
+${data.bodyCopy.slice(0, 1000)}`
+}
 
-=== Category instructions ===
+async function analyzeBrandCategoryBatch(
+  baseContext: string,
+  categoryBatch: DynamicModuleCategoryDefinition[],
+  allCategorySlugs: string[],
+): Promise<DynamicModuleAnalysisResult[]> {
+  const categoryInstructions = categoryBatch
+    .map(c => `--- Category: "${c.slug}" (label: "${c.label}") ---\n${c.prompt}`)
+    .join('\n\n')
+
+  const maxTokens = Math.min(categoryBatch.length * 150, 2000)
+
+  const prompt = `${baseContext}
+
+=== Category instructions (batch) ===
 ${categoryInstructions}
 
 === Output requirements ===
-Analyse all data above. Generate findings for ALL 9 categories listed.
+Analyse all data above. Generate findings for these categories ONLY: ${categoryBatch.map(c => `"${c.slug}"`).join(', ')}.
 
-Return ONLY a valid JSON array. No markdown fences, no text outside the array. Each element:
-{
-  "category": string — exactly one of: "brand-positioning", "messaging-value-prop", "brand-voice", "brand-consistency", "audience-fit", "trust-credibility", "ai-entity-visibility", "differentiation", "brand-strength-score",
-  "slug": string — kebab-case, pattern: {category-slug}-{short-descriptor},
-  "label": string — specific, cite actual data (copy phrases, scores, missing elements),
+Return ONLY a valid JSON array. Keep responses terse: d (detail) under 15 words, n (narrative) under 20 words, a (action) under 25 words.
+
+[{
+  "category": string — exactly one of: ${allCategorySlugs.map(s => `"${s}"`).join(', ')},
+  "slug": string — kebab-case unique identifier,
+  "label": string — specific, cite actual data,
   "weight": 1 | 2 | 3,
-  "detail": string — one sentence citing exact data (exact scores, exact copy phrases, exact missing elements),
-  "narrative": string — 2–3 sentences explaining business impact,
-  "action": string — specific step starting with a verb, completable within one week by a non-technical person,
-  "verified": boolean — true if this check passes or user is ahead; false if gap exists,
-  "fixable": boolean — true if the fix can be made as a code/file change in a GitHub repo: add or rewrite H1, title, meta description, any OG tag, Twitter Card tags, canonical tag, viewport tag, any JSON-LD schema type, alt text, lazy loading, privacy policy page + footer link, terms page + footer link, robots.txt, sitemap.xml, comparison page stub, any missing footer/nav link. false ONLY for external actions: creating social accounts, earning Wikidata entries, getting backlinks/press, brand strategy overhauls, or original marketing content the agent cannot write.
-}`
+  "d": string — one sentence with exact data,
+  "n": string — 1–2 sentences on business impact,
+  "a": string — specific step, completable in one week,
+  "verified": boolean,
+  "fixable": boolean
+}]`
+
+  const raw = await callAI({
+    system: BRAND_AUDIT_MODULE.systemPrompt,
+    prompt,
+    maxTokens,
+  })
+
+  const start = raw.indexOf('[')
+  const end = raw.lastIndexOf(']')
+  if (start === -1 || end === -1 || end < start) return []
+
+  try {
+    const parsed = parseClaudeJsonArray(raw.slice(start, end + 1)) as unknown[]
+    return (parsed as any[])
+      .map(r => ({
+        ...r,
+        detail: r.d || r.detail,
+        narrative: r.n || r.narrative,
+        action: r.a || r.action,
+      }))
+      .filter((r: any) =>
+        typeof r.category === 'string' &&
+        typeof r.slug === 'string' &&
+        typeof r.label === 'string' &&
+        (r.weight === 1 || r.weight === 2 || r.weight === 3) &&
+        typeof r.detail === 'string' &&
+        typeof r.narrative === 'string' &&
+        typeof r.action === 'string' &&
+        typeof r.verified === 'boolean',
+      ) as DynamicModuleAnalysisResult[]
+  } catch {
+    return []
+  }
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
@@ -118,44 +168,22 @@ export async function analyzeBrandAudit(
   data: BrandAuditFetchResult,
   brainContext?: string,
 ): Promise<DynamicModuleAnalysisResult[]> {
-  const prompt = buildPrompt(data, brainContext)
+  const categories = BRAND_AUDIT_MODULE.categories as DynamicModuleCategoryDefinition[]
+  const allCategorySlugs = categories.map(c => c.slug)
+  const baseContext = buildBaseContext(data, brainContext)
 
-  const raw = await callAI({
-    system: BRAND_AUDIT_MODULE.systemPrompt,
-    prompt,
-    maxTokens: 10000,
-  })
+  // Split 9 categories into batches of 3 → 3 parallel AI calls
+  const categoryBatches = chunk(categories, 3)
 
-  let results: DynamicModuleAnalysisResult[]
-  try {
-    results = parseClaudeJsonArray(raw) as DynamicModuleAnalysisResult[]
-  } catch (err) {
-    throw new Error(`Brand audit agent returned invalid JSON: ${err instanceof Error ? err.message : raw.slice(0, 300)}`)
-  }
+  // Run all batches in parallel
+  const batchResults = await Promise.all(
+    categoryBatches.map(batch => analyzeBrandCategoryBatch(baseContext, batch, allCategorySlugs)),
+  )
 
-  const allowed = new Set([
-    'brand-positioning',
-    'messaging-value-prop',
-    'brand-voice',
-    'brand-consistency',
-    'audience-fit',
-    'trust-credibility',
-    'ai-entity-visibility',
-    'differentiation',
-    'brand-strength-score',
-  ])
-
-  return results
-    .filter(r =>
-      typeof r.category === 'string' &&
-      allowed.has(r.category) &&
-      typeof r.slug === 'string' &&
-      typeof r.label === 'string' &&
-      (r.weight === 1 || r.weight === 2 || r.weight === 3) &&
-      typeof r.detail === 'string' &&
-      typeof r.narrative === 'string' &&
-      typeof r.action === 'string' &&
-      typeof r.verified === 'boolean',
-    )
+  // Merge and filter results
+  const allowed = new Set(allCategorySlugs)
+  return batchResults
+    .flat()
+    .filter(r => allowed.has(r.category))
     .map(r => ({ ...r, fixable: typeof r.fixable === 'boolean' ? r.fixable : false }))
 }

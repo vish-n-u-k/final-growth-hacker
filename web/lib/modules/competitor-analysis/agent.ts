@@ -4,6 +4,38 @@ import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } fro
 import type { CompetitorAnalysisFetchResult, PsiScore } from './fetcher'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 
+// ── Helper: truncate body text to keyword context ──────────────────────────────
+
+function truncateToKeywordContext(bodyText: string, seedKeyword: string): string {
+  if (!bodyText || !seedKeyword) return bodyText.slice(0, 300)
+
+  const keywordLower = seedKeyword.toLowerCase()
+  const bodyLower = bodyText.toLowerCase()
+  const keywordIndex = bodyLower.indexOf(keywordLower)
+
+  if (keywordIndex === -1) return bodyText.slice(0, 300)
+
+  // Split by sentence markers
+  const sentences = bodyText.split(/(?<=[.!?])\s+/)
+
+  // Find which sentence contains the keyword
+  let currentPos = 0
+  let targetSentenceIdx = 0
+  for (let i = 0; i < sentences.length; i++) {
+    if (currentPos + sentences[i].length > keywordIndex) {
+      targetSentenceIdx = i
+      break
+    }
+    currentPos += sentences[i].length + 1
+  }
+
+  // Extract 3 sentences before and after (inclusive of target)
+  const startIdx = Math.max(0, targetSentenceIdx - 3)
+  const endIdx = Math.min(sentences.length - 1, targetSentenceIdx + 3)
+
+  return sentences.slice(startIdx, endIdx + 1).join(' ').trim()
+}
+
 // ── Deterministic constants ───────────────────────────────────────────────────
 
 const PLATFORMS: Record<string, { label: string; weight: 1 | 2 | 3 }> = {
@@ -128,6 +160,8 @@ function formatPsi(psi: PsiScore | null): string {
 
 function formatUserSection(data: CompetitorAnalysisFetchResult): string {
   const u = data.userParsed
+  const seedKeyword = data.industry || u.title || u.h1
+  const truncatedBody = truncateToKeywordContext(u.bodyText, seedKeyword)
   return `=== Your website: ${data.userUrl} ===
 Title: "${u.title}"
 Meta description: "${u.description}"
@@ -140,15 +174,16 @@ Internal links: ~${u.internalLinks}
 Distinctive TF-IDF terms: ${data.userTopTerms.join(', ')}
 PageSpeed (mobile): ${formatPsi(data.userPsi)}
 Body content sample:
-${u.bodyText.slice(0, 1200)}`
+${truncatedBody}`
 }
 
-function formatCompetitorSection(c: CompetitorAnalysisFetchResult['competitors'][number], index: number): string {
+function formatCompetitorSection(c: CompetitorAnalysisFetchResult['competitors'][number], index: number, seedKeyword: string): string {
   if (c.fetchFailed) {
     return `=== Competitor ${index + 1}: ${c.url} ===
 FETCH FAILED — could not access this site. Include in competitor discovery as "could not be verified". Skip all data-dependent checks for this competitor.`
   }
   const p = c.parsed
+  const truncatedBody = truncateToKeywordContext(p.bodyText, seedKeyword)
   return `=== Competitor ${index + 1}: ${c.url} ===
 Title: "${p.title}"
 Meta description: "${p.description}"
@@ -161,7 +196,7 @@ Internal links: ~${p.internalLinks}
 Distinctive TF-IDF terms: ${c.topTerms.join(', ')}
 PageSpeed (mobile): ${formatPsi(c.psi)}
 Body content sample:
-${p.bodyText.slice(0, 1000)}`
+${truncatedBody}`
 }
 
 async function runClaudeAnalysis(
@@ -181,9 +216,11 @@ async function runClaudeAnalysis(
     .map(c => `--- Category: "${c.slug}" (label: "${c.label}") ---\n${c.prompt}`)
     .join('\n\n')
 
+  const seedKeyword = data.industry || data.userParsed.title || data.userParsed.h1
+
   const prompt = `${brainContext ? `=== What we already know about this brand ===\n${brainContext}\n\n` : ''}${formatUserSection(data)}
 
-${data.competitors.map((c, i) => formatCompetitorSection(c, i)).join('\n\n')}
+${data.competitors.map((c, i) => formatCompetitorSection(c, i, seedKeyword)).join('\n\n')}
 
 === Industry keyword ===
 ${data.industry || 'Not provided — infer from homepage content and competitor data'}
