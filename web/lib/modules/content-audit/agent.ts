@@ -42,7 +42,7 @@ function formatPageSummary(p: PageSummary, index: number, includeBody: boolean =
   if (p.title)           lines.push(`  Title: ${p.title}`)
   if (p.metaDescription) lines.push(`  Meta: ${p.metaDescription.slice(0, 160)}`)
   if (p.h1)              lines.push(`  H1: ${p.h1}`)
-  if (includeBody && p.bodyExcerpt)     lines.push(`  Body: ${p.bodyExcerpt.slice(0, 200)}`)
+  if (includeBody && p.bodyExcerpt)     lines.push(`  Body: ${p.bodyExcerpt.slice(0, 100)}`)
   lines.push(`  Stats: ${p.wordCount} words | ${p.imageCount} images | ${p.internalLinkCount} internal links | ${p.externalLinkCount} external links`)
   return lines.join('\n')
 }
@@ -57,7 +57,7 @@ function formatCompetitorPage(p: PageSummary): string {
   if (p.title)           lines.push(`  Title: ${p.title}`)
   if (p.metaDescription) lines.push(`  Meta: ${p.metaDescription.slice(0, 160)}`)
   if (p.h1)              lines.push(`  H1: ${p.h1}`)
-  if (p.bodyExcerpt)     lines.push(`  Body: ${p.bodyExcerpt.slice(0, 300)}`)
+  if (p.bodyExcerpt)     lines.push(`  Body: ${p.bodyExcerpt.slice(0, 150)}`)
   lines.push(`  Stats: ${p.wordCount} words | ${p.imageCount} images | ${p.internalLinkCount} internal links`)
   return lines.join('\n')
 }
@@ -85,19 +85,21 @@ function buildSiteStats(pages: PageSummary[]): string {
 
 // ── Prompt builders ───────────────────────────────────────────────────────────
 
-function buildFindingsPrompt(data: ContentAuditFetchResult, brainContext?: string): string {
-  const categories = CONTENT_AUDIT_MODULE.categories as DynamicModuleCategoryDefinition[]
+function chunk<T>(array: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size))
+  }
+  return chunks
+}
 
+function buildBasePageContext(data: ContentAuditFetchResult, brainContext?: string): string {
   const includeBodyText = data.pages.length < 30
   const pagesSection = data.pages.map((p, i) => formatPageSummary(p, i, includeBodyText)).join('\n\n')
 
   const competitorSection = data.competitorPages.length > 0
     ? data.competitorPages.map(formatCompetitorPage).join('\n\n')
     : 'No competitor URLs provided — base gap analysis on industry best practices for this brand\'s space.'
-
-  const categoryInstructions = categories
-    .map(c => `--- Category: "${c.slug}" (label: "${c.label}") ---\n${c.prompt}`)
-    .join('\n\n')
 
   return `${brainContext ? `=== Prior context about this brand ===\n${brainContext}\n\n` : ''}=== Brand Context ===
 Brand: ${data.brandName || 'not provided'}
@@ -116,26 +118,65 @@ ${pagesSection}
 
 === Competitor Data ===
 
-${competitorSection}
+${competitorSection}`
+}
 
-=== Category Instructions ===
+async function analyzeContentCategoryBatch(
+  baseContext: string,
+  categoryBatch: DynamicModuleCategoryDefinition[],
+  allCategorySlugs: string[],
+): Promise<DynamicModuleAnalysisResult[]> {
+  const categoryInstructions = categoryBatch
+    .map(c => `--- Category: "${c.slug}" (label: "${c.label}") ---\n${c.prompt}`)
+    .join('\n\n')
+
+  const maxTokens = Math.min(categoryBatch.length * 150, 2000)
+
+  const prompt = `${baseContext}
+
+=== Category Instructions (Batch) ===
 ${categoryInstructions}
 
 === Output requirements ===
-Analyse all page data above. Generate findings for ALL 7 categories.
+Analyse all page data above. Generate findings for these categories ONLY: ${categoryBatch.map(c => `"${c.slug}"`).join(', ')}.
 
-Return ONLY a valid JSON array. No markdown fences, no text outside the array. Each element:
-{
-  "category": string — exactly one of: "content-gap", "foundational-inventory", "business-alignment", "quality-substance", "blog-topics", "content-calendar", "content-categories",
+Return ONLY a valid JSON array. No markdown fences, no text outside the array. Keep responses terse: d (detail) under 15 words, n (narrative) under 20 words, a (action) under 25 words.
+
+[{
+  "category": string — exactly one of: ${allCategorySlugs.map(s => `"${s}"`).join(', ')},
   "slug": string — kebab-case unique identifier,
   "label": string — specific, cite actual page titles or metrics,
   "weight": 1 | 2 | 3,
-  "detail": string — one sentence with exact data,
-  "narrative": string — 2–3 sentences on business impact,
-  "action": string — specific next step (for content-calendar-30-day: ONLY the raw JSON array, no other text),
+  "d": string — one sentence with exact data,
+  "n": string — 1–2 sentences on business impact,
+  "a": string — specific next step,
   "verified": boolean,
-  "fixable": boolean — true ONLY if fix = changing a <title>, <meta description>, or <h1> on a specific named page. false for all other content findings.
-}`
+  "fixable": boolean
+}]`
+
+  const raw = await callAI({
+    system: CONTENT_AUDIT_MODULE.systemPrompt,
+    prompt,
+    maxTokens,
+  })
+
+  const start = raw.indexOf('[')
+  const end = raw.lastIndexOf(']')
+  if (start === -1 || end === -1 || end < start) return []
+
+  try {
+    const parsed = parseClaudeJsonArray(raw.slice(start, end + 1)) as unknown[]
+    return parsed
+      .map((r: any) => ({
+        ...r,
+        detail: r.d || r.detail,
+        narrative: r.n || r.narrative,
+        action: r.a || r.action,
+      }))
+      .filter(validateFinding) as DynamicModuleAnalysisResult[]
+  } catch {
+    return []
+  }
 }
 
 // ── Deterministic verdict engine ──────────────────────────────────────────────
@@ -299,24 +340,25 @@ export async function analyzeContentAudit(
     throw new Error('No pages could be fetched for content audit. Check that the website URL is accessible.')
   }
 
-  const findingsPrompt = buildFindingsPrompt(data, brainContext)
+  const categories = CONTENT_AUDIT_MODULE.categories as DynamicModuleCategoryDefinition[]
+  const allCategorySlugs = categories.map(c => c.slug)
 
-  const findingsRaw = await callAI({
-    system: CONTENT_AUDIT_MODULE.systemPrompt,
-    prompt: findingsPrompt,
-    maxTokens: 12000,
-  })
+  // Build base context (reused for all batches)
+  const baseContext = buildBasePageContext(data, brainContext)
 
-  // Parse findings
-  let findings: DynamicModuleAnalysisResult[] = []
-  try {
-    const parsed = parseJsonArray<unknown>(findingsRaw)
-    findings = parsed
-      .filter(validateFinding)
-      .map(r => ({ ...r, fixable: typeof r.fixable === 'boolean' ? r.fixable : false }))
-  } catch (err) {
-    throw new Error(`Content audit findings agent returned invalid JSON: ${err instanceof Error ? err.message : findingsRaw.slice(0, 300)}`)
-  }
+  // Split 7 categories into batches of 3 → 3 parallel AI calls
+  const categoryBatches = chunk(categories, 3)
+
+  // Run all batches in parallel
+  const batchResults = await Promise.all(
+    categoryBatches.map(batch => analyzeContentCategoryBatch(baseContext, batch, allCategorySlugs)),
+  )
+
+  // Merge all batch results
+  let findings: DynamicModuleAnalysisResult[] = batchResults.flat().map(r => ({
+    ...r,
+    fixable: typeof r.fixable === 'boolean' ? r.fixable : false,
+  }))
 
   // Compute page verdicts deterministically (no AI call needed)
   const pageVerdicts = computeVerdicts(data.pages)
