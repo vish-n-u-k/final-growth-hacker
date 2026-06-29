@@ -30,8 +30,8 @@ import { fetchCompetitorGapData } from '@/lib/modules/geo-competitor-gap/fetcher
 import { analyzeCompetitorGap } from '@/lib/modules/geo-competitor-gap/agent'
 import { fetchUserAnalyticsData } from '@/lib/modules/user-analytics/fetcher'
 import { analyzeUserAnalytics } from '@/lib/modules/user-analytics/agent'
-import { fetchCommunityDiscovery } from '@/lib/modules/community-finder/fetcher'
-import { analyzeCommunitiesFinder } from '@/lib/modules/community-finder/agent'
+import { fetchUserAcquisitionData } from '@/lib/modules/user-acquisition/fetcher'
+import { analyzeUserAcquisition } from '@/lib/modules/user-acquisition/agent'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
@@ -44,6 +44,10 @@ async function runAnalysis(
   brainCtx?: string,
 ): Promise<ModuleAnalysisResult[] | DynamicModuleAnalysisResult[]> {
   switch (moduleType) {
+    case 'user-acquisition': {
+      const data = await fetchUserAcquisitionData(requirements)
+      return analyzeUserAcquisition(data, brainCtx)
+    }
     case 'foundation': {
       const data = await fetchFoundationData(requirements)
       if (!data.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)
@@ -179,7 +183,7 @@ export async function POST(request: NextRequest) {
 
   await db.update(modules).set({ status: 'analyzing' }).where(eq(modules.id, moduleId))
 
-  // Get relevant brain context to inject into this module's agent (skip for Foundation — runs first)
+  // Get relevant brain context to inject into this module's agent (skip for User Acquisition — runs first, no prior context)
   let brainCtx: string | undefined
   if (def.order > 0) {
     try {
@@ -224,8 +228,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Build category slug → id map
-    const cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
-    const catMap = new Map(cats.filter(c => !c.parentId).map(c => [c.slug, c.id]))
+    let cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+    let catMap = new Map(cats.filter(c => !c.parentId).map(c => [c.slug, c.id]))
+
+    // If categories weren't seeded at onboarding (module added to registry after user onboarded), seed them now
+    if (catMap.size === 0) {
+      for (const cat of def.categories) {
+        // eslint-disable-next-line no-await-in-loop
+        await db.insert(moduleCategories).values({
+          moduleId,
+          parentId: null,
+          slug: cat.slug,
+          label: cat.label,
+          order: cat.order,
+        }).onConflictDoNothing()
+      }
+      cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+      catMap = new Map(cats.filter(c => !c.parentId).map(c => [c.slug, c.id]))
+    }
 
     // Insert findings into module_items
     await Promise.all(
@@ -347,23 +367,25 @@ export async function POST(request: NextRequest) {
       await db.delete(moduleItems).where(eq(moduleItems.moduleId, moduleId))
     }
 
-    // Get or create categories for this module
+    // Build category slug → id map
     let cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+    let catMap = new Map(cats.filter((c) => !c.parentId).map((c) => [c.slug, c.id]))
 
-    // If categories don't exist, create them from the module definition
-    if (cats.length === 0 && def.categories) {
-      const catInserts = (def.categories as ModuleCategoryDefinition[]).map((cat) => ({
-        moduleId,
-        slug: cat.slug,
-        label: cat.label,
-        order: cat.order ?? 0,
-        parentId: null as string | null,
-      }))
-      await db.insert(moduleCategories).values(catInserts)
+    // If categories weren't seeded at onboarding (module added to registry after user onboarded), seed them now
+    if (catMap.size === 0) {
+      for (const cat of def.categories) {
+        // eslint-disable-next-line no-await-in-loop
+        await db.insert(moduleCategories).values({
+          moduleId,
+          parentId: null,
+          slug: cat.slug,
+          label: cat.label,
+          order: cat.order,
+        }).onConflictDoNothing()
+      }
       cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+      catMap = new Map(cats.filter((c) => !c.parentId).map((c) => [c.slug, c.id]))
     }
-
-    const catMap = new Map(cats.filter((c) => !c.parentId).map((c) => [c.slug, c.id]))
 
     // Insert fresh items from Claude, restoring user_checked where slug matches
     await Promise.all(
@@ -461,7 +483,7 @@ export async function POST(request: NextRequest) {
                 slug: item.slug,
                 label: item.label,
                 weight: item.weight,
-              })
+              }).onConflictDoNothing()
             }
           }
         }

@@ -1,3 +1,4 @@
+import { USER_ACQUISITION_MODULE } from './user-acquisition/definition'
 import { FOUNDATION_MODULE } from './foundation/definition'
 import { WEBSITE_MODULE } from './website/definition'
 import { SEO_MODULE } from './seo/definition'

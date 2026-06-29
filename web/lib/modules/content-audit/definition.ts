@@ -4,7 +4,7 @@ export const CONTENT_AUDIT_MODULE: ModuleDefinition = {
   type: 'content-audit',
   name: 'Content Audit',
   description: 'Audit every page on your website — identify content gaps vs competitors, score quality and audience alignment, get blog topic ideas, a 30-day editorial calendar, and a per-page verdict (Keep, Refresh, Consolidate, Repurpose, Remove).',
-  order: 6,
+  order: 7,
   unlockThreshold: 80,
   dynamic: true,
   requirements: [

@@ -4,8 +4,8 @@ export const FOUNDATION_MODULE: ModuleDefinition = {
   type: 'foundation',
   name: 'Foundation',
   description: 'Verifies your basic digital infrastructure is in place before any marketing or growth work begins.',
-  order: 0,
-  unlockThreshold: 0, // always unlocked — first module
+  order: 1,
+  unlockThreshold: 0, // always unlocked — no threshold required
   requirements: [
     {
       key: 'website_url',
