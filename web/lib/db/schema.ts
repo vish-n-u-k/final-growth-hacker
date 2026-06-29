@@ -10,6 +10,7 @@ export const brands = pgTable('brands', {
   userId: uuid('user_id').notNull(),
   name: text('name').notNull(),
   websiteUrl: text('website_url').notNull(),
+  keywords: text('keywords'), // comma-separated brand keywords/tags
   industry: text('industry'),
   targetAudience: text('target_audience'),
   usp: text('usp'),
@@ -151,4 +152,99 @@ export const modulePageAudit = pgTable(
   (table) => ({
     uniq: unique('module_page_audit_unique').on(table.moduleId, table.url),
   }),
+)
+
+// ── Community Finder Module ───────────────────────────────────────────────────
+
+export const communities = pgTable(
+  'communities',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    moduleId: uuid('module_id').notNull().references(() => modules.id, { onDelete: 'cascade' }),
+    platform: text('platform').notNull(), // 'facebook' | 'linkedin'
+    platformId: text('platform_id').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    link: text('link').notNull(),
+    memberCount: integer('member_count'),
+    activityScore: integer('activity_score'), // 0-100
+    relevanceScore: integer('relevance_score'), // 0-100
+    competitorPresence: boolean('competitor_presence').default(false),
+    healthScore: integer('health_score'), // 0-100
+    lastAnalyzedAt: timestamp('last_analyzed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    uniq: unique('communities_unique').on(table.brandId, table.platform, table.platformId),
+  }),
+)
+
+export const communityAnalysis = pgTable(
+  'community_analysis',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    communityId: uuid('community_id').notNull().references(() => communities.id, { onDelete: 'cascade' }),
+    sentimentPositive: integer('sentiment_positive'), // percentage
+    sentimentNeutral: integer('sentiment_neutral'),
+    sentimentNegative: integer('sentiment_negative'),
+    painPoints: jsonb('pain_points'), // [{pain: string, frequency: number}]
+    cultureSummary: text('culture_summary'),
+    topPosts: jsonb('top_posts'), // [{title: string, engagement: number}]
+    analyzedAt: timestamp('analyzed_at', { withTimezone: true }).defaultNow(),
+  },
+)
+
+export const engagementStrategy = pgTable(
+  'engagement_strategy',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    communityId: uuid('community_id').notNull().references(() => communities.id, { onDelete: 'cascade' }),
+    conversationStarters: jsonb('conversation_starters'), // string[]
+    valuePosts: jsonb('value_posts'), // string[]
+    softPitches: jsonb('soft_pitches'), // string[]
+    optimalTimes: jsonb('optimal_times'), // [{day: string, time: string}]
+    replyStrategy: text('reply_strategy'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  },
+)
+
+export const communityPerformance = pgTable(
+  'community_performance',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    communityId: uuid('community_id').notNull().references(() => communities.id, { onDelete: 'cascade' }),
+    date: text('date').notNull(), // YYYY-MM-DD
+    postsShared: integer('posts_shared').default(0),
+    commentsReceived: integer('comments_received').default(0),
+    reactionsReceived: integer('reactions_received').default(0),
+    sharesReceived: integer('shares_received').default(0),
+    repliesPosted: integer('replies_posted').default(0),
+    websiteVisits: integer('website_visits').default(0),
+    trialSignups: integer('trial_signups').default(0),
+    sentimentScore: integer('sentiment_score'), // 0-100
+    engagementRate: integer('engagement_rate'), // percentage
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    uniq: unique('community_performance_unique').on(table.communityId, table.date),
+  }),
+)
+
+// ── Features ──────────────────────────────────────────────────────────────────
+
+export const features = pgTable(
+  'features',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: text('name').notNull(),
+    description: text('description'),
+    keywords: text('keywords'), // comma-separated keywords to search for in commits
+    isCompleted: boolean('is_completed').default(false),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  },
 )

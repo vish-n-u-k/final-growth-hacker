@@ -28,7 +28,7 @@ export interface ModuleData {
 }
 
 interface Props {
-  brand: { id: string; name: string }
+  brand: { id: string; name: string; keywords?: string }
   allModulesData: ModuleData[]
   userEmail: string
   githubConnected: boolean
@@ -162,9 +162,26 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [verifyingItems, setVerifyingItems] = useState<Set<string>>(new Set())
   const [applyingFix, setApplyingFix] = useState<Set<string>>(new Set())
   const [reanalyzingMap, setReanalyzingMap] = useState<Record<string, boolean>>({})
-  const [reqValuesMap, setReqValuesMap] = useState<Record<string, Record<string, string>>>(() =>
-    Object.fromEntries(allModulesData.map(m => [m.id, m.requirements]))
-  )
+  const [reqValuesMap, setReqValuesMap] = useState<Record<string, Record<string, string>>>(() => {
+    const map = Object.fromEntries(allModulesData.map(m => [m.id, m.requirements]))
+    return map
+  })
+
+  // Pre-fill Community Finder keywords from brand whenever brand changes
+  useEffect(() => {
+    if (brand.keywords?.trim()) {
+      const communityFinder = allModulesData.find(m => m.type === 'community-finder')
+      if (communityFinder) {
+        setReqValuesMap(prev => ({
+          ...prev,
+          [communityFinder.id]: {
+            ...prev[communityFinder.id],
+            brand_keywords: brand.keywords,
+          }
+        }))
+      }
+    }
+  }, [brand.keywords, allModulesData])
   const [setupErrorMap, setSetupErrorMap] = useState<Record<string, string | null>>({})
   const [generatingDraft, setGeneratingDraft] = useState<Set<string>>(new Set())
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
@@ -796,7 +813,9 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             const dynItems = dynItemsMap[modData.id] ?? []
             const openCats = openCatsMap[modData.id] ?? new Set<string>()
             const missingReqs = def.requirements.filter(r => r.required !== false && !reqValues[r.key]?.trim())
-            const needsSetup = missingReqs.length > 0
+            // For dynamic modules with no findings yet, always show setup form
+            const hasNoFindings = def.dynamic && dynItems.length === 0
+            const needsSetup = missingReqs.length > 0 || (hasNoFindings && def.requirements.length > 0)
 
             return (
               <div key={modData.id} className={`level ${stateClass}${isOpen ? ' open' : ''} `}>
@@ -898,21 +917,33 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                 {req.required !== false && <span className="md-setup-required"> *</span>}
                               </label>
                               {req.type === 'url_list' || req.type === 'text_list' ? (
-                                <textarea
-                                  className="md-setup-input md-setup-textarea"
-                                  placeholder={req.placeholder}
-                                  value={reqValues[req.key] ?? ''}
-                                  onChange={(e) => setReqValuesMap(prev => ({ ...prev, [modData.id]: { ...prev[modData.id], [req.key]: e.target.value } }))}
-                                  rows={3}
-                                />
+                                <>
+                                  <textarea
+                                    className="md-setup-input md-setup-textarea"
+                                    placeholder={req.placeholder}
+                                    value={reqValues[req.key] ?? ''}
+                                    onChange={(e) => setReqValuesMap(prev => ({ ...prev, [modData.id]: { ...prev[modData.id], [req.key]: e.target.value } }))}
+                                    onClick={(e) => e.stopPropagation()}
+                                    rows={3}
+                                  />
+                                  {req.key === 'brand_keywords' && (
+                                    <div className="md-setup-hint">Separate multiple keywords with commas (e.g., AI, automation, marketing)</div>
+                                  )}
+                                </>
                               ) : (
-                                <Input
-                                  type={req.type === 'url' ? 'url' : 'text'}
-                                  placeholder={req.placeholder}
-                                  value={reqValues[req.key] ?? ''}
-                                  onChange={(e) => setReqValuesMap(prev => ({ ...prev, [modData.id]: { ...prev[modData.id], [req.key]: e.target.value } }))}
-                                  className="bg-[var(--input)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:ring-[var(--green)] focus-visible:border-[var(--green)]"
-                                />
+                                <>
+                                  <Input
+                                    type={req.type === 'url' ? 'url' : 'text'}
+                                    placeholder={req.placeholder}
+                                    value={reqValues[req.key] ?? ''}
+                                    onChange={(e) => setReqValuesMap(prev => ({ ...prev, [modData.id]: { ...prev[modData.id], [req.key]: e.target.value } }))}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="md-setup-input"
+                                  />
+                                  {req.key === 'brand_keywords' && (
+                                    <div className="md-setup-hint">Separate multiple keywords with commas (e.g., AI, automation, marketing)</div>
+                                  )}
+                                </>
                               )}
                             </div>
                           ))}

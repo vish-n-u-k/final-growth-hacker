@@ -10,6 +10,7 @@ import { OUTREACH_TARGETS_MODULE } from './outreach-targets/definition'
 import { GEO_MODULE } from './geo/definition'
 import { GEO_COMPETITOR_GAP_MODULE } from './geo-competitor-gap/definition'
 import { USER_ANALYTICS_MODULE } from './user-analytics/definition'
+import { COMMUNITY_FINDER_MODULE } from './community-finder/definition'
 import type { ModuleDefinition } from './types'
 
 // ── Module Registry ───────────────────────────────────────────────────────────
@@ -29,6 +30,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
   GEO_MODULE,                     // order: 9
   GEO_COMPETITOR_GAP_MODULE,      // order: 10
   USER_ANALYTICS_MODULE,          // order: 12
+  COMMUNITY_FINDER_MODULE,        // order: 13
 ]
 
 export const MODULE_MAP: Record<string, ModuleDefinition> = Object.fromEntries(

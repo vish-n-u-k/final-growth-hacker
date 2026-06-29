@@ -63,10 +63,12 @@ Return ONLY a valid JSON object with exactly these keys:
 - "targetAudience": who the product/service is for (e.g. "Small business owners", "Marketing managers at B2B SaaS") — under 150 chars
 - "usp": the main unique selling proposition or value proposition — under 150 chars
 - "brandVoice": the tone and style of the brand (e.g. "Professional and friendly", "Bold and direct") — under 80 chars
+- "keywords": 3-5 key topics/areas the brand focuses on, comma-separated (e.g. "AI, automation, social media") — under 100 chars
 
 Rules:
 - Base answers on the extracted text where possible
 - If a field is unclear or undetectable, return an empty string "" for that field
+- keywords should reflect the core products/services and market positioning
 - Return ONLY valid JSON. No markdown fences, no extra text.`
 
 export async function POST(request: NextRequest) {
@@ -96,12 +98,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       brandName: parsed.brandName ?? '',
       industry: parsed.industry ?? '',
+      keywords: parsed.keywords ?? '',
       targetAudience: parsed.targetAudience ?? '',
       usp: parsed.usp ?? '',
       brandVoice: parsed.brandVoice ?? '',
     })
   } catch (err) {
     console.error('prefill AI error:', err)
-    return NextResponse.json({ brandName: '', industry: '', targetAudience: '', usp: '', brandVoice: '' })
+    return NextResponse.json({ brandName: '', industry: '', keywords: '', targetAudience: '', usp: '', brandVoice: '' })
   }
 }
