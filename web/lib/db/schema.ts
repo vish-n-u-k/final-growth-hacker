@@ -18,6 +18,27 @@ export const brands = pgTable('brands', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 
+// ── Competitor Registry (centralized across all modules) ──────────────────
+
+export const competitors = pgTable(
+  'competitors',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    url: text('url').notNull(),
+    name: text('name'), // e.g. "Buffer", "Hootsuite"
+    type: text('type'), // 'direct' | 'indirect' | 'aspirational' — competitor classification
+    marketPosition: text('market_position'), // 'leader' | 'challenger' | 'niche_player' | 'new_entrant'
+    primaryStrength: text('primary_strength'), // main competitive advantage observed
+    discoveredIn: text('discovered_in'), // module type that discovered it (e.g. 'competitor-analysis')
+    discoveredAt: timestamp('discovered_at', { withTimezone: true }).defaultNow(),
+    lastAnalyzedAt: timestamp('last_analyzed_at', { withTimezone: true }),
+  },
+  (table) => ({
+    uniq: unique('competitors_unique').on(table.brandId, table.url),
+  }),
+)
+
 // ── Modules ──────────────────────────────────────────────────────────────────
 
 export const modules = pgTable('modules', {
