@@ -28,7 +28,7 @@ export interface ModuleData {
 }
 
 interface Props {
-  brand: { id: string; name: string }
+  brand: { id: string; name: string; keywords?: string }
   allModulesData: ModuleData[]
   userEmail: string
   githubConnected: boolean
@@ -162,9 +162,26 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [verifyingItems, setVerifyingItems] = useState<Set<string>>(new Set())
   const [applyingFix, setApplyingFix] = useState<Set<string>>(new Set())
   const [reanalyzingMap, setReanalyzingMap] = useState<Record<string, boolean>>({})
-  const [reqValuesMap, setReqValuesMap] = useState<Record<string, Record<string, string>>>(() =>
-    Object.fromEntries(allModulesData.map(m => [m.id, m.requirements]))
-  )
+  const [reqValuesMap, setReqValuesMap] = useState<Record<string, Record<string, string>>>(() => {
+    const map = Object.fromEntries(allModulesData.map(m => [m.id, m.requirements]))
+    return map
+  })
+
+  // Pre-fill Community Finder keywords from brand whenever brand changes
+  useEffect(() => {
+    if (brand.keywords?.trim()) {
+      const communityFinder = allModulesData.find(m => m.type === 'community-finder')
+      if (communityFinder) {
+        setReqValuesMap(prev => ({
+          ...prev,
+          [communityFinder.id]: {
+            ...prev[communityFinder.id],
+            brand_keywords: brand.keywords,
+          }
+        }))
+      }
+    }
+  }, [brand.keywords, allModulesData])
   const [setupErrorMap, setSetupErrorMap] = useState<Record<string, string | null>>({})
   const [generatingDraft, setGeneratingDraft] = useState<Set<string>>(new Set())
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
@@ -530,6 +547,45 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 <div className="sm-action-box">
                   <span className="sm-action-label">Action</span>
                   <p className="sm-action-text">{item.aiAction}</p>
+                  {(item.categorySlug === 'facebook-communities' || item.categorySlug === 'linkedin-communities') && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const linkMatch = item.aiAction?.match(/https?:\/\/[^\s\n]+/)
+                        if (linkMatch) {
+                          window.open(linkMatch[0], '_blank')
+                        }
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        marginTop: '12px',
+                        padding: '8px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid var(--green)',
+                        color: 'var(--green-bright)',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        background: 'rgba(79, 172, 121, 0.1)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(79, 172, 121, 0.2)'
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--green-bright)'
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(79, 172, 121, 0.1)'
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--green)'
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h6M21 5H9M21 5v12M21 5l-12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Visit Community
+                    </button>
+                  )}
                 </div>
               )}
               {item.slug === 'content-calendar-30-day' && !!item.aiData && (
@@ -796,7 +852,9 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             const dynItems = dynItemsMap[modData.id] ?? []
             const openCats = openCatsMap[modData.id] ?? new Set<string>()
             const missingReqs = def.requirements.filter(r => r.required !== false && !reqValues[r.key]?.trim())
-            const needsSetup = missingReqs.length > 0
+            // For dynamic modules with no findings yet, always show setup form
+            const hasNoFindings = def.dynamic && dynItems.length === 0
+            const needsSetup = missingReqs.length > 0 || (hasNoFindings && def.requirements.length > 0)
 
             return (
               <div key={modData.id} className={`level ${stateClass}${isOpen ? ' open' : ''} `}>
@@ -839,7 +897,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     </div>
                   )}
 
-                  {!isLocked && !!modData.lastAnalyzedAt && (
+                  {!isLocked && !!modData.lastAnalyzedAt && modData.type !== 'community-finder' && (
                     <button
                       onClick={(e) => { e.stopPropagation(); downloadModuleMd(modData, states, dynItems) }}
                       className="level-export-btn"
@@ -898,21 +956,33 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                 {req.required !== false && <span className="md-setup-required"> *</span>}
                               </label>
                               {req.type === 'url_list' || req.type === 'text_list' ? (
-                                <textarea
-                                  className="md-setup-input md-setup-textarea"
-                                  placeholder={req.placeholder}
-                                  value={reqValues[req.key] ?? ''}
-                                  onChange={(e) => setReqValuesMap(prev => ({ ...prev, [modData.id]: { ...prev[modData.id], [req.key]: e.target.value } }))}
-                                  rows={3}
-                                />
+                                <>
+                                  <textarea
+                                    className="md-setup-input md-setup-textarea"
+                                    placeholder={req.placeholder}
+                                    value={reqValues[req.key] ?? ''}
+                                    onChange={(e) => setReqValuesMap(prev => ({ ...prev, [modData.id]: { ...prev[modData.id], [req.key]: e.target.value } }))}
+                                    onClick={(e) => e.stopPropagation()}
+                                    rows={3}
+                                  />
+                                  {req.key === 'brand_keywords' && (
+                                    <div className="md-setup-hint">Separate multiple keywords with commas (e.g., AI, automation, marketing)</div>
+                                  )}
+                                </>
                               ) : (
-                                <Input
-                                  type={req.type === 'url' ? 'url' : 'text'}
-                                  placeholder={req.placeholder}
-                                  value={reqValues[req.key] ?? ''}
-                                  onChange={(e) => setReqValuesMap(prev => ({ ...prev, [modData.id]: { ...prev[modData.id], [req.key]: e.target.value } }))}
-                                  className="bg-[var(--input)] border-[var(--line)] text-[var(--text)] placeholder:text-[var(--text-faint)] focus-visible:ring-[var(--green)] focus-visible:border-[var(--green)]"
-                                />
+                                <>
+                                  <Input
+                                    type={req.type === 'url' ? 'url' : 'text'}
+                                    placeholder={req.placeholder}
+                                    value={reqValues[req.key] ?? ''}
+                                    onChange={(e) => setReqValuesMap(prev => ({ ...prev, [modData.id]: { ...prev[modData.id], [req.key]: e.target.value } }))}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="md-setup-input"
+                                  />
+                                  {req.key === 'brand_keywords' && (
+                                    <div className="md-setup-hint">Separate multiple keywords with commas (e.g., AI, automation, marketing)</div>
+                                  )}
+                                </>
                               )}
                             </div>
                           ))}

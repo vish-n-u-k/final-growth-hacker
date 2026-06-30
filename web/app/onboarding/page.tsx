@@ -16,6 +16,7 @@ export default function OnboardingPage() {
   const [state, setState] = useState<State>('step1')
   const [brandName, setBrandName] = useState('')
   const [websiteUrl, setWebsiteUrl] = useState('')
+  const [keywords, setKeywords] = useState('')
   const [industry, setIndustry] = useState('')
   const [targetAudience, setTargetAudience] = useState('')
   const [usp, setUsp] = useState('')
@@ -56,6 +57,7 @@ export default function OnboardingPage() {
         if (data) {
           if (data.brandName) setBrandName(data.brandName)
           if (data.industry) setIndustry(data.industry)
+          if (data.keywords) setKeywords(data.keywords)
           if (data.targetAudience) setTargetAudience(data.targetAudience)
           if (data.usp) setUsp(data.usp)
           if (data.brandVoice) setBrandVoice(data.brandVoice)
@@ -75,6 +77,7 @@ export default function OnboardingPage() {
       body: JSON.stringify({
         brandName,
         websiteUrl,
+        keywords: skip ? '' : keywords,
         industry: skip ? '' : industry,
         targetAudience: skip ? '' : targetAudience,
         usp: skip ? '' : usp,
@@ -203,6 +206,17 @@ export default function OnboardingPage() {
                       placeholder="e.g. SaaS, E-commerce, Healthcare"
                       value={industry}
                       onChange={(e) => setIndustry(e.target.value)}
+                      onInput={autoResize}
+                      className="ob-textarea"
+                    />
+                  </label>
+                  <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <span className="ob-field-label">Brand Keywords</span>
+                    <textarea
+                      rows={1}
+                      placeholder="e.g. AI, content creation, marketing (comma-separated)"
+                      value={keywords}
+                      onChange={(e) => setKeywords(e.target.value)}
                       onInput={autoResize}
                       className="ob-textarea"
                     />

@@ -39,79 +39,88 @@ async function seedModuleStructure(moduleId: string, def: ModuleDefinition) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Prevent duplicate onboarding
-  const existing = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
-  if (existing.length > 0) {
-    // Return existing foundation module id
-    const foundationMod = await db
-      .select()
-      .from(modules)
-      .where(eq(modules.brandId, existing[0].id))
-      .limit(1)
-    return NextResponse.json({ moduleId: foundationMod[0]?.id })
-  }
-
-  const { brandName, websiteUrl, industry, targetAudience, usp, brandVoice } = await request.json()
-  if (!brandName?.trim() || !websiteUrl?.trim()) {
-    return NextResponse.json({ error: 'Brand name and website URL are required' }, { status: 400 })
-  }
-
-  const url = websiteUrl.trim().startsWith('http') ? websiteUrl.trim() : `https://${websiteUrl.trim()}`
-
-  // Create brand
-  const [brand] = await db
-    .insert(brands)
-    .values({
-      userId: user.id,
-      name: brandName.trim(),
-      websiteUrl: url,
-      industry: industry?.trim() || null,
-      targetAudience: targetAudience?.trim() || null,
-      usp: usp?.trim() || null,
-      brandVoice: brandVoice?.trim() || null,
-    })
-    .returning()
-
-  // Create all modules from registry (Foundation unlocked, rest locked)
-  const createdModules: { id: string; type: string; order: number }[] = []
-
-  for (const def of MODULE_REGISTRY) {
-    const brandFields: Record<string, string | null> = {
-      website_url: url,
-      brand_name: brand.name,
-      industry: brand.industry,
-      target_audience: brand.targetAudience,
-      usp: brand.usp,
-      brand_voice: brand.brandVoice,
-    }
-    const requirements: Record<string, string> = {}
-    for (const req of def.requirements) {
-      const val = brandFields[req.key]
-      if (val) requirements[req.key] = val
+    // Prevent duplicate onboarding
+    const existing = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
+    if (existing.length > 0) {
+      // Return existing foundation module id
+      const foundationMod = await db
+        .select()
+        .from(modules)
+        .where(eq(modules.brandId, existing[0].id))
+        .limit(1)
+      return NextResponse.json({ moduleId: foundationMod[0]?.id })
     }
 
-    const [mod] = await db
-      .insert(modules)
+    const { brandName, websiteUrl, keywords, industry, targetAudience, usp, brandVoice } = await request.json()
+    if (!brandName?.trim() || !websiteUrl?.trim()) {
+      return NextResponse.json({ error: 'Brand name and website URL are required' }, { status: 400 })
+    }
+
+    const url = websiteUrl.trim().startsWith('http') ? websiteUrl.trim() : `https://${websiteUrl.trim()}`
+
+    // Create brand
+    const [brand] = await db
+      .insert(brands)
       .values({
-        brandId: brand.id,
-        type: def.type,
-        name: def.name,
-        order: def.order,
-        status: (def.order === 0 || def.unlockThreshold === 0) ? 'pending' : 'locked',
-        requirements,
+        userId: user.id,
+        name: brandName.trim(),
+        websiteUrl: url,
+        keywords: keywords?.trim() || null,
+        industry: industry?.trim() || null,
+        targetAudience: targetAudience?.trim() || null,
+        usp: usp?.trim() || null,
+        brandVoice: brandVoice?.trim() || null,
       })
       .returning()
 
-    await seedModuleStructure(mod.id, def)
-    createdModules.push({ id: mod.id, type: def.type, order: def.order })
-  }
+    // Create all modules from registry (Foundation unlocked, rest locked)
+    const createdModules: { id: string; type: string; order: number }[] = []
 
-  const firstModule = createdModules.find((m) => m.order === 0)
-  return NextResponse.json({ moduleId: firstModule?.id })
+    for (const def of MODULE_REGISTRY) {
+      const brandFields: Record<string, string | null> = {
+        website_url: url,
+        brand_name: brand.name,
+        industry: brand.industry,
+        target_audience: brand.targetAudience,
+        usp: brand.usp,
+        brand_voice: brand.brandVoice,
+      }
+      const requirements: Record<string, string> = {}
+      for (const req of def.requirements) {
+        const val = brandFields[req.key]
+        if (val) requirements[req.key] = val
+      }
+
+      const [mod] = await db
+        .insert(modules)
+        .values({
+          brandId: brand.id,
+          type: def.type,
+          name: def.name,
+          order: def.order,
+          status: (def.order === 0 || def.unlockThreshold === 0) ? 'pending' : 'locked',
+          requirements,
+        })
+        .returning()
+
+      await seedModuleStructure(mod.id, def)
+      createdModules.push({ id: mod.id, type: def.type, order: def.order })
+    }
+
+    const foundationModule = createdModules.find((m) => m.order === 0)
+    return NextResponse.json({ moduleId: foundationModule?.id })
+  } catch (err) {
+    console.error('Onboarding error:', err instanceof Error ? err.message : err)
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Onboarding failed. Please try again.' },
+      { status: 500 },
+    )
+  }
 }

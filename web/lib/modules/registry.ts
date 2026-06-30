@@ -11,6 +11,7 @@ import { OUTREACH_TARGETS_MODULE } from './outreach-targets/definition'
 import { GEO_MODULE } from './geo/definition'
 import { GEO_COMPETITOR_GAP_MODULE } from './geo-competitor-gap/definition'
 import { USER_ANALYTICS_MODULE } from './user-analytics/definition'
+import { COMMUNITY_FINDER_MODULE } from './community-finder/definition'
 import type { ModuleDefinition } from './types'
 
 // ── Module Registry ───────────────────────────────────────────────────────────
@@ -18,19 +19,19 @@ import type { ModuleDefinition } from './types'
 // The order field on each definition controls the sequence and gating.
 
 export const MODULE_REGISTRY: ModuleDefinition[] = [
-  USER_ACQUISITION_MODULE,        // order: 0
-  FOUNDATION_MODULE,              // order: 1
-  WEBSITE_MODULE,                 // order: 2
-  SEO_MODULE,                     // order: 3
-  COMPETITOR_ANALYSIS_MODULE,     // order: 4
-  SOCIAL_MEDIA_MODULE,            // order: 5
-  BRAND_AUDIT_MODULE,             // order: 6
-  CONTENT_AUDIT_MODULE,           // order: 7
-  META_ADS_MODULE,                // order: 8
-  OUTREACH_TARGETS_MODULE,        // order: 9
-  GEO_MODULE,                     // order: 10
-  GEO_COMPETITOR_GAP_MODULE,      // order: 11
-  USER_ANALYTICS_MODULE,          // order: 13
+  FOUNDATION_MODULE,              // order: 0
+  WEBSITE_MODULE,                 // order: 1
+  SEO_MODULE,                     // order: 2
+  COMPETITOR_ANALYSIS_MODULE,     // order: 3
+  SOCIAL_MEDIA_MODULE,            // order: 4
+  BRAND_AUDIT_MODULE,             // order: 5
+  CONTENT_AUDIT_MODULE,           // order: 6
+  META_ADS_MODULE,                // order: 7
+  OUTREACH_TARGETS_MODULE,        // order: 8
+  GEO_MODULE,                     // order: 9
+  GEO_COMPETITOR_GAP_MODULE,      // order: 10
+  USER_ANALYTICS_MODULE,          // order: 12
+  COMMUNITY_FINDER_MODULE,        // order: 13
 ]
 
 export const MODULE_MAP: Record<string, ModuleDefinition> = Object.fromEntries(
