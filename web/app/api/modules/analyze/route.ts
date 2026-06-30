@@ -32,6 +32,10 @@ import { fetchUserAnalyticsData } from '@/lib/modules/user-analytics/fetcher'
 import { analyzeUserAnalytics } from '@/lib/modules/user-analytics/agent'
 import { fetchCommunityDiscovery } from '@/lib/modules/community-finder/fetcher'
 import { analyzeCommunitiesFinder } from '@/lib/modules/community-finder/agent'
+import { fetchUserAcquisitionData } from '@/lib/modules/user-acquisition/fetcher'
+import { analyzeUserAcquisition } from '@/lib/modules/user-acquisition/agent'
+import { fetchBusinessStageData } from '@/lib/modules/business-stage/fetcher'
+import { analyzeBusinessStage } from '@/lib/modules/business-stage/agent'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
@@ -144,6 +148,10 @@ async function runAnalysis(
     case 'community-finder': {
       const data = await fetchCommunityDiscovery(requirements)
       return analyzeCommunitiesFinder(data, brainCtx)
+    }
+    case 'business-stage': {
+      const data = await fetchBusinessStageData(requirements)
+      return analyzeBusinessStage(data, brainCtx)
     }
     default:
       throw new Error(`No analyzer registered for module type: ${moduleType}`)

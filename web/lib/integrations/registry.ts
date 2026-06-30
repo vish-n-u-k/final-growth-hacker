@@ -493,6 +493,30 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     ],
   },
   {
+    provider: 'frekto',
+    name: 'Frekto',
+    description: 'Generate social media images and short videos from text prompts. Powers the Content Studio in the Social Media Audit module.',
+    type: 'api_key',
+    group: 'social',
+    docsUrl: 'https://app.frekto.ai/docs',
+    setupSteps: [
+      'Go to app.frekto.ai and sign up for an account',
+      'In your dashboard, go to API Keys → Create new key',
+      'Copy your API key (it starts with frekto_live_)',
+      'Paste it above and click Connect',
+      'Free tier: 10 renders/day · Paid tier: 30 renders/day',
+    ],
+    fields: [
+      {
+        key: 'api_key',
+        label: 'Frekto API Key',
+        placeholder: 'frekto_live_xxxxxxxxxxxxxxxxxxxx',
+        inputType: 'password',
+        helpText: 'From app.frekto.ai → API Keys → Create new key. Free tier includes 10 image/video renders per day.',
+      },
+    ],
+  },
+  {
     provider: 'tiktok',
     name: 'TikTok',
     description: 'Fetch follower count and video performance stats via the TikTok for Developers API.',
