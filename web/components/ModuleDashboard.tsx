@@ -147,13 +147,24 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
     setUserCount( 0)
   }, [])
   const [editingCount, setEditingCount] = useState(false)
+  const [autoRunTriggered, setAutoRunTriggered] = useState(false)
   const router = useRouter()
 
   // Whether any required requirement is missing a value
   const missingRequirements = def.requirements.filter(
     (r) => r.required !== false && !reqValues[r.key]?.trim(),
   )
+  // Only show form if there are missing REQUIRED fields
+  // Optional fields (like competitor_urls with leave empty to auto-discover) should not block
   const needsSetup = missingRequirements.length > 0
+
+  // Auto-run analysis when all required fields are filled and module hasn't been analyzed
+  useEffect(() => {
+    if (!needsSetup && !mod.lastAnalyzedAt && !reanalyzing && !autoRunTriggered && def.dynamic) {
+      setAutoRunTriggered(true)
+      handleReanalyze(reqValues)
+    }
+  }, [needsSetup, mod.lastAnalyzedAt])
 
   const overall = def.dynamic ? getDynamicOverall(dynItems) : getOverall(def, states)
 
@@ -252,7 +263,8 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
       body: JSON.stringify(body),
     })
     if (res.ok) {
-      window.location.reload()
+      // Refresh the page data without full reload using Next.js router
+      router.refresh()
     } else {
       const data = await res.json().catch(() => ({}))
       setSetupError((data as { error?: string }).error ?? 'Analysis failed. Please try again.')
@@ -751,7 +763,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
           </div>
         </div>
 
-        {/* Requirements setup — shown when module has unfilled required inputs */}
+        {/* Requirements setup — shown only when module has unfilled REQUIRED inputs */}
         {needsSetup && (
           <div className="md-setup-card">
             <div className="md-setup-title">Set up {def.name}</div>

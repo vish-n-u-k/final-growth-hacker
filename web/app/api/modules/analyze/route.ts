@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleCategories, moduleItems, modulePageAudit, brandIntegrations } from '@/lib/db/schema'
+import { getCompetitorUrlsString, storeCompetitors } from '@/lib/modules/competitor-registry'
 import { eq, and } from 'drizzle-orm'
 import { MODULE_MAP } from '@/lib/modules/registry'
 import { fetchFoundationData } from '@/lib/modules/foundation/fetcher'
@@ -203,11 +204,26 @@ export async function POST(request: NextRequest) {
 
   // Ensure website_url, brand_id, and brand_name are always available in requirements
   const baseRequirements = (mod.requirements as Record<string, string> | null) ?? {}
-  const requirements: Record<string, string> = {
+  let requirements: Record<string, string> = {
     ...baseRequirements,
     brand_id: brand.id,
     brand_name: brand.name,
     ...(brand.websiteUrl && !baseRequirements['website_url'] ? { website_url: brand.websiteUrl } : {}),
+  }
+
+  // Auto-populate competitor URLs from registry if not provided and module uses competitors
+  if (
+    (mod.type === 'competitor-analysis' || mod.type === 'competitor-audit' || mod.type === 'outreach-targets') &&
+    !requirements['competitor_urls']
+  ) {
+    try {
+      const registryUrls = await getCompetitorUrlsString(brand.id)
+      if (registryUrls) {
+        requirements['competitor_urls'] = registryUrls
+      }
+    } catch {
+      // Non-fatal — analysis continues without auto-populated competitors
+    }
   }
 
   // ── Content Audit: special pipeline (parallel Claude calls + page verdicts) ──
@@ -377,18 +393,22 @@ export async function POST(request: NextRequest) {
 
     // Get or create categories for this module
     let cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+    const existingCatSlugs = new Set(cats.filter((c) => !c.parentId).map((c) => c.slug))
 
-    // If categories don't exist, create them from the module definition
-    if (cats.length === 0 && def.categories) {
-      const catInserts = (def.categories as ModuleCategoryDefinition[]).map((cat) => ({
-        moduleId,
-        slug: cat.slug,
-        label: cat.label,
-        order: cat.order ?? 0,
-        parentId: null as string | null,
-      }))
-      await db.insert(moduleCategories).values(catInserts)
-      cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+    // If new categories in definition don't exist in DB, create them
+    if (def.categories) {
+      const missingCats = (def.categories as ModuleCategoryDefinition[]).filter((cat) => !existingCatSlugs.has(cat.slug))
+      if (missingCats.length > 0) {
+        const catInserts = missingCats.map((cat) => ({
+          moduleId,
+          slug: cat.slug,
+          label: cat.label,
+          order: cat.order ?? 0,
+          parentId: null as string | null,
+        }))
+        await db.insert(moduleCategories).values(catInserts)
+        cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+      }
     }
 
     const catMap = new Map(cats.filter((c) => !c.parentId).map((c) => [c.slug, c.id]))
@@ -418,6 +438,33 @@ export async function POST(request: NextRequest) {
         })
       }),
     )
+
+    // Store discovered competitors in the registry (for competitor-related modules)
+    if ((mod.type === 'competitor-analysis' || mod.type === 'competitor-audit') && brand.id) {
+      try {
+        const competitorFindings = dynamicResults.filter((r) => r.category === 'competitor-discovery')
+        if (competitorFindings.length > 0) {
+          const competitorsList = competitorFindings
+            .map((f) => {
+              // Extract URL from label (e.g. "Buffer (buffer.com)" → "buffer.com")
+              const urlMatch = f.label.match(/\(([^)]+)\)/)
+              const url = urlMatch ? urlMatch[1] : f.label
+              return {
+                url: url.startsWith('http') ? url : `https://${url}`,
+                name: f.label.split(' (')[0]?.trim(),
+                primaryStrength: f.aiDetail,
+                discoveredIn: mod.type,
+              }
+            })
+            .filter((c) => c.url)
+          if (competitorsList.length > 0) {
+            await storeCompetitors(brand.id, competitorsList)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to store competitors in registry (non-fatal):', err)
+      }
+    }
   } else {
     // ── Static module: items pre-seeded, update findings by slug ──────────
     const staticResults = results as ModuleAnalysisResult[]

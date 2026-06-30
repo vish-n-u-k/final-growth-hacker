@@ -238,14 +238,14 @@ Ad strategy gaps:
 ${adSummary}
 
 === Your task ===
-Analyse all the data above. Return findings for EXACTLY these 6 categories: competitor-discovery, keyword-gap, content-gap, seo-gap, positioning, swot.
+Analyse all the data above. Return findings for EXACTLY these 7 categories: competitor-discovery, feature-comparison, keyword-gap, content-gap, seo-gap, positioning, swot.
 Do NOT return any findings with category "social-gap" or "ad-gap".
 
 ${categoryInstructions}
 
 Return ONLY a valid JSON array. No markdown fences, no text outside the array. Each element:
 {
-  "category": string — must be one of: "competitor-discovery", "keyword-gap", "content-gap", "seo-gap", "positioning", "swot",
+  "category": string — must be one of: "competitor-discovery", "feature-comparison", "keyword-gap", "content-gap", "seo-gap", "positioning", "swot",
   "slug": string — kebab-case, pattern: {category-slug}-{short-descriptor},
   "label": string — short and specific; cite competitor URLs where relevant,
   "weight": 1 | 2 | 3,
@@ -269,7 +269,7 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. E
     throw new Error(`Competitor analysis agent returned invalid JSON: ${err instanceof Error ? err.message : raw.slice(0, 300)}`)
   }
 
-  const allowed = new Set(['competitor-discovery', 'keyword-gap', 'content-gap', 'seo-gap', 'positioning', 'swot'])
+  const allowed = new Set(['competitor-discovery', 'feature-comparison', 'keyword-gap', 'content-gap', 'seo-gap', 'positioning', 'swot'])
 
   return results
     .filter(r =>
