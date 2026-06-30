@@ -176,7 +176,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           ...prev,
           [communityFinder.id]: {
             ...prev[communityFinder.id],
-            brand_keywords: brand.keywords,
+            brand_keywords: brand.keywords ?? '',
           }
         }))
       }
@@ -572,12 +572,12 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         transition: 'all 0.2s ease'
                       }}
                       onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(79, 172, 121, 0.2)'
-                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--green-bright)'
+                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(79, 172, 121, 0.2)';
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--green-bright)';
                       }}
                       onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(79, 172, 121, 0.1)'
-                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--green)'
+                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(79, 172, 121, 0.1)';
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--green)';
                       }}
                     >
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none">

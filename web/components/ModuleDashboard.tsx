@@ -1151,6 +1151,15 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
           <SocialProfilesPanel moduleId={mod.id} requirements={mod.requirements} />
         )}
 
+        {/* Frekto Content Studio — Social Media module only */}
+        {mod.type === 'social-media' && (
+          <FrektoContentStudio
+            moduleId={mod.id}
+            brandName={brand.name}
+            connected={!!connectedIntegrations['frekto']}
+          />
+        )}
+
         <p className="foot-note" style={{ marginTop: '16px' }}>
           Click any item to see full analysis and action · AI verified = confirmed by Claude · Self-reported = marked by you
         </p>
@@ -1281,6 +1290,297 @@ function SocialProfilesPanel({ moduleId, requirements }: { moduleId: string; req
           {saving ? 'Saving…' : saved ? 'Saved' : 'Save profiles'}
         </Button>
       </div>
+    </div>
+  )
+}
+
+// ── Frekto Content Studio (Social Media module only) ──────────────────────────
+
+const FREKTO_PLATFORMS = [
+  { key: 'instagram', label: 'Instagram', format: '4:5' },
+  { key: 'tiktok', label: 'TikTok', format: '9:16' },
+  { key: 'linkedin', label: 'LinkedIn', format: '1:1' },
+  { key: 'twitter', label: 'X / Twitter', format: '1:1' },
+  { key: 'facebook', label: 'Facebook', format: '1:1' },
+  { key: 'youtube', label: 'YouTube', format: '1:1' },
+]
+
+function FrektoContentStudio({
+  moduleId,
+  brandName,
+  connected,
+}: {
+  moduleId: string
+  brandName: string
+  connected: boolean
+}) {
+  const [platform, setPlatform] = useState('instagram')
+  const [format, setFormat] = useState('4:5')
+  const [outputFormat, setOutputFormat] = useState('png')
+  const [topic, setTopic] = useState('')
+  const [generating, setGenerating] = useState(false)
+  const [resultUrl, setResultUrl] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const selectPlatform = (p: { key: string; format: string }) => {
+    setPlatform(p.key)
+    setFormat(p.format)
+    setResultUrl(null)
+    setError(null)
+  }
+
+  const handleGenerate = async () => {
+    if (!topic.trim() || generating) return
+    setGenerating(true)
+    setError(null)
+    setResultUrl(null)
+    try {
+      const res = await fetch('/api/frekto/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleId, topic: topic.trim(), format, outputFormat }),
+      })
+      const data = await res.json() as { outputUrl?: string; error?: string }
+      if (data.outputUrl) {
+        setResultUrl(data.outputUrl)
+      } else {
+        setError(data.error ?? 'Generation failed. Please try again.')
+      }
+    } catch {
+      setError('Network error — please check your connection and try again.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const cardStyle: React.CSSProperties = {
+    marginTop: '24px',
+    background: 'var(--card)',
+    border: '1px solid var(--line)',
+    borderRadius: '12px',
+    padding: '20px 24px',
+  }
+
+  return (
+    <div style={cardStyle}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>
+          Content Studio
+        </span>
+        {connected ? (
+          <span style={{
+            fontSize: '11px', padding: '2px 8px', borderRadius: '4px',
+            background: 'rgba(47,191,113,0.12)', border: '1px solid rgba(47,191,113,0.3)', color: 'var(--green)',
+          }}>
+            Frekto connected
+          </span>
+        ) : (
+          <a
+            href="/settings"
+            style={{
+              fontSize: '11px', padding: '2px 8px', borderRadius: '4px',
+              background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)',
+              textDecoration: 'none',
+            }}
+          >
+            Connect Frekto in Settings to unlock
+          </a>
+        )}
+      </div>
+      <p style={{ fontSize: '12px', color: 'var(--text-faint)', marginBottom: '16px', lineHeight: '1.5' }}>
+        {connected
+          ? `Generate ready-to-post images and short videos for ${brandName}. Renders take 15–90 seconds.`
+          : 'Connect your Frekto account to generate platform-ready social media images and videos directly from your audit findings.'}
+      </p>
+
+      {!connected && (
+        <a
+          href="/settings"
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px',
+            padding: '7px 16px', borderRadius: '7px',
+            border: '1px solid var(--green)', color: 'var(--green-bright)',
+            fontSize: '12px', fontWeight: 600, textDecoration: 'none',
+          }}
+        >
+          Go to Settings → Integrations
+        </a>
+      )}
+
+      {connected && (
+        <>
+          {/* Platform selector */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
+            {FREKTO_PLATFORMS.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => selectPlatform(p)}
+                style={{
+                  padding: '5px 13px', borderRadius: '6px', fontSize: '12px', fontWeight: 500,
+                  cursor: 'pointer', border: '1px solid',
+                  borderColor: platform === p.key ? 'var(--green)' : 'var(--line)',
+                  background: platform === p.key ? 'rgba(47,191,113,0.12)' : 'transparent',
+                  color: platform === p.key ? 'var(--green-bright)' : 'var(--text-dim)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Format controls */}
+          <div style={{ display: 'flex', gap: '24px', marginBottom: '14px', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginBottom: '6px', fontWeight: 500 }}>Aspect ratio</div>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {['4:5', '9:16', '1:1'].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setFormat(f)}
+                    style={{
+                      padding: '4px 11px', borderRadius: '5px', fontSize: '11px', fontWeight: 500,
+                      cursor: 'pointer', border: '1px solid',
+                      borderColor: format === f ? 'var(--green)' : 'var(--line)',
+                      background: format === f ? 'rgba(47,191,113,0.1)' : 'transparent',
+                      color: format === f ? 'var(--green-bright)' : 'var(--text-dim)',
+                    }}
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginBottom: '6px', fontWeight: 500 }}>Output format</div>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {['png', 'mp4'].map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setOutputFormat(f)}
+                    style={{
+                      padding: '4px 11px', borderRadius: '5px', fontSize: '11px', fontWeight: 500,
+                      cursor: 'pointer', border: '1px solid',
+                      borderColor: outputFormat === f ? 'var(--green)' : 'var(--line)',
+                      background: outputFormat === f ? 'rgba(47,191,113,0.1)' : 'transparent',
+                      color: outputFormat === f ? 'var(--green-bright)' : 'var(--text-dim)',
+                    }}
+                  >
+                    {f.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Topic input */}
+          <div style={{ marginBottom: '12px' }}>
+            <textarea
+              value={topic}
+              onChange={(e) => setTopic(e.target.value.slice(0, 300))}
+              placeholder={`Describe the post for ${FREKTO_PLATFORMS.find(p => p.key === platform)?.label ?? platform}… e.g. "Announce our new product with bold visuals and a clear CTA to sign up"`}
+              rows={3}
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: '7px',
+                border: '1px solid var(--line)', background: 'var(--input)',
+                color: 'var(--text)', fontSize: '12.5px', lineHeight: '1.55',
+                resize: 'vertical', outline: 'none', fontFamily: 'inherit',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ textAlign: 'right', fontSize: '11px', color: topic.length >= 280 ? 'var(--gold)' : 'var(--text-faint)', marginTop: '3px' }}>
+              {topic.length}/300
+            </div>
+          </div>
+
+          {error && (
+            <p style={{ fontSize: '12px', color: '#f87171', marginBottom: '10px' }}>{error}</p>
+          )}
+
+          <button
+            disabled={generating || !topic.trim()}
+            onClick={handleGenerate}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '7px',
+              padding: '8px 20px', borderRadius: '7px', fontSize: '12.5px', fontWeight: 600,
+              cursor: generating || !topic.trim() ? 'not-allowed' : 'pointer',
+              border: 'none',
+              background: generating || !topic.trim() ? 'rgba(47,191,113,0.25)' : 'var(--green)',
+              color: generating || !topic.trim() ? 'var(--text-dim)' : '#06140c',
+              transition: 'all 0.15s',
+            }}
+          >
+            {generating ? (
+              <>
+                <span className="md-spin" style={{ borderTopColor: 'var(--green)', borderColor: 'rgba(47,191,113,0.2)' }} />
+                Generating… (15–90s)
+              </>
+            ) : (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Generate content
+              </>
+            )}
+          </button>
+
+          {/* Result */}
+          {resultUrl && (
+            <div style={{
+              marginTop: '16px', padding: '16px', borderRadius: '8px',
+              border: '1px solid rgba(47,191,113,0.25)', background: 'rgba(47,191,113,0.04)',
+            }}>
+              <div style={{ fontSize: '11px', color: 'var(--green)', fontWeight: 600, marginBottom: '10px', letterSpacing: '0.02em' }}>
+                GENERATED
+              </div>
+              {outputFormat === 'mp4' ? (
+                <video
+                  src={resultUrl}
+                  controls
+                  style={{ maxWidth: '100%', maxHeight: '400px', borderRadius: '6px', display: 'block', marginBottom: '10px' }}
+                />
+              ) : (
+                <img
+                  src={resultUrl}
+                  alt="Generated social media content"
+                  style={{ maxWidth: '100%', maxHeight: '400px', borderRadius: '6px', display: 'block', marginBottom: '10px', objectFit: 'contain' }}
+                />
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <a
+                  href={resultUrl}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '5px',
+                    padding: '6px 14px', borderRadius: '6px',
+                    border: '1px solid var(--green)', color: 'var(--green-bright)',
+                    fontSize: '12px', fontWeight: 500, textDecoration: 'none',
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Download
+                </a>
+                <button
+                  onClick={() => { setResultUrl(null); setError(null) }}
+                  style={{
+                    padding: '6px 14px', borderRadius: '6px',
+                    border: '1px solid var(--line)', color: 'var(--text-dim)',
+                    fontSize: '12px', fontWeight: 500, cursor: 'pointer', background: 'transparent',
+                  }}
+                >
+                  Generate another
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
