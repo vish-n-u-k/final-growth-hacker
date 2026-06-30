@@ -8,15 +8,7 @@ export const BUSINESS_STAGE_MODULE: ModuleDefinition = {
   order: 14,
   unlockThreshold: 0,
   dynamic: true,
-  requirements: [
-    {
-      key: 'website_url',
-      label: 'Your website URL',
-      type: 'url',
-      placeholder: 'https://yourbusiness.com',
-      required: true,
-    },
-  ],
+  requirements: [],
   systemPrompt: `You are a senior growth strategist. You classify businesses into one of three archetypes and one of five growth stages, then generate a specific, evidence-based playbook.
 
 === ARCHETYPES ===

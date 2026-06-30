@@ -301,18 +301,20 @@ async function callHaikuForBatch(
 
   const maxTokens = Math.min(batchItems.length * 60, 1200)
 
-  const raw = await callAI({
-    system: 'You are a senior SEO strategist specialising in keyword research. Output ONLY terse JSON. Keep responses concise: d (detail) under 10 words, n (narrative) under 15 words, a (action) under 20 words. Name actual keywords and questions, not generic advice.',
-    prompt: `Website: ${websiteUrl}
+  // Shared across all parallel batch calls — cached so only the first call pays full input price
+  const cachePrefix = `Website: ${websiteUrl}
 ${brainContext ? `\nBrand context:\n${brainContext}\n` : ''}
 ── Page content ──
 ${pageSnapshot}
 ${externalData ? `\n── External keyword data ──\n${externalData}` : ''}
 
 For each check, respond with ONLY this schema:
-[{"slug": "...", "d": "...", "n": "...", "a": "..."}]
+[{"slug": "...", "d": "...", "n": "...", "a": "..."}]`
 
-${itemList}`,
+  const raw = await callAI({
+    system: 'You are a senior SEO strategist specialising in keyword research. Output ONLY terse JSON. Keep responses concise: d (detail) under 10 words, n (narrative) under 15 words, a (action) under 20 words. Name actual keywords and questions, not generic advice.',
+    cachePrefix,
+    prompt: itemList,
     maxTokens,
     model: 'claude-haiku-4-5-20251001',
   })

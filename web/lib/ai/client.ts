@@ -7,6 +7,8 @@ interface CallAIOptions {
   prompt: string
   maxTokens: number
   model?: string
+  /** Shared prefix to cache across parallel calls. Passed as a separate cached content block before `prompt`. Anthropic only — ignored by Gemini/CLI providers. */
+  cachePrefix?: string
 }
 
 const useGemini = process.env.USE_GEMINI === 'true'
@@ -39,7 +41,7 @@ function callViaCLI(system: string, prompt: string, model: string): string {
   return parsed.result
 }
 
-export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet-4-6' }: CallAIOptions): Promise<string> {
+export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet-4-6', cachePrefix }: CallAIOptions): Promise<string> {
   console.log('\n' + '═'.repeat(80))
   console.log(`[AI] model=${model}  maxTokens=${maxTokens}  provider=${useClaudeCLI ? 'cli' : useGemini ? 'gemini' : 'anthropic'}`)
   console.log('─── SYSTEM ───────────────────────────────────────────────────────────────────')
@@ -63,11 +65,17 @@ export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet
     response = result.response.text()
   } else {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const userContent = cachePrefix
+      ? [
+          { type: 'text' as const, text: cachePrefix, cache_control: { type: 'ephemeral' as const } },
+          { type: 'text' as const, text: prompt },
+        ]
+      : prompt
     const message = await client.messages.create({
       model,
       max_tokens: maxTokens,
       system,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: userContent }],
     })
     response = message.content[0].type === 'text' ? message.content[0].text : '[]'
   }
