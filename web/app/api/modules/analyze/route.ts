@@ -452,7 +452,7 @@ export async function POST(request: NextRequest) {
               return {
                 url: url.startsWith('http') ? url : `https://${url}`,
                 name: f.label.split(' (')[0]?.trim(),
-                primaryStrength: f.aiDetail,
+                primaryStrength: f.detail,
                 discoveredIn: mod.type,
               }
             })
