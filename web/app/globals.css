@@ -2269,3 +2269,95 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
   .level-prog { display: flex; gap: 4px; font-size: 12px; font-weight: 600; color: var(--green-bright); }
   .mini-track { display: none; }
 }
+
+/* ── Coming Soon blocks ───────────────────────────────────────────────────── */
+
+/* Category-level: inline inside a category body */
+.cs-cat {
+  margin: 16px 28px 24px;
+  padding: 20px 22px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.cs-cat-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin: 0;
+}
+.cs-cat-note {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* Module-level: full-width centered block replacing all categories */
+.cs-module {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 56px 32px;
+  background: var(--card);
+  border: 1px dashed var(--line);
+  border-radius: 18px;
+}
+.cs-module-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+}
+.cs-module-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin: 0;
+}
+.cs-module-note {
+  font-size: 13px;
+  color: var(--text-faint);
+  line-height: 1.6;
+  margin: 0;
+  max-width: 380px;
+}
+
+/* Shared badge */
+.cs-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 3px 9px;
+  width: fit-content;
+}
+.cs-badge::before {
+  content: '';
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+
+html.light .cs-cat { background: var(--bg-soft); border-color: var(--line); }
+html.light .cs-module { background: var(--card); border-color: var(--line); }
+html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--line); }

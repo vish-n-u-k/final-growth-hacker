@@ -54,6 +54,8 @@ export interface DynamicModuleCategoryDefinition {
   label: string
   order: number
   prompt: string   // instructions for Claude for this category
+  comingSoon?: boolean   // true = show Coming Soon block instead of items
+  comingSoonNote?: string  // optional description shown in the Coming Soon block
 }
 
 // Type guard
@@ -82,6 +84,8 @@ export interface ModuleDefinition {
   order: number
   unlockThreshold: number
   dynamic?: boolean   // true = Claude generates items; false/undefined = items hardcoded
+  comingSoon?: boolean     // true = entire module shows Coming Soon state
+  comingSoonNote?: string  // optional description shown in the module-level Coming Soon block
   requirements: ModuleRequirement[]
   categories: (ModuleCategoryDefinition | DynamicModuleCategoryDefinition)[]
   systemPrompt: string

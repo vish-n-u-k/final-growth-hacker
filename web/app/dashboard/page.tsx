@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit } from '@/lib/db/schema'
 import { eq, inArray } from 'drizzle-orm'
-import { MODULE_MAP } from '@/lib/modules/registry'
+import { MODULE_MAP, MODULE_REGISTRY } from '@/lib/modules/registry'
 import AllModulesDashboard, { type ModuleData } from '@/components/AllModulesDashboard'
 import { type DBItemState } from '@/components/ModuleDashboard'
 import type { DBItemFull } from '@/lib/modules/types'
@@ -150,6 +150,29 @@ export default async function DashboardPage() {
       })
     }
   }
+
+  // Inject Coming Soon modules from registry that don't exist in DB yet (for existing users)
+  const existingTypes = new Set(allModulesData.map(m => m.type))
+  for (const def of MODULE_REGISTRY) {
+    if (def.comingSoon && !existingTypes.has(def.type)) {
+      allModulesData.push({
+        id: `coming-soon-${def.type}`,
+        type: def.type,
+        name: def.name,
+        order: def.order,
+        status: 'pending',
+        score: 0,
+        lastAnalyzedAt: null,
+        requirements: {},
+        agentPrUrl: null,
+        definition: def,
+        itemStates: {},
+        fullItems: [],
+        pageVerdicts: [],
+      })
+    }
+  }
+  allModulesData.sort((a, b) => a.order - b.order)
 
   return (
     <AllModulesDashboard

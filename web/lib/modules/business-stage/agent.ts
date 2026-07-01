@@ -4,6 +4,8 @@ import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } fro
 import type { BusinessStageFetchResult } from './fetcher'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 
+const CATEGORY_SLUGS = ['classification', 'concern', 'insight', 'actions', 'red-flag'] as const
+
 function buildContext(data: BusinessStageFetchResult, brainContext?: string): string {
   const yesNo = (v: boolean) => (v ? 'Yes' : 'No')
 
@@ -47,7 +49,6 @@ ${data.bodyCopy.slice(0, 2500)}`
 
 function buildPrompt(context: string): string {
   const categories = BUSINESS_STAGE_MODULE.categories as DynamicModuleCategoryDefinition[]
-  const allSlugs = categories.map(c => `"${c.slug}"`).join(', ')
 
   const categoryInstructions = categories
     .map(c => `--- Category: "${c.slug}" (${c.label}) ---\n${c.prompt}`)
@@ -55,21 +56,22 @@ function buildPrompt(context: string): string {
 
   return `${context}
 
-=== Category Instructions ===
+=== Instructions ===
 ${categoryInstructions}
 
 === Output Format ===
-Generate all items in a single JSON array. category must be exactly one of: ${allSlugs}.
+Return EXACTLY 5 items in a single JSON array — one per category.
+Category slugs must be exactly: "classification", "concern", "insight", "actions", "red-flag".
 
 [{
-  "category": string,
+  "category": "classification" | "concern" | "insight" | "actions" | "red-flag",
   "slug": string,
   "label": string,
   "weight": 1 | 2 | 3,
-  "detail": string — one sentence, cite specific evidence from the data above,
-  "narrative": string — 1–2 sentences on why this matters for growth at this stage,
-  "action": string — one specific next step completable within 30 days,
-  "verified": boolean,
+  "detail": string,
+  "narrative": string,
+  "action": "",
+  "verified": true,
   "fixable": false
 }]
 
@@ -80,16 +82,13 @@ export async function analyzeBusinessStage(
   data: BusinessStageFetchResult,
   brainContext?: string,
 ): Promise<DynamicModuleAnalysisResult[]> {
-  const categories = BUSINESS_STAGE_MODULE.categories as DynamicModuleCategoryDefinition[]
-  const allCategorySlugs = new Set(categories.map(c => c.slug))
-
   const context = buildContext(data, brainContext)
   const prompt = buildPrompt(context)
 
   const raw = await callAI({
     system: BUSINESS_STAGE_MODULE.systemPrompt,
     prompt,
-    maxTokens: 4096,
+    maxTokens: 2048,
     model: 'claude-haiku-4-5-20251001',
   })
 
@@ -109,21 +108,23 @@ export async function analyzeBusinessStage(
     }
   }
 
+  const validSlugs = new Set<string>(CATEGORY_SLUGS)
+
   return (parsed as any[])
     .filter(
       (r) =>
         typeof r.category === 'string' &&
-        allCategorySlugs.has(r.category) &&
+        validSlugs.has(r.category) &&
         typeof r.slug === 'string' &&
         typeof r.label === 'string' &&
         (r.weight === 1 || r.weight === 2 || r.weight === 3) &&
         typeof r.detail === 'string' &&
-        typeof r.narrative === 'string' &&
-        typeof r.action === 'string' &&
-        typeof r.verified === 'boolean',
+        typeof r.narrative === 'string',
     )
     .map((r) => ({
       ...r,
+      action: r.action ?? '',
+      verified: true,
       fixable: false,
     })) as DynamicModuleAnalysisResult[]
 }

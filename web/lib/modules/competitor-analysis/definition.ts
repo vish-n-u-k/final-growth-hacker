@@ -86,12 +86,16 @@ verified: false for all missing features. fixable: false for feature gaps (requi
       label: 'Social Media Gap',
       order: 6,
       prompt: `IMPORTANT: Social media gap findings are computed deterministically before this Claude call and merged separately. Do NOT include any findings with category "social-gap" in your response.`,
+      comingSoon: true,
+      comingSoonNote: 'Automated social media gap detection — comparing follower counts, posting frequency, and platform presence across competitors — is in development.',
     },
     {
       slug: 'ad-gap',
       label: 'Ad Strategy Gap',
       order: 7,
       prompt: `IMPORTANT: Ad strategy gap findings are computed deterministically before this Claude call and merged separately. Do NOT include any findings with category "ad-gap" in your response.`,
+      comingSoon: true,
+      comingSoonNote: 'Ad spend and creative gap analysis via Meta Ads Library and Google Ads Transparency is in development.',
     },
     {
       slug: 'positioning',

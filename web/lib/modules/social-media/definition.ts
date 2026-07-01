@@ -152,5 +152,13 @@ IMPORTANT: If fewer than 2 platforms have real API metrics (followerCount not nu
 
 Otherwise generate 3–6 findings citing specific numbers for every claim.`,
     },
+    {
+      slug: 'community-finder',
+      label: 'Community Finder',
+      order: 4,
+      prompt: '',
+      comingSoon: true,
+      comingSoonNote: 'Discover Facebook Groups, LinkedIn communities, and Reddit subreddits where your target audience is active. Requires Facebook Groups API access currently in restricted review — coming soon.',
+    },
   ],
 }

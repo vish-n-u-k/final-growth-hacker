@@ -1,4 +1,5 @@
 import { USER_ACQUISITION_MODULE } from './user-acquisition/definition'
+import { BACKLINKS_MODULE } from './backlinks/definition'
 import { FOUNDATION_MODULE } from './foundation/definition'
 import { WEBSITE_MODULE } from './website/definition'
 import { SEO_MODULE } from './seo/definition'
@@ -11,7 +12,6 @@ import { OUTREACH_TARGETS_MODULE } from './outreach-targets/definition'
 import { GEO_MODULE } from './geo/definition'
 import { GEO_COMPETITOR_GAP_MODULE } from './geo-competitor-gap/definition'
 import { USER_ANALYTICS_MODULE } from './user-analytics/definition'
-import { COMMUNITY_FINDER_MODULE } from './community-finder/definition'
 import { BUSINESS_STAGE_MODULE } from './business-stage/definition'
 import type { ModuleDefinition } from './types'
 
@@ -32,9 +32,9 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
   OUTREACH_TARGETS_MODULE,        // order: 9
   GEO_MODULE,                     // order: 10
   GEO_COMPETITOR_GAP_MODULE,      // order: 11
+  BACKLINKS_MODULE,               // order: 12 — Coming Soon
   USER_ANALYTICS_MODULE,          // order: 13
   BUSINESS_STAGE_MODULE,          // order: 14
-  COMMUNITY_FINDER_MODULE,        // order: 15
 ]
 
 export const MODULE_MAP: Record<string, ModuleDefinition> = Object.fromEntries(

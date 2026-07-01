@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import ThemeToggle from '@/components/ThemeToggle'
+import ComingSoon from '@/components/ComingSoon'
 import { type DBItemState } from './ModuleDashboard'
 import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/registry'
 
@@ -167,6 +168,22 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     return map
   })
 
+  // Pre-fill Brand Audit social_handles from Social Media module requirements
+  useEffect(() => {
+    const socialMedia = allModulesData.find(m => m.type === 'social-media')
+    const brandAudit = allModulesData.find(m => m.type === 'brand-audit')
+    if (!socialMedia || !brandAudit) return
+    const socialReqs = reqValuesMap[socialMedia.id] ?? socialMedia.requirements
+    const socialUrlKeys = ['instagram_url', 'twitter_url', 'linkedin_url', 'youtube_url', 'facebook_url', 'tiktok_url']
+    const handles = socialUrlKeys.map(k => socialReqs[k]).filter(Boolean).join(', ')
+    if (handles) {
+      setReqValuesMap(prev => ({
+        ...prev,
+        [brandAudit.id]: { ...prev[brandAudit.id], social_handles: handles },
+      }))
+    }
+  }, [allModulesData]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Pre-fill Community Finder keywords from brand whenever brand changes
   useEffect(() => {
     if (brand.keywords?.trim()) {
@@ -191,6 +208,8 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [userCount, setUserCount] = useState(0)
   const [editingCount, setEditingCount] = useState(false)
   const [posthogLoading, setPosthogLoading] = useState(false)
+  const [stageModalOpen, setStageModalOpen] = useState(false)
+  const [stageModalTab, setStageModalTab] = useState(0)
   const autoAnalysisTriggered = useRef(false)
 
   useEffect(() => {
@@ -824,6 +843,31 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             <div className="lvl">Currently · Level {currentLevel}</div>
             <div className="desc">{activeModule?.definition.description}</div>
             <div className="journey-bar">
+              <div style={{ position: 'relative', height: '46px' }}>
+                <button
+                  onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}
+                  title="View your stage analysis"
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: `${barPct}%`,
+                    transform: 'translateX(-50%)',
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    background: '#ffffff',
+                    border: '1.5px solid #dddddd',
+                    display: 'grid',
+                    placeItems: 'center',
+                    cursor: 'pointer',
+                    padding: 0,
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.28)',
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/bulb (1).png" alt="" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
+                </button>
+              </div>
               <div className="journey-track">
                 <div className="journey-fill" style={{ width: `${barPct}%` }} />
               </div>
@@ -833,6 +877,121 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             </div>
           </div>
         </div>
+
+        {/* Business Stage Modal */}
+        {stageModalOpen && (() => {
+          const bsMod = allModulesData.find(m => m.type === 'business-stage')
+          const bsItems = bsMod ? (dynItemsMap[bsMod.id] ?? []) : []
+          const classItem = bsItems.find(i => i.categorySlug === 'classification')
+            ?? bsItems.find(i => i.categorySlug === 'business-classification')
+          const bsReanalyzing = bsMod ? (reanalyzingMap[bsMod.id] ?? false) : false
+
+          // Old slug fallbacks for data analyzed before the schema change
+          const TABS = [
+            { label: 'Concern',  icon: '⚠️', slug: 'concern',  fallback: 'stage-challenges'       },
+            { label: 'Insights', icon: '💡', slug: 'insight',  fallback: 'business-classification' },
+            { label: 'Actions',  icon: '🚀', slug: 'actions',  fallback: 'growth-actions'          },
+            { label: 'Red Flag', icon: '🚩', slug: 'red-flag', fallback: 'red-flags'               },
+          ]
+          const activeTab = TABS[stageModalTab]
+          const activeItem = bsItems.find(i => i.categorySlug === activeTab.slug)
+            ?? bsItems.find(i => i.categorySlug === activeTab.fallback)
+          const isRedFlag = activeTab.slug === 'red-flag'
+
+          return (
+            <div
+              style={{ position: 'fixed', inset: 0, background: '#000000bb', backdropFilter: 'blur(4px)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
+              onClick={(e) => { if (e.target === e.currentTarget) setStageModalOpen(false) }}
+            >
+              <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: '22px', width: '100%', maxWidth: '680px', maxHeight: '86vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 80px #00000080' }}>
+
+                {/* Top row: stage badge + re-analyse + close */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 22px 0', flexShrink: 0 }}>
+                  <div>
+                    <div style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: '2px' }}>
+                      Current Stage
+                    </div>
+                    <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--green-bright)', fontFamily: 'var(--font-display)', lineHeight: 1 }}>
+                      {userCount.toLocaleString()} <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-dim)' }}>users</span>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {bsMod && (
+                      <button
+                        onClick={() => handleReanalyze(bsMod.id, reqValuesMap[bsMod.id] ?? {})}
+                        disabled={bsReanalyzing}
+                        style={{
+                          fontSize: '12px', fontWeight: 600, padding: '5px 14px', borderRadius: '20px', cursor: bsReanalyzing ? 'default' : 'pointer',
+                          border: '1px solid var(--green)', color: 'var(--green-bright)', background: 'transparent',
+                          fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', opacity: bsReanalyzing ? 0.6 : 1,
+                        }}
+                      >
+                        {bsReanalyzing ? <><span className="md-spin" style={{ width: '10px', height: '10px', borderWidth: '1.5px' }} />Analysing…</> : 'Re-analyse'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setStageModalOpen(false)}
+                      style={{ width: '32px', height: '32px', borderRadius: '10px', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-faint)', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: '16px', flexShrink: 0, fontFamily: 'inherit' }}
+                    >&#x2715;</button>
+                  </div>
+                </div>
+
+                {/* Phase title + goal line */}
+                <div style={{ padding: '12px 24px 0', flexShrink: 0,display:"none" }}>
+                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '22px', fontWeight: 600, letterSpacing: '-0.5px', color: 'var(--text)', marginBottom: '6px' }}>
+                    {activeItem?.label ?? 'Your Stage Playbook'}
+                  </h2>
+                  {classItem?.aiDetail && (
+                    <p style={{ fontSize: '13.5px', color: 'var(--text-dim)', lineHeight: 1.55 }}>
+                      {classItem.aiDetail}
+                    </p>
+                  )}
+                </div>
+
+                {/* Underline tabs */}
+                <div style={{ display: 'flex', gap: '0', padding: '16px 24px 0', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
+                  {TABS.map((tab, i) => (
+                    <button
+                      key={tab.slug}
+                      onClick={() => setStageModalTab(i)}
+                      style={{
+                        fontSize: '13px', fontWeight: stageModalTab === i ? 600 : 500,
+                        padding: '0 16px 12px',
+                        color: stageModalTab === i ? 'var(--text)' : 'var(--text-faint)',
+                        background: 'transparent', border: 'none',
+                        borderBottom: stageModalTab === i ? '2px solid var(--green-bright)' : '2px solid transparent',
+                        cursor: 'pointer', fontFamily: 'inherit',
+                        display: 'flex', alignItems: 'center', gap: '6px',
+                        marginBottom: '-1px',
+                        transition: 'color .15s',
+                      }}
+                    >
+                      <span>{tab.icon}</span>
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Body */}
+                <div style={{ overflowY: 'auto', padding: '22px 26px 28px', flex: 1 }}>
+                  {bsItems.length === 0 ? (
+                    <p style={{ fontSize: '14px', color: 'var(--text-dim)', lineHeight: 1.75 }}>
+                      Click <b style={{ color: 'var(--green-bright)' }}>Re-analyse</b> above to generate your personalised stage playbook.
+                    </p>
+                  ) : activeItem ? (
+                    <p style={{ fontSize: '14.5px', color: isRedFlag ? '#ff8080' : 'var(--text-dim)', lineHeight: 1.8 }}>
+                      {activeItem.aiNarrative ?? activeItem.aiDetail}
+                    </p>
+                  ) : (
+                    <p style={{ fontSize: '14px', color: 'var(--text-faint)', lineHeight: 1.75 }}>
+                      Click <b style={{ color: 'var(--green-bright)' }}>Re-analyse</b> to generate content for this section.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Module accordion stack */}
         <div className="levels">
@@ -876,6 +1035,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     <div className="name">
                       {modData.name}
                       {isLocked && <span className="pill soon">Locked</span>}
+                      {!isLocked && def.comingSoon && <span className="pill soon">Coming Soon</span>}
                     </div>
                     {isLocked
                       ? (() => {
@@ -921,7 +1081,8 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 {!isLocked && (
                   <div className="level-body" style={{ maxHeight: isOpen ? '9999px' : undefined }}>
 
-                    {/* Re-analyze toolbar */}
+                    {/* Re-analyze toolbar — hidden for Coming Soon modules */}
+                    {!def.comingSoon && (
                     <div style={{ padding: '18px 28px', borderTop: '1px solid var(--line)', display: 'flex', gap: '12px', alignItems: 'center', borderBottom: '1px solid var(--line)' }}>
                       <Button
                         variant="outline"
@@ -942,14 +1103,23 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       </Button>
                       <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}>{timeAgo(modData.lastAnalyzedAt)}</span>
                     </div>
+                    )}
 
                     {/* Requirements setup */}
-                    {needsSetup && (
+                    {!def.comingSoon && needsSetup && (
                       <div className="md-setup-card" style={{ margin: '20px 28px 0' }}>
                         <div className="md-setup-title">Set up {def.name}</div>
                         <p className="md-setup-desc">Provide the information below before running the analysis.</p>
                         <div className="md-setup-fields">
-                          {def.requirements.map((req) => (
+                          {def.requirements.map((req) => {
+                            // Hide social_handles for Brand Audit if Social Media module already has URLs
+                            if (req.key === 'social_handles' && modData.type === 'brand-audit') {
+                              const socialMedia = allModulesData.find(m => m.type === 'social-media')
+                              const socialReqs = socialMedia ? (reqValuesMap[socialMedia.id] ?? socialMedia.requirements) : {}
+                              const hasSocialUrls = ['instagram_url', 'twitter_url', 'linkedin_url', 'youtube_url', 'facebook_url', 'tiktok_url'].some(k => socialReqs[k])
+                              if (hasSocialUrls) return null
+                            }
+                            return (
                             <div key={req.key} className="md-setup-field">
                               <label className="md-setup-label">
                                 {req.label}
@@ -985,7 +1155,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                 </>
                               )}
                             </div>
-                          ))}
+                          )})}
                         </div>
                         {setupError && <p className="md-setup-error">{setupError}</p>}
                         <Button
@@ -1008,8 +1178,32 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     )}
 
                     {/* Categories */}
-                    <div className="md-cats" style={needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
-                      {def.dynamic
+                    {modData.type === 'business-stage' && (
+                      <div style={{ padding: '20px 28px 24px' }}>
+                        {!connectedIntegrations['posthog'] && (
+                          <div style={{ marginBottom: '16px', padding: '12px 15px', background: 'rgba(231,200,115,0.08)', border: '1px solid rgba(231,200,115,0.3)', borderRadius: '10px', fontSize: '13px', color: 'var(--gold)', lineHeight: 1.6 }}>
+                            Connect PostHog in <b style={{ color: 'var(--gold)' }}>Settings → Integrations</b> to track your live user count automatically.
+                          </div>
+                        )}
+                        {dynItems.length > 0 ? (
+                          <p style={{ fontSize: '14px', color: 'var(--text-dim)', lineHeight: 1.7 }}>
+                            Your stage playbook is ready. Click the <b style={{ color: 'var(--text)' }}>bulb indicator</b> on the progress bar above to view your concern, insight, actions and red flag.
+                          </p>
+                        ) : (
+                          <p style={{ fontSize: '14px', color: 'var(--text-dim)', lineHeight: 1.7 }}>
+                            Click <b style={{ color: 'var(--text)' }}>Analyse</b> above to generate your personalised stage playbook based on your website signals.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    <div className="md-cats" style={modData.type === 'business-stage' ? { display: 'none' } : needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
+                      {def.comingSoon ? (
+                        <ComingSoon
+                          variant="module"
+                          title={def.name}
+                          note={def.comingSoonNote ?? 'This module is in active development and will be available in an upcoming update.'}
+                        />
+                      ) : def.dynamic
                         ? def.categories.map((cat) => {
                             const stats = getDynamicCatStats(cat.slug, dynItems)
                             const isOpenCat = openCats.has(cat.slug)
@@ -1019,27 +1213,39 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                               if (aDone !== bDone) return aDone - bDone
                               return b.weight - a.weight
                             })
-                            return (
+                            {
+                              const isCatComingSoon = !!(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon
+                              return (
                               <div key={cat.slug} className={`md-cat${isOpenCat ? ' md-cat-open' : ''}`}>
-                                <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => toggleCat(modData.id, cat.slug)}>
+                                <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => !isCatComingSoon && toggleCat(modData.id, cat.slug)} style={isCatComingSoon ? { cursor: 'default' } : {}}>
                                   <div className="md-cat-hd-left">
                                     <span className="md-cat-hd-name">{cat.label}</span>
-                                    <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
+                                    {isCatComingSoon
+                                      ? <span className="cs-badge" style={{ marginLeft: 4 }}>Coming Soon</span>
+                                      : <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
+                                    }
                                   </div>
-                                  <div className="md-cat-hd-right">
-                                    <div className="md-cat-mini-bar">
-                                      <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
-                                      <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
+                                  {!isCatComingSoon && (
+                                    <div className="md-cat-hd-right">
+                                      <div className="md-cat-mini-bar">
+                                        <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
+                                        <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
+                                      </div>
+                                      <span className="md-cat-pct">{stats.pct}%</span>
+                                      <svg className={`md-chev${isOpenCat ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                      </svg>
                                     </div>
-                                    <span className="md-cat-pct">{stats.pct}%</span>
-                                    <svg className={`md-chev${isOpenCat ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                    </svg>
-                                  </div>
+                                  )}
                                 </div>
                                 {isOpenCat && (
                                   <div className="md-cat-body">
-                                    {catItems.length === 0 ? (
+                                    {(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? (
+                                      <ComingSoon
+                                        title={cat.label}
+                                        note={(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoonNote}
+                                      />
+                                    ) : catItems.length === 0 ? (
                                       <p style={{ padding: '16px 20px', color: 'var(--text-faint)', fontSize: '13px' }}>
                                         No issues found in this category.
                                       </p>
@@ -1055,6 +1261,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                 )}
                               </div>
                             )
+                            }
                           })
                         : (def.categories as ModuleCategoryDefinition[]).map((cat) => {
                             const stats = getCatStats(cat, states)
