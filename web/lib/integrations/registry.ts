@@ -233,6 +233,28 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     ],
   },
   {
+    provider: 'apify',
+    name: 'Apify',
+    description: 'Optional. Adds Facebook & LinkedIn groups to the Social Media Community Finder (Reddit works without it). Apify\'s free tier ($5/month, no card) covers ~50-100 runs.',
+    type: 'api_key',
+    group: 'social',
+    docsUrl: 'https://console.apify.com/settings/integrations',
+    setupSteps: [
+      'Go to console.apify.com → sign up free (Google sign-in works, no credit card)',
+      'Open Settings → API & Integrations → copy your personal API token',
+      'Paste it above and click Connect',
+    ],
+    fields: [
+      {
+        key: 'api_key',
+        label: 'Apify API Token',
+        placeholder: 'apify_api_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+        inputType: 'password',
+        helpText: 'console.apify.com → Settings → API & Integrations. Free tier ~$5/month covers this module.',
+      },
+    ],
+  },
+  {
     provider: 'gsc_api',
     name: 'Google Search Console API',
     description: 'Unlocks real ranking data — top queries, click-through rates, and keyword positions — in the Keyword Research module. Uses a Service Account key, no OAuth flow needed.',

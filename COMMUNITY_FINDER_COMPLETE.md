@@ -1,8 +1,13 @@
 # Social Media Community Finder - Complete TypeScript Integration ✅
 
-## Status: READY TO USE - No External Services Needed
+## Status: READY TO USE — Reddit works with zero setup
 
-The Community Finder module is **fully integrated** as a TypeScript module, consistent with how SEO, Content Audit, and other modules work.
+The Community Finder module is **fully integrated** as a TypeScript module. It discovers **real, active communities** across up to three platforms:
+
+- **Reddit — free, no setup.** Real subreddits found via DuckDuckGo search (Reddit content, unlike FB/LinkedIn groups, is indexed by search engines). Always runs.
+- **Facebook & LinkedIn — optional, via Apify.** Neither platform has any free/official discovery path (Facebook's Groups API was fully removed in 2024; LinkedIn's Groups API has been dead for years and the main workaround, Proxycurl, was shut down by lawsuit in 2025). The only route is a scraping backend. Apify's group-search actors handle it, and Apify's **free tier ($5/month, no credit card)** covers this module's usage (~$0.005/community → ~50-100 runs/month).
+
+**Setup:** Nothing required for Reddit. To also get Facebook + LinkedIn, go to Settings → Integrations → connect **Apify** with an API token from console.apify.com (free). When Apify isn't connected, the module shows Reddit results plus a one-line hint on how to unlock the other two platforms. No sample/placeholder data is ever shown.
 
 ---
 
@@ -19,7 +24,7 @@ Growth Hacker App (Next.js)
     └─ Module: community-finder/
         ├─ definition.ts       → Module metadata & categories
         ├─ types.ts            → TypeScript interfaces
-        ├─ fetcher.ts          → Mock community data
+        ├─ fetcher.ts          → Reddit via DuckDuckGo (free) + Apify for FB/LinkedIn (optional)
         ├─ agent.ts            → Process & format findings
         └─ [Database ready]    → PostgreSQL schema in schema.ts
 ```
@@ -58,25 +63,24 @@ Growth Hacker App (Next.js)
 ## Module Features
 
 ### **Discovery**
-Finds Facebook & LinkedIn communities matching your keywords with:
+Finds Reddit (free), plus Facebook & LinkedIn (via Apify) communities matching your keywords with:
 - Member counts
 - Activity scores (0-100)
-- Relevance scores (0-100)  
-- Competitor presence detection
+- Relevance scores (0-100)
 - Direct links to communities
 
 ### **Analysis**
 Generates findings for:
-- Top Facebook groups (ranked)
-- Top LinkedIn groups (ranked)
-- Competitor presence vs untapped opportunities
+- Reddit communities (ranked)
+- Facebook groups (ranked; or a connect-Apify prompt if not connected)
+- LinkedIn groups (ranked; or a connect-Apify prompt if not connected)
 - Prioritized engagement roadmap (30-day plan)
 
 ### **Output Format**
 ```
 findings[] = [
   {
-    category: 'facebook-communities' | 'linkedin-communities' | 'engagement-gaps' | 'community-priorities'
+    category: 'reddit-communities' | 'facebook-communities' | 'linkedin-communities' | 'community-priorities'
     slug: string
     label: string
     weight: 1-3 (priority)
@@ -91,45 +95,37 @@ findings[] = [
 
 ---
 
-## Data Flow (Local, No External Calls)
+## Data Flow
 
 ```
 1. User Input
    └─ Brand keywords: "AI", "content creation"
-   └─ Target platforms: "facebook,linkedin"
-   
-2. Fetcher (fetcher.ts)
-   └─ Returns mock communities (instant, no API calls)
-   
+
+2. Fetcher (fetcher.ts) — runs sources in parallel
+   ├─ Reddit  (always):  DuckDuckGo "reddit community for {kw}" → real subreddits
+   ├─ Facebook (if Apify connected): Apify group-search actor → real groups
+   └─ LinkedIn (if Apify connected): Apify group-search actor → real groups
+   └─ Interleaves platforms so the top of the list has a mix
+
 3. Agent (agent.ts)
-   └─ Analyzes communities
-   └─ Ranks by relevance & opportunity
-   └─ Generates findings for each category
-   └─ Creates 30-day roadmap
-   
+   └─ Ranks by relevance & opportunity, labels each item by platform
+   └─ Generates findings per category + 30-day roadmap
+   └─ If Apify not connected: adds a one-line "unlock FB/LinkedIn" hint
+
 4. Dashboard
-   └─ Displays findings
-   └─ Links to communities
-   └─ Actionable next steps
+   └─ Displays findings, links to communities, actionable next steps
 ```
 
-**Speed:** Instant (no network latency)  
-**Reliability:** 100% (no external dependencies)
+**Speed:** Reddit ~2-4s; +up to ~60s when Apify FB/LinkedIn actors run.
+**Reliability:** No sample/fake data ever. Reddit is free; DuckDuckGo can rate-limit under heavy use (surfaces a "try again in a minute" message). Apify runs only when connected.
 
 ---
 
-## Mock Data (Ready Now)
+## Real Data (per platform)
 
-The fetcher includes realistic mock communities:
-
-### Facebook Communities
-- **AI For Small Business** - 15K members, 92/100 relevance
-- **Cafe & Coffee Shop Owners** - 8.4K members, 88/100 relevance  
-- **Local Business Marketing Hub** - 12.1K members, 82/100 relevance
-
-### LinkedIn Groups
-- **Practical AI for Marketing** - 5.1K professionals, 85/100 relevance
-- **Small Business Owners Network** - 8.9K professionals, 80/100 relevance
+- **Reddit** (`fetcher.ts` → DuckDuckGo): real subreddit name, description, and link. Member count parsed from search snippets when present; activity proxied from search rank (no account = no live counts).
+- **Facebook** (`scraper-engine/facebook-groups-search-scraper`): real group name, URL, visibility, member count, posts-per-day/week.
+- **LinkedIn** (`unseenuser/LinkedIn-Groups-Scraper`, `search_groups` mode): real group name, URL, member count, summary.
 
 **Findings generated for each:**
 - Why join (relevance + pain points)
@@ -160,18 +156,17 @@ npm run dev
 6. Click "Analyze"
 
 **Result:** Findings with:
-- 3 top Facebook communities
-- 3 top LinkedIn communities
-- Competitor analysis
+- Reddit communities (free, no setup)
+- Facebook & LinkedIn groups (when Apify is connected)
 - 30-day engagement roadmap with specific actions
 
 ### 3. Access Findings
 
-Dashboard displays findings organized by category:
-- **Facebook Communities** - Top 3 groups to join
-- **LinkedIn Communities** - Top 3 professional groups  
-- **Opportunity Gaps** - Untapped vs competitive communities
-- **Phase 1 Roadmap** - Week-by-week action plan
+Dashboard displays findings organized by category (sub-module):
+- **Reddit Communities** - real subreddits to join
+- **Facebook Communities** - groups to join (or connect-Apify prompt)
+- **LinkedIn Communities** - professional groups (or connect-Apify prompt)
+- **Engagement Roadmap** - week-by-week action plan
 
 ---
 
@@ -301,9 +296,9 @@ name: 'Social Media Community Finder'
 order: 3 (after Social Media)
 unlockThreshold: 80 (needs Foundation + Website analysis)
 categories: [
+  'reddit-communities',
   'facebook-communities',
   'linkedin-communities',
-  'engagement-gaps',
   'community-priorities'
 ]
 ```

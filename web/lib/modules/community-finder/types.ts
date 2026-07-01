@@ -1,14 +1,13 @@
 export interface Community {
   id: string
-  platform: 'facebook' | 'linkedin'
-  platformId: string
-  name: string
+  platform: 'reddit' | 'facebook' | 'linkedin'
+  platformId: string // subreddit name / FB group id / LinkedIn group id
+  name: string // e.g. "r/marketing" or "Digital Marketing Hub"
   description?: string
   link: string
   memberCount: number
   activityScore: number // 0-100
   relevanceScore: number // 0-100
-  competitorPresence: boolean
   healthScore?: number // 0-100
   lastAnalyzedAt?: string
   createdAt: string
@@ -62,8 +61,7 @@ export interface CommunityPerformanceMetric {
 }
 
 export interface DiscoveryResult {
-  facebookGroups: Community[]
-  linkedinGroups: Community[]
+  communities: Community[]
   totalFound: number
   completedAt: string
 }
@@ -76,4 +74,5 @@ export interface CommunityFinderFetchResult {
   keywords: string[]
   discovery?: DiscoveryResult
   fetchErrors: string[]
+  apifyConnected?: boolean // whether Facebook/LinkedIn discovery ran this call
 }

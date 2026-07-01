@@ -547,7 +547,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 <div className="sm-action-box">
                   <span className="sm-action-label">Action</span>
                   <p className="sm-action-text">{item.aiAction}</p>
-                  {(item.categorySlug === 'facebook-communities' || item.categorySlug === 'linkedin-communities') && (
+                  {/https?:\/\/(www\.)?(reddit\.com\/r\/|facebook\.com\/groups\/|linkedin\.com\/groups\/)/i.test(item.aiAction ?? '') && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
