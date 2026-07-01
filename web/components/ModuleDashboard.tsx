@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import ThemeToggle from '@/components/ThemeToggle'
+import ComingSoon from '@/components/ComingSoon'
 
 export interface DBItemState {
   id: string
@@ -820,7 +821,13 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
 
         {/* Categories */}
         <div className="md-cats" style={needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
-          {def.dynamic
+          {def.comingSoon ? (
+            <ComingSoon
+              variant="module"
+              title={def.name}
+              note={def.comingSoonNote ?? 'This module is in active development and will be available in an upcoming update.'}
+            />
+          ) : def.dynamic
             ? /* ── Dynamic module: items come from DB grouped by category ── */
               def.categories.map((cat) => {
                 const stats = getDynamicCatStats(cat.slug, dynItems)
@@ -853,7 +860,12 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
 
                     {isOpen && (
                       <div className="md-cat-body">
-                        {catItems.length === 0 ? (
+                        {(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? (
+                          <ComingSoon
+                            title={cat.label}
+                            note={(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoonNote}
+                          />
+                        ) : catItems.length === 0 ? (
                           <p style={{ padding: '16px 20px', color: 'var(--text-faint)', fontSize: '13px' }}>
                             No issues found in this category.
                           </p>

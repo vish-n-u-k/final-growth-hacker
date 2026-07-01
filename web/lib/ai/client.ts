@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { spawnSync } from 'child_process'
+import { spawn } from 'child_process'
 
 interface CallAIOptions {
   system: string
@@ -14,31 +14,88 @@ interface CallAIOptions {
 const useGemini = process.env.USE_GEMINI === 'true'
 const useClaudeCLI = process.env.USE_CLAUDE_CLI === 'true'
 
-function callViaCLI(system: string, prompt: string, model: string): string {
-  // Map SDK model IDs to CLI aliases
+const CLI_TIMEOUT_MS = 600_000 // 10 minutes — sonnet + large prompts can be slow
+
+async function callViaCLI(system: string, prompt: string, model: string): Promise<string> {
   const cliModel = model.includes('haiku') ? 'haiku' : 'sonnet'
-
   const input = `SYSTEM:\n${system}\n\nUSER:\n${prompt}`
+  const args = ['-p', '--output-format', 'json', '--no-session-persistence', '--model', cliModel]
 
-  const result = spawnSync(
-    'claude',
-    ['-p', '--output-format', 'json', '--no-session-persistence', '--model', cliModel],
-    {
-      input,
-      encoding: 'utf8',
-      timeout: 300_000,
-      maxBuffer: 10 * 1024 * 1024,
-      env: { ...process.env, CLAUDECODE: undefined },
-    },
-  )
+  console.log('[CLI] command: claude', args.join(' '))
+  console.log('[CLI] input length:', input.length, 'chars')
+  console.log('[CLI] stdin preview (first 300 chars):', input.slice(0, 300))
 
-  if (result.error) throw result.error
-  if (result.status !== 0) {
-    throw new Error(`claude CLI exited ${result.status}: ${result.stderr?.slice(0, 300)}`)
-  }
+  // Strip ANTHROPIC_API_KEY so the CLI uses its own session auth, not an external key
+  const { ANTHROPIC_API_KEY: _stripped, CLAUDECODE: _cc, ...cliEnv } = process.env
 
-  const parsed = JSON.parse(result.stdout) as { result: string }
-  return parsed.result
+  return new Promise((resolve, reject) => {
+    const child = spawn('claude', args, {
+      env: cliEnv,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+
+    let stdout = ''
+    let stderr = ''
+
+    const timer = setTimeout(() => {
+      child.kill('SIGTERM')
+      reject(new Error(`claude CLI timed out after ${CLI_TIMEOUT_MS / 1000}s (model=${cliModel}, input=${input.length} chars)`))
+    }, CLI_TIMEOUT_MS)
+
+    child.stdin.write(input, 'utf8')
+    child.stdin.end()
+
+    child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8') })
+    child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8') })
+
+    child.on('error', (err) => {
+      clearTimeout(timer)
+      reject(err)
+    })
+
+    child.on('close', (code) => {
+      clearTimeout(timer)
+
+      console.log('[CLI] exit status:', code)
+      console.log('[CLI] stderr:', stderr ? stderr.slice(0, 500) : '(empty)')
+      console.log('[CLI] stdout length:', stdout.length)
+      console.log('[CLI] stdout raw (first 500 chars):', stdout.slice(0, 500))
+
+      if (!stdout.trim()) {
+        reject(new Error(`claude CLI returned empty stdout (exit ${code}). stderr: ${stderr.slice(0, 300)}`))
+        return
+      }
+
+      let parsed: { result?: string; is_error?: boolean }
+      try {
+        parsed = JSON.parse(stdout) as { result?: string; is_error?: boolean }
+      } catch {
+        reject(new Error(`claude CLI stdout is not valid JSON (exit ${code}): ${stdout.slice(0, 300)}`))
+        return
+      }
+
+      console.log('[CLI] parsed keys:', Object.keys(parsed))
+      console.log('[CLI] parsed.is_error:', parsed.is_error)
+      console.log('[CLI] parsed.result preview:', String(parsed.result ?? '').slice(0, 200))
+
+      if (parsed.is_error) {
+        reject(new Error(`claude CLI error: ${parsed.result ?? 'unknown error'}`))
+        return
+      }
+
+      if (code !== 0) {
+        reject(new Error(`claude CLI exited ${code}: ${stderr.slice(0, 300)}`))
+        return
+      }
+
+      if (typeof parsed.result !== 'string') {
+        reject(new Error(`claude CLI JSON missing "result" field. Full output: ${stdout.slice(0, 500)}`))
+        return
+      }
+
+      resolve(parsed.result)
+    })
+  })
 }
 
 export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet-4-6', cachePrefix }: CallAIOptions): Promise<string> {
@@ -53,7 +110,7 @@ export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet
   let response: string
 
   if (useClaudeCLI) {
-    response = callViaCLI(system, prompt, model)
+    response = await callViaCLI(system, prompt, model)
   } else if (useGemini) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
     const geminiModel = genAI.getGenerativeModel({

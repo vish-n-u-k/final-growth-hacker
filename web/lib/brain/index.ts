@@ -1,10 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { db } from '@/lib/db'
 import { brainContext } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult } from '@/lib/modules/types'
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+import { callAI } from '@/lib/ai/client'
 
 // ── 1. Filter brain context for relevance before a module runs ────────────────
 // Called before each module's agent runs (skip for Foundation — it runs first).
@@ -23,13 +21,9 @@ export async function getRelevantContext(
 
   if (!facts && !ctx.summary) return ''
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 400,
-    messages: [
-      {
-        role: 'user',
-        content: `Accumulated knowledge about this brand from previous module analyses:
+  const text = await callAI({
+    system: 'You are a concise analyst. Extract only what is relevant. Return plain text bullet points or "No prior context."',
+    prompt: `Accumulated knowledge about this brand from previous module analyses:
 
 FACTS:
 ${facts ? JSON.stringify(facts, null, 2) : 'None yet'}
@@ -46,11 +40,11 @@ Its purpose: ${modulePurpose}
 Extract only what is directly relevant to this module's analysis.
 Return 3–6 concise bullet points. Plain text only, no JSON.
 If nothing is relevant return exactly: "No prior context."`,
-      },
-    ],
+    maxTokens: 400,
+    model: 'claude-haiku-4-5-20251001',
   })
 
-  return message.content[0].type === 'text' ? message.content[0].text.trim() : ''
+  return text.trim()
 }
 
 // ── 2. Extract facts after a module runs and merge into brain_context ─────────
@@ -157,24 +151,18 @@ async function extractDynamicFacts(
     .map((r) => `[${r.verified ? 'PASS' : 'FAIL'}] ${r.label}: ${r.detail}`)
     .join('\n')
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 500,
-    messages: [
-      {
-        role: 'user',
-        content: `Given these ${moduleType} audit findings, extract 5–10 key facts that would be useful context for future marketing modules.
+  const raw = await callAI({
+    system: 'You extract structured facts from audit results. Return only a flat JSON object, no markdown, no explanation.',
+    prompt: `Given these ${moduleType} audit findings, extract 5–10 key facts that would be useful context for future marketing modules.
 
 ${findings}
 
 Return ONLY a flat JSON object with snake_case keys and concrete values.
 Examples: { "primary_keyword": "AI news", "has_schema_markup": false, "og_tags_complete": true }
 No explanation, no markdown — just the JSON object.`,
-      },
-    ],
+    maxTokens: 500,
+    model: 'claude-haiku-4-5-20251001',
   })
-
-  const raw = message.content[0].type === 'text' ? message.content[0].text : '{}'
   const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
   try {
     return JSON.parse(clean)
@@ -197,21 +185,17 @@ async function buildSummary(
   const pass = results.filter((r) => r.verified).length
   const lines = results.map((r) => `[${r.verified ? '✓' : '✗'}] ${r.detail}`).join('\n')
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 150,
-    messages: [
-      {
-        role: 'user',
-        content: `Prior summary: "${prior}"
+  const text = await callAI({
+    system: 'You write concise brand health summaries. Be specific. No preamble.',
+    prompt: `Prior summary: "${prior}"
 
 New ${moduleType} results (${pass} passing, ${open} open issues):
 ${lines}
 
 Write an updated 2-sentence summary of this brand's overall growth health. Be specific. No preamble.`,
-      },
-    ],
+    maxTokens: 150,
+    model: 'claude-haiku-4-5-20251001',
   })
 
-  return message.content[0].type === 'text' ? message.content[0].text.trim() : prior
+  return text.trim() || prior
 }

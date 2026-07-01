@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import ThemeToggle from '@/components/ThemeToggle'
+import ComingSoon from '@/components/ComingSoon'
 import { type DBItemState } from './ModuleDashboard'
 import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/registry'
 
@@ -166,6 +167,22 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     const map = Object.fromEntries(allModulesData.map(m => [m.id, m.requirements]))
     return map
   })
+
+  // Pre-fill Brand Audit social_handles from Social Media module requirements
+  useEffect(() => {
+    const socialMedia = allModulesData.find(m => m.type === 'social-media')
+    const brandAudit = allModulesData.find(m => m.type === 'brand-audit')
+    if (!socialMedia || !brandAudit) return
+    const socialReqs = reqValuesMap[socialMedia.id] ?? socialMedia.requirements
+    const socialUrlKeys = ['instagram_url', 'twitter_url', 'linkedin_url', 'youtube_url', 'facebook_url', 'tiktok_url']
+    const handles = socialUrlKeys.map(k => socialReqs[k]).filter(Boolean).join(', ')
+    if (handles) {
+      setReqValuesMap(prev => ({
+        ...prev,
+        [brandAudit.id]: { ...prev[brandAudit.id], social_handles: handles },
+      }))
+    }
+  }, [allModulesData]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fill Community Finder keywords from brand whenever brand changes
   useEffect(() => {
@@ -1018,6 +1035,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     <div className="name">
                       {modData.name}
                       {isLocked && <span className="pill soon">Locked</span>}
+                      {!isLocked && def.comingSoon && <span className="pill soon">Coming Soon</span>}
                     </div>
                     {isLocked
                       ? (() => {
@@ -1063,7 +1081,8 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 {!isLocked && (
                   <div className="level-body" style={{ maxHeight: isOpen ? '9999px' : undefined }}>
 
-                    {/* Re-analyze toolbar */}
+                    {/* Re-analyze toolbar — hidden for Coming Soon modules */}
+                    {!def.comingSoon && (
                     <div style={{ padding: '18px 28px', borderTop: '1px solid var(--line)', display: 'flex', gap: '12px', alignItems: 'center', borderBottom: '1px solid var(--line)' }}>
                       <Button
                         variant="outline"
@@ -1084,14 +1103,23 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       </Button>
                       <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}>{timeAgo(modData.lastAnalyzedAt)}</span>
                     </div>
+                    )}
 
                     {/* Requirements setup */}
-                    {needsSetup && (
+                    {!def.comingSoon && needsSetup && (
                       <div className="md-setup-card" style={{ margin: '20px 28px 0' }}>
                         <div className="md-setup-title">Set up {def.name}</div>
                         <p className="md-setup-desc">Provide the information below before running the analysis.</p>
                         <div className="md-setup-fields">
-                          {def.requirements.map((req) => (
+                          {def.requirements.map((req) => {
+                            // Hide social_handles for Brand Audit if Social Media module already has URLs
+                            if (req.key === 'social_handles' && modData.type === 'brand-audit') {
+                              const socialMedia = allModulesData.find(m => m.type === 'social-media')
+                              const socialReqs = socialMedia ? (reqValuesMap[socialMedia.id] ?? socialMedia.requirements) : {}
+                              const hasSocialUrls = ['instagram_url', 'twitter_url', 'linkedin_url', 'youtube_url', 'facebook_url', 'tiktok_url'].some(k => socialReqs[k])
+                              if (hasSocialUrls) return null
+                            }
+                            return (
                             <div key={req.key} className="md-setup-field">
                               <label className="md-setup-label">
                                 {req.label}
@@ -1127,7 +1155,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                 </>
                               )}
                             </div>
-                          ))}
+                          )})}
                         </div>
                         {setupError && <p className="md-setup-error">{setupError}</p>}
                         <Button
@@ -1169,7 +1197,13 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       </div>
                     )}
                     <div className="md-cats" style={modData.type === 'business-stage' ? { display: 'none' } : needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
-                      {def.dynamic
+                      {def.comingSoon ? (
+                        <ComingSoon
+                          variant="module"
+                          title={def.name}
+                          note={def.comingSoonNote ?? 'This module is in active development and will be available in an upcoming update.'}
+                        />
+                      ) : def.dynamic
                         ? def.categories.map((cat) => {
                             const stats = getDynamicCatStats(cat.slug, dynItems)
                             const isOpenCat = openCats.has(cat.slug)
@@ -1179,27 +1213,39 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                               if (aDone !== bDone) return aDone - bDone
                               return b.weight - a.weight
                             })
-                            return (
+                            {
+                              const isCatComingSoon = !!(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon
+                              return (
                               <div key={cat.slug} className={`md-cat${isOpenCat ? ' md-cat-open' : ''}`}>
-                                <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => toggleCat(modData.id, cat.slug)}>
+                                <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => !isCatComingSoon && toggleCat(modData.id, cat.slug)} style={isCatComingSoon ? { cursor: 'default' } : {}}>
                                   <div className="md-cat-hd-left">
                                     <span className="md-cat-hd-name">{cat.label}</span>
-                                    <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
+                                    {isCatComingSoon
+                                      ? <span className="cs-badge" style={{ marginLeft: 4 }}>Coming Soon</span>
+                                      : <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
+                                    }
                                   </div>
-                                  <div className="md-cat-hd-right">
-                                    <div className="md-cat-mini-bar">
-                                      <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
-                                      <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
+                                  {!isCatComingSoon && (
+                                    <div className="md-cat-hd-right">
+                                      <div className="md-cat-mini-bar">
+                                        <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
+                                        <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
+                                      </div>
+                                      <span className="md-cat-pct">{stats.pct}%</span>
+                                      <svg className={`md-chev${isOpenCat ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                        <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                      </svg>
                                     </div>
-                                    <span className="md-cat-pct">{stats.pct}%</span>
-                                    <svg className={`md-chev${isOpenCat ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                    </svg>
-                                  </div>
+                                  )}
                                 </div>
                                 {isOpenCat && (
                                   <div className="md-cat-body">
-                                    {catItems.length === 0 ? (
+                                    {(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? (
+                                      <ComingSoon
+                                        title={cat.label}
+                                        note={(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoonNote}
+                                      />
+                                    ) : catItems.length === 0 ? (
                                       <p style={{ padding: '16px 20px', color: 'var(--text-faint)', fontSize: '13px' }}>
                                         No issues found in this category.
                                       </p>
@@ -1215,6 +1261,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                 )}
                               </div>
                             )
+                            }
                           })
                         : (def.categories as ModuleCategoryDefinition[]).map((cat) => {
                             const stats = getCatStats(cat, states)
