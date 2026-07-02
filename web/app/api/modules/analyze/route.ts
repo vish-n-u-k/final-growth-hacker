@@ -296,6 +296,7 @@ export async function POST(request: NextRequest) {
           label: r.label,
           weight: r.weight,
           aiDetail: r.detail,
+          aiHighlight: r.highlight ?? null,
           aiNarrative: r.narrative,
           aiAction: r.action,
           aiData: isCalendar && calendarData ? calendarData : null,
@@ -360,17 +361,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, score, lastAnalyzedAt: new Date().toISOString(), items: freshItems, categories: freshCats, pageVerdicts })
   }
 
-  // Foundation: pre-fetch to capture social links and save them to requirements
+  // Foundation: pre-fetch to capture social links and save them to requirements + brand_integrations
   if (mod.type === 'foundation') {
     try {
       const prefetch = await fetchFoundationData(requirements)
       if (prefetch.extracted && Object.keys(prefetch.extracted.socialLinks).length > 0) {
         const updatedReqs = { ...requirements }
+        const upserts = []
         for (const [platform, url] of Object.entries(prefetch.extracted.socialLinks)) {
           const key = `social_${platform}`
           if (!updatedReqs[key]) updatedReqs[key] = url
+          upserts.push(
+            db.insert(brandIntegrations).values({
+              brandId: brand.id,
+              provider: platform,
+              type: 'social',
+              status: 'connected',
+              metadata: { url },
+            }).onConflictDoUpdate({
+              target: [brandIntegrations.brandId, brandIntegrations.provider],
+              set: { metadata: { url }, status: 'connected' },
+            })
+          )
         }
-        await db.update(modules).set({ requirements: updatedReqs }).where(eq(modules.id, moduleId))
+        await Promise.all([
+          db.update(modules).set({ requirements: updatedReqs }).where(eq(modules.id, moduleId)),
+          ...upserts,
+        ])
         Object.assign(requirements, updatedReqs)
       }
     } catch {
@@ -438,6 +455,7 @@ export async function POST(request: NextRequest) {
           label: r.label,
           weight: r.weight,
           aiDetail: r.detail,
+          aiHighlight: (r as DynamicModuleAnalysisResult).highlight ?? null,
           aiNarrative: r.narrative,
           aiAction: r.action,
           aiVerified: r.verified,
@@ -562,6 +580,7 @@ export async function POST(request: NextRequest) {
           .update(moduleItems)
           .set({
             aiDetail: r.detail,
+            aiHighlight: (r as ModuleAnalysisResult).highlight ?? null,
             aiNarrative: r.narrative,
             aiAction: r.action,
             aiVerified: r.verified,

@@ -14,6 +14,7 @@ import ComingSoon from '@/components/ComingSoon'
 export interface DBItemState {
   id: string
   aiDetail: string | null
+  aiHighlight: string | null
   aiNarrative: string | null
   aiAction: string | null
   aiVerified: boolean

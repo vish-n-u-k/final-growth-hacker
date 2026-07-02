@@ -69,7 +69,8 @@ Rules:
 4. Weight: 3 = directly blocks trust, conversions, or discovery | 2 = measurably hurts performance | 1 = nice-to-have
 5. verified: true = passes best practice or user is ahead | verified: false = gap exists, action needed
 6. fixable: true if the fix can be made as a direct change to the website's code or files in a GitHub repo. Be generous — the following ALL qualify: adding or rewriting an H1; adding or rewriting a title tag; adding or rewriting a meta description; adding or fixing any Open Graph tag (og:title, og:description, og:url, og:type, og:image); adding Twitter Card meta tags; adding or fixing a canonical tag; adding or fixing the viewport meta tag; adding any JSON-LD schema markup (Organization, Product, FAQPage, HowTo, BreadcrumbList, SiteLinksSearchBox, etc.); adding alt text to images; adding lazy loading to images; creating a privacy policy page and adding a footer link to it; creating a terms of service page and adding a footer link to it; creating or fixing robots.txt; creating a sitemap.xml; adding a comparison/alternatives page stub; adding any footer link or nav link that is currently missing. fixable: false ONLY for actions that cannot be done in code: creating social media accounts, earning Wikidata entries, obtaining backlinks or press coverage, brand voice/strategy overhauls, creating original marketing content requiring business knowledge the agent cannot supply, or any action requiring external platform login.
-7. All action steps must be completable by a non-technical person within a week`,
+7. All action steps must be completable by a non-technical person within a week
+8. Plain language: Write label, detail, highlight, and narrative in plain English that a non-technical business owner can understand — no jargon or technical acronyms. Save technical specifics for the action field only.`,
   categories: [
     {
       slug: 'brand-positioning',

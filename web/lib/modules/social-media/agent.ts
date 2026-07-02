@@ -107,11 +107,12 @@ Each element:
 {
   "category": string — exactly one of: "website-detection", "profile-analysis", "metrics-analysis",
   "slug": string — kebab-case, pattern: {category-slug}-{short-descriptor},
-  "label": string — specific, cite actual platform names or handles,
+  "label": string — plain English, no jargon; cite actual platform names or handles,
   "weight": 1 | 2 | 3,
-  "detail": string — one sentence citing exact data,
-  "narrative": string — 2–3 sentences explaining business impact,
-  "action": string — specific step starting with a verb, completable within one week,
+  "detail": string — one plain English sentence explaining the finding; wrap the single most important data point in **double asterisks**,
+  "highlight": string — 5–8 plain English words capturing the key point; no jargon, no period,
+  "narrative": string — exactly 1 plain English sentence explaining why this matters for the business; wrap the key impact in **double asterisks**,
+  "action": string — specific step starting with a verb, completable within one week; technical specifics allowed here; wrap the specific thing to do in **double asterisks**,
   "verified": boolean — true if check passes | false if gap exists,
   "fixable": boolean — true ONLY for website code changes (add social meta tags, add social links to header/footer). false for everything else
 }`

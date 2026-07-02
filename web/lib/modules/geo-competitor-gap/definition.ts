@@ -34,7 +34,8 @@ Rules:
 - Weight: 3 = directly drives AI citation (llms.txt, FAQPage schema, blocking AI bots) | 2 = meaningful signal difference | 1 = emerging standard gap
 - Actions must be concrete: name the exact file to create or code to add, max 2 sentences
 - fixable: false for all items
-- If a category has no meaningful gaps, output one verified:true item confirming parity`,
+- If a category has no meaningful gaps, output one verified:true item confirming parity
+- Plain language: Write label, detail, highlight, and narrative in plain English that a non-technical business owner can understand — explain what the signal does, not just its technical name. Technical commands and file names belong only in the action field.`,
   categories: [
     {
       slug: 'llms-txt-gap',

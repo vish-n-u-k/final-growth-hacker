@@ -110,7 +110,10 @@ export async function POST(request: NextRequest) {
         })
         .returning()
 
-      await seedModuleStructure(mod.id, def)
+      // Only seed structure for Foundation (order 0) at onboarding — other modules seed lazily on first analysis
+      if (def.order === 0) {
+        await seedModuleStructure(mod.id, def)
+      }
       createdModules.push({ id: mod.id, type: def.type, order: def.order })
     }
 

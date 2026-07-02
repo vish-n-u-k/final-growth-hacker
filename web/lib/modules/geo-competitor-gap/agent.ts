@@ -70,11 +70,12 @@ ${categoryBlock}
 Return a JSON array. Each item:
 - category: one of [llms-txt-gap, schema-gap, robots-gap, content-gap, technical-gap, discovery-gap]
 - slug: kebab-case e.g. "llms-txt-gap-missing"
-- label: short specific label naming competitor and signal e.g. "competitor.com has llms.txt with 14 links — you have none"
+- label: plain English; describe what the competitor has that you don't, without technical jargon e.g. "competitor.com has an AI guide file — you don't"
 - weight: 1 | 2 | 3
-- detail: one sentence with specific numbers from the comparison data above
-- narrative: 1–2 sentences on why this gap matters for AI citation rates
-- action: concrete next step, max 2 sentences
+- detail: one plain English sentence with specific numbers from the comparison; wrap the key comparison data in **double asterisks**
+- highlight: 5–8 plain English words on the key gap; no technical jargon, no period
+- narrative: exactly 1 plain English sentence on why this gap means fewer AI mentions for the business; wrap the key impact in **double asterisks**
+- action: concrete next step; technical file names and commands go here; wrap the specific file or code to create in **double asterisks**
 - verified: true if brand is at parity or ahead | false if competitor leads
 - fixable: false
 

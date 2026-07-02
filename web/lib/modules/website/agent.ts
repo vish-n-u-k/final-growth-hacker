@@ -15,36 +15,43 @@ function buildFindingMap(audit: AuditResult): Map<string, Finding> {
   return map
 }
 
-// Generate business-impact narratives for all failed items in one Claude call
-async function generateNarratives(
+// Generate highlight + narrative + action for all failed items in one Claude call
+async function generateEnrichment(
   websiteUrl: string,
-  failedItems: { slug: string; label: string; detail: string; action: string }[],
-): Promise<Map<string, string>> {
+  failedItems: { slug: string; label: string; detail: string }[],
+): Promise<Map<string, { highlight: string; narrative: string; action: string }>> {
   if (failedItems.length === 0) return new Map()
 
   const itemList = failedItems
-    .map((i, idx) => `${idx + 1}. [${i.slug}] ${i.label}\n   Finding: ${i.detail}\n   Fix: ${i.action || 'No specific fix available'}`)
+    .map((i, idx) => `${idx + 1}. [${i.slug}] ${i.label}\n   Finding: ${i.detail}`)
     .join('\n\n')
 
   const raw = await callAI({
     system: WEBSITE_MODULE.systemPrompt,
     prompt: `Website: ${websiteUrl}
 
-For each failing check below, write 1–2 sentences of business impact — why this specific issue hurts growth, conversions, or trust for this site. Be specific, not generic.
+For each failing check, return three things — be specific to this site, never generic. Write highlight and narrative in plain English that any business owner can understand — no technical jargon. Technical specifics go only in action.
+- highlight: 5–8 plain English words capturing the key point (no period, no jargon)
+- narrative: exactly 1 plain English sentence explaining why this hurts growth, conversions, or trust; wrap the key risk in **double asterisks** e.g. "Without this, **Google cannot index your page**"
+- action: exactly 1 sentence starting with a verb; wrap the specific thing to do in **double asterisks** e.g. "Add **<title>YourBrand: tagline</title>** to your homepage head"
 
 ${itemList}
 
 Return ONLY a valid JSON array:
-[{ "slug": "...", "narrative": "..." }, ...]
+[{ "slug": "...", "highlight": "...", "narrative": "...", "action": "..." }, ...]
 No markdown fences, no text outside the array.`,
-    maxTokens: 4000,
+    maxTokens: 5000,
     model: 'claude-haiku-4-5-20251001',
   })
   const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
 
   try {
-    const rows = JSON.parse(clean) as { slug: string; narrative: string }[]
-    return new Map(rows.filter((r) => r.slug && r.narrative).map((r) => [r.slug, r.narrative]))
+    const rows = JSON.parse(clean) as { slug: string; highlight: string; narrative: string; action: string }[]
+    return new Map(
+      rows
+        .filter((r) => r.slug && r.narrative)
+        .map((r) => [r.slug, { highlight: r.highlight ?? '', narrative: r.narrative, action: r.action ?? '' }]),
+    )
   } catch {
     return new Map()
   }
@@ -84,16 +91,22 @@ export async function analyzeWebsite(
     }
   })
 
-  // Generate narratives for all failing items in one batch call
+  // Generate highlight + narrative + action for all failing items in one batch call
   const failedItems = baseResults
     .filter((r) => r.isFail)
-    .map((r) => ({ slug: r.slug, label: allItems.find((i) => i.slug === r.slug)?.label ?? r.slug, detail: r.detail, action: r.action }))
+    .map((r) => ({ slug: r.slug, label: allItems.find((i) => i.slug === r.slug)?.label ?? r.slug, detail: r.detail }))
 
-  const narrativeMap = await generateNarratives(websiteUrl, failedItems)
+  const enrichmentMap = await generateEnrichment(websiteUrl, failedItems)
 
-  // Merge narratives back in
-  return baseResults.map(({ isFail: _, ...r }) => ({
-    ...r,
-    narrative: narrativeMap.get(r.slug) ?? '',
-  }))
+  // Merge enrichment back in
+  return baseResults.map(({ isFail: _, ...r }) => {
+    const enriched = enrichmentMap.get(r.slug)
+    return {
+      ...r,
+      highlight: enriched?.highlight ?? '',
+      narrative: enriched?.narrative ?? '',
+      // Claude's action overrides rule-engine action for failed items (more specific)
+      action: (enriched?.action || r.action) ?? '',
+    }
+  })
 }

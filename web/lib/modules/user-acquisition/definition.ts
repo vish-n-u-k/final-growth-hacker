@@ -34,7 +34,8 @@ Output rules:
 - fixable: always false — user acquisition is not a code change.
 - Every item must be specific to this brand's industry, product, and target audience. No generic startup boilerplate.
 - The action field must start with a verb and describe something completable within 14 days.
-- The detail field must be one sentence with a specific, concrete observation or gap.`,
+- The detail field must be one sentence with a specific, concrete observation or gap.
+- Plain language: Write label, detail, highlight, and narrative in plain English that any founder can understand — no startup or marketing jargon. Technical specifics belong only in the action field.`,
   categories: [
     {
       slug: 'immediate-actions',

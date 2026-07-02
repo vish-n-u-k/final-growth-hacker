@@ -96,6 +96,7 @@ export interface ModuleDefinition {
 export interface ModuleAnalysisResult {
   slug: string
   detail: string
+  highlight?: string
   narrative: string
   action: string
   verified: boolean
@@ -109,8 +110,9 @@ export interface DynamicModuleAnalysisResult {
   label: string         // short checklist label, specific to what was found
   weight: 1 | 2 | 3    // 3=critical | 2=important | 1=minor
   detail: string        // one-sentence finding
-  narrative: string     // 2–3 sentence explanation
-  action: string        // specific next step
+  highlight?: string    // 5–8 word key phrase (shown prominently when expanded)
+  narrative: string     // 1-sentence context explanation
+  action: string        // specific next step, verb-first
   verified: boolean     // true = passes | false = needs attention
   fixable: boolean      // true = safe to auto-fix via GitHub (meta/title/canonical/OG tags only)
   fixType?: FixType     // controls which fix path is used
@@ -125,6 +127,7 @@ export interface DBItemFull {
   weight: number
   categorySlug: string
   aiDetail: string | null
+  aiHighlight: string | null
   aiNarrative: string | null
   aiAction: string | null
   aiDraft: string | null

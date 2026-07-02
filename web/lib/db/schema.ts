@@ -79,7 +79,8 @@ export const moduleItems = pgTable(
     label: text('label').notNull(),
     weight: integer('weight').notNull().default(1), // 1=minor | 2=important | 3=critical
     aiDetail: text('ai_detail'),           // one-line finding (always shown)
-    aiNarrative: text('ai_narrative'),     // paragraph analysis (expandable)
+    aiHighlight: text('ai_highlight'),     // 5–8 word key phrase (shown expanded, prominent)
+    aiNarrative: text('ai_narrative'),     // 1-sentence context (expandable)
     aiAction: text('ai_action'),           // specific next step (expandable)
     aiVerified: boolean('ai_verified').default(false),
     aiVerifiedAt: timestamp('ai_verified_at', { withTimezone: true }),

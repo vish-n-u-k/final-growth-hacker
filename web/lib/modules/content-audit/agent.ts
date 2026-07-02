@@ -145,11 +145,12 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. K
 [{
   "category": string — exactly one of: ${allCategorySlugs.map(s => `"${s}"`).join(', ')},
   "slug": string — kebab-case unique identifier,
-  "label": string — specific, cite actual page titles or metrics,
+  "label": string — plain English, no jargon; cite actual page titles or metrics,
   "weight": 1 | 2 | 3,
-  "d": string — one sentence with exact data,
-  "n": string — 1–2 sentences on business impact,
-  "a": string — specific next step,
+  "d": string — one plain English sentence with exact data; wrap key data point in **double asterisks**,
+  "highlight": string — 5–8 plain English words capturing the key point; no jargon, no period,
+  "n": string — exactly 1 plain English sentence on business impact; wrap the key risk in **double asterisks**,
+  "a": string — specific next step; technical details allowed here; wrap the specific thing to do in **double asterisks**,
   "verified": boolean,
   "fixable": boolean
 }]`
@@ -170,6 +171,7 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. K
       .map((r: any) => ({
         ...r,
         detail: r.d || r.detail,
+        highlight: r.highlight ?? null,
         narrative: r.n || r.narrative,
         action: r.a || r.action,
       }))

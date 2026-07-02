@@ -80,11 +80,12 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. E
 {
   "category": string — must be one of: "press-coverage", "partner-ecosystem", "resource-opportunities",
   "slug": string — kebab-case, pattern: {category-slug}-{domain-short},
-  "label": string — specific action e.g. "Pitch to TechCrunch" or "Get listed on ToolDirectory",
+  "label": string — plain English action description e.g. "Pitch to TechCrunch" or "Get listed on ToolDirectory",
   "weight": 1 | 2 | 3,
-  "detail": string — 1 sentence: what this site is and that they linked to a competitor,
-  "narrative": string — 1-2 sentences: why reaching out here is worth the effort,
-  "action": string — specific pitch strategy with contact method or URL,
+  "detail": string — 1 plain English sentence: what this site is and that a competitor is already featured there; wrap the site name in **double asterisks**,
+  "highlight": string — 5–8 plain English words on why this opportunity matters; no jargon, no period,
+  "narrative": string — exactly 1 plain English sentence on why reaching out here is worth the effort; wrap the key benefit in **double asterisks**,
+  "action": string — specific pitch strategy with contact method or URL; technical details go here; wrap the key step or URL in **double asterisks**,
   "verified": false,
   "fixable": false
 }`

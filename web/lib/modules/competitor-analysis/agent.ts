@@ -71,9 +71,10 @@ function buildSocialFindings(data: CompetitorAnalysisFetchResult): DynamicModule
         slug: `social-gap-no-${platform}`,
         label: `No ${info.label} presence — ${competitorsWithIt.length} competitor${competitorsWithIt.length > 1 ? 's have' : ' has'} it`,
         weight: info.weight,
-        detail: `Your site has no ${info.label} link. ${first} links to ${info.label} from their homepage.`,
-        narrative: `${info.label} is an active discovery channel for your competitors. Absence signals lower community presence to visitors who look for social proof before buying. Even a low-frequency account builds brand awareness and trust.`,
-        action: `Create a ${info.label} business account this week and add the link to your website footer. Post once to establish the profile, then commit to a consistent cadence.`,
+        detail: `Your site has no ${info.label} link. **${first}** links to ${info.label} from their homepage.`,
+        highlight: `missing ${info.label} — competitors already active`,
+        narrative: `Absence signals lower community presence to visitors who look for social proof before buying.`,
+        action: `Create a **${info.label} business account** this week, add the link to your footer, and post once to establish the profile.`,
         verified: false,
         fixable: false,
       })
@@ -84,8 +85,9 @@ function buildSocialFindings(data: CompetitorAnalysisFetchResult): DynamicModule
         label: `You have ${info.label} — none of the analysed competitors do`,
         weight: 1,
         detail: `Your site links to ${info.label}. None of the analysed competitors have a visible ${info.label} link.`,
-        narrative: `This is a differentiator. An active ${info.label} presence gives you a discovery and trust channel your competitors are not using.`,
-        action: `Keep your ${info.label} profile active and on-brand. Consider mentioning it above the fold on your homepage to make it a visible trust signal.`,
+        highlight: `${info.label} advantage — no competitors active`,
+        narrative: `An active ${info.label} presence gives you a discovery and trust channel your competitors are not using.`,
+        action: `Mention your **${info.label}** above the fold on your homepage to make it a visible trust signal.`,
         verified: true,
         fixable: false,
       })
@@ -99,8 +101,9 @@ function buildSocialFindings(data: CompetitorAnalysisFetchResult): DynamicModule
       label: 'Social media presence matches competitors',
       weight: 1,
       detail: 'Your site and the analysed competitors have similar social platform coverage on their homepages.',
-      narrative: 'No material social media gaps detected from homepage link analysis. Parity does not mean equal performance — competitors with the same platforms may post more frequently.',
-      action: 'Review posting frequency and engagement on each platform. Check competitor profiles directly to compare activity levels.',
+      highlight: 'social parity — check posting frequency',
+      narrative: 'No material social media gaps detected from homepage link analysis — but parity in presence does not mean equal performance.',
+      action: 'Check competitor profiles directly to compare posting frequency and engagement levels.',
       verified: true,
       fixable: false,
     })
@@ -125,9 +128,10 @@ function buildAdFindings(data: CompetitorAnalysisFetchResult): DynamicModuleAnal
         slug: `ad-gap-no-${pixel.replace(/_/g, '-')}`,
         label: `${info.label} not installed — detected on ${competitorsWithIt.length} competitor${competitorsWithIt.length > 1 ? 's' : ''}`,
         weight: info.weight,
-        detail: `${first} has ${info.label} installed — they are ${info.verb}. Your site has no ${info.label} script.`,
-        narrative: `Without ${info.label}, you cannot retarget visitors or accurately measure ad ROI. Competitors with this infrastructure can follow your potential customers across the web after they leave without converting.`,
-        action: `Install ${info.label} on your website. Search "[your CMS or website platform] + ${info.label} installation guide" for step-by-step instructions.`,
+        detail: `**${first}** has ${info.label} installed — they are ${info.verb}. Your site has no ${info.label} script.`,
+        highlight: `no ${info.label} — competitors retargeting your visitors`,
+        narrative: `Without ${info.label}, you cannot retarget visitors or measure ad ROI while competitors follow your potential customers across the web.`,
+        action: `Install **${info.label}** — search "[your platform] + ${info.label} installation guide" and complete setup this week.`,
         verified: false,
         fixable: false,
       })
@@ -141,8 +145,9 @@ function buildAdFindings(data: CompetitorAnalysisFetchResult): DynamicModuleAnal
       label: 'Ad tracking infrastructure matches competitors',
       weight: 1,
       detail: 'No significant gaps in ad network pixels detected between your site and the analysed competitors.',
-      narrative: 'Your ad tracking setup is comparable to your competitors based on homepage script analysis.',
-      action: 'Verify your pixels are firing correctly using Google Tag Assistant or Meta Pixel Helper browser extensions. Check for events beyond pageview (e.g. form submit, purchase).',
+      highlight: 'ad tracking parity — verify events firing',
+      narrative: 'Your ad tracking setup is comparable to competitors based on homepage script analysis.',
+      action: 'Verify your pixels are firing correctly using **Google Tag Assistant** or **Meta Pixel Helper** — check for events beyond pageview.',
       verified: true,
       fixable: false,
     })
@@ -160,8 +165,6 @@ function formatPsi(psi: PsiScore | null): string {
 
 function formatUserSection(data: CompetitorAnalysisFetchResult): string {
   const u = data.userParsed
-  const seedKeyword = data.industry || u.title || u.h1
-  const truncatedBody = truncateToKeywordContext(u.bodyText, seedKeyword)
   return `=== Your website: ${data.userUrl} ===
 Title: "${u.title}"
 Meta description: "${u.description}"
@@ -172,18 +175,15 @@ Schema markup: ${u.hasSchema ? 'Yes' : 'No'}
 Images: ${u.imgCount} total, ${u.imgWithAlt} with alt text
 Internal links: ~${u.internalLinks}
 Distinctive TF-IDF terms: ${data.userTopTerms.join(', ')}
-PageSpeed (mobile): ${formatPsi(data.userPsi)}
-Body content sample:
-${truncatedBody}`
+PageSpeed (mobile): ${formatPsi(data.userPsi)}`
 }
 
-function formatCompetitorSection(c: CompetitorAnalysisFetchResult['competitors'][number], index: number, seedKeyword: string): string {
+function formatCompetitorSection(c: CompetitorAnalysisFetchResult['competitors'][number], index: number): string {
   if (c.fetchFailed) {
     return `=== Competitor ${index + 1}: ${c.url} ===
 FETCH FAILED — could not access this site. Include in competitor discovery as "could not be verified". Skip all data-dependent checks for this competitor.`
   }
   const p = c.parsed
-  const truncatedBody = truncateToKeywordContext(p.bodyText, seedKeyword)
   return `=== Competitor ${index + 1}: ${c.url} ===
 Title: "${p.title}"
 Meta description: "${p.description}"
@@ -194,9 +194,7 @@ Schema markup: ${p.hasSchema ? 'Yes' : 'No'}
 Images: ${p.imgCount} total, ${p.imgWithAlt} with alt text
 Internal links: ~${p.internalLinks}
 Distinctive TF-IDF terms: ${c.topTerms.join(', ')}
-PageSpeed (mobile): ${formatPsi(c.psi)}
-Body content sample:
-${truncatedBody}`
+PageSpeed (mobile): ${formatPsi(c.psi)}`
 }
 
 async function runClaudeAnalysis(
@@ -216,11 +214,9 @@ async function runClaudeAnalysis(
     .map(c => `--- Category: "${c.slug}" (label: "${c.label}") ---\n${c.prompt}`)
     .join('\n\n')
 
-  const seedKeyword = data.industry || data.userParsed.title || data.userParsed.h1
-
   const prompt = `${brainContext ? `=== What we already know about this brand ===\n${brainContext}\n\n` : ''}${formatUserSection(data)}
 
-${data.competitors.map((c, i) => formatCompetitorSection(c, i, seedKeyword)).join('\n\n')}
+${data.competitors.map((c, i) => formatCompetitorSection(c, i)).join('\n\n')}
 
 === Industry keyword ===
 ${data.industry || 'Not provided — infer from homepage content and competitor data'}
@@ -247,11 +243,12 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. E
 {
   "category": string — must be one of: "competitor-discovery", "feature-comparison", "keyword-gap", "content-gap", "seo-gap", "positioning", "swot",
   "slug": string — kebab-case, pattern: {category-slug}-{short-descriptor},
-  "label": string — short and specific; cite competitor URLs where relevant,
+  "label": string — plain English, no jargon; short description of what was found or what is missing; cite competitor names where relevant,
   "weight": 1 | 2 | 3,
-  "detail": string — one sentence citing specific data points,
-  "narrative": string — 2–3 sentences explaining why this matters for growth or revenue,
-  "action": string — specific step starting with a verb; something a non-technical person can complete within a week,
+  "detail": string — one plain English sentence explaining the finding; wrap the single most important data point (competitor name, number, or keyword) in **double asterisks**,
+  "highlight": string — 5–8 plain English words capturing the key point; no jargon, no period, no full sentence,
+  "narrative": string — exactly 1 plain English sentence explaining why this matters for the business; wrap the key impact in **double asterisks**,
+  "action": string — exactly 1 sentence starting with a verb; technical specifics and jargon allowed here; wrap the specific tool, page name, or term to act on in **double asterisks**,
   "verified": boolean — true if user is at parity or ahead; false if a gap exists,
   "fixable": false
 }`
@@ -259,7 +256,8 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. E
   const raw = await callAI({
     system: COMPETITOR_ANALYSIS_MODULE.systemPrompt,
     prompt,
-    maxTokens: 10000,
+    maxTokens: 5000,
+    model: 'claude-haiku-4-5-20251001',
   })
 
   let results: DynamicModuleAnalysisResult[]

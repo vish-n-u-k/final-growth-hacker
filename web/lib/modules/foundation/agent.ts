@@ -29,9 +29,10 @@ ${JSON.stringify(items, null, 2)}
 
 For each check return exactly:
 - "slug": string — exactly as given
-- "detail": string — ONE sentence, max 120 chars: what was found (with actual values) if passes; exact problem if fails
-- "narrative": string — ONE sentence, max 150 chars: why this matters for growth or trust
-- "action": string — ONE sentence, max 120 chars: single concrete next step starting with a verb
+- "detail": string — ONE plain English sentence, max 120 chars: what was found if passes; exact problem if fails (no jargon)
+- "highlight": string — 5–8 plain English words capturing the key point; no period, no jargon
+- "narrative": string — ONE plain English sentence, max 150 chars: why this matters for growth or trust; wrap the key risk in **double asterisks**
+- "action": string — ONE sentence, max 120 chars: single concrete next step starting with a verb; technical specifics and URLs allowed here
 - "verified": boolean — true if clearly passes, false if fails or cannot be confirmed
 
 Be extremely concise. No filler. Return ONLY a valid JSON array. No markdown, no text outside the JSON.`

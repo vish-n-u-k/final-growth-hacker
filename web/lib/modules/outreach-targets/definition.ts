@@ -27,7 +27,8 @@ Rules:
 4. verified: always false — these are things the user still needs to do.
 5. fixable: always false — all external actions.
 6. Weight: 3 = high DA site or press outlet that covered a competitor | 2 = niche directory or community that links to competitors | 1 = smaller resource page or blog mention.
-7. Slug format: {category-slug}-{domain-short} e.g. press-coverage-techcrunch`,
+7. Slug format: {category-slug}-{domain-short} e.g. press-coverage-techcrunch
+8. Plain language: Write label, detail, highlight, and narrative in plain English that any business owner can understand — no jargon. Save contact methods, URLs, and technical pitch details for the action field only.`,
   categories: [
     {
       slug: 'press-coverage',

@@ -79,6 +79,7 @@ export default async function DashboardPage() {
         weight: item.weight,
         categorySlug: catMap.get(item.categoryId) ?? '',
         aiDetail: item.aiDetail,
+        aiHighlight: item.aiHighlight ?? null,
         aiNarrative: item.aiNarrative,
         aiAction: item.aiAction,
         aiDraft: item.aiDraft ?? null,
@@ -123,6 +124,7 @@ export default async function DashboardPage() {
         itemStates[item.slug] = {
           id: item.id,
           aiDetail: item.aiDetail,
+          aiHighlight: item.aiHighlight ?? null,
           aiNarrative: item.aiNarrative,
           aiAction: item.aiAction,
           aiVerified: item.aiVerified ?? false,

@@ -119,11 +119,12 @@ Return ONLY a valid JSON array. Keep responses terse: d (detail) under 15 words,
 [{
   "category": string — exactly one of: ${allCategorySlugs.map(s => `"${s}"`).join(', ')},
   "slug": string — kebab-case unique identifier,
-  "label": string — specific, cite actual data,
+  "label": string — plain English, no jargon; cite actual data,
   "weight": 1 | 2 | 3,
-  "d": string — one sentence with exact data,
-  "n": string — 1–2 sentences on business impact,
-  "a": string — specific step, completable in one week,
+  "d": string — one plain English sentence with exact data; wrap the key data point in **double asterisks**,
+  "highlight": string — 5–8 plain English words capturing the key point; no jargon, no period,
+  "n": string — exactly 1 plain English sentence on business impact; wrap the key risk in **double asterisks**,
+  "a": string — specific step starting with a verb; technical specifics allowed here; wrap the specific thing to do in **double asterisks**,
   "verified": boolean,
   "fixable": boolean
 }]`
@@ -144,6 +145,7 @@ Return ONLY a valid JSON array. Keep responses terse: d (detail) under 15 words,
       .map(r => ({
         ...r,
         detail: r.d || r.detail,
+        highlight: r.highlight ?? null,
         narrative: r.n || r.narrative,
         action: r.a || r.action,
       }))

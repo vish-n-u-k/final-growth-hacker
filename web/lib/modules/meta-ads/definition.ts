@@ -20,7 +20,8 @@ Rules:
 5. Weight: 3 = directly wastes budget or kills conversions | 2 = measurably hurts performance | 1 = optimisation opportunity
 6. verified: true = this check passes or metric is better than benchmark | verified: false = gap or inefficiency exists
 7. fixable: false for all items — Meta Ads optimisations happen inside Ads Manager, not on the website
-8. All action steps must be specific and executable inside Meta Ads Manager within one week`,
+8. All action steps must be specific and executable inside Meta Ads Manager within one week
+9. Plain language: Write label, detail, highlight, and narrative in plain English that a non-technical business owner can understand — avoid ad industry jargon (CTR, CPM, CPC, ROAS) in those fields; save metrics and technical terms for the action field only.`,
   categories: [
     {
       slug: 'campaign-performance',

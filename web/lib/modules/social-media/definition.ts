@@ -79,7 +79,8 @@ Rules:
 4. Slug format: {category-slug}-{short-descriptor} e.g. website-detection-no-instagram-link
 5. Weight: 3 = directly costs followers, reach, or leads | 2 = measurably hurts performance | 1 = nice-to-have improvement
 6. verified: true = this check passes | verified: false = gap exists, action needed
-7. fixable: true ONLY for website code changes (adding social meta tags, adding social links to site header/footer). false for everything else.`,
+7. fixable: true ONLY for website code changes (adding social meta tags, adding social links to site header/footer). false for everything else.
+8. Plain language: Write label, detail, highlight, and narrative in plain English that a non-technical business owner can understand — no jargon or acronyms. Save technical specifics for the action field only.`,
   categories: [
     {
       slug: 'website-detection',

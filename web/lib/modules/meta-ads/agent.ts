@@ -79,11 +79,12 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. E
 {
   "category": string — exactly one of: "campaign-performance", "budget-efficiency", "audience-reach", "conversion-performance", "meta-score",
   "slug": string — kebab-case, pattern: {category-slug}-{short-descriptor},
-  "label": string — specific, cite actual campaign names or metrics,
+  "label": string — plain English, no ad jargon; cite actual campaign names; describe what is happening in simple terms,
   "weight": 1 | 2 | 3,
-  "detail": string — one sentence citing exact data (spend amounts, CTR %, CPC values, campaign names),
-  "narrative": string — 2-3 sentences explaining business impact,
-  "action": string — specific step inside Meta Ads Manager, completable within one week,
+  "detail": string — one plain English sentence explaining the finding; wrap the single most important number or campaign name in **double asterisks**,
+  "highlight": string — 5–8 plain English words capturing the key point; no jargon, no period,
+  "narrative": string — exactly 1 plain English sentence explaining what this means for the business budget or results; wrap the key impact in **double asterisks**,
+  "action": string — specific step inside Meta Ads Manager; technical ad terms and metrics allowed here; wrap the specific setting or campaign name in **double asterisks**,
   "verified": boolean — true if this check passes or metric beats benchmark | false if gap exists,
   "fixable": false
 }`

@@ -258,7 +258,7 @@ export async function analyzeGeo(
   const maxTokens = Math.min(allItems.length * 80, 2000)
 
   const raw = await callAI({
-    system: 'You are an AI citation visibility auditor. Output ONLY terse JSON. Keep responses concise: d (detail) under 12 words, n (narrative) under 15 words, a (action) under 20 words.',
+    system: 'You are an AI citation visibility auditor. Output ONLY terse JSON. Keep responses concise: d (detail) under 12 words, h (highlight) under 8 words, n (narrative) under 20 words, a (action) under 25 words. Write d, h, n in plain English any business owner can understand — no jargon. Technical specifics go only in a. In d wrap the key fact in **double asterisks**. In n wrap the key risk or benefit in **double asterisks**. In a wrap the specific thing to do in **double asterisks**.',
     prompt: `Website: ${data.url}${brandName ? `\nBrand name: ${brandName}` : ''}
 ${brainContext ? `\nBrand context:\n${brainContext}\n` : ''}
 ── Pre-computed rule findings ──
@@ -266,7 +266,7 @@ ${ruleContext}
 
 ── Checks to complete ──
 For each check, respond with ONLY this schema:
-[{"slug": "...", "d": "...", "n": "...", "a": "...", "verified": true}]
+[{"slug": "...", "d": "**key fact** in plain English", "h": "5-8 plain words", "n": "why it matters — **key risk** here", "a": "Do **specific thing** now", "verified": true}]
 
 ${itemList}`,
     maxTokens,
@@ -285,6 +285,7 @@ ${itemList}`,
     .map(r => ({
       ...r,
       detail: r.d || r.detail,
+      highlight: r.h || r.highlight || undefined,
       narrative: r.n || r.narrative,
       action: r.a || r.action,
     }))

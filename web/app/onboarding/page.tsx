@@ -91,7 +91,7 @@ export default function OnboardingPage() {
       return
     }
 
-    router.push('/dashboard')
+    router.push(`/dashboard/${onboardData.moduleId}`)
   }
 
   return (

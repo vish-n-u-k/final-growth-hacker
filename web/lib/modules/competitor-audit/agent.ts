@@ -79,11 +79,12 @@ ${categories
 For each finding, return an object with:
 - "category": string — exactly one of: ${categories.map((c) => `"${c.slug}"`).join(', ')}
 - "slug": string — kebab-case, unique (e.g. "comp-missing-blog", "comp-keyword-gap-pm-tools")
-- "label": string — short, specific, cite which competitor (e.g. "Competitor1.com has a resource hub you don't")
+- "label": string — plain English, no jargon; describe what was found simply; cite which competitor (e.g. "Competitor1.com has a resource hub you don't")
 - "weight": number — 1, 2, or 3
-- "detail": string — one sentence with exact finding, cite the competitor URL
-- "narrative": string — 2–3 sentences on why this gap matters for growth or revenue
-- "action": string — one specific, immediately actionable instruction starting with a verb
+- "detail": string — one plain English sentence with the exact finding; wrap the key competitor name or data in **double asterisks**
+- "highlight": string — 5–8 plain English words capturing the key gap; no jargon, no period
+- "narrative": string — exactly 1 plain English sentence on why this gap matters for growth or revenue; wrap the key impact in **double asterisks**
+- "action": string — one specific, immediately actionable instruction starting with a verb; technical terms and tool names allowed here; wrap the specific step in **double asterisks**
 - "verified": boolean — true if user is AHEAD of or on par with competitors; false if this is a gap
 - "fixable": boolean — always false
 

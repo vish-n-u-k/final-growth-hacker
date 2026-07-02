@@ -17,7 +17,8 @@ Rules:
 - verified: true = metric looks healthy | verified: false = gap or problem detected
 - fixable: false always — analytics findings require product decisions, not automated code patches
 - Slug pattern: {category-slug}-{short-descriptor} e.g. traffic-low-mau, engagement-poor-dau-mau-ratio
-- If PostHog is not connected, generate exactly one finding per category directing the user to connect it.`,
+- If PostHog is not connected, generate exactly one finding per category directing the user to connect it.
+- Plain language: Write label, detail, highlight, and narrative in plain English that any business owner can understand — explain what numbers mean for the business, not just what they are. Analytics jargon belongs only in the action field.`,
   categories: [
     {
       slug: 'traffic',

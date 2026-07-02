@@ -52,10 +52,10 @@ export const SEO_MODULE: ModuleDefinition = {
           label: 'Canonical Tag',
           order: 3,
           items: [
-            { slug: 'canonical.present',      label: 'Canonical tag is present',                       prompt: 'Rule engine check.', order: 1, weight: 3, fixable: true, fixType: 'template' },
-            { slug: 'canonical.same_domain',  label: 'Canonical points to same domain',               prompt: 'Rule engine check.', order: 2, weight: 2, fixable: true, fixType: 'template' },
-            { slug: 'canonical.self',         label: 'Canonical is self-referencing',                 prompt: 'Rule engine check.', order: 3, weight: 2, fixable: true, fixType: 'template' },
-            { slug: 'canonical.resolves',     label: 'Canonical URL resolves with HTTP 200',         prompt: 'Rule engine check.', order: 4, weight: 2 },
+            { slug: 'canonical.present',      label: 'Preferred page URL is declared (canonical)',     prompt: 'Rule engine check.', order: 1, weight: 3, fixable: true, fixType: 'template' },
+            { slug: 'canonical.same_domain',  label: 'Canonical URL stays on the same domain',        prompt: 'Rule engine check.', order: 2, weight: 2, fixable: true, fixType: 'template' },
+            { slug: 'canonical.self',         label: 'Page canonical points back to itself',          prompt: 'Rule engine check.', order: 3, weight: 2, fixable: true, fixType: 'template' },
+            { slug: 'canonical.resolves',     label: 'Canonical URL loads successfully (HTTP 200)',   prompt: 'Rule engine check.', order: 4, weight: 2 },
           ],
         },
         {
@@ -71,11 +71,11 @@ export const SEO_MODULE: ModuleDefinition = {
           label: 'Open Graph',
           order: 5,
           items: [
-            { slug: 'og.title',       label: 'og:title is present',                      prompt: 'Rule engine check.', order: 1, weight: 2, fixable: true, fixType: 'template' },
-            { slug: 'og.description', label: 'og:description is present',               prompt: 'Rule engine check.', order: 2, weight: 2, fixable: true, fixType: 'template' },
-            { slug: 'og.image',       label: 'og:image is present and accessible',      prompt: 'Rule engine check.', order: 3, weight: 2, fixable: true },
-            { slug: 'og.url',         label: 'og:url matches canonical URL',            prompt: 'Rule engine check.', order: 4, weight: 1, fixable: true, fixType: 'template' },
-            { slug: 'og.type',        label: 'og:type is declared',                     prompt: 'Rule engine check.', order: 5, weight: 1, fixable: true, fixType: 'template' },
+            { slug: 'og.title',       label: 'Social sharing title is set',                  prompt: 'Rule engine check.', order: 1, weight: 2, fixable: true, fixType: 'template' },
+            { slug: 'og.description', label: 'Social sharing description is set',            prompt: 'Rule engine check.', order: 2, weight: 2, fixable: true, fixType: 'template' },
+            { slug: 'og.image',       label: 'Social sharing image is set and accessible',   prompt: 'Rule engine check.', order: 3, weight: 2, fixable: true },
+            { slug: 'og.url',         label: 'Social sharing URL matches page URL',          prompt: 'Rule engine check.', order: 4, weight: 1, fixable: true, fixType: 'template' },
+            { slug: 'og.type',        label: 'Social sharing content type is declared',      prompt: 'Rule engine check.', order: 5, weight: 1, fixable: true, fixType: 'template' },
           ],
         },
       ],
@@ -94,9 +94,9 @@ export const SEO_MODULE: ModuleDefinition = {
           items: [
             { slug: 'h1.exists',       label: 'H1 heading is present',                       prompt: 'Rule engine check.', order: 1, weight: 3 },
             { slug: 'h1.single',       label: 'Exactly one H1 on the page',                 prompt: 'Rule engine check.', order: 2, weight: 2 },
-            { slug: 'h1.keyword',      label: 'H1 shares keyword context with title',       prompt: 'Rule engine check.', order: 3, weight: 2 },
+            { slug: 'h1.keyword',      label: 'H1 and title target the same topic',          prompt: 'Rule engine check.', order: 3, weight: 2 },
             { slug: 'h1.length',       label: 'H1 is 20–70 characters',                     prompt: 'Rule engine check.', order: 4, weight: 1 },
-            { slug: 'h1.title_match',  label: 'H1 and title use complementary wording',     prompt: 'Rule engine check.', order: 5, weight: 1 },
+            { slug: 'h1.title_match',  label: 'H1 and title wording complement each other',  prompt: 'Rule engine check.', order: 5, weight: 1 },
           ],
         },
         {
@@ -104,7 +104,7 @@ export const SEO_MODULE: ModuleDefinition = {
           label: 'Heading Hierarchy',
           order: 2,
           items: [
-            { slug: 'hierarchy.skipped',     label: 'No skipped heading levels (H1→H3 etc.)', prompt: 'Rule engine check.', order: 1, weight: 2 },
+            { slug: 'hierarchy.skipped',     label: 'Heading levels are used in order (no skips)', prompt: 'Rule engine check.', order: 1, weight: 2 },
             { slug: 'hierarchy.h2_exists',   label: 'H2 headings structure the content',      prompt: 'Rule engine check.', order: 2, weight: 2 },
             { slug: 'hierarchy.descriptive', label: 'All headings have descriptive text',      prompt: 'Rule engine check.', order: 3, weight: 2 },
             { slug: 'hierarchy.nesting',     label: 'Heading content nesting is logical',      prompt: 'Rule engine check.', order: 4, weight: 1 },
@@ -117,7 +117,7 @@ export const SEO_MODULE: ModuleDefinition = {
           items: [
             { slug: 'outline.coverage',       label: 'Headings cover main subtopics',                    prompt: 'Rule engine check.', order: 1, weight: 1 },
             { slug: 'outline.questions',      label: 'Question-based headings used where relevant',      prompt: 'Rule engine check.', order: 2, weight: 1 },
-            { slug: 'outline.lsi',            label: 'Headings include semantic keywords',               prompt: 'Rule engine check.', order: 3, weight: 1 },
+            { slug: 'outline.lsi',            label: 'Headings include related topic words',             prompt: 'Rule engine check.', order: 3, weight: 1 },
             { slug: 'outline.length_balance', label: 'All headings are under 120 characters',            prompt: 'Rule engine check.', order: 4, weight: 1 },
           ],
         },
@@ -192,10 +192,10 @@ export const SEO_MODULE: ModuleDefinition = {
           label: 'Page Authority Flow',
           order: 3,
           items: [
-            { slug: 'pagerank.deep',        label: 'Deep pages receive internal link equity',   prompt: 'Rule engine check.', order: 1, weight: 1 },
+            { slug: 'pagerank.deep',        label: 'Deep pages receive links from other pages',  prompt: 'Rule engine check.', order: 1, weight: 1 },
             { slug: 'pagerank.nav',         label: 'Navigation covers all key page types',      prompt: 'Rule engine check.', order: 2, weight: 2 },
             { slug: 'pagerank.contextual',  label: 'Contextual links within main content',      prompt: 'Rule engine check.', order: 3, weight: 2 },
-            { slug: 'pagerank.injection',   label: 'Internal link injection plan in place',     prompt: 'Rule engine check.', order: 4, weight: 1 },
+            { slug: 'pagerank.injection',   label: 'A plan exists to add links to new pages',   prompt: 'Rule engine check.', order: 4, weight: 1 },
           ],
         },
       ],
@@ -212,11 +212,11 @@ export const SEO_MODULE: ModuleDefinition = {
           label: 'Structured Data',
           order: 1,
           items: [
-            { slug: 'schema.present',          label: 'JSON-LD structured data is present',       prompt: 'Rule engine check.', order: 1, weight: 2, fixable: true, fixType: 'value' },
-            { slug: 'schema.valid',            label: 'All JSON-LD blocks are valid JSON',        prompt: 'Rule engine check.', order: 2, weight: 3 },
-            { slug: 'schema.type',             label: 'Schema type matches page content',         prompt: 'Rule engine check.', order: 3, weight: 2 },
-            { slug: 'schema.required-fields',  label: 'Required schema fields are present',      prompt: 'Rule engine check.', order: 4, weight: 2 },
-            { slug: 'schema.twitter-card',     label: 'Twitter Card meta tags are present',      prompt: 'Rule engine check.', order: 5, weight: 1, fixable: true, fixType: 'template' },
+            { slug: 'schema.present',          label: 'Rich results markup (structured data) is present',  prompt: 'Rule engine check.', order: 1, weight: 2, fixable: true, fixType: 'value' },
+            { slug: 'schema.valid',            label: 'Structured data markup is valid and error-free',    prompt: 'Rule engine check.', order: 2, weight: 3 },
+            { slug: 'schema.type',             label: 'Structured data type matches the page',             prompt: 'Rule engine check.', order: 3, weight: 2 },
+            { slug: 'schema.required-fields',  label: 'Structured data has all required fields',           prompt: 'Rule engine check.', order: 4, weight: 2 },
+            { slug: 'schema.twitter-card',     label: 'Twitter/X sharing preview tags are set',            prompt: 'Rule engine check.', order: 5, weight: 1, fixable: true, fixType: 'template' },
           ],
         },
       ],
@@ -288,7 +288,7 @@ export const SEO_MODULE: ModuleDefinition = {
           items: [
             { slug: 'kw-primary', label: 'Primary target keyword is clear and specific', prompt: 'Analyse the page title, H1, and meta description. Is there a clear primary keyword this page is optimised for? State what it appears to be and whether it is specific enough to rank for (not overly generic). If missing or unclear, explain why that hurts rankings.', order: 1, weight: 2 },
             { slug: 'kw-secondary', label: 'Secondary and long-tail keywords are present', prompt: 'Scan the H2s, H3s, and body text. Are there secondary and long-tail keyword variations that support the primary keyword? List the top 3–5 you can identify. If absent or thin, name the long-tail variations that would be most valuable to add.', order: 2, weight: 1 },
-            { slug: 'kw-lsi', label: 'Semantic and LSI keywords used naturally', prompt: 'Review the body content. Are there semantically related terms (LSI keywords) that signal topic depth to search engines? For example, if the primary keyword is "project management tool", related terms like "task tracking", "team collaboration", "deadlines" should appear. Give 2–3 examples found or missing.', order: 3, weight: 1 },
+            { slug: 'kw-lsi', label: 'Related topic words appear naturally in content', prompt: 'Review the body content. Are there semantically related terms (LSI keywords) that signal topic depth to search engines? For example, if the primary keyword is "project management tool", related terms like "task tracking", "team collaboration", "deadlines" should appear. Give 2–3 examples found or missing.', order: 3, weight: 1 },
             { slug: 'kw-url-slug', label: 'Primary keyword appears in URL slug', prompt: 'Check the URL path provided. Does the slug contain the primary keyword or a close variant? If it is the homepage (no slug), check whether the domain name itself contains a keyword signal. If the slug is generic, a brand name only, or missing entirely, explain the missed SEO opportunity.', order: 4, weight: 1 },
             { slug: 'kw-heading-longtail', label: 'Long-tail keyword variations present in H2/H3 headings', prompt: 'Review the H2 and H3 headings. Are they used to target long-tail variants of the primary keyword — phrased as specific questions, use cases, or qualifier combinations — rather than just generic section titles? List 2–3 headings found and state whether they carry keyword value or are wasted as keyword opportunities.', order: 5, weight: 1 },
           ],
@@ -366,10 +366,10 @@ export const SEO_MODULE: ModuleDefinition = {
           label: 'Core Web Vitals',
           order: 1,
           items: [
-            { slug: 'cwv.lcp',         label: 'LCP is under 2.5 seconds',            prompt: 'Rule engine check.', order: 1, weight: 3 },
-            { slug: 'cwv.cls',         label: 'CLS is under 0.1',                    prompt: 'Rule engine check.', order: 2, weight: 3 },
-            { slug: 'cwv.fid',         label: 'Total Blocking Time is under 100ms',  prompt: 'Rule engine check.', order: 3, weight: 2 },
-            { slug: 'lighthouse.score', label: 'Lighthouse performance score is 80+', prompt: 'Rule engine check.', order: 4, weight: 2 },
+            { slug: 'cwv.lcp',         label: 'Largest element loads in under 2.5 seconds',   prompt: 'Rule engine check.', order: 1, weight: 3 },
+            { slug: 'cwv.cls',         label: 'Page layout stays stable while loading',        prompt: 'Rule engine check.', order: 2, weight: 3 },
+            { slug: 'cwv.fid',         label: 'Page responds to clicks and taps quickly',      prompt: 'Rule engine check.', order: 3, weight: 2 },
+            { slug: 'lighthouse.score', label: 'Overall page performance score is 80+',        prompt: 'Rule engine check.', order: 4, weight: 2 },
           ],
         },
         {
@@ -379,7 +379,7 @@ export const SEO_MODULE: ModuleDefinition = {
           items: [
             { slug: 'https.enforced',  label: 'HTTP requests redirect to HTTPS',  prompt: 'Rule engine check.', order: 1, weight: 3 },
             { slug: 'https.ssl_valid', label: 'SSL certificate is valid',         prompt: 'Rule engine check.', order: 2, weight: 3 },
-            { slug: 'https.hsts',      label: 'HSTS header is set',               prompt: 'Rule engine check.', order: 3, weight: 2 },
+            { slug: 'https.hsts',      label: 'Browser is forced to always use HTTPS',  prompt: 'Rule engine check.', order: 3, weight: 2 },
           ],
         },
         {
@@ -387,7 +387,7 @@ export const SEO_MODULE: ModuleDefinition = {
           label: 'Mobile Readiness',
           order: 3,
           items: [
-            { slug: 'mobile.viewport', label: 'Mobile viewport meta tag is correct', prompt: 'Rule engine check.', order: 1, weight: 3, fixable: true, fixType: 'template' },
+            { slug: 'mobile.viewport', label: 'Mobile viewport tag is correctly set',  prompt: 'Rule engine check.', order: 1, weight: 3, fixable: true, fixType: 'template' },
           ],
         },
         {
@@ -415,10 +415,10 @@ export const SEO_MODULE: ModuleDefinition = {
           label: 'Performance',
           order: 6,
           items: [
-            { slug: 'perf.render_blocking', label: 'Render-blocking resources are minimised', prompt: 'Rule engine check.', order: 1, weight: 2 },
-            { slug: 'perf.images',          label: 'Responsive images (srcset/WebP) in use',  prompt: 'Rule engine check.', order: 2, weight: 1 },
-            { slug: 'perf.js_size',         label: 'JavaScript bundle is appropriately sized', prompt: 'Rule engine check.', order: 3, weight: 2 },
-            { slug: 'perf.ttfb',            label: 'Server TTFB is under 200ms',              prompt: 'Rule engine check.', order: 4, weight: 2 },
+            { slug: 'perf.render_blocking', label: 'Slow-loading scripts are not blocking the page',  prompt: 'Rule engine check.', order: 1, weight: 2 },
+            { slug: 'perf.images',          label: 'Images serve the right size per device',          prompt: 'Rule engine check.', order: 2, weight: 1 },
+            { slug: 'perf.js_size',         label: 'JavaScript is not oversized',                     prompt: 'Rule engine check.', order: 3, weight: 2 },
+            { slug: 'perf.ttfb',            label: 'Server responds in under 200ms',                  prompt: 'Rule engine check.', order: 4, weight: 2 },
             { slug: 'perf.root_cause',      label: 'No obvious performance bottlenecks',      prompt: 'Rule engine check.', order: 5, weight: 1 },
           ],
         },

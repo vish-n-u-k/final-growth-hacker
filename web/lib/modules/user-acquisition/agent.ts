@@ -47,11 +47,12 @@ Each element must match this exact shape:
 {
   "category": string — exactly one of: "immediate-actions", "channel-strategy", "messaging-positioning", "referral-word-of-mouth", "next-phase-readiness",
   "slug": string — kebab-case, pattern: {category-slug}-{short-descriptor},
-  "label": string — specific and actionable, cite the brand/industry/audience where relevant,
+  "label": string — plain English, no jargon; specific and actionable, cite the brand/industry/audience where relevant,
   "weight": 1 | 2 | 3,
-  "detail": string — one sentence, specific observation or gap for this brand,
-  "narrative": string — 2–3 sentences explaining the business impact or opportunity,
-  "action": string — starts with a verb, completable within 14 days, specific to this brand,
+  "detail": string — one plain English sentence describing the specific observation or gap; wrap the key data point in **double asterisks**,
+  "highlight": string — 5–8 plain English words capturing the key point; no jargon, no period,
+  "narrative": string — exactly 1 plain English sentence explaining the business impact or opportunity; wrap the key risk or opportunity in **double asterisks**,
+  "action": string — starts with a verb, completable within 14 days, specific to this brand; technical details and platform names allowed here; wrap the specific step in **double asterisks**,
   "verified": boolean — true only if this tactic is demonstrably already active,
   "fixable": false
 }`

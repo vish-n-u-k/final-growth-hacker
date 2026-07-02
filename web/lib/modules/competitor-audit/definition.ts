@@ -38,7 +38,8 @@ Pass vs. fail definition:
 - verified: false = this is a gap the user needs to close
 - weight 3 = critical gap that directly blocks growth or gives competitors a major advantage
 - weight 2 = important gap that meaningfully hurts performance if left unfixed
-- weight 1 = minor gap that is nice to fix but not urgent`,
+- weight 1 = minor gap that is nice to fix but not urgent
+- Plain language: Write label, detail, highlight, and narrative in plain English — no marketing or technical jargon. Save technical specifics, tool names, and implementation details for the action field only.`,
   categories: [
     {
       slug: 'competitor-discovery',

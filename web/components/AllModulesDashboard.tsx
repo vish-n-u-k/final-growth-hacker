@@ -344,7 +344,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
         lastAnalyzedAt: string
         items: Array<{
           id: string; slug: string; label: string; weight: number; categoryId: string
-          aiDetail: string | null; aiNarrative: string | null; aiAction: string | null
+          aiDetail: string | null; aiHighlight: string | null; aiNarrative: string | null; aiAction: string | null
           aiDraft: string | null; aiData: unknown | null
           aiVerified: boolean; userChecked: boolean; completedBy: string | null
           fixable: boolean; fixInputKey: string | null; fixIntegrationProvider: string | null
@@ -366,6 +366,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           weight: item.weight,
           categorySlug: catIdToSlug.get(item.categoryId) ?? '',
           aiDetail: item.aiDetail,
+          aiHighlight: item.aiHighlight ?? null,
           aiNarrative: item.aiNarrative,
           aiAction: item.aiAction,
           aiDraft: item.aiDraft ?? null,
@@ -385,6 +386,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           itemStates[item.slug] = {
             id: item.id,
             aiDetail: item.aiDetail,
+            aiHighlight: item.aiHighlight ?? null,
             aiNarrative: item.aiNarrative,
             aiAction: item.aiAction,
             aiVerified: item.aiVerified ?? false,
@@ -588,6 +590,12 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   }
 
   // ── Dynamic item renderer ────────────────────────────────────────────────────
+  // Convert **word** markers to <strong> in any text
+  const parseBold = (text: string) =>
+    text.split(/\*\*([^*]+)\*\*/).map((part, i) =>
+      i % 2 === 1 ? <strong key={i} className="sm-bold">{part}</strong> : part,
+    )
+
   const renderDynamicItem = (modId: string, prUrl: string | null, item: DBItemFull) => {
     const aiV = item.aiVerified
     const userC = item.userChecked
@@ -595,12 +603,12 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     const needsAttention = !aiV && !userC
     const itemKey = `${modId}:${item.slug}`
     const isExpanded = expandedItems.has(itemKey)
-    const hasDetail = !!(item.aiNarrative || item.aiAction)
+    const hasDetail = !!(item.aiHighlight || item.aiNarrative || item.aiAction)
 
     return (
       <div
         key={item.slug}
-        className={`md-item sm-item${done ? ' md-item-done' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
+        className={`md-item sm-item${!done && item.weight === 3 ? ' md-item-critical' : ''}${done ? ' md-item-done' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
         onClick={(e) => hasDetail && toggleExpand(modId, item.slug, e)}
         style={{ cursor: hasDetail ? 'pointer' : 'default' }}
       >
@@ -619,21 +627,38 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           <div className="md-item-top">
             <span className="md-item-lbl">{item.label}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-              {!done && item.weight === 3 && <Badge className="md-tag md-tag-critical">Critical</Badge>}
-              {!done && item.weight === 2 && <Badge className="md-tag md-tag-important">Important</Badge>}
+              {!done && item.weight === 3 && (
+                <span className="md-priority-icon md-priority-critical" title="Critical">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                </span>
+              )}
+              {!done && item.weight === 2 && (
+                <span className="md-priority-icon md-priority-important" title="Important">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                    <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                </span>
+              )}
               {aiV && <Badge className="md-tag md-tag-ai">AI ✓</Badge>}
               {!aiV && userC && <Badge className="md-tag md-tag-self">Self</Badge>}
               {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
             </div>
           </div>
-          {item.aiDetail && <p className="md-item-detail">{item.aiDetail}</p>}
+          {item.aiDetail && <p className="md-item-detail">{parseBold(item.aiDetail)}</p>}
           {isExpanded && hasDetail && (
-            <div className="sm-expanded-body">
-              {item.aiNarrative && <p className="sm-narrative">{item.aiNarrative}</p>}
+            <div className="sm-expanded-body" onClick={(e) => e.stopPropagation()}>
+              {item.aiHighlight && <p className="sm-highlight">{item.aiHighlight}</p>}
+              {item.aiNarrative && <p className="sm-narrative">{parseBold(item.aiNarrative)}</p>}
               {item.aiAction && (
                 <div className="sm-action-box">
                   <span className="sm-action-label">Action</span>
-                  <p className="sm-action-text">{item.aiAction}</p>
+                  <p className="sm-action-text">{parseBold(item.aiAction)}</p>
                   {/https?:\/\/(www\.)?(reddit\.com\/r\/|facebook\.com\/groups\/|linkedin\.com\/groups\/)/i.test(item.aiAction ?? '') && (
                     <button
                       onClick={(e) => {
@@ -741,13 +766,13 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     const needsAttention = s && !aiV && !userC
     const itemKey = `${modId}:${item.slug}`
     const isExpanded = expandedItems.has(itemKey)
-    const hasDetail = !!(s?.aiNarrative || s?.aiAction || item.fixGuide?.length)
+    const hasDetail = !!(s?.aiHighlight || s?.aiNarrative || s?.aiAction || item.fixGuide?.length)
     const isVerifying = verifyingItems.has(itemKey)
 
     return (
       <div
         key={item.slug}
-        className={`md-item sm-item${done ? ' md-item-done' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
+        className={`md-item sm-item${!done && item.weight === 3 ? ' md-item-critical' : ''}${done ? ' md-item-done' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
         onClick={(e) => hasDetail && toggleExpand(modId, item.slug, e)}
         style={{ cursor: hasDetail ? 'pointer' : 'default' }}
       >
@@ -768,21 +793,38 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           <div className="md-item-top">
             <span className="md-item-lbl">{item.label}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-              {!done && item.weight === 3 && <span className="md-tag md-tag-critical">Critical</span>}
-              {!done && item.weight === 2 && <span className="md-tag md-tag-important">Important</span>}
+              {!done && item.weight === 3 && (
+                <span className="md-priority-icon md-priority-critical" title="Critical">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                </span>
+              )}
+              {!done && item.weight === 2 && (
+                <span className="md-priority-icon md-priority-important" title="Important">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                    <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                </span>
+              )}
               {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
               {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
               {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
             </div>
           </div>
-          {s?.aiDetail && <p className="md-item-detail">{s.aiDetail}</p>}
+          {s?.aiDetail && <p className="md-item-detail">{parseBold(s.aiDetail)}</p>}
           {isExpanded && hasDetail && (
-            <div className="sm-expanded-body">
-              {s?.aiNarrative && <p className="sm-narrative">{s.aiNarrative}</p>}
+            <div className="sm-expanded-body" onClick={(e) => e.stopPropagation()}>
+              {s?.aiHighlight && <p className="sm-highlight">{s.aiHighlight}</p>}
+              {s?.aiNarrative && <p className="sm-narrative">{parseBold(s.aiNarrative)}</p>}
               {s?.aiAction && (
                 <div className="sm-action-box">
                   <span className="sm-action-label">Action</span>
-                  <p className="sm-action-text">{s.aiAction}</p>
+                  <p className="sm-action-text">{parseBold(s.aiAction)}</p>
                 </div>
               )}
               {(() => {
@@ -1063,7 +1105,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
         {/* Module accordion stack */}
         <div className="levels">
-          {sortedByOrder.map((modData) => {
+          {sortedByOrder.filter(m => m.type !== 'user-acquisition').map((modData) => {
             const isOpen = openModules.has(modData.id)
             const isLocked = isModuleLocked(modData)
             const liveScore = liveScores[modData.id] ?? 0
@@ -1095,6 +1137,8 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
                         <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                       </svg>
+                    ) : modData.type === 'foundation' ? (
+                      <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '.3px' }}>BASE</span>
                     ) : (
                       modData.order
                     )}
@@ -1126,17 +1170,38 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     </div>
                   )}
 
-                  {!isLocked && !!effectiveLastAnalyzedAt && modData.type !== 'community-finder' && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); downloadModuleMd(modData, states, dynItems) }}
-                      className="level-export-btn"
-                      title="Export incomplete items as a report"
-                    >
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      <span className="level-export-label">Export Report</span>
-                    </button>
+                  {!isLocked && !def.comingSoon && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={e => e.stopPropagation()}>
+                      {!!effectiveLastAnalyzedAt && modData.type !== 'community-finder' && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); downloadModuleMd(modData, states, dynItems) }}
+                          className="level-export-btn"
+                          title="Export incomplete items as a report"
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          <span className="level-export-label">Export</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleReanalyze(modData.id, reqValues) }}
+                        disabled={reanalyzing}
+                        className="level-reanalyze-btn"
+                        title={effectiveLastAnalyzedAt ? 'Re-analyse' : 'Analyse'}
+                      >
+                        {reanalyzing ? (
+                          <><span className="md-spin" style={{ width: '10px', height: '10px', borderWidth: '1.5px' }} /><span className="level-reanalyze-label">{effectiveLastAnalyzedAt ? 'Re-analysing…' : 'Analysing…'}</span></>
+                        ) : (
+                          <>
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                              <path d="M4 4v6h6M20 20v-6h-6M4.06 15a9 9 0 1 0 .94-6.93" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                            <span className="level-reanalyze-label">{effectiveLastAnalyzedAt ? 'Re-analyse' : 'Analyse'}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   )}
 
                   {!isLocked && (
@@ -1150,29 +1215,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 {!isLocked && (
                   <div className="level-body" style={{ maxHeight: isOpen ? '9999px' : undefined }}>
 
-                    {/* Re-analyze toolbar — hidden for Coming Soon modules */}
-                    {!def.comingSoon && (
-                    <div style={{ padding: '18px 28px', borderTop: '1px solid var(--line)', display: 'flex', gap: '12px', alignItems: 'center', borderBottom: '1px solid var(--line)' }}>
-                      <Button
-                        variant="outline"
-                        onClick={() => handleReanalyze(modData.id, reqValues)}
-                        disabled={reanalyzing}
-                        className="gap-2 border-[var(--green)] w-30 px-4 h-9 text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)] text-sm font-semibold"
-                      >
-                        {reanalyzing ? (
-                          <><span className="md-spin p-3" />{effectiveLastAnalyzedAt ? 'Re-analysing…' : 'Analysing…'}</>
-                        ) : (
-                          <>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                              <path d="M4 4v6h6M20 20v-6h-6M4.06 15a9 9 0 1 0 .94-6.93" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                            {effectiveLastAnalyzedAt ? 'Re-analyse' : 'Analyse'}
-                          </>
-                        )}
-                      </Button>
-                      <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}>{timeAgo(effectiveLastAnalyzedAt)}</span>
-                    </div>
-                    )}
 
                     {/* Requirements setup */}
                     {!def.comingSoon && needsSetup && (

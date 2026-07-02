@@ -88,11 +88,12 @@ Each element:
 {
   "category": string — exactly one of: "traffic", "engagement", "conversion", "growth",
   "slug": string — kebab-case, pattern: {category-slug}-{short-descriptor},
-  "label": string — specific, cite actual numbers or event names,
+  "label": string — plain English, no jargon; cite actual numbers or event names; explain what it means for the business,
   "weight": 1 | 2 | 3,
-  "detail": string — one sentence citing exact data,
-  "narrative": string — 2–3 sentences explaining business impact,
-  "action": string — specific step starting with a verb, completable within one week,
+  "detail": string — one plain English sentence explaining what the data shows; wrap the single most important number in **double asterisks**,
+  "highlight": string — 5–8 plain English words capturing the key point; no jargon, no period,
+  "narrative": string — exactly 1 plain English sentence on what this means for growth or revenue; wrap the key impact in **double asterisks**,
+  "action": string — specific step starting with a verb, completable within one week; technical terms and tool names allowed here; wrap the specific setting or step in **double asterisks**,
   "verified": boolean — true if the metric looks healthy | false if gap or problem exists,
   "fixable": false
 }`

@@ -116,7 +116,7 @@ function buildFindingMap(audit: SeoAuditResult): Map<string, { text: string; lev
 async function generateNarratives(
   websiteUrl: string,
   failedItems: { slug: string; label: string; detail: string; action: string }[],
-): Promise<Map<string, string>> {
+): Promise<Map<string, { highlight: string; narrative: string }>> {
   if (failedItems.length === 0) return new Map()
 
   const itemList = failedItems
@@ -127,12 +127,14 @@ async function generateNarratives(
     system: SEO_MODULE.systemPrompt,
     prompt: `Website: ${websiteUrl}
 
-For each failing SEO check below, write 1–2 sentences of business impact — why this specific issue hurts search rankings, click-through rates, or organic traffic. Be concrete, not generic.
+For each failing SEO check below, return two things in plain English any business owner can understand — no jargon:
+- highlight: 5–8 plain English words capturing the key point (no period, no full sentence)
+- narrative: exactly 1 plain English sentence on why this hurts the business; wrap the key risk in **double asterisks**
 
 ${itemList}
 
 Return ONLY a valid JSON array:
-[{ "slug": "...", "narrative": "..." }, ...]
+[{ "slug": "...", "highlight": "...", "narrative": "..." }, ...]
 No markdown fences, no text outside the array.`,
     maxTokens: 4000,
     model: 'claude-haiku-4-5-20251001',
@@ -142,8 +144,8 @@ No markdown fences, no text outside the array.`,
   const nEnd = raw.lastIndexOf(']')
   if (nStart === -1 || nEnd === -1 || nEnd < nStart) return new Map()
   try {
-    const rows = JSON.parse(raw.slice(nStart, nEnd + 1)) as { slug: string; narrative: string }[]
-    return new Map(rows.filter((r) => r.slug && r.narrative).map((r) => [r.slug, r.narrative]))
+    const rows = JSON.parse(raw.slice(nStart, nEnd + 1)) as { slug: string; highlight: string; narrative: string }[]
+    return new Map(rows.filter((r) => r.slug && r.narrative).map((r) => [r.slug, { highlight: r.highlight ?? '', narrative: r.narrative }]))
   } catch {
     return new Map()
   }
@@ -474,10 +476,14 @@ export async function analyzeSeo(
 
   const narrativeMap = await generateNarratives(websiteUrl, failedItems)
 
-  const ruleResults: ModuleAnalysisResult[] = baseResults.map(({ isFail: _, ...r }) => ({
-    ...r,
-    narrative: narrativeMap.get(r.slug) ?? '',
-  }))
+  const ruleResults: ModuleAnalysisResult[] = baseResults.map(({ isFail: _, ...r }) => {
+    const enrichment = narrativeMap.get(r.slug)
+    return {
+      ...r,
+      highlight: enrichment?.highlight ?? '',
+      narrative: enrichment?.narrative ?? '',
+    }
+  })
 
   // Generate personalised content for lb-* and kw-* items in parallel
   const [lbContentMap, kwContentMap] = await Promise.all([
