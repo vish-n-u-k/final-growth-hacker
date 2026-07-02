@@ -43,6 +43,17 @@ import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
 
 export const maxDuration = 90
 
+async function getFreshModuleState(moduleId: string) {
+  const [freshItems, freshCats] = await Promise.all([
+    db.select().from(moduleItems).where(eq(moduleItems.moduleId, moduleId)),
+    db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId)),
+  ])
+  return {
+    items: freshItems,
+    categories: freshCats.filter(c => !c.parentId).map(c => ({ id: c.id, slug: c.slug })),
+  }
+}
+
 async function runAnalysis(
   moduleType: string,
   requirements: Record<string, string>,
@@ -345,7 +356,8 @@ export async function POST(request: NextRequest) {
       console.error('Brain fact extraction failed (non-fatal):', err)
     }
 
-    return NextResponse.json({ ok: true, itemCount: findings.length, pageCount: pageVerdicts.length })
+    const { items: freshItems, categories: freshCats } = await getFreshModuleState(moduleId)
+    return NextResponse.json({ ok: true, score, lastAnalyzedAt: new Date().toISOString(), items: freshItems, categories: freshCats, pageVerdicts })
   }
 
   // Foundation: pre-fetch to capture social links and save them to requirements
@@ -594,5 +606,6 @@ export async function POST(request: NextRequest) {
     console.error('Brain fact extraction failed (non-fatal):', err)
   }
 
-  return NextResponse.json({ ok: true, itemCount: results.length })
+  const { items: freshItems, categories: freshCats } = await getFreshModuleState(moduleId)
+  return NextResponse.json({ ok: true, score, lastAnalyzedAt: new Date().toISOString(), items: freshItems, categories: freshCats })
 }

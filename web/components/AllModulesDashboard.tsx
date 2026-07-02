@@ -163,6 +163,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [verifyingItems, setVerifyingItems] = useState<Set<string>>(new Set())
   const [applyingFix, setApplyingFix] = useState<Set<string>>(new Set())
   const [reanalyzingMap, setReanalyzingMap] = useState<Record<string, boolean>>({})
+  const [lastAnalyzedAtMap, setLastAnalyzedAtMap] = useState<Record<string, string | null>>({})
+  const [pageVerdictsMap, setPageVerdictsMap] = useState<Record<string, ModuleData['pageVerdicts']>>(() =>
+    Object.fromEntries(allModulesData.map(m => [m.id, m.pageVerdicts]))
+  )
   const [reqValuesMap, setReqValuesMap] = useState<Record<string, Record<string, string>>>(() => {
     const map = Object.fromEntries(allModulesData.map(m => [m.id, m.requirements]))
     return map
@@ -334,7 +338,71 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
       body: JSON.stringify(body),
     })
     if (res.ok) {
-      window.location.reload()
+      const data = await res.json() as {
+        ok: boolean
+        score: number
+        lastAnalyzedAt: string
+        items: Array<{
+          id: string; slug: string; label: string; weight: number; categoryId: string
+          aiDetail: string | null; aiNarrative: string | null; aiAction: string | null
+          aiDraft: string | null; aiData: unknown | null
+          aiVerified: boolean; userChecked: boolean; completedBy: string | null
+          fixable: boolean; fixInputKey: string | null; fixIntegrationProvider: string | null
+        }>
+        categories: Array<{ id: string; slug: string }>
+        pageVerdicts?: ModuleData['pageVerdicts']
+      }
+
+      setLastAnalyzedAtMap(prev => ({ ...prev, [modId]: data.lastAnalyzedAt }))
+
+      const modDef = allModulesData.find(m => m.id === modId)?.definition
+      const catIdToSlug = new Map(data.categories.map(c => [c.id, c.slug]))
+
+      if (modDef?.dynamic) {
+        const fullItems: DBItemFull[] = data.items.map(item => ({
+          id: item.id,
+          slug: item.slug,
+          label: item.label,
+          weight: item.weight,
+          categorySlug: catIdToSlug.get(item.categoryId) ?? '',
+          aiDetail: item.aiDetail,
+          aiNarrative: item.aiNarrative,
+          aiAction: item.aiAction,
+          aiDraft: item.aiDraft ?? null,
+          aiData: item.aiData ?? null,
+          aiVerified: item.aiVerified ?? false,
+          userChecked: item.userChecked ?? false,
+          completedBy: item.completedBy,
+          fixable: item.fixable ?? false,
+          fixType: null,
+          fixInputKey: item.fixInputKey ?? null,
+          fixIntegrationProvider: item.fixIntegrationProvider ?? null,
+        }))
+        setDynItemsMap(prev => ({ ...prev, [modId]: fullItems }))
+      } else {
+        const itemStates: Record<string, DBItemState> = {}
+        for (const item of data.items) {
+          itemStates[item.slug] = {
+            id: item.id,
+            aiDetail: item.aiDetail,
+            aiNarrative: item.aiNarrative,
+            aiAction: item.aiAction,
+            aiVerified: item.aiVerified ?? false,
+            userChecked: item.userChecked ?? false,
+            completedBy: item.completedBy,
+            fixable: item.fixable ?? false,
+            fixInputKey: item.fixInputKey ?? null,
+            fixIntegrationProvider: item.fixIntegrationProvider ?? null,
+          }
+        }
+        setStatesMap(prev => ({ ...prev, [modId]: itemStates }))
+      }
+
+      if (data.pageVerdicts) {
+        setPageVerdictsMap(prev => ({ ...prev, [modId]: data.pageVerdicts! }))
+      }
+
+      setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
     } else {
       const data = await res.json().catch(() => ({}))
       setSetupErrorMap(prev => ({ ...prev, [modId]: (data as { error?: string }).error ?? 'Analysis failed. Please try again.' }))
@@ -803,7 +871,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
       <div className="wrap">
         {/* Hero */}
         <div className="hero">
-          <h1>Your road to 500 users</h1>
+          <h1>{brand.name}&apos;s road to 500 users</h1>
           <p>One level at a time. Clear each gate before you level up — don't skip ahead.</p>
         </div>
 
@@ -840,7 +908,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             </div>
           </div>
           <div className="meta">
-            <div className="lvl">Currently · Level {currentLevel}</div>
+            <div className="lvl">Level {currentLevel}</div>
             <div className="desc">{activeModule?.definition.description}</div>
             <div className="journey-bar">
               <div style={{ position: 'relative', height: '46px' }}>
@@ -1007,6 +1075,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             const setupError = setupErrorMap[modData.id] ?? null
             const prUrl = prUrlMap[modData.id] ?? null
             const def = modData.definition
+            const effectiveLastAnalyzedAt = lastAnalyzedAtMap[modData.id] !== undefined ? lastAnalyzedAtMap[modData.id] : modData.lastAnalyzedAt
             const states = statesMap[modData.id] ?? {}
             const dynItems = dynItemsMap[modData.id] ?? []
             const openCats = openCatsMap[modData.id] ?? new Set<string>()
@@ -1016,7 +1085,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             const needsSetup = missingReqs.length > 0 || (hasNoFindings && def.requirements.length > 0)
 
             return (
-              <div key={modData.id} className={`level ${stateClass}${isOpen ? ' open' : ''} `}>
+              <div key={modData.id} className={`level ${stateClass}${isDone ? ' done' : ''}${isOpen ? ' open' : ''}`}>
 
                 {/* Level head */}
                 <div className="level-head" onClick={() => !isLocked && toggleModule(modData.id)}>
@@ -1057,7 +1126,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     </div>
                   )}
 
-                  {!isLocked && !!modData.lastAnalyzedAt && modData.type !== 'community-finder' && (
+                  {!isLocked && !!effectiveLastAnalyzedAt && modData.type !== 'community-finder' && (
                     <button
                       onClick={(e) => { e.stopPropagation(); downloadModuleMd(modData, states, dynItems) }}
                       className="level-export-btn"
@@ -1091,17 +1160,17 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         className="gap-2 border-[var(--green)] w-30 px-4 h-9 text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)] text-sm font-semibold"
                       >
                         {reanalyzing ? (
-                          <><span className="md-spin p-3" />{modData.lastAnalyzedAt ? 'Re-analysing…' : 'Analysing…'}</>
+                          <><span className="md-spin p-3" />{effectiveLastAnalyzedAt ? 'Re-analysing…' : 'Analysing…'}</>
                         ) : (
                           <>
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
                               <path d="M4 4v6h6M20 20v-6h-6M4.06 15a9 9 0 1 0 .94-6.93" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
-                            {modData.lastAnalyzedAt ? 'Re-analyse' : 'Analyse'}
+                            {effectiveLastAnalyzedAt ? 'Re-analyse' : 'Analyse'}
                           </>
                         )}
                       </Button>
-                      <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}>{timeAgo(modData.lastAnalyzedAt)}</span>
+                      <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}>{timeAgo(effectiveLastAnalyzedAt)}</span>
                     </div>
                     )}
 
@@ -1204,7 +1273,11 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                           note={def.comingSoonNote ?? 'This module is in active development and will be available in an upcoming update.'}
                         />
                       ) : def.dynamic
-                        ? def.categories.map((cat) => {
+                        ? [...def.categories].sort((a, b) => {
+                            const aCs = !!(a as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? 1 : 0
+                            const bCs = !!(b as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? 1 : 0
+                            return aCs - bCs
+                          }).map((cat) => {
                             const stats = getDynamicCatStats(cat.slug, dynItems)
                             const isOpenCat = openCats.has(cat.slug)
                             const catItems = [...dynItems.filter(i => i.categorySlug === cat.slug)].sort((a, b) => {
@@ -1216,7 +1289,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                             {
                               const isCatComingSoon = !!(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon
                               return (
-                              <div key={cat.slug} className={`md-cat${isOpenCat ? ' md-cat-open' : ''}`}>
+                              <div key={cat.slug} className={`md-cat${isOpenCat ? ' md-cat-open' : ''}${isCatComingSoon ? ' md-cat-coming-soon' : ''}`}>
                                 <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => !isCatComingSoon && toggleCat(modData.id, cat.slug)} style={isCatComingSoon ? { cursor: 'default' } : {}}>
                                   <div className="md-cat-hd-left">
                                     <span className="md-cat-hd-name">{cat.label}</span>

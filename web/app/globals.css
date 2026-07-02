@@ -153,7 +153,7 @@ header {
   border-radius: 18px; overflow: hidden; transition: .2s;
 }
 .level.active { border-color: var(--green); box-shadow: 0 0 0 1px var(--green-glow), 0 8px 30px #00000040; }
-.level.done { opacity: .82; }
+.level.done { border-color: #2a4a38; background: linear-gradient(to right, #0e1f1788, var(--card)); }
 .level.locked { opacity: .55; }
 
 .level-head {
@@ -508,7 +508,7 @@ header {
 
 /* Re-analyse button */
 .md-btn-reanalyze {
-  display: flex; align-items: center;  padding-left: 5px; padding-right: 5px;
+  display: flex; align-items: center;  padding-left: 14px; padding-right: 14px;
   background: var(--card); border: 1px solid var(--green);
   color: var(--green-bright); font-size: 13.5px; font-weight: 600;
    border-radius: 20px; cursor: pointer;
@@ -602,6 +602,7 @@ header {
   background: var(--card); border: 1px solid var(--line);
   border-radius: 16px;
 }
+.md-cat-coming-soon { opacity: 0.4; filter: grayscale(25%); pointer-events: none; }
 .md-cat-open { border-color: #2d4a38; }
 
 .md-cat-hd {
@@ -641,7 +642,7 @@ header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 20px 0 14px;
 }
-.md-sub-name { font-size: 13px; font-weight: 600; color: var(--text-dim); }
+.md-sub-name { font-size: 12px; font-weight: 700; color: var(--text); letter-spacing: .3px; text-transform: uppercase; padding-left: 10px; border-left: 2px solid var(--green); }
 .md-sub-count { font-size: 12px; color: var(--text-faint); }
 
 /* Items */
@@ -652,7 +653,7 @@ header {
   cursor: pointer;
 }
 .md-item:first-child { border-top: none; }
-.md-item:hover { background: rgba(47, 191, 113, 0.02); margin: 0 -6px; padding-left: 6px; padding-right: 6px; border-radius: 8px; }
+.md-item:hover { background: rgba(47, 191, 113, 0.05); margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-radius: 8px; }
 .md-item-flagged .md-item-lbl { color: var(--text); }
 .md-item-flagged .md-item-detail { color: var(--text-dim); }
 .md-item-flagged .md-cb { border-color: #4a3020; }
@@ -2282,6 +2283,8 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
   display: flex;
   flex-direction: column;
   gap: 7px;
+  opacity: 0.45;
+  filter: grayscale(25%);
 }
 .cs-cat-title {
   font-size: 13.5px;
@@ -2307,6 +2310,8 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
   background: var(--card);
   border: 1px dashed var(--line);
   border-radius: 18px;
+  opacity: 0.4;
+  filter: grayscale(30%);
 }
 .cs-module-icon {
   width: 52px;
