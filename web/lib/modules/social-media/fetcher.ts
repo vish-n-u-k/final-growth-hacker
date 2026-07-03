@@ -153,23 +153,25 @@ async function fetchPublicPageTitle(url: string): Promise<string | null> {
 
 async function fetchYouTube(apiKey: string, channelId: string): Promise<Partial<SocialPlatformData>> {
   const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${encodeURIComponent(channelId)}&key=${apiKey}`
-  const data = await safeFetch(channelUrl, {}) as {
-    items?: {
-      snippet: { description: string; thumbnails: { default?: { url: string } }; customUrl?: string }
-      statistics: { subscriberCount?: string; videoCount?: string }
-    }[]
-  } | null
+  const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${encodeURIComponent(channelId)}&type=video&order=date&maxResults=10&key=${apiKey}`
+
+  const [data, searchData] = await Promise.all([
+    safeFetch(channelUrl, {}) as Promise<{
+      items?: {
+        snippet: { description: string; thumbnails: { default?: { url: string } }; customUrl?: string }
+        statistics: { subscriberCount?: string; videoCount?: string }
+      }[]
+    } | null>,
+    safeFetch(searchUrl, {}) as Promise<{
+      items?: { snippet: { publishedAt: string } }[]
+    } | null>,
+  ])
 
   if (!data?.items?.length) return { fetchError: 'Channel not found or API key invalid' }
 
   const item = data.items[0]
   const followerCount = item.statistics.subscriberCount ? parseInt(item.statistics.subscriberCount) : null
   const postCount = item.statistics.videoCount ? parseInt(item.statistics.videoCount) : null
-
-  const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${encodeURIComponent(channelId)}&type=video&order=date&maxResults=10&key=${apiKey}`
-  const searchData = await safeFetch(searchUrl, {}) as {
-    items?: { snippet: { publishedAt: string } }[]
-  } | null
 
   const timestamps = searchData?.items?.map((v) => v.snippet.publishedAt) ?? []
   const lastPostDate = timestamps[0] ?? null
@@ -227,17 +229,19 @@ async function fetchTwitter(bearerToken: string, username: string): Promise<Part
 
 async function fetchInstagram(accessToken: string, accountId: string): Promise<Partial<SocialPlatformData>> {
   const profileUrl = `https://graph.instagram.com/v18.0/${accountId}?fields=biography,followers_count,media_count,username,website&access_token=${accessToken}`
-  const profileData = await safeFetch(profileUrl, {}) as {
-    biography?: string; followers_count?: number; media_count?: number
-    username?: string; website?: string; error?: { message: string }
-  } | null
+  const mediaUrl = `https://graph.instagram.com/v18.0/${accountId}/media?fields=timestamp,like_count,comments_count&limit=20&access_token=${accessToken}`
+
+  const [profileData, mediaData] = await Promise.all([
+    safeFetch(profileUrl, {}) as Promise<{
+      biography?: string; followers_count?: number; media_count?: number
+      username?: string; website?: string; error?: { message: string }
+    } | null>,
+    safeFetch(mediaUrl, {}) as Promise<{
+      data?: { timestamp: string; like_count?: number; comments_count?: number }[]
+    } | null>,
+  ])
 
   if (!profileData || profileData.error) return { fetchError: profileData?.error?.message ?? 'Invalid access token or account ID' }
-
-  const mediaUrl = `https://graph.instagram.com/v18.0/${accountId}/media?fields=timestamp,like_count,comments_count&limit=20&access_token=${accessToken}`
-  const mediaData = await safeFetch(mediaUrl, {}) as {
-    data?: { timestamp: string; like_count?: number; comments_count?: number }[]
-  } | null
 
   const posts = mediaData?.data ?? []
   const timestamps = posts.map((p) => p.timestamp)
@@ -266,17 +270,19 @@ async function fetchInstagram(accessToken: string, accountId: string): Promise<P
 
 async function fetchFacebook(accessToken: string, pageId: string): Promise<Partial<SocialPlatformData>> {
   const pageUrl = `https://graph.facebook.com/v18.0/${pageId}?fields=name,fan_count,followers_count,about,website,link,username&access_token=${accessToken}`
-  const pageData = await safeFetch(pageUrl, {}) as {
-    name?: string; fan_count?: number; followers_count?: number; about?: string
-    website?: string; link?: string; username?: string; error?: { message: string }
-  } | null
+  const postsUrl = `https://graph.facebook.com/v18.0/${pageId}/posts?fields=created_time,reactions.summary(true),comments.summary(true)&limit=20&access_token=${accessToken}`
+
+  const [pageData, postsData] = await Promise.all([
+    safeFetch(pageUrl, {}) as Promise<{
+      name?: string; fan_count?: number; followers_count?: number; about?: string
+      website?: string; link?: string; username?: string; error?: { message: string }
+    } | null>,
+    safeFetch(postsUrl, {}) as Promise<{
+      data?: { created_time: string; reactions?: { summary?: { total_count: number } }; comments?: { summary?: { total_count: number } } }[]
+    } | null>,
+  ])
 
   if (!pageData || pageData.error) return { fetchError: pageData?.error?.message ?? 'Invalid Page access token or Page ID' }
-
-  const postsUrl = `https://graph.facebook.com/v18.0/${pageId}/posts?fields=created_time,reactions.summary(true),comments.summary(true)&limit=20&access_token=${accessToken}`
-  const postsData = await safeFetch(postsUrl, {}) as {
-    data?: { created_time: string; reactions?: { summary?: { total_count: number } }; comments?: { summary?: { total_count: number } } }[]
-  } | null
 
   const posts = postsData?.data ?? []
   const timestamps = posts.map((p) => p.created_time)
@@ -304,15 +310,17 @@ async function fetchFacebook(accessToken: string, pageId: string): Promise<Parti
 
 async function fetchLinkedIn(accessToken: string, organizationId: string): Promise<Partial<SocialPlatformData>> {
   const headers = { Authorization: `Bearer ${accessToken}`, 'X-Restli-Protocol-Version': '2.0.0' }
-  const orgData = await safeFetch(`https://api.linkedin.com/v2/organizations/${organizationId}`, headers) as {
-    localizedName?: string; localizedDescription?: string; vanityName?: string; error?: string; message?: string
-  } | null
+
+  const [orgData, followersData] = await Promise.all([
+    safeFetch(`https://api.linkedin.com/v2/organizations/${organizationId}`, headers) as Promise<{
+      localizedName?: string; localizedDescription?: string; vanityName?: string; error?: string; message?: string
+    } | null>,
+    safeFetch(`https://api.linkedin.com/v2/networkSizes/${organizationId}?edgeType=CompanyFollowedByMember`, headers) as Promise<{
+      firstDegreeSize?: number
+    } | null>,
+  ])
 
   if (!orgData || orgData.error) return { fetchError: orgData?.message ?? 'Invalid access token or Organization ID' }
-
-  const followersData = await safeFetch(`https://api.linkedin.com/v2/networkSizes/${organizationId}?edgeType=CompanyFollowedByMember`, headers) as {
-    firstDegreeSize?: number
-  } | null
 
   return {
     handle: orgData.vanityName ?? null,

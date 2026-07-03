@@ -207,9 +207,11 @@ async function getSitemapUrls(origin: string): Promise<string[]> {
     }
   }
 
-  // Try common sitemap locations
-  await parseSitemapXml(`${origin}/sitemap.xml`)
-  if (urls.length === 0) await parseSitemapXml(`${origin}/sitemap_index.xml`)
+  // Try both common sitemap locations in parallel and deduplicate
+  await Promise.all([
+    parseSitemapXml(`${origin}/sitemap.xml`),
+    parseSitemapXml(`${origin}/sitemap_index.xml`),
+  ])
 
   return [...new Set(urls.map(normalizeUrl))]
 }

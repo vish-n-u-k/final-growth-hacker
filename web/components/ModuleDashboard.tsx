@@ -138,24 +138,23 @@ function ringColor(score: number): string {
 }
 
 function ModuleRing({ score }: { score: number }) {
-  const r = 12
+  const r = 16
   const circ = 2 * Math.PI * r
   const offset = circ * (1 - Math.max(score, 0) / 100)
   const color = ringColor(score)
   return (
-    <svg width="34" height="34" viewBox="0 0 34 34" style={{ flexShrink: 0, display: 'block' }}>
-      <circle cx="17" cy="17" r={r} fill="none" strokeWidth="2.5" style={{ stroke: 'var(--line)' }} />
+    <svg width="44" height="44" viewBox="0 0 44 44" style={{ flexShrink: 0, display: 'block' }}>
       <circle
-        cx="17" cy="17" r={r} fill="none"
-        stroke={color} strokeWidth="2.5" strokeLinecap="round"
+        cx="22" cy="22" r={r} fill="none"
+        stroke={color} strokeWidth="3" strokeLinecap="round"
         strokeDasharray={circ}
         strokeDashoffset={score === 0 ? circ : offset}
-        style={{ transform: 'rotate(-90deg)', transformOrigin: '17px 17px', transition: 'stroke-dashoffset .5s ease', filter: `drop-shadow(0 0 2px ${color}80)` }}
+        style={{ transform: 'rotate(-90deg)', transformOrigin: '22px 22px', transition: 'stroke-dashoffset .5s ease', filter: `drop-shadow(0 0 3px ${color}80)` }}
       />
       <text
-        x="17" y="17" textAnchor="middle" dominantBaseline="central"
+        x="22" y="22" textAnchor="middle" dominantBaseline="central"
         fill={color}
-        style={{ fontSize: '7.5px', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}
+        style={{ fontSize: '9.5px', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}
       >
         {score}
       </text>

@@ -47,7 +47,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
             },
             {
               slug: 'viewport-meta',
-              label: 'Page resizes correctly on mobile',
+              label: 'Mobile viewport tag',
               prompt: 'Checked by rule engine.',
               order: 3,
               weight: 3,
@@ -56,7 +56,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
             },
             {
               slug: 'no-inline-styles',
-              label: 'Page styles are in stylesheets, not inline',
+              label: 'Inline styles usage',
               prompt: 'Checked by rule engine.',
               order: 4,
               weight: 1,
@@ -79,7 +79,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
           items: [
             {
               slug: 'has-nav-landmark',
-              label: 'Navigation is properly structured',
+              label: 'Navigation structure',
               prompt: 'Checked by rule engine.',
               order: 1,
               weight: 2,
@@ -134,21 +134,21 @@ export const WEBSITE_MODULE: ModuleDefinition = {
             },
             {
               slug: 'page-size',
-              label: 'Page file size is not too large',
+              label: 'Page file size',
               prompt: 'Checked by rule engine.',
               order: 2,
               weight: 2,
             },
             {
               slug: 'compression',
-              label: 'Page content is compressed for faster loading',
+              label: 'Response compression',
               prompt: 'Checked by rule engine.',
               order: 3,
               weight: 2,
             },
             {
               slug: 'image-dimensions',
-              label: 'Images have size attributes set',
+              label: 'Image dimension attributes',
               prompt: 'Checked by rule engine.',
               order: 4,
               weight: 1,
@@ -171,7 +171,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
           items: [
             {
               slug: 'viewport-configured',
-              label: 'Mobile viewport is correctly configured',
+              label: 'Mobile viewport configuration',
               prompt: 'Checked by rule engine.',
               order: 1,
               weight: 3,
@@ -180,14 +180,14 @@ export const WEBSITE_MODULE: ModuleDefinition = {
             },
             {
               slug: 'no-fixed-width',
-              label: 'No horizontal scrolling on mobile',
+              label: 'Horizontal overflow on mobile',
               prompt: 'Checked by rule engine.',
               order: 2,
               weight: 2,
             },
             {
               slug: 'has-media-queries',
-              label: 'Layout adapts to different screen sizes',
+              label: 'Responsive layout',
               prompt: 'Checked by rule engine.',
               order: 3,
               weight: 1,
@@ -224,7 +224,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
             },
             {
               slug: 'security-headers',
-              label: 'Security response headers are set',
+              label: 'Security response headers',
               prompt: 'Checked by rule engine.',
               order: 3,
               weight: 2,
@@ -274,14 +274,14 @@ export const WEBSITE_MODULE: ModuleDefinition = {
             },
             {
               slug: 'cta-action-language',
-              label: 'Button text uses strong action words',
+              label: 'CTA button language',
               prompt: 'Checked by rule engine.',
               order: 2,
               weight: 2,
             },
             {
               slug: 'above-fold-cta',
-              label: 'A call-to-action is visible without scrolling',
+              label: 'Above-fold call-to-action',
               prompt: 'Checked by rule engine.',
               order: 3,
               weight: 2,
@@ -336,7 +336,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
             },
             {
               slug: 'placeholder-not-label',
-              label: 'Form fields have permanent labels (not just placeholders)',
+              label: 'Form field labels vs placeholders',
               prompt: 'Checked by rule engine.',
               order: 4,
               weight: 1,
@@ -368,7 +368,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
             },
             {
               slug: 'canonical',
-              label: 'Preferred page URL is declared (canonical)',
+              label: 'Canonical URL',
               prompt: 'Checked by rule engine.',
               order: 2,
               weight: 2,
@@ -377,7 +377,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
             },
             {
               slug: 'og-tags',
-              label: 'Social media sharing preview is configured',
+              label: 'Social sharing preview (Open Graph)',
               prompt: 'Checked by rule engine.',
               order: 3,
               weight: 2,
@@ -416,7 +416,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
             },
             {
               slug: 'structured-data',
-              label: 'Rich results markup is present',
+              label: 'Rich results markup (JSON-LD)',
               prompt: 'Checked by rule engine.',
               order: 7,
               weight: 1,
@@ -431,7 +431,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
             },
             {
               slug: 'lang-attr',
-              label: 'Page language is declared',
+              label: 'HTML language attribute',
               prompt: 'Checked by rule engine.',
               order: 8,
               weight: 2,

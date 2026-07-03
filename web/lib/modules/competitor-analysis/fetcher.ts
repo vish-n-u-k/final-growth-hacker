@@ -147,7 +147,7 @@ async function fetchPsi(url: string): Promise<PsiScore | null> {
     const key = process.env.GOOGLE_PSI_API_KEY
     const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile${key ? `&key=${key}` : ''}`
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 20000)
+    const timer = setTimeout(() => controller.abort(), 8000)
     const res = await fetch(endpoint, { signal: controller.signal })
     clearTimeout(timer)
     if (!res.ok) return null

@@ -60,7 +60,7 @@ ${JSON.stringify(items, null, 2)}
 
 For each check return exactly:
 - "slug": string — exactly as given
-- "detail": string — ONE plain English sentence, max 120 chars: what was found if passes; exact problem if fails (no jargon)
+- "detail": string — ONE plain English sentence, max 120 chars: what was found if passes; exact problem if fails (no jargon); wrap the single most important fact or value in **double asterisks** e.g. "**Google Analytics** is installed and tracking"
 - "highlight": string — 5–8 plain English words capturing the key point; no period, no jargon
 - "narrative": string — ONE plain English sentence, max 150 chars: why this matters for growth or trust; wrap the key risk in **double asterisks**
 - "action": string — ONE sentence, max 120 chars: single concrete next step starting with a verb; technical specifics and URLs allowed here

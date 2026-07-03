@@ -52,7 +52,7 @@ Rules:
             },
             {
               slug: 'ssl-active',
-              label: 'Site uses a secure connection (HTTPS)',
+              label: 'HTTPS secure connection',
               prompt: 'Check whether the site URL uses HTTPS. A non-HTTPS site is penalised by Google and flagged as insecure by browsers. Report the protocol in use.',
               order: 2,
               weight: 3,
@@ -102,7 +102,7 @@ Rules:
           items: [
             {
               slug: 'mobile-viewport',
-              label: 'Site displays correctly on phones',
+              label: 'Mobile viewport tag',
               prompt: 'Check for <meta name="viewport"> tag. Without it, the site renders broken on mobile devices. Report the tag value if found.',
               order: 1,
               weight: 2,
@@ -144,7 +144,7 @@ Rules:
           items: [
             {
               slug: 'ga4-installed',
-              label: 'Visitor tracking (Google Analytics) is installed',
+              label: 'Google Analytics tracking',
               prompt: 'Check the HTML for Google Analytics GA4 tracking code. Look for gtag.js, G-XXXXXXXX measurement IDs, or Google Tag Manager (GTM) containers which may load GA4. Report what you find. If none is detected, flag this as critical — without analytics, no growth decision can be data-driven.',
               order: 1,
               weight: 3,
@@ -165,7 +165,7 @@ Rules:
             },
             {
               slug: 'gsc-linked',
-              label: 'Google Search Console is connected',
+              label: 'Google Search Console',
               prompt: 'Check for Google Search Console verification meta tags (google-site-verification) in the HTML head. Note: GSC can also be verified via DNS or file — if the meta tag is not found, state it needs manual verification. Report what you find.',
               order: 2,
               weight: 2,
@@ -185,7 +185,7 @@ Rules:
             },
             {
               slug: 'posthog-installed',
-              label: 'Product analytics (PostHog) is installed',
+              label: 'PostHog analytics',
               prompt: 'Check the HTML scripts for PostHog analytics. Look for posthog-js in script src attributes, posthog.init( calls in inline scripts, or scripts loading from us.posthog.com, eu.posthog.com, or app.posthog.com. Report exactly what you find. If none is detected, flag it as missing — PostHog is essential for tracking user behaviour, funnels, and growth metrics.',
               order: 3,
               weight: 2,
@@ -354,7 +354,7 @@ Rules:
             },
             {
               slug: 'page-title-set',
-              label: 'Browser tab title is set and meaningful',
+              label: 'Browser tab title',
               prompt: 'Check the <title> tag. Is it set to something meaningful and specific to this business? Flag if it is empty, says "Untitled", "Home", "WordPress", or any framework default. Report the current title.',
               order: 3,
               weight: 2,

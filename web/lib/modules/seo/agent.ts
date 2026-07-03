@@ -169,7 +169,7 @@ async function generateLinkBuildingContent(
     prompt: `Website: ${websiteUrl}
 ${brainContext ? `\nBrand context:\n${brainContext}\n` : ''}
 For each platform below, generate:
-- detail: 1 sentence — what this platform is and why it's a good fit for this specific product
+- detail: 1 sentence — what this platform is and why it's a good fit for this specific product; wrap the platform name in **double asterisks**
 - narrative: 1-2 sentences — what a successful listing here achieves (traffic, backlink authority, credibility)
 - action: Exact step-by-step instructions following the guidance provided. Include the direct submission URL.
 
@@ -314,7 +314,7 @@ For each check, respond with ONLY this schema:
 [{"slug": "...", "d": "...", "n": "...", "a": "..."}]`
 
   const raw = await callAI({
-    system: 'You are a senior SEO strategist specialising in keyword research. Output ONLY terse JSON. Keep responses concise: d (detail) under 10 words, n (narrative) under 15 words, a (action) under 20 words. Name actual keywords and questions, not generic advice.',
+    system: 'You are a senior SEO strategist specialising in keyword research. Output ONLY terse JSON. Keep responses concise: d (detail) under 10 words, n (narrative) under 15 words, a (action) under 20 words. Name actual keywords and questions, not generic advice. In d wrap the single most important keyword or finding in **double asterisks**.',
     cachePrefix,
     prompt: itemList,
     maxTokens,

@@ -153,18 +153,17 @@ function LevelRing({ score }: { score: number }) {
   const color = ringColor(score)
   return (
     <svg width="100%" height="100%" viewBox="0 0 46 46" style={{ display: 'block' }}>
-      <circle cx="23" cy="23" r={r} fill="none" strokeWidth="4" style={{ stroke: 'var(--line)' }} />
       <circle
         cx="23" cy="23" r={r} fill="none"
         stroke={color} strokeWidth="4" strokeLinecap="round"
         strokeDasharray={circ}
         strokeDashoffset={score === 0 ? circ : offset}
-        style={{ transform: 'rotate(-90deg)', transformOrigin: '23px 23px', transition: 'stroke-dashoffset .5s ease', filter: `drop-shadow(0 0 3px ${color}90)` }}
+        style={{ transform: 'rotate(-90deg)', transformOrigin: '23px 23px', transition: 'stroke-dashoffset .5s ease', filter: `drop-shadow(0 0 4px ${color}90)` }}
       />
       <text
         x="23" y="23" textAnchor="middle" dominantBaseline="central"
         fill={color}
-        style={{ fontSize: '11.5px', fontWeight: 800, fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.5px' }}
+        style={{ fontSize: '13px', fontWeight: 800, fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.5px' }}
       >
         {score}
       </text>
@@ -970,7 +969,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
               />
             )}
-            <h1>{brand.name}&apos;s road to 500 users</h1>
+            <h1><span className="hero-brand-name">{brand.name}</span>&apos;s road to 500 users</h1>
           </div>
           <p>One level at a time. Clear each gate before you level up — don't skip ahead.</p>
         </div>
