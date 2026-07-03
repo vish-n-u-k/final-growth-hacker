@@ -370,6 +370,7 @@ export async function POST(request: NextRequest) {
       if (!prefetch.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)
 
       const { brandColor, results } = await analyzeFoundation(prefetch)
+      console.log('[Foundation] brandColor from Claude:', brandColor || '(empty)')
       foundationResults = results
 
       const updatedReqs = { ...requirements }
@@ -395,9 +396,17 @@ export async function POST(request: NextRequest) {
       if (prefetch.extracted.favicon) {
         try { logoUrl = new URL(prefetch.extracted.favicon, prefetch.url).href } catch { /* ignore */ }
       }
+      console.log('[Foundation] logoUrl:', logoUrl || '(none)')
+      console.log('[Foundation] themeColor from meta:', prefetch.extracted.themeColor || '(empty)')
       if (logoUrl) brandUpdates.logoUrl = logoUrl
-      const themeColor = prefetch.extracted.themeColor || brandColor || (logoUrl ? await getFaviconColor(logoUrl) : '')
+      let themeColor = prefetch.extracted.themeColor || brandColor
+      if (!themeColor && logoUrl) {
+        console.log('[Foundation] Trying getFaviconColor from:', logoUrl)
+        themeColor = await getFaviconColor(logoUrl)
+        console.log('[Foundation] getFaviconColor result:', themeColor || '(empty)')
+      }
       if (themeColor) brandUpdates.themeColor = themeColor
+      console.log('[Foundation] brandUpdates:', JSON.stringify(brandUpdates))
       await Promise.all([
         db.update(modules).set({ requirements: updatedReqs }).where(eq(modules.id, moduleId)),
         Object.keys(brandUpdates).length > 0
@@ -407,8 +416,7 @@ export async function POST(request: NextRequest) {
       ])
       Object.assign(requirements, updatedReqs)
     } catch (err) {
-      // If foundation fetch/analysis failed, fall through to runAnalysis as a retry
-      console.error('Foundation direct analysis failed, retrying via runAnalysis:', err)
+      console.error('[Foundation] prefetch/analysis block threw — falling back to runAnalysis:', err)
       foundationResults = null
     }
   }
