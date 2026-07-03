@@ -3,38 +3,7 @@ import { FOUNDATION_MODULE } from './definition'
 import { getAllItems, type ModuleAnalysisResult } from '../types'
 import type { FoundationFetchResult } from './fetcher'
 
-export async function extractBrandColor(data: FoundationFetchResult): Promise<string> {
-  if (!data.extracted) return ''
-  const { title, metaDescription, h1, styleContent } = data.extracted
-  const raw = await callAI({
-    system: 'You are a web design analyst. Return only valid JSON, no markdown.',
-    prompt: `Identify the primary brand color for this website.
-
-URL: ${data.url}
-Title: ${title}
-Description: ${metaDescription}
-H1: ${h1}
-
-Inline CSS from the page (look for CSS variables like --primary, --brand, --color-primary, --accent, --color-accent, background colors on header/nav/button elements):
-${styleContent || '(none found)'}
-
-Return ONLY: {"brandColor": "#rrggbb"}
-Use a standard 6-digit hex code. Pick the most prominent brand/primary color. If you genuinely cannot determine one, return {"brandColor": ""}`,
-    maxTokens: 60,
-    model: 'claude-haiku-4-5-20251001',
-  })
-  try {
-    const start = raw.indexOf('{')
-    const end = raw.lastIndexOf('}')
-    const parsed = JSON.parse(raw.slice(start, end + 1))
-    const color = parsed.brandColor?.trim() ?? ''
-    return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : ''
-  } catch {
-    return ''
-  }
-}
-
-export async function analyzeFoundation(data: FoundationFetchResult): Promise<ModuleAnalysisResult[]> {
+export async function analyzeFoundation(data: FoundationFetchResult): Promise<{ brandColor: string; results: ModuleAnalysisResult[] }> {
   const items = getAllItems(FOUNDATION_MODULE).map((item) => ({
     slug: item.slug,
     prompt: item.prompt,
@@ -58,15 +27,17 @@ ${data.extracted ? JSON.stringify(data.extracted, null, 2) : 'Unable to fetch �
 === Checks to run ===
 ${JSON.stringify(items, null, 2)}
 
-For each check return exactly:
-- "slug": string — exactly as given
-- "detail": string — ONE plain English sentence, max 120 chars: what was found if passes; exact problem if fails (no jargon); wrap the single most important fact or value in **double asterisks** e.g. "**Google Analytics** is installed and tracking"
-- "highlight": string — 5–8 plain English words capturing the key point; no period, no jargon
-- "narrative": string — ONE plain English sentence, max 150 chars: why this matters for growth or trust; wrap the key risk in **double asterisks**
-- "action": string — ONE sentence, max 120 chars: single concrete next step starting with a verb; technical specifics and URLs allowed here
-- "verified": boolean — true if clearly passes, false if fails or cannot be confirmed
+Return a JSON object with exactly two keys:
+1. "brandColor": string — the primary brand/accent color as a 6-digit hex (e.g. "#3b82f6"). Look at CSS variables (--primary, --brand, --color-primary, --accent etc.), button/CTA backgrounds, header/nav backgrounds, link colors in the styleContent. If you cannot determine one confidently, use "".
+2. "results": array — one object per check with:
+   - "slug": string — exactly as given
+   - "detail": string — ONE plain English sentence, max 120 chars: what was found if passes; exact problem if fails (no jargon); wrap the single most important fact or value in **double asterisks** e.g. "**Google Analytics** is installed and tracking"
+   - "highlight": string — 5–8 plain English words capturing the key point; no period, no jargon
+   - "narrative": string — ONE plain English sentence, max 150 chars: why this matters for growth or trust; wrap the key risk in **double asterisks**
+   - "action": string — ONE sentence, max 120 chars: single concrete next step starting with a verb; technical specifics and URLs allowed here
+   - "verified": boolean — true if clearly passes, false if fails or cannot be confirmed
 
-Be extremely concise. No filler. Return ONLY a valid JSON array. No markdown, no text outside the JSON.`
+Be extremely concise. No filler. Return ONLY the JSON object. No markdown, no text outside the JSON.`
 
   const raw = await callAI({
     system: FOUNDATION_MODULE.systemPrompt,
@@ -74,18 +45,22 @@ Be extremely concise. No filler. Return ONLY a valid JSON array. No markdown, no
     maxTokens: 8192,
     model: 'claude-haiku-4-5-20251001',
   })
-  const start = raw.indexOf('[')
-  const end = raw.lastIndexOf(']')
+  const start = raw.indexOf('{')
+  const end = raw.lastIndexOf('}')
   const clean = start !== -1 && end !== -1 ? raw.slice(start, end + 1) : raw.trim()
 
-  let results: ModuleAnalysisResult[]
+  let parsed: { brandColor?: string; results?: ModuleAnalysisResult[] }
   try {
-    results = JSON.parse(clean)
+    parsed = JSON.parse(clean)
   } catch {
     throw new Error(`Foundation agent returned invalid JSON: ${clean.slice(0, 200)}`)
   }
 
-  return results.filter(
+  const brandColor = /^#[0-9a-fA-F]{3,8}$/.test(parsed.brandColor?.trim() ?? '')
+    ? parsed.brandColor!.trim()
+    : ''
+
+  const results = (parsed.results ?? []).filter(
     (r) =>
       typeof r.slug === 'string' &&
       typeof r.detail === 'string' &&
@@ -93,4 +68,6 @@ Be extremely concise. No filler. Return ONLY a valid JSON array. No markdown, no
       typeof r.action === 'string' &&
       typeof r.verified === 'boolean',
   )
+
+  return { brandColor, results }
 }

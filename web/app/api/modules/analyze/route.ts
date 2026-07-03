@@ -6,7 +6,7 @@ import { getCompetitorUrlsString, storeCompetitors } from '@/lib/modules/competi
 import { eq, and } from 'drizzle-orm'
 import { MODULE_MAP } from '@/lib/modules/registry'
 import { fetchFoundationData } from '@/lib/modules/foundation/fetcher'
-import { analyzeFoundation, extractBrandColor } from '@/lib/modules/foundation/agent'
+import { analyzeFoundation } from '@/lib/modules/foundation/agent'
 import { fetchWebsiteData } from '@/lib/modules/website/fetcher'
 import { analyzeWebsite } from '@/lib/modules/website/agent'
 import { fetchSeoData } from '@/lib/modules/seo/fetcher'
@@ -67,7 +67,8 @@ async function runAnalysis(
     case 'foundation': {
       const data = await fetchFoundationData(requirements)
       if (!data.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)
-      return analyzeFoundation(data)
+      const { results } = await analyzeFoundation(data)
+      return results
     }
     case 'website': {
       const data = await fetchWebsiteData(requirements)
@@ -361,59 +362,69 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, score, lastAnalyzedAt: new Date().toISOString(), items: freshItems, categories: freshCats, pageVerdicts })
   }
 
-  // Foundation: pre-fetch to capture social links and save them to requirements + brand_integrations
+  // Foundation: fetch + analyse in one pass (avoids double fetch)
+  let foundationResults: ModuleAnalysisResult[] | null = null
   if (mod.type === 'foundation') {
     try {
       const prefetch = await fetchFoundationData(requirements)
-      if (prefetch.extracted) {
-        const updatedReqs = { ...requirements }
-        const upserts = []
-        for (const [platform, url] of Object.entries(prefetch.extracted.socialLinks)) {
-          const key = `social_${platform}`
-          if (!updatedReqs[key]) updatedReqs[key] = url
-          upserts.push(
-            db.insert(brandIntegrations).values({
-              brandId: brand.id,
-              provider: platform,
-              type: 'social',
-              status: 'connected',
-              metadata: { url },
-            }).onConflictDoUpdate({
-              target: [brandIntegrations.brandId, brandIntegrations.provider],
-              set: { metadata: { url }, status: 'connected' },
-            })
-          )
-        }
-        const brandUpdates: Record<string, string> = {}
-        const themeColor = prefetch.extracted.themeColor || await extractBrandColor(prefetch)
-        if (themeColor) brandUpdates.themeColor = themeColor
-        if (prefetch.extracted.favicon) {
-          try { brandUpdates.logoUrl = new URL(prefetch.extracted.favicon, prefetch.url).href } catch { /* ignore */ }
-        }
-        await Promise.all([
-          db.update(modules).set({ requirements: updatedReqs }).where(eq(modules.id, moduleId)),
-          Object.keys(brandUpdates).length > 0
-            ? db.update(brands).set(brandUpdates).where(eq(brands.id, brand.id))
-            : Promise.resolve(),
-          ...upserts,
-        ])
-        Object.assign(requirements, updatedReqs)
+      if (!prefetch.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)
+
+      const { brandColor, results } = await analyzeFoundation(prefetch)
+      foundationResults = results
+
+      const updatedReqs = { ...requirements }
+      const upserts = []
+      for (const [platform, url] of Object.entries(prefetch.extracted.socialLinks)) {
+        const key = `social_${platform}`
+        if (!updatedReqs[key]) updatedReqs[key] = url
+        upserts.push(
+          db.insert(brandIntegrations).values({
+            brandId: brand.id,
+            provider: platform,
+            type: 'social',
+            status: 'connected',
+            metadata: { url },
+          }).onConflictDoUpdate({
+            target: [brandIntegrations.brandId, brandIntegrations.provider],
+            set: { metadata: { url }, status: 'connected' },
+          })
+        )
       }
-    } catch {
-      // Non-fatal — analysis continues without saving social links
+      const brandUpdates: Record<string, string> = {}
+      const themeColor = prefetch.extracted.themeColor || brandColor
+      if (themeColor) brandUpdates.themeColor = themeColor
+      if (prefetch.extracted.favicon) {
+        try { brandUpdates.logoUrl = new URL(prefetch.extracted.favicon, prefetch.url).href } catch { /* ignore */ }
+      }
+      await Promise.all([
+        db.update(modules).set({ requirements: updatedReqs }).where(eq(modules.id, moduleId)),
+        Object.keys(brandUpdates).length > 0
+          ? db.update(brands).set(brandUpdates).where(eq(brands.id, brand.id))
+          : Promise.resolve(),
+        ...upserts,
+      ])
+      Object.assign(requirements, updatedReqs)
+    } catch (err) {
+      // If foundation fetch/analysis failed, fall through to runAnalysis as a retry
+      console.error('Foundation direct analysis failed, retrying via runAnalysis:', err)
+      foundationResults = null
     }
   }
 
   let results: ModuleAnalysisResult[] | DynamicModuleAnalysisResult[]
-  try {
-    results = await runAnalysis(mod.type, requirements, brainCtx)
-  } catch (err) {
-    await db.update(modules).set({ status: 'pending' }).where(eq(modules.id, moduleId))
-    console.error('Module analysis failed:', err)
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Analysis failed. Please try again.' },
-      { status: 500 },
-    )
+  if (foundationResults !== null) {
+    results = foundationResults
+  } else {
+    try {
+      results = await runAnalysis(mod.type, requirements, brainCtx)
+    } catch (err) {
+      await db.update(modules).set({ status: 'pending' }).where(eq(modules.id, moduleId))
+      console.error('Module analysis failed:', err)
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Analysis failed. Please try again.' },
+        { status: 500 },
+      )
+    }
   }
 
   if (def.dynamic) {

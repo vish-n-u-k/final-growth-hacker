@@ -1141,6 +1141,11 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
                 {/* Body */}
                 <div style={{ overflowY: 'auto', padding: '22px 26px 28px', flex: 1 }}>
+                  {!connectedIntegrations['posthog'] && (
+                    <div style={{ marginBottom: '18px', padding: '12px 15px', background: 'rgba(231,200,115,0.08)', border: '1px solid rgba(231,200,115,0.3)', borderRadius: '10px', fontSize: '13px', color: 'var(--gold)', lineHeight: 1.6 }}>
+                      Connect PostHog in <b style={{ color: 'var(--gold)' }}>Settings → Integrations</b> to track your live user count automatically.
+                    </div>
+                  )}
                   {bsItems.length === 0 ? (
                     <p style={{ fontSize: '14px', color: 'var(--text-dim)', lineHeight: 1.75 }}>
                       Click <b style={{ color: 'var(--green-bright)' }}>Re-analyse</b> above to generate your personalised stage playbook.
@@ -1249,7 +1254,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       <button
                         onClick={(e) => { e.stopPropagation(); handleReanalyze(modData.id, reqValues) }}
                         disabled={reanalyzing}
-                        className="level-reanalyze-btn"
+                        className={`level-reanalyze-btn${reanalyzing ? ' btn-analysing' : ''}`}
                         title={effectiveLastAnalyzedAt ? 'Re-analyse' : 'Analyse'}
                       >
                         {reanalyzing ? (
@@ -1334,7 +1339,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         <Button
                           disabled={reanalyzing || missingReqs.length > 0}
                           onClick={() => handleReanalyze(modData.id, reqValues, reqValues)}
-                          className="mt-3 gap-1.5 bg-[var(--green)] text-[#06140c] hover:bg-[var(--green-bright)] font-semibold"
+                          className={`mt-3 gap-1.5 bg-[var(--green)] text-[#06140c] hover:bg-[var(--green-bright)] font-semibold${reanalyzing ? ' btn-analysing' : ''}`}
                         >
                           {reanalyzing ? (
                             <><span className="md-spin" style={{ borderTopColor: '#06140c', borderColor: '#06140c40' }} />Analysing…</>

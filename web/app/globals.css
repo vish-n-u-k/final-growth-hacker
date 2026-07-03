@@ -523,6 +523,10 @@ header {
 .md-btn-reanalyze:hover:not(:disabled) { background: #1a3526; }
 .md-btn-reanalyze:disabled { opacity: .55; cursor: not-allowed; }
 @keyframes md-spin { to { transform: rotate(360deg); } }
+@keyframes btn-shimmer {
+  0% { transform: translateX(-150%); }
+  100% { transform: translateX(250%); }
+}
 .md-spin {
   width: 13px; height: 13px; border-radius: 50%;
   border: 2px solid var(--line); border-top-color: var(--green-bright);
@@ -1845,7 +1849,16 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
   background: var(--green-bright);
   border-color: var(--green-bright);
 }
-.level-reanalyze-btn:disabled { opacity: 0.5; cursor: default; }
+.level-reanalyze-btn:disabled:not(.btn-analysing) { opacity: 0.5; cursor: default; }
+.btn-analysing {
+  position: relative; overflow: hidden; cursor: default;
+}
+.btn-analysing::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);
+  animation: btn-shimmer 1.4s ease-in-out infinite;
+}
 html.light .level-reanalyze-btn { color: #ffffff; }
 html.light .level-reanalyze-btn .md-spin { border-top-color: #ffffff; border-color: rgba(255,255,255,.25); }
 
