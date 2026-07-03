@@ -15,6 +15,8 @@ export const brands = pgTable('brands', {
   targetAudience: text('target_audience'),
   usp: text('usp'),
   brandVoice: text('brand_voice'),
+  logoUrl: text('logo_url'),
+  themeColor: text('theme_color'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 

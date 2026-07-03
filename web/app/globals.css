@@ -97,6 +97,12 @@ header {
 
 /* ── Hero ── */
 .hero { padding: 48px 0 12px; }
+.hero-brand { display: flex; align-items: center; gap: 14px; }
+.hero-favicon {
+  width: 36px; height: 36px; border-radius: 8px;
+  object-fit: contain; flex-shrink: 0;
+  background: var(--card); border: 1px solid var(--line);
+}
 .hero h1 {
   font-family: var(--font-display, 'Fraunces', serif);
   font-weight: 500; font-size: 36px; letter-spacing: -1px;
@@ -104,8 +110,9 @@ header {
 .hero p { color: var(--text-dim); margin-top: 10px; font-size: 15.5px; }
 
 /* ── Overview card ── */
+:root { --brand: #2fbf71; }
 .overview {
-  background: radial-gradient(500px 220px at 90% 0%, #2fbf710d, transparent), var(--card);
+  background: radial-gradient(500px 220px at 90% 0%, color-mix(in srgb, var(--brand) 8%, transparent), transparent), var(--card);
   border: 1px solid var(--line); border-radius: 20px; padding: 32px; margin: 28px 0 18px;
   display: flex; align-items: center; gap: 36px; flex-wrap: wrap;
 }
@@ -1511,7 +1518,7 @@ html.light .st-int-card-connected {
 }
 
 html.light .ob-card { background: radial-gradient(600px 300px at 80% -10%, #14a04e08, transparent), var(--card); }
-html.light .overview { background: radial-gradient(500px 220px at 90% 0%, #14a04e0e, transparent), var(--card); }
+html.light .overview { background: radial-gradient(500px 220px at 90% 0%, color-mix(in srgb, var(--brand) 10%, transparent), transparent), var(--card); }
 html.light .md-overview { background: radial-gradient(700px 300px at 100% -20%, #14a04e0a, transparent), var(--card); }
 
 html.light .md-btn-reanalyze:hover:not(:disabled) { background: #d0eadb; }
@@ -1852,6 +1859,7 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: #ffffff; border-col
   /* ── Hero: shrink text, hide subtitle ── */
   .hero { padding: 22px 0 6px; }
   .hero h1 { font-size: 24px; letter-spacing: -.5px; }
+  .hero-favicon { width: 28px; height: 28px; }
   .hero p { display: none; } /* redundant on small screens */
 
   /* ── Overview card: stack vertically, shrink big number ── */

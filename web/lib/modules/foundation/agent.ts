@@ -3,6 +3,37 @@ import { FOUNDATION_MODULE } from './definition'
 import { getAllItems, type ModuleAnalysisResult } from '../types'
 import type { FoundationFetchResult } from './fetcher'
 
+export async function extractBrandColor(data: FoundationFetchResult): Promise<string> {
+  if (!data.extracted) return ''
+  const { title, metaDescription, h1, styleContent } = data.extracted
+  const raw = await callAI({
+    system: 'You are a web design analyst. Return only valid JSON, no markdown.',
+    prompt: `Identify the primary brand color for this website.
+
+URL: ${data.url}
+Title: ${title}
+Description: ${metaDescription}
+H1: ${h1}
+
+Inline CSS from the page (look for CSS variables like --primary, --brand, --color-primary, --accent, --color-accent, background colors on header/nav/button elements):
+${styleContent || '(none found)'}
+
+Return ONLY: {"brandColor": "#rrggbb"}
+Use a standard 6-digit hex code. Pick the most prominent brand/primary color. If you genuinely cannot determine one, return {"brandColor": ""}`,
+    maxTokens: 60,
+    model: 'claude-haiku-4-5-20251001',
+  })
+  try {
+    const start = raw.indexOf('{')
+    const end = raw.lastIndexOf('}')
+    const parsed = JSON.parse(raw.slice(start, end + 1))
+    const color = parsed.brandColor?.trim() ?? ''
+    return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : ''
+  } catch {
+    return ''
+  }
+}
+
 export async function analyzeFoundation(data: FoundationFetchResult): Promise<ModuleAnalysisResult[]> {
   const items = getAllItems(FOUNDATION_MODULE).map((item) => ({
     slug: item.slug,

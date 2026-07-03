@@ -6,6 +6,8 @@ export interface FoundationExtracted {
   metaViewport: string
   metaDescription: string
   favicon: string
+  themeColor: string
+  styleContent: string
   gscVerification: string
   ga4Id: string
   gtmId: string
@@ -83,6 +85,29 @@ function extractFoundationData(html: string): FoundationExtracted {
     $('link[rel="icon"]').attr('href') ??
     $('link[rel="shortcut icon"]').attr('href') ??
     ''
+
+  // capture inline style content for AI color extraction (before styles are stripped)
+  const styleContent = $('style').map((_, el) => $(el).html() ?? '').get().join('\n').slice(0, 6000)
+
+  // theme color — meta tag first, then CSS :root vars as fallback
+  let themeColor = $('meta[name="theme-color"]').attr('content')?.trim() ?? ''
+  if (!themeColor) {
+    // Collect all inline <style> tag content and look for :root { --primary: ... } patterns
+    const CSS_VAR_NAMES = ['--primary', '--brand', '--color-primary', '--colour-primary', '--accent', '--theme-color', '--main-color', '--key-color']
+    const CSS_COLOR_RE = /(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\))/
+    const styleText = $('style').map((_, el) => $(el).html() ?? '').get().join('\n')
+    // Find :root blocks
+    const rootBlocks = styleText.match(/:root\s*\{([^}]+)\}/g) ?? []
+    const rootCss = rootBlocks.join('\n')
+    for (const varName of CSS_VAR_NAMES) {
+      const re = new RegExp(`${varName}\\s*:\\s*([^;]+);`)
+      const m = rootCss.match(re)
+      if (m) {
+        const colorMatch = m[1].trim().match(CSS_COLOR_RE)
+        if (colorMatch) { themeColor = colorMatch[1]; break }
+      }
+    }
+  }
 
   // Google verification
   const gscVerification = $('meta[name="google-site-verification"]').attr('content') ?? ''
@@ -164,6 +189,8 @@ function extractFoundationData(html: string): FoundationExtracted {
     metaViewport,
     metaDescription,
     favicon,
+    themeColor,
+    styleContent,
     gscVerification,
     ga4Id,
     gtmId,

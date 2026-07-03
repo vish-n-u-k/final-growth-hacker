@@ -179,7 +179,7 @@ export default async function DashboardPage() {
 
   return (
     <AllModulesDashboard
-      brand={{ id: brand.id, name: brand.name, keywords: brand.keywords ?? '' }}
+      brand={{ id: brand.id, name: brand.name, keywords: brand.keywords ?? '', websiteUrl: brand.websiteUrl, logoUrl: brand.logoUrl ?? '', themeColor: brand.themeColor ?? '' }}
       allModulesData={allModulesData}
       userEmail={user.email ?? ''}
       githubConnected={githubConnected}

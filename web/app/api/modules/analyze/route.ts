@@ -6,7 +6,7 @@ import { getCompetitorUrlsString, storeCompetitors } from '@/lib/modules/competi
 import { eq, and } from 'drizzle-orm'
 import { MODULE_MAP } from '@/lib/modules/registry'
 import { fetchFoundationData } from '@/lib/modules/foundation/fetcher'
-import { analyzeFoundation } from '@/lib/modules/foundation/agent'
+import { analyzeFoundation, extractBrandColor } from '@/lib/modules/foundation/agent'
 import { fetchWebsiteData } from '@/lib/modules/website/fetcher'
 import { analyzeWebsite } from '@/lib/modules/website/agent'
 import { fetchSeoData } from '@/lib/modules/seo/fetcher'
@@ -365,7 +365,7 @@ export async function POST(request: NextRequest) {
   if (mod.type === 'foundation') {
     try {
       const prefetch = await fetchFoundationData(requirements)
-      if (prefetch.extracted && Object.keys(prefetch.extracted.socialLinks).length > 0) {
+      if (prefetch.extracted) {
         const updatedReqs = { ...requirements }
         const upserts = []
         for (const [platform, url] of Object.entries(prefetch.extracted.socialLinks)) {
@@ -384,8 +384,17 @@ export async function POST(request: NextRequest) {
             })
           )
         }
+        const brandUpdates: Record<string, string> = {}
+        const themeColor = prefetch.extracted.themeColor || await extractBrandColor(prefetch)
+        if (themeColor) brandUpdates.themeColor = themeColor
+        if (prefetch.extracted.favicon) {
+          try { brandUpdates.logoUrl = new URL(prefetch.extracted.favicon, prefetch.url).href } catch { /* ignore */ }
+        }
         await Promise.all([
           db.update(modules).set({ requirements: updatedReqs }).where(eq(modules.id, moduleId)),
+          Object.keys(brandUpdates).length > 0
+            ? db.update(brands).set(brandUpdates).where(eq(brands.id, brand.id))
+            : Promise.resolve(),
           ...upserts,
         ])
         Object.assign(requirements, updatedReqs)

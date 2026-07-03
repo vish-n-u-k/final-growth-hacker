@@ -29,7 +29,7 @@ export interface ModuleData {
 }
 
 interface Props {
-  brand: { id: string; name: string; keywords?: string }
+  brand: { id: string; name: string; keywords?: string; websiteUrl?: string; logoUrl?: string; themeColor?: string }
   allModulesData: ModuleData[]
   userEmail: string
   githubConnected: boolean
@@ -236,6 +236,16 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
       }
     }
   }, [brand.keywords, allModulesData])
+
+  // Apply brand theme color to root CSS variable
+  useEffect(() => {
+    const color = brand.themeColor?.trim()
+    if (color) {
+      document.documentElement.style.setProperty('--brand', color)
+    }
+    return () => { document.documentElement.style.removeProperty('--brand') }
+  }, [brand.themeColor])
+
   const [setupErrorMap, setSetupErrorMap] = useState<Record<string, string | null>>({})
   const [generatingDraft, setGeneratingDraft] = useState<Set<string>>(new Set())
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
@@ -950,7 +960,18 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
       <div className="wrap">
         {/* Hero */}
         <div className="hero">
-          <h1>{brand.name}&apos;s road to 500 users</h1>
+          <div className="hero-brand">
+            {brand.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={brand.logoUrl}
+                alt=""
+                className="hero-favicon"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            )}
+            <h1>{brand.name}&apos;s road to 500 users</h1>
+          </div>
           <p>One level at a time. Clear each gate before you level up — don't skip ahead.</p>
         </div>
 
