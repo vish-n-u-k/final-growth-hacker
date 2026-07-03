@@ -139,6 +139,39 @@ function InlineIntegrationForm({ intDef, onConnected }: { intDef: IntegrationDef
   )
 }
 
+function ringColor(score: number): string {
+  if (score >= 85) return '#4ade80'
+  if (score >= 65) return '#fbbf24'
+  if (score >= 35) return '#fb923c'
+  return '#f43f5e'
+}
+
+function LevelRing({ score }: { score: number }) {
+  const r = 16
+  const circ = 2 * Math.PI * r
+  const offset = circ * (1 - Math.max(score, 0) / 100)
+  const color = ringColor(score)
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 46 46" style={{ display: 'block' }}>
+      <circle cx="23" cy="23" r={r} fill="none" strokeWidth="4" style={{ stroke: 'var(--line)' }} />
+      <circle
+        cx="23" cy="23" r={r} fill="none"
+        stroke={color} strokeWidth="4" strokeLinecap="round"
+        strokeDasharray={circ}
+        strokeDashoffset={score === 0 ? circ : offset}
+        style={{ transform: 'rotate(-90deg)', transformOrigin: '23px 23px', transition: 'stroke-dashoffset .5s ease', filter: `drop-shadow(0 0 3px ${color}90)` }}
+      />
+      <text
+        x="23" y="23" textAnchor="middle" dominantBaseline="central"
+        fill={color}
+        style={{ fontSize: '11.5px', fontWeight: 800, fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.5px' }}
+      >
+        {score}
+      </text>
+    </svg>
+  )
+}
+
 export default function AllModulesDashboard({ brand, allModulesData, userEmail, githubConnected, connectedIntegrations }: Props) {
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.itemStates]))
@@ -628,21 +661,23 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             <span className="md-item-lbl">{item.label}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
               {!done && item.weight === 3 && (
-                <span className="md-priority-icon md-priority-critical" title="Critical">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <span className="md-priority-icon md-priority-critical">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
                     <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                   </svg>
+                  <span className="md-priority-label">Critical</span>
                 </span>
               )}
               {!done && item.weight === 2 && (
-                <span className="md-priority-icon md-priority-important" title="Important">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                    <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <span className="md-priority-icon md-priority-important">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.2"/>
+                    <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
                     <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                   </svg>
+                  <span className="md-priority-label">Important</span>
                 </span>
               )}
               {aiV && <Badge className="md-tag md-tag-ai">AI ✓</Badge>}
@@ -794,21 +829,23 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             <span className="md-item-lbl">{item.label}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
               {!done && item.weight === 3 && (
-                <span className="md-priority-icon md-priority-critical" title="Critical">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <span className="md-priority-icon md-priority-critical">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
                     <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                   </svg>
+                  <span className="md-priority-label">Critical</span>
                 </span>
               )}
               {!done && item.weight === 2 && (
-                <span className="md-priority-icon md-priority-important" title="Important">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                    <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                <span className="md-priority-icon md-priority-important">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.2"/>
+                    <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
                     <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                   </svg>
+                  <span className="md-priority-label">Important</span>
                 </span>
               )}
               {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
@@ -1131,16 +1168,21 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
                 {/* Level head */}
                 <div className="level-head" onClick={() => !isLocked && toggleModule(modData.id)}>
-                  <div className="level-badge">
+                  <div
+                    className="level-badge"
+                    style={!isLocked ? {
+                      borderColor: ringColor(liveScore) + '60',
+                      background: ringColor(liveScore) + '0d',
+                      boxShadow: `0 0 0 1px ${ringColor(liveScore)}25, 0 0 14px ${ringColor(liveScore)}18`,
+                    } : undefined}
+                  >
                     {isLocked ? (
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                         <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
                         <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                       </svg>
-                    ) : modData.type === 'foundation' ? (
-                      <span style={{ fontSize: '11px', fontWeight: 700, letterSpacing: '.3px' }}>BASE</span>
                     ) : (
-                      modData.order
+                      <LevelRing score={liveScore} />
                     )}
                   </div>
 
@@ -1680,7 +1722,7 @@ function FrektoPostingSection({ moduleId, brandName, connected }: { moduleId: st
             </div>
           </div>
 
-          {error && <p style={{ fontSize: '12px', color: '#f87171', margin: 0 }}>{error}</p>}
+          {error && <p style={{ fontSize: '12px', color: '#ef4444', margin: 0 }}>{error}</p>}
 
           <button
             disabled={generating || !topic.trim()}

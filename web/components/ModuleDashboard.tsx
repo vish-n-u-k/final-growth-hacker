@@ -130,6 +130,39 @@ function userCountToBarPct(count: number): number {
   return 75 + Math.min((count - 100) / 400, 1) * 25
 }
 
+function ringColor(score: number): string {
+  if (score >= 85) return '#4ade80'
+  if (score >= 65) return '#fbbf24'
+  if (score >= 35) return '#fb923c'
+  return '#f43f5e'
+}
+
+function ModuleRing({ score }: { score: number }) {
+  const r = 12
+  const circ = 2 * Math.PI * r
+  const offset = circ * (1 - Math.max(score, 0) / 100)
+  const color = ringColor(score)
+  return (
+    <svg width="34" height="34" viewBox="0 0 34 34" style={{ flexShrink: 0, display: 'block' }}>
+      <circle cx="17" cy="17" r={r} fill="none" strokeWidth="2.5" style={{ stroke: 'var(--line)' }} />
+      <circle
+        cx="17" cy="17" r={r} fill="none"
+        stroke={color} strokeWidth="2.5" strokeLinecap="round"
+        strokeDasharray={circ}
+        strokeDashoffset={score === 0 ? circ : offset}
+        style={{ transform: 'rotate(-90deg)', transformOrigin: '17px 17px', transition: 'stroke-dashoffset .5s ease', filter: `drop-shadow(0 0 2px ${color}80)` }}
+      />
+      <text
+        x="17" y="17" textAnchor="middle" dominantBaseline="central"
+        fill={color}
+        style={{ fontSize: '7.5px', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}
+      >
+        {score}
+      </text>
+    </svg>
+  )
+}
+
 export default function ModuleDashboard({ brand, module: mod, definition: def, itemStates: initial, fullItems: initialFullItems, allModules, userEmail, githubConnected, connectedIntegrations, modulePrUrl: initialPrUrl, pageVerdicts }: Props) {
   const [states, setStates] = useState(initial)
   const [dynItems, setDynItems] = useState<DBItemFull[]>(initialFullItems ?? [])
@@ -689,19 +722,14 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                 <div className="md-sidebar-item-top">
                   <span className="md-sidebar-item-name">{m.name}</span>
                   {locked ? (
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--text-faint)', flexShrink: 0 }}>
                       <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
                       <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                     </svg>
                   ) : (
-                    <span className="md-sidebar-item-pct">{m.score}%</span>
+                    <ModuleRing score={m.score} />
                   )}
                 </div>
-                {!locked && (
-                  <div className="md-sidebar-bar">
-                    <div className="md-sidebar-bar-fill" style={{ width: `${m.score}%` }} />
-                  </div>
-                )}
               </button>
             )
           })}
@@ -1287,7 +1315,7 @@ function SocialProfilesPanel({ moduleId, requirements }: { moduleId: string; req
         })}
       </div>
 
-      {error && <p style={{ fontSize: '12px', color: '#f87171', marginTop: '10px' }}>{error}</p>}
+      {error && <p style={{ fontSize: '12px', color: '#ef4444', marginTop: '10px' }}>{error}</p>}
 
       <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
         <Button
@@ -1508,7 +1536,7 @@ function FrektoContentStudio({
           </div>
 
           {error && (
-            <p style={{ fontSize: '12px', color: '#f87171', marginBottom: '10px' }}>{error}</p>
+            <p style={{ fontSize: '12px', color: '#ef4444', marginBottom: '10px' }}>{error}</p>
           )}
 
           <button
