@@ -250,8 +250,25 @@ export interface FoundationFetchResult {
 
 export async function getFaviconColor(faviconUrl: string): Promise<string> {
   try {
-    const { getColorFromURL } = await import('color-thief-node')
-    const [r, g, b] = await getColorFromURL(faviconUrl)
+    const sharp = (await import('sharp')).default
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 8000)
+    const res = await fetch(faviconUrl, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'GrowthHackerBot/1.0' },
+    })
+    clearTimeout(timer)
+    if (!res.ok) return ''
+    const buffer = Buffer.from(await res.arrayBuffer())
+    // Resize to 50x50, remove alpha, get stats — average color per channel
+    const { dominant } = await sharp(buffer)
+      .resize(50, 50, { fit: 'cover' })
+      .removeAlpha()
+      .stats()
+    const { r, g, b } = dominant
+    // Skip near-white and near-black results (not useful as brand colors)
+    const brightness = (r + g + b) / 3
+    if (brightness > 240 || brightness < 15) return ''
     return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
   } catch {
     return ''

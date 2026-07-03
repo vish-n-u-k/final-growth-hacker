@@ -1095,7 +1095,10 @@ header {
   padding: 10px 18px; border-radius: 9px; font-size: 12.5px; font-weight: 600;
   background: #0e1f14; border: 1px solid var(--green);
   color: var(--green-bright); cursor: pointer; transition: background .15s, border-color .15s;
-  align-self: flex-end;
+  align-self: flex-start;
+}
+@media (max-width: 640px) {
+  .sm-draft-btn { align-self: flex-end; }
 }
 .sm-draft-btn:hover:not(:disabled) { background: #1a3526; border-color: var(--green-bright); }
 .sm-draft-btn:disabled { opacity: .5; cursor: default; }
@@ -2348,14 +2351,51 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: #06140c; border-col
 }
 
 @media (max-width: 480px) {
-  .wrap { padding: 0 12px; }
+  .wrap { padding: 0 14px; }
   .hero h1 { font-size: 20px; }
   .big-num { font-size: 36px; }
-  .level-head { padding: 14px 14px; gap: 8px; }
   .level-badge { width: 44px; height: 44px; font-size: 14px; border-radius: 50%; }
   .level-info .name { font-size: 14px; }
   .level-prog { display: flex; gap: 4px; font-size: 12px; font-weight: 600; color: var(--green-bright); }
   .mini-track { display: none; }
+
+  /* ── Dashboard outer padding ── */
+  .md-layout { padding: 16px 14px; }
+  .md-sidebar { margin-bottom: 18px; gap: 6px; }
+  .md-sidebar-item { padding: 8px 12px; }
+  .md-sidebar-item-name { font-size: 11px; }
+  .md-sidebar-item-pct { font-size: 9px; }
+
+  /* ── Level card header ── */
+  .level-head { padding: 16px 16px; gap: 10px; }
+
+  /* ── Category headers: hide count badge & mini-bar ── */
+  .md-cat-hd { padding: 12px 16px; gap: 10px; }
+  .md-cat-hd-count { display: none; }
+  .md-cat-mini-bar { display: none; }
+  .md-cat-pct { font-size: 11px; min-width: auto; }
+
+  /* ── Sub-categories ── */
+  .md-sub { padding: 0 14px 16px; }
+  .md-sub-hd { padding: 12px 0 10px; }
+  .md-sub-name { font-size: 11.5px; }
+  .md-sub-count { display: none; }
+
+  /* ── Items: generous vertical padding, horizontal breathing room ── */
+  .md-items { gap: 8px; }
+  .md-item { padding: 14px 12px; gap: 10px; border-radius: 10px; }
+  .md-item-lbl { font-size: 13px; line-height: 1.4; }
+  /* Checkbox colour already conveys AI/Self state visually */
+  .md-tag-ai { display: none; }
+  .md-tag-self { display: none; }
+  /* Collapsed 1-line preview adds height without value on small screens */
+  .md-item-detail { display: none; }
+
+  /* ── Expanded item body ── */
+  .sm-expanded-body { gap: 10px; }
+  .sm-narrative { font-size: 11.5px; }
+  .sm-action-box { padding: 12px 14px; }
+  .sm-action-text { font-size: 12px; }
 }
 
 /* ── Coming Soon blocks ───────────────────────────────────────────────────── */
