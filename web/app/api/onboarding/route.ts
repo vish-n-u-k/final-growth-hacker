@@ -50,12 +50,9 @@ export async function POST(request: NextRequest) {
     const existing = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
     if (existing.length > 0) {
       // Return existing foundation module id
-      const foundationMod = await db
-        .select()
-        .from(modules)
-        .where(eq(modules.brandId, existing[0].id))
-        .limit(1)
-      return NextResponse.json({ moduleId: foundationMod[0]?.id })
+      const allMods = await db.select().from(modules).where(eq(modules.brandId, existing[0].id))
+      const foundation = allMods.find(m => m.type === 'foundation')
+      return NextResponse.json({ moduleId: foundation?.id })
     }
 
     const { brandName, websiteUrl, keywords, industry, targetAudience, usp, brandVoice } = await request.json()
@@ -117,7 +114,7 @@ export async function POST(request: NextRequest) {
       createdModules.push({ id: mod.id, type: def.type, order: def.order })
     }
 
-    const foundationModule = createdModules.find((m) => m.order === 0)
+    const foundationModule = createdModules.find((m) => m.type === 'foundation')
     return NextResponse.json({ moduleId: foundationModule?.id })
   } catch (err) {
     console.error('Onboarding error:', err instanceof Error ? err.message : err)

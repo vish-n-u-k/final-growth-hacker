@@ -67,12 +67,9 @@ export default function OnboardingPage() {
       .finally(() => setPrefilling(false))
   }
 
-  const [phase, setPhase] = useState<'setup' | 'analyzing'>('setup')
-
   const handleSubmit = async (skip = false) => {
     setError('')
     setSubmitting(true)
-    setPhase('setup')
 
     const onboardRes = await fetch('/api/onboarding', {
       method: 'POST',
@@ -93,14 +90,6 @@ export default function OnboardingPage() {
       setSubmitting(false)
       return
     }
-
-    // Auto-run Foundation analysis before redirecting
-    setPhase('analyzing')
-    await fetch('/api/modules/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ moduleId: onboardData.moduleId }),
-    })
 
     router.push(`/dashboard`)
   }
@@ -283,17 +272,15 @@ export default function OnboardingPage() {
 
                   <Button
                     type="button"
-                    disabled={!brandName.trim() || submitting}
-                    onClick={() => handleSubmit(false)}
-                    className="w-full h-14 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:shadow-lg hover:shadow-[var(--green-glow)] rounded-14 transition-all"
-                    style={{ opacity: submitting ? 1 : !brandName.trim() ? 0.5 : 1 }}
+                    disabled={!brandName.trim()}
+                    onClick={() => { if (!submitting) handleSubmit(false) }}
+                    className="w-full h-14 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:shadow-lg hover:shadow-[var(--green-glow)] disabled:opacity-50 rounded-14 transition-all"
+                    style={{ cursor: submitting ? 'not-allowed' : undefined }}
                   >
                     {submitting ? (
-                      phase === 'analyzing'
-                        ? <><span className="md-spin" style={{ borderTopColor: '#06140c', borderColor: '#06140c40' }} />Running audit…</>
-                        : <><span className="md-spin" style={{ borderTopColor: '#06140c', borderColor: '#06140c40' }} />Setting up…</>
+                      <><span className="md-spin" style={{ borderColor: 'rgba(6,20,12,0.2)', borderTopColor: '#000000' }} />Setting up…</>
                     ) : (
-                      <>Run Foundation Audit
+                      <>Set Up My Website
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                           <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>

@@ -163,9 +163,9 @@ function LevelRing({ score }: { score: number }) {
       <text
         x="23" y="23" textAnchor="middle" dominantBaseline="central"
         fill={color}
-        style={{ fontSize: '13px', fontWeight: 800, fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.5px' }}
+        style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.5px' }}
       >
-        {score}
+        {score}%
       </text>
     </svg>
   )
@@ -457,7 +457,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   // Auto-trigger Foundation analysis when user arrives from onboarding (never analyzed yet)
   useEffect(() => {
     if (autoAnalysisTriggered.current) return
-    const foundation = allModulesData.find(m => m.order === 0)
+    const foundation = allModulesData.find(m => m.type === 'foundation')
     if (foundation && !foundation.lastAnalyzedAt) {
       autoAnalysisTriggered.current = true
       handleReanalyze(foundation.id, foundation.requirements)
@@ -521,12 +521,14 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
   const downloadModuleMd = (modData: ModuleData, states: Record<string, DBItemState>, dynItems: DBItemFull[]) => {
     const lines: string[] = []
+    const score = computeLiveScore(modData, states, dynItems)
     lines.push(`# ${modData.name} — Action Items`)
-    lines.push(`> ${brand.name}`)
+    lines.push(`> ${brand.name}${brand.websiteUrl ? ` — ${brand.websiteUrl}` : ''}`)
+    lines.push(`> Score: ${score}%`)
     lines.push(`> Generated: ${new Date().toLocaleDateString()}`)
     lines.push('')
     if (modData.definition.dynamic) {
-      const incomplete = dynItems.filter(i => !i.aiVerified && !i.userChecked)
+      const incomplete = dynItems.filter(i => !i.aiVerified && !i.userChecked && !!(i.aiNarrative || i.aiAction))
       if (incomplete.length === 0) return
       const byCat = new Map<string, DBItemFull[]>()
       incomplete.forEach(i => { const a = byCat.get(i.categorySlug) ?? []; a.push(i); byCat.set(i.categorySlug, a) })
@@ -547,7 +549,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
       cats.forEach(cat => {
         const catLines: string[] = []
         cat.subCategories.forEach(sub => {
-          const incomplete = sub.items.filter(item => { const s = states[item.slug]; return !s?.aiVerified && !s?.userChecked })
+          const incomplete = sub.items.filter(item => { const s = states[item.slug]; return !s?.aiVerified && !s?.userChecked && !!(s?.aiNarrative || s?.aiAction) })
           if (incomplete.length === 0) return
           catLines.push(`### ${sub.label}`); catLines.push('')
           incomplete.forEach(item => {
@@ -575,11 +577,11 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   }
 
   const downloadDynamicCategoryMd = (modName: string, cat: { slug: string; label: string }, items: DBItemFull[]) => {
-    const incomplete = items.filter(item => !item.aiVerified && !item.userChecked)
+    const incomplete = items.filter(item => !item.aiVerified && !item.userChecked && !!(item.aiNarrative || item.aiAction))
     if (incomplete.length === 0) return
     const lines: string[] = []
     lines.push(`# ${cat.label} — Action Items`)
-    lines.push(`> ${modName} — ${brand.name}`)
+    lines.push(`> ${modName} — ${brand.name}${brand.websiteUrl ? ` — ${brand.websiteUrl}` : ''}`)
     lines.push(`> Generated: ${new Date().toLocaleDateString()}`)
     lines.push('')
     incomplete.forEach((item, i) => {
@@ -600,12 +602,12 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const downloadStaticCategoryMd = (modName: string, cat: ModuleCategoryDefinition, states: Record<string, DBItemState>) => {
     const lines: string[] = []
     lines.push(`# ${cat.label} — Action Items`)
-    lines.push(`> ${modName} — ${brand.name}`)
+    lines.push(`> ${modName} — ${brand.name}${brand.websiteUrl ? ` — ${brand.websiteUrl}` : ''}`)
     lines.push(`> Generated: ${new Date().toLocaleDateString()}`)
     lines.push('')
     let itemNum = 0
     cat.subCategories.forEach(sub => {
-      const incomplete = sub.items.filter(item => { const s = states[item.slug]; return !s?.aiVerified && !s?.userChecked })
+      const incomplete = sub.items.filter(item => { const s = states[item.slug]; return !s?.aiVerified && !s?.userChecked && !!(s?.aiNarrative || s?.aiAction) })
       if (incomplete.length === 0) return
       lines.push(`## ${sub.label}`); lines.push('')
       incomplete.forEach(item => {
@@ -1229,7 +1231,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   </div>
 
                   {!isLocked && (
-                    <div className="level-prog">
+                    <div className="level-prog" style={{ display: 'none' }}>
                       <div className="mini-track">
                         <div className="mini-fill" style={{ width: `${liveScore}%` }} />
                       </div>
@@ -1342,7 +1344,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                           className={`mt-3 gap-1.5 bg-[var(--green)] text-[#06140c] hover:bg-[var(--green-bright)] font-semibold${reanalyzing ? ' btn-analysing' : ''}`}
                         >
                           {reanalyzing ? (
-                            <><span className="md-spin" style={{ borderTopColor: '#06140c', borderColor: '#06140c40' }} />Analysing…</>
+                            <><span className="md-spin" style={{ borderTopColor: '#06140c', borderColor: 'rgba(6,20,12,0.2)' }} />Analysing…</>
                           ) : (
                             <>
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none">

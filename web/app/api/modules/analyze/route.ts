@@ -5,7 +5,7 @@ import { brands, modules, moduleCategories, moduleItems, modulePageAudit, brandI
 import { getCompetitorUrlsString, storeCompetitors } from '@/lib/modules/competitor-registry'
 import { eq, and } from 'drizzle-orm'
 import { MODULE_MAP } from '@/lib/modules/registry'
-import { fetchFoundationData } from '@/lib/modules/foundation/fetcher'
+import { fetchFoundationData, getFaviconColor } from '@/lib/modules/foundation/fetcher'
 import { analyzeFoundation } from '@/lib/modules/foundation/agent'
 import { fetchWebsiteData } from '@/lib/modules/website/fetcher'
 import { analyzeWebsite } from '@/lib/modules/website/agent'
@@ -391,11 +391,13 @@ export async function POST(request: NextRequest) {
         )
       }
       const brandUpdates: Record<string, string> = {}
-      const themeColor = prefetch.extracted.themeColor || brandColor
-      if (themeColor) brandUpdates.themeColor = themeColor
+      let logoUrl = ''
       if (prefetch.extracted.favicon) {
-        try { brandUpdates.logoUrl = new URL(prefetch.extracted.favicon, prefetch.url).href } catch { /* ignore */ }
+        try { logoUrl = new URL(prefetch.extracted.favicon, prefetch.url).href } catch { /* ignore */ }
       }
+      if (logoUrl) brandUpdates.logoUrl = logoUrl
+      const themeColor = prefetch.extracted.themeColor || brandColor || (logoUrl ? await getFaviconColor(logoUrl) : '')
+      if (themeColor) brandUpdates.themeColor = themeColor
       await Promise.all([
         db.update(modules).set({ requirements: updatedReqs }).where(eq(modules.id, moduleId)),
         Object.keys(brandUpdates).length > 0

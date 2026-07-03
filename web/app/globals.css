@@ -1859,8 +1859,9 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
   background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);
   animation: btn-shimmer 1.4s ease-in-out infinite;
 }
+.level-reanalyze-btn .md-spin { border-top-color: #06140c; border-color: rgba(6,20,12,0.2); }
 html.light .level-reanalyze-btn { color: #ffffff; }
-html.light .level-reanalyze-btn .md-spin { border-top-color: #ffffff; border-color: rgba(255,255,255,.25); }
+html.light .level-reanalyze-btn .md-spin { border-top-color: #06140c; border-color: rgba(6,20,12,0.2); }
 
 /* ── Mobile Responsive ───────────────────────────────────────────────────── */
 

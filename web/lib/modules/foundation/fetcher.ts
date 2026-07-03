@@ -248,6 +248,16 @@ export interface FoundationFetchResult {
   hostingPlatform: string | null
 }
 
+export async function getFaviconColor(faviconUrl: string): Promise<string> {
+  try {
+    const { getColorFromURL } = await import('color-thief-node')
+    const [r, g, b] = await getColorFromURL(faviconUrl)
+    return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
+  } catch {
+    return ''
+  }
+}
+
 async function safeFetch(url: string, timeoutMs = 12000): Promise<string | null> {
   try {
     const controller = new AbortController()
