@@ -3086,12 +3086,12 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
 .gh-ee-input:focus { border-color: var(--lime); }
 .gh-ee-textarea { background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 12px 14px; font-size: 13.5px; color: var(--text); font-family: inherit; line-height: 1.7; resize: vertical; outline: none; transition: border-color .15s; width: 100%; box-sizing: border-box; }
 .gh-ee-textarea:focus { border-color: var(--lime); }
-.gh-ee-preview { background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 14px 16px; font-size: 13.5px; color: var(--text); line-height: 1.8; min-height: 160px; }
-.gh-ee-preview p { margin: 0 0 12px; }
+.gh-ee-preview { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 9px; padding: 28px 30px; min-height: 160px; }
+.gh-ee-preview p { margin: 0 0 18px; font-size: 16px; line-height: 1.8; color: var(--text); }
 .gh-ee-preview p:last-child { margin-bottom: 0; }
 .gh-ee-preview strong { color: var(--text); font-weight: 700; }
 .gh-ee-preview em { color: var(--text-dim); font-style: italic; }
-.gh-ee-preview h3 { font-size: 13px; font-weight: 700; color: var(--green-bright); margin: 0 0 8px; letter-spacing: .2px; }
+.gh-ee-preview h3 { font-size: 16px; font-weight: 700; color: var(--green-bright); margin: 0 0 12px; }
 
 /* ── Gmail Outreach Prospects ─────────────────────────────────────────────── */
 .gop-wrap { padding: 20px 28px 28px; }
@@ -3175,12 +3175,12 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
 .gop-input:focus { border-color: var(--lime); }
 .gop-textarea { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 11px 13px; font-size: 12.5px; color: var(--text-dim); font-family: monospace; line-height: 1.7; resize: vertical; outline: none; width: 100%; box-sizing: border-box; transition: border-color .15s; }
 .gop-textarea:focus { border-color: var(--lime); }
-.gop-preview { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 15px; font-size: 13.5px; color: var(--text); line-height: 1.8; min-height: 140px; }
-.gop-preview p { margin: 0 0 12px; }
+.gop-preview { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 8px; padding: 28px 30px; min-height: 140px; }
+.gop-preview p { margin: 0 0 18px; font-size: 16px; line-height: 1.8; color: var(--text); }
 .gop-preview p:last-child { margin-bottom: 0; }
 .gop-preview strong { font-weight: 700; }
-.gop-preview em { font-style: italic; color: var(--text-dim); }
-.gop-preview h3 { font-size: 13px; font-weight: 700; color: var(--green-bright); margin: 0 0 8px; }
+.gop-preview em { font-style: italic; }
+.gop-preview h3 { font-size: 16px; font-weight: 700; color: var(--green-bright); margin: 0 0 12px; }
 
 /* Action bar */
 .gop-action-bar { display: flex; gap: 10px; flex-wrap: wrap; padding: 13px 18px 16px; border-top: 1px solid var(--line); margin-top: 14px; background: var(--card); align-items: center; }

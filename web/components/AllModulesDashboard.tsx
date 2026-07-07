@@ -300,7 +300,12 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
   // Compute lock state dynamically: a module is locked if its previous module (by order) scored < 80%.
   // Foundation (order 0) is always unlocked. This works for all users regardless of DB status.
-  const sortedByOrder = [...allModulesData].sort((a, b) => a.order - b.order)
+  const sortedByOrder = [...allModulesData].sort((a, b) => {
+    const aCs = a.definition?.comingSoon ? 1 : 0
+    const bCs = b.definition?.comingSoon ? 1 : 0
+    if (aCs !== bCs) return aCs - bCs
+    return a.order - b.order
+  })
 
   // Live scores derived from client state — updates instantly on self-check without needing re-analyse
   const liveScores = Object.fromEntries(

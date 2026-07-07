@@ -53,19 +53,19 @@ Rules:
 - Max 120 words in the body (not counting greeting/sign-off)
 - Sign off as: The ${brand.name} Team
 
-CRITICAL — the "body" value MUST be valid HTML. Allowed tags: <p>, <strong>, <em>, <h3>. Rules:
-- Every paragraph in <p>...</p>
-- Use <strong> for one genuinely important phrase per email (not more)
-- Use <em> sparingly for a subtle emphasis if it helps
-- Use <h3> only if it meaningfully breaks up a section (usually skip it for short emails)
-- No divs, spans, tables, styles, or any other tags
-- Keep formatting subtle — this is an email, not a landing page
+CRITICAL — the "body" value MUST be valid HTML with inline styles for proper email rendering:
+- Every paragraph: <p style="margin:0 0 18px;font-size:16px;line-height:1.8;">...</p>
+- Last paragraph (sign-off): <p style="margin:0;font-size:16px;line-height:1.8;">...</p>
+- Bold key phrase: <strong style="font-weight:700;">...</strong>
+- Italic emphasis (use sparingly): <em style="font-style:italic;">...</em>
+- No divs, spans, tables, or any other tags — NO color attributes ever
+- Every <p> MUST have the style attribute shown above
 
 Return ONLY this JSON (no markdown, no code fences, no extra text):
-{"subject":"plain text subject here","body":"<p>paragraph one</p><p>paragraph two</p><p>CTA sentence</p><p>The ${brand.name} Team</p>"}`
+{"subject":"plain text subject here","body":"<p style=\\"margin:0 0 18px;font-size:16px;line-height:1.8;\\">paragraph one</p><p style=\\"margin:0;font-size:16px;line-height:1.8;\\">The ${brand.name} Team</p>"}`
 
   const raw = await callAI({
-    system: 'You are a cold email copywriter. You MUST return only a raw JSON object — no markdown, no code blocks. The body field must be valid HTML using <p>, <strong>, <em>, or <h3> tags only.',
+    system: 'You are a cold email copywriter. You MUST return only a raw JSON object — no markdown, no code blocks. Every <p> tag MUST include style="margin:0 0 18px;font-size:16px;line-height:1.8;" (last paragraph uses margin:0). NEVER add color attributes to any tag.',
     prompt,
     maxTokens: 700,
     model: 'claude-haiku-4-5-20251001',
