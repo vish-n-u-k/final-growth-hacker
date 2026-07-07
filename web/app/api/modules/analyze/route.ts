@@ -240,6 +240,20 @@ Key One-Liners: ${pb.keyOneLiners}`
     }
   }
 
+  // For dynamic modules: pre-fetch user_checked items and inject into brainCtx so Claude
+  // doesn't re-surface tasks the user has already completed (Option A).
+  let preResolvedItems: (typeof moduleItems.$inferSelect)[] = []
+  if (def.dynamic) {
+    preResolvedItems = await db
+      .select()
+      .from(moduleItems)
+      .where(and(eq(moduleItems.moduleId, moduleId), eq(moduleItems.userChecked, true)))
+    if (preResolvedItems.length > 0) {
+      const resolvedNote = `\n\n=== Tasks already completed by the user — DO NOT re-surface ===\nOmit the following from your output entirely. The user has already addressed them:\n${preResolvedItems.map((i) => `- ${i.label}`).join('\n')}`
+      brainCtx = (brainCtx ?? '') + resolvedNote
+    }
+  }
+
   // Ensure website_url, brand_id, and brand_name are always available in requirements
   const baseRequirements = (mod.requirements as Record<string, string> | null) ?? {}
   let requirements: Record<string, string> = {
@@ -337,6 +351,35 @@ Key One-Liners: ${pb.keyOneLiners}`
         })
       }),
     )
+
+    // Re-insert user_checked items Claude didn't return — keep them visible in checklist as completed
+    const returnedSlugsCa = new Set(findings.map((r) => r.slug))
+    const orphansCa = existingItems.filter((i) => i.userChecked && !returnedSlugsCa.has(i.slug))
+    if (orphansCa.length > 0) {
+      await Promise.all(
+        orphansCa.map((i) =>
+          db.insert(moduleItems).values({
+            moduleId: i.moduleId,
+            categoryId: i.categoryId,
+            slug: i.slug,
+            label: i.label,
+            weight: i.weight,
+            aiDetail: i.aiDetail,
+            aiHighlight: i.aiHighlight,
+            aiNarrative: i.aiNarrative,
+            aiAction: i.aiAction,
+            aiData: i.aiData,
+            aiVerified: i.aiVerified,
+            aiVerifiedAt: i.aiVerifiedAt,
+            userChecked: true,
+            userCheckedAt: i.userCheckedAt,
+            completedBy: i.completedBy,
+            fixable: i.fixable,
+            updatedAt: new Date(),
+          }).onConflictDoNothing(),
+        ),
+      )
+    }
 
     // Upsert page verdicts — wipe old, insert new
     await db.delete(modulePageAudit).where(eq(modulePageAudit.moduleId, moduleId))
@@ -530,6 +573,34 @@ Key One-Liners: ${pb.keyOneLiners}`
         })
       }),
     )
+
+    // Re-insert user_checked items Claude didn't return — keep them visible in checklist as completed
+    const returnedSlugs = new Set(dynamicResults.map((r) => r.slug))
+    const completedOrphans = existingItems.filter((i) => i.userChecked && !returnedSlugs.has(i.slug))
+    if (completedOrphans.length > 0) {
+      await Promise.all(
+        completedOrphans.map((i) =>
+          db.insert(moduleItems).values({
+            moduleId: i.moduleId,
+            categoryId: i.categoryId,
+            slug: i.slug,
+            label: i.label,
+            weight: i.weight,
+            aiDetail: i.aiDetail,
+            aiHighlight: i.aiHighlight,
+            aiNarrative: i.aiNarrative,
+            aiAction: i.aiAction,
+            aiVerified: i.aiVerified,
+            aiVerifiedAt: i.aiVerifiedAt,
+            userChecked: true,
+            userCheckedAt: i.userCheckedAt,
+            completedBy: i.completedBy,
+            fixable: i.fixable,
+            updatedAt: new Date(),
+          }).onConflictDoNothing(),
+        ),
+      )
+    }
 
     // Store discovered competitors in the registry (for competitor-related modules)
     if ((mod.type === 'competitor-analysis' || mod.type === 'competitor-audit') && brand.id) {
