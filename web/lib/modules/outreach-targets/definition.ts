@@ -66,5 +66,17 @@ For each, generate:
 - narrative: why getting mentioned here is valuable (audience match, link equity, referral traffic potential)
 - action: specific outreach approach — who to contact, what to say, and the angle that will work given they already link to a competitor`,
     },
+    {
+      slug: 'competitor-mentions',
+      label: 'Sites Covering Competitors',
+      order: 4,
+      prompt: `These sites appeared in Google search results for competitor review and alternative queries — meaning they have already written content about this niche. They are prime outreach targets because they are actively looking for tools to cover.
+
+For each, generate:
+- label: "Get featured on [site name]" or "Get reviewed by [site name]"
+- detail: 1 sentence — what this site published (review, comparison, alternatives list) and which competitor they covered
+- narrative: why getting featured here matters — these sites have readers actively comparing tools and may be open to covering a new entrant
+- action: specific outreach strategy — what type of pitch to send, what angle to use (e.g. "we're a newer alternative with X advantage"), and how to find the right contact`,
+    },
   ],
 }

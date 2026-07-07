@@ -11,6 +11,7 @@ import ThemeToggle from '@/components/ThemeToggle'
 import ComingSoon from '@/components/ComingSoon'
 import { type DBItemState } from './ModuleDashboard'
 import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/registry'
+import { PLAYBOOK_SECTIONS } from '@/lib/playbook/fields'
 
 export interface ModuleData {
   id: string
@@ -29,7 +30,7 @@ export interface ModuleData {
 }
 
 interface Props {
-  brand: { id: string; name: string; keywords?: string; websiteUrl?: string; logoUrl?: string; themeColor?: string }
+  brand: { id: string; name: string; keywords?: string; websiteUrl?: string; logoUrl?: string; themeColor?: string; playbook?: Record<string, string> | null }
   allModulesData: ModuleData[]
   userEmail: string
   githubConnected: boolean
@@ -247,6 +248,31 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
   const [setupErrorMap, setSetupErrorMap] = useState<Record<string, string | null>>({})
   const [generatingDraft, setGeneratingDraft] = useState<Set<string>>(new Set())
+
+  // Playbook state (Foundation module only)
+  const [playbookData, setPlaybookData] = useState<Record<string, string> | null>(brand.playbook ?? null)
+  const [playbookOpen, setPlaybookOpen] = useState(false)
+  const [playbookEditing, setPlaybookEditing] = useState(false)
+  const [playbookDraft, setPlaybookDraft] = useState<Record<string, string>>({})
+  const [playbookSaving, setPlaybookSaving] = useState(false)
+  const [playbookSaved, setPlaybookSaved] = useState(false)
+
+  const handlePlaybookSave = async () => {
+    setPlaybookSaving(true)
+    const res = await fetch('/api/settings/playbook', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...playbookDraft, generatedAt: playbookData?.generatedAt ?? new Date().toISOString() }),
+    })
+    if (res.ok) {
+      setPlaybookData({ ...playbookDraft, generatedAt: playbookData?.generatedAt ?? new Date().toISOString() })
+      setPlaybookEditing(false)
+      setPlaybookSaved(true)
+      setTimeout(() => setPlaybookSaved(false), 2500)
+    }
+    setPlaybookSaving(false)
+  }
+
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
   const [prUrlMap, setPrUrlMap] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.agentPrUrl]))
@@ -256,6 +282,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [posthogLoading, setPosthogLoading] = useState(false)
   const [stageModalOpen, setStageModalOpen] = useState(false)
   const [stageModalTab, setStageModalTab] = useState(0)
+  const [competitorPanelOpen, setCompetitorPanelOpen] = useState(false)
   const autoAnalysisTriggered = useRef(false)
 
   useEffect(() => {
@@ -1354,6 +1381,155 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                             </>
                           )}
                         </Button>
+                      </div>
+                    )}
+
+                    {/* Competitor URLs panel — outreach-targets only */}
+                    {modData.type === 'outreach-targets' && !needsSetup && (
+                      <div style={{ margin: '16px 28px 0', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10 }}>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setCompetitorPanelOpen((p) => !p)}
+                          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setCompetitorPanelOpen((p) => !p)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', cursor: 'pointer' }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--green)', flexShrink: 0 }}>
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            <circle cx="9" cy="7" r="4" stroke="currentColor" strokeWidth="2" />
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Competitor URLs</span>
+                          <span style={{ fontSize: 12, color: reqValues['competitor_urls'] ? 'var(--green)' : 'var(--text-faint)', fontWeight: 400, marginLeft: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 260 }}>
+                            {reqValues['competitor_urls'] ? reqValues['competitor_urls'] : 'Click to add or edit competitors'}
+                          </span>
+                          <svg style={{ marginLeft: 'auto', flexShrink: 0, transform: competitorPanelOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }} width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                        </div>
+                        {competitorPanelOpen && (
+                          <div style={{ padding: '0 16px 16px', borderTop: '1px solid var(--line)' }}>
+                            <p style={{ margin: '12px 0 8px', fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                              Enter competitor URLs, one per line or comma-separated. Up to 5 are crawled per run.
+                            </p>
+                            <textarea
+                              className="md-setup-input md-setup-textarea"
+                              placeholder="https://competitor1.com, https://competitor2.com"
+                              value={reqValues['competitor_urls'] ?? ''}
+                              onChange={(e) => setReqValuesMap((prev) => ({ ...prev, [modData.id]: { ...prev[modData.id], competitor_urls: e.target.value } }))}
+                              rows={3}
+                              style={{ width: '100%', marginBottom: 8 }}
+                            />
+                            <button
+                              disabled={reanalyzing || !reqValues['competitor_urls']?.trim()}
+                              onClick={() => { setCompetitorPanelOpen(false); handleReanalyze(modData.id, reqValues) }}
+                              className="level-reanalyze-btn"
+                              style={{ fontSize: 12, padding: '6px 14px' }}
+                            >
+                              {reanalyzing ? (
+                                <><span className="md-spin" style={{ width: 10, height: 10, borderWidth: '1.5px' }} />Running…</>
+                              ) : 'Save & Re-analyse'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Playbook — Foundation module only */}
+                    {modData.type === 'foundation' && (
+                      <div style={{ margin: '16px 28px 0', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10 }}>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => { if (!playbookEditing) setPlaybookOpen(v => !v) }}
+                          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !playbookEditing && setPlaybookOpen(v => !v)}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', cursor: playbookEditing ? 'default' : 'pointer', userSelect: 'none' }}
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--green)', flexShrink: 0 }}>
+                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Playbook</span>
+                          {playbookData
+                            ? <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 500, marginLeft: 2 }}>Generated</span>
+                            : <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 2 }}>Run analysis to generate</span>
+                          }
+                          {playbookData && !playbookEditing && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setPlaybookDraft({ ...playbookData }); setPlaybookEditing(true); setPlaybookOpen(true) }}
+                              style={{ marginLeft: 'auto', fontSize: 11, padding: '3px 10px', borderRadius: 6, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}
+                            >
+                              Edit
+                            </button>
+                          )}
+                          {!playbookEditing && (
+                            <svg style={{ marginLeft: playbookData ? 6 : 'auto', flexShrink: 0, transform: playbookOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }} width="14" height="14" viewBox="0 0 24 24" fill="none">
+                              <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                            </svg>
+                          )}
+                        </div>
+                        {playbookOpen && (
+                          <div style={{ borderTop: '1px solid var(--line)', padding: '16px' }}>
+                            {!playbookData ? (
+                              <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, margin: 0 }}>
+                                The AI will read your website and generate your full Sales Playbook — email templates, call scripts, objection handlers, and more — when you run Foundation analysis.
+                              </p>
+                            ) : playbookEditing ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                {PLAYBOOK_SECTIONS.map((section) => (
+                                  <div key={section.id}>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>{section.label}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                      {section.fields.map((field) => (
+                                        <div key={field.key}>
+                                          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>{field.label}</label>
+                                          <textarea
+                                            value={playbookDraft[field.key] ?? ''}
+                                            onChange={(e) => setPlaybookDraft(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                            placeholder={field.placeholder}
+                                            rows={field.rows}
+                                            style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 8, padding: '8px 10px', fontSize: 13, color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box', whiteSpace: 'pre-wrap' }}
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                                <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
+                                  <button onClick={handlePlaybookSave} disabled={playbookSaving} className="level-reanalyze-btn" style={{ fontSize: 12, padding: '6px 16px' }}>
+                                    {playbookSaving ? 'Saving…' : playbookSaved ? 'Saved ✓' : 'Save'}
+                                  </button>
+                                  <button onClick={() => setPlaybookEditing(false)} style={{ fontSize: 12, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}>
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                                {PLAYBOOK_SECTIONS.map((section) => (
+                                  <div key={section.id}>
+                                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>{section.label}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                      {section.fields.map((field) => (
+                                        <div key={field.key}>
+                                          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 5 }}>{field.label}</div>
+                                          <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                                            {playbookData[field.key] || <span style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>Not generated</span>}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                                {playbookData.generatedAt && (
+                                  <div style={{ fontSize: 11, color: 'var(--text-dim)', borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+                                    Generated {new Date(playbookData.generatedAt).toLocaleDateString()}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 

@@ -1,16 +1,78 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import type { SiteCheckResult } from '@/app/api/check-site/route'
 
 type State = 'step1' | 'step2' | 'error'
+type SiteCheck = { status: 'checking' } | ({ status: 'done' } & SiteCheckResult) | null
 
 const CHECK_ICON = (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
     <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
+
+const SEVERITY_STYLES: Record<string, { border: string; iconColor: string; icon: React.ReactNode }> = {
+  success: {
+    border: 'rgba(47, 191, 113, 0.25)',
+    iconColor: 'var(--green-bright)',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+        <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  warning: {
+    border: 'rgba(231, 200, 115, 0.3)',
+    iconColor: 'var(--gold)',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+        <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ),
+  },
+  info: {
+    border: 'rgba(138, 168, 151, 0.25)',
+    iconColor: 'var(--text-dim)',
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+        <path d="M12 8h.01M12 12v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    ),
+  },
+}
+
+function SiteCheckNotice({ check }: { check: NonNullable<SiteCheck> }) {
+  if (check.status === 'checking') {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: 'var(--text-dim)', padding: '2px 0' }}>
+        <span className="md-spin" style={{ width: '13px', height: '13px', borderWidth: '2px', flexShrink: 0 }} />
+        Checking your site…
+      </div>
+    )
+  }
+
+  const s = SEVERITY_STYLES[check.severity] ?? SEVERITY_STYLES.info
+  return (
+    <div style={{
+      display: 'flex',
+      gap: '10px',
+      padding: '11px 14px',
+      borderRadius: '10px',
+      border: `1px solid ${s.border}`,
+      background: 'rgba(255,255,255,0.025)',
+    }}>
+      <span style={{ color: s.iconColor, flexShrink: 0, marginTop: '1px' }}>{s.icon}</span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+        <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text)' }}>{check.title}</span>
+        <span style={{ fontSize: '12px', color: 'var(--text-dim)', lineHeight: 1.5 }}>{check.message}</span>
+      </div>
+    </div>
+  )
+}
 
 export default function OnboardingPage() {
   const [state, setState] = useState<State>('step1')
@@ -24,7 +86,26 @@ export default function OnboardingPage() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [prefilling, setPrefilling] = useState(false)
+  const [siteCheck, setSiteCheck] = useState<SiteCheck>(null)
   const router = useRouter()
+
+  const runSiteCheck = (url: string) => {
+    const trimmed = url.trim()
+    if (!trimmed || !trimmed.includes('.')) return
+    setSiteCheck({ status: 'checking' })
+    const fullUrl = trimmed.startsWith('http') ? trimmed : `https://${trimmed}`
+    fetch('/api/check-site', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ websiteUrl: fullUrl }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: SiteCheckResult | null) => {
+        if (data) setSiteCheck({ status: 'done', ...data })
+        else setSiteCheck(null)
+      })
+      .catch(() => setSiteCheck(null))
+  }
 
   const autoResize = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const el = e.currentTarget
@@ -140,13 +221,17 @@ export default function OnboardingPage() {
               <p className="ob-desc">
                 We&apos;ll run a Foundation audit first — checking your domain, analytics, and essential pages are in place before we get into SEO and growth.
               </p>
-              <div className="ob-url-wrap">
-                {/* <span className="ob-url-prefix">https://</span> */}
-                <input
-                  autoFocus type="text" placeholder="yourdomain.com"
-                  value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)}
-                  required className="ob-url-input"
-                />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div className="ob-url-wrap">
+                  <input
+                    autoFocus type="text" placeholder="yourdomain.com"
+                    value={websiteUrl}
+                    onChange={(e) => { setWebsiteUrl(e.target.value); setSiteCheck(null) }}
+                    onBlur={(e) => runSiteCheck(e.target.value)}
+                    required className="ob-url-input"
+                  />
+                </div>
+                {siteCheck && <SiteCheckNotice check={siteCheck} />}
               </div>
               <Button
                 type="submit"

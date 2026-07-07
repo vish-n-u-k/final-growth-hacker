@@ -233,6 +233,28 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     ],
   },
   {
+    provider: 'serper',
+    name: 'Serper',
+    description: 'Enables competitor mention discovery in the Outreach Targets module — finds review sites, comparison posts, and press articles covering your competitors. Free tier includes 2,500 searches.',
+    type: 'api_key',
+    group: 'analytics',
+    docsUrl: 'https://serper.dev',
+    setupSteps: [
+      'Go to serper.dev → sign up for a free account (2,500 free searches, no credit card)',
+      'From your dashboard, copy your API key',
+      'Paste it above and click Connect',
+    ],
+    fields: [
+      {
+        key: 'api_key',
+        label: 'Serper API Key',
+        placeholder: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+        inputType: 'password',
+        helpText: 'Get your free API key at serper.dev → Dashboard. Free plan includes 2,500 searches.',
+      },
+    ],
+  },
+  {
     provider: 'apify',
     name: 'Apify',
     description: 'Optional. Adds Facebook & LinkedIn groups to the Social Media Community Finder (Reddit works without it). Apify\'s free tier ($5/month, no card) covers ~50-100 runs.',

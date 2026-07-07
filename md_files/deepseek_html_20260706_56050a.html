@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Social Engagement Hub · Frekto</title>
+    <style>
+        /* ----- Reset & Base ----- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fb;
+            padding: 32px 24px;
+            display: flex;
+            justify-content: center;
+            color: #0b1a33;
+        }
+
+        .container {
+            max-width: 1280px;
+            width: 100%;
+        }
+
+        /* ----- Frekto Brand Colors (inferred from site) ----- */
+        :root {
+            --frekto-primary: #1a2b4a;      /* Dark navy from Frekto's brand */
+            --frekto-primary-light: #2a3f66;
+            --frekto-accent: #4f7cff;        /* Bright blue for CTAs */
+            --frekto-accent-hover: #3a66e0;
+            --frekto-success: #0f7b3a;
+            --frekto-warning: #b45a1c;
+            --frekto-danger: #c72a2a;
+            --frekto-bg-light: #f8faff;
+            --frekto-border: #e4e9f2;
+            --frekto-text-secondary: #5e6f8d;
+            --frekto-shadow: 0 2px 12px rgba(26, 43, 74, 0.06);
+            --frekto-radius: 14px;
+        }
+
+        /* ----- Header ----- */
+        .hub-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 28px;
+            gap: 16px;
+        }
+
+        .hub-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .hub-header-left .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--frekto-primary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 18px;
+            letter-spacing: -0.5px;
+        }
+
+        .hub-header h1 {
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--frekto-primary);
+            letter-spacing: -0.4px;
+        }
+
+        .hub-header h1 span {
+            background: #eef3ff;
+            color: var(--frekto-accent);
+            font-size: 12px;
+            font-weight: 600;
+            padding: 3px 14px;
+            border-radius: 40px;
+            margin-left: 10px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .live-badge {
+            background: #ff4d4d;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 5px 16px;
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .live-badge::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: white;
+            animation: pulse-dot 1.5s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        .btn-primary {
+            background: var(--frekto-primary);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 40px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: default;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary:hover {
+            background: var(--frekto-primary-light);
+        }
+
+        .btn-outline {
+            background: transparent;
+            color: var(--frekto-primary);
+            border: 1.5px solid var(--frekto-border);
+            padding: 10px 22px;
+            border-radius: 40px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: default;
+            transition: all 0.2s;
+        }
+
+        .btn-outline:hover {
+            border-color: var(--frekto-accent);
+            background: #f0f5ff;
+        }
+
+        .btn-accent {
+            background: var(--frekto-accent);
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 40px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: default;
+            transition: background 0.2s;
+        }
+
+        .btn-accent:hover {
+            background: var(--frekto-accent-hover);
+        }
+
+        /* ----- Stats Row ----- */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: var(--frekto-radius);
+            padding: 18px 22px;
+            box-shadow: var(--frekto-shadow);
+            border: 1px solid var(--frekto-border);
+            transition: border-color 0.2s;
+        }
+
+        .stat-card:hover {
+            border-color: #c8d0e0;
+        }
+
+        .stat-card .label {
+            font-size: 13px;
+            color: var(--frekto-text-secondary);
+            font-weight: 500;
+        }
+
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--frekto-primary);
+            margin-top: 3px;
+        }
+
+        .stat-card .value small {
+            font-size: 14px;
+            font-weight: 400;
+            color: var(--frekto-text-secondary);
+            margin-left: 6px;
+        }
+
+        .stat-card .trend-up {
+            color: var(--frekto-success);
+            font-size: 13px;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+
+        /* ----- Main Grid: Left (Platform Cards) + Right (Activity Feed) ----- */
+        .hub-grid {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: 24px;
+        }
+
+        @media (max-width: 920px) {
+            .hub-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ----- Platform Cards (Audit Style) ----- */
+        .platform-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .platform-card {
+            background: white;
+            border-radius: var(--frekto-radius);
+            padding: 16px 20px;
+            border: 1px solid var(--frekto-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            box-shadow: var(--frekto-shadow);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .platform-card:hover {
+            border-color: #bcc6da;
+            box-shadow: 0 4px 16px rgba(26, 43, 74, 0.08);
+        }
+
+        .platform-card .platform-info {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 170px;
+        }
+
+        .platform-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 16px;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .platform-icon.ig { background: linear-gradient(135deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888); }
+        .platform-icon.fb { background: #1877f2; }
+        .platform-icon.yt { background: #ff0000; }
+        .platform-icon.li { background: #0a66c2; }
+        .platform-icon.x { background: #000000; }
+        .platform-icon.tt { background: #000000; }
+        .platform-icon.pt { background: #e60023; }
+
+        .platform-name {
+            font-weight: 600;
+            color: var(--frekto-primary);
+            font-size: 15px;
+        }
+
+        .platform-name .handle {
+            font-weight: 400;
+            color: var(--frekto-text-secondary);
+            font-size: 12px;
+            margin-left: 4px;
+        }
+
+        .platform-meta {
+            font-size: 12px;
+            color: var(--frekto-text-secondary);
+            margin-top: 1px;
+        }
+
+        .platform-status {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .status-badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 14px;
+            border-radius: 40px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .status-badge.connected {
+            background: #e6f7ec;
+            color: var(--frekto-success);
+        }
+
+        .status-badge.missing {
+            background: #fef2f2;
+            color: var(--frekto-danger);
+        }
+
+        .status-badge.limited {
+            background: #fef9e7;
+            color: var(--frekto-warning);
+        }
+
+        .action-items {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .action-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+            color: var(--frekto-primary);
+            font-weight: 500;
+        }
+
+        .action-item .count {
+            background: #eef3ff;
+            color: var(--frekto-accent);
+            font-weight: 700;
+            padding: 0 8px;
+            border-radius: 20px;
+            font-size: 12px;
+            line-height: 20px;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .action-item .count.alert {
+            background: #fee2e2;
+            color: var(--frekto-danger);
+        }
+
+        .action-item .count.success {
+            background: #e6f7ec;
+            color: var(--frekto-success);
+        }
+
+        .action-btn {
+            background: transparent;
+            border: 1px solid var(--frekto-border);
+            border-radius: 30px;
+            padding: 5px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--frekto-primary);
+            cursor: default;
+            transition: all 0.15s;
+        }
+
+        .action-btn:hover {
+            background: #f0f5ff;
+            border-color: var(--frekto-accent);
+        }
+
+        .action-btn.primary {
+            background: var(--frekto-primary);
+            border-color: var(--frekto-primary);
+            color: white;
+        }
+
+        .action-btn.primary:hover {
+            background: var(--frekto-primary-light);
+            border-color: var(--frekto-primary-light);
+        }
+
+        .action-btn.accent {
+            background: var(--frekto-accent);
+            border-color: var(--frekto-accent);
+            color: white;
+        }
+
+        .action-btn.accent:hover {
+            background: var(--frekto-accent-hover);
+            border-color: var(--frekto-accent-hover);
+        }
+
+        /* Lead Score Badge */
+        .lead-score {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 2px 10px;
+            border-radius: 30px;
+            background: #f0f5ff;
+            color: var(--frekto-accent);
+        }
+
+        .lead-score.hot {
+            background: #fee2e2;
+            color: var(--frekto-danger);
+        }
+
+        .lead-score.warm {
+            background: #fef9e7;
+            color: var(--frekto-warning);
+        }
+
+        /* ----- Activity Feed (Right Panel) ----- */
+        .activity-feed {
+            background: white;
+            border-radius: var(--frekto-radius);
+            border: 1px solid var(--frekto-border);
+            padding: 20px 18px;
+            box-shadow: var(--frekto-shadow);
+            height: fit-content;
+            max-height: 700px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .activity-feed .feed-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-shrink: 0;
+        }
+
+        .activity-feed .feed-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--frekto-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .activity-feed .feed-header .time {
+            font-size: 12px;
+            color: var(--frekto-text-secondary);
+        }
+
+        .feed-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .feed-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .feed-scroll::-webkit-scrollbar-track {
+            background: #f0f2f5;
+            border-radius: 4px;
+        }
+
+        .feed-scroll::-webkit-scrollbar-thumb {
+            background: #c8d0e0;
+            border-radius: 4px;
+        }
+
+        .feed-item {
+            display: flex;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f2f5;
+        }
+
+        .feed-item:last-child {
+            border-bottom: none;
+        }
+
+        .feed-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #eef3ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--frekto-accent);
+            flex-shrink: 0;
+        }
+
+        .feed-avatar.sales {
+            background: #fee2e2;
+            color: var(--frekto-danger);
+        }
+
+        .feed-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .feed-content .text {
+            font-size: 14px;
+            color: #1e293b;
+            line-height: 1.4;
+        }
+
+        .feed-content .text strong {
+            color: var(--frekto-primary);
+        }
+
+        .feed-content .text .highlight {
+            background: #fef9e7;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        .feed-content .meta {
+            font-size: 12px;
+            color: var(--frekto-text-secondary);
+            margin-top: 5px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .feed-content .meta .platform-tag {
+            background: #f0f2f5;
+            padding: 1px 10px;
+            border-radius: 30px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .feed-action-link {
+            color: var(--frekto-accent);
+            font-weight: 500;
+            font-size: 12px;
+            text-decoration: none;
+            cursor: default;
+        }
+
+        .feed-action-link:hover {
+            text-decoration: underline;
+        }
+
+        .feed-action-link.danger {
+            color: var(--frekto-danger);
+        }
+
+        /* Sales indicator on feed items */
+        .feed-item.sales-lead {
+            border-left: 3px solid var(--frekto-accent);
+            padding-left: 12px;
+            background: #fafcff;
+            border-radius: 0 6px 6px 0;
+        }
+
+        .feed-item.sales-lead .lead-tag {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--frekto-accent);
+            background: #eef3ff;
+            padding: 1px 10px;
+            border-radius: 30px;
+        }
+
+        /* ----- Bottom: Action Items Summary + Sales Pipeline ----- */
+        .bottom-bar {
+            margin-top: 24px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 760px) {
+            .bottom-bar {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .action-summary {
+            background: white;
+            border-radius: var(--frekto-radius);
+            border: 1px solid var(--frekto-border);
+            padding: 16px 22px;
+            box-shadow: var(--frekto-shadow);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .action-summary .left {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .action-summary .left .label {
+            font-weight: 600;
+            color: var(--frekto-primary);
+            font-size: 14px;
+        }
+
+        .action-summary .left .item {
+            color: var(--frekto-text-secondary);
+            font-size: 13px;
+        }
+
+        .action-summary .left .item strong {
+            color: var(--frekto-primary);
+        }
+
+        .action-summary .left .item .badge {
+            display: inline-block;
+            background: #eef3ff;
+            color: var(--frekto-accent);
+            font-weight: 700;
+            padding: 0 8px;
+            border-radius: 20px;
+            font-size: 12px;
+            line-height: 20px;
+            margin-left: 4px;
+        }
+
+        .action-summary .left .item .badge.danger {
+            background: #fee2e2;
+            color: var(--frekto-danger);
+        }
+
+        /* Pipeline mini view */
+        .pipeline-mini {
+            background: white;
+            border-radius: var(--frekto-radius);
+            border: 1px solid var(--frekto-border);
+            padding: 16px 22px;
+            box-shadow: var(--frekto-shadow);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .pipeline-mini .label {
+            font-weight: 600;
+            color: var(--frekto-primary);
+            font-size: 14px;
+        }
+
+        .pipeline-stages {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .pipeline-stage {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            color: var(--frekto-text-secondary);
+        }
+
+        .pipeline-stage .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .pipeline-stage .dot.new { background: #94a3b8; }
+        .pipeline-stage .dot.contacted { background: var(--frekto-accent); }
+        .pipeline-stage .dot.qualified { background: var(--frekto-success); }
+        .pipeline-stage .dot.closed { background: var(--frekto-primary); }
+
+        .pipeline-stage .count {
+            font-weight: 700;
+            color: var(--frekto-primary);
+            font-size: 13px;
+        }
+
+        /* ----- Responsive tweaks ----- */
+        @media (max-width: 600px) {
+            .hub-header h1 {
+                font-size: 20px;
+            }
+            .platform-card {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .platform-status {
+                justify-content: flex-start;
+            }
+            .stats-row {
+                grid-template-columns: 1fr 1fr;
+            }
+            .bottom-bar {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- ===== HEADER ===== -->
+    <div class="hub-header">
+        <div class="hub-header-left">
+            <div class="logo-icon">F</div>
+            <h1>
+                Social Engagement Hub
+                <span>Beta</span>
+            </h1>
+        </div>
+        <div class="header-actions">
+            <span class="live-badge">● Live</span>
+            <button class="btn-outline">📊 Analytics</button>
+            <button class="btn-accent">+ Connect Account</button>
+        </div>
+    </div>
+
+    <!-- ===== STATS ===== -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="label">Unread DMs</div>
+            <div class="value">14 <small>+3 today</small></div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Pending Comments</div>
+            <div class="value">8 <small>needs reply</small></div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Mentions</div>
+            <div class="value">5 <small>last 24h</small></div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Hot Leads</div>
+            <div class="value">4 <span class="trend-up">↑ 2 this week</span></div>
+        </div>
+        <div class="stat-card">
+            <div class="label">Pipeline Value</div>
+            <div class="value">$12.4k <small>estimated</small></div>
+        </div>
+    </div>
+
+    <!-- ===== MAIN GRID ===== -->
+    <div class="hub-grid">
+
+        <!-- ===== LEFT: PLATFORM CARDS ===== -->
+        <div class="platform-list">
+
+            <!-- Instagram -->
+            <div class="platform-card">
+                <div class="platform-info">
+                    <div class="platform-icon ig">IG</div>
+                    <div>
+                        <div class="platform-name">Instagram <span class="handle">@getfrekto</span></div>
+                        <div class="platform-meta">Business · Connected</div>
+                    </div>
+                </div>
+                <div class="platform-status">
+                    <span class="status-badge connected">● Connected</span>
+                    <div class="action-items">
+                        <span class="action-item">💬 <span class="count">6</span></span>
+                        <span class="action-item">✏️ <span class="count alert">3</span></span>
+                        <span class="action-item">🗑️ <span class="count">1</span></span>
+                        <span class="lead-score hot">🔥 92</span>
+                        <button class="action-btn primary">Open</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Facebook -->
+            <div class="platform-card">
+                <div class="platform-info">
+                    <div class="platform-icon fb">FB</div>
+                    <div>
+                        <div class="platform-name">Facebook <span class="handle">Frekto</span></div>
+                        <div class="platform-meta">Page · Connected</div>
+                    </div>
+                </div>
+                <div class="platform-status">
+                    <span class="status-badge connected">● Connected</span>
+                    <div class="action-items">
+                        <span class="action-item">💬 <span class="count">4</span></span>
+                        <span class="action-item">✏️ <span class="count">2</span></span>
+                        <span class="lead-score warm">🔥 76</span>
+                        <button class="action-btn primary">Open</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- YouTube -->
+            <div class="platform-card" style="border-left: 4px solid #ff0000;">
+                <div class="platform-info">
+                    <div class="platform-icon yt">YT</div>
+                    <div>
+                        <div class="platform-name">YouTube <span class="handle">@frekto</span></div>
+                        <div class="platform-meta">Channel · Connected</div>
+                    </div>
+                </div>
+                <div class="platform-status">
+                    <span class="status-badge connected">● Connected</span>
+                    <div class="action-items">
+                        <span class="action-item">✏️ <span class="count alert">5</span></span>
+                        <span class="action-item">🗑️ <span class="count">0</span></span>
+                        <span class="lead-score">📊 45</span>
+                        <button class="action-btn primary">Open</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LinkedIn -->
+            <div class="platform-card" style="border-left: 4px solid #f5b342;">
+                <div class="platform-info">
+                    <div class="platform-icon li">IN</div>
+                    <div>
+                        <div class="platform-name">LinkedIn <span class="handle">Frekto</span></div>
+                        <div class="platform-meta">Page · Limited</div>
+                    </div>
+                </div>
+                <div class="platform-status">
+                    <span class="status-badge limited">⚠️ Limited</span>
+                    <div class="action-items">
+                        <span class="action-item">✏️ <span class="count">2</span></span>
+                        <span style="font-size:11px; color:var(--frekto-text-secondary);">(DMs not available)</span>
+                        <button class="action-btn">View</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- X (Twitter) -->
+            <div class="platform-card">
+                <div class="platform-info">
+                    <div class="platform-icon x">X</div>
+                    <div>
+                        <div class="platform-name">X <span class="handle">@frekto</span></div>
+                        <div class="platform-meta">Connected</div>
+                    </div>
+                </div>
+                <div class="platform-status">
+                    <span class="status-badge connected">● Connected</span>
+                    <div class="action-items">
+                        <span class="action-item">💬 <span class="count">3</span></span>
+                        <span class="action-item">✏️ <span class="count">1</span></span>
+                        <span class="lead-score warm">🔥 68</span>
+                        <button class="action-btn primary">Open</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TikTok -->
+            <div class="platform-card" style="border-left: 4px solid #000000;">
+                <div class="platform-info">
+                    <div class="platform-icon tt">TT</div>
+                    <div>
+                        <div class="platform-name">TikTok <span class="handle">@frekto</span></div>
+                        <div class="platform-meta">Business · Connected</div>
+                    </div>
+                </div>
+                <div class="platform-status">
+                    <span class="status-badge connected">● Connected</span>
+                    <div class="action-items">
+                        <span class="action-item">💬 <span class="count">1</span></span>
+                        <span class="action-item">✏️ <span class="count">1</span></span>
+                        <span class="lead-score">📊 34</span>
+                        <button class="action-btn primary">Open</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pinterest (Missing) -->
+            <div class="platform-card" style="background: #fafbfc; border-style: dashed;">
+                <div class="platform-info">
+                    <div class="platform-icon pt">P</div>
+                    <div>
+                        <div class="platform-name" style="color:var(--frekto-text-secondary);">Pinterest</div>
+                        <div class="platform-meta">Not connected</div>
+                    </div>
+                </div>
+                <div class="platform-status">
+                    <span class="status-badge missing">✕ Not connected</span>
+                    <button class="action-btn accent">Connect</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- ===== RIGHT: ACTIVITY FEED ===== -->
+        <div class="activity-feed">
+            <div class="feed-header">
+                <h3>⚡ Live Activity <span style="font-size:12px; font-weight:400; color:var(--frekto-text-secondary);">· 6 new</span></h3>
+                <span class="time">Just now</span>
+            </div>
+
+            <div class="feed-scroll">
+
+                <!-- Feed Item 1: Sales Lead -->
+                <div class="feed-item sales-lead">
+                    <div class="feed-avatar sales">JD</div>
+                    <div class="feed-content">
+                        <div class="text">
+                            <strong>@jessicad</strong> commented on your Reel:
+                            “This is exactly what I needed! Does it work for e-commerce?”
+                            <span class="lead-tag">🔥 Hot Lead</span>
+                        </div>
+                        <div class="meta">
+                            <span class="platform-tag">Instagram</span>
+                            <span>2 min ago</span>
+                            <a class="feed-action-link">Reply</a>
+                            <a class="feed-action-link">Delete</a>
+                            <a class="feed-action-link" style="color:var(--frekto-success);">→ Convert</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feed Item 2: DM -->
+                <div class="feed-item">
+                    <div class="feed-avatar">MR</div>
+                    <div class="feed-content">
+                        <div class="text">
+                            <strong>@mikeross</strong> sent a DM: “Hey, love the tool! Any chance of a discount code for agencies?”
+                        </div>
+                        <div class="meta">
+                            <span class="platform-tag">Instagram DM</span>
+                            <span>14 min ago</span>
+                            <a class="feed-action-link">Reply</a>
+                            <a class="feed-action-link" style="color:var(--frekto-success);">→ Lead</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feed Item 3: Facebook Comment -->
+                <div class="feed-item">
+                    <div class="feed-avatar">💬</div>
+                    <div class="feed-content">
+                        <div class="text">
+                            <strong>New comment</strong> on your Facebook post from <strong>Sarah K.</strong>
+                            <span style="font-size:12px; color:var(--frekto-text-secondary);">“How does this compare to Canva?”</span>
+                        </div>
+                        <div class="meta">
+                            <span class="platform-tag">Facebook</span>
+                            <span>32 min ago</span>
+                            <a class="feed-action-link">Reply</a>
+                            <a class="feed-action-link">Hide</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feed Item 4: YouTube -->
+                <div class="feed-item">
+                    <div class="feed-avatar">YT</div>
+                    <div class="feed-content">
+                        <div class="text">
+                            <strong>@techwithtom</strong> replied to your comment on YouTube: “Great breakdown, thanks!”
+                        </div>
+                        <div class="meta">
+                            <span class="platform-tag">YouTube</span>
+                            <span>1h ago</span>
+                            <a class="feed-action-link">View thread</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feed Item 5: X Mention -->
+                <div class="feed-item sales-lead">
+                    <div class="feed-avatar sales">X</div>
+                    <div class="feed-content">
+                        <div class="text">
+                            <strong>@sama</strong> mentioned you: “Just tried @frekto — game changer for small biz. <span class="highlight">Must-have tool</span>”
+                            <span class="lead-tag">🔥 Hot Lead</span>
+                        </div>
+                        <div class="meta">
+                            <span class="platform-tag">X</span>
+                            <span>2h ago</span>
+                            <a class="feed-action-link">Reply</a>
+                            <a class="feed-action-link">Retweet</a>
+                            <a class="feed-action-link" style="color:var(--frekto-success);">→ Lead</a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feed Item 6: TikTok -->
+                <div class="feed-item">
+                    <div class="feed-avatar">TT</div>
+                    <div class="feed-content">
+                        <div class="text">
+                            <strong>@creatorlife</strong> commented on your TikTok: “This AI is insane! How do I get started?”
+                        </div>
+                        <div class="meta">
+                            <span class="platform-tag">TikTok</span>
+                            <span>3h ago</span>
+                            <a class="feed-action-link">Reply</a>
+                            <a class="feed-action-link" style="color:var(--frekto-success);">→ Lead</a>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Feed Footer -->
+            <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--frekto-border); text-align:center; flex-shrink:0;">
+                <span style="font-size:13px; color:var(--frekto-accent); font-weight:500; cursor:default;">View all 23 interactions →</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ===== BOTTOM: Action Summary + Pipeline ===== -->
+    <div class="bottom-bar">
+
+        <!-- Action Summary -->
+        <div class="action-summary">
+            <div class="left">
+                <span class="label">📋 Action Items</span>
+                <span class="item">• <strong>8</strong> comments to reply <span class="badge">urgent</span></span>
+                <span class="item">• <strong>3</strong> DMs to follow up</span>
+                <span class="item">• <strong>1</strong> post flagged <span class="badge danger">review</span></span>
+                <span class="item">• <strong>2</strong> hot leads to contact</span>
+            </div>
+            <button class="btn-primary" style="padding:8px 22px; font-size:13px;">Resolve All</button>
+        </div>
+
+        <!-- Pipeline Mini -->
+        <div class="pipeline-mini">
+            <span class="label">📈 Sales Pipeline</span>
+            <div class="pipeline-stages">
+                <span class="pipeline-stage">
+                    <span class="dot new"></span> New <span class="count">4</span>
+                </span>
+                <span class="pipeline-stage">
+                    <span class="dot contacted"></span> Contacted <span class="count">6</span>
+                </span>
+                <span class="pipeline-stage">
+                    <span class="dot qualified"></span> Qualified <span class="count">3</span>
+                </span>
+                <span class="pipeline-stage">
+                    <span class="dot closed"></span> Closed <span class="count">2</span>
+                </span>
+            </div>
+            <span style="font-size:13px; font-weight:600; color:var(--frekto-success);">+$12.4k</span>
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>

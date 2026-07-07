@@ -43,6 +43,23 @@ function buildPrompt(data: PostHogFetchResult, brainContext?: string): string {
     ? data.weeklyUsers.map((w) => `  ${w.week}: ${w.users} users`).join('\n')
     : '  No weekly data available'
 
+  const funnelSection = (() => {
+    if (!data.funnelResult) return '  funnelResult: null'
+    const { steps, data: fsteps, overallConversionRate, autoDetected } = data.funnelResult
+    const stepsStr = fsteps.map((s, i) => {
+      const avgTime = s.averageConversionTimeSec != null
+        ? ` | avg time to convert: ${Math.round(s.averageConversionTimeSec / 3600)}h`
+        : ''
+      return i === 0
+        ? `  Step ${i + 1}: ${s.name} — ${s.count.toLocaleString()} users (funnel entry)`
+        : `  Step ${i + 1}: ${s.name} — ${s.count.toLocaleString()} users — ${s.conversionRate}% conversion from previous step (${s.dropOffRate}% drop-off)${avgTime}`
+    }).join('\n')
+    return `  Funnel steps: ${steps.join(' → ')}${autoDetected ? ' (auto-detected from top events)' : ' (user-defined)'}
+  Overall conversion (step 1 → last): ${overallConversionRate}%
+  Critical bottleneck: ${fsteps.slice(1).sort((a, b) => a.conversionRate - b.conversionRate)[0]?.name ?? 'none'} (lowest step conversion)
+${stepsStr}`
+  })()
+
   const metricsSection = data.connected
     ? `
 PostHog connected: Yes
@@ -69,6 +86,10 @@ ${topEventsSection}`
     : `
 PostHog connected: No — integration not set up or API key/Project ID missing.`
 
+  const funnelMetricsSection = data.connected
+    ? `\n=== Funnel Analysis (last 30 days, 14-day conversion window) ===\n${funnelSection}`
+    : ''
+
   const categoryInstructions = categories
     .map((c) => `--- Category: "${c.slug}" (label: "${c.label}") ---\n${c.prompt}`)
     .join('\n\n')
@@ -76,17 +97,17 @@ PostHog connected: No — integration not set up or API key/Project ID missing.`
   return `${brainContext ? `=== Prior context about this brand ===\n${brainContext}\n\n` : ''}=== Brand Context ===
 Brand: ${data.brandName || 'not provided'}
 Website: ${data.websiteUrl || 'not provided'}
-${metricsSection}
+${metricsSection}${funnelMetricsSection}
 
 === Category Instructions ===
 ${categoryInstructions}
 
 === Output requirements ===
-Generate findings for ALL 4 categories. Return ONLY a valid JSON array — no markdown fences, no text outside the array.
+Generate findings for ALL 5 categories. Return ONLY a valid JSON array — no markdown fences, no text outside the array.
 
 Each element:
 {
-  "category": string — exactly one of: "traffic", "engagement", "conversion", "growth",
+  "category": string — exactly one of: "traffic", "engagement", "conversion", "growth", "funnel",
   "slug": string — kebab-case, pattern: {category-slug}-{short-descriptor},
   "label": string — plain English, no jargon; cite actual numbers or event names; explain what it means for the business,
   "weight": 1 | 2 | 3,
@@ -121,7 +142,7 @@ export async function analyzeUserAnalytics(
     throw new Error(`User analytics agent returned invalid JSON: ${err instanceof Error ? err.message : raw.slice(0, 300)}`)
   }
 
-  const allowed = new Set(['traffic', 'engagement', 'conversion', 'growth'])
+  const allowed = new Set(['traffic', 'engagement', 'conversion', 'growth', 'funnel'])
 
   return results
     .filter(

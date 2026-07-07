@@ -37,11 +37,12 @@ import { fetchUserAcquisitionData } from '@/lib/modules/user-acquisition/fetcher
 import { analyzeUserAcquisition } from '@/lib/modules/user-acquisition/agent'
 import { fetchBusinessStageData } from '@/lib/modules/business-stage/fetcher'
 import { analyzeBusinessStage } from '@/lib/modules/business-stage/agent'
+import { generatePlaybook, type PlaybookData } from '@/lib/playbook/generator'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
 
-export const maxDuration = 90
+export const maxDuration = 300
 
 async function getFreshModuleState(moduleId: string) {
   const [freshItems, freshCats] = await Promise.all([
@@ -141,7 +142,19 @@ async function runAnalysis(
       if (!requirements['competitor_urls']) {
         throw new Error('No competitor URLs provided. Add at least one competitor URL to run this analysis.')
       }
-      const data = await fetchOutreachTargetsData(requirements)
+      const [serperRow] = await db
+        .select()
+        .from(brandIntegrations)
+        .where(and(
+          eq(brandIntegrations.brandId, requirements['brand_id']),
+          eq(brandIntegrations.provider, 'serper'),
+          eq(brandIntegrations.status, 'connected'),
+        ))
+        .limit(1)
+      const outreachReqs = serperRow?.apiKey
+        ? { ...requirements, serper_api_key: serperRow.apiKey }
+        : requirements
+      const data = await fetchOutreachTargetsData(outreachReqs)
       return analyzeOutreachTargets(data, brainCtx)
     }
     case 'geo': {
@@ -211,6 +224,19 @@ export async function POST(request: NextRequest) {
       brainCtx = await getRelevantContext(brand.id, mod.type, def.description)
     } catch {
       // Non-fatal — analysis continues without brain context
+    }
+
+    // Prepend playbook (sales context) to brainCtx if it exists
+    const pb = brand.playbook as PlaybookData | null
+    if (pb?.icp) {
+      const playbookStr = `=== Brand Playbook ===
+Executive Summary: ${pb.executiveSummary}
+ICP: ${pb.icp}
+Buyer Personas: ${pb.buyerPersonas}
+Competitive Landscape: ${pb.competitiveLandscape}
+Industry Trends: ${pb.industryTrends}
+Key One-Liners: ${pb.keyOneLiners}`
+      brainCtx = playbookStr + (brainCtx ? '\n\n' + brainCtx : '')
     }
   }
 
@@ -369,7 +395,10 @@ export async function POST(request: NextRequest) {
       const prefetch = await fetchFoundationData(requirements)
       if (!prefetch.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)
 
-      const { brandColor, results } = await analyzeFoundation(prefetch)
+      const [{ brandColor, results }, playbookResult] = await Promise.all([
+        analyzeFoundation(prefetch),
+        generatePlaybook(prefetch, brand.name).catch(() => null),
+      ])
       console.log('[Foundation] brandColor from Claude:', brandColor || '(empty)')
       foundationResults = results
 
@@ -411,6 +440,9 @@ export async function POST(request: NextRequest) {
         db.update(modules).set({ requirements: updatedReqs }).where(eq(modules.id, moduleId)),
         Object.keys(brandUpdates).length > 0
           ? db.update(brands).set(brandUpdates).where(eq(brands.id, brand.id))
+          : Promise.resolve(),
+        playbookResult
+          ? db.update(brands).set({ playbook: playbookResult }).where(eq(brands.id, brand.id))
           : Promise.resolve(),
         ...upserts,
       ])

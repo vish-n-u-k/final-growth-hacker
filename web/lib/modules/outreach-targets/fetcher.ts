@@ -11,12 +11,22 @@ export interface ExternalLink {
   foundOn: string          // competitor URL where this link was found
 }
 
+export interface SerperMention {
+  title: string
+  url: string
+  domain: string
+  snippet: string
+  query: string  // search query that surfaced this result
+}
+
 export interface OutreachTargetsFetchResult {
   userUrl: string
   brandName: string
   links: ExternalLink[]
   competitorsFetched: string[]
   competitorsFailed: string[]
+  serperMentions?: SerperMention[]
+  serperEnabled?: boolean
 }
 
 // ── Noise filter ──────────────────────────────────────────────────────────────
@@ -158,6 +168,86 @@ function extractLinksFromHtml(
   return links
 }
 
+// ── Serper — Google search for competitor mentions ────────────────────────────
+// Finds review posts, alternative pages, and press articles that mention
+// competitors by name. Requires SERPER_API_KEY env var.
+
+interface SerperOrganic {
+  title: string
+  link: string
+  snippet?: string
+}
+
+async function runSerperSearch(query: string, apiKey: string): Promise<SerperOrganic[]> {
+  try {
+    const res = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: query, num: 10 }),
+      signal: AbortSignal.timeout(10000),
+    })
+    if (!res.ok) return []
+    const data = await res.json() as { organic?: SerperOrganic[] }
+    return data.organic ?? []
+  } catch {
+    return []
+  }
+}
+
+function extractBrandFromUrl(url: string): string {
+  try {
+    const hostname = new URL(url.startsWith('http') ? url : `https://${url}`).hostname
+    return hostname.replace(/^www\./, '').split('.')[0]
+  } catch {
+    return ''
+  }
+}
+
+async function fetchSerperMentions(
+  competitorUrls: string[],
+  userDomain: string,
+  apiKey: string,
+): Promise<SerperMention[]> {
+  const seenDomains = new Set<string>([userDomain])
+  const mentions: SerperMention[] = []
+
+  // Cap at 3 competitors — 2 searches each = 6 API calls max
+  const capped = competitorUrls.slice(0, 3)
+
+  await Promise.all(
+    capped.map(async (url) => {
+      const competitorDomain = extractDomain(url)
+      seenDomains.add(competitorDomain)
+      const brand = extractBrandFromUrl(url)
+      if (!brand) return
+
+      const queries = [
+        `"${brand}" review`,
+        `"${brand}" alternative`,
+      ]
+
+      const allResults = await Promise.all(queries.map((q) => runSerperSearch(q, apiKey)))
+
+      allResults.forEach((results, i) => {
+        for (const r of results) {
+          const domain = extractDomain(r.link)
+          if (!domain || isNoiseDomain(domain) || seenDomains.has(domain)) continue
+          seenDomains.add(domain)
+          mentions.push({
+            title: r.title,
+            url: r.link,
+            domain,
+            snippet: r.snippet ?? '',
+            query: queries[i],
+          })
+        }
+      })
+    }),
+  )
+
+  return mentions.slice(0, 30)
+}
+
 // ── Sub-pages to try per competitor ──────────────────────────────────────────
 
 const SUB_PAGES = ['/press', '/media', '/about', '/partners', '/integrations', '/blog']
@@ -219,5 +309,12 @@ export async function fetchOutreachTargetsData(
   // Cap at 60 links to keep the Claude prompt manageable
   const links = dedupedLinks.slice(0, 60)
 
-  return { userUrl, brandName, links, competitorsFetched, competitorsFailed }
+  // Serper — optional, only runs if key is connected in Settings → Integrations
+  const serperApiKey = requirements['serper_api_key']
+  let serperMentions: SerperMention[] | undefined
+  if (serperApiKey && competitorUrls.length > 0) {
+    serperMentions = await fetchSerperMentions(competitorUrls, userDomain, serperApiKey)
+  }
+
+  return { userUrl, brandName, links, competitorsFetched, competitorsFailed, serperMentions, serperEnabled: !!serperApiKey }
 }

@@ -24,6 +24,21 @@ function formatLinks(data: OutreachTargetsFetchResult): string {
     .join('\n\n')
 }
 
+function formatSerperMentions(mentions: OutreachTargetsFetchResult['serperMentions']): string {
+  if (!mentions || mentions.length === 0) return 'No Google search mentions found.'
+  return mentions
+    .map((m, i) => {
+      return [
+        `${i + 1}. Domain: ${m.domain}`,
+        `   URL: ${m.url}`,
+        `   Title: ${m.title}`,
+        `   Snippet: ${m.snippet}`,
+        `   Found via query: "${m.query}"`,
+      ].join('\n')
+    })
+    .join('\n\n')
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export async function analyzeOutreachTargets(
@@ -55,6 +70,10 @@ export async function analyzeOutreachTargets(
     ? `\nCompetitors that could not be fetched: ${data.competitorsFailed.join(', ')}`
     : ''
 
+  const serperSection = data.serperEnabled
+    ? `\n=== Sites that have written about competitors (Google search) ===\n${formatSerperMentions(data.serperMentions)}\n`
+    : ''
+
   const prompt = `${brainContext ? `=== Brand context ===\n${brainContext}\n\n` : ''}=== Your website ===
 URL: ${data.userUrl}
 Brand: ${data.brandName}
@@ -64,21 +83,25 @@ ${data.competitorsFetched.join(', ')}${failedNote}
 
 === External links found on competitor sites ===
 ${formatLinks(data)}
-
+${serperSection}
 === Your task ===
-Review all the external links above. Identify genuine outreach opportunities — sites that are covering, partnering with, or linking to competitors that may be interested in this product too.
+Review all the data above. Identify genuine outreach opportunities across two sources:
+1. External links on competitor sites — press, partners, resource pages
+2. Sites found via Google search that have reviewed or compared competitors
 
-Assign each to exactly one of these categories: press-coverage, partner-ecosystem, resource-opportunities.
+Assign each to exactly one of these categories: press-coverage, partner-ecosystem, resource-opportunities, competitor-mentions.
+- Use competitor-mentions for results from the Google search section only.
+- Use the other three categories for links from competitor HTML only.
 
 Skip any link that is clearly a utility, infrastructure, or irrelevant site.
 
-Generate 5–15 findings total. Quality over quantity.
+Generate 5–20 findings total. Quality over quantity.
 
 ${categoryInstructions}
 
 Return ONLY a valid JSON array. No markdown fences, no text outside the array. Each element:
 {
-  "category": string — must be one of: "press-coverage", "partner-ecosystem", "resource-opportunities",
+  "category": string — must be one of: "press-coverage", "partner-ecosystem", "resource-opportunities", "competitor-mentions",
   "slug": string — kebab-case, pattern: {category-slug}-{domain-short},
   "label": string — plain English action description e.g. "Pitch to TechCrunch" or "Get listed on ToolDirectory",
   "weight": 1 | 2 | 3,
@@ -105,7 +128,7 @@ Return ONLY a valid JSON array. No markdown fences, no text outside the array. E
     )
   }
 
-  const allowedCategories = new Set(['press-coverage', 'partner-ecosystem', 'resource-opportunities'])
+  const allowedCategories = new Set(['press-coverage', 'partner-ecosystem', 'resource-opportunities', 'competitor-mentions'])
 
   return results
     .filter(

@@ -1,6 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { spawn } from 'child_process'
 
 interface CallAIOptions {
   system: string
@@ -17,6 +16,7 @@ const useClaudeCLI = process.env.USE_CLAUDE_CLI === 'true'
 const CLI_TIMEOUT_MS = 600_000 // 10 minutes — sonnet + large prompts can be slow
 
 async function callViaCLI(system: string, prompt: string, model: string): Promise<string> {
+  const { spawn } = await import('child_process')
   const cliModel = model.includes('haiku') ? 'haiku' : 'sonnet'
   const input = `SYSTEM:\n${system}\n\nUSER:\n${prompt}`
   const args = ['-p', '--output-format', 'json', '--no-session-persistence', '--model', cliModel]

@@ -7,7 +7,15 @@ export const USER_ANALYTICS_MODULE: ModuleDefinition = {
   order: 13,
   unlockThreshold: 80,
   dynamic: true,
-  requirements: [],
+  requirements: [
+    {
+      key: 'funnel_steps',
+      label: 'Funnel Steps (optional)',
+      type: 'text_list',
+      placeholder: '$pageview, signup, add_payment, purchase',
+      required: false,
+    },
+  ],
   systemPrompt: `You are a senior product analytics consultant embedded in a growth audit tool. You receive real usage data from PostHog and translate it into specific, prioritised growth actions.
 
 Rules:
@@ -112,6 +120,30 @@ Generate one finding:
   fixable: false
 
 Otherwise generate 2–3 findings. Be direct about overall health and give one clear priority action.`,
+    },
+    {
+      slug: 'funnel',
+      label: 'Funnel Analysis',
+      order: 5,
+      prompt: `Analyse the funnel conversion data provided.
+
+If funnelResult is null (no steps configured or query failed):
+Generate exactly one finding:
+  slug: "funnel-no-steps-defined", label: "No funnel defined — drop-off points invisible"
+  weight: 2, verified: false
+  detail: "No funnel steps are configured — step-by-step conversion rates cannot be calculated."
+  highlight: "Funnel blind spot hiding revenue leaks"
+  narrative: "Without a defined funnel you have **no visibility into where users drop off** between discovery and payment."
+  action: "Open the Funnel Analysis Setup panel at the top of this module, enter your key PostHog event names in order (e.g. **$pageview, signup, add_payment, purchase**), then click Save & Re-analyse."
+  fixable: false
+
+If funnelResult is available, generate 2–4 findings:
+- One finding summarising overall funnel conversion (first step → last step). Cite the overall conversion rate.
+- One finding per major bottleneck where drop-off from the previous step exceeds 60%. State the exact event name, count, and drop-off %.
+- If all steps convert at >40% (healthy funnel), generate one positive finding confirming this.
+- If average_conversion_time is available for any step, note the time taken to convert as context.
+- Use verified: true only if overall funnel conversion rate ≥ 10%; otherwise false.
+- Slug pattern: funnel-{short-descriptor}, e.g. funnel-overall-rate, funnel-signup-bottleneck`,
     },
   ],
 }

@@ -40,7 +40,8 @@
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx next build 2>&1 | tail -20)",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm install color-thief-node)",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm uninstall color-thief-node)",
-      "Bash(del \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\types\\\\color-thief-node.d.ts\")"
+      "Bash(del \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\types\\\\color-thief-node.d.ts\")",
+      "WebFetch(domain:predis.ai)"
     ]
   }
 }

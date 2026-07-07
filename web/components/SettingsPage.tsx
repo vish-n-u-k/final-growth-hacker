@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { IntegrationDefinition } from '@/lib/integrations/registry'
 import { INTEGRATION_GROUPS } from '@/lib/integrations/registry'
+import { PLAYBOOK_FIELDS, PLAYBOOK_SECTIONS } from '@/lib/playbook/fields'
 
 interface ConnectedIntegration {
   status: string
@@ -14,15 +15,16 @@ interface ConnectedIntegration {
 }
 
 interface Props {
-  brand: { name: string; websiteUrl: string }
+  brand: { name: string; websiteUrl: string; keywords: string; industry: string; targetAudience: string; usp: string; brandVoice: string }
+  playbook: Record<string, string> | null
   userEmail: string
   integrationRegistry: IntegrationDefinition[]
   connectedIntegrations: Record<string, ConnectedIntegration>
 }
 
-type Tab = 'brand' | 'integrations' | 'account'
+type Tab = 'brand' | 'playbook' | 'integrations' | 'account'
 
-export default function SettingsPage({ brand, userEmail, integrationRegistry, connectedIntegrations }: Props) {
+export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations }: Props) {
   const [tab, setTab] = useState<Tab>('brand')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const router = useRouter()
@@ -79,6 +81,7 @@ export default function SettingsPage({ brand, userEmail, integrationRegistry, co
         <nav className="st-tabs">
           {([
             { key: 'brand', label: 'Brand', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+            { key: 'playbook', label: 'Playbook', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
             { key: 'integrations', label: 'Integrations', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
             { key: 'account', label: 'Account', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
           ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(({ key, label, icon }) => (
@@ -96,6 +99,7 @@ export default function SettingsPage({ brand, userEmail, integrationRegistry, co
         {/* Content */}
         <div className="st-content">
           {tab === 'brand' && <BrandSection brand={brand} />}
+          {tab === 'playbook' && <PlaybookSection playbook={playbook} />}
           {tab === 'integrations' && (
             <IntegrationsSection
               registry={integrationRegistry}
@@ -109,11 +113,122 @@ export default function SettingsPage({ brand, userEmail, integrationRegistry, co
   )
 }
 
+// ── Playbook Section ──────────────────────────────────────────────────────────
+
+function PlaybookSection({ playbook }: { playbook: Record<string, string> | null }) {
+  const [values, setValues] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {}
+    for (const f of PLAYBOOK_FIELDS) init[f.key] = playbook?.[f.key] ?? ''
+    return init
+  })
+  const [openSections, setOpenSections] = useState<Set<string>>(new Set([PLAYBOOK_SECTIONS[0]?.id ?? '']))
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+  const router = useRouter()
+
+  const toggleSection = (id: string) => setOpenSections(prev => {
+    const next = new Set(prev)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setError('')
+    const res = await fetch('/api/settings/playbook', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...values, generatedAt: playbook?.generatedAt ?? new Date().toISOString() }),
+    })
+    if (res.ok) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+      router.refresh()
+    } else {
+      setError('Failed to save')
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div className="st-section">
+      <div className="st-section-hd">
+        <h2 className="st-section-title">Playbook</h2>
+        <p className="st-section-desc">
+          Your full sales playbook — generated from your website when Foundation runs. Edit any section to sharpen the AI&apos;s output. Used to enrich every module&apos;s analysis.
+        </p>
+      </div>
+      {!playbook ? (
+        <div className="st-card">
+          <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, margin: 0 }}>
+            Run Foundation analysis on the dashboard to auto-generate your full Sales Playbook. The AI will read your website and produce email templates, call scripts, objection handlers, outreach sequences, and more.
+          </p>
+        </div>
+      ) : (
+        <form onSubmit={handleSave}>
+          {PLAYBOOK_SECTIONS.map((section) => {
+            const isOpen = openSections.has(section.id)
+            return (
+              <div key={section.id} className="st-card" style={{ marginBottom: 12, padding: 0, overflow: 'hidden' }}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleSection(section.id)}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleSection(section.id)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', cursor: 'pointer', userSelect: 'none' }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{section.label}</span>
+                  <svg style={{ transform: isOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s', flexShrink: 0 }} width="14" height="14" viewBox="0 0 24 24" fill="none">
+                    <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                </div>
+                {isOpen && (
+                  <div style={{ borderTop: '1px solid var(--line)', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {section.fields.map((field) => (
+                      <div key={field.key} className="st-field" style={{ marginBottom: 0 }}>
+                        <label className="st-label">{field.label}</label>
+                        <textarea
+                          className="st-input"
+                          value={values[field.key] ?? ''}
+                          onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                          placeholder={field.placeholder}
+                          rows={field.rows}
+                          style={{ resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          {playbook.generatedAt && (
+            <p style={{ fontSize: 11, color: 'var(--text-dim)', margin: '4px 0 12px' }}>
+              Last generated: {new Date(playbook.generatedAt).toLocaleDateString()}
+            </p>
+          )}
+          {error && <p className="st-error">{error}</p>}
+          <button type="submit" disabled={saving} className="st-btn-primary">
+            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save changes'}
+          </button>
+        </form>
+      )}
+    </div>
+  )
+}
+
 // ── Brand Section ─────────────────────────────────────────────────────────────
 
-function BrandSection({ brand }: { brand: { name: string; websiteUrl: string } }) {
+function BrandSection({ brand }: { brand: { name: string; websiteUrl: string; keywords: string; industry: string; targetAudience: string; usp: string; brandVoice: string } }) {
   const [name, setName] = useState(brand.name)
   const [url, setUrl] = useState(brand.websiteUrl)
+  const [keywords, setKeywords] = useState(brand.keywords)
+  const [industry, setIndustry] = useState(brand.industry)
+  const [targetAudience, setTargetAudience] = useState(brand.targetAudience)
+  const [usp, setUsp] = useState(brand.usp)
+  const [brandVoice, setBrandVoice] = useState(brand.brandVoice)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
@@ -126,7 +241,7 @@ function BrandSection({ brand }: { brand: { name: string; websiteUrl: string } }
     const res = await fetch('/api/settings/brand', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ brandName: name, websiteUrl: url }),
+      body: JSON.stringify({ brandName: name, websiteUrl: url, keywords, industry, targetAudience, usp, brandVoice }),
     })
     if (res.ok) {
       setSaved(true)
@@ -143,7 +258,7 @@ function BrandSection({ brand }: { brand: { name: string; websiteUrl: string } }
     <div className="st-section">
       <div className="st-section-hd">
         <h2 className="st-section-title">Brand</h2>
-        <p className="st-section-desc">Your brand name and website are used across all modules and reports.</p>
+        <p className="st-section-desc">Your brand details are used to personalise audits, analysis, and reports across all modules.</p>
       </div>
       <div className="st-card">
         <form onSubmit={handleSave} className="st-form">
@@ -165,6 +280,51 @@ function BrandSection({ brand }: { brand: { name: string; websiteUrl: string } }
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://yourdomain.com"
               required
+            />
+          </div>
+          <div className="st-field">
+            <label className="st-label">Industry</label>
+            <input
+              className="st-input"
+              value={industry}
+              onChange={(e) => setIndustry(e.target.value)}
+              placeholder="e.g. SaaS, E-commerce, Healthcare"
+            />
+          </div>
+          <div className="st-field">
+            <label className="st-label">Brand keywords</label>
+            <input
+              className="st-input"
+              value={keywords}
+              onChange={(e) => setKeywords(e.target.value)}
+              placeholder="e.g. AI, content creation, marketing (comma-separated)"
+            />
+          </div>
+          <div className="st-field">
+            <label className="st-label">Target audience</label>
+            <input
+              className="st-input"
+              value={targetAudience}
+              onChange={(e) => setTargetAudience(e.target.value)}
+              placeholder="e.g. Shopify sellers, Marketing managers"
+            />
+          </div>
+          <div className="st-field">
+            <label className="st-label">Unique selling point</label>
+            <input
+              className="st-input"
+              value={usp}
+              onChange={(e) => setUsp(e.target.value)}
+              placeholder="e.g. No expertise required, AI-powered"
+            />
+          </div>
+          <div className="st-field">
+            <label className="st-label">Brand voice</label>
+            <input
+              className="st-input"
+              value={brandVoice}
+              onChange={(e) => setBrandVoice(e.target.value)}
+              placeholder="e.g. Professional, friendly, direct"
             />
           </div>
           {error && <p className="st-error">{error}</p>}

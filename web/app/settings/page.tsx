@@ -37,7 +37,16 @@ export default async function Settings() {
 
   return (
     <SettingsPage
-      brand={{ name: brand.name, websiteUrl: brand.websiteUrl }}
+      brand={{
+        name: brand.name,
+        websiteUrl: brand.websiteUrl,
+        keywords: brand.keywords ?? '',
+        industry: brand.industry ?? '',
+        targetAudience: brand.targetAudience ?? '',
+        usp: brand.usp ?? '',
+        brandVoice: brand.brandVoice ?? '',
+      }}
+      playbook={(brand.playbook as Record<string, string> | null) ?? null}
       userEmail={user.email ?? ''}
       integrationRegistry={INTEGRATION_REGISTRY}
       connectedIntegrations={connectedMap}

@@ -182,6 +182,9 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
   }, [])
   const [editingCount, setEditingCount] = useState(false)
   const [autoRunTriggered, setAutoRunTriggered] = useState(false)
+  const [funnelPanelOpen, setFunnelPanelOpen] = useState(
+    mod.type === 'user-analytics' && !mod.requirements['funnel_steps'],
+  )
   const router = useRouter()
 
   // Whether any required requirement is missing a value
@@ -844,6 +847,66 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                 </>
               )}
             </Button>
+          </div>
+        )}
+
+        {/* Funnel configuration — user-analytics only */}
+        {mod.type === 'user-analytics' && (
+          <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, marginBottom: 12 }}>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => setFunnelPanelOpen((p) => !p)}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setFunnelPanelOpen((p) => !p)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', cursor: 'pointer' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--green)', flexShrink: 0 }}>
+                <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Funnel Analysis Setup</span>
+              <span style={{ fontSize: 12, color: reqValues['funnel_steps'] ? 'var(--green)' : 'var(--text-faint)', fontWeight: 400, marginLeft: 4 }}>
+                {reqValues['funnel_steps'] ? reqValues['funnel_steps'] : 'No steps configured — click to define your funnel'}
+              </span>
+              <svg className={`md-chev${funnelPanelOpen ? ' md-chev-open' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </div>
+            {funnelPanelOpen && (
+              <div style={{ padding: '0 16px 16px', borderTop: '1px solid var(--line)' }}>
+                <p style={{ margin: '12px 0 8px', fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+                  Enter your PostHog event names in funnel order, comma-separated.{' '}
+                  <span style={{ color: 'var(--text-faint)' }}>
+                    Example:{' '}
+                    <code style={{ fontFamily: 'monospace', background: 'var(--bg)', padding: '1px 4px', borderRadius: 3 }}>
+                      $pageview, signup, add_payment, purchase
+                    </code>
+                  </span>
+                </p>
+                <textarea
+                  className="md-setup-input md-setup-textarea"
+                  placeholder="$pageview, signup, add_payment, purchase"
+                  value={reqValues['funnel_steps'] ?? ''}
+                  onChange={(e) => setReqValues((prev) => ({ ...prev, funnel_steps: e.target.value }))}
+                  rows={2}
+                  style={{ width: '100%', marginBottom: 8 }}
+                />
+                <Button
+                  size="sm"
+                  disabled={reanalyzing}
+                  onClick={() => handleReanalyze(reqValues)}
+                  className="gap-1.5 bg-[var(--green)] text-[#06140c] hover:bg-[var(--green-bright)] font-semibold text-xs"
+                >
+                  {reanalyzing ? (
+                    <>
+                      <span className="md-spin" style={{ borderTopColor: '#06140c', borderColor: '#06140c40', width: 12, height: 12 }} />
+                      Running…
+                    </>
+                  ) : (
+                    'Save & Re-analyse'
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         )}
 

@@ -221,7 +221,7 @@ Rules:
             {
               slug: 'privacy-policy',
               label: 'Privacy policy page',
-              prompt: 'Look for a link to a privacy policy page in the page content, footer, or navigation. A privacy policy is legally required in most jurisdictions and required by Google Ads, Meta Ads, and other platforms. Report whether a link or reference is found.',
+              prompt: 'Check the "probedPages.privacyUrl" field first — if it has a value, a privacy policy page was confirmed to exist at that URL and this check passes. If it is null, also scan allLinks and footerLinks for any privacy-related links as a fallback. A privacy policy is legally required in most jurisdictions and required by Google Ads and Meta Ads. Report the URL found or confirm it is missing.',
               order: 1,
               weight: 2,
               fixable: true,
@@ -236,7 +236,7 @@ Rules:
             {
               slug: 'contact-accessible',
               label: 'Contact information',
-              prompt: 'Check whether an email address, phone number, contact form link, or "Contact us" page link is present on the homepage (often in the header, footer, or navigation). Report what contact details or links are found.',
+              prompt: 'Check the "probedPages.contactUrl" field first — if it has a value, a contact page was confirmed to exist at that URL and this check passes. If it is null, also scan allLinks, navLinks, and footerLinks for contact links, or look for an email address or phone number in the body text. Report the contact URL found or what contact details are visible.',
               order: 2,
               weight: 2,
               fixGuide: [

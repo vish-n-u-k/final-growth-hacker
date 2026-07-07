@@ -1,5 +1,11 @@
 import * as cheerio from 'cheerio'
 
+export interface ProbedPages {
+  privacyUrl: string | null
+  contactUrl: string | null
+  termsUrl: string | null
+}
+
 export interface FoundationExtracted {
   title: string
   metaRobots: string
@@ -21,6 +27,7 @@ export interface FoundationExtracted {
   allLinks: { text: string; href: string }[]
   ctaTexts: string[]
   socialLinks: Record<string, string>
+  probedPages: ProbedPages
 }
 
 const SOCIAL_DETECTORS: { key: string; test: (href: string) => boolean }[] = [
@@ -204,6 +211,7 @@ function extractFoundationData(html: string): FoundationExtracted {
     allLinks: allLinks.slice(0, 50),
     ctaTexts: ctaTexts.slice(0, 10),
     socialLinks,
+    probedPages: { privacyUrl: null, contactUrl: null, termsUrl: null },
   }
 }
 
@@ -275,6 +283,43 @@ export async function getFaviconColor(faviconUrl: string): Promise<string> {
   }
 }
 
+const PRIVACY_PATHS = ['/privacy-policy', '/privacy', '/legal/privacy', '/legal', '/terms-privacy']
+const CONTACT_PATHS = ['/contact', '/contact-us', '/support', '/help', '/reach-us']
+const TERMS_PATHS  = ['/terms', '/terms-of-service', '/terms-and-conditions', '/tos', '/legal/terms']
+
+async function probeFirstMatch(origin: string, paths: string[]): Promise<string | null> {
+  const results = await Promise.all(
+    paths.map(async (path) => {
+      try {
+        const res = await fetch(`${origin}${path}`, {
+          method: 'HEAD',
+          signal: AbortSignal.timeout(5000),
+          headers: { 'User-Agent': 'GrowthHackerBot/1.0' },
+          redirect: 'follow',
+        })
+        return res.ok ? `${origin}${path}` : null
+      } catch {
+        return null
+      }
+    }),
+  )
+  return results.find((r) => r !== null) ?? null
+}
+
+async function probePages(url: string): Promise<ProbedPages> {
+  try {
+    const origin = new URL(url).origin
+    const [privacyUrl, contactUrl, termsUrl] = await Promise.all([
+      probeFirstMatch(origin, PRIVACY_PATHS),
+      probeFirstMatch(origin, CONTACT_PATHS),
+      probeFirstMatch(origin, TERMS_PATHS),
+    ])
+    return { privacyUrl, contactUrl, termsUrl }
+  } catch {
+    return { privacyUrl: null, contactUrl: null, termsUrl: null }
+  }
+}
+
 async function safeFetch(url: string, timeoutMs = 12000): Promise<string | null> {
   try {
     const controller = new AbortController()
@@ -295,12 +340,15 @@ async function safeFetch(url: string, timeoutMs = 12000): Promise<string | null>
 export async function fetchFoundationData(requirements: Record<string, string>): Promise<FoundationFetchResult> {
   const rawUrl = requirements['website_url'] ?? ''
   const url = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`
-  const [html, { customDomain, hostingPlatform }] = await Promise.all([
+  const [html, { customDomain, hostingPlatform }, probedPagesResult] = await Promise.all([
     safeFetch(url),
     Promise.resolve(detectFreeHosting(url)),
+    probePages(url),
   ])
+  const extracted = html ? extractFoundationData(html) : null
+  if (extracted) extracted.probedPages = probedPagesResult
   return {
-    extracted: html ? extractFoundationData(html) : null,
+    extracted,
     url,
     customDomain,
     hostingPlatform,
