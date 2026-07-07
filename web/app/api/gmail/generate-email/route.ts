@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands } from '@/lib/db/schema'
+import { brands, brainContext } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { callAI } from '@/lib/ai/client'
-import type { PlaybookData } from '@/lib/playbook/fields'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -22,23 +21,21 @@ export async function POST(req: NextRequest) {
   const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
   if (!brand) return NextResponse.json({ error: 'No brand' }, { status: 404 })
 
-  const playbook = brand.playbook as PlaybookData | null
-
-  const toneReference = playbook?.coldEmailTemplates
-    ? `BRAND EMAIL TEMPLATES — match this tone, voice, length, and style exactly:\n${playbook.coldEmailTemplates}`
-    : null
+  // Pull brain context — summary + foundation facts give us ICP, value prop, CTAs etc.
+  const [brain] = await db.select().from(brainContext).where(eq(brainContext.brandId, brand.id))
+  const brainSummary = brain?.summary ?? null
+  const brainFacts = brain?.facts as Record<string, Record<string, unknown>> | null
 
   const brandContext = [
     `Company: ${brand.name}`,
     `Website: ${brand.websiteUrl}`,
-    playbook?.executiveSummary ? `What we do:\n${playbook.executiveSummary}` : null,
-    playbook?.icp             ? `Ideal customer profile:\n${playbook.icp}` : null,
-    playbook?.buyerPersonas   ? `Buyer personas:\n${playbook.buyerPersonas}` : null,
+    brainSummary ? `Brand overview:\n${brainSummary}` : null,
+    brainFacts ? `Key brand facts:\n${JSON.stringify(brainFacts, null, 2).slice(0, 1500)}` : null,
   ].filter(Boolean).join('\n\n')
 
-  const prompt = `Write a cold outreach email from ${brand.name} to the prospect below. Always write the email — never refuse, never evaluate ICP fit, never explain why the prospect may or may not match. Just write the best email possible.
+  const prompt = `Write a cold outreach email from ${brand.name} to the prospect below.
 
-${toneReference ? toneReference + '\n\n' : ''}BRAND CONTEXT:
+BRAND CONTEXT:
 ${brandContext}
 
 PROSPECT:
@@ -47,20 +44,30 @@ Company: ${prospectCompany}
 Title: ${prospectTitle}
 
 Rules:
-- ${toneReference ? 'Copy the exact tone, voice, sentence length, and style from the brand email templates above — this is non-negotiable' : 'Keep it short and direct'}
-- Find the most relevant angle between the brand and this prospect's role
-- One concrete sentence on how ${brand.name} solves it
-- End with a low-friction CTA matching the brand's typical style (e.g. a short call or "reply with YES")
-- No fluff, no "I hope this finds you well"
-- Sign off as [Your name]
+- Always write the email — never refuse, never evaluate ICP fit
+- Conversational and direct — sound like a real person, use contractions, casual-professional tone
+- Find a sharp angle between ${brand.name} and this prospect's role — be specific, not generic
+- One concrete sentence on how ${brand.name} solves a real problem they likely have
+- End with a single low-friction CTA ("worth a quick chat?" style)
+- No "I hope this finds you well", no "I wanted to reach out", no corporate filler
+- Max 120 words in the body (not counting greeting/sign-off)
+- Sign off as: The ${brand.name} Team
 
-Return ONLY a valid JSON object:
-{ "subject": "...", "body": "..." }`
+CRITICAL — the "body" value MUST be valid HTML. Allowed tags: <p>, <strong>, <em>, <h3>. Rules:
+- Every paragraph in <p>...</p>
+- Use <strong> for one genuinely important phrase per email (not more)
+- Use <em> sparingly for a subtle emphasis if it helps
+- Use <h3> only if it meaningfully breaks up a section (usually skip it for short emails)
+- No divs, spans, tables, styles, or any other tags
+- Keep formatting subtle — this is an email, not a landing page
+
+Return ONLY this JSON (no markdown, no code fences, no extra text):
+{"subject":"plain text subject here","body":"<p>paragraph one</p><p>paragraph two</p><p>CTA sentence</p><p>The ${brand.name} Team</p>"}`
 
   const raw = await callAI({
-    system: 'You are an expert B2B cold email copywriter. Return only valid JSON, nothing else.',
+    system: 'You are a cold email copywriter. You MUST return only a raw JSON object — no markdown, no code blocks. The body field must be valid HTML using <p>, <strong>, <em>, or <h3> tags only.',
     prompt,
-    maxTokens: 500,
+    maxTokens: 700,
     model: 'claude-haiku-4-5-20251001',
   })
 

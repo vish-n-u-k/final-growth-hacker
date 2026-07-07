@@ -1,3 +1,4 @@
+import { GMAIL_OUTREACH_MODULE } from './gmail-outreach/definition'
 import { USER_ACQUISITION_MODULE } from './user-acquisition/definition'
 import { BACKLINKS_MODULE } from './backlinks/definition'
 import { FOUNDATION_MODULE } from './foundation/definition'
@@ -35,6 +36,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
   BACKLINKS_MODULE,               // order: 12 — Coming Soon
   USER_ANALYTICS_MODULE,          // order: 13
   BUSINESS_STAGE_MODULE,          // order: 14
+  GMAIL_OUTREACH_MODULE,          // order: 15
 ]
 
 export const MODULE_MAP: Record<string, ModuleDefinition> = Object.fromEntries(

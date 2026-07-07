@@ -12,6 +12,7 @@ import ComingSoon from '@/components/ComingSoon'
 import { type DBItemState } from './ModuleDashboard'
 import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/registry'
 import { PLAYBOOK_SECTIONS } from '@/lib/playbook/fields'
+import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 
 export interface ModuleData {
   id: string
@@ -1224,7 +1225,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 <div className="level-head" onClick={() => !isLocked && toggleModule(modData.id)}>
                   <div
                     className="level-badge"
-                    style={!isLocked ? {
+                    style={!isLocked && modData.type !== 'gmail-outreach' ? {
                       borderColor: ringColor(liveScore) + '60',
                       background: ringColor(liveScore) + '0d',
                       boxShadow: `0 0 0 1px ${ringColor(liveScore)}25, 0 0 14px ${ringColor(liveScore)}18`,
@@ -1234,6 +1235,11 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                         <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
                         <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                    ) : modData.type === 'gmail-outreach' ? (
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                        <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.7"/>
+                        <path d="M2 7l10 7 10-7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     ) : (
                       <LevelRing score={liveScore} />
@@ -1266,7 +1272,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     </div>
                   )}
 
-                  {!isLocked && !def.comingSoon && (
+                  {!isLocked && !def.comingSoon && !(modData.type === 'gmail-outreach' && !connectedIntegrations['gmail']) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={e => e.stopPropagation()}>
                       {!!effectiveLastAnalyzedAt && modData.type !== 'community-finder' && (
                         <button
@@ -1552,7 +1558,45 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         )}
                       </div>
                     )}
-                    <div className="md-cats" style={modData.type === 'business-stage' ? { display: 'none' } : needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
+                    {/* Gmail Outreach — gate on Gmail connection */}
+                    {modData.type === 'gmail-outreach' && (
+                      connectedIntegrations['gmail'] ? (
+                        <GmailOutreachProspects
+                          items={dynItems}
+                          gmailConnected={true}
+                        />
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '48px 28px 52px', textAlign: 'center' }}>
+                          <div style={{ width: 52, height: 52, borderRadius: 14, background: 'var(--accent)', border: '1px solid var(--line)', display: 'grid', placeItems: 'center', color: 'var(--green-bright)' }}>
+                            <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                              <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.7"/>
+                              <path d="M2 7l10 7 10-7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Connect Gmail to use this module</div>
+                            <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, maxWidth: 360 }}>
+                              This module identifies potential clients from your website and lets you generate and send cold emails directly from Growth Hacker.
+                            </div>
+                          </div>
+                          <a
+                            href="/api/gmail/connect"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 22px', borderRadius: 10, background: 'var(--green)', border: 'none', fontSize: 13.5, fontWeight: 700, color: '#06140c', textDecoration: 'none', transition: '.15s' }}
+                          >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                              <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.8"/>
+                              <path d="M2 7l10 7 10-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            Connect Gmail
+                          </a>
+                          <p style={{ fontSize: 11.5, color: 'var(--text-faint)', margin: 0 }}>
+                            Read-only + compose access · No emails sent without your confirmation
+                          </p>
+                        </div>
+                      )
+                    )}
+
+                    <div className="md-cats" style={(modData.type === 'business-stage' || modData.type === 'gmail-outreach') ? { display: 'none' } : needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
                       {def.comingSoon ? (
                         <ComingSoon
                           variant="module"

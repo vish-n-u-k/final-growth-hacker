@@ -34,7 +34,8 @@ export async function POST(req: NextRequest) {
   const message = [
     `To: ${to}`,
     `Subject: ${subject}`,
-    'Content-Type: text/plain; charset=utf-8',
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=utf-8',
     '',
     body,
   ].join('\r\n')

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -28,7 +28,7 @@ interface Draft {
 }
 interface Limit { name: string; severity: 'high' | 'medium' | 'low'; problem: string; solution: string }
 interface Prospect { id: string; name: string; email: string; company: string; title: string }
-interface ProspectState { status: ProspectStatus; subject: string; body: string; toEmail?: string; error?: string }
+interface ProspectState { status: ProspectStatus; subject: string; body: string; toEmail?: string; error?: string; editingHtml?: boolean }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
@@ -267,7 +267,7 @@ export default function GmailHub({
 }) {
   const [isConnected, setIsConnected]         = useState(initialConnected)
   const [activeTab, setActiveTab]             = useState<Tab>('inbox')
-  const [selectedId, setSelectedId]           = useState('t1')
+  const [selectedId, setSelectedId]           = useState<string>('')
   const [copied, setCopied]                   = useState<string | null>(null)
   const [expandedDraft, setExpandedDraft]     = useState<string | null>('d1')
   const [inboxFilter, setInboxFilter]         = useState<InboxFilter>('all')
@@ -276,6 +276,72 @@ export default function GmailHub({
   const [prospectStates, setProspectStates]     = useState<Record<string, ProspectState>>({})
   const [expandedProspect, setExpandedProspect] = useState<string | null>(null)
   const [needsReconnect, setNeedsReconnect]     = useState(false)
+  // Real inbox state
+  const [inboxThreads, setInboxThreads]       = useState<Thread[]>([])
+  const [inboxLoading, setInboxLoading]       = useState(false)
+  const [loadingMsgs, setLoadingMsgs]         = useState<Set<string>>(new Set())
+  const [summarizing, setSummarizing]         = useState<Set<string>>(new Set())
+
+  // ── Inbox fetch ───────────────────────────────────────────────────────────
+
+  const fetchInbox = useCallback(async () => {
+    setInboxLoading(true)
+    try {
+      const res  = await fetch('/api/gmail/inbox')
+      const data = await res.json() as Thread[]
+      if (res.ok && Array.isArray(data)) {
+        setInboxThreads(data)
+        if (data.length > 0) setSelectedId(data[0].id)
+      }
+    } catch { /* silent */ } finally {
+      setInboxLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (isConnected) fetchInbox()
+  }, [isConnected, fetchInbox])
+
+  async function fetchMessages(threadId: string) {
+    setLoadingMsgs(prev => new Set(prev).add(threadId))
+    try {
+      const res  = await fetch(`/api/gmail/thread/${threadId}`)
+      const msgs = await res.json() as { from: string; time: string; body: string; isSelf: boolean }[]
+      if (res.ok && Array.isArray(msgs)) {
+        setInboxThreads(prev => prev.map(t => t.id === threadId ? { ...t, messages: msgs } : t))
+      }
+    } catch { /* silent */ } finally {
+      setLoadingMsgs(prev => { const s = new Set(prev); s.delete(threadId); return s })
+    }
+  }
+
+  async function generateSummary(thread: Thread) {
+    if (!thread.messages.length) return
+    setSummarizing(prev => new Set(prev).add(thread.id))
+    try {
+      const res  = await fetch('/api/gmail/summarize-thread', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: thread.subject, messages: thread.messages }),
+      })
+      const data = await res.json() as { summary?: string; draft?: string }
+      if (res.ok) {
+        setInboxThreads(prev => prev.map(t =>
+          t.id === thread.id
+            ? { ...t, aiSummary: data.summary ?? '', aiDraft: data.draft ?? '' }
+            : t,
+        ))
+      }
+    } catch { /* silent */ } finally {
+      setSummarizing(prev => { const s = new Set(prev); s.delete(thread.id); return s })
+    }
+  }
+
+  function handleSelectThread(id: string) {
+    setSelectedId(id)
+    const t = inboxThreads.find(x => x.id === id)
+    if (t && t.messages.length === 0 && !loadingMsgs.has(id)) fetchMessages(id)
+  }
 
   async function handleDisconnect() {
     setDisconnecting(true)
@@ -360,18 +426,18 @@ export default function GmailHub({
     }
   }
 
-  const thread = THREADS.find(t => t.id === selectedId) ?? THREADS[0]
+  const thread = inboxThreads.find(t => t.id === selectedId) ?? inboxThreads[0] ?? null
 
-  const filteredThreads = THREADS.filter(t => {
+  const filteredThreads = inboxThreads.filter(t => {
     if (inboxFilter === 'all') return true
     if (inboxFilter === 'leads') return ['hot', 'warm', 'cold', 'followup'].includes(t.tag ?? '')
     return t.tag === inboxFilter
   })
 
-  const hotLeadCount  = THREADS.filter(t => t.tag === 'hot').length
-  const leadCount     = THREADS.filter(t => ['hot', 'warm', 'cold', 'followup'].includes(t.tag ?? '')).length
-  const pressCount    = THREADS.filter(t => t.tag === 'press').length
-  const partnerCount  = THREADS.filter(t => t.tag === 'partnership').length
+  const hotLeadCount  = inboxThreads.filter(t => t.tag === 'hot').length
+  const leadCount     = inboxThreads.filter(t => ['hot', 'warm', 'cold', 'followup'].includes(t.tag ?? '')).length
+  const pressCount    = inboxThreads.filter(t => t.tag === 'press').length
+  const partnerCount  = inboxThreads.filter(t => t.tag === 'partnership').length
 
   function copyText(text: string, id: string) {
     navigator.clipboard.writeText(text)
@@ -619,9 +685,25 @@ export default function GmailHub({
                 </button>
               ))}
               <span className="gh-filter-sep" />
-              <span className="gh-filter-info">{filteredThreads.length} thread{filteredThreads.length !== 1 ? 's' : ''}</span>
+              <span className="gh-filter-info">{inboxLoading ? 'Loading…' : `${filteredThreads.length} thread${filteredThreads.length !== 1 ? 's' : ''}`}</span>
+              <button
+                style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-faint)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' }}
+                onClick={fetchInbox}
+                disabled={inboxLoading}
+              >
+                {inboxLoading ? 'Refreshing…' : 'Refresh'}
+              </button>
             </div>
 
+            {inboxLoading && inboxThreads.length === 0 ? (
+              <div style={{ padding: '48px 28px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
+                Loading inbox…
+              </div>
+            ) : !inboxLoading && inboxThreads.length === 0 ? (
+              <div style={{ padding: '48px 28px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
+                No emails in inbox.
+              </div>
+            ) : (
             <div className="gh-inbox-layout">
 
               {/* Thread list */}
@@ -630,7 +712,7 @@ export default function GmailHub({
                   <button
                     key={t.id}
                     className={`gh-thread-item${selectedId === t.id ? ' active' : ''}${!t.isRead ? ' unread' : ''}`}
-                    onClick={() => setSelectedId(t.id)}
+                    onClick={() => handleSelectThread(t.id)}
                   >
                     {!t.isRead && <span className="gh-unread-dot" />}
                     <div className={`gh-thread-av gh-av-${t.tag ?? 'default'}`}>{t.initials}</div>
@@ -666,29 +748,55 @@ export default function GmailHub({
 
                   {/* Message thread */}
                   <div className="gh-messages">
-                    {thread.messages.map((msg, i) => (
-                      <div key={i} className={`gh-msg${msg.isSelf ? ' gh-msg-self' : ''}`}>
-                        {!msg.isSelf && (
-                          <div className={`gh-msg-av gh-av-${thread.tag ?? 'default'}`}>{thread.initials}</div>
-                        )}
-                        <div className={`gh-msg-bubble${msg.isSelf ? ' self' : ''}`}>
-                          <div className="gh-msg-meta">
-                            <span className="gh-msg-from">{msg.from}</span>
-                            <span className="gh-msg-time">{msg.time}</span>
-                          </div>
-                          <pre className="gh-msg-body">{msg.body}</pre>
-                        </div>
+                    {loadingMsgs.has(thread.id) ? (
+                      <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading messages…</div>
+                    ) : thread.messages.length === 0 ? (
+                      <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
+                        <button
+                          style={{ fontSize: 12.5, color: 'var(--green)', background: 'transparent', border: '1px solid var(--green)', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit' }}
+                          onClick={() => fetchMessages(thread.id)}
+                        >
+                          Load messages
+                        </button>
                       </div>
-                    ))}
+                    ) : (
+                      thread.messages.map((msg, i) => (
+                        <div key={i} className={`gh-msg${msg.isSelf ? ' gh-msg-self' : ''}`}>
+                          {!msg.isSelf && (
+                            <div className={`gh-msg-av gh-av-${thread.tag ?? 'default'}`}>{thread.initials}</div>
+                          )}
+                          <div className={`gh-msg-bubble${msg.isSelf ? ' self' : ''}`}>
+                            <div className="gh-msg-meta">
+                              <span className="gh-msg-from">{msg.from}</span>
+                              <span className="gh-msg-time">{msg.time}</span>
+                            </div>
+                            <pre className="gh-msg-body">{msg.body}</pre>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
 
                   {/* AI Summary */}
                   <div className="gh-ai-summary">
-                    <div className="gh-ai-label">
-                      <IcAI />
-                      AI Summary
+                    <div className="gh-ai-label" style={{ justifyContent: 'space-between' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><IcAI />AI Summary</span>
+                      {thread.messages.length > 0 && (
+                        <button
+                          style={{ fontSize: 11, color: 'var(--text-faint)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '2px 9px', cursor: 'pointer', fontFamily: 'inherit' }}
+                          onClick={() => generateSummary(thread)}
+                          disabled={summarizing.has(thread.id)}
+                        >
+                          {summarizing.has(thread.id) ? 'Generating…' : thread.aiSummary ? 'Regenerate' : 'Generate'}
+                        </button>
+                      )}
                     </div>
-                    <p className="gh-ai-text">{thread.aiSummary}</p>
+                    {thread.aiSummary
+                      ? <p className="gh-ai-text">{thread.aiSummary}</p>
+                      : <p className="gh-ai-text" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>
+                          {summarizing.has(thread.id) ? 'Analysing thread…' : 'Click Generate to get an AI summary of this thread.'}
+                        </p>
+                    }
                   </div>
 
                   {/* AI Draft */}
@@ -706,12 +814,12 @@ export default function GmailHub({
                       <pre className="gh-draft-body">{thread.aiDraft}</pre>
                       <div className="gh-draft-actions">
                         <button className="gh-draft-save">Save to Gmail Drafts</button>
-                        <button className="gh-draft-regen">Regenerate</button>
+                        <button className="gh-draft-regen" onClick={() => generateSummary(thread)}>Regenerate</button>
                       </div>
                     </div>
-                  ) : (
-                    <div className="gh-no-draft">No draft needed for this thread type</div>
-                  )}
+                  ) : !summarizing.has(thread.id) && thread.messages.length > 0 && thread.aiSummary ? (
+                    <div className="gh-no-draft">No reply needed for this thread</div>
+                  ) : null}
 
                   {/* Quick actions */}
                   <div className="gh-quick-actions">
@@ -725,6 +833,7 @@ export default function GmailHub({
                 </div>
               )}
             </div>
+            )}
           </div>
         )}
 
@@ -978,18 +1087,39 @@ export default function GmailHub({
                             />
                           </div>
                           <div className="gh-ee-field">
-                            <label className="gh-ee-label">Body</label>
-                            <textarea
-                              className="gh-ee-textarea"
-                              rows={11}
-                              value={state.body}
-                              onChange={e =>
-                                setProspectStates(prev => ({
-                                  ...prev,
-                                  [prospect.id]: { ...state, body: e.target.value },
-                                }))
-                              }
-                            />
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                              <label className="gh-ee-label" style={{ marginBottom: 0 }}>Body</label>
+                              <button
+                                style={{ fontSize: 10.5, color: 'var(--text-faint)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '2px 9px', cursor: 'pointer', fontFamily: 'inherit' }}
+                                onClick={() =>
+                                  setProspectStates(prev => ({
+                                    ...prev,
+                                    [prospect.id]: { ...state, editingHtml: !state.editingHtml },
+                                  }))
+                                }
+                              >
+                                {state.editingHtml ? 'Preview' : 'Edit HTML'}
+                              </button>
+                            </div>
+                            {state.editingHtml ? (
+                              <textarea
+                                className="gh-ee-textarea"
+                                rows={11}
+                                style={{ fontFamily: 'monospace', fontSize: 12.5 }}
+                                value={state.body}
+                                onChange={e =>
+                                  setProspectStates(prev => ({
+                                    ...prev,
+                                    [prospect.id]: { ...state, body: e.target.value },
+                                  }))
+                                }
+                              />
+                            ) : (
+                              <div
+                                className="gh-ee-preview"
+                                dangerouslySetInnerHTML={{ __html: state.body }}
+                              />
+                            )}
                           </div>
                         </div>
 
@@ -1022,7 +1152,7 @@ export default function GmailHub({
                           </button>
                           <button
                             className="gh-draft-copy"
-                            onClick={() => copyText(`Subject: ${state.subject}\n\n${state.body}`, prospect.id)}
+                            onClick={() => copyText(`Subject: ${state.subject}\n\n${state.body.replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim()}`, prospect.id)}
                           >
                             {copied === prospect.id ? 'Copied' : 'Copy'}
                           </button>
