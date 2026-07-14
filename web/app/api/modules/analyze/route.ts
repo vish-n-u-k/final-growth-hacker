@@ -70,7 +70,20 @@ async function runAnalysis(
     case 'foundation': {
       const data = await fetchFoundationData(requirements)
       if (!data.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)
-      const { results } = await analyzeFoundation(data)
+      let gscMeta: Record<string, string> = {}
+      if (requirements['brand_id']) {
+        const [gscRow] = await db
+          .select()
+          .from(brandIntegrations)
+          .where(and(
+            eq(brandIntegrations.brandId, requirements['brand_id']),
+            eq(brandIntegrations.provider, 'google_search_console'),
+            eq(brandIntegrations.status, 'connected'),
+          ))
+          .limit(1)
+        if (gscRow) gscMeta = (gscRow.metadata as Record<string, string> | null) ?? {}
+      }
+      const { results } = await analyzeFoundation(data, gscMeta)
       return results
     }
     case 'website': {

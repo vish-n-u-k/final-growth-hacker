@@ -175,13 +175,15 @@ Schema markup: ${u.hasSchema ? 'Yes' : 'No'}
 Images: ${u.imgCount} total, ${u.imgWithAlt} with alt text
 Internal links: ~${u.internalLinks}
 Distinctive TF-IDF terms: ${data.userTopTerms.join(', ')}
-PageSpeed (mobile): ${formatPsi(data.userPsi)}`
+PageSpeed (mobile): ${formatPsi(data.userPsi)}
+${data.userUrlProfile}`
 }
 
 function formatCompetitorSection(c: CompetitorAnalysisFetchResult['competitors'][number], index: number): string {
   if (c.fetchFailed) {
     return `=== Competitor ${index + 1}: ${c.url} ===
-FETCH FAILED — could not access this site. Include in competitor discovery as "could not be verified". Skip all data-dependent checks for this competitor.`
+FETCH FAILED — could not access this site. Include in competitor discovery as "could not be verified". Skip all data-dependent checks for this competitor.
+${c.urlProfile}`
   }
   const p = c.parsed
   return `=== Competitor ${index + 1}: ${c.url} ===
@@ -194,7 +196,8 @@ Schema markup: ${p.hasSchema ? 'Yes' : 'No'}
 Images: ${p.imgCount} total, ${p.imgWithAlt} with alt text
 Internal links: ~${p.internalLinks}
 Distinctive TF-IDF terms: ${c.topTerms.join(', ')}
-PageSpeed (mobile): ${formatPsi(c.psi)}`
+PageSpeed (mobile): ${formatPsi(c.psi)}
+${c.urlProfile}`
 }
 
 async function runClaudeAnalysis(

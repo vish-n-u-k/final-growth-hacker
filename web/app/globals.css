@@ -986,6 +986,60 @@ header {
 
 /* ── Module ring (circular progress in sidebar) — colors handled inline ─── */
 
+/* ── Skip feature ─────────────────────────────────────────────────────────── */
+.md-item-skipped { opacity: 0.45; }
+.md-item-skipped .md-item-lbl { color: var(--text-faint); text-decoration: line-through; text-decoration-color: rgba(255,255,255,0.2); }
+
+/* Skip section — lives inside sm-expanded-body, same style as draft section */
+.md-skip-section {
+  display: flex; flex-direction: column; gap: 10px;
+  padding-top: 12px; border-top: 1px solid var(--line);
+}
+.md-skip-section-label {
+  font-size: 10px; font-weight: 700; color: var(--text-faint);
+  letter-spacing: .7px; text-transform: uppercase;
+}
+.md-skip-btn {
+  display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+  padding: 8px 16px; border-radius: 9px; font-size: 12px; font-weight: 500;
+  background: transparent; border: 1px solid var(--line);
+  color: var(--text-faint); cursor: pointer; font-family: inherit;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.md-skip-btn:hover { border-color: rgba(255,255,255,0.22); color: var(--text-dim); background: rgba(255,255,255,0.03); }
+.md-skip-form { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.md-skip-input {
+  flex: 1; min-width: 160px; padding: 9px 12px; border-radius: 8px;
+  background: var(--bg); border: 1px solid var(--line);
+  color: var(--text); font-size: 12.5px; font-family: inherit;
+  outline: none; transition: border-color .15s; box-sizing: border-box;
+}
+.md-skip-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-glow); }
+.md-skip-input::placeholder { color: var(--text-faint); }
+.md-skip-confirm {
+  padding: 9px 16px; border-radius: 9px; white-space: nowrap;
+  background: rgba(47,191,113,0.14); border: 1px solid rgba(47,191,113,0.35);
+  color: var(--green); font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: background .15s;
+}
+.md-skip-confirm:hover { background: rgba(47,191,113,0.26); }
+.md-skip-cancel {
+  padding: 9px 12px; border-radius: 9px; white-space: nowrap;
+  background: transparent; border: 1px solid var(--line);
+  color: var(--text-faint); font-size: 12px; cursor: pointer;
+  font-family: inherit; transition: border-color .15s, color .15s;
+}
+.md-skip-cancel:hover { border-color: rgba(255,255,255,0.2); color: var(--text-dim); }
+/* Fallback: skip control for items with no expandable content */
+.md-skip-control { margin-top: 6px; }
+/* Unskip link */
+.md-skip-unskip {
+  font-size: 11px; color: var(--text-faint); background: none; border: none;
+  cursor: pointer; text-decoration: underline; text-decoration-style: dotted;
+  text-underline-offset: 2px; padding: 0; font-family: inherit;
+}
+.md-skip-unskip:hover { color: var(--text-dim); }
+
 /* ── Social item hybrid (expanded narrative + action) ───────────────────── */
 
 .sm-item { transition: background .1s; }
@@ -1584,6 +1638,13 @@ html.light .sm-fix-guide-num { background: #d0eadb; color: var(--green); }
 html.light .sm-setup-link { background: var(--accent); color: var(--green); }
 html.light .st-guide { background: var(--bg-soft); }
 html.light .st-guide-step::before { color: #ffffff; }
+
+html.light .md-skip-btn { border-color: #d0d0d0; color: #888; }
+html.light .md-skip-btn:hover { border-color: #999; color: #555; background: rgba(0,0,0,0.03); }
+html.light .md-skip-input { background: #f5f5f5; border-color: #d0d0d0; color: #111; }
+html.light .md-skip-cancel { border-color: #d0d0d0; color: #888; }
+html.light .md-skip-unskip { color: #999; }
+html.light .md-item-skipped .md-item-lbl { text-decoration-color: rgba(0,0,0,0.2); }
 
 html.light .sm-draft-content { background: #f2f8f4; border-color: var(--line); }
 html.light .sm-draft-btn,
@@ -3086,12 +3147,9 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
 .gh-ee-input:focus { border-color: var(--lime); }
 .gh-ee-textarea { background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 12px 14px; font-size: 13.5px; color: var(--text); font-family: inherit; line-height: 1.7; resize: vertical; outline: none; transition: border-color .15s; width: 100%; box-sizing: border-box; }
 .gh-ee-textarea:focus { border-color: var(--lime); }
-.gh-ee-preview { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 9px; padding: 28px 30px; min-height: 160px; }
-.gh-ee-preview p { margin: 0 0 18px; font-size: 16px; line-height: 1.8; color: var(--text); }
-.gh-ee-preview p:last-child { margin-bottom: 0; }
-.gh-ee-preview strong { color: var(--text); font-weight: 700; }
-.gh-ee-preview em { color: var(--text-dim); font-style: italic; }
-.gh-ee-preview h3 { font-size: 16px; font-weight: 700; color: var(--green-bright); margin: 0 0 12px; }
+.gh-ee-preview { background: #f2f4f3; border: 1px solid var(--line); border-radius: 10px; padding: 0; min-height: 160px; overflow: hidden; }
+.gh-ee-preview table { border-collapse: collapse; }
+.gh-ee-preview a[style*="background:#1a1a1a"] { color: #ffffff !important; }
 
 /* ── Gmail Outreach Prospects ─────────────────────────────────────────────── */
 .gop-wrap { padding: 20px 28px 28px; }
@@ -3175,12 +3233,9 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
 .gop-input:focus { border-color: var(--lime); }
 .gop-textarea { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 11px 13px; font-size: 12.5px; color: var(--text-dim); font-family: monospace; line-height: 1.7; resize: vertical; outline: none; width: 100%; box-sizing: border-box; transition: border-color .15s; }
 .gop-textarea:focus { border-color: var(--lime); }
-.gop-preview { background: var(--bg-soft); border: 1px solid var(--line); border-radius: 8px; padding: 28px 30px; min-height: 140px; }
-.gop-preview p { margin: 0 0 18px; font-size: 16px; line-height: 1.8; color: var(--text); }
-.gop-preview p:last-child { margin-bottom: 0; }
-.gop-preview strong { font-weight: 700; }
-.gop-preview em { font-style: italic; }
-.gop-preview h3 { font-size: 16px; font-weight: 700; color: var(--green-bright); margin: 0 0 12px; }
+.gop-preview { background: #f2f4f3; border: 1px solid var(--line); border-radius: 10px; padding: 0; min-height: 140px; overflow: hidden; }
+.gop-preview table { border-collapse: collapse; }
+.gop-preview a[style*="background:#1a1a1a"] { color: #ffffff !important; }
 
 /* Action bar */
 .gop-action-bar { display: flex; gap: 10px; flex-wrap: wrap; padding: 13px 18px 16px; border-top: 1px solid var(--line); margin-top: 14px; background: var(--card); align-items: center; }

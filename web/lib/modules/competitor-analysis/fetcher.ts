@@ -1,5 +1,6 @@
 import { load } from 'cheerio'
 import { TfIdf } from 'natural'
+import { discoverAllUrls, formatUrlProfile, type UrlDiscoveryResult } from '@/lib/audit/url-discovery'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,8 @@ export interface CompetitorData {
   topTerms: string[]
   psi: PsiScore | null
   fetchFailed: boolean
+  urlProfile: string           // pre-formatted for AI prompt
+  urlDiscovery: UrlDiscoveryResult
 }
 
 export interface CompetitorAnalysisFetchResult {
@@ -40,6 +43,7 @@ export interface CompetitorAnalysisFetchResult {
   userPixels: Record<string, boolean>
   userTopTerms: string[]
   userPsi: PsiScore | null
+  userUrlProfile: string
   competitors: CompetitorData[]
   industry: string
   competitorsProvided: boolean
@@ -193,11 +197,17 @@ export async function fetchCompetitorAnalysisData(
   // PSI capped at user + top 2 competitors to stay well within 90s maxDuration
   const psiUrls = [userUrl, ...rawUrls.slice(0, 2)]
 
-  // Fetch HTML and PSI in parallel
-  const [userRaw, competitorRaws, psiScores] = await Promise.all([
-    safeFetch(userUrl, 15000),
-    Promise.all(rawUrls.map(u => safeFetch(u, 10000))),
+  // All network tasks in parallel: HTML fetches, PSI, and URL discovery
+  const [[userRaw, ...competitorRaws], psiScores, [userDiscovery, ...competitorDiscoveries]] = await Promise.all([
+    Promise.all([
+      safeFetch(userUrl, 15000),
+      ...rawUrls.map(u => safeFetch(u, 10000)),
+    ]),
     Promise.all(psiUrls.map(u => fetchPsi(u))),
+    Promise.all([
+      discoverAllUrls(userUrl, undefined, { maxUrls: 150 }),
+      ...rawUrls.map(u => discoverAllUrls(u, undefined, { maxUrls: 150 })),
+    ]),
   ])
 
   if (!userRaw) {
@@ -209,8 +219,17 @@ export async function fetchCompetitorAnalysisData(
 
   const competitorBase = rawUrls.map((url, i) => {
     const raw = competitorRaws[i]
+    const discovery = competitorDiscoveries[i]
     if (!raw) {
-      return { url, parsed: parsePage('', 0), pixels: {} as Record<string, boolean>, psi: null as PsiScore | null, fetchFailed: true }
+      return {
+        url,
+        parsed: parsePage('', 0),
+        pixels: {} as Record<string, boolean>,
+        psi: null as PsiScore | null,
+        fetchFailed: true,
+        urlProfile: formatUrlProfile(discovery, url),
+        urlDiscovery: discovery,
+      }
     }
     return {
       url,
@@ -218,6 +237,8 @@ export async function fetchCompetitorAnalysisData(
       pixels: detectPixels(raw),
       psi: (psiScores[i + 1] ?? null),
       fetchFailed: false,
+      urlProfile: formatUrlProfile(discovery, url),
+      urlDiscovery: discovery,
     }
   })
 
@@ -236,6 +257,7 @@ export async function fetchCompetitorAnalysisData(
     userPixels,
     userTopTerms,
     userPsi: psiScores[0] ?? null,
+    userUrlProfile: formatUrlProfile(userDiscovery, userUrl),
     competitors: competitorBase.map((c, i) => ({
       ...c,
       topTerms: c.fetchFailed ? [] : extractTopTerms(i + 1, tfidf),

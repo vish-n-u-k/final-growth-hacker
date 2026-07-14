@@ -166,7 +166,7 @@ Rules:
             {
               slug: 'gsc-linked',
               label: 'Google Search Console',
-              prompt: 'Check for Google Search Console verification meta tags (google-site-verification) in the HTML head. Note: GSC can also be verified via DNS or file — if the meta tag is not found, state it needs manual verification. Report what you find.',
+              prompt: 'Check if Google Search Console is verified. Use the gscVerification context field for the HTML meta tag. Also check gscHtmlFilename (HTML file method), gscDnsTxtValue (DNS TXT method), ga4Id (GA4 method — verified if GA4 is installed and linked to the same Google account), and gtmId (GTM method). Mark as verified if ANY of these signals is present. State clearly which method was detected.',
               order: 2,
               weight: 2,
               fixable: true,

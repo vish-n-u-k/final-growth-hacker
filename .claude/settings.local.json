@@ -42,7 +42,8 @@
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm uninstall color-thief-node)",
       "Bash(del \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\types\\\\color-thief-node.d.ts\")",
       "WebFetch(domain:predis.ai)",
-      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit --project tsconfig.json 2>&1 | head -30)"
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit --project tsconfig.json 2>&1 | head -30)",
+      "WebFetch(domain:www.graphed.com)"
     ]
   }
 }

@@ -91,6 +91,8 @@ export default async function DashboardPage() {
         fixType: null,
         fixInputKey: item.fixInputKey ?? null,
         fixIntegrationProvider: item.fixIntegrationProvider ?? null,
+        userSkipped: item.userSkipped ?? false,
+        userSkipReason: item.userSkipReason ?? null,
       }))
 
       const audits = auditsByModule.get(mod.id) ?? []
@@ -133,6 +135,8 @@ export default async function DashboardPage() {
           fixable: item.fixable ?? false,
           fixInputKey: item.fixInputKey ?? null,
           fixIntegrationProvider: item.fixIntegrationProvider ?? null,
+          userSkipped: item.userSkipped ?? false,
+          userSkipReason: item.userSkipReason ?? null,
         }
       }
 

@@ -23,6 +23,8 @@ export interface DBItemState {
   fixable: boolean
   fixInputKey: string | null
   fixIntegrationProvider: string | null
+  userSkipped: boolean
+  userSkipReason: string | null
 }
 
 interface ModuleSummary {
@@ -58,7 +60,8 @@ function timeAgo(iso: string | null): string {
 }
 
 function getCatStats(cat: ModuleCategoryDefinition, states: Record<string, DBItemState>) {
-  const items = cat.subCategories.flatMap((s) => s.items)
+  const allItems = cat.subCategories.flatMap((s) => s.items)
+  const items = allItems.filter((i) => !states[i.slug]?.userSkipped)
   const totalWeight = items.reduce((sum, i) => sum + i.weight, 0)
   const aiWeight = items.filter((i) => states[i.slug]?.aiVerified).reduce((sum, i) => sum + i.weight, 0)
   const doneWeight = items
@@ -76,7 +79,8 @@ function getCatStats(cat: ModuleCategoryDefinition, states: Record<string, DBIte
 }
 
 function getOverall(def: ModuleDefinition, states: Record<string, DBItemState>) {
-  const items = (def.categories as ModuleCategoryDefinition[]).flatMap((c) => c.subCategories.flatMap((s) => s.items))
+  const allItems = (def.categories as ModuleCategoryDefinition[]).flatMap((c) => c.subCategories.flatMap((s) => s.items))
+  const items = allItems.filter((i) => !states[i.slug]?.userSkipped)
   const totalWeight = items.reduce((sum, i) => sum + i.weight, 0)
   const aiWeight = items.filter((i) => states[i.slug]?.aiVerified).reduce((sum, i) => sum + i.weight, 0)
   const doneWeight = items
@@ -96,12 +100,13 @@ function getOverall(def: ModuleDefinition, states: Record<string, DBItemState>) 
 // ── Dynamic module helpers (items come from DB, not definition) ───────────────
 
 function getDynamicOverall(items: DBItemFull[]) {
-  const totalWeight = items.reduce((s, i) => s + i.weight, 0)
-  const aiWeight = items.filter((i) => i.aiVerified).reduce((s, i) => s + i.weight, 0)
-  const doneWeight = items.filter((i) => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
-  const aiVerified = items.filter((i) => i.aiVerified).length
-  const selfOnly = items.filter((i) => !i.aiVerified && i.userChecked).length
-  const total = items.length
+  const active = items.filter((i) => !i.userSkipped)
+  const totalWeight = active.reduce((s, i) => s + i.weight, 0)
+  const aiWeight = active.filter((i) => i.aiVerified).reduce((s, i) => s + i.weight, 0)
+  const doneWeight = active.filter((i) => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
+  const aiVerified = active.filter((i) => i.aiVerified).length
+  const selfOnly = active.filter((i) => !i.aiVerified && i.userChecked).length
+  const total = active.length
   const done = aiVerified + selfOnly
   return {
     total, aiVerified, selfOnly, done, open: total - done,
@@ -111,7 +116,7 @@ function getDynamicOverall(items: DBItemFull[]) {
 }
 
 function getDynamicCatStats(categorySlug: string, items: DBItemFull[]) {
-  const catItems = items.filter((i) => i.categorySlug === categorySlug)
+  const catItems = items.filter((i) => i.categorySlug === categorySlug && !i.userSkipped)
   const totalWeight = catItems.reduce((s, i) => s + i.weight, 0)
   const aiWeight = catItems.filter((i) => i.aiVerified).reduce((s, i) => s + i.weight, 0)
   const doneWeight = catItems.filter((i) => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
@@ -176,6 +181,8 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
   const [setupError, setSetupError] = useState<string | null>(null)
   const [generatingDraft, setGeneratingDraft] = useState<Set<string>>(new Set())
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
+  const [skipPrompting, setSkipPrompting] = useState<Set<string>>(new Set())
+  const [skipReasonDraft, setSkipReasonDraft] = useState<Record<string, string>>({})
   const [userCount, setUserCount] = useState<number>(0)
   useEffect(() => {
     setUserCount( 0)
@@ -379,6 +386,28 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
       })
     }
   }, [applyFixExecute])
+
+  const handleSkip = useCallback(
+    async (itemId: string, slug: string, skipped: boolean, reason: string) => {
+      setSkipPrompting((prev) => { const n = new Set(prev); n.delete(slug); return n })
+      if (def.dynamic) {
+        setDynItems((prev) =>
+          prev.map((i) => i.id === itemId ? { ...i, userSkipped: skipped, userSkipReason: skipped ? reason || null : null } : i),
+        )
+      } else {
+        setStates((prev) => ({
+          ...prev,
+          [slug]: { ...prev[slug], userSkipped: skipped, userSkipReason: skipped ? reason || null : null },
+        }))
+      }
+      await fetch('/api/items/skip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId, skipped, reason: skipped ? reason || null : null }),
+      })
+    },
+    [def.dynamic],
+  )
 
   const handleGenerateDraft = async (itemId: string, slug: string) => {
     setGeneratingDraft((prev) => new Set(prev).add(slug))
@@ -924,9 +953,9 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                 const stats = getDynamicCatStats(cat.slug, dynItems)
                 const isOpen = openCats.has(cat.slug)
                 const catItems = [...dynItems.filter((i) => i.categorySlug === cat.slug)].sort((a, b) => {
-                  const aDone = (a.aiVerified || a.userChecked) ? 1 : 0
-                  const bDone = (b.aiVerified || b.userChecked) ? 1 : 0
-                  if (aDone !== bDone) return aDone - bDone
+                  const aKey = a.userSkipped ? 2 : (a.aiVerified || a.userChecked) ? 1 : 0
+                  const bKey = b.userSkipped ? 2 : (b.aiVerified || b.userChecked) ? 1 : 0
+                  if (aKey !== bKey) return aKey - bKey
                   return b.weight - a.weight
                 })
 
@@ -967,22 +996,24 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                             {catItems.map((item) => {
                               const aiV = item.aiVerified
                               const userC = item.userChecked
+                              const skipped = item.userSkipped
                               const done = aiV || userC
-                              const needsAttention = !aiV && !userC
+                              const needsAttention = !aiV && !userC && !skipped
                               const isExpanded = expandedItems.has(item.slug)
-                              const hasDetail = !!(item.aiNarrative || item.aiAction)
+                              const hasDetail = !skipped && !!(item.aiNarrative || item.aiAction)
+                              const isSkipPrompting = skipPrompting.has(item.slug)
 
                               return (
                                 <div
                                   key={item.slug}
-                                  className={`md-item sm-item${done ? ' md-item-done' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
+                                  className={`md-item sm-item${done ? ' md-item-done' : ''}${skipped ? ' md-item-skipped' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
                                   onClick={(e) => hasDetail && toggleExpand(item.slug, e)}
                                   style={{ cursor: hasDetail ? 'pointer' : 'default' }}
                                 >
                                   <span
                                     className={`md-cb${aiV ? ' md-cb-ai' : userC ? ' md-cb-self' : ''}`}
-                                    onClick={(e) => toggleItem(item.id, item.slug, userC, e)}
-                                    style={{ cursor: 'pointer' }}
+                                    onClick={(e) => !skipped && toggleItem(item.id, item.slug, userC, e)}
+                                    style={{ cursor: skipped ? 'default' : 'pointer' }}
                                   >
                                     {(aiV || userC) && (
                                       <svg viewBox="0 0 24 24" fill="none">
@@ -994,14 +1025,55 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                     <div className="md-item-top">
                                       <span className="md-item-lbl">{item.label}</span>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-                                        {!done && item.weight === 3 && <Badge className="md-tag md-tag-critical">Critical</Badge>}
-                                        {!done && item.weight === 2 && <Badge className="md-tag md-tag-important">Important</Badge>}
-                                        {aiV && <Badge className="md-tag md-tag-ai">AI ✓</Badge>}
-                                        {!aiV && userC && <Badge className="md-tag md-tag-self">Self</Badge>}
-                                        {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
+                                        {skipped ? (
+                                          <>
+                                            <span className="md-tag" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-faint)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>Skipped</span>
+                                            <button
+                                              className="md-skip-unskip"
+                                              onClick={(e) => { e.stopPropagation(); handleSkip(item.id, item.slug, false, '') }}
+                                            >
+                                              Unskip
+                                            </button>
+                                          </>
+                                        ) : (
+                                          <>
+                                            {!done && item.weight === 3 && <Badge className="md-tag md-tag-critical">Critical</Badge>}
+                                            {!done && item.weight === 2 && <Badge className="md-tag md-tag-important">Important</Badge>}
+                                            {aiV && <Badge className="md-tag md-tag-ai">AI ✓</Badge>}
+                                            {!aiV && userC && <Badge className="md-tag md-tag-self">Self</Badge>}
+                                            {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
+                                          </>
+                                        )}
                                       </div>
                                     </div>
-                                    {item.aiDetail && <p className="md-item-detail">{item.aiDetail}</p>}
+                                    {skipped && item.userSkipReason && (
+                                      <p className="md-item-detail" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>{item.userSkipReason}</p>
+                                    )}
+                                    {!skipped && item.aiDetail && <p className="md-item-detail">{item.aiDetail}</p>}
+                                    {!skipped && !done && (
+                                      <div className="md-skip-control" onClick={(e) => e.stopPropagation()}>
+                                        {isSkipPrompting ? (
+                                          <div className="md-skip-form">
+                                            <input
+                                              type="text"
+                                              placeholder="Reason (optional)"
+                                              className="md-skip-input"
+                                              value={skipReasonDraft[item.slug] ?? ''}
+                                              onChange={(e) => setSkipReasonDraft((prev) => ({ ...prev, [item.slug]: e.target.value }))}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleSkip(item.id, item.slug, true, skipReasonDraft[item.slug] ?? '')
+                                                if (e.key === 'Escape') setSkipPrompting((prev) => { const n = new Set(prev); n.delete(item.slug); return n })
+                                              }}
+                                              autoFocus
+                                            />
+                                            <button className="md-skip-confirm" onClick={() => handleSkip(item.id, item.slug, true, skipReasonDraft[item.slug] ?? '')}>Confirm</button>
+                                            <button className="md-skip-cancel" onClick={() => setSkipPrompting((prev) => { const n = new Set(prev); n.delete(item.slug); return n })}>Cancel</button>
+                                          </div>
+                                        ) : (
+                                          <button className="md-skip-btn" onClick={() => setSkipPrompting((prev) => new Set(prev).add(item.slug))}>Skip</button>
+                                        )}
+                                      </div>
+                                    )}
                                     {isExpanded && hasDetail && (
                                       <div className="sm-expanded-body">
                                         {item.aiNarrative && <p className="sm-narrative">{item.aiNarrative}</p>}
@@ -1175,32 +1247,34 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                               <div className="md-items">
                                 {[...sub.items]
                                   .sort((a, b) => {
-                                    const aDone = (states[a.slug]?.aiVerified || states[a.slug]?.userChecked) ? 1 : 0
-                                    const bDone = (states[b.slug]?.aiVerified || states[b.slug]?.userChecked) ? 1 : 0
-                                    if (aDone !== bDone) return aDone - bDone
+                                    const aKey = states[a.slug]?.userSkipped ? 2 : (states[a.slug]?.aiVerified || states[a.slug]?.userChecked) ? 1 : 0
+                                    const bKey = states[b.slug]?.userSkipped ? 2 : (states[b.slug]?.aiVerified || states[b.slug]?.userChecked) ? 1 : 0
+                                    if (aKey !== bKey) return aKey - bKey
                                     return b.weight - a.weight
                                   })
                                   .map((item) => {
                                     const s = states[item.slug]
                                     const aiV = s?.aiVerified ?? false
                                     const userC = s?.userChecked ?? false
+                                    const skipped = s?.userSkipped ?? false
                                     const done = aiV || userC
-                                    const needsAttention = s && !aiV && !userC
+                                    const needsAttention = s && !aiV && !userC && !skipped
                                     const isExpanded = expandedItems.has(item.slug)
-                                    const hasDetail = !!(s?.aiNarrative || s?.aiAction)
+                                    const hasDetail = !skipped && !!(s?.aiNarrative || s?.aiAction)
                                     const isVerifying = verifyingItems.has(item.slug)
+                                    const isSkipPrompting = skipPrompting.has(item.slug)
 
                                     return (
                                       <div
                                         key={item.slug}
-                                        className={`md-item sm-item${done ? ' md-item-done' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
+                                        className={`md-item sm-item${done ? ' md-item-done' : ''}${skipped ? ' md-item-skipped' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
                                         onClick={(e) => hasDetail && toggleExpand(item.slug, e)}
                                         style={{ cursor: hasDetail ? 'pointer' : 'default' }}
                                       >
                                         <span
                                           className={`md-cb${aiV ? ' md-cb-ai' : userC ? ' md-cb-self' : ''}`}
-                                          onClick={(e) => toggleItem(s?.id ?? '', item.slug, userC, e)}
-                                          style={{ cursor: 'pointer' }}
+                                          onClick={(e) => !skipped && toggleItem(s?.id ?? '', item.slug, userC, e)}
+                                          style={{ cursor: skipped ? 'default' : 'pointer' }}
                                         >
                                           {isVerifying ? (
                                             <span className="md-spin" style={{ width: '10px', height: '10px' }} />
@@ -1214,14 +1288,55 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                           <div className="md-item-top">
                                             <span className="md-item-lbl">{item.label}</span>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-                                              {!done && item.weight === 3 && <span className="md-tag md-tag-critical">Critical</span>}
-                                              {!done && item.weight === 2 && <span className="md-tag md-tag-important">Important</span>}
-                                              {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
-                                              {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
-                                              {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
+                                              {skipped ? (
+                                                <>
+                                                  <span className="md-tag" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-faint)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>Skipped</span>
+                                                  <button
+                                                    className="md-skip-unskip"
+                                                    onClick={(e) => { e.stopPropagation(); handleSkip(s?.id ?? '', item.slug, false, '') }}
+                                                  >
+                                                    Unskip
+                                                  </button>
+                                                </>
+                                              ) : (
+                                                <>
+                                                  {!done && item.weight === 3 && <span className="md-tag md-tag-critical">Critical</span>}
+                                                  {!done && item.weight === 2 && <span className="md-tag md-tag-important">Important</span>}
+                                                  {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
+                                                  {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
+                                                  {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
+                                                </>
+                                              )}
                                             </div>
                                           </div>
-                                          {s?.aiDetail && <p className="md-item-detail">{s.aiDetail}</p>}
+                                          {skipped && s?.userSkipReason && (
+                                            <p className="md-item-detail" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>{s.userSkipReason}</p>
+                                          )}
+                                          {!skipped && s?.aiDetail && <p className="md-item-detail">{s.aiDetail}</p>}
+                                          {!skipped && !done && (
+                                            <div className="md-skip-control" onClick={(e) => e.stopPropagation()}>
+                                              {isSkipPrompting ? (
+                                                <div className="md-skip-form">
+                                                  <input
+                                                    type="text"
+                                                    placeholder="Reason (optional)"
+                                                    className="md-skip-input"
+                                                    value={skipReasonDraft[item.slug] ?? ''}
+                                                    onChange={(e) => setSkipReasonDraft((prev) => ({ ...prev, [item.slug]: e.target.value }))}
+                                                    onKeyDown={(e) => {
+                                                      if (e.key === 'Enter') handleSkip(s?.id ?? '', item.slug, true, skipReasonDraft[item.slug] ?? '')
+                                                      if (e.key === 'Escape') setSkipPrompting((prev) => { const n = new Set(prev); n.delete(item.slug); return n })
+                                                    }}
+                                                    autoFocus
+                                                  />
+                                                  <button className="md-skip-confirm" onClick={() => handleSkip(s?.id ?? '', item.slug, true, skipReasonDraft[item.slug] ?? '')}>Confirm</button>
+                                                  <button className="md-skip-cancel" onClick={() => setSkipPrompting((prev) => { const n = new Set(prev); n.delete(item.slug); return n })}>Cancel</button>
+                                                </div>
+                                              ) : (
+                                                <button className="md-skip-btn" onClick={() => setSkipPrompting((prev) => new Set(prev).add(item.slug))}>Skip</button>
+                                              )}
+                                            </div>
+                                          )}
                                           {isExpanded && hasDetail && (
                                             <div className="sm-expanded-body">
                                               {s?.aiNarrative && <p className="sm-narrative">{s.aiNarrative}</p>}

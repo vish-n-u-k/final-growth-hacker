@@ -3,7 +3,7 @@ import { FOUNDATION_MODULE } from './definition'
 import { getAllItems, type ModuleAnalysisResult } from '../types'
 import type { FoundationFetchResult } from './fetcher'
 
-export async function analyzeFoundation(data: FoundationFetchResult): Promise<{ brandColor: string; results: ModuleAnalysisResult[] }> {
+export async function analyzeFoundation(data: FoundationFetchResult, gscMeta: Record<string, string> = {}): Promise<{ brandColor: string; results: ModuleAnalysisResult[] }> {
   const items = getAllItems(FOUNDATION_MODULE).map((item) => ({
     slug: item.slug,
     prompt: item.prompt,
@@ -13,6 +13,12 @@ export async function analyzeFoundation(data: FoundationFetchResult): Promise<{ 
     ? Object.entries(data.extracted.socialLinks).map(([k, v]) => `  ${k}: ${v}`).join('\n')
     : '  None detected'
 
+  const gscContext = [
+    gscMeta['gsc_verification_code'] ? `gscHtmlTagCode: ${gscMeta['gsc_verification_code']}` : '',
+    gscMeta['gsc_html_filename']     ? `gscHtmlFilename: ${gscMeta['gsc_html_filename']}` : '',
+    gscMeta['gsc_dns_txt_value']     ? `gscDnsTxtValue: ${gscMeta['gsc_dns_txt_value']}` : '',
+  ].filter(Boolean).join('\n') || 'none saved'
+
   const userPrompt = `Audit this website's foundational infrastructure.
 
 URL: ${data.url}
@@ -20,6 +26,9 @@ Custom domain: ${data.customDomain ? 'Yes' : `No — hosted on ${data.hostingPla
 
 Social media links detected:
 ${socialLinksStr}
+
+=== GSC verification (from user settings) ===
+${gscContext}
 
 === Extracted site data ===
 ${data.extracted ? JSON.stringify(data.extracted, null, 2) : 'Unable to fetch — flag all checks as needing manual review'}

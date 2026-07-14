@@ -256,7 +256,7 @@ function buildFilteredExternalData(
     if (!gscConnected) {
       sections.push('GSC data: Not connected. User must add Service Account credentials in Settings → Integrations → Google Search Console API.')
     } else if (gscQueries.length === 0) {
-      sections.push('GSC data: Connected but no search data returned. The site may be new, not yet verified in GSC, or the service account email may not have been added to the GSC property.')
+      sections.push('GSC data: Connected and verified. Search Analytics API returned no rows yet — this is normal for new properties or recently granted service account access. Data typically syncs within 24 hours. Do NOT suggest connecting GSC, adding a service account, or verifying the site — those steps are already done.')
     } else {
       const quickWins = gscQueries.filter((r) => r.position > 3 && r.position <= 20)
       const lowCtr = gscQueries.filter((r) => r.impressions >= 50 && r.clicks / r.impressions < 0.05)
@@ -301,7 +301,7 @@ async function callHaikuForBatch(
     .map((item, idx) => `${idx + 1}. [${item.slug}] ${item.label}\nInstructions: ${item.prompt}`)
     .join('\n\n')
 
-  const maxTokens = Math.min(batchItems.length * 60, 1200)
+  const maxTokens = Math.min(batchItems.length * 200, 2400)
 
   // Shared across all parallel batch calls — cached so only the first call pays full input price
   const cachePrefix = `Website: ${websiteUrl}
@@ -325,8 +325,15 @@ For each check, respond with ONLY this schema:
   const end = raw.lastIndexOf(']')
   if (start === -1 || end === -1 || end < start) return []
   try {
-    const parsed = JSON.parse(raw.slice(start, end + 1)) as { slug: string; d: string; n: string; a: string }[]
-    return parsed.map(r => ({ slug: r.slug, detail: r.d, narrative: r.n, action: r.a }))
+    const parsed = JSON.parse(raw.slice(start, end + 1)) as { slug: string; d?: string; n?: string; a?: string; detail?: string; narrative?: string; action?: string }[]
+    return parsed
+      .map(r => ({
+        slug: r.slug,
+        detail: r.d ?? r.detail ?? '',
+        narrative: r.n ?? r.narrative ?? '',
+        action: r.a ?? r.action ?? '',
+      }))
+      .filter(r => r.slug && r.detail)
   } catch {
     return []
   }
@@ -344,7 +351,7 @@ async function generateKeywordResearchContent(
 
   // Fallback: when cheerio returns empty (JS-rendered site), extract from audit findings
   const findingText = (key: string) => audit.findings.find((f) => f.key === key)?.text ?? ''
-  const title = pageContent.title || extractQuotedText(findingText('title.present'))
+  const title = pageContent.title
   const description = pageContent.description || extractQuotedText(findingText('description.present'))
   const h1 = pageContent.h1 || extractQuotedText(findingText('h1.exists'))
   const headings = pageContent.headings.length > 0
@@ -356,7 +363,13 @@ async function generateKeywordResearchContent(
   const urlPath = pageContent.urlPath
   const urlLine = urlPath ? `URL slug: ${urlPath}` : `URL: homepage (${websiteUrl}) — no slug present`
 
-  const seed = extractSeedKeyword(title, h1)
+  // Ultimate fallback: derive seed from URL hostname when page is JS-rendered and cheerio gets nothing
+  const seed = extractSeedKeyword(title, h1) || (() => {
+    try {
+      const hostname = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).hostname
+      return hostname.replace(/^www\./, '').split('.')[0]
+    } catch { return '' }
+  })()
   const hasLongtailItems = items.some((i) => i.slug.startsWith('kw-longtail-'))
   const [autocomplete, categorized, trendsScore, paaQuestions, gscQueries] = await Promise.all([
     fetchAutocompleteSuggestions(seed),
@@ -502,11 +515,14 @@ export async function analyzeSeo(
     }
   })
 
+  const gscConnected = !!(integrations.gscClientEmail && integrations.gscPrivateKey)
   const kwResults: ModuleAnalysisResult[] = kwItems.map((item) => {
     const content = kwContentMap.get(item.slug)
     const fallbackDetail = item.slug.startsWith('gsc-')
-      ? 'Connect the GSC API in Settings → Integrations to unlock this ranking insight.'
-      : 'Keyword analysis could not be completed for this check.'
+      ? gscConnected
+        ? 'GSC is connected but ranking data could not be retrieved. Ensure the service account email is added as a user in your GSC property, then re-analyse.'
+        : 'Connect the GSC API in Settings → Integrations to unlock this ranking insight.'
+      : 'Keyword analysis could not be completed — re-analyse to retry.'
     return {
       slug: item.slug,
       detail: content?.detail ?? fallbackDetail,

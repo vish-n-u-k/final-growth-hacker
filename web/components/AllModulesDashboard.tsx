@@ -65,15 +65,16 @@ function getOverall(def: ModuleDefinition, states: Record<string, DBItemState>) 
 
 function computeLiveScore(modData: ModuleData, states: Record<string, DBItemState>, dynItems: DBItemFull[]): number {
   if (modData.definition.dynamic) {
-    const totalWeight = dynItems.reduce((s, i) => s + i.weight, 0)
-    const doneWeight = dynItems.filter(i => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
+    const active = dynItems.filter(i => !i.userSkipped)
+    const totalWeight = active.reduce((s, i) => s + i.weight, 0)
+    const doneWeight = active.filter(i => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
     return totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0
   }
   return getOverall(modData.definition, states).pct
 }
 
 function getDynamicCatStats(categorySlug: string, items: DBItemFull[]) {
-  const catItems = items.filter((i) => i.categorySlug === categorySlug)
+  const catItems = items.filter((i) => i.categorySlug === categorySlug && !i.userSkipped)
   const totalWeight = catItems.reduce((s, i) => s + i.weight, 0)
   const aiWeight = catItems.filter((i) => i.aiVerified).reduce((s, i) => s + i.weight, 0)
   const doneWeight = catItems.filter((i) => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
@@ -249,6 +250,8 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
   const [setupErrorMap, setSetupErrorMap] = useState<Record<string, string | null>>({})
   const [generatingDraft, setGeneratingDraft] = useState<Set<string>>(new Set())
+  const [skipPrompting, setSkipPrompting] = useState<Set<string>>(new Set())
+  const [skipReasonDraft, setSkipReasonDraft] = useState<Record<string, string>>({})
 
   // Playbook state (Foundation module only)
   const [playbookData, setPlaybookData] = useState<Record<string, string> | null>(brand.playbook ?? null)
@@ -525,6 +528,32 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     }
   }, [])
 
+  const handleSkip = useCallback(async (modId: string, isDynamic: boolean, itemId: string, slug: string, skipped: boolean, reason: string) => {
+    const itemKey = `${modId}:${slug}`
+    setSkipPrompting((prev) => { const n = new Set(prev); n.delete(itemKey); return n })
+    if (isDynamic) {
+      setDynItemsMap((prev) => ({
+        ...prev,
+        [modId]: (prev[modId] ?? []).map((i) =>
+          i.id === itemId ? { ...i, userSkipped: skipped, userSkipReason: skipped ? reason || null : null } : i,
+        ),
+      }))
+    } else {
+      setStatesMap((prev) => ({
+        ...prev,
+        [modId]: {
+          ...(prev[modId] ?? {}),
+          [slug]: { ...(prev[modId]?.[slug] ?? { id: itemId, aiDetail: null, aiHighlight: null, aiNarrative: null, aiAction: null, aiVerified: false, userChecked: false, completedBy: null, fixable: false, fixInputKey: null, fixIntegrationProvider: null, userSkipped: false, userSkipReason: null }), userSkipped: skipped, userSkipReason: skipped ? reason || null : null },
+        },
+      }))
+    }
+    await fetch('/api/items/skip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId, skipped, reason: skipped ? reason || null : null }),
+    })
+  }, [])
+
   const handleGenerateDraft = async (modId: string, itemId: string, slug: string) => {
     const itemKey = `${modId}:${slug}`
     setGeneratingDraft(prev => new Set(prev).add(itemKey))
@@ -676,23 +705,25 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const renderDynamicItem = (modId: string, prUrl: string | null, item: DBItemFull) => {
     const aiV = item.aiVerified
     const userC = item.userChecked
+    const skipped = item.userSkipped
     const done = aiV || userC
-    const needsAttention = !aiV && !userC
+    const needsAttention = !aiV && !userC && !skipped
     const itemKey = `${modId}:${item.slug}`
     const isExpanded = expandedItems.has(itemKey)
-    const hasDetail = !!(item.aiHighlight || item.aiNarrative || item.aiAction)
+    const hasDetail = !skipped && !!(item.aiHighlight || item.aiNarrative || item.aiAction)
+    const isSkipPrompting = skipPrompting.has(itemKey)
 
     return (
       <div
         key={item.slug}
-        className={`md-item sm-item${!done && item.weight === 3 ? ' md-item-critical' : ''}${done ? ' md-item-done' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
+        className={`md-item sm-item${!done && !skipped && item.weight === 3 ? ' md-item-critical' : ''}${done ? ' md-item-done' : ''}${skipped ? ' md-item-skipped' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
         onClick={(e) => hasDetail && toggleExpand(modId, item.slug, e)}
         style={{ cursor: hasDetail ? 'pointer' : 'default' }}
       >
         <span
           className={`md-cb${aiV ? ' md-cb-ai' : userC ? ' md-cb-self' : ''}`}
-          onClick={(e) => toggleItem(modId, true, item.id, item.slug, userC, e)}
-          style={{ cursor: 'pointer' }}
+          onClick={(e) => !skipped && toggleItem(modId, true, item.id, item.slug, userC, e)}
+          style={{ cursor: skipped ? 'default' : 'pointer' }}
         >
           {(aiV || userC) && (
             <svg viewBox="0 0 24 24" fill="none">
@@ -704,32 +735,66 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           <div className="md-item-top">
             <span className="md-item-lbl">{item.label}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-              {!done && item.weight === 3 && (
-                <span className="md-priority-icon md-priority-critical">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-                  </svg>
-                  <span className="md-priority-label">Critical</span>
-                </span>
+              {skipped ? (
+                <>
+                  <span className="md-tag" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-faint)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>Skipped</span>
+                  <button className="md-skip-unskip" onClick={(e) => { e.stopPropagation(); handleSkip(modId, true, item.id, item.slug, false, '') }}>Unskip</button>
+                </>
+              ) : (
+                <>
+                  {!done && item.weight === 3 && (
+                    <span className="md-priority-icon md-priority-critical">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                      </svg>
+                      <span className="md-priority-label">Critical</span>
+                    </span>
+                  )}
+                  {!done && item.weight === 2 && (
+                    <span className="md-priority-icon md-priority-important">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.2"/>
+                        <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                      </svg>
+                      <span className="md-priority-label">Important</span>
+                    </span>
+                  )}
+                  {aiV && <Badge className="md-tag md-tag-ai">AI ✓</Badge>}
+                  {!aiV && userC && <Badge className="md-tag md-tag-self">Self</Badge>}
+                  {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
+                </>
               )}
-              {!done && item.weight === 2 && (
-                <span className="md-priority-icon md-priority-important">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.2"/>
-                    <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-                  </svg>
-                  <span className="md-priority-label">Important</span>
-                </span>
-              )}
-              {aiV && <Badge className="md-tag md-tag-ai">AI ✓</Badge>}
-              {!aiV && userC && <Badge className="md-tag md-tag-self">Self</Badge>}
-              {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
             </div>
           </div>
-          {item.aiDetail && <p className="md-item-detail">{parseBold(item.aiDetail)}</p>}
+          {skipped && item.userSkipReason && (
+            <p className="md-item-detail" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>{item.userSkipReason}</p>
+          )}
+          {!skipped && item.aiDetail && <p className="md-item-detail">{parseBold(item.aiDetail)}</p>}
+          {/* Fallback skip button for items with no expandable content */}
+          {!skipped && !done && !hasDetail && (
+            <div className="md-skip-control" onClick={(e) => e.stopPropagation()}>
+              {isSkipPrompting ? (
+                <div className="md-skip-form">
+                  <input type="text" placeholder="Reason for skipping (optional)" className="md-skip-input"
+                    value={skipReasonDraft[itemKey] ?? ''}
+                    onChange={(e) => setSkipReasonDraft((prev) => ({ ...prev, [itemKey]: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSkip(modId, true, item.id, item.slug, true, skipReasonDraft[itemKey] ?? '')
+                      if (e.key === 'Escape') setSkipPrompting((prev) => { const n = new Set(prev); n.delete(itemKey); return n })
+                    }}
+                    autoFocus
+                  />
+                  <button className="md-skip-confirm" onClick={() => handleSkip(modId, true, item.id, item.slug, true, skipReasonDraft[itemKey] ?? '')}>Confirm skip</button>
+                  <button className="md-skip-cancel" onClick={() => setSkipPrompting((prev) => { const n = new Set(prev); n.delete(itemKey); return n })}>Cancel</button>
+                </div>
+              ) : (
+                <button className="md-skip-btn" onClick={() => setSkipPrompting((prev) => new Set(prev).add(itemKey))}>Not relevant — skip</button>
+              )}
+            </div>
+          )}
           {isExpanded && hasDetail && (
             <div className="sm-expanded-body" onClick={(e) => e.stopPropagation()}>
               {item.aiHighlight && <p className="sm-highlight">{item.aiHighlight}</p>}
@@ -830,6 +895,31 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   )}
                 </div>
               )}
+              {/* Skip section — at bottom of expanded body */}
+              {!done && (
+                <div className="md-skip-section">
+                  <span className="md-skip-section-label">Skip this check</span>
+                  {isSkipPrompting ? (
+                    <div className="md-skip-form">
+                      <input type="text" placeholder="Reason for skipping (optional)" className="md-skip-input"
+                        value={skipReasonDraft[itemKey] ?? ''}
+                        onChange={(e) => setSkipReasonDraft((prev) => ({ ...prev, [itemKey]: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSkip(modId, true, item.id, item.slug, true, skipReasonDraft[itemKey] ?? '')
+                          if (e.key === 'Escape') setSkipPrompting((prev) => { const n = new Set(prev); n.delete(itemKey); return n })
+                        }}
+                        autoFocus
+                      />
+                      <button className="md-skip-confirm" onClick={() => handleSkip(modId, true, item.id, item.slug, true, skipReasonDraft[itemKey] ?? '')}>Confirm skip</button>
+                      <button className="md-skip-cancel" onClick={() => setSkipPrompting((prev) => { const n = new Set(prev); n.delete(itemKey); return n })}>Cancel</button>
+                    </div>
+                  ) : (
+                    <button className="md-skip-btn" onClick={() => setSkipPrompting((prev) => new Set(prev).add(itemKey))}>
+                      Not relevant to my business
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -841,24 +931,26 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const renderStaticItem = (modId: string, prUrl: string | null, item: ModuleItemDefinition, s: DBItemState | undefined) => {
     const aiV = s?.aiVerified ?? false
     const userC = s?.userChecked ?? false
+    const skipped = s?.userSkipped ?? false
     const done = aiV || userC
-    const needsAttention = s && !aiV && !userC
+    const needsAttention = s && !aiV && !userC && !skipped
     const itemKey = `${modId}:${item.slug}`
     const isExpanded = expandedItems.has(itemKey)
-    const hasDetail = !!(s?.aiHighlight || s?.aiNarrative || s?.aiAction || item.fixGuide?.length)
+    const hasDetail = !skipped && !!(s?.aiHighlight || s?.aiNarrative || s?.aiAction || item.fixGuide?.length)
     const isVerifying = verifyingItems.has(itemKey)
+    const isSkipPrompting = skipPrompting.has(itemKey)
 
     return (
       <div
         key={item.slug}
-        className={`md-item sm-item${!done && item.weight === 3 ? ' md-item-critical' : ''}${done ? ' md-item-done' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
+        className={`md-item sm-item${!done && !skipped && item.weight === 3 ? ' md-item-critical' : ''}${done ? ' md-item-done' : ''}${skipped ? ' md-item-skipped' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
         onClick={(e) => hasDetail && toggleExpand(modId, item.slug, e)}
         style={{ cursor: hasDetail ? 'pointer' : 'default' }}
       >
         <span
           className={`md-cb${aiV ? ' md-cb-ai' : userC ? ' md-cb-self' : ''}`}
-          onClick={(e) => toggleItem(modId, false, s?.id ?? '', item.slug, userC, e)}
-          style={{ cursor: 'pointer' }}
+          onClick={(e) => !skipped && toggleItem(modId, false, s?.id ?? '', item.slug, userC, e)}
+          style={{ cursor: skipped ? 'default' : 'pointer' }}
         >
           {isVerifying ? (
             <span className="md-spin" style={{ width: '10px', height: '10px' }} />
@@ -872,32 +964,66 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           <div className="md-item-top">
             <span className="md-item-lbl">{item.label}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-              {!done && item.weight === 3 && (
-                <span className="md-priority-icon md-priority-critical">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-                  </svg>
-                  <span className="md-priority-label">Critical</span>
-                </span>
+              {skipped ? (
+                <>
+                  <span className="md-tag" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-faint)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>Skipped</span>
+                  <button className="md-skip-unskip" onClick={(e) => { e.stopPropagation(); handleSkip(modId, false, s?.id ?? '', item.slug, false, '') }}>Unskip</button>
+                </>
+              ) : (
+                <>
+                  {!done && item.weight === 3 && (
+                    <span className="md-priority-icon md-priority-critical">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                        <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                      </svg>
+                      <span className="md-priority-label">Critical</span>
+                    </span>
+                  )}
+                  {!done && item.weight === 2 && (
+                    <span className="md-priority-icon md-priority-important">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.2"/>
+                        <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                      </svg>
+                      <span className="md-priority-label">Important</span>
+                    </span>
+                  )}
+                  {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
+                  {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
+                  {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
+                </>
               )}
-              {!done && item.weight === 2 && (
-                <span className="md-priority-icon md-priority-important">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.2"/>
-                    <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
-                    <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-                  </svg>
-                  <span className="md-priority-label">Important</span>
-                </span>
-              )}
-              {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
-              {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
-              {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
             </div>
           </div>
-          {s?.aiDetail && <p className="md-item-detail">{parseBold(s.aiDetail)}</p>}
+          {skipped && s?.userSkipReason && (
+            <p className="md-item-detail" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>{s.userSkipReason}</p>
+          )}
+          {!skipped && s?.aiDetail && <p className="md-item-detail">{parseBold(s.aiDetail)}</p>}
+          {/* Fallback skip for items with no expandable content */}
+          {!skipped && !done && !hasDetail && (
+            <div className="md-skip-control" onClick={(e) => e.stopPropagation()}>
+              {isSkipPrompting ? (
+                <div className="md-skip-form">
+                  <input type="text" placeholder="Reason for skipping (optional)" className="md-skip-input"
+                    value={skipReasonDraft[itemKey] ?? ''}
+                    onChange={(e) => setSkipReasonDraft((prev) => ({ ...prev, [itemKey]: e.target.value }))}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSkip(modId, false, s?.id ?? '', item.slug, true, skipReasonDraft[itemKey] ?? '')
+                      if (e.key === 'Escape') setSkipPrompting((prev) => { const n = new Set(prev); n.delete(itemKey); return n })
+                    }}
+                    autoFocus
+                  />
+                  <button className="md-skip-confirm" onClick={() => handleSkip(modId, false, s?.id ?? '', item.slug, true, skipReasonDraft[itemKey] ?? '')}>Confirm skip</button>
+                  <button className="md-skip-cancel" onClick={() => setSkipPrompting((prev) => { const n = new Set(prev); n.delete(itemKey); return n })}>Cancel</button>
+                </div>
+              ) : (
+                <button className="md-skip-btn" onClick={() => setSkipPrompting((prev) => new Set(prev).add(itemKey))}>Not relevant — skip</button>
+              )}
+            </div>
+          )}
           {isExpanded && hasDetail && (
             <div className="sm-expanded-body" onClick={(e) => e.stopPropagation()}>
               {s?.aiHighlight && <p className="sm-highlight">{s.aiHighlight}</p>}
@@ -944,6 +1070,31 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       </li>
                     ))}
                   </ol>
+                </div>
+              )}
+              {/* Skip section — at bottom of expanded body */}
+              {!done && (
+                <div className="md-skip-section">
+                  <span className="md-skip-section-label">Skip this check</span>
+                  {isSkipPrompting ? (
+                    <div className="md-skip-form">
+                      <input type="text" placeholder="Reason for skipping (optional)" className="md-skip-input"
+                        value={skipReasonDraft[itemKey] ?? ''}
+                        onChange={(e) => setSkipReasonDraft((prev) => ({ ...prev, [itemKey]: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleSkip(modId, false, s?.id ?? '', item.slug, true, skipReasonDraft[itemKey] ?? '')
+                          if (e.key === 'Escape') setSkipPrompting((prev) => { const n = new Set(prev); n.delete(itemKey); return n })
+                        }}
+                        autoFocus
+                      />
+                      <button className="md-skip-confirm" onClick={() => handleSkip(modId, false, s?.id ?? '', item.slug, true, skipReasonDraft[itemKey] ?? '')}>Confirm skip</button>
+                      <button className="md-skip-cancel" onClick={() => setSkipPrompting((prev) => { const n = new Set(prev); n.delete(itemKey); return n })}>Cancel</button>
+                    </div>
+                  ) : (
+                    <button className="md-skip-btn" onClick={() => setSkipPrompting((prev) => new Set(prev).add(itemKey))}>
+                      Not relevant to my business
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -1617,9 +1768,9 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                             const stats = getDynamicCatStats(cat.slug, dynItems)
                             const isOpenCat = openCats.has(cat.slug)
                             const catItems = [...dynItems.filter(i => i.categorySlug === cat.slug)].sort((a, b) => {
-                              const aDone = (a.aiVerified || a.userChecked) ? 1 : 0
-                              const bDone = (b.aiVerified || b.userChecked) ? 1 : 0
-                              if (aDone !== bDone) return aDone - bDone
+                              const aKey = a.userSkipped ? 2 : (a.aiVerified || a.userChecked) ? 1 : 0
+                              const bKey = b.userSkipped ? 2 : (b.aiVerified || b.userChecked) ? 1 : 0
+                              if (aKey !== bKey) return aKey - bKey
                               return b.weight - a.weight
                             })
                             {
@@ -1734,9 +1885,9 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                           <div className="md-items">
                                             {[...sub.items]
                                               .sort((a, b) => {
-                                                const aDone = (states[a.slug]?.aiVerified || states[a.slug]?.userChecked) ? 1 : 0
-                                                const bDone = (states[b.slug]?.aiVerified || states[b.slug]?.userChecked) ? 1 : 0
-                                                if (aDone !== bDone) return aDone - bDone
+                                                const aKey = states[a.slug]?.userSkipped ? 2 : (states[a.slug]?.aiVerified || states[a.slug]?.userChecked) ? 1 : 0
+                                                const bKey = states[b.slug]?.userSkipped ? 2 : (states[b.slug]?.aiVerified || states[b.slug]?.userChecked) ? 1 : 0
+                                                if (aKey !== bKey) return aKey - bKey
                                                 return b.weight - a.weight
                                               })
                                               .map(item => renderStaticItem(modData.id, prUrl, item, states[item.slug]))}

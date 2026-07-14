@@ -110,7 +110,7 @@ export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet
   let response: string
 
   if (useClaudeCLI) {
-    response = await callViaCLI(system, prompt, model)
+    response = await callViaCLI(system, cachePrefix ? `${cachePrefix}\n\n${prompt}` : prompt, model)
   } else if (useGemini) {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
     const geminiModel = genAI.getGenerativeModel({

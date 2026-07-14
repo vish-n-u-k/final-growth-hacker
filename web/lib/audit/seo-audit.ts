@@ -10,6 +10,7 @@ import * as cheerio from 'cheerio'
 import { connect as tlsConnect } from 'tls'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import { discoverAllUrls, type UrlDiscoveryResult } from './url-discovery'
 
 const execFileAsync = promisify(execFile)
 
@@ -28,6 +29,7 @@ export interface SeoAuditResult {
   url: string
   finalUrl: string
   findings: SeoFinding[]
+  discoveredUrls?: UrlDiscoveryResult
 }
 
 export interface SeoAuditError {
@@ -661,7 +663,7 @@ async function checkImageAlt($: cheerio.CheerioAPI, pageUrl: string): Promise<Se
 
 // ── 4. Internal Links ─────────────────────────────────────────────────────────
 
-function checkInternalLinks($: cheerio.CheerioAPI, pageUrl: string): SeoFinding[] {
+function checkInternalLinks($: cheerio.CheerioAPI, pageUrl: string, discoveredUrls?: UrlDiscoveryResult): SeoFinding[] {
   const findings: SeoFinding[] = []
   const hostname = new URL(pageUrl).hostname
   const brand = hostname.replace('www.', '').split('.')[0] ?? ''
@@ -676,11 +678,50 @@ function checkInternalLinks($: cheerio.CheerioAPI, pageUrl: string): SeoFinding[
     return href.startsWith('http') && !href.includes(hostname)
   })
 
-  // links.orphan (needs full crawl)
-  findings.push(f('links.orphan', 'info', 'Orphan page check requires a full site crawl — cannot determine inbound links from a single page.'))
+  // links.orphan
+  if (discoveredUrls && discoveredUrls.totalDiscovered > 0) {
+    const source = discoveredUrls.crawlUsed ? 'crawl' : 'sitemap'
+    findings.push(f(
+      'links.orphan', 'info',
+      `${discoveredUrls.totalDiscovered} pages discovered via ${source}. True orphan detection (pages with zero inbound links) requires a full crawl with link graph analysis — use Screaming Frog or Ahrefs for definitive results.`,
+    ))
+  } else {
+    findings.push(f('links.orphan', 'info', 'Orphan page check requires a full site crawl — cannot determine inbound links from a single page.'))
+  }
 
-  // links.depth (needs full crawl)
-  findings.push(f('links.depth', 'info', 'Click depth check requires a full site crawl — cannot calculate from homepage alone.'))
+  // links.depth
+  if (discoveredUrls && discoveredUrls.crawlUsed && discoveredUrls.totalDiscovered > 0) {
+    const depthCounts: Record<number, number> = {}
+    for (const { depth = 1 } of discoveredUrls.urls) {
+      depthCounts[depth] = (depthCounts[depth] ?? 0) + 1
+    }
+    const maxDepth = Math.max(...Object.keys(depthCounts).map(Number), 1)
+    const deepPages = Object.entries(depthCounts)
+      .filter(([d]) => Number(d) > 3)
+      .reduce((sum, [, c]) => sum + c, 0)
+    findings.push(deepPages > 0
+      ? f('links.depth', 'ok',
+          `${deepPages} page${deepPages > 1 ? 's' : ''} only reachable at click depth >3 — deeply buried pages receive less link equity.`,
+          'Add these pages to your navigation or link to them from higher-authority pages to reduce click depth.')
+      : f('links.depth', 'good',
+          `All ${discoveredUrls.totalDiscovered} discovered pages are within ${maxDepth} click${maxDepth !== 1 ? 's' : ''} of the homepage.`))
+  } else if (discoveredUrls && discoveredUrls.sitemapFound && discoveredUrls.totalDiscovered > 0) {
+    let deepCount = 0
+    for (const { url } of discoveredUrls.urls) {
+      try {
+        const parts = new URL(url).pathname.split('/').filter(Boolean)
+        if (parts.length > 3) deepCount++
+      } catch { /* skip */ }
+    }
+    findings.push(deepCount > 0
+      ? f('links.depth', 'ok',
+          `${deepCount} URL${deepCount > 1 ? 's' : ''} in your sitemap have a path depth >3 — verify these pages are reachable via navigation.`,
+          'Link to deeply nested pages from category pages or your main nav to improve crawl equity.')
+      : f('links.depth', 'good',
+          `Sitemap URL structure shows all ${discoveredUrls.totalDiscovered} pages within 3 path levels — good for crawl discoverability.`))
+  } else {
+    findings.push(f('links.depth', 'info', 'Click depth check requires a full site crawl — cannot calculate from homepage alone.'))
+  }
 
   // links.homepage_links
   const internalCount = internalLinks.length
@@ -866,6 +907,7 @@ async function checkTechnical(
   sitemapStatus: number,
   htmlSize: number,
   lighthouseData: Record<string, number> | null,
+  discoveredUrls?: UrlDiscoveryResult,
 ): Promise<SeoFinding[]> {
   const findings: SeoFinding[] = []
   const isHttps = pageUrl.startsWith('https://')
@@ -1000,11 +1042,62 @@ async function checkTechnical(
     : f('sitemap.exists', 'ok', 'sitemap.xml not found at /sitemap.xml.',
         'Generate and submit a sitemap.xml to Google Search Console.'))
 
-  findings.push(f('sitemap.valid', 'info', 'Sitemap URL validation requires fetching each URL — run a crawler for full sitemap audit.'))
+  // sitemap.valid — real URL count when discovery succeeded
+  if (discoveredUrls && discoveredUrls.sitemapFound && discoveredUrls.totalDiscovered > 0) {
+    const prefixes = Object.entries(discoveredUrls.urlsByPrefix)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([p, n]) => `${p} (${n})`)
+      .join(', ')
+    const sitemapLabel = discoveredUrls.sitemapCount > 1
+      ? `${discoveredUrls.sitemapCount} child sitemaps`
+      : 'sitemap.xml'
+    findings.push(f('sitemap.valid', 'good',
+      `Sitemap contains ${discoveredUrls.totalDiscovered} URL${discoveredUrls.totalDiscovered !== 1 ? 's' : ''} across ${sitemapLabel}.${prefixes ? ` Top sections: ${prefixes}.` : ''}`))
+  } else if (discoveredUrls && discoveredUrls.sitemapFound && discoveredUrls.totalDiscovered === 0) {
+    findings.push(f('sitemap.valid', 'ok', 'Sitemap found but contains no valid same-origin URLs.',
+      'Ensure your sitemap.xml lists absolute URLs matching your domain (e.g. https://yourdomain.com/page).'))
+  } else {
+    findings.push(f('sitemap.valid', 'info', 'Sitemap URL validation requires fetching each URL — run a crawler for full sitemap audit.'))
+  }
 
-  // http.4xx + http.5xx
-  findings.push(f('http.4xx', 'info', '4xx error detection requires crawling all internal URLs — use a crawler tool for full analysis.'))
-  findings.push(f('http.5xx', 'info', '5xx error detection requires crawling all internal URLs — monitor via server logs or uptime tools.'))
+  // http.4xx + http.5xx — HEAD-check a sample of discovered pages
+  if (discoveredUrls && discoveredUrls.totalDiscovered > 0) {
+    const sampleUrls = discoveredUrls.urls.slice(0, 20).map(u => u.url)
+    const headResults = await Promise.all(
+      sampleUrls.map(async (u) => {
+        try {
+          const r = await fetch(u, {
+            method: 'HEAD',
+            headers: { 'User-Agent': UA },
+            signal: AbortSignal.timeout(4000),
+            redirect: 'follow',
+          })
+          return { url: u, status: r.status }
+        } catch {
+          return { url: u, status: 0 }
+        }
+      }),
+    )
+    const checked = headResults.filter(r => r.status > 0)
+    const notFound = checked.filter(r => r.status === 404)
+    const serverErrors = checked.filter(r => r.status >= 500)
+
+    findings.push(notFound.length > 0
+      ? f('http.4xx', 'bad',
+          `${notFound.length} of ${checked.length} sampled pages returned 404 — broken URLs hurt both users and rankings.`,
+          `Set up 301 redirects or fix these URLs: ${notFound.slice(0, 3).map(r => new URL(r.url).pathname).join(', ')}`)
+      : f('http.4xx', 'good', `All ${checked.length} sampled pages returned valid status codes — no 404 errors detected.`))
+
+    findings.push(serverErrors.length > 0
+      ? f('http.5xx', 'bad',
+          `${serverErrors.length} of ${checked.length} sampled pages returned 5xx server errors — search engines stop indexing pages that return errors.`,
+          'Check server logs immediately and resolve the underlying errors.')
+      : f('http.5xx', 'good', `No 5xx server errors detected across ${checked.length} sampled pages.`))
+  } else {
+    findings.push(f('http.4xx', 'info', '4xx error detection requires crawling all internal URLs — use a crawler tool for full analysis.'))
+    findings.push(f('http.5xx', 'info', '5xx error detection requires crawling all internal URLs — monitor via server logs or uptime tools.'))
+  }
 
   // ── Performance Analysis ──
 
@@ -1081,16 +1174,18 @@ export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAudi
   const $ = cheerio.load(html)
   const canonicalHref = $('link[rel="canonical"]').attr('href') ?? null
 
-  // Fetch robots.txt and sitemap.xml in parallel
+  // Fetch robots.txt, sitemap status, and run URL discovery in parallel
   const origin = new URL(finalUrl).origin
-  const [robotsRes, sitemapRes] = await Promise.allSettled([
+  const [robotsRes, sitemapRes, discoveryResult] = await Promise.allSettled([
     fetch(`${origin}/robots.txt`, { signal: AbortSignal.timeout(5_000) }),
     fetch(`${origin}/sitemap.xml`, { signal: AbortSignal.timeout(5_000) }),
+    discoverAllUrls(finalUrl, html, { maxUrls: 300, maxCrawlDepth: 2 }),
   ])
   const robotsTxt = robotsRes.status === 'fulfilled' && robotsRes.value.ok
     ? await robotsRes.value.text()
     : null
   const sitemapStatus = sitemapRes.status === 'fulfilled' ? sitemapRes.value.status : 0
+  const discoveredUrls = discoveryResult.status === 'fulfilled' ? discoveryResult.value : undefined
 
   // Optional Lighthouse
   const hasLighthouse = await lighthouseAvailable()
@@ -1100,12 +1195,12 @@ export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAudi
   const [metaFindings, imageFindings, technicalFindings] = await Promise.all([
     checkMetaTags($, finalUrl, canonicalHref),
     checkImageAlt($, finalUrl),
-    checkTechnical($, finalUrl, headers, ttfb, robotsTxt, sitemapStatus, Buffer.byteLength(html, 'utf8'), lighthouseData),
+    checkTechnical($, finalUrl, headers, ttfb, robotsTxt, sitemapStatus, Buffer.byteLength(html, 'utf8'), lighthouseData, discoveredUrls),
   ])
 
   const title = $('title').first().text().trim()
   const headingFindings = checkHeadings($, title)
-  const linkFindings = checkInternalLinks($, finalUrl)
+  const linkFindings = checkInternalLinks($, finalUrl, discoveredUrls)
   const schemaFindings = checkSchema($, finalUrl)
 
   return {
@@ -1119,5 +1214,6 @@ export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAudi
       ...schemaFindings,
       ...technicalFindings,
     ],
+    discoveredUrls,
   }
 }

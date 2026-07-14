@@ -1,7 +1,11 @@
+import { discoverAllUrls, formatUrlProfile, type UrlDiscoveryResult } from '@/lib/audit/url-discovery'
+
 export interface CompetitorData {
   url: string
   html: string | null
   error?: string
+  urlProfile: string  // pre-formatted for AI prompt
+  urlDiscovery: UrlDiscoveryResult
 }
 
 export interface CompetitorAuditFetchResult {
@@ -9,6 +13,7 @@ export interface CompetitorAuditFetchResult {
   industryKeywords: string[]
   userUrl: string
   userHtml: string | null
+  userUrlProfile: string
 }
 
 async function safeFetch(url: string, timeoutMs = 12000): Promise<string | null> {
@@ -61,33 +66,52 @@ export async function fetchCompetitorAuditData(
 
   const userUrl = userWebsiteUrl ?? ''
 
-  // Fetch all competitor pages + user's own site concurrently
-  const [competitorResults, userHtmlRaw] = await Promise.all([
-    Promise.all(
-      rawUrls.map(async (url): Promise<CompetitorData> => {
-        const normalized = url.startsWith('http') ? url : `https://${url}`
-        const html = await safeFetch(normalized)
-        if (!html) {
-          return {
-            url: normalized,
-            html: null,
-            error: 'Unable to access — returned no content or timed out',
-          }
-        }
-        return { url: normalized, html: extractContent(html) }
-      }),
-    ),
-    userUrl
-      ? safeFetch(userUrl.startsWith('http') ? userUrl : `https://${userUrl}`)
-      : Promise.resolve(null),
+  const normalizedCompetitorUrls = rawUrls.map(u => (u.startsWith('http') ? u : `https://${u}`))
+  const normalizedUserUrl = userUrl
+    ? (userUrl.startsWith('http') ? userUrl : `https://${userUrl}`)
+    : ''
+
+  // Fetch HTML + URL discovery for all sites in parallel
+  const [[userHtmlRaw, ...competitorHtmls], [userDiscovery, ...competitorDiscoveries]] = await Promise.all([
+    Promise.all([
+      normalizedUserUrl ? safeFetch(normalizedUserUrl) : Promise.resolve(null),
+      ...normalizedCompetitorUrls.map(u => safeFetch(u)),
+    ]),
+    Promise.all([
+      normalizedUserUrl
+        ? discoverAllUrls(normalizedUserUrl, undefined, { maxUrls: 150 })
+        : Promise.resolve({ urls: [], sitemapFound: false, sitemapCount: 0, crawlUsed: false, totalDiscovered: 0, urlsByPrefix: {} } as UrlDiscoveryResult),
+      ...normalizedCompetitorUrls.map(u => discoverAllUrls(u, undefined, { maxUrls: 150 })),
+    ]),
   ])
 
   const userHtml = userHtmlRaw ? extractContent(userHtmlRaw, 5000) : null
 
+  const competitors: CompetitorData[] = normalizedCompetitorUrls.map((url, i) => {
+    const rawHtml = competitorHtmls[i] ?? null
+    const discovery = competitorDiscoveries[i]
+    if (!rawHtml) {
+      return {
+        url,
+        html: null,
+        error: 'Unable to access — returned no content or timed out',
+        urlProfile: formatUrlProfile(discovery, url),
+        urlDiscovery: discovery,
+      }
+    }
+    return {
+      url,
+      html: extractContent(rawHtml),
+      urlProfile: formatUrlProfile(discovery, url),
+      urlDiscovery: discovery,
+    }
+  })
+
   return {
-    competitors: competitorResults,
+    competitors,
     industryKeywords,
-    userUrl,
+    userUrl: normalizedUserUrl,
     userHtml,
+    userUrlProfile: formatUrlProfile(userDiscovery, normalizedUserUrl || 'Your site'),
   }
 }

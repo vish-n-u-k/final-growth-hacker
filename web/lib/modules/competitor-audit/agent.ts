@@ -43,17 +43,18 @@ export async function analyzeCompetitorAudit(
 
   const competitorSection = data.competitors
     .map((c, i) => {
+      const urlBlock = c.urlProfile ? `\n${c.urlProfile}` : ''
       if (!c.html) {
-        return `=== Competitor ${i + 1}: ${c.url} ===\n${c.error ?? 'Inaccessible — skip checks that require content analysis'}\n`
+        return `=== Competitor ${i + 1}: ${c.url} ===\n${c.error ?? 'Inaccessible — skip checks that require content analysis'}${urlBlock}\n`
       }
       const metadata = extractMetadataFromHtml(c.html)
-      return `=== Competitor ${i + 1}: ${c.url} ===\n${metadata}\n`
+      return `=== Competitor ${i + 1}: ${c.url} ===\n${metadata}${urlBlock}\n`
     })
     .join('\n')
 
   const userSection = data.userHtml
-    ? `=== User's own site (${data.userUrl}) ===\n${extractMetadataFromHtml(data.userHtml)}\n`
-    : `=== User's own site (${data.userUrl}) ===\nCould not fetch HTML — compare competitors against each other and note what the user should do.\n`
+    ? `=== User's own site (${data.userUrl}) ===\n${extractMetadataFromHtml(data.userHtml)}\n${data.userUrlProfile}\n`
+    : `=== User's own site (${data.userUrl}) ===\nCould not fetch HTML — compare competitors against each other and note what the user should do.\n${data.userUrlProfile}\n`
 
   const keywordsNote =
     data.industryKeywords.length > 0

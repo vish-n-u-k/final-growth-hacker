@@ -139,6 +139,8 @@ export interface DBItemFull {
   fixType: FixType | null
   fixInputKey: string | null
   fixIntegrationProvider: string | null
+  userSkipped: boolean
+  userSkipReason: string | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

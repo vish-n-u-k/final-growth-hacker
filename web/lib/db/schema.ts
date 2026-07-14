@@ -96,6 +96,8 @@ export const moduleItems = pgTable(
     fixIntegrationProvider: text('fix_integration_provider'), // which integration to read from (e.g. 'google_analytics')
     aiDraft: text('ai_draft'),             // on-demand AI-generated draft content (copy, outline, template)
     aiData: jsonb('ai_data'),              // structured data payload (e.g. calendar entries JSON for content-calendar-30-day)
+    userSkipped: boolean('user_skipped').default(false),
+    userSkipReason: text('user_skip_reason'),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   },
   (table) => ({
