@@ -74,7 +74,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ lastByPlatform })
+  const allPosts = posts.map(p => ({
+    id: p.id,
+    platform: p.platform,
+    topic: p.topic,
+    postType: p.postType,
+    scheduledAt: p.scheduledAt?.toISOString() ?? null,
+    status: p.status,
+    outputUrl: p.outputUrl,
+    createdAt: p.createdAt?.toISOString() ?? null,
+  }))
+
+  return NextResponse.json({ lastByPlatform, allPosts })
 }
 
 // POST — generate via Frekto + store

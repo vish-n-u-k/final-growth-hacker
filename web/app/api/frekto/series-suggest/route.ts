@@ -24,20 +24,21 @@ export async function POST(request: NextRequest) {
   if (!brand || brand.userId !== user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Fetch all enrichment data in parallel
-  const [items, topCompetitors, repurposePages, gscInt] = await Promise.all([
+  const [items, topCompetitors, repurposePages, gscInt, posthogInt] = await Promise.all([
     // Failing audit items
     db.select({ label: moduleItems.label, aiDetail: moduleItems.aiDetail })
       .from(moduleItems)
       .where(and(eq(moduleItems.moduleId, moduleId), eq(moduleItems.aiVerified, false)))
       .limit(15),
 
-    // Top 3 competitors
+    // Top 3 competitors (table may not exist yet — fail gracefully)
     db.select({ name: competitors.name, primaryStrength: competitors.primaryStrength, type: competitors.type })
       .from(competitors)
       .where(eq(competitors.brandId, brand.id))
-      .limit(3),
+      .limit(3)
+      .catch(() => []),
 
-    // Content audit "Repurpose" pages
+    // Content audit "Repurpose" pages (module may not be complete — fail gracefully)
     db.select({ id: modules.id })
       .from(modules)
       .where(and(eq(modules.brandId, brand.id), eq(modules.type, 'content-audit'), eq(modules.status, 'complete')))
@@ -48,15 +49,47 @@ export async function POST(request: NextRequest) {
           .from(modulePageAudit)
           .where(and(eq(modulePageAudit.moduleId, contentMod.id), eq(modulePageAudit.verdict, 'Repurpose')))
           .limit(5)
-      }),
+      })
+      .catch(() => []),
 
     // GSC API integration
     db.select()
       .from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.provider, 'gsc_api'), eq(brandIntegrations.status, 'connected')))
       .limit(1)
-      .then(rows => rows[0] ?? null),
+      .then(rows => rows[0] ?? null)
+      .catch(() => null),
+
+    // PostHog integration
+    db.select()
+      .from(brandIntegrations)
+      .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.provider, 'posthog'), eq(brandIntegrations.status, 'connected')))
+      .limit(1)
+      .then(rows => rows[0] ?? null)
+      .catch(() => null),
   ])
+
+  // Fetch PostHog user count if connected
+  let appUserCount: number | null = null
+  if (posthogInt?.apiKey) {
+    try {
+      const meta = (posthogInt.metadata as Record<string, string> | null) ?? {}
+      const projectId = meta['project_id']
+      const host = (meta['posthog_host'] ?? 'https://us.posthog.com').replace(/\/$/, '')
+      if (projectId) {
+        const res = await fetch(`${host}/api/projects/${projectId}/query`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${posthogInt.apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: { kind: 'HogQLQuery', query: 'SELECT count() FROM persons' } }),
+          signal: AbortSignal.timeout(8000),
+        })
+        if (res.ok) {
+          const data = await res.json() as { results?: number[][] }
+          appUserCount = data.results?.[0]?.[0] ?? null
+        }
+      }
+    } catch { /* fail silently */ }
+  }
 
   // Fetch GSC page-2 keywords if connected
   let gscPage2Keywords: string[] = []
@@ -92,11 +125,12 @@ export async function POST(request: NextRequest) {
     : ''
 
   const playbookStr = brand.playbook ? `\nBrand playbook: ${JSON.stringify(brand.playbook).slice(0, 400)}` : ''
+  const userCountStr = appUserCount !== null ? `\nCurrent app user count: ${appUserCount.toLocaleString()} users` : ''
 
   const prompt = `Brand: ${brand.name}
 Website: ${brand.websiteUrl}
 Industry: ${brand.industry ?? 'infer from website'}
-Target audience: ${brand.targetAudience ?? 'infer from brand context'}${brand.usp ? `\nUSP: ${brand.usp}` : ''}${brand.brandVoice ? `\nBrand voice: ${brand.brandVoice}` : ''}${brand.keywords ? `\nCore keywords: ${brand.keywords}` : ''}${playbookStr}${competitorsSection}${repurposeSection}${gscSection}
+Target audience: ${brand.targetAudience ?? 'infer from brand context'}${brand.usp ? `\nUSP: ${brand.usp}` : ''}${brand.brandVoice ? `\nBrand voice: ${brand.brandVoice}` : ''}${brand.keywords ? `\nCore keywords: ${brand.keywords}` : ''}${userCountStr}${playbookStr}${competitorsSection}${repurposeSection}${gscSection}
 
 Current audit findings (areas to improve):
 ${findingsList}
@@ -110,6 +144,7 @@ For each platform:
 4. format — "4:5" for instagram, "1:1" for linkedin and twitter
 5. outputFormat — "mp4" for instagram, "png" for linkedin and twitter
 6. startDate — "${tomorrowStr}"
+7. reason — 2-3 sentences explaining: (a) why this platform suits the brand's audience and industry, (b) why this specific content direction was chosen (mention if it's based on audit findings, repurpose pages, GSC keywords, competitor gaps, or user count stage), (c) why this post count and cadence makes sense for this platform right now.
 
 Return a JSON array of exactly 3 objects in this order: instagram, linkedin, twitter
 
@@ -121,7 +156,8 @@ Return a JSON array of exactly 3 objects in this order: instagram, linkedin, twi
     "cadence": "mwf",
     "format": "4:5",
     "outputFormat": "mp4",
-    "startDate": "${tomorrowStr}"
+    "startDate": "${tomorrowStr}",
+    "reason": "2-3 sentence explanation here"
   }
 ]`
 
@@ -130,7 +166,7 @@ Return a JSON array of exactly 3 objects in this order: instagram, linkedin, twi
     raw = await callAI({
       system: 'You are a social media strategist. Return only a valid JSON array, no markdown fences, no text outside the array.',
       prompt,
-      maxTokens: 1000,
+      maxTokens: 1500,
       model: 'claude-haiku-4-5-20251001',
     })
   } catch (e) {

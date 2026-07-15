@@ -1912,8 +1912,8 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       />
                     )}
 
-                    {/* Smart Scheduler — Social Media module only */}
-                    {modData.type === 'social-media' && (
+                    {/* Smart Scheduler — hidden */}
+                    {false && modData.type === 'social-media' && (
                       <SmartScheduler
                         moduleId={modData.id}
                         brandId={brand.id}
@@ -1949,10 +1949,32 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 const SERIES_PLATFORMS = ['instagram', 'linkedin', 'twitter'] as const
 type SeriesPlatform = typeof SERIES_PLATFORMS[number]
 
-const SERIES_PLATFORM_COLORS: Record<SeriesPlatform, string> = {
-  instagram: '#e1306c',
-  linkedin:  '#0a66c2',
-  twitter:   '#1d9bf0',
+const SERIES_PLATFORM_META: Record<SeriesPlatform, { label: string; color: string }> = {
+  instagram: { label: 'Instagram',   color: '#E1306C' },
+  linkedin:  { label: 'LinkedIn',    color: '#0A66C2' },
+  twitter:   { label: 'X / Twitter', color: '#1DA1F2' },
+}
+
+function SeriesPlatformIcon({ platform, size = 20, color }: { platform: string; size?: number; color: string }) {
+  if (platform === 'instagram') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+      <circle cx="12" cy="12" r="5"/>
+      <circle cx="17.5" cy="6.5" r="1.5" fill={color} stroke="none"/>
+    </svg>
+  )
+  if (platform === 'linkedin') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>
+      <rect x="2" y="9" width="4" height="12"/>
+      <circle cx="4" cy="4" r="2"/>
+    </svg>
+  )
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.742l7.733-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77z"/>
+    </svg>
+  )
 }
 
 const CADENCE_OPTIONS = [
@@ -1970,6 +1992,7 @@ interface SeriesBrief {
   format: string
   outputFormat: string
   startDate: string
+  reason: string
 }
 
 interface SeriesCardStatus {
@@ -1979,12 +2002,39 @@ interface SeriesCardStatus {
   error: string | null
 }
 
+interface HistoryPost {
+  id: string
+  platform: string
+  topic: string
+  postType: string
+  scheduledAt: string | null
+  status: string
+  outputUrl: string | null
+}
+
+const PLATFORM_ORDER = ['instagram', 'linkedin', 'twitter', 'facebook', 'youtube', 'tiktok']
+
 function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; brandId: string; connected: boolean }) {
-  const [generating, setGenerating]   = useState(false)
-  const [genError, setGenError]       = useState<string | null>(null)
-  const [hasGenerated, setHasGenerated] = useState(false)
-  const [briefs, setBriefs]           = useState<Record<string, SeriesBrief>>({})
-  const [statuses, setStatuses]       = useState<Record<string, SeriesCardStatus>>({})
+  const [generating, setGenerating]       = useState(false)
+  const [genError, setGenError]           = useState<string | null>(null)
+  const [hasGenerated, setHasGenerated]   = useState(false)
+  const [briefs, setBriefs]               = useState<Record<string, SeriesBrief>>({})
+  const [statuses, setStatuses]           = useState<Record<string, SeriesCardStatus>>({})
+  const [history, setHistory]             = useState<HistoryPost[]>([])
+  const [openPlatform, setOpenPlatform]   = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/frekto/schedule?brandId=${brandId}`)
+      .then(r => r.json())
+      .then((d: { allPosts?: HistoryPost[] }) => { if (d.allPosts?.length) setHistory(d.allPosts) })
+      .catch(() => {})
+  }, [brandId])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenPlatform(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const updateBrief = (platform: string, patch: Partial<SeriesBrief>) =>
     setBriefs(prev => ({ ...prev, [platform]: { ...prev[platform], ...patch } }))
@@ -2012,12 +2062,20 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
           format: s.format ?? '1:1',
           outputFormat: s.outputFormat ?? 'png',
           startDate: s.startDate ?? fallbackDate,
+          reason: s.reason ?? '',
         }
         newStatuses[s.platform] = { scheduling: false, scheduled: false, posts: [], error: null }
       }
       setBriefs(newBriefs); setStatuses(newStatuses); setHasGenerated(true)
     } catch (e) { console.error('[ContentScheduler] handleGenerate error:', e); setGenError('Network error — please try again.') }
     finally { setGenerating(false) }
+  }
+
+  const refreshHistory = () => {
+    fetch(`/api/frekto/schedule?brandId=${brandId}`)
+      .then(r => r.json())
+      .then((d: { allPosts?: HistoryPost[] }) => { if (d.allPosts) setHistory(d.allPosts) })
+      .catch(() => {})
   }
 
   const handleSchedule = async (platform: string) => {
@@ -2035,132 +2093,238 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
         return
       }
       setStatuses(prev => ({ ...prev, [platform]: { scheduling: false, scheduled: true, posts: data.posts ?? [], error: null } }))
+      refreshHistory()
     } catch (e) {
       console.error('[ContentScheduler] handleSchedule error:', e)
       setStatuses(prev => ({ ...prev, [platform]: { ...prev[platform], scheduling: false, error: 'Network error.' } }))
     }
   }
 
+  // Modal data
+  const mp     = openPlatform
+  const mBrief = mp ? briefs[mp] : null
+  const mSt    = mp ? statuses[mp] : null
+  const mMeta  = mp ? SERIES_PLATFORM_META[mp as SeriesPlatform] : null
+  const mHistory = mp ? history.filter(p => p.platform === mp) : []
+
   return (
-    <div style={{ padding: '20px 28px', borderTop: '1px solid var(--line)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>Content Scheduler</span>
-        {!connected && <a href="/settings" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
+    <div style={{ padding: '24px 28px', borderTop: '1px solid var(--line)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>Content Scheduler</span>
+        {!connected && <a href="/settings" style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '5px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
       </div>
-      <p style={{ fontSize: '12px', color: 'var(--text-faint)', marginBottom: '16px', lineHeight: 1.5 }}>
-        Generates a full content series for Instagram, LinkedIn, and Twitter — FrektoAI creates and auto schedules the posts.
+      <p style={{ fontSize: '14px', color: 'var(--text-faint)', marginBottom: '20px', lineHeight: 1.55 }}>
+        Generates a full content series for Instagram, LinkedIn, and X — AI plans the posts, Frekto renders and auto-schedules them.
       </p>
 
       {!connected ? (
-        <a href="/settings" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>Go to Settings → Integrations</a>
+        <a href="/settings" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}>
+          Go to Settings → Integrations
+        </a>
       ) : (
         <>
+          {/* Platform cards — compact, click + to open popup */}
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+            {SERIES_PLATFORMS.map(platform => {
+              const brief = briefs[platform]
+              const st = statuses[platform]
+              const { label, color } = SERIES_PLATFORM_META[platform]
+              const isJustScheduled = !!st?.scheduled
+              const recentPosts = history.filter(p => p.platform === platform)
+              const mostRecent = recentPosts[0]
+              const hasBrief = !!brief
+
+              return (
+                <div key={platform} style={{ width: '200px', borderRadius: '12px', border: `1px solid ${isJustScheduled ? 'rgba(47,191,113,0.4)' : hasBrief ? color + '55' : color + '28'}`, background: 'var(--card)', overflow: 'hidden' }}>
+                  {/* Card header */}
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: color + '0d', borderBottom: '1px solid var(--line)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <SeriesPlatformIcon platform={platform} size={18} color={color} />
+                      <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>{label}</span>
+                    </div>
+                    {/* + / open button */}
+                    <button
+                      onClick={() => setOpenPlatform(platform)}
+                      title={hasBrief ? 'View & schedule' : 'Open'}
+                      style={{ width: '26px', height: '26px', borderRadius: '50%', border: `1.5px solid ${hasBrief ? color : 'var(--line)'}`, background: hasBrief ? color + '22' : 'transparent', color: hasBrief ? color : 'var(--text-faint)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}
+                    >
+                      {isJustScheduled ? (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      ) : (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Status / last post */}
+                  <div style={{ padding: '10px 14px' }}>
+                    {isJustScheduled ? (
+                      <p style={{ fontSize: '12px', color: 'var(--green)', fontWeight: 600, margin: 0 }}>
+                        {st!.posts.length} post{st!.posts.length !== 1 ? 's' : ''} scheduled
+                      </p>
+                    ) : mostRecent ? (
+                      <>
+                        <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.04em', margin: '0 0 3px' }}>LAST</p>
+                        <p style={{ fontSize: '12px', color: 'var(--text)', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>{mostRecent.topic}</p>
+                        <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
+                          {mostRecent.scheduledAt ? new Date(mostRecent.scheduledAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
+                          {recentPosts.length > 1 ? ` · +${recentPosts.length - 1} more` : ''}
+                        </p>
+                      </>
+                    ) : hasBrief ? (
+                      <p style={{ fontSize: '12px', color: color, fontWeight: 600, margin: 0 }}>Brief ready</p>
+                    ) : (
+                      <p style={{ fontSize: '12px', color: 'var(--text-faint)', margin: 0, fontStyle: 'italic' }}>Nothing yet</p>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Generate button */}
           <button
             onClick={handleGenerate}
             disabled={generating}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '8px 20px', borderRadius: '7px', fontSize: '12.5px', fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer', border: 'none', background: generating ? 'rgba(47,191,113,0.25)' : 'var(--green)', color: generating ? 'var(--text-dim)' : '#06140c', marginBottom: '16px' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 22px', borderRadius: '8px', fontSize: '15px', fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer', border: 'none', background: generating ? 'rgba(47,191,113,0.2)' : 'var(--green)', color: generating ? 'var(--text-dim)' : 'var(--bg)' }}
           >
-            {generating
-              ? <><span className="md-spin" style={{ borderTopColor: 'var(--green)', borderColor: 'rgba(47,191,113,0.2)' }} />Analyzing brand…</>
-              : hasGenerated ? 'Refresh ideas' : 'Generate series briefs'}
+            {generating ? (
+              <><span className="md-spin" style={{ borderTopColor: 'var(--green)', borderColor: 'rgba(47,191,113,0.2)' }} />Analyzing brand…</>
+            ) : hasGenerated ? (
+              <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>Refresh briefs</>
+            ) : (
+              <><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>Generate series briefs</>
+            )}
           </button>
 
-          {genError && <p style={{ fontSize: '12px', color: '#ef4444', marginBottom: '12px' }}>{genError}</p>}
+          {genError && <p style={{ fontSize: '14px', color: '#ef4444', marginTop: '12px' }}>{genError}</p>}
 
-          {hasGenerated && (
-            <div style={{ display: 'flex', gap: '14px', overflowX: 'auto', paddingBottom: '4px' }}>
-              {SERIES_PLATFORMS.map(platform => {
-                const brief = briefs[platform]
-                const st = statuses[platform]
-                if (!brief) return null
-                const color = SERIES_PLATFORM_COLORS[platform]
+          {/* Schedule / history modal */}
+          {mp && mMeta && (
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)' }}
+              onClick={() => setOpenPlatform(null)}
+            >
+              <div
+                style={{ width: '480px', maxWidth: '95vw', maxHeight: '88vh', overflowY: 'auto', borderRadius: '16px', background: 'var(--card)', border: `1px solid ${mMeta.color}44`, boxShadow: `0 32px 80px rgba(0,0,0,0.6)` }}
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Modal header */}
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: mMeta.color + '0d', borderRadius: '16px 16px 0 0', position: 'sticky', top: 0, zIndex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <SeriesPlatformIcon platform={mp} size={20} color={mMeta.color} />
+                    <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>{mMeta.label}</span>
+                  </div>
+                  <button onClick={() => setOpenPlatform(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', padding: '4px', display: 'flex', alignItems: 'center', borderRadius: '6px' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
 
-                return (
-                  <div key={platform} style={{ minWidth: '280px', maxWidth: '320px', flex: '0 0 auto', borderRadius: '10px', border: '1px solid var(--line)', background: 'var(--card)', overflow: 'hidden' }}>
-                    {/* Card header */}
-                    <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
-                      <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize' }}>{platform}</span>
+                <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Scheduled posts result */}
+                  {mSt?.scheduled ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--green)', margin: 0 }}>
+                        {mSt.posts.length} post{mSt.posts.length !== 1 ? 's' : ''} queued for publishing
+                      </p>
+                      {mSt.posts.map((p, i) => (
+                        <div key={i} style={{ padding: '10px 14px', borderRadius: '9px', background: 'rgba(47,191,113,0.06)', border: '1px solid rgba(47,191,113,0.2)' }}>
+                          <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--green-bright)', margin: '0 0 3px' }}>
+                            {new Date(p.scheduledAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </p>
+                          {p.topic && <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: 0, lineHeight: 1.4 }}>{p.topic.length > 70 ? p.topic.slice(0, 70) + '…' : p.topic}</p>}
+                          {p.outputUrl && <a href={p.outputUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', color: mMeta.color, textDecoration: 'none', display: 'inline-block', marginTop: '4px' }}>View asset →</a>}
+                        </div>
+                      ))}
                     </div>
-
-                    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {/* Instruction */}
+                  ) : mBrief ? (
+                    /* Full brief form + schedule */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      {mBrief.reason && (
+                        <div style={{ padding: '11px 13px', borderRadius: '9px', background: mMeta.color + '0e', border: `1px solid ${mMeta.color}33` }}>
+                          <p style={{ fontSize: '11px', fontWeight: 700, color: mMeta.color, margin: '0 0 5px', letterSpacing: '0.05em' }}>WHY THIS PLATFORM</p>
+                          <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: 0, lineHeight: 1.6 }}>{mBrief.reason}</p>
+                        </div>
+                      )}
                       <div>
-                        <label style={{ fontSize: '10px', color: 'var(--text-faint)', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>SERIES BRIEF</label>
+                        <label style={{ fontSize: '12px', color: 'var(--text-faint)', fontWeight: 600, letterSpacing: '0.04em', display: 'block', marginBottom: '6px' }}>SERIES BRIEF</label>
                         <textarea
-                          value={brief.instruction}
-                          onChange={e => updateBrief(platform, { instruction: e.target.value })}
-                          rows={3}
-                          maxLength={400}
-                          style={{ width: '100%', padding: '7px 9px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '11.5px', resize: 'vertical', outline: 'none', lineHeight: 1.45, boxSizing: 'border-box' }}
+                          value={mBrief.instruction}
+                          onChange={e => updateBrief(mp, { instruction: e.target.value })}
+                          rows={4} maxLength={400}
+                          style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '14px', resize: 'vertical', outline: 'none', lineHeight: 1.55, boxSizing: 'border-box', fontFamily: 'inherit' }}
                         />
                       </div>
-
-                      {/* Count + Cadence */}
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <div style={{ flex: 1 }}>
-                          <label style={{ fontSize: '10px', color: 'var(--text-faint)', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>POSTS</label>
-                          <select
-                            value={brief.count}
-                            onChange={e => updateBrief(platform, { count: Number(e.target.value) })}
-                            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '12px', outline: 'none' }}
-                          >
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px' }}>
+                        <div>
+                          <label style={{ fontSize: '12px', color: 'var(--text-faint)', fontWeight: 600, letterSpacing: '0.04em', display: 'block', marginBottom: '6px' }}>POSTS</label>
+                          <select value={mBrief.count} onChange={e => updateBrief(mp, { count: Number(e.target.value) })} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '14px', outline: 'none' }}>
                             {[2, 3, 4, 5].map(n => <option key={n} value={n}>{n} posts</option>)}
                           </select>
                         </div>
-                        <div style={{ flex: 2 }}>
-                          <label style={{ fontSize: '10px', color: 'var(--text-faint)', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>CADENCE</label>
-                          <select
-                            value={brief.cadence}
-                            onChange={e => updateBrief(platform, { cadence: e.target.value })}
-                            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '12px', outline: 'none' }}
-                          >
+                        <div>
+                          <label style={{ fontSize: '12px', color: 'var(--text-faint)', fontWeight: 600, letterSpacing: '0.04em', display: 'block', marginBottom: '6px' }}>CADENCE</label>
+                          <select value={mBrief.cadence} onChange={e => updateBrief(mp, { cadence: e.target.value })} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '14px', outline: 'none' }}>
                             {CADENCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </select>
                         </div>
                       </div>
-
-                      {/* Start date */}
                       <div>
-                        <label style={{ fontSize: '10px', color: 'var(--text-faint)', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>START DATE</label>
-                        <input
-                          type="date"
-                          value={brief.startDate}
-                          onChange={e => updateBrief(platform, { startDate: e.target.value })}
-                          style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }}
-                        />
+                        <label style={{ fontSize: '12px', color: 'var(--text-faint)', fontWeight: 600, letterSpacing: '0.04em', display: 'block', marginBottom: '6px' }}>START DATE</label>
+                        <input type="date" value={mBrief.startDate} onChange={e => updateBrief(mp, { startDate: e.target.value })} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
                       </div>
-
-                      {/* Schedule button */}
-                      {st?.scheduled ? (
-                        <div style={{ padding: '10px', borderRadius: '7px', background: 'rgba(47,191,113,0.08)', border: '1px solid rgba(47,191,113,0.2)' }}>
-                          <p style={{ fontSize: '11.5px', color: 'var(--green)', fontWeight: 600, margin: '0 0 6px' }}>
-                            {st.posts.length} posts scheduled
-                          </p>
-                          {st.posts.map((p, i) => (
-                            <p key={i} style={{ fontSize: '10.5px', color: 'var(--text-faint)', margin: '0 0 2px', lineHeight: 1.4 }}>
-                              {new Date(p.scheduledAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                              {p.topic ? ` — ${p.topic.slice(0, 40)}…` : ''}
-                            </p>
-                          ))}
-                        </div>
-                      ) : (
-                        <button
-                          disabled={st?.scheduling || !brief.instruction.trim()}
-                          onClick={() => handleSchedule(platform)}
-                          style={{ padding: '8px 0', borderRadius: '7px', fontSize: '12px', fontWeight: 600, cursor: st?.scheduling || !brief.instruction.trim() ? 'not-allowed' : 'pointer', border: 'none', background: st?.scheduling || !brief.instruction.trim() ? 'rgba(47,191,113,0.15)' : color, color: st?.scheduling || !brief.instruction.trim() ? 'var(--text-faint)' : '#fff', width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                        >
-                          {st?.scheduling
-                            ? <><span className="md-spin" style={{ borderTopColor: '#fff', borderColor: 'rgba(255,255,255,0.2)' }} />Scheduling…</>
-                            : 'Schedule Series'}
-                        </button>
-                      )}
-
-                      {st?.error && <p style={{ fontSize: '11px', color: '#ef4444', margin: 0 }}>{st.error}</p>}
+                      {mSt?.error && <p style={{ fontSize: '13px', color: '#ef4444', margin: 0 }}>{mSt.error}</p>}
+                      <button
+                        disabled={mSt?.scheduling || !mBrief.instruction.trim()}
+                        onClick={() => handleSchedule(mp)}
+                        style={{ padding: '12px 0', borderRadius: '9px', fontSize: '15px', fontWeight: 700, cursor: mSt?.scheduling || !mBrief.instruction.trim() ? 'not-allowed' : 'pointer', border: 'none', background: mSt?.scheduling || !mBrief.instruction.trim() ? 'rgba(255,255,255,0.06)' : mMeta.color, color: mSt?.scheduling || !mBrief.instruction.trim() ? 'var(--text-dim)' : '#fff', width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                      >
+                        {mSt?.scheduling ? (
+                          <><span className="md-spin" style={{ borderTopColor: '#fff', borderColor: 'rgba(255,255,255,0.25)' }} />Generating & scheduling…</>
+                        ) : (
+                          <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Schedule Series</>
+                        )}
+                      </button>
                     </div>
-                  </div>
-                )
-              })}
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                      <p style={{ fontSize: '14px', color: 'var(--text-faint)', margin: '0 0 14px' }}>No brief yet — generate one first.</p>
+                      <button onClick={() => { setOpenPlatform(null); handleGenerate() }} style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '9px 18px', borderRadius: '8px', border: 'none', background: 'var(--green)', color: 'var(--bg)', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+                        Generate briefs
+                      </button>
+                    </div>
+                  )}
+
+                  {/* History for this platform */}
+                  {mHistory.length > 0 && (
+                    <div style={{ paddingTop: '16px', borderTop: '1px solid var(--line)' }}>
+                      <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.05em', margin: '0 0 10px' }}>
+                        HISTORY — {mHistory.length} post{mHistory.length !== 1 ? 's' : ''}
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                        {mHistory.map(post => (
+                          <div key={post.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--line)' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: '13px', color: 'var(--text)', margin: '0 0 2px', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.topic}</p>
+                              <p style={{ fontSize: '12px', color: 'var(--text-faint)', margin: 0 }}>
+                                {post.scheduledAt ? new Date(post.scheduledAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'No date'}
+                                {' · '}{post.postType}
+                              </p>
+                            </div>
+                            <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 7px', borderRadius: '20px', flexShrink: 0, background: post.status === 'scheduled' ? 'rgba(47,191,113,0.15)' : 'rgba(255,255,255,0.06)', color: post.status === 'scheduled' ? 'var(--green)' : 'var(--text-faint)', border: `1px solid ${post.status === 'scheduled' ? 'rgba(47,191,113,0.3)' : 'var(--line)'}` }}>
+                              {post.status}
+                            </span>
+                            {post.outputUrl && (
+                              <a href={post.outputUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', color: mMeta.color, textDecoration: 'none', flexShrink: 0 }}>View</a>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </>
