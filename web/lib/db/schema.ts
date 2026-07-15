@@ -260,6 +260,21 @@ export const communityPerformance = pgTable(
   }),
 )
 
+// ── Frekto Scheduled Posts ────────────────────────────────────────────────────
+
+export const frektoScheduledPosts = pgTable('frekto_scheduled_posts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  platform: text('platform').notNull(),      // 'instagram' | 'linkedin' | 'twitter' | 'facebook' | 'youtube' | 'tiktok'
+  topic: text('topic').notNull(),
+  postType: text('post_type').notNull(),     // 'image' | 'video'
+  scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull(),
+  frektoJobId: text('frekto_job_id'),
+  outputUrl: text('output_url'),
+  status: text('status').notNull().default('scheduled'), // 'scheduled' | 'done' | 'failed'
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
 // ── Features ──────────────────────────────────────────────────────────────────
 
 export const features = pgTable(

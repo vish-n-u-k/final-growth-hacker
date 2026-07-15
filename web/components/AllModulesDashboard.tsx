@@ -1911,6 +1911,24 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         connected={!!connectedIntegrations['frekto']}
                       />
                     )}
+
+                    {/* Smart Scheduler — Social Media module only */}
+                    {modData.type === 'social-media' && (
+                      <SmartScheduler
+                        moduleId={modData.id}
+                        brandId={brand.id}
+                        connected={!!connectedIntegrations['frekto']}
+                      />
+                    )}
+
+                    {/* Content Scheduler — Social Media module only */}
+                    {modData.type === 'social-media' && (
+                      <ContentScheduler
+                        moduleId={modData.id}
+                        brandId={brand.id}
+                        connected={!!connectedIntegrations['frekto']}
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -1923,6 +1941,374 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
         </p>
       </div>
     </>
+  )
+}
+
+// ── Content Scheduler ──────────────────────────────────────────────────────────
+
+const SERIES_PLATFORMS = ['instagram', 'linkedin', 'twitter'] as const
+type SeriesPlatform = typeof SERIES_PLATFORMS[number]
+
+const SERIES_PLATFORM_COLORS: Record<SeriesPlatform, string> = {
+  instagram: '#e1306c',
+  linkedin:  '#0a66c2',
+  twitter:   '#1d9bf0',
+}
+
+const CADENCE_OPTIONS = [
+  { value: 'mwf',      label: 'Mon / Wed / Fri' },
+  { value: 'linkedin', label: 'Tue / Wed / Thu' },
+  { value: 'weekdays', label: 'Every weekday' },
+  { value: 'daily',    label: 'Every day' },
+]
+
+interface SeriesBrief {
+  platform: string
+  instruction: string
+  count: number
+  cadence: string
+  format: string
+  outputFormat: string
+  startDate: string
+}
+
+interface SeriesCardStatus {
+  scheduling: boolean
+  scheduled: boolean
+  posts: { topic: string; scheduledAt: string; outputUrl: string | null }[]
+  error: string | null
+}
+
+function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; brandId: string; connected: boolean }) {
+  const [generating, setGenerating]   = useState(false)
+  const [genError, setGenError]       = useState<string | null>(null)
+  const [hasGenerated, setHasGenerated] = useState(false)
+  const [briefs, setBriefs]           = useState<Record<string, SeriesBrief>>({})
+  const [statuses, setStatuses]       = useState<Record<string, SeriesCardStatus>>({})
+
+  const updateBrief = (platform: string, patch: Partial<SeriesBrief>) =>
+    setBriefs(prev => ({ ...prev, [platform]: { ...prev[platform], ...patch } }))
+
+  const handleGenerate = async () => {
+    setGenerating(true); setGenError(null)
+    try {
+      const res = await fetch('/api/frekto/series-suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleId }),
+      })
+      const data = await res.json() as { suggestions?: SeriesBrief[]; error?: string }
+      if (!res.ok || data.error) { setGenError(data.error ?? 'Failed to generate briefs.'); return }
+      const newBriefs: Record<string, SeriesBrief> = {}
+      const newStatuses: Record<string, SeriesCardStatus> = {}
+      const fallbackDate = new Date(Date.now() + 86400000).toISOString().slice(0, 10)
+      for (const s of data.suggestions ?? []) {
+        if (!s.platform) continue
+        newBriefs[s.platform] = {
+          platform: s.platform,
+          instruction: s.instruction ?? '',
+          count: s.count ?? 3,
+          cadence: s.cadence ?? 'mwf',
+          format: s.format ?? '1:1',
+          outputFormat: s.outputFormat ?? 'png',
+          startDate: s.startDate ?? fallbackDate,
+        }
+        newStatuses[s.platform] = { scheduling: false, scheduled: false, posts: [], error: null }
+      }
+      setBriefs(newBriefs); setStatuses(newStatuses); setHasGenerated(true)
+    } catch (e) { console.error('[ContentScheduler] handleGenerate error:', e); setGenError('Network error — please try again.') }
+    finally { setGenerating(false) }
+  }
+
+  const handleSchedule = async (platform: string) => {
+    const brief = briefs[platform]; if (!brief) return
+    setStatuses(prev => ({ ...prev, [platform]: { ...prev[platform], scheduling: true, error: null } }))
+    try {
+      const res = await fetch('/api/frekto/series', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId, platform, ...brief }),
+      })
+      const data = await res.json() as { seriesId?: string; posts?: SeriesCardStatus['posts']; error?: string }
+      if (!res.ok || data.error) {
+        setStatuses(prev => ({ ...prev, [platform]: { ...prev[platform], scheduling: false, error: data.error ?? 'Failed.' } }))
+        return
+      }
+      setStatuses(prev => ({ ...prev, [platform]: { scheduling: false, scheduled: true, posts: data.posts ?? [], error: null } }))
+    } catch (e) {
+      console.error('[ContentScheduler] handleSchedule error:', e)
+      setStatuses(prev => ({ ...prev, [platform]: { ...prev[platform], scheduling: false, error: 'Network error.' } }))
+    }
+  }
+
+  return (
+    <div style={{ padding: '20px 28px', borderTop: '1px solid var(--line)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>Content Scheduler</span>
+        {!connected && <a href="/settings" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
+      </div>
+      <p style={{ fontSize: '12px', color: 'var(--text-faint)', marginBottom: '16px', lineHeight: 1.5 }}>
+        Generates a full content series for Instagram, LinkedIn, and Twitter — FrektoAI creates and auto schedules the posts.
+      </p>
+
+      {!connected ? (
+        <a href="/settings" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>Go to Settings → Integrations</a>
+      ) : (
+        <>
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '8px 20px', borderRadius: '7px', fontSize: '12.5px', fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer', border: 'none', background: generating ? 'rgba(47,191,113,0.25)' : 'var(--green)', color: generating ? 'var(--text-dim)' : '#06140c', marginBottom: '16px' }}
+          >
+            {generating
+              ? <><span className="md-spin" style={{ borderTopColor: 'var(--green)', borderColor: 'rgba(47,191,113,0.2)' }} />Analyzing brand…</>
+              : hasGenerated ? 'Refresh ideas' : 'Generate series briefs'}
+          </button>
+
+          {genError && <p style={{ fontSize: '12px', color: '#ef4444', marginBottom: '12px' }}>{genError}</p>}
+
+          {hasGenerated && (
+            <div style={{ display: 'flex', gap: '14px', overflowX: 'auto', paddingBottom: '4px' }}>
+              {SERIES_PLATFORMS.map(platform => {
+                const brief = briefs[platform]
+                const st = statuses[platform]
+                if (!brief) return null
+                const color = SERIES_PLATFORM_COLORS[platform]
+
+                return (
+                  <div key={platform} style={{ minWidth: '280px', maxWidth: '320px', flex: '0 0 auto', borderRadius: '10px', border: '1px solid var(--line)', background: 'var(--card)', overflow: 'hidden' }}>
+                    {/* Card header */}
+                    <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', textTransform: 'capitalize' }}>{platform}</span>
+                    </div>
+
+                    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {/* Instruction */}
+                      <div>
+                        <label style={{ fontSize: '10px', color: 'var(--text-faint)', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>SERIES BRIEF</label>
+                        <textarea
+                          value={brief.instruction}
+                          onChange={e => updateBrief(platform, { instruction: e.target.value })}
+                          rows={3}
+                          maxLength={400}
+                          style={{ width: '100%', padding: '7px 9px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '11.5px', resize: 'vertical', outline: 'none', lineHeight: 1.45, boxSizing: 'border-box' }}
+                        />
+                      </div>
+
+                      {/* Count + Cadence */}
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={{ fontSize: '10px', color: 'var(--text-faint)', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>POSTS</label>
+                          <select
+                            value={brief.count}
+                            onChange={e => updateBrief(platform, { count: Number(e.target.value) })}
+                            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '12px', outline: 'none' }}
+                          >
+                            {[2, 3, 4, 5].map(n => <option key={n} value={n}>{n} posts</option>)}
+                          </select>
+                        </div>
+                        <div style={{ flex: 2 }}>
+                          <label style={{ fontSize: '10px', color: 'var(--text-faint)', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>CADENCE</label>
+                          <select
+                            value={brief.cadence}
+                            onChange={e => updateBrief(platform, { cadence: e.target.value })}
+                            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '12px', outline: 'none' }}
+                          >
+                            {CADENCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Start date */}
+                      <div>
+                        <label style={{ fontSize: '10px', color: 'var(--text-faint)', fontWeight: 600, letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>START DATE</label>
+                        <input
+                          type="date"
+                          value={brief.startDate}
+                          onChange={e => updateBrief(platform, { startDate: e.target.value })}
+                          style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }}
+                        />
+                      </div>
+
+                      {/* Schedule button */}
+                      {st?.scheduled ? (
+                        <div style={{ padding: '10px', borderRadius: '7px', background: 'rgba(47,191,113,0.08)', border: '1px solid rgba(47,191,113,0.2)' }}>
+                          <p style={{ fontSize: '11.5px', color: 'var(--green)', fontWeight: 600, margin: '0 0 6px' }}>
+                            {st.posts.length} posts scheduled
+                          </p>
+                          {st.posts.map((p, i) => (
+                            <p key={i} style={{ fontSize: '10.5px', color: 'var(--text-faint)', margin: '0 0 2px', lineHeight: 1.4 }}>
+                              {new Date(p.scheduledAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                              {p.topic ? ` — ${p.topic.slice(0, 40)}…` : ''}
+                            </p>
+                          ))}
+                        </div>
+                      ) : (
+                        <button
+                          disabled={st?.scheduling || !brief.instruction.trim()}
+                          onClick={() => handleSchedule(platform)}
+                          style={{ padding: '8px 0', borderRadius: '7px', fontSize: '12px', fontWeight: 600, cursor: st?.scheduling || !brief.instruction.trim() ? 'not-allowed' : 'pointer', border: 'none', background: st?.scheduling || !brief.instruction.trim() ? 'rgba(47,191,113,0.15)' : color, color: st?.scheduling || !brief.instruction.trim() ? 'var(--text-faint)' : '#fff', width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                        >
+                          {st?.scheduling
+                            ? <><span className="md-spin" style={{ borderTopColor: '#fff', borderColor: 'rgba(255,255,255,0.2)' }} />Scheduling…</>
+                            : 'Schedule Series'}
+                        </button>
+                      )}
+
+                      {st?.error && <p style={{ fontSize: '11px', color: '#ef4444', margin: 0 }}>{st.error}</p>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Smart Scheduler ────────────────────────────────────────────────────────────
+
+const SCHED_PLATFORMS = [
+  { key: 'instagram', label: 'Instagram', color: '#E1306C' },
+  { key: 'linkedin',  label: 'LinkedIn',  color: '#0A66C2' },
+  { key: 'twitter',   label: 'X / Twitter', color: '#1DA1F2' },
+  { key: 'facebook',  label: 'Facebook',  color: '#1877F2' },
+  { key: 'youtube',   label: 'YouTube',   color: '#FF0000' },
+  { key: 'tiktok',    label: 'TikTok',    color: '#69C9D0' },
+]
+
+const PLATFORM_INTERVAL_DAYS: Record<string, number> = {
+  instagram: 2, linkedin: 2, twitter: 1, facebook: 1, youtube: 7, tiktok: 1,
+}
+
+function getNextDue(scheduledAt: string, platform: string): string {
+  const d = new Date(scheduledAt)
+  d.setDate(d.getDate() + (PLATFORM_INTERVAL_DAYS[platform] ?? 3))
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+function toDatetimeLocal(iso: string): string { return iso.slice(0, 16) }
+
+interface SchedSuggestion { platform: string; shouldPost: boolean; topic: string; postType: 'image' | 'video'; scheduledAt: string; reason: string }
+interface SchedEdit { topic: string; postType: 'image' | 'video'; scheduledAt: string; reason: string; shouldPost: boolean }
+interface SchedStatus { scheduling: boolean; scheduled: boolean; outputUrl: string | null; error: string | null }
+interface LastPost { scheduledAt: string; status: string; outputUrl: string | null }
+
+function SmartScheduler({ moduleId, brandId, connected }: { moduleId: string; brandId: string; connected: boolean }) {
+  const [generating, setGenerating]       = useState(false)
+  const [genError, setGenError]           = useState<string | null>(null)
+  const [edits, setEdits]                 = useState<Record<string, SchedEdit>>({})
+  const [statuses, setStatuses]           = useState<Record<string, SchedStatus>>({})
+  const [lastPosts, setLastPosts]         = useState<Record<string, LastPost>>({})
+  const [hasGenerated, setHasGenerated]   = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/frekto/schedule?brandId=${brandId}`)
+      .then(r => r.json())
+      .then((d: { lastByPlatform?: Record<string, LastPost> }) => { if (d.lastByPlatform) setLastPosts(d.lastByPlatform) })
+      .catch(() => {})
+  }, [brandId])
+
+  const handleGenerate = async () => {
+    setGenerating(true); setGenError(null)
+    try {
+      const res = await fetch('/api/frekto/suggest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ moduleId }) })
+      const data = await res.json() as { suggestions?: SchedSuggestion[]; error?: string }
+      if (!res.ok || data.error) { setGenError(data.error ?? 'Failed to generate suggestions.'); return }
+      const newEdits: Record<string, SchedEdit> = {}
+      const newStatuses: Record<string, SchedStatus> = {}
+      for (const s of data.suggestions ?? []) {
+        newEdits[s.platform] = { topic: s.topic ?? '', postType: s.postType ?? 'image', scheduledAt: s.scheduledAt ? toDatetimeLocal(s.scheduledAt) : toDatetimeLocal(new Date(Date.now() + 86400000).toISOString()), reason: s.reason ?? '', shouldPost: s.shouldPost }
+        newStatuses[s.platform] = { scheduling: false, scheduled: false, outputUrl: null, error: null }
+      }
+      setEdits(newEdits); setStatuses(newStatuses); setHasGenerated(true)
+    } catch (e) { console.error('[SmartScheduler] handleGenerate error:', e); setGenError('Network error — please try again.') }
+    finally { setGenerating(false) }
+  }
+
+  const handleSchedule = async (platform: string) => {
+    const edit = edits[platform]; if (!edit) return
+    setStatuses(prev => ({ ...prev, [platform]: { ...prev[platform], scheduling: true, error: null } }))
+    try {
+      const res = await fetch('/api/frekto/schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ brandId, platform, topic: edit.topic, postType: edit.postType, scheduledAt: new Date(edit.scheduledAt).toISOString() }) })
+      const data = await res.json() as { outputUrl?: string; error?: string }
+      if (!res.ok || data.error) { setStatuses(prev => ({ ...prev, [platform]: { ...prev[platform], scheduling: false, error: data.error ?? 'Failed.' } })); return }
+      const scheduledAt = new Date(edit.scheduledAt).toISOString()
+      setStatuses(prev => ({ ...prev, [platform]: { scheduling: false, scheduled: true, outputUrl: data.outputUrl ?? null, error: null } }))
+      setLastPosts(prev => ({ ...prev, [platform]: { scheduledAt, status: 'scheduled', outputUrl: data.outputUrl ?? null } }))
+    } catch { setStatuses(prev => ({ ...prev, [platform]: { ...prev[platform], scheduling: false, error: 'Network error.' } })) }
+  }
+
+  const updateEdit = (platform: string, patch: Partial<SchedEdit>) =>
+    setEdits(prev => ({ ...prev, [platform]: { ...prev[platform], ...patch } }))
+
+  return (
+    <div style={{ padding: '20px 28px', borderTop: '1px solid var(--line)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>Smart Scheduler</span>
+        {!connected && <a href="/settings" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
+      </div>
+      <p style={{ fontSize: '12px', color: 'var(--text-faint)', marginBottom: '16px', lineHeight: 1.5 }}>
+        Analyzes your brand and audit findings to suggest what to post, where, and when — then generates and schedules content via Frekto.
+      </p>
+      {!connected ? (
+        <a href="/settings" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>Go to Settings → Integrations</a>
+      ) : (
+        <>
+          <button onClick={handleGenerate} disabled={generating} style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '8px 20px', borderRadius: '7px', fontSize: '12.5px', fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer', border: 'none', background: generating ? 'rgba(47,191,113,0.25)' : 'var(--green)', color: generating ? 'var(--text-dim)' : '#06140c', marginBottom: '16px' }}>
+            {generating ? <><span className="md-spin" style={{ borderTopColor: 'var(--green)', borderColor: 'rgba(47,191,113,0.2)' }} />Analyzing brand…</> : hasGenerated ? 'Regenerate ideas' : 'Generate post ideas'}
+          </button>
+          {genError && <p style={{ fontSize: '12px', color: '#ef4444', marginBottom: '12px' }}>{genError}</p>}
+          {hasGenerated && (
+            <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '8px' }}>
+              {SCHED_PLATFORMS.map(({ key, label, color }) => {
+                const edit = edits[key]; const status = statuses[key]; const last = lastPosts[key]
+                if (!edit) return null
+                const isDimmed = !edit.shouldPost && !status?.scheduled
+                return (
+                  <div key={key} style={{ minWidth: '260px', maxWidth: '260px', background: 'var(--card)', border: `1px solid ${isDimmed ? 'var(--line)' : color + '44'}`, borderRadius: '10px', padding: '14px', opacity: isDimmed ? 0.6 : 1, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 700, color, letterSpacing: '0.02em' }}>{label}</span>
+                      {!edit.shouldPost && !status?.scheduled && <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-faint)' }}>Not recommended</span>}
+                      {status?.scheduled && <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', background: 'rgba(47,191,113,0.15)', color: 'var(--green)', border: '1px solid rgba(47,191,113,0.3)' }}>Scheduled</span>}
+                    </div>
+                    {last && <p style={{ fontSize: '10px', color: 'var(--text-faint)', marginBottom: '8px' }}>Last: {new Date(last.scheduledAt).toLocaleDateString()} · Next due: {getNextDue(last.scheduledAt, key)}</p>}
+                    <p style={{ fontSize: '11px', color: 'var(--text-faint)', marginBottom: '10px', lineHeight: 1.45, fontStyle: 'italic' }}>{edit.reason}</p>
+                    {status?.scheduled ? (
+                      <div>
+                        {status.outputUrl && (edit.postType === 'video'
+                          ? <video src={status.outputUrl} controls style={{ width: '100%', borderRadius: '6px', maxHeight: '160px', marginBottom: '8px' }} />
+                          : <img src={status.outputUrl} alt="Generated" style={{ width: '100%', borderRadius: '6px', maxHeight: '160px', objectFit: 'cover', marginBottom: '8px' }} />)}
+                        {status.outputUrl && <a href={status.outputUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: 'var(--green)', textDecoration: 'none' }}>Download</a>}
+                      </div>
+                    ) : (
+                      <>
+                        <textarea value={edit.topic} onChange={e => updateEdit(key, { topic: e.target.value.slice(0, 300) })} rows={3} style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '11.5px', lineHeight: 1.5, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '8px' }} />
+                        <div style={{ display: 'flex', gap: '4px', marginBottom: '8px' }}>
+                          {(['image', 'video'] as const).map(pt => (
+                            <button key={pt} onClick={() => updateEdit(key, { postType: pt })} style={{ padding: '3px 10px', borderRadius: '5px', fontSize: '11px', fontWeight: 500, cursor: 'pointer', border: '1px solid', borderColor: edit.postType === pt ? color : 'var(--line)', background: edit.postType === pt ? color + '22' : 'transparent', color: edit.postType === pt ? color : 'var(--text-dim)' }}>
+                              {pt.charAt(0).toUpperCase() + pt.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+                        <input type="datetime-local" value={edit.scheduledAt} onChange={e => updateEdit(key, { scheduledAt: e.target.value })} style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--line)', background: 'var(--input)', color: 'var(--text)', fontSize: '11px', outline: 'none', boxSizing: 'border-box', marginBottom: '10px' }} />
+                        {status?.error && <p style={{ fontSize: '11px', color: '#ef4444', marginBottom: '8px' }}>{status.error}</p>}
+                        <button onClick={() => handleSchedule(key)} disabled={status?.scheduling || !edit.topic?.trim()} style={{ width: '100%', padding: '7px 0', borderRadius: '6px', fontSize: '11.5px', fontWeight: 600, cursor: status?.scheduling || !edit.topic.trim() ? 'not-allowed' : 'pointer', border: `1px solid ${color}`, background: status?.scheduling ? 'transparent' : color + '22', color: status?.scheduling ? 'var(--text-dim)' : color }}>
+                          {status?.scheduling ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}><span className="md-spin" style={{ borderTopColor: color, borderColor: color + '33', width: '10px', height: '10px' }} />Scheduling…</span> : 'Schedule via Frekto'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   )
 }
 

@@ -268,7 +268,7 @@ Key One-Liners: ${pb.keyOneLiners}`
       .from(moduleItems)
       .where(and(eq(moduleItems.moduleId, moduleId), eq(moduleItems.userChecked, true)))
     if (preResolvedItems.length > 0) {
-      const resolvedNote = `\n\n=== Tasks already completed by the user — DO NOT re-surface ===\nOmit the following from your output entirely. The user has already addressed them:\n${preResolvedItems.map((i) => `- ${i.label}`).join('\n')}`
+      const resolvedNote = `\n\n=== Tasks already completed by the user ===\nThese tasks have been marked as done. You have two options for each:\n1. OMIT it entirely — it will be preserved as completed automatically.\n2. Re-include it if still relevant — but you MUST use the EXACT same "slug" value shown below.\nNever generate a new slug for a task the user has already completed.\n\n${preResolvedItems.map((i) => `- slug: "${i.slug}", label: "${i.label}"`).join('\n')}`
       brainCtx = (brainCtx ?? '') + resolvedNote
     }
   }
@@ -538,6 +538,11 @@ Key One-Liners: ${pb.keyOneLiners}`
     // Preserve any user_checked state before wiping items
     const existingItems = await db.select().from(moduleItems).where(eq(moduleItems.moduleId, moduleId))
     const userCheckedSlugs = new Set(existingItems.filter((i) => i.userChecked).map((i) => i.slug))
+    // Normalize label for fuzzy matching (handles slug drift between runs)
+    const normalizeLabel = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim()
+    const checkedByLabel = new Map(
+      existingItems.filter((i) => i.userChecked).map((i) => [normalizeLabel(i.label ?? ''), i]),
+    )
 
     // Delete all existing items for this module (fresh slate from Claude)
     if (existingItems.length > 0) {
@@ -566,12 +571,12 @@ Key One-Liners: ${pb.keyOneLiners}`
 
     const catMap = new Map(cats.filter((c) => !c.parentId).map((c) => [c.slug, c.id]))
 
-    // Insert fresh items from Claude, restoring user_checked where slug matches
+    // Insert fresh items from Claude, restoring user_checked where slug OR label matches
     await Promise.all(
       dynamicResults.map((r) => {
         const categoryId = catMap.get(r.category)
         if (!categoryId) return Promise.resolve()
-        const wasChecked = userCheckedSlugs.has(r.slug)
+        const wasChecked = userCheckedSlugs.has(r.slug) || checkedByLabel.has(normalizeLabel(r.label))
         return db.insert(moduleItems).values({
           moduleId,
           categoryId,
@@ -595,7 +600,11 @@ Key One-Liners: ${pb.keyOneLiners}`
 
     // Re-insert user_checked items Claude didn't return — keep them visible in checklist as completed
     const returnedSlugs = new Set(dynamicResults.map((r) => r.slug))
-    const completedOrphans = existingItems.filter((i) => i.userChecked && !returnedSlugs.has(i.slug))
+    const returnedLabels = new Set(dynamicResults.map((r) => normalizeLabel(r.label)))
+    // Exclude orphans whose label already appears in Claude's output (label-matched → userChecked restored above)
+    const completedOrphans = existingItems.filter(
+      (i) => i.userChecked && !returnedSlugs.has(i.slug) && !returnedLabels.has(normalizeLabel(i.label ?? '')),
+    )
     if (completedOrphans.length > 0) {
       await Promise.all(
         completedOrphans.map((i) =>

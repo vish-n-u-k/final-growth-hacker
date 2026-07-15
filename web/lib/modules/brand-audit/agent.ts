@@ -43,6 +43,14 @@ function buildBaseContext(data: BrandAuditFetchResult, brainContext?: string): s
     ? `Average social sentiment: ${data.avgSocialSentiment.toFixed(2)}\nTone delta (website vs social): ${data.toneDelta?.toFixed(2)}${(data.toneDelta ?? 0) > 0.4 ? ' ⚠ INCONSISTENT (delta > 0.4)' : ' (consistent)'}`
     : 'Social sentiment: no social profiles available'
 
+  const { urlDiscovery } = data
+  const source = urlDiscovery.crawlUsed ? 'crawl' : 'sitemap'
+  const topPrefixes = Object.entries(urlDiscovery.urlsByPrefix)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([p, n]) => `${p} (${n})`)
+    .join(', ')
+
   return `${brainContext ? `=== Prior context about this brand (from earlier modules) ===\n${brainContext}\n\n` : ''}=== Brand Inputs ===
 Brand name: ${data.brandName}
 Website URL: ${data.websiteUrl}
@@ -90,6 +98,14 @@ Comparison page (/vs, /compare, /alternatives): ${data.hasComparisonPage ? 'Yes 
 
 === Social Profiles ===
 ${formatSocialProfiles(data.socialProfiles)}
+
+=== Site Structure ===
+Pages discovered: ${urlDiscovery.totalDiscovered} (via ${source})
+Sitemap: ${data.sitemapStatus === 200 ? 'found (HTTP 200)' : `not found (HTTP ${data.sitemapStatus || 'no response'})`}
+Top URL sections: ${topPrefixes || 'none'}
+
+=== robots.txt ===
+${data.robotsTxt || '(not found or empty)'}
 
 === Homepage copy sample ===
 ${data.bodyCopy.slice(0, 1000)}`

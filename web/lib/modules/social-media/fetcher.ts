@@ -8,6 +8,23 @@ export type SocialProvider = 'youtube' | 'twitter' | 'instagram' | 'facebook' | 
 
 export type SocialTier = 'none' | 'homepage' | 'url_provided' | 'api_connected'
 
+export interface HandleQuality {
+  hasNumbers: boolean
+  hasUnderscores: boolean
+  matchesBrandName: 'exact' | 'close' | 'weak' | 'mismatch'
+  matchScore: number      // 0–100
+  length: number
+  isProfessional: boolean
+}
+
+export interface HandleConsistency {
+  handles: { platform: string; handle: string }[]
+  isConsistent: boolean
+  consistencyScore: number   // % of handles matching the majority
+  majorityHandle: string | null
+  inconsistentPlatforms: string[]
+}
+
 export interface SocialPlatformData {
   platform: SocialProvider
   tier: SocialTier
@@ -15,7 +32,13 @@ export interface SocialPlatformData {
   connected: boolean
   profileUrl: string | null
   handle: string | null
-  publicPageTitle: string | null   // scraped from og:title on public profile page
+  // Tier 2: scraped from public profile page
+  httpStatus: number | null
+  publicPageTitle: string | null
+  bioFromHtml: string | null
+  profileImageUrl: string | null
+  handleQuality: HandleQuality | null
+  // Tier 3: API fields
   followerCount: number | null
   followingCount: number | null
   postCount: number | null
@@ -35,6 +58,7 @@ export interface SocialMediaFetchResult {
   targetAudience: string | null
   platforms: SocialPlatformData[]
   socialLinksOnWebsite: { platform: string; url: string }[]
+  handleConsistency: HandleConsistency
 }
 
 // ── Social link detection from homepage ───────────────────────────────────────
@@ -131,21 +155,133 @@ async function fetchHtml(url: string): Promise<string> {
   }
 }
 
-// Scrape og:title or <title> from a public profile page
-async function fetchPublicPageTitle(url: string): Promise<string | null> {
+// ── Page meta scraping ────────────────────────────────────────────────────────
+
+interface PageMeta {
+  status: number | null
+  title: string | null
+  description: string | null
+  imageUrl: string | null
+}
+
+function extractOgTag(html: string, property: string): string | null {
+  const p1 = html.match(new RegExp(`<meta[^>]+property=["']${property}["'][^>]+content=["']([^"']+)["']`, 'i'))
+  const p2 = html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${property}["']`, 'i'))
+  return (p1 ?? p2)?.[1]?.trim() ?? null
+}
+
+function extractMetaName(html: string, name: string): string | null {
+  const p1 = html.match(new RegExp(`<meta[^>]+name=["']${name}["'][^>]+content=["']([^"']+)["']`, 'i'))
+  const p2 = html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${name}["']`, 'i'))
+  return (p1 ?? p2)?.[1]?.trim() ?? null
+}
+
+// Use Googlebot UA for platforms that block generic bots
+const PLATFORM_UA: Partial<Record<SocialProvider, string>> = {
+  instagram: 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+  twitter:   'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+  tiktok:    'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+}
+const DEFAULT_UA = 'GrowthHackerBot/1.0 (Site Auditor)'
+
+async function fetchPublicPageMeta(url: string, platform: SocialProvider): Promise<PageMeta> {
   try {
-    const html = await fetchHtml(url)
-    if (!html) return null
-    // og:title (two attribute orderings)
-    const og1 = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
-    const og2 = html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i)
-    const ogTitle = (og1 ?? og2)?.[1]?.trim()
-    if (ogTitle) return ogTitle
-    // <title> fallback
-    const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
-    return titleMatch?.[1]?.trim() ?? null
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 10000)
+    const res = await fetch(url, {
+      headers: { 'User-Agent': PLATFORM_UA[platform] ?? DEFAULT_UA },
+      signal: controller.signal,
+    })
+    clearTimeout(timer)
+    const status = res.status
+    if (!res.ok) return { status, title: null, description: null, imageUrl: null }
+    const html = await res.text()
+    const title = extractOgTag(html, 'og:title') ?? html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim() ?? null
+    const description = (extractOgTag(html, 'og:description') ?? extractMetaName(html, 'description'))?.slice(0, 500) ?? null
+    const imageUrl = extractOgTag(html, 'og:image')
+    return { status, title, description, imageUrl }
   } catch {
-    return null
+    return { status: null, title: null, description: null, imageUrl: null }
+  }
+}
+
+// ── Handle quality scoring ────────────────────────────────────────────────────
+
+function computeHandleQuality(handle: string, brandName: string): HandleQuality {
+  const cleanHandle = handle.replace(/^@/, '').toLowerCase().trim()
+  const hasNumbers = /\d/.test(cleanHandle)
+  const hasUnderscores = cleanHandle.includes('_')
+  const length = cleanHandle.length
+
+  const normHandle = cleanHandle.replace(/[^a-z0-9]/g, '')
+  const normBrand = brandName.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+  let matchScore: number
+  if (normHandle === normBrand) {
+    matchScore = 100
+  } else if (normHandle.startsWith(normBrand) || normBrand.startsWith(normHandle)) {
+    matchScore = 85
+  } else if (normHandle.includes(normBrand) || normBrand.includes(normHandle)) {
+    matchScore = 70
+  } else {
+    // Dice coefficient on bigrams
+    const bigrams = (s: string) => Array.from({ length: Math.max(0, s.length - 1) }, (_, i) => s.slice(i, i + 2))
+    const a = new Set(bigrams(normHandle))
+    const b = new Set(bigrams(normBrand))
+    let intersection = 0
+    for (const bg of a) if (b.has(bg)) intersection++
+    matchScore = a.size + b.size === 0 ? 0 : Math.round((2 * intersection) / (a.size + b.size) * 100)
+  }
+
+  const matchesBrandName: HandleQuality['matchesBrandName'] =
+    matchScore >= 100 ? 'exact' :
+    matchScore >= 70  ? 'close' :
+    matchScore >= 35  ? 'weak'  : 'mismatch'
+
+  return {
+    hasNumbers,
+    hasUnderscores,
+    matchesBrandName,
+    matchScore,
+    length,
+    isProfessional: !hasNumbers && length <= 25 && matchScore >= 35,
+  }
+}
+
+// ── Cross-platform handle consistency ─────────────────────────────────────────
+
+function computeHandleConsistency(platforms: SocialPlatformData[]): HandleConsistency {
+  const withHandles = platforms.filter(
+    p => p.handle && (p.tier === 'url_provided' || p.tier === 'api_connected'),
+  )
+  if (withHandles.length === 0) {
+    return { handles: [], isConsistent: true, consistencyScore: 100, majorityHandle: null, inconsistentPlatforms: [] }
+  }
+
+  const entries = withHandles.map(p => ({
+    platform: p.platform,
+    handle: p.handle!,
+    normalized: p.handle!.replace(/^@/, '').toLowerCase().replace(/[^a-z0-9]/g, ''),
+  }))
+
+  const freq = new Map<string, number>()
+  for (const { normalized } of entries) freq.set(normalized, (freq.get(normalized) ?? 0) + 1)
+
+  let majorityNorm = ''
+  let maxFreq = 0
+  for (const [norm, count] of freq) {
+    if (count > maxFreq) { maxFreq = count; majorityNorm = norm }
+  }
+
+  const majorityHandle = entries.find(e => e.normalized === majorityNorm)?.handle ?? null
+  const inconsistentPlatforms = entries.filter(e => e.normalized !== majorityNorm).map(e => e.platform)
+
+  return {
+    handles: entries.map(e => ({ platform: e.platform, handle: e.handle })),
+    isConsistent: inconsistentPlatforms.length === 0,
+    consistencyScore: Math.round((maxFreq / entries.length) * 100),
+    majorityHandle,
+    inconsistentPlatforms,
   }
 }
 
@@ -414,7 +550,11 @@ export async function fetchSocialMediaData(
         connected: !!integration,
         profileUrl: profileUrl || null,
         handle: null,
+        httpStatus: null,
         publicPageTitle: null,
+        bioFromHtml: null,
+        profileImageUrl: null,
+        handleQuality: null,
         followerCount: null,
         followingCount: null,
         postCount: null,
@@ -480,16 +620,22 @@ export async function fetchSocialMediaData(
         return { ...base, ...apiData, tier: 'api_connected' }
       }
 
-      // Tier 2: Profile URL provided — extract handle + scrape public page title
+      // Tier 2: Profile URL provided — extract handle, scrape page meta, score quality
       if (profileUrl) {
-        const handle = extractHandle(profileUrl, platform)
-        // Scrape og:title for platforms whose public pages are accessible
-        // (YouTube, LinkedIn, Facebook pages are typically not JS-gated for title)
-        let publicPageTitle: string | null = null
-        if (['youtube', 'linkedin', 'facebook'].includes(platform)) {
-          publicPageTitle = await fetchPublicPageTitle(profileUrl)
+        const rawHandle = extractHandle(profileUrl, platform)
+        const handle = rawHandle ? `@${rawHandle}` : null
+        const meta = await fetchPublicPageMeta(profileUrl, platform)
+        const handleQuality = rawHandle && brandName ? computeHandleQuality(rawHandle, brandName) : null
+        return {
+          ...base,
+          handle,
+          httpStatus: meta.status,
+          publicPageTitle: meta.title,
+          bioFromHtml: meta.description,
+          profileImageUrl: meta.imageUrl,
+          handleQuality,
+          tier: 'url_provided',
         }
-        return { ...base, handle: handle ? `@${handle}` : null, publicPageTitle, tier: 'url_provided' }
       }
 
       // Tier 1: Only detected on homepage (link found but no URL provided by user)
@@ -513,5 +659,6 @@ export async function fetchSocialMediaData(
     targetAudience,
     platforms: resolvedPlatforms,
     socialLinksOnWebsite,
+    handleConsistency: computeHandleConsistency(resolvedPlatforms),
   }
 }

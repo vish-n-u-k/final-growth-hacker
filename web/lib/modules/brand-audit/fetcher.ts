@@ -1,6 +1,7 @@
 import { load } from 'cheerio'
 import { TfIdf } from 'natural'
 import Sentiment from 'sentiment'
+import { discoverAllUrls, type UrlDiscoveryResult } from '@/lib/audit/url-discovery'
 
 const sentimentAnalyzer = new Sentiment()
 
@@ -66,6 +67,10 @@ export interface BrandAuditFetchResult {
   // Brand name consistency
   titleHasBrandName: boolean
   ogTitleHasBrandName: boolean
+  // Site structure (same as website module)
+  robotsTxt: string
+  sitemapStatus: number
+  urlDiscovery: UrlDiscoveryResult
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -273,12 +278,27 @@ export async function fetchBrandAuditData(
   const socialHandles = requirements['social_handles'] ?? ''
 
   const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
+  let origin: string
+  try {
+    origin = new URL(url).origin
+  } catch {
+    throw new Error(`Invalid URL: ${websiteUrl}`)
+  }
 
-  // Fetch homepage
-  const homeRaw = await safeFetch(url, 15000)
+  // Fetch homepage + robots.txt + sitemap status + URL discovery in parallel
+  const [homeRaw, robotsRes, sitemapRes, urlDiscovery] = await Promise.all([
+    safeFetch(url, 15000),
+    fetch(`${origin}/robots.txt`, { signal: AbortSignal.timeout(5000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthAuditBot/1.0)' } }).catch(() => null),
+    fetch(`${origin}/sitemap.xml`, { method: 'HEAD', signal: AbortSignal.timeout(5000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthAuditBot/1.0)' } }).catch(() => null),
+    discoverAllUrls(url, undefined, { maxUrls: 150 }),
+  ])
+
   if (!homeRaw) {
     throw new Error(`Could not fetch ${url}. Check the URL is correct and publicly accessible.`)
   }
+
+  const robotsTxt = robotsRes?.ok ? await robotsRes.text().catch(() => '') : ''
+  const sitemapStatus = sitemapRes?.status ?? 0
 
   // Parse homepage
   const $ = load(homeRaw)
@@ -385,5 +405,8 @@ export async function fetchBrandAuditData(
     toneDelta,
     titleHasBrandName,
     ogTitleHasBrandName,
+    robotsTxt: robotsTxt.slice(0, 3000),
+    sitemapStatus,
+    urlDiscovery,
   }
 }

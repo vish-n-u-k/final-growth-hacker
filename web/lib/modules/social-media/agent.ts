@@ -35,10 +35,42 @@ function formatApiPlatform(p: SocialPlatformData): string {
 function formatUrlPlatform(p: SocialPlatformData): string {
   const lines: string[] = [`${p.platform.toUpperCase()} [Profile URL provided — no API]`]
   lines.push(`  Profile URL: ${p.profileUrl}`)
-  if (p.handle)           lines.push(`  Handle (extracted from URL): ${p.handle}`)
-  else                    lines.push(`  Handle: Could not extract from URL`)
-  if (p.publicPageTitle)  lines.push(`  Public page title (scraped): "${p.publicPageTitle}"`)
-  else                    lines.push(`  Public page title: Not available (JS-rendered or blocked)`)
+
+  // HTTP status
+  if (p.httpStatus !== null) {
+    const note = p.httpStatus === 200 ? 'account confirmed active'
+      : p.httpStatus === 404 ? 'account not found — may be deleted or URL wrong'
+      : `HTTP ${p.httpStatus}`
+    lines.push(`  HTTP status: ${p.httpStatus} (${note})`)
+  } else {
+    lines.push(`  HTTP status: Could not reach URL (timeout or DNS failure)`)
+  }
+
+  // Handle
+  if (p.handle) lines.push(`  Handle (extracted from URL): ${p.handle}`)
+  else          lines.push(`  Handle: Could not extract from URL`)
+
+  // Scraped meta
+  if (p.publicPageTitle) lines.push(`  Page title (scraped): "${p.publicPageTitle}"`)
+  else                   lines.push(`  Page title: Not available (JS-rendered or blocked)`)
+
+  if (p.bioFromHtml) lines.push(`  Bio (scraped): "${p.bioFromHtml}"`)
+  else               lines.push(`  Bio: Not available from public HTML`)
+
+  if (p.profileImageUrl) lines.push(`  Profile image: Set (og:image present)`)
+  else                   lines.push(`  Profile image: Not detected in page HTML`)
+
+  // Handle quality
+  if (p.handleQuality) {
+    const q = p.handleQuality
+    lines.push(`  Handle quality:`)
+    lines.push(`    Contains numbers: ${q.hasNumbers ? 'Yes (red flag)' : 'No'}`)
+    lines.push(`    Contains underscores: ${q.hasUnderscores ? 'Yes' : 'No'}`)
+    lines.push(`    Brand name match: ${q.matchesBrandName} (score ${q.matchScore}/100)`)
+    lines.push(`    Handle length: ${q.length} characters`)
+    lines.push(`    Professional: ${q.isProfessional ? 'Yes' : 'No'}`)
+  }
+
   lines.push(`  Metrics: None — API token not connected`)
   return lines.join('\n')
 }
@@ -73,8 +105,21 @@ function buildPrompt(data: SocialMediaFetchResult, brainContext?: string): strin
     : '  All platforms accounted for'
 
   const categoryInstructions = categories
+    .filter((c) => !c.comingSoon)
     .map((c) => `--- Category: "${c.slug}" (label: "${c.label}") ---\n${c.prompt}`)
     .join('\n\n')
+
+  const consistency = data.handleConsistency
+  const consistencySection = consistency.handles.length > 0
+    ? [
+        `Handles compared: ${consistency.handles.map(h => `${h.platform}=${h.handle}`).join(', ')}`,
+        `Majority handle: ${consistency.majorityHandle ?? 'N/A'}`,
+        `Consistent across platforms: ${consistency.isConsistent ? 'Yes' : 'No'} (score: ${consistency.consistencyScore}%)`,
+        consistency.inconsistentPlatforms.length > 0
+          ? `Inconsistent platforms: ${consistency.inconsistentPlatforms.join(', ')}`
+          : '',
+      ].filter(Boolean).join('\n')
+    : 'No handles available for comparison (no profile URLs provided)'
 
   return `${brainContext ? `=== Prior context about this brand ===\n${brainContext}\n\n` : ''}=== Brand Context ===
 Brand: ${data.brandName || 'not provided'}
@@ -91,6 +136,9 @@ ${homepageOnlySection}
 === TIER 2: User-Provided Profile URLs ===
 ${urlSection}
 
+=== Cross-Platform Handle Consistency ===
+${consistencySection}
+
 === TIER 3: API-Connected Platforms ===
 ${apiSection}
 
@@ -101,11 +149,11 @@ ${notFoundSection}
 ${categoryInstructions}
 
 === Output requirements ===
-Generate findings for ALL 3 categories. Return ONLY a valid JSON array — no markdown fences, no text outside the array.
+Generate findings for ALL 5 categories. Return ONLY a valid JSON array — no markdown fences, no text outside the array.
 
 Each element:
 {
-  "category": string — exactly one of: "website-detection", "profile-analysis", "metrics-analysis",
+  "category": string — exactly one of: "website-detection", "profile-analysis", "metrics-analysis", "content-strategy", "growth-playbook",
   "slug": string — kebab-case, pattern: {category-slug}-{short-descriptor},
   "label": string — plain English, no jargon; cite actual platform names or handles,
   "weight": 1 | 2 | 3,
@@ -140,7 +188,7 @@ export async function analyzeSocialMedia(
     throw new Error(`Social media agent returned invalid JSON: ${err instanceof Error ? err.message : raw.slice(0, 300)}`)
   }
 
-  const allowed = new Set(['website-detection', 'profile-analysis', 'metrics-analysis'])
+  const allowed = new Set(['website-detection', 'profile-analysis', 'metrics-analysis', 'content-strategy', 'growth-playbook'])
 
   return results
     .filter(
