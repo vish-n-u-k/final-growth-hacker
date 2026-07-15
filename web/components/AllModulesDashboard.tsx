@@ -426,6 +426,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           aiDraft: string | null; aiData: unknown | null
           aiVerified: boolean; userChecked: boolean; completedBy: string | null
           fixable: boolean; fixInputKey: string | null; fixIntegrationProvider: string | null
+          userSkipped: boolean; userSkipReason: string | null
         }>
         categories: Array<{ id: string; slug: string }>
         pageVerdicts?: ModuleData['pageVerdicts']
@@ -456,6 +457,8 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           fixType: null,
           fixInputKey: item.fixInputKey ?? null,
           fixIntegrationProvider: item.fixIntegrationProvider ?? null,
+          userSkipped: item.userSkipped ?? false,
+          userSkipReason: item.userSkipReason ?? null,
         }))
         setDynItemsMap(prev => ({ ...prev, [modId]: fullItems }))
       } else {
@@ -473,6 +476,8 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             fixable: item.fixable ?? false,
             fixInputKey: item.fixInputKey ?? null,
             fixIntegrationProvider: item.fixIntegrationProvider ?? null,
+            userSkipped: item.userSkipped ?? false,
+            userSkipReason: item.userSkipReason ?? null,
           }
         }
         setStatesMap(prev => ({ ...prev, [modId]: itemStates }))
@@ -2085,7 +2090,7 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
       const res = await fetch('/api/frekto/series', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brandId, platform, ...brief }),
+        body: JSON.stringify({ brandId, ...brief }),
       })
       const data = await res.json() as { seriesId?: string; posts?: SeriesCardStatus['posts']; error?: string }
       if (!res.ok || data.error) {
@@ -2156,25 +2161,34 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
                     </button>
                   </div>
 
-                  {/* Status / last post */}
+                  {/* Last scheduled posts */}
                   <div style={{ padding: '10px 14px' }}>
-                    {isJustScheduled ? (
-                      <p style={{ fontSize: '12px', color: 'var(--green)', fontWeight: 600, margin: 0 }}>
-                        {st!.posts.length} post{st!.posts.length !== 1 ? 's' : ''} scheduled
-                      </p>
-                    ) : mostRecent ? (
+                    {recentPosts.length > 0 ? (
                       <>
-                        <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.04em', margin: '0 0 3px' }}>LAST</p>
-                        <p style={{ fontSize: '12px', color: 'var(--text)', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>{mostRecent.topic}</p>
-                        <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
-                          {mostRecent.scheduledAt ? new Date(mostRecent.scheduledAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
-                          {recentPosts.length > 1 ? ` · +${recentPosts.length - 1} more` : ''}
-                        </p>
+                        <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.04em', margin: '0 0 6px' }}>SCHEDULED</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                          {recentPosts.slice(0, 3).map(post => (
+                            <div key={post.id} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontSize: '12px', color: 'var(--text)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.topic}</p>
+                                <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
+                                  {post.scheduledAt ? new Date(post.scheduledAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
+                                </p>
+                              </div>
+                              {post.outputUrl && (
+                                <a href={post.outputUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: color, textDecoration: 'none', flexShrink: 0, fontWeight: 600 }}>View</a>
+                              )}
+                            </div>
+                          ))}
+                          {recentPosts.length > 3 && (
+                            <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>+{recentPosts.length - 3} more</p>
+                          )}
+                        </div>
                       </>
                     ) : hasBrief ? (
-                      <p style={{ fontSize: '12px', color: color, fontWeight: 600, margin: 0 }}>Brief ready</p>
+                      <p style={{ fontSize: '12px', color: color, fontWeight: 600, margin: 0 }}>Brief ready — click + to schedule</p>
                     ) : (
-                      <p style={{ fontSize: '12px', color: 'var(--text-faint)', margin: 0, fontStyle: 'italic' }}>Nothing yet</p>
+                      <p style={{ fontSize: '12px', color: 'var(--text-faint)', margin: 0, fontStyle: 'italic' }}>Nothing scheduled yet</p>
                     )}
                   </div>
                 </div>
@@ -2221,24 +2235,42 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
                 </div>
 
                 <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {/* Scheduled posts result */}
                   {mSt?.scheduled ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    /* Output preview after scheduling */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       <p style={{ fontSize: '15px', fontWeight: 600, color: 'var(--green)', margin: 0 }}>
-                        {mSt.posts.length} post{mSt.posts.length !== 1 ? 's' : ''} queued for publishing
+                        {mSt.posts.length} post{mSt.posts.length !== 1 ? 's' : ''} queued
                       </p>
+                      {mBrief && (
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600, padding: '3px 9px', borderRadius: '20px', background: mMeta.color + '1a', color: mMeta.color, border: `1px solid ${mMeta.color}33` }}>{mBrief.format}</span>
+                          <span style={{ fontSize: '12px', fontWeight: 600, padding: '3px 9px', borderRadius: '20px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-faint)', border: '1px solid var(--line)', textTransform: 'uppercase' }}>{mBrief.outputFormat}</span>
+                          <span style={{ fontSize: '12px', fontWeight: 600, padding: '3px 9px', borderRadius: '20px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-faint)', border: '1px solid var(--line)' }}>{mBrief.count} posts · {CADENCE_OPTIONS.find(o => o.value === mBrief.cadence)?.label ?? mBrief.cadence}</span>
+                        </div>
+                      )}
                       {mSt.posts.map((p, i) => (
-                        <div key={i} style={{ padding: '10px 14px', borderRadius: '9px', background: 'rgba(47,191,113,0.06)', border: '1px solid rgba(47,191,113,0.2)' }}>
-                          <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--green-bright)', margin: '0 0 3px' }}>
-                            {new Date(p.scheduledAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                          </p>
-                          {p.topic && <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: 0, lineHeight: 1.4 }}>{p.topic.length > 70 ? p.topic.slice(0, 70) + '…' : p.topic}</p>}
-                          {p.outputUrl && <a href={p.outputUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', color: mMeta.color, textDecoration: 'none', display: 'inline-block', marginTop: '4px' }}>View asset →</a>}
+                        <div key={i} style={{ borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(47,191,113,0.2)', background: 'rgba(47,191,113,0.04)' }}>
+                          {p.outputUrl && mBrief?.outputFormat !== 'mp4' && (
+                            <img src={p.outputUrl} alt={`Post ${i + 1}`} style={{ width: '100%', display: 'block', objectFit: 'cover' }} />
+                          )}
+                          <div style={{ padding: '10px 12px' }}>
+                            <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--green-bright)', margin: '0 0 3px' }}>
+                              Post {i + 1} · {new Date(p.scheduledAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                            </p>
+                            {p.topic && <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: '0 0 6px', lineHeight: 1.4 }}>{p.topic}</p>}
+                            {p.outputUrl ? (
+                              <a href={p.outputUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', fontWeight: 600, color: mMeta.color, textDecoration: 'none' }}>
+                                {mBrief?.outputFormat === 'mp4' ? 'Watch video →' : 'View full image →'}
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}>Rendering…</span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
                   ) : mBrief ? (
-                    /* Full brief form + schedule */
+                    /* Brief form + schedule */
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                       {mBrief.reason && (
                         <div style={{ padding: '11px 13px', borderRadius: '9px', background: mMeta.color + '0e', border: `1px solid ${mMeta.color}33` }}>
@@ -2246,6 +2278,11 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
                           <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: 0, lineHeight: 1.6 }}>{mBrief.reason}</p>
                         </div>
                       )}
+                      {/* Format badges */}
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '12px', fontWeight: 600, padding: '3px 9px', borderRadius: '20px', background: mMeta.color + '1a', color: mMeta.color, border: `1px solid ${mMeta.color}33` }}>{mBrief.format}</span>
+                        <span style={{ fontSize: '12px', fontWeight: 600, padding: '3px 9px', borderRadius: '20px', background: 'rgba(255,255,255,0.06)', color: 'var(--text-faint)', border: '1px solid var(--line)', textTransform: 'uppercase' }}>{mBrief.outputFormat}</span>
+                      </div>
                       <div>
                         <label style={{ fontSize: '12px', color: 'var(--text-faint)', fontWeight: 600, letterSpacing: '0.04em', display: 'block', marginBottom: '6px' }}>SERIES BRIEF</label>
                         <textarea
@@ -2293,34 +2330,6 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
                         Generate briefs
                       </button>
-                    </div>
-                  )}
-
-                  {/* History for this platform */}
-                  {mHistory.length > 0 && (
-                    <div style={{ paddingTop: '16px', borderTop: '1px solid var(--line)' }}>
-                      <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.05em', margin: '0 0 10px' }}>
-                        HISTORY — {mHistory.length} post{mHistory.length !== 1 ? 's' : ''}
-                      </p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-                        {mHistory.map(post => (
-                          <div key={post.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '9px 12px', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--line)' }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: '13px', color: 'var(--text)', margin: '0 0 2px', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.topic}</p>
-                              <p style={{ fontSize: '12px', color: 'var(--text-faint)', margin: 0 }}>
-                                {post.scheduledAt ? new Date(post.scheduledAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'No date'}
-                                {' · '}{post.postType}
-                              </p>
-                            </div>
-                            <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 7px', borderRadius: '20px', flexShrink: 0, background: post.status === 'scheduled' ? 'rgba(47,191,113,0.15)' : 'rgba(255,255,255,0.06)', color: post.status === 'scheduled' ? 'var(--green)' : 'var(--text-faint)', border: `1px solid ${post.status === 'scheduled' ? 'rgba(47,191,113,0.3)' : 'var(--line)'}` }}>
-                              {post.status}
-                            </span>
-                            {post.outputUrl && (
-                              <a href={post.outputUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', color: mMeta.color, textDecoration: 'none', flexShrink: 0 }}>View</a>
-                            )}
-                          </div>
-                        ))}
-                      </div>
                     </div>
                   )}
                 </div>

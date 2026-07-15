@@ -514,8 +514,9 @@ export async function GET() {
         )
       : Promise.resolve<PostHogSnapshot>({ connected: false, dau: null, mau: null, newUsers7d: null, sessions7d: null }),
 
-    (gscApiInt?.metadata as Record<string, string> | null)?.client_email &&
-    (gscApiInt?.metadata as Record<string, string> | null)?.private_key
+    gscApiInt &&
+    (gscApiInt.metadata as Record<string, string> | null)?.client_email &&
+    (gscApiInt.metadata as Record<string, string> | null)?.private_key
       ? fetchGsc(
           (gscApiInt.metadata as Record<string, string>).client_email,
           (gscApiInt.metadata as Record<string, string>).private_key,
@@ -523,9 +524,10 @@ export async function GET() {
         )
       : Promise.resolve<GscSnapshot>({ connected: false, clicks7d: null, impressions7d: null, avgCtr7d: null, avgPosition7d: null, topQueries: [] }),
 
-    (ga4ApiInt?.metadata as Record<string, string> | null)?.client_email &&
-    (ga4ApiInt?.metadata as Record<string, string> | null)?.private_key &&
-    (ga4ApiInt?.metadata as Record<string, string> | null)?.property_id
+    ga4ApiInt &&
+    (ga4ApiInt.metadata as Record<string, string> | null)?.client_email &&
+    (ga4ApiInt.metadata as Record<string, string> | null)?.private_key &&
+    (ga4ApiInt.metadata as Record<string, string> | null)?.property_id
       ? fetchGa4(
           (ga4ApiInt.metadata as Record<string, string>).client_email,
           (ga4ApiInt.metadata as Record<string, string>).private_key,
