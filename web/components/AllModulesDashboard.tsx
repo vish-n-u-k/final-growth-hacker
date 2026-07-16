@@ -1199,7 +1199,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 {/* Right: CTA */}
                 <div className="overview-dis-right">
                   <div className="overview-dis-title">Connect PostHog to start counting</div>
-                  <p className="overview-dis-desc">{brand.name} reads your active users straight from PostHog to place you on the road and match tactics to your current phase. Connect it once and your count updates on its own.</p>
+                  <p className="overview-dis-desc">Growth Hacker reads your active users straight from PostHog to place you on the road and match tactics to your current phase. Connect it once and your count updates on its own.</p>
                   <div className="overview-dis-bar">
                     <div className="overview-dis-track" />
                     <div className="overview-dis-labels">
