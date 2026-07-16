@@ -36,24 +36,36 @@ export async function GET() {
     return NextResponse.json({ connected: true, count: 0, error: 'Missing project ID' })
   }
 
+  const hogql = (query: string) => fetch(`${host}/api/projects/${projectId}/query`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${integration.apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: { kind: 'HogQLQuery', query } }),
+    signal: AbortSignal.timeout(8000),
+  })
+
   try {
-    const res = await fetch(`${host}/api/projects/${projectId}/query`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${integration.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query: { kind: 'HogQLQuery', query: 'SELECT count() FROM persons' } }),
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!res.ok) {
-      const body = await res.text()
-      console.log('[posthog] API error:', res.status, body.slice(0, 200))
-      return NextResponse.json({ connected: true, count: 0, error: `PostHog API returned ${res.status}` })
+    const [countRes, startRes] = await Promise.all([
+      hogql('SELECT count() FROM persons'),
+      hogql('SELECT min(timestamp) FROM events'),
+    ])
+
+    if (!countRes.ok) {
+      const body = await countRes.text()
+      console.log('[posthog] API error:', countRes.status, body.slice(0, 200))
+      return NextResponse.json({ connected: true, count: 0, error: `PostHog API returned ${countRes.status}` })
     }
-    const data = await res.json() as { results?: number[][] }
-    const count = data.results?.[0]?.[0] ?? 0
-    return NextResponse.json({ connected: true, count })
+
+    const countData = await countRes.json() as { results?: number[][] }
+    const count = countData.results?.[0]?.[0] ?? 0
+
+    let dataStartDate: string | null = null
+    if (startRes.ok) {
+      const startData = await startRes.json() as { results?: unknown[][] }
+      const raw = startData.results?.[0]?.[0]
+      if (raw) dataStartDate = String(raw).slice(0, 10)
+    }
+
+    return NextResponse.json({ connected: true, count, dataStartDate })
   } catch (err) {
     console.log('[posthog] fetch error:', err)
     return NextResponse.json({ connected: true, count: 0, error: 'Failed to reach PostHog' })

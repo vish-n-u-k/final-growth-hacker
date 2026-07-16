@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands, modules, moduleItems, competitors, modulePageAudit, brandIntegrations } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { brands, modules, moduleItems, competitors, modulePageAudit, brandIntegrations, frektoScheduledPosts } from '@/lib/db/schema'
+import { eq, and, desc } from 'drizzle-orm'
 import { callAI } from '@/lib/ai/client'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 import { fetchGscTopQueries } from '@/lib/modules/seo/keyword-fetchers'
@@ -24,12 +24,19 @@ export async function POST(request: NextRequest) {
   if (!brand || brand.userId !== user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Fetch all enrichment data in parallel
-  const [items, topCompetitors, repurposePages, gscInt, posthogInt] = await Promise.all([
+  const [items, lastPostsByPlatform, topCompetitors, repurposePages, gscInt, posthogInt] = await Promise.all([
     // Failing audit items
     db.select({ label: moduleItems.label, aiDetail: moduleItems.aiDetail })
       .from(moduleItems)
       .where(and(eq(moduleItems.moduleId, moduleId), eq(moduleItems.aiVerified, false)))
       .limit(15),
+
+    // Last scheduled post per platform
+    db.select({ platform: frektoScheduledPosts.platform, scheduledAt: frektoScheduledPosts.scheduledAt })
+      .from(frektoScheduledPosts)
+      .where(eq(frektoScheduledPosts.brandId, brand.id))
+      .orderBy(desc(frektoScheduledPosts.scheduledAt))
+      .catch(() => []),
 
     // Top 3 competitors (table may not exist yet — fail gracefully)
     db.select({ name: competitors.name, primaryStrength: competitors.primaryStrength, type: competitors.type })
@@ -104,9 +111,57 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowStr = tomorrow.toISOString().slice(0, 10)
+  // Compute last scheduled date per platform
+  const lastDateByPlatform: Record<string, Date> = {}
+  for (const row of lastPostsByPlatform) {
+    if (!lastDateByPlatform[row.platform] && row.scheduledAt) {
+      lastDateByPlatform[row.platform] = row.scheduledAt
+    }
+  }
+
+  // Cadence → valid weekdays (0=Sun … 6=Sat)
+  const cadenceDays: Record<string, number[]> = {
+    mwf:      [1, 3, 5],
+    linkedin: [2, 3, 4],
+    weekdays: [1, 2, 3, 4, 5],
+    daily:    [0, 1, 2, 3, 4, 5, 6],
+    weekly:   [5], // Friday
+  }
+  const platformCadence: Record<string, string> = {
+    instagram: 'mwf',
+    linkedin:  'linkedin',
+    twitter:   'weekdays',
+    facebook:  'mwf',
+    youtube:   'weekly',
+    tiktok:    'daily',
+  }
+  const platformFormat: Record<string, { cadence: string; format: string; outputFormat: string }> = {
+    instagram: { cadence: 'mwf',      format: '4:5', outputFormat: 'mp4' },
+    linkedin:  { cadence: 'linkedin', format: '1:1', outputFormat: 'png' },
+    twitter:   { cadence: 'weekdays', format: '1:1', outputFormat: 'png' },
+    facebook:  { cadence: 'mwf',      format: '1:1', outputFormat: 'png' },
+    youtube:   { cadence: 'weekly',   format: '16:9', outputFormat: 'mp4' },
+    tiktok:    { cadence: 'daily',    format: '9:16', outputFormat: 'mp4' },
+  }
+
+  const ALL_PLATFORMS = ['instagram', 'linkedin', 'twitter', 'facebook', 'youtube', 'tiktok']
+
+  function nextCadenceDate(platform: string): string {
+    const cadence = platformCadence[platform] ?? 'mwf'
+    const days = cadenceDays[cadence] ?? [1, 3, 5]
+    const base = lastDateByPlatform[platform]
+      ? new Date(Math.max(Date.now(), lastDateByPlatform[platform].getTime()))
+      : new Date()
+    const d = new Date(base)
+    d.setDate(d.getDate() + 1)
+    for (let i = 0; i < 14; i++) {
+      if (days.includes(d.getDay())) return d.toISOString().slice(0, 10)
+      d.setDate(d.getDate() + 1)
+    }
+    return d.toISOString().slice(0, 10)
+  }
+
+  const startDates = Object.fromEntries(ALL_PLATFORMS.map(p => [p, nextCadenceDate(p)]))
 
   const findingsList = items.length > 0
     ? items.map(i => `- ${i.label}${i.aiDetail ? `: ${i.aiDetail}` : ''}`).join('\n')
@@ -135,29 +190,42 @@ Target audience: ${brand.targetAudience ?? 'infer from brand context'}${brand.us
 Current audit findings (areas to improve):
 ${findingsList}
 
-Generate a content series brief for each of these 3 platforms: instagram, linkedin, twitter.
+Evaluate all 6 platforms for this brand and decide which ones are worth posting on based on their industry, audience, and stage.
 
-For each platform:
-1. instruction — a compelling 1-2 sentence brief (max 400 chars) for a content series. If repurpose pages are listed, base one series on repurposing that content. If GSC page-2 keywords exist, weave the most relevant one into the brief. If brand voice is defined, reflect it in the tone. If a competitor's strength is listed, consider a series that counters it.
-2. count — recommended number of posts: 2-5
-3. cadence — "linkedin" for linkedin, "mwf" for instagram, "weekdays" for twitter
-4. format — "4:5" for instagram, "1:1" for linkedin and twitter
-5. outputFormat — "mp4" for instagram, "png" for linkedin and twitter
-6. startDate — "${tomorrowStr}"
-7. reason — 2-3 sentences explaining: (a) why this platform suits the brand's audience and industry, (b) why this specific content direction was chosen (mention if it's based on audit findings, repurpose pages, GSC keywords, competitor gaps, or user count stage), (c) why this post count and cadence makes sense for this platform right now.
+Platform specs and suggested start dates:
+- instagram:  cadence=mwf,      format=4:5,  output=mp4, startDate=${startDates.instagram}
+- linkedin:   cadence=linkedin, format=1:1,  output=png, startDate=${startDates.linkedin}
+- twitter:    cadence=weekdays, format=1:1,  output=png, startDate=${startDates.twitter}
+- facebook:   cadence=mwf,      format=1:1,  output=png, startDate=${startDates.facebook}
+- youtube:    cadence=weekly,   format=16:9, output=mp4, startDate=${startDates.youtube}
+- tiktok:     cadence=daily,    format=9:16, output=mp4, startDate=${startDates.tiktok}
 
-Return a JSON array of exactly 3 objects in this order: instagram, linkedin, twitter
+For each platform return:
+1. shouldPost — true/false. Set false if the platform clearly doesn't suit this brand's industry or audience.
+2. If shouldPost true:
+   - instruction — compelling 1-2 sentence series brief (max 400 chars). Prioritise repurpose pages, GSC keywords, competitor gaps, brand voice.
+   - count — recommended posts: 2-5
+   - cadence, format, outputFormat, startDate — use the values above exactly
+   - reason — array of exactly 3 bullet strings:
+     "**Platform:** <why this platform suits the brand — max 12 words>"
+     "**Posts:** <why this count and cadence — max 12 words>"
+     "**Brief:** <why this content direction, cite data sources — max 15 words>"
+     Each must start with the bold label (double asterisks).
+3. If shouldPost false: set instruction="", count=0, cadence="", format="", outputFormat="", startDate="", reason=[]
+
+Return a JSON array of exactly 6 objects in this order: instagram, linkedin, twitter, facebook, youtube, tiktok
 
 [
   {
     "platform": "instagram",
+    "shouldPost": true,
     "instruction": "series brief here",
     "count": 3,
     "cadence": "mwf",
     "format": "4:5",
     "outputFormat": "mp4",
-    "startDate": "${tomorrowStr}",
-    "reason": "2-3 sentence explanation here"
+    "startDate": "${startDates.instagram}",
+    "reason": ["**Platform:** reason here", "**Posts:** reason here", "**Brief:** reason here"]
   }
 ]`
 
@@ -166,7 +234,7 @@ Return a JSON array of exactly 3 objects in this order: instagram, linkedin, twi
     raw = await callAI({
       system: 'You are a social media strategist. Return only a valid JSON array, no markdown fences, no text outside the array.',
       prompt,
-      maxTokens: 1500,
+      maxTokens: 2500,
       model: 'claude-haiku-4-5-20251001',
     })
   } catch (e) {

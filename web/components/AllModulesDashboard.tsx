@@ -284,6 +284,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [userCount, setUserCount] = useState(0)
   const [editingCount, setEditingCount] = useState(false)
   const [posthogLoading, setPosthogLoading] = useState(false)
+  const [posthogDataStartDate, setPosthogDataStartDate] = useState<string | null>(null)
   const [stageModalOpen, setStageModalOpen] = useState(false)
   const [stageModalTab, setStageModalTab] = useState(0)
   const [competitorPanelOpen, setCompetitorPanelOpen] = useState(false)
@@ -294,7 +295,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     setPosthogLoading(true)
     fetch('/api/posthog/user-count')
       .then((r) => r.json())
-      .then((d: { count?: number }) => { if (d.count != null) setUserCount(d.count) })
+      .then((d: { count?: number; dataStartDate?: string | null }) => {
+        if (d.count != null) setUserCount(d.count)
+        if (d.dataStartDate) setPosthogDataStartDate(d.dataStartDate)
+      })
       .catch(() => {})
       .finally(() => setPosthogLoading(false))
   }, [])
@@ -1166,74 +1170,107 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
         </div>
 
         {/* Overview */}
-        <div className="overview">
-          <div>
-            <div
-              className="big-num"
-              onClick={connectedIntegrations['posthog'] ? undefined : () => !editingCount && setEditingCount(true)}
-              title={connectedIntegrations['posthog'] ? 'Live user count from PostHog' : 'Click to update your user count'}
-              style={connectedIntegrations['posthog'] ? { cursor: 'default' } : undefined}
-            >
-              {connectedIntegrations['posthog'] ? (
-                posthogLoading ? <span className="count-loading"><span /><span /><span /></span> : userCount.toLocaleString()
-              ) : editingCount ? (
-                <input
-                  autoFocus
-                  type="number"
-                  min={0}
-                  max={9999}
-                  defaultValue={userCount}
-                  onBlur={(e) => {
-                    const val = Math.max(0, parseInt(e.target.value, 10) || 0)
-                    setUserCount(val)
-                    setEditingCount(false)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                    if (e.key === 'Escape') setEditingCount(false)
-                  }}
-                />
-              ) : userCount}
-              <span>/500</span>
-            </div>
-          </div>
-          <div className="meta">
-            <div className="lvl">Level {currentLevel}</div>
-            <div className="desc">{activeModule?.definition.description}</div>
-            <div className="journey-bar">
-              <div style={{ position: 'relative', height: '46px' }}>
-                <button
-                  onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}
-                  title="View your stage analysis"
-                  style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: `${barPct}%`,
-                    transform: 'translateX(-50%)',
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '50%',
-                    background: '#ffffff',
-                    border: '1.5px solid #dddddd',
-                    display: 'grid',
-                    placeItems: 'center',
-                    cursor: 'pointer',
-                    padding: 0,
-                    boxShadow: '0 2px 12px rgba(0,0,0,0.28)',
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/bulb (1).png" alt="" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
-                </button>
+        <div className={`overview${!connectedIntegrations['posthog'] ? ' overview--disconnected' : ''}`}>
+          {!connectedIntegrations['posthog'] ? (
+            <>
+              {/* Header row */}
+              <div className="overview-dis-header">
+                <span className="overview-dis-lvl">Level {currentLevel}</span>
+                <span className="overview-dis-badge">
+                  <span className="overview-dis-badge-dot" />
+                  Not connected
+                </span>
               </div>
-              <div className="journey-track">
-                <div className="journey-fill" style={{ width: `${barPct}%` }} />
+              {/* Body */}
+              <div className="overview-dis-body">
+                {/* Left: dimmed number */}
+                <div className="overview-dis-left">
+                  <div className="overview-dis-num">
+                    <span className="overview-dis-dash">—</span>
+                    <span className="overview-dis-slash">/500</span>
+                  </div>
+                  <div className="overview-dis-lock-label">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    Live user count locked
+                  </div>
+                </div>
+                {/* Right: CTA */}
+                <div className="overview-dis-right">
+                  <div className="overview-dis-title">Connect PostHog to start counting</div>
+                  <p className="overview-dis-desc">{brand.name} reads your active users straight from PostHog to place you on the road and match tactics to your current phase. Connect it once and your count updates on its own.</p>
+                  <div className="overview-dis-bar">
+                    <div className="overview-dis-track" />
+                    <div className="overview-dis-labels">
+                      <span>0</span><span>10</span><span>50</span><span>100</span><span>500</span>
+                    </div>
+                  </div>
+                  <div className="overview-dis-actions">
+                    <button className="overview-dis-btn-primary" onClick={() => router.push('/settings')}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
+                      Connect PostHog
+                    </button>
+                    <button className="overview-dis-btn-secondary" onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}>See what we track</button>
+                  </div>
+                  <p className="overview-dis-disclaimer">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    Read-only access. Takes about a minute — you&apos;ll need your PostHog project API key.
+                  </p>
+                </div>
               </div>
-              <div className="journey-labels">
-                <span>0</span><span>10</span><span>50</span><span>100</span><span>500</span>
+            </>
+          ) : (
+            <>
+              <div>
+                <div className="big-num" style={{ cursor: 'default' }}>
+                  {posthogLoading ? <span className="count-loading"><span /><span /><span /></span> : userCount.toLocaleString()}
+                  <span>/500</span>
+                </div>
               </div>
-            </div>
-          </div>
+              <div className="meta">
+                <div className="lvl">
+                  {posthogDataStartDate
+                    ? `Since ${new Date(posthogDataStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
+                    : posthogLoading ? '…' : `Level ${currentLevel}`}
+                </div>
+                <div className="desc">{activeModule?.definition.description}</div>
+                <div className="journey-bar">
+                  <div style={{ position: 'relative', height: '46px' }}>
+                    <button
+                      onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}
+                      title="View your stage analysis"
+                      style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        left: `${barPct}%`,
+                        transform: 'translateX(-50%)',
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        background: '#ffffff',
+                        border: '1.5px solid #dddddd',
+                        display: 'grid',
+                        placeItems: 'center',
+                        cursor: 'pointer',
+                        padding: 0,
+                        boxShadow: '0 2px 12px rgba(0,0,0,0.28)',
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/bulb (1).png" alt="" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
+                    </button>
+                  </div>
+                  <div className="journey-track">
+                    <div className="journey-fill" style={{ width: `${barPct}%` }} />
+                  </div>
+                  <div className="journey-labels">
+                    <span>0</span><span>10</span><span>50</span><span>100</span><span>500</span>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Business Stage Modal */}
@@ -1951,13 +1988,16 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
 // ── Content Scheduler ──────────────────────────────────────────────────────────
 
-const SERIES_PLATFORMS = ['instagram', 'linkedin', 'twitter'] as const
+const SERIES_PLATFORMS = ['instagram', 'linkedin', 'twitter', 'facebook', 'youtube', 'tiktok'] as const
 type SeriesPlatform = typeof SERIES_PLATFORMS[number]
 
 const SERIES_PLATFORM_META: Record<SeriesPlatform, { label: string; color: string }> = {
   instagram: { label: 'Instagram',   color: '#E1306C' },
   linkedin:  { label: 'LinkedIn',    color: '#0A66C2' },
   twitter:   { label: 'X / Twitter', color: '#1DA1F2' },
+  facebook:  { label: 'Facebook',    color: '#1877F2' },
+  youtube:   { label: 'YouTube',     color: '#FF0000' },
+  tiktok:    { label: 'TikTok',      color: '#69C9D0' },
 }
 
 function SeriesPlatformIcon({ platform, size = 20, color }: { platform: string; size?: number; color: string }) {
@@ -1973,6 +2013,21 @@ function SeriesPlatformIcon({ platform, size = 20, color }: { platform: string; 
       <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>
       <rect x="2" y="9" width="4" height="12"/>
       <circle cx="4" cy="4" r="2"/>
+    </svg>
+  )
+  if (platform === 'facebook') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+    </svg>
+  )
+  if (platform === 'youtube') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+    </svg>
+  )
+  if (platform === 'tiktok') return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
     </svg>
   )
   return (
@@ -1991,13 +2046,14 @@ const CADENCE_OPTIONS = [
 
 interface SeriesBrief {
   platform: string
+  shouldPost: boolean
   instruction: string
   count: number
   cadence: string
   format: string
   outputFormat: string
   startDate: string
-  reason: string
+  reason: string | string[]
 }
 
 interface SeriesCardStatus {
@@ -2061,6 +2117,7 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
         if (!s.platform) continue
         newBriefs[s.platform] = {
           platform: s.platform,
+          shouldPost: s.shouldPost !== false,
           instruction: s.instruction ?? '',
           count: s.count ?? 3,
           cadence: s.cadence ?? 'mwf',
@@ -2137,56 +2194,40 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
               const isJustScheduled = !!st?.scheduled
               const recentPosts = history.filter(p => p.platform === platform)
               const mostRecent = recentPosts[0]
-              const hasBrief = !!brief
+              const hasBrief = !!brief && brief.shouldPost !== false
+              const notRecommended = hasGenerated && !!brief && brief.shouldPost === false
 
               return (
-                <div key={platform} style={{ width: '200px', borderRadius: '12px', border: `1px solid ${isJustScheduled ? 'rgba(47,191,113,0.4)' : hasBrief ? color + '55' : color + '28'}`, background: 'var(--card)', overflow: 'hidden' }}>
+                <div key={platform} style={{ width: '200px', borderRadius: '12px', border: `1px solid ${isJustScheduled ? 'rgba(47,191,113,0.4)' : notRecommended ? 'var(--line)' : hasBrief ? color + '55' : color + '28'}`, background: 'var(--card)', overflow: 'hidden', opacity: notRecommended ? 0.5 : 1 }}>
                   {/* Card header */}
-                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: color + '0d', borderBottom: '1px solid var(--line)' }}>
+                  <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: notRecommended ? 'rgba(255,255,255,0.02)' : color + '0d', borderBottom: '1px solid var(--line)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <SeriesPlatformIcon platform={platform} size={18} color={color} />
-                      <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>{label}</span>
+                      <SeriesPlatformIcon platform={platform} size={18} color={notRecommended ? 'var(--text-faint)' : color} />
+                      <span style={{ fontSize: '14px', fontWeight: 700, color: notRecommended ? 'var(--text-faint)' : 'var(--text)' }}>{label}</span>
                     </div>
-                    {/* + / open button */}
-                    <button
-                      onClick={() => setOpenPlatform(platform)}
-                      title={hasBrief ? 'View & schedule' : 'Open'}
-                      style={{ width: '26px', height: '26px', borderRadius: '50%', border: `1.5px solid ${hasBrief ? color : 'var(--line)'}`, background: hasBrief ? color + '22' : 'transparent', color: hasBrief ? color : 'var(--text-faint)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}
-                    >
-                      {isJustScheduled ? (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                      ) : (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                      )}
-                    </button>
+                    {/* + / open button — hidden if not recommended */}
+                    {!notRecommended && (
+                      <button
+                        onClick={() => setOpenPlatform(platform)}
+                        title={hasBrief ? 'View & schedule' : 'Open'}
+                        style={{ width: '26px', height: '26px', borderRadius: '50%', border: `1.5px solid ${hasBrief ? color : 'var(--line)'}`, background: hasBrief ? color + '22' : 'transparent', color: hasBrief ? color : 'var(--text-faint)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}
+                      >
+                        {isJustScheduled ? (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        ) : (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        )}
+                      </button>
+                    )}
                   </div>
 
-                  {/* Last scheduled posts */}
                   <div style={{ padding: '10px 14px' }}>
-                    {recentPosts.length > 0 ? (
-                      <>
-                        <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.04em', margin: '0 0 6px' }}>SCHEDULED</p>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                          {recentPosts.slice(0, 3).map(post => (
-                            <div key={post.id} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontSize: '12px', color: 'var(--text)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.topic}</p>
-                                <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>
-                                  {post.scheduledAt ? new Date(post.scheduledAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'}
-                                </p>
-                              </div>
-                              {post.outputUrl && (
-                                <a href={post.outputUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '11px', color: color, textDecoration: 'none', flexShrink: 0, fontWeight: 600 }}>View</a>
-                              )}
-                            </div>
-                          ))}
-                          {recentPosts.length > 3 && (
-                            <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: 0 }}>+{recentPosts.length - 3} more</p>
-                          )}
-                        </div>
-                      </>
-                    ) : hasBrief ? (
+                    {notRecommended ? (
+                      <p style={{ fontSize: '12px', color: 'var(--text-faint)', margin: 0, fontStyle: 'italic' }}>Not suited for your brand</p>
+                    ) : hasBrief && !isJustScheduled ? (
                       <p style={{ fontSize: '12px', color: color, fontWeight: 600, margin: 0 }}>Brief ready — click + to schedule</p>
+                    ) : isJustScheduled ? (
+                      <p style={{ fontSize: '12px', color: 'var(--green)', fontWeight: 600, margin: 0 }}>{st!.posts.length} post{st!.posts.length !== 1 ? 's' : ''} queued</p>
                     ) : (
                       <p style={{ fontSize: '12px', color: 'var(--text-faint)', margin: 0, fontStyle: 'italic' }}>Nothing scheduled yet</p>
                     )}
@@ -2212,6 +2253,39 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
           </button>
 
           {genError && <p style={{ fontSize: '14px', color: '#ef4444', marginTop: '12px' }}>{genError}</p>}
+
+          {/* Scheduled posts list */}
+          {history.length > 0 && (
+            <div style={{ marginTop: '24px', borderTop: '1px solid var(--line)', paddingTop: '18px' }}>
+              <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.04em', margin: '0 0 12px' }}>SCHEDULED POSTS</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {[...history].sort((a, b) => (a.scheduledAt ?? '').localeCompare(b.scheduledAt ?? '')).map(post => {
+                  const meta = SERIES_PLATFORM_META[post.platform as SeriesPlatform]
+                  const color = meta?.color ?? '#888'
+                  return (
+                    <div key={post.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '10px', background: 'var(--card)', border: '1px solid var(--line)' }}>
+                      <SeriesPlatformIcon platform={post.platform} size={16} color={color} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: '13px', color: 'var(--text)', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>{post.topic}</p>
+                        <p style={{ fontSize: '12px', color: 'var(--text-faint)', margin: 0 }}>
+                          {post.scheduledAt
+                            ? new Date(post.scheduledAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                            + ' · ' + new Date(post.scheduledAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+                            : '—'}
+                        </p>
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 7px', borderRadius: '20px', flexShrink: 0, background: post.status === 'scheduled' ? 'rgba(47,191,113,0.12)' : 'rgba(255,255,255,0.06)', color: post.status === 'scheduled' ? 'var(--green)' : 'var(--text-faint)', border: `1px solid ${post.status === 'scheduled' ? 'rgba(47,191,113,0.25)' : 'var(--line)'}` }}>
+                        {post.status}
+                      </span>
+                      {post.outputUrl && (
+                        <a href={post.outputUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', fontWeight: 600, color, textDecoration: 'none', flexShrink: 0 }}>View</a>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Schedule / history modal */}
           {mp && mMeta && (
@@ -2251,7 +2325,12 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
                       {mSt.posts.map((p, i) => (
                         <div key={i} style={{ borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(47,191,113,0.2)', background: 'rgba(47,191,113,0.04)' }}>
                           {p.outputUrl && mBrief?.outputFormat !== 'mp4' && (
-                            <img src={p.outputUrl} alt={`Post ${i + 1}`} style={{ width: '100%', display: 'block', objectFit: 'cover' }} />
+                            <img
+                              src={p.outputUrl}
+                              alt={`Post ${i + 1}`}
+                              style={{ width: '100%', display: 'block', objectFit: 'cover' }}
+                              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                            />
                           )}
                           <div style={{ padding: '10px 12px' }}>
                             <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--green-bright)', margin: '0 0 3px' }}>
@@ -2272,10 +2351,25 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
                   ) : mBrief ? (
                     /* Brief form + schedule */
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                      {mBrief.reason && (
+                      {mBrief.reason && (Array.isArray(mBrief.reason) ? mBrief.reason.length > 0 : mBrief.reason) && (
                         <div style={{ padding: '11px 13px', borderRadius: '9px', background: mMeta.color + '0e', border: `1px solid ${mMeta.color}33` }}>
-                          <p style={{ fontSize: '11px', fontWeight: 700, color: mMeta.color, margin: '0 0 5px', letterSpacing: '0.05em' }}>WHY THIS PLATFORM</p>
-                          <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: 0, lineHeight: 1.6 }}>{mBrief.reason}</p>
+                          <p style={{ fontSize: '11px', fontWeight: 700, color: mMeta.color, margin: '0 0 10px', letterSpacing: '0.05em' }}>WHY THIS</p>
+                          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                            {(Array.isArray(mBrief.reason) ? mBrief.reason : [mBrief.reason]).slice(0, 6).map((point, i) => {
+                              // parse **bold**: rest
+                              const match = point.match(/^\*\*(.+?)\*\*[:：]?\s*(.*)$/)
+                              return (
+                                <li key={i} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '13px', color: 'var(--text-dim)', lineHeight: 1.55 }}>
+                                  <span style={{ color: mMeta.color, flexShrink: 0, marginTop: '2px' }}>•</span>
+                                  <span>
+                                    {match ? (
+                                      <><strong style={{ color: 'var(--text)', fontWeight: 700 }}>{match[1]}:</strong>{' '}{match[2]}</>
+                                    ) : point}
+                                  </span>
+                                </li>
+                              )
+                            })}
+                          </ul>
                         </div>
                       )}
                       {/* Format badges */}

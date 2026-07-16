@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frekto — Overview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#eef5ef;
+    --card:#ffffff;
+    --line:#e0eae2;
+    --ink:#16241a;
+    --ink-soft:#5c6f62;
+    --ink-faint:#8a998e;
+    --green:#1c9350;
+    --green-deep:#0f5c34;
+    --green-bg:#e6f6ec;
+    --amber:#c8791f;
+    --amber-bg:#fbf0de;
+    --amber-line:#f0dcb4;
+    --red:#c1493a;
+    --red-bg:#fbe9e6;
+    --red-line:#f1c9c1;
+    --blue:#3568c4;
+    --blue-bg:#eaf0fc;
+    --purple:#7a4fc4;
+    --purple-bg:#f1eafb;
+    --lock:#9aa89f;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(15,61,39,.04), 0 6px 20px rgba(15,61,39,.05);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1080px;margin:0 auto;padding:26px 24px 90px;}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
+  .titleblock{display:flex;align-items:center;gap:12px;}
+  .backbtn{width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--ink-soft);flex-shrink:0;}
+  .titleblock h1{font-size:22px;font-weight:800;margin:0;letter-spacing:-.01em;}
+  .titleblock p{margin:1px 0 0;font-size:13px;color:var(--ink-soft);}
+  .actions{display:flex;gap:8px;}
+  .pill{padding:8px 14px;border-radius:10px;font-size:13px;font-weight:600;border:1px solid var(--line);background:var(--card);color:var(--ink);display:flex;align-items:center;gap:6px;}
+  .pill.solid{background:var(--green-bg);border-color:transparent;color:var(--green-deep);}
+
+  /* priority card */
+  .priority{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--green);border-radius:var(--radius);padding:20px 24px;box-shadow:var(--shadow);margin-bottom:14px;}
+  .eyebrow{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--green);margin-bottom:8px;}
+  .priority h2{font-size:19px;font-weight:800;margin:0 0 5px;letter-spacing:-.01em;}
+  .priority p{margin:0;color:var(--ink-soft);font-size:13.5px;line-height:1.55;}
+
+  /* summary */
+  .summary{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 24px;box-shadow:var(--shadow);margin-bottom:22px;}
+  .summary .eyebrow{color:var(--ink-faint);}
+  .summary p{margin:0;font-size:14px;line-height:1.7;color:var(--ink);}
+  .summary strong{font-weight:700;}
+  .summary .chip{display:inline-block;background:var(--amber-bg);color:var(--amber);font-weight:700;padding:1px 7px;border-radius:6px;font-size:12.5px;}
+
+  /* stat strip */
+  .stats{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;gap:14px;margin-bottom:24px;}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow);}
+  .stat .label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);font-weight:700;margin-bottom:7px;}
+  .stat .big{font-size:26px;font-weight:800;line-height:1;}
+  .stat .big small{font-size:14px;font-weight:600;color:var(--ink-soft);}
+  .stat .sub{margin-top:6px;font-size:12px;color:var(--ink-soft);}
+  .ring-stat{display:flex;align-items:center;gap:12px;}
+  .track{height:7px;border-radius:99px;background:#e4efe6;margin-top:10px;overflow:hidden;}
+  .track>i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#1c9350,#2fae6f);}
+
+  /* section headings */
+  .section-head{display:flex;align-items:baseline;justify-content:space-between;margin:30px 0 12px;}
+  .section-head h3{font-size:15.5px;font-weight:800;margin:0;}
+  .section-head span{font-size:12px;color:var(--ink-faint);}
+
+  /* tabs */
+  .tabs{display:flex;gap:6px;background:#e3ede5;padding:5px;border-radius:11px;margin-bottom:16px;width:fit-content;flex-wrap:wrap;}
+  .tab{border:none;background:transparent;padding:8px 14px;border-radius:8px;font-weight:700;font-size:13px;color:var(--ink-soft);cursor:pointer;display:flex;align-items:center;gap:6px;}
+  .tab .dot{width:6px;height:6px;border-radius:50%;}
+  .tab.active{background:var(--card);color:var(--ink);box-shadow:var(--shadow);}
+  .tab .count{background:rgba(0,0,0,.06);border-radius:99px;padding:1px 6px;font-size:10.5px;}
+
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .list-card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow);}
+  .list-row{display:flex;align-items:center;gap:12px;padding:13px 18px;border-top:1px solid var(--line);}
+  .list-row:first-child{border-top:none;}
+  .status-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .status-dot.done{background:var(--green);}
+  .status-dot.progress{background:var(--amber);}
+  .status-dot.pending{background:var(--red);}
+  .status-dot.locked{background:var(--lock);}
+  .list-row .name{flex:1;font-size:13.5px;font-weight:600;}
+  .list-row .desc{display:block;font-weight:400;color:var(--ink-soft);font-size:12.5px;margin-top:1px;}
+  .domain-chip{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:99px;flex-shrink:0;}
+  .domain-chip.growth{background:var(--green-bg);color:var(--green-deep);}
+  .domain-chip.product{background:var(--blue-bg);color:var(--blue);}
+  .domain-chip.revenue{background:var(--purple-bg);color:var(--purple);}
+  .metric-val{font-size:12.5px;font-weight:700;color:var(--ink-soft);flex-shrink:0;}
+
+  /* metric grid */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);}
+  .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .card-head h4{font-size:14.5px;font-weight:800;margin:0;}
+  .badge{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:99px;background:#eef2ee;color:var(--ink-soft);border:1px solid var(--line);}
+  .row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);font-size:13.5px;}
+  .row:first-of-type{border-top:none;padding-top:0;}
+  .row .rlabel{color:var(--ink);}
+  .row .rval{font-weight:700;}
+  .row .rperiod{font-weight:500;color:var(--ink-faint);font-size:12px;margin-left:5px;}
+  .insight{margin-top:10px;padding:9px 12px;background:var(--green-bg);border-radius:9px;font-size:12px;color:var(--green-deep);line-height:1.5;}
+  .insight.amber{background:var(--amber-bg);color:var(--amber);}
+  .locked-body{display:flex;align-items:center;justify-content:space-between;gap:14px;background:#f4f8f5;border:1px dashed var(--line);border-radius:10px;padding:14px 16px;}
+  .locked-body .ltext{display:flex;align-items:flex-start;gap:10px;}
+  .locked-body .licon{font-size:16px;margin-top:1px;}
+  .locked-body .ltitle{font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:2px;}
+  .locked-body .lsub{font-size:11.5px;color:var(--ink-faint);}
+  .connect-btn{padding:7px 13px;border-radius:8px;background:var(--card);border:1px solid var(--line);font-size:12.5px;font-weight:700;color:var(--ink);white-space:nowrap;}
+
+  /* growth progress */
+  .prog-list{display:flex;flex-direction:column;gap:10px;}
+  .prog-item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px;}
+  .prog-item .pname{width:150px;flex-shrink:0;font-size:13.5px;font-weight:700;}
+  .prog-item .ptrack{flex:1;height:8px;border-radius:99px;background:#e4efe6;overflow:hidden;}
+  .prog-item .ptrack>i{display:block;height:100%;border-radius:99px;}
+  .prog-item .ppct{width:42px;text-align:right;font-weight:800;font-size:13.5px;flex-shrink:0;}
+  .prog-item .pnote{width:220px;flex-shrink:0;font-size:11.5px;color:var(--ink-faint);}
+
+  /* next steps */
+  .next-list{display:flex;flex-direction:column;gap:10px;}
+  .next-item{display:flex;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;box-shadow:var(--shadow);align-items:flex-start;}
+  .next-num{width:24px;height:24px;border-radius:7px;background:var(--green-bg);color:var(--green-deep);font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .next-item h5{margin:0 0 3px;font-size:13.5px;font-weight:700;}
+  .next-item p{margin:0;font-size:12.5px;color:var(--ink-soft);line-height:1.5;}
+  .next-tag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;margin-left:8px;vertical-align:middle;}
+  .next-tag.crit{background:var(--red-bg);color:var(--red);}
+  .next-tag.imp{background:var(--amber-bg);color:var(--amber);}
+
+  .footnote{margin-top:32px;font-size:11.5px;color:var(--ink-faint);line-height:1.7;border-top:1px dashed var(--line);padding-top:16px;}
+  @media(max-width:760px){.stats{grid-template-columns:1fr 1fr;}.grid2{grid-template-columns:1fr;}.prog-item{flex-wrap:wrap;}.prog-item .pnote{width:100%;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="titleblock">
+      <div class="backbtn">←</div>
+      <div>
+        <h1>Overview</h1>
+        <p>Wednesday, July 15 · everything happening across Frekto, in one page</p>
+      </div>
+    </div>
+    <div class="actions">
+      <div class="pill">Frekto</div>
+      <div class="pill solid">↻ Refresh</div>
+    </div>
+  </div>
+
+  <!-- TOP PRIORITY -->
+  <div class="priority">
+    <div class="eyebrow">⚡ Top priority today</div>
+    <h2>Improve Content Audit module score (currently 9%)</h2>
+    <p>It's the weakest of your 15 growth modules by a wide margin — average across all modules is 55%. Fixing the flagged items here will move your overall score more than anything else on the board right now.</p>
+  </div>
+
+  <!-- SUMMARY -->
+  <div class="summary">
+    <div class="eyebrow">Summary — in plain terms</div>
+    <p>
+      You're at <strong>93 of 500 users</strong> on the road to Level 1. The infrastructure work is done —
+      <strong>Foundation</strong> and <strong>Website Audit</strong> are both fully cleared. <strong>SEO Audit</strong> is nearly there at 85%.
+      <strong>Competitor Analysis</strong> is your biggest open gap at 53%: its Discovery step hasn't started at all, and that includes
+      <span class="chip">Buffer</span>, flagged as a critical threat.
+      On the product side, <strong>8 of 15 modules</strong> have been analysed at an average score of 55% — coverage and quality are both roughly half-finished.
+      This week brought <strong>40 new signups</strong> from <strong>117 sessions</strong>, with <strong>9 daily active users</strong> against <strong>125 monthly</strong> — a stickiness ratio worth watching.
+      <strong>CAC, churn, and ARPU aren't tracked yet</strong> — connect a billing source to unlock them.
+    </p>
+  </div>
+
+  <!-- STAT STRIP -->
+  <div class="stats">
+    <div class="stat ring-stat">
+      <svg width="54" height="54" viewBox="0 0 54 54">
+        <circle cx="27" cy="27" r="22" fill="none" stroke="#e4efe6" stroke-width="6.5"/>
+        <circle cx="27" cy="27" r="22" fill="none" stroke="#1c9350" stroke-width="6.5" stroke-linecap="round"
+          stroke-dasharray="138.2" stroke-dashoffset="21" transform="rotate(-90 27 27)"/>
+      </svg>
+      <div>
+        <div class="label">Growth audits</div>
+        <div class="big">85<small>%</small></div>
+        <div class="sub">avg across 4 sections</div>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="label">Road to 500</div>
+      <div class="big">93<small>/500</small></div>
+      <div class="track"><i style="width:18.6%"></i></div>
+    </div>
+    <div class="stat">
+      <div class="label">DAU / MAU</div>
+      <div class="big">7.2<small>%</small></div>
+      <div class="sub">9 daily / 125 monthly — on the low side</div>
+    </div>
+    <div class="stat">
+      <div class="label">Module coverage</div>
+      <div class="big">8<small>/15</small></div>
+      <div class="track"><i style="width:53%"></i></div>
+    </div>
+  </div>
+
+  <!-- STATUS TABS -->
+  <div class="section-head"><h3>Status board</h3><span>growth, product & integrations combined</span></div>
+  <div class="tabs">
+    <button class="tab active" data-tab="done"><span class="dot" style="background:var(--green)"></span>Done<span class="count">2</span></button>
+    <button class="tab" data-tab="ongoing"><span class="dot" style="background:var(--amber)"></span>Ongoing<span class="count">3</span></button>
+    <button class="tab" data-tab="pending"><span class="dot" style="background:var(--red)"></span>Pending<span class="count">2</span></button>
+    <button class="tab" data-tab="locked"><span class="dot" style="background:var(--lock)"></span>Locked<span class="count">3</span></button>
+  </div>
+
+  <div class="panel active" id="done">
+    <div class="list-card">
+      <div class="list-row"><span class="status-dot done"></span><span class="domain-chip growth">Growth</span><div class="name">Foundation<span class="desc">Domain & hosting, accessibility — all 10 checks passed</span></div><div class="metric-val">100%</div></div>
+      <div class="list-row"><span class="status-dot done"></span><span class="domain-chip growth">Growth</span><div class="name">Website Audit<span class="desc">UX, speed, mobile, trust, forms, technical health</span></div><div class="metric-val">100%</div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="ongoing">
+    <div class="list-card">
+      <div class="list-row"><span class="status-dot progress"></span><span class="domain-chip growth">Growth</span><div class="name">SEO Audit<span class="desc">Meta, headings, structured data checked — technical perf items remain</span></div><div class="metric-val">85%</div></div>
+      <div class="list-row"><span class="status-dot progress"></span><span class="domain-chip growth">Growth</span><div class="name">Competitor Analysis<span class="desc">Feature Comparison 2/4, Keyword Gap 1/3</span></div><div class="metric-val">53%</div></div>
+      <div class="list-row"><span class="status-dot progress"></span><span class="domain-chip product">Product</span><div class="name">Module Health<span class="desc">8 of 15 modules analysed at 55% average score</span></div><div class="metric-val">53%</div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="pending">
+    <div class="list-card">
+      <div class="list-row"><span class="status-dot pending"></span><span class="domain-chip growth">Growth</span><div class="name">Competitor Discovery<span class="desc">Buffer (critical), Later, Hootsuite, Canva+ChatGPT — none reviewed</span></div><div class="metric-val">0/4</div></div>
+      <div class="list-row"><span class="status-dot pending"></span><span class="domain-chip product">Product</span><div class="name">Content Audit module<span class="desc">Lowest-scoring module — today's top priority</span></div><div class="metric-val">9%</div></div>
+    </div>
+  </div>
+
+  <div class="panel" id="locked">
+    <div class="list-card">
+      <div class="list-row"><span class="status-dot locked"></span><span class="domain-chip revenue">Revenue</span><div class="name">Customer Economics<span class="desc">CAC, churn & ARPU — needs a billing connection</span></div><div class="metric-val">🔒</div></div>
+      <div class="list-row"><span class="status-dot locked"></span><span class="domain-chip product">Product</span><div class="name">Page Speed<span class="desc">Connect PageSpeed Insights</span></div><div class="metric-val">🔒</div></div>
+      <div class="list-row"><span class="status-dot locked"></span><span class="domain-chip product">Product</span><div class="name">Google Analytics<span class="desc">Connect ga4_api</span></div><div class="metric-val">🔒</div></div>
+    </div>
+  </div>
+
+  <!-- METRICS GRID -->
+  <div class="section-head"><h3>Metrics, with context</h3><span>numbers plus what they mean</span></div>
+  <div class="grid2">
+
+    <div class="card">
+      <div class="card-head"><h4>User Activity</h4><span class="badge">PostHog</span></div>
+      <div class="row"><span class="rlabel">Daily active users</span><span class="rval">9<span class="rperiod">today</span></span></div>
+      <div class="row"><span class="rlabel">Monthly active users</span><span class="rval">125<span class="rperiod">30 days</span></span></div>
+      <div class="row"><span class="rlabel">New signups</span><span class="rval">40<span class="rperiod">7 days</span></span></div>
+      <div class="row"><span class="rlabel">Sessions</span><span class="rval">117<span class="rperiod">7 days</span></span></div>
+      <div class="insight amber">Stickiness (DAU/MAU) is 7.2% — healthy consumer apps typically sit closer to 15–20%. Worth watching as you grow past 500 users.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h4>Module Health</h4><span class="badge">Internal</span></div>
+      <div class="row"><span class="rlabel">Analysed</span><span class="rval">8<span class="rperiod">/ 15 modules</span></span></div>
+      <div class="row"><span class="rlabel">Avg score</span><span class="rval">55%</span></div>
+      <div class="row"><span class="rlabel">Needs work</span><span class="rval" style="color:var(--red)">9%<span class="rperiod">Content Audit</span></span></div>
+      <div class="track" style="margin-top:2px;"><i style="width:55%"></i></div>
+      <div class="insight">Half your modules are still unanalysed. Coverage matters as much as score here — the average will move a lot once the other 7 are scanned.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h4>Search Performance</h4><span class="badge">GSC API</span></div>
+      <div class="row"><span class="rlabel">Clicks</span><span class="rval" style="color:var(--ink-faint)">—<span class="rperiod">7 days</span></span></div>
+      <div class="row"><span class="rlabel">Impressions</span><span class="rval" style="color:var(--ink-faint)">—<span class="rperiod">7 days</span></span></div>
+      <div class="row"><span class="rlabel">Avg CTR</span><span class="rval" style="color:var(--ink-faint)">—</span></div>
+      <div class="row"><span class="rlabel">Avg position</span><span class="rval" style="color:var(--ink-faint)">—</span></div>
+      <div class="insight amber">Connected, but no data has come through yet — Search Console usually takes 24–48h after connecting to populate. Check back tomorrow.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h4>Customer Economics</h4><span class="badge">Billing</span></div>
+      <div class="locked-body">
+        <div class="ltext"><span class="licon">🔒</span><div><div class="ltitle">Connect billing to unlock CAC, churn & ARPU</div><div class="lsub">Calculated automatically from spend + signups + revenue events</div></div></div>
+        <div class="connect-btn">Connect →</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h4>Page Speed</h4><span class="badge">PSI</span></div>
+      <div class="locked-body">
+        <div class="ltext"><span class="licon">🔒</span><div><div class="ltitle">Connect PageSpeed Insights to unlock</div><div class="lsub">Core Web Vitals, load time, mobile score</div></div></div>
+        <div class="connect-btn">Connect →</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h4>Google Analytics</h4><span class="badge">GA4</span></div>
+      <div class="locked-body">
+        <div class="ltext"><span class="licon">🔒</span><div><div class="ltitle">Connect ga4_api to unlock</div><div class="lsub">Traffic sources, conversion paths, retention cohorts</div></div></div>
+        <div class="connect-btn">Connect →</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- GROWTH PROGRESS -->
+  <div class="section-head"><h3>Growth audit progress</h3><span>road to Level 1</span></div>
+  <div class="prog-list">
+    <div class="prog-item"><div class="pname">Foundation</div><div class="ptrack"><i style="width:100%;background:var(--green)"></i></div><div class="ppct" style="color:var(--green)">100%</div><div class="pnote">All 10 checks passed</div></div>
+    <div class="prog-item"><div class="pname">Website Audit</div><div class="ptrack"><i style="width:100%;background:var(--green)"></i></div><div class="ppct" style="color:var(--green)">100%</div><div class="pnote">No open fixes</div></div>
+    <div class="prog-item"><div class="pname">SEO Audit</div><div class="ptrack"><i style="width:85%;background:var(--amber)"></i></div><div class="ppct" style="color:var(--amber)">85%</div><div class="pnote">Technical perf items remain</div></div>
+    <div class="prog-item"><div class="pname">Competitor Analysis</div><div class="ptrack"><i style="width:53%;background:var(--amber)"></i></div><div class="ppct" style="color:var(--amber)">53%</div><div class="pnote">Discovery not started — pulling score down</div></div>
+  </div>
+
+  <!-- WHAT'S NEXT -->
+  <div class="section-head"><h3>What's next</h3><span>ordered by impact</span></div>
+  <div class="next-list">
+    <div class="next-item">
+      <div class="next-num">1</div>
+      <div><h5>Fix flagged items in Content Audit <span class="next-tag crit">Critical</span></h5><p>Lowest module score (9%) and the single biggest lever on your 55% average — this is today's recommended focus.</p></div>
+    </div>
+    <div class="next-item">
+      <div class="next-num">2</div>
+      <div><h5>Review Buffer as a competitor <span class="next-tag crit">Critical</span></h5><p>Your primary direct competitor hasn't been assessed at all. Competitor Discovery is the reason Competitor Analysis is your lowest audit score.</p></div>
+    </div>
+    <div class="next-item">
+      <div class="next-num">3</div>
+      <div><h5>Close out the remaining 7 modules <span class="next-tag imp">Important</span></h5><p>You're scoring modules you haven't finished analysing — the 55% average is based on less than half your total module set.</p></div>
+    </div>
+    <div class="next-item">
+      <div class="next-num">4</div>
+      <div><h5>Connect a billing source <span class="next-tag imp">Important</span></h5><p>Without it, CAC, churn, and ARPU stay invisible — you're flying blind on unit economics as user count grows.</p></div>
+    </div>
+    <div class="next-item">
+      <div class="next-num">5</div>
+      <div><h5>Watch DAU/MAU stickiness <span class="next-tag imp">Important</span></h5><p>7.2% is on the low side. Worth a look once GA4 is connected — it'll show which acquisition channels bring back repeat users.</p></div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    Note: figures come directly from your Foundation, Website Audit, SEO Audit, Competitor Analysis, and Today's Brief screens.
+    Insight lines (stickiness ratio, coverage gaps, priority ordering) are calculated from those same numbers — none are invented.
+    CAC, churn, and ARPU show a locked state because no billing/revenue source was visible in the source screens; wire this card to Stripe (or your billing provider) once connected.
+    Search Performance shows dashes because the connected source hasn't returned data yet, not because it's unconfigured.
+  </div>
+
+</div>
+
+<script>
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
