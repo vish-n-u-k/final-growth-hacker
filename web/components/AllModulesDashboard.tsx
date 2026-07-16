@@ -321,7 +321,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
   const isModuleLocked = (modData: ModuleData): boolean => {
     if (process.env.NEXT_PUBLIC_APP_ENV !== 'production') return false
-    if (modData.order <= 2) return false  // Foundation, Website Audit, SEO always unlocked
+    if (modData.order <= 3) return false  // Foundation, Website Audit, SEO always unlocked
     const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order)
     return !prev || liveScores[prev.id] < 80
   }
