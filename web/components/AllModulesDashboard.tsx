@@ -1166,7 +1166,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             )}
             <h1><span className="hero-brand-name">{brand.name}</span>&apos;s road to 500 users</h1>
           </div>
-          <p>One level at a time. Clear each gate before you level up — don't skip ahead.</p>
+          <p>One module at a time. Clear each gate before you level up — don't skip ahead.</p>
         </div>
 
         {/* Overview */}

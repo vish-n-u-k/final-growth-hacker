@@ -686,7 +686,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
       <div className="wrap">
         <div className="hero">
           <h1>Your road to 500 users</h1>
-          <p>One level at a time. Clear each gate before you level up — don't skip ahead.</p>
+          <p>One module at a time. Clear each gate before you level up — don't skip ahead.</p>
         </div>
         <div className="overview">
           <div
