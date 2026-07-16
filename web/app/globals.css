@@ -175,7 +175,6 @@ header {
 /* Overview disconnected state */
 .overview--disconnected { flex-direction: column; align-items: stretch; gap: 18px; }
 .overview-dis-header { display: flex; align-items: center; gap: 10px; }
-.overview-dis-lvl { font-size: 12px; font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.7px; }
 .overview-dis-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 20px; background: rgba(139, 92, 246, 0.15); border: 1px solid rgba(139, 92, 246, 0.3); font-size: 12px; font-weight: 500; color: #a78bfa; }
 .overview-dis-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #a78bfa; }
 .overview-dis-body { display: flex; gap: 36px; align-items: flex-start; flex-wrap: wrap; }

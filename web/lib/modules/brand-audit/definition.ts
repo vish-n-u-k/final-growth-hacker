@@ -4,7 +4,7 @@ export const BRAND_AUDIT_MODULE: ModuleDefinition = {
   type: 'brand-audit',
   name: 'Brand Audit',
   description: 'Evaluate brand positioning, messaging, voice, consistency, audience fit, trust signals, AI visibility, differentiation, and overall brand strength.',
-  order: 6,
+  order: 8,
   unlockThreshold: 80,
   dynamic: true,
   requirements: [

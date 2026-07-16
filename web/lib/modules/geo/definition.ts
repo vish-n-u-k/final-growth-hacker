@@ -4,7 +4,7 @@ export const GEO_MODULE: ModuleDefinition = {
   type: 'geo',
   name: 'GEO Audit',
   description: 'Generative Engine Optimization — audit how visible and citable your site is to AI engines like ChatGPT, Perplexity, Gemini, and Claude.',
-  order: 10,
+  order: 4,
   unlockThreshold: 80,
   dynamic: false,
   requirements: [

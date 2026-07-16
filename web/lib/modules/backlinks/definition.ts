@@ -4,7 +4,7 @@ export const BACKLINKS_MODULE: ModuleDefinition = {
   type: 'backlinks',
   name: 'Backlinks & Link Building',
   description: 'Audit your link profile, detect toxic links, find competitor backlink gaps, and score high-authority outreach targets.',
-  order: 12,
+  order: 6,
   unlockThreshold: 80,
   dynamic: true,
   comingSoon: true,

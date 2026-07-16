@@ -4,7 +4,7 @@ export const OUTREACH_TARGETS_MODULE: ModuleDefinition = {
   type: 'outreach-targets',
   name: 'Outreach Targets',
   description: 'Crawl competitor websites to find who features, partners with, or links to them — then get AI-generated pitches to reach out to those same sites.',
-  order: 9,
+  order: 14,
   unlockThreshold: 80,
   dynamic: true,
   requirements: [

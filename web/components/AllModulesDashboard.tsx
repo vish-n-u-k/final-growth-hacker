@@ -1175,7 +1175,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             <>
               {/* Header row */}
               <div className="overview-dis-header">
-                <span className="overview-dis-lvl">Level {currentLevel}</span>
                 <span className="overview-dis-badge">
                   <span className="overview-dis-badge-dot" />
                   Not connected

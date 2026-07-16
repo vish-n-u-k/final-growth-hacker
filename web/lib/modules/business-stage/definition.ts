@@ -5,7 +5,7 @@ export const BUSINESS_STAGE_MODULE: ModuleDefinition = {
   name: 'Business Stage Analysis',
   description:
     'Identifies your business archetype (HVP/EBP/PEH) and growth stage, then delivers a personalised playbook: your core concern, the key insight, next actions, and the red flag to watch.',
-  order: 14,
+  order: 15,
   unlockThreshold: 0,
   dynamic: true,
   requirements: [],

@@ -1,13 +1,13 @@
 'use client'
 
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell,
 } from 'recharts'
 import {
   ArrowLeft, RefreshCw, UserPlus, LogIn, Crown, UserMinus,
   Trash2, MessageSquare, Star, TrendingDown, TrendingUp,
-  Zap, ChevronDown, ArrowRight, Lock,
+  Zap, ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle,
 } from 'lucide-react'
 
 /* ── Types ────────────────────────────────────────────── */
@@ -20,14 +20,40 @@ export interface ModuleHealth {
   locked: boolean
 }
 
-interface PostHogData {
+interface GscData {
+  connected: boolean
+  clicks7d: number | null
+  impressions7d: number | null
+  avgCtr7d: number | null
+  avgPosition7d: number | null
+  topQueries: { query: string; clicks: number; impressions: number; position: number }[]
+  topPages: { page: string; clicks: number; impressions: number }[]
+  clickTrend: { date: string; clicks: number }[]
+}
+
+interface Ga4Data {
+  connected: boolean
+  sessions7d: number | null
+  activeUsers7d: number | null
+  newUsers7d: number | null
+  pageviews7d: number | null
+  engagementRate7d: number | null
+  trafficSources: { channel: string; sessions: number }[]
+  topPages: { page: string; sessions: number; newUsers: number; engagementRate: number }[]
+  dailyTrend: { date: string; newUsers: number; sessions: number }[]
+}
+
+interface DashboardData {
   posthogConnected: boolean
   signups24h: number
   signins24h: number
   dau: number
   mau: number
+  deletedAccounts24h: number
   retention: { day: string; rate: number }[] | null
   funnel: { stage: string; value: number }[] | null
+  gsc: GscData
+  ga4: Ga4Data
 }
 
 /* ── Fallback data (shown while loading or when PostHog not connected) ── */
@@ -45,10 +71,10 @@ const FALLBACK_FUNNEL = [
 
 /* ── Helpers ──────────────────────────────────────────── */
 function toneColor(tone: string): string {
-  if (tone === 'green')  return 'var(--green-bright)'
-  if (tone === 'amber')  return 'var(--gold)'
+  if (tone === 'green')  return '#4ade80'  // --green-bright
+  if (tone === 'amber')  return '#e7c873'  // --gold
   if (tone === 'red')    return '#f87171'
-  return 'var(--text-dim)'
+  return '#8d9690'                         // --text-dim
 }
 
 function scoreColor(score: number): string {
@@ -65,13 +91,22 @@ function fmt(n: number): string {
 }
 
 /* ── Sub-components ───────────────────────────────────── */
+const SOURCE_LOGOS: Record<string, string> = {
+  'PostHog': 'https://www.google.com/s2/favicons?domain=posthog.com&sz=32',
+  'Stripe':  'https://www.google.com/s2/favicons?domain=stripe.com&sz=32',
+}
+
 function SourcePill({ children }: { children: React.ReactNode }) {
+  const label = String(children)
+  const logo = SOURCE_LOGOS[label]
   return (
     <span style={{
       fontSize: 10, fontWeight: 600, letterSpacing: '0.07em',
       textTransform: 'uppercase', padding: '3px 9px', borderRadius: 99,
       border: '1px solid var(--line)', color: 'var(--text-faint)',
+      display: 'inline-flex', alignItems: 'center', gap: 5,
     }}>
+      {logo && <img src={logo} width={12} height={12} style={{ borderRadius: 2, display: 'block' }} alt="" />}
       {children}
     </span>
   )
@@ -107,11 +142,12 @@ function StatCard({
   icon: React.ElementType; iconTone: string; label: string; value: string | number
   source: string; deltaValue: number; invertGood?: boolean; loading?: boolean; comingSoon?: boolean
 }) {
-  const color = comingSoon ? 'var(--text-faint)' : toneColor(iconTone)
+  const iconColor = toneColor(iconTone)
+  const textColor = comingSoon ? '#555f5a' : iconColor
   return (
     <div style={{
       background: 'var(--card)',
-      border: `1px solid ${comingSoon ? 'var(--line)' : 'var(--line)'}`,
+      border: '1px solid var(--line)',
       borderRadius: 16, padding: '20px 22px',
       display: 'flex', flexDirection: 'column', gap: 16,
       opacity: comingSoon ? 0.65 : 1,
@@ -120,7 +156,7 @@ function StatCard({
         <div style={{
           width: 36, height: 36, borderRadius: 10,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: `${color}1f`, color,
+          background: `${iconColor}1f`, color: iconColor,
         }}>
           <Icon size={17} />
         </div>
@@ -129,7 +165,7 @@ function StatCard({
       <div>
         <div style={{
           fontSize: 40, fontWeight: 700, lineHeight: 1, letterSpacing: '-1px',
-          color: comingSoon || loading ? 'var(--text-faint)' : 'var(--text)',
+          color: comingSoon || loading ? '#555f5a' : 'var(--text)',
           filter: comingSoon ? 'blur(6px)' : 'none',
           userSelect: comingSoon ? 'none' : 'auto',
         }}>
@@ -350,6 +386,30 @@ function ModuleRow({ m, expanded, onToggle, onFix }: {
   )
 }
 
+/* ── Summary renderer ─────────────────────────────────── */
+// Parses **bold** and {{chip:Name}} from Claude output into React nodes
+function renderSummary(text: string): React.ReactNode[] {
+  const parts = text.split(/(\*\*[^*]+\*\*|\{\{chip:[^}]+\}\})/g)
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} style={{ color: 'var(--text)', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
+    }
+    if (part.startsWith('{{chip:') && part.endsWith('}}')) {
+      const label = part.slice(7, -2)
+      return (
+        <span key={i} style={{
+          display: 'inline-flex', alignItems: 'center',
+          fontSize: 11, fontWeight: 700, letterSpacing: '0.05em',
+          padding: '2px 8px', borderRadius: 99,
+          background: '#f8717120', color: '#f87171', border: '1px solid #f8717140',
+          margin: '0 2px', verticalAlign: 'middle',
+        }}>{label}</span>
+      )
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>
+  })
+}
+
 /* ── Main component ───────────────────────────────────── */
 interface Props {
   brand: { id: string; name: string }
@@ -360,32 +420,50 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   const [range, setRange] = useState('24h')
   const [expandedModule, setExpandedModule] = useState<string | null>(null)
   const [redirectTarget, setRedirectTarget] = useState<string | null>(null)
-  const [ph, setPh] = useState<PostHogData | null>(null)
+  const [data, setData] = useState<DashboardData | null>(null)
   const [phLoading, setPhLoading] = useState(true)
+  const [summary, setSummary] = useState<string | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
 
-  // Open worst module by default
-  useEffect(() => {
-    const worst = [...modules].filter(m => !m.locked).sort((a, b) => a.score - b.score)[0]
-    if (worst) setExpandedModule(worst.name)
-  }, [modules])
-
-  // Fetch PostHog data
+  // Fetch analytics data
   useEffect(() => {
     setPhLoading(true)
     fetch(`/api/analytics/auth-dashboard?brandId=${brand.id}`)
       .then(r => r.json())
-      .then((d: PostHogData) => setPh(d))
-      .catch(() => setPh(null))
+      .then((d: DashboardData) => setData(d))
+      .catch(() => setData(null))
       .finally(() => setPhLoading(false))
   }, [brand.id])
 
-  const worstModule = useMemo(
-    () => [...modules].filter(m => !m.locked).sort((a, b) => a.score - b.score)[0],
-    [modules]
-  )
+  // Generate summary once analytics fetch is done (success or failure)
+  // phLoading going false is our signal that data is settled
+  useEffect(() => {
+    if (phLoading) return  // wait for analytics to settle first
+    const activeModules = modules.filter(m => !m.locked)
+    if (activeModules.length === 0) return
+    setSummaryLoading(true)
+    fetch('/api/analytics/overview-summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        brandName: brand.name,
+        modules,
+        posthog: data,
+        gsc: data?.gsc ?? null,
+        ga4: data?.ga4 ?? null,
+      }),
+    })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then((s: { summary?: string | null }) => setSummary(s.summary ?? null))
+      .catch(() => setSummary(null))
+      .finally(() => setSummaryLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brand.id, phLoading])
 
-  const retentionData = ph?.retention ?? FALLBACK_RETENTION
-  const funnelData = ph?.funnel ?? FALLBACK_FUNNEL
+  const retentionData = data?.retention ?? FALLBACK_RETENTION
+  const funnelData    = data?.funnel    ?? FALLBACK_FUNNEL
+  const gsc = data?.gsc
+  const ga4 = data?.ga4
 
   // Build activity tiles — real PostHog data + Stripe (coming soon)
   const activityTiles: {
@@ -393,15 +471,15 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
     source: string; icon: React.ElementType; tone: string
     loading?: boolean; comingSoon?: boolean; invertGood?: boolean
   }[] = [
-    { key: 'signups',  label: 'New signups',         value: ph?.signups24h ?? 0, delta: 0, source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading },
-    { key: 'signins',  label: 'Sign-ins',             value: ph?.signins24h ?? 0, delta: 0, source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading },
-    { key: 'dau',      label: 'Daily active users',   value: ph?.dau        ?? 0, delta: 0, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading },
-    { key: 'mau',      label: 'Monthly active users', value: ph?.mau        ?? 0, delta: 0, source: 'PostHog',  icon: UserMinus,     tone: 'green',   loading: phLoading },
-    { key: 'pro',      label: 'Became PRO',           value: 0,                   delta: 0, source: 'Stripe',   icon: Crown,         tone: 'amber',   comingSoon: true   },
-    { key: 'unsub',    label: 'Unsubscribed',         value: 0,                   delta: 0, source: 'Stripe',   icon: UserMinus,     tone: 'red',     comingSoon: true, invertGood: true },
-    { key: 'deleted',  label: 'Deleted account',      value: 0,                   delta: 0, source: 'Internal', icon: Trash2,        tone: 'green'  },
-    { key: 'contact',  label: 'Contacted support',    value: 0,                   delta: 0, source: 'Internal', icon: MessageSquare, tone: 'neutral' },
-    { key: 'reviews',  label: 'Reviews left',         value: 0,                   delta: 0, source: 'Internal', icon: Star,          tone: 'green'  },
+    { key: 'signups',  label: 'New signups',         value: data?.signups24h         ?? 0, delta: 0, source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading },
+    { key: 'signins',  label: 'Sign-ins',             value: data?.signins24h         ?? 0, delta: 0, source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading },
+    { key: 'dau',      label: 'Daily active users',   value: data?.dau                ?? 0, delta: 0, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading },
+    { key: 'mau',      label: 'Monthly active users', value: data?.mau                ?? 0, delta: 0, source: 'PostHog',  icon: Crown,         tone: 'green',   loading: phLoading },
+    { key: 'deleted',  label: 'Deleted account',      value: data?.deletedAccounts24h ?? 0, delta: 0, source: 'PostHog',  icon: Trash2,        tone: 'red',     loading: phLoading, invertGood: true },
+    { key: 'pro',      label: 'Became PRO',           value: 0,                             delta: 0, source: 'Stripe',   icon: Crown,         tone: 'amber',   comingSoon: true },
+    { key: 'unsub',    label: 'Unsubscribed',         value: 0,                             delta: 0, source: 'Stripe',   icon: UserMinus,     tone: 'red',     comingSoon: true, invertGood: true },
+    { key: 'contact',  label: 'Contacted support',    value: 0,                             delta: 0, source: 'Internal', icon: MessageSquare, tone: 'neutral', comingSoon: true },
+    { key: 'reviews',  label: 'Reviews left',         value: 0,                             delta: 0, source: 'Internal', icon: Star,          tone: 'amber',   comingSoon: true },
   ]
 
   const avgScore = modules.filter(m => !m.locked).length > 0
@@ -440,7 +518,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 User Analytics
               </h1>
               <p style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>
-                {brand.name} · {ph?.posthogConnected ? 'PostHog connected' : 'PostHog not connected'}
+                {brand.name} · {[data?.posthogConnected && 'PostHog', gsc?.connected && 'GSC', ga4?.connected && 'GA4'].filter(Boolean).join(' · ') || 'No integrations connected'}
               </p>
             </div>
           </div>
@@ -458,7 +536,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
               ))}
             </div>
             <button
-              onClick={() => { setPhLoading(true); fetch(`/api/analytics/auth-dashboard?brandId=${brand.id}`).then(r => r.json()).then((d: PostHogData) => setPh(d)).finally(() => setPhLoading(false)) }}
+              onClick={() => { setPhLoading(true); fetch(`/api/analytics/auth-dashboard?brandId=${brand.id}`).then(r => r.json()).then((d: DashboardData) => setData(d)).finally(() => setPhLoading(false)) }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
                 padding: '7px 14px', borderRadius: 99, border: '1px solid var(--line)',
@@ -470,40 +548,102 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           </div>
         </div>
 
-        {/* Hero */}
-        {worstModule && (
-          <div style={{
-            borderRadius: 16, padding: '22px 24px', marginBottom: 36,
-            background: '#2fbf7112', border: '1px solid #2fbf7130',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-              <Zap size={13} style={{ color: 'var(--green)' }} />
+        {/* Summary + Todo */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 36 }}>
+
+          {/* Summary panel */}
+          <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Zap size={12} style={{ color: 'var(--green)' }} />
               <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--green)' }}>
-                One thing to do today
+                Summary — in plain terms
               </span>
             </div>
-            <h2 style={{
-              fontSize: 18, fontWeight: 700, color: 'var(--text)', marginBottom: 8,
-              fontFamily: 'var(--font-display, Fraunces, serif)', letterSpacing: '-0.3px',
-            }}>
-              Fix {worstModule.name} — it's dragging your overall score down.
-            </h2>
-            <p style={{ fontSize: 14, color: 'var(--text-dim)', lineHeight: 1.65, margin: 0 }}>
-              {worstModule.name} scores just {worstModule.score}%, the lowest of any active module.
-              {worstModule.insight ? ` ${worstModule.insight}` : ' Fix the failing items to improve your overall health score.'}
-            </p>
-            <button
-              onClick={() => setRedirectTarget(worstModule.name)}
-              style={{
-                marginTop: 16, display: 'inline-flex', alignItems: 'center', gap: 6,
-                fontSize: 13, fontWeight: 600, padding: '8px 18px', borderRadius: 99,
-                background: 'var(--green)', color: '#06140c', border: 'none', cursor: 'pointer',
-              }}
-            >
-              Go to {worstModule.name} <ArrowRight size={13} />
-            </button>
+            {summaryLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[100, 85, 92, 60].map((w, i) => (
+                  <div key={i} style={{ height: 14, borderRadius: 6, background: 'var(--line)', width: `${w}%`, opacity: 0.5 + i * 0.1 }} />
+                ))}
+              </div>
+            ) : summary ? (
+              <p style={{ fontSize: 14, lineHeight: 1.75, color: 'var(--text-dim)', margin: 0 }}>
+                {renderSummary(summary)}
+              </p>
+            ) : (
+              <p style={{ fontSize: 14, color: 'var(--text-faint)', margin: 0, lineHeight: 1.65 }}>
+                Summary could not be generated. Check your Anthropic API key in settings.
+              </p>
+            )}
           </div>
-        )}
+
+          {/* Todo list panel */}
+          <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)' }}>
+                To-do list
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
+                {modules.filter(m => !m.locked && m.score < 90).length} open
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', maxHeight: 220 }}>
+              {modules
+                .filter(m => !m.locked)
+                .sort((a, b) => a.score - b.score)
+                .map(m => {
+                  const done = m.score >= 90
+                  return (
+                    <div key={m.name} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      {done
+                        ? <CheckCircle2 size={15} style={{ color: '#4ade80', flexShrink: 0, marginTop: 1 }} />
+                        : <Circle size={15} style={{ color: 'var(--line)', flexShrink: 0, marginTop: 1 }} />
+                      }
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{
+                            fontSize: 13, fontWeight: 600,
+                            color: done ? 'var(--text-faint)' : 'var(--text)',
+                            textDecoration: done ? 'line-through' : 'none',
+                          }}>
+                            {m.name}
+                          </span>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 99,
+                            background: m.score >= 70 ? '#4ade8018' : m.score >= 40 ? '#e7c87318' : '#f8717118',
+                            color: m.score >= 70 ? '#4ade80' : m.score >= 40 ? '#e7c873' : '#f87171',
+                          }}>
+                            {m.score}%
+                          </span>
+                        </div>
+                        {!done && m.insight && (
+                          <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: '2px 0 0', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                            {m.insight}
+                          </p>
+                        )}
+                      </div>
+                      {!done && (
+                        <button
+                          onClick={() => setRedirectTarget(m.name)}
+                          style={{
+                            flexShrink: 0, fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 99,
+                            border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)',
+                            cursor: 'pointer', whiteSpace: 'nowrap',
+                          }}
+                        >
+                          Fix <ArrowRight size={10} style={{ display: 'inline', verticalAlign: 'middle' }} />
+                        </button>
+                      )}
+                    </div>
+                  )
+                })
+              }
+              {modules.filter(m => !m.locked).length === 0 && (
+                <p style={{ fontSize: 13, color: 'var(--text-faint)', margin: 0 }}>No active modules yet.</p>
+              )}
+            </div>
+          </div>
+
+        </div>
 
         {/* Last 24 hours */}
         <section style={{ marginBottom: 36 }}>
@@ -517,8 +657,9 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 icon={item.icon} iconTone={item.tone}
                 label={item.label} value={item.value}
                 source={item.source} deltaValue={item.delta}
-                invertGood={item.key === 'unsub' || item.key === 'deleted'}
-                loading={phLoading && ['signups', 'signins', 'dau', 'mau'].includes(item.key)}
+                invertGood={item.invertGood}
+                loading={item.loading}
+                comingSoon={item.comingSoon}
               />
             ))}
           </div>
@@ -530,9 +671,9 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             Growth &amp; retention
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-            <KpiCard label="DAU" value={ph ? fmt(ph.dau) : '—'} sub="Daily active users" source="PostHog" delta={0} loading={phLoading} />
-            <KpiCard label="MAU" value={ph ? fmt(ph.mau) : '—'} sub="Monthly active users" source="PostHog" delta={0} loading={phLoading} />
-            <KpiCard label="New signups (24h)" value={ph ? fmt(ph.signups24h) : '—'} sub="New persons created today" source="PostHog" delta={0} loading={phLoading} />
+            <KpiCard label="DAU" value={data ? fmt(data.dau) : '—'} sub="Daily active users" source="PostHog" delta={0} loading={phLoading} />
+            <KpiCard label="MAU" value={data ? fmt(data.mau) : '—'} sub="Monthly active users" source="PostHog" delta={0} loading={phLoading} />
+            <KpiCard label="New signups (24h)" value={data ? fmt(data.signups24h) : '—'} sub="New persons created today" source="PostHog" delta={0} loading={phLoading} />
             <KpiCard label="Module avg score" value={`${avgScore}%`} sub="Across all active modules" source="Internal" delta={0} />
             {/* Stripe — coming soon */}
             <KpiCard label="MRR" value="$0" sub="Monthly recurring revenue" source="Stripe" delta={0} comingSoon />
@@ -543,6 +684,216 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <RetentionCurve data={retentionData} loading={phLoading} />
             <FunnelCard data={funnelData} loading={phLoading} />
+          </div>
+        </section>
+
+        {/* ── GSC Section ── */}
+        <section style={{ marginBottom: 36 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Search size={13} style={{ color: 'var(--text-faint)' }} />
+              <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', margin: 0 }}>
+                Search Console
+              </h2>
+            </div>
+            {!gsc?.connected && <ComingSoonBadge />}
+          </div>
+          <div style={{ position: 'relative', opacity: gsc?.connected ? 1 : 0.55 }}>
+            {/* KPI row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+              {[
+                { label: 'Organic clicks', value: gsc?.clicks7d,      suffix: '',  sub: '7 days' },
+                { label: 'Impressions',    value: gsc?.impressions7d,  suffix: '',  sub: '7 days' },
+                { label: 'Avg CTR',        value: gsc?.avgCtr7d,       suffix: '%', sub: '7 days' },
+                { label: 'Avg position',   value: gsc?.avgPosition7d,  suffix: '',  sub: '7 days' },
+              ].map(k => (
+                <div key={k.label} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 8 }}>{k.label}</div>
+                  <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.5px', color: 'var(--text)', lineHeight: 1, filter: !gsc?.connected ? 'blur(5px)' : 'none' }}>
+                    {k.value != null ? `${fmt(k.value)}${k.suffix}` : '—'}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 4 }}>{k.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              {/* Click trend chart */}
+              <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Click trend</h3>
+                <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>Organic clicks — last 30 days</p>
+                <div style={{ height: 160, filter: !gsc?.connected ? 'blur(4px)' : 'none' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={gsc?.connected && gsc.clickTrend.length ? gsc.clickTrend : Array.from({ length: 10 }, (_, i) => ({ date: `d${i}`, clicks: Math.round(Math.random() * 80 + 20) }))} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="gscFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%"   stopColor="var(--green)" stopOpacity={0.25} />
+                          <stop offset="100%" stopColor="var(--green)" stopOpacity={0}    />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="date" tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                      <YAxis tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} width={24} />
+                      <Tooltip contentStyle={{ background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 8, fontSize: 11 }} itemStyle={{ color: 'var(--green)' }} />
+                      <Area type="monotone" dataKey="clicks" stroke="var(--green)" strokeWidth={2} fill="url(#gscFill)" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Top queries */}
+              <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Top queries</h3>
+                <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Driving the most organic clicks</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, filter: !gsc?.connected ? 'blur(4px)' : 'none' }}>
+                  {(gsc?.connected && gsc.topQueries.length ? gsc.topQueries : [
+                    { query: 'example query one', clicks: 120, impressions: 1400, position: 3.2 },
+                    { query: 'example query two', clicks: 84, impressions: 920, position: 5.1 },
+                    { query: 'example query three', clicks: 61, impressions: 740, position: 7.8 },
+                  ]).map((q, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 12 }}>{q.query}</span>
+                      <div style={{ display: 'flex', gap: 16, flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{fmt(q.clicks)} clicks</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-faint)', minWidth: 30, textAlign: 'right' }}>#{q.position}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Coming soon overlay */}
+            {!gsc?.connected && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 14 }}>
+                <div style={{ textAlign: 'center', padding: '20px 28px', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14 }}>
+                  <Search size={22} style={{ color: 'var(--text-faint)', marginBottom: 10 }} />
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Connect Search Console</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Go to Settings → Integrations → GSC API</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* ── GA4 Section ── */}
+        <section style={{ marginBottom: 36 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <BarChart2 size={13} style={{ color: 'var(--text-faint)' }} />
+              <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', margin: 0 }}>
+                Google Analytics 4
+              </h2>
+            </div>
+            {!ga4?.connected && <ComingSoonBadge />}
+          </div>
+          <div style={{ position: 'relative', opacity: ga4?.connected ? 1 : 0.55 }}>
+            {/* KPI row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+              {[
+                { label: 'Sessions',        value: ga4?.sessions7d,       suffix: '' },
+                { label: 'Active users',    value: ga4?.activeUsers7d,    suffix: '' },
+                { label: 'New users',       value: ga4?.newUsers7d,       suffix: '' },
+                { label: 'Pageviews',       value: ga4?.pageviews7d,      suffix: '' },
+                { label: 'Engagement rate', value: ga4?.engagementRate7d, suffix: '%' },
+              ].map(k => (
+                <div key={k.label} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 16px' }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 8 }}>{k.label}</div>
+                  <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.5px', color: 'var(--text)', lineHeight: 1, filter: !ga4?.connected ? 'blur(5px)' : 'none' }}>
+                    {k.value != null ? `${fmt(k.value)}${k.suffix}` : '—'}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 4 }}>7 days</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+              {/* Daily trend chart */}
+              <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>New users</h3>
+                <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>Daily new users — last 30 days</p>
+                <div style={{ height: 160, filter: !ga4?.connected ? 'blur(4px)' : 'none' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={ga4?.connected && ga4.dailyTrend.length ? ga4.dailyTrend : Array.from({ length: 10 }, (_, i) => ({ date: `d${i}`, newUsers: Math.round(Math.random() * 30 + 5) }))} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="ga4Fill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%"   stopColor="var(--gold)" stopOpacity={0.25} />
+                          <stop offset="100%" stopColor="var(--gold)" stopOpacity={0}    />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="date" tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                      <YAxis tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} width={24} />
+                      <Tooltip contentStyle={{ background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 8, fontSize: 11 }} itemStyle={{ color: 'var(--gold)' }} />
+                      <Area type="monotone" dataKey="newUsers" stroke="var(--gold)" strokeWidth={2} fill="url(#ga4Fill)" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Traffic sources */}
+              <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Traffic sources</h3>
+                <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>Sessions by channel — 7 days</p>
+                {(() => {
+                  const sources = ga4?.connected && ga4.trafficSources.length ? ga4.trafficSources : [
+                    { channel: 'Organic Search', sessions: 420 },
+                    { channel: 'Direct', sessions: 280 },
+                    { channel: 'Referral', sessions: 140 },
+                    { channel: 'Social', sessions: 90 },
+                  ]
+                  const maxSessions = Math.max(...sources.map(s => s.sessions), 1)
+                  const CHANNEL_COLORS: Record<string, string> = { 'Organic Search': 'var(--green)', 'Direct': 'var(--green-bright)', 'Referral': 'var(--gold)', 'Social': '#5eead4', 'Email': '#a78bfa', 'Paid Search': '#f87171' }
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, filter: !ga4?.connected ? 'blur(4px)' : 'none' }}>
+                      {sources.map(s => (
+                        <div key={s.channel}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{s.channel}</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{fmt(s.sessions)}</span>
+                          </div>
+                          <div style={{ height: 5, borderRadius: 99, background: 'var(--line)' }}>
+                            <div style={{ height: 5, borderRadius: 99, width: `${Math.round(s.sessions / maxSessions * 100)}%`, background: CHANNEL_COLORS[s.channel] ?? 'var(--text-dim)' }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+
+            {/* Top landing pages */}
+            <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+              <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Top landing pages</h3>
+              <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Entry pages by sessions — 7 days</p>
+              <div style={{ filter: !ga4?.connected ? 'blur(4px)' : 'none' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '6px 20px', fontSize: 11, fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid var(--line)' }}>
+                  <span>Page</span><span>Sessions</span><span>New users</span><span>Engagement</span>
+                </div>
+                {(ga4?.connected && ga4.topPages.length ? ga4.topPages : [
+                  { page: '/home', sessions: 340, newUsers: 180, engagementRate: 72 },
+                  { page: '/pricing', sessions: 210, newUsers: 95, engagementRate: 68 },
+                  { page: '/blog/example-post', sessions: 130, newUsers: 110, engagementRate: 81 },
+                ]).map((p, i) => (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '6px 20px', padding: '7px 0', borderBottom: '1px solid var(--line)', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.page}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'right' }}>{fmt(p.sessions)}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'right' }}>{fmt(p.newUsers)}</span>
+                    <span style={{ fontSize: 12, textAlign: 'right', color: p.engagementRate >= 60 ? 'var(--green-bright)' : p.engagementRate >= 40 ? 'var(--gold)' : '#f87171' }}>{p.engagementRate}%</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Coming soon overlay */}
+            {!ga4?.connected && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 14 }}>
+                <div style={{ textAlign: 'center', padding: '20px 28px', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14 }}>
+                  <BarChart2 size={22} style={{ color: 'var(--text-faint)', marginBottom: 10 }} />
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Connect Google Analytics 4</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Go to Settings → Integrations → GA4 API</p>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

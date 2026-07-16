@@ -4,7 +4,7 @@ export const COMPETITOR_ANALYSIS_MODULE: ModuleDefinition = {
   type: 'competitor-analysis',
   name: 'Competitor Analysis',
   description: 'Discover competitors, compare keywords, content, SEO, social media, and ads — then get a SWOT action plan.',
-  order: 4,
+  order: 10,
   unlockThreshold: 80,
   dynamic: true,
   requirements: [

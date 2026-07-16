@@ -4,7 +4,7 @@ export const GMAIL_OUTREACH_MODULE: ModuleDefinition = {
   type: 'gmail-outreach',
   name: 'Gmail Outreach',
   description: 'AI reads your website and playbook to identify the best potential clients, generate personalised cold emails, and let you send or save them to Gmail Drafts.',
-  order: 15,
+  order: 12,
   unlockThreshold: 50,
   dynamic: true,
   requirements: [],
