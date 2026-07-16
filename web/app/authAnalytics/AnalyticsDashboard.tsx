@@ -22,6 +22,7 @@ export interface ModuleHealth {
 
 interface GscData {
   connected: boolean
+  error?: boolean
   clicks7d: number | null
   impressions7d: number | null
   avgCtr7d: number | null
@@ -33,6 +34,7 @@ interface GscData {
 
 interface Ga4Data {
   connected: boolean
+  error?: boolean
   sessions7d: number | null
   activeUsers7d: number | null
   newUsers7d: number | null
@@ -41,6 +43,20 @@ interface Ga4Data {
   trafficSources: { channel: string; sessions: number }[]
   topPages: { page: string; sessions: number; newUsers: number; engagementRate: number }[]
   dailyTrend: { date: string; newUsers: number; sessions: number }[]
+}
+
+interface WebAnalytics {
+  visitors: { current: number; prior: number }
+  pageviews: { current: number; prior: number }
+  sessions:  { current: number; prior: number }
+  avgDurationSecs: number | null; avgDurationSecsPrior: number | null
+  bounceRate: number | null; bounceRatePrior: number | null
+  visitorsChart: { date: string; visitors: number }[]
+  topPaths:  { path: string; visitors: number; views: number }[]
+  channels:  { channel: string; visitors: number; views: number }[]
+  devices:   { device: string; visitors: number; views: number }[]
+  countries: { country: string; visitors: number }[]
+  activeHours: { dow: number; hour: number; users: number }[]
 }
 
 interface DashboardData {
@@ -52,6 +68,7 @@ interface DashboardData {
   deletedAccounts24h: number
   retention: { day: string; rate: number }[] | null
   funnel: { stage: string; value: number }[] | null
+  webAnalytics: WebAnalytics | null
   gsc: GscData
   ga4: Ga4Data
 }
@@ -88,6 +105,17 @@ function fmt(n: number): string {
   if (n >= 10_000)    return `${Math.round(n / 1000)}k`
   if (n >= 1_000)     return `${(n / 1000).toFixed(1)}k`
   return String(n)
+}
+
+function fmtDuration(secs: number): string {
+  const m = Math.floor(secs / 60)
+  const s = Math.round(secs % 60)
+  return m > 0 ? `${m}m ${s}s` : `${s}s`
+}
+
+function pctChange(current: number, prior: number): number | null {
+  if (prior === 0) return null
+  return Math.round(((current - prior) / prior) * 100)
 }
 
 /* ── Sub-components ───────────────────────────────────── */
@@ -548,102 +576,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           </div>
         </div>
 
-        {/* Summary + Todo */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 36 }}>
-
-          {/* Summary panel */}
-          <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Zap size={12} style={{ color: 'var(--green)' }} />
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--green)' }}>
-                Summary — in plain terms
-              </span>
-            </div>
-            {summaryLoading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {[100, 85, 92, 60].map((w, i) => (
-                  <div key={i} style={{ height: 14, borderRadius: 6, background: 'var(--line)', width: `${w}%`, opacity: 0.5 + i * 0.1 }} />
-                ))}
-              </div>
-            ) : summary ? (
-              <p style={{ fontSize: 14, lineHeight: 1.75, color: 'var(--text-dim)', margin: 0 }}>
-                {renderSummary(summary)}
-              </p>
-            ) : (
-              <p style={{ fontSize: 14, color: 'var(--text-faint)', margin: 0, lineHeight: 1.65 }}>
-                Summary could not be generated. Check your Anthropic API key in settings.
-              </p>
-            )}
-          </div>
-
-          {/* Todo list panel */}
-          <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)' }}>
-                To-do list
-              </span>
-              <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-                {modules.filter(m => !m.locked && m.score < 90).length} open
-              </span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto', maxHeight: 220 }}>
-              {modules
-                .filter(m => !m.locked)
-                .sort((a, b) => a.score - b.score)
-                .map(m => {
-                  const done = m.score >= 90
-                  return (
-                    <div key={m.name} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                      {done
-                        ? <CheckCircle2 size={15} style={{ color: '#4ade80', flexShrink: 0, marginTop: 1 }} />
-                        : <Circle size={15} style={{ color: 'var(--line)', flexShrink: 0, marginTop: 1 }} />
-                      }
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{
-                            fontSize: 13, fontWeight: 600,
-                            color: done ? 'var(--text-faint)' : 'var(--text)',
-                            textDecoration: done ? 'line-through' : 'none',
-                          }}>
-                            {m.name}
-                          </span>
-                          <span style={{
-                            fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 99,
-                            background: m.score >= 70 ? '#4ade8018' : m.score >= 40 ? '#e7c87318' : '#f8717118',
-                            color: m.score >= 70 ? '#4ade80' : m.score >= 40 ? '#e7c873' : '#f87171',
-                          }}>
-                            {m.score}%
-                          </span>
-                        </div>
-                        {!done && m.insight && (
-                          <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: '2px 0 0', lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                            {m.insight}
-                          </p>
-                        )}
-                      </div>
-                      {!done && (
-                        <button
-                          onClick={() => setRedirectTarget(m.name)}
-                          style={{
-                            flexShrink: 0, fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 99,
-                            border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)',
-                            cursor: 'pointer', whiteSpace: 'nowrap',
-                          }}
-                        >
-                          Fix <ArrowRight size={10} style={{ display: 'inline', verticalAlign: 'middle' }} />
-                        </button>
-                      )}
-                    </div>
-                  )
-                })
-              }
-              {modules.filter(m => !m.locked).length === 0 && (
-                <p style={{ fontSize: 13, color: 'var(--text-faint)', margin: 0 }}>No active modules yet.</p>
-              )}
-            </div>
-          </div>
-
-        </div>
+        {/* Summary + Todo — hidden for now */}
 
         {/* Last 24 hours */}
         <section style={{ marginBottom: 36 }}>
@@ -687,6 +620,202 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           </div>
         </section>
 
+        {/* ── PostHog Web Analytics ── */}
+        {data?.webAnalytics && (() => {
+          const wa = data.webAnalytics!
+          const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+          const maxHeatmap = Math.max(...wa.activeHours.map(h => h.users), 1)
+          const heatmapGrid: Record<string, number> = {}
+          wa.activeHours.forEach(h => { heatmapGrid[`${h.dow}_${h.hour}`] = h.users })
+
+          const webKpis = [
+            { label: 'Visitors',     value: fmt(wa.visitors.current),  prior: wa.visitors.prior,  current: wa.visitors.current,  suffix: '' },
+            { label: 'Page views',   value: fmt(wa.pageviews.current), prior: wa.pageviews.prior, current: wa.pageviews.current, suffix: '' },
+            { label: 'Sessions',     value: fmt(wa.sessions.current),  prior: wa.sessions.prior,  current: wa.sessions.current,  suffix: '' },
+            { label: 'Avg duration', value: wa.avgDurationSecs != null ? fmtDuration(wa.avgDurationSecs) : '—', prior: wa.avgDurationSecsPrior ?? 0, current: wa.avgDurationSecs ?? 0, suffix: '' },
+            { label: 'Bounce rate',  value: wa.bounceRate != null ? `${wa.bounceRate}%` : '—', prior: wa.bounceRatePrior ?? 0, current: wa.bounceRate ?? 0, suffix: '%', invertGood: true },
+          ]
+
+          return (
+            <section style={{ marginBottom: 36 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <img src="https://www.google.com/s2/favicons?domain=posthog.com&sz=32" width={13} height={13} style={{ borderRadius: 2 }} alt="" />
+                  <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', margin: 0 }}>
+                    Web Analytics · last 28 days
+                  </h2>
+                </div>
+              </div>
+
+              {/* KPI row */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 14 }}>
+                {webKpis.map(k => {
+                  const chg = pctChange(k.current, k.prior)
+                  const good = k.invertGood ? (chg ?? 0) < 0 : (chg ?? 0) > 0
+                  return (
+                    <div key={k.label} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 16px' }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 8 }}>{k.label}</div>
+                      <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.5px', color: 'var(--text)', lineHeight: 1 }}>{k.value}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        {chg != null ? (
+                          <span style={{ color: good ? '#4ade80' : '#f87171', fontWeight: 600 }}>
+                            {chg > 0 ? '+' : ''}{chg}%
+                          </span>
+                        ) : null}
+                        <span>vs prior 28d</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Visitors chart */}
+              {wa.visitorsChart.length > 0 && (
+                <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Unique visitors</h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>Daily unique visitors — last 30 days</p>
+                  <div style={{ height: 160 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={wa.visitorsChart} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="visitFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#4ade80" stopOpacity={0.2} />
+                            <stop offset="100%" stopColor="#4ade80" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="date" tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                        <YAxis tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} width={24} />
+                        <Tooltip contentStyle={{ background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 8, fontSize: 11 }} itemStyle={{ color: '#4ade80' }} />
+                        <Area type="monotone" dataKey="visitors" stroke="#4ade80" strokeWidth={2} fill="url(#visitFill)" dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* Top paths + Channels/Devices/Countries */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+
+                {/* Top paths */}
+                <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Top paths</h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>By unique visitors, last 28 days</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {wa.topPaths.slice(0, 8).map((p, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.path}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>{fmt(p.visitors)}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-faint)', flexShrink: 0, minWidth: 36, textAlign: 'right' }}>{fmt(p.views)} views</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Channels + Devices stacked */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {/* Channels */}
+                  <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Traffic channels</h3>
+                    {wa.channels.slice(0, 5).map((c, i) => {
+                      const maxV = wa.channels[0]?.visitors ?? 1
+                      return (
+                        <div key={i} style={{ marginBottom: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{c.channel}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>{fmt(c.visitors)}</span>
+                          </div>
+                          <div style={{ height: 4, borderRadius: 99, background: 'var(--line)' }}>
+                            <div style={{ height: 4, borderRadius: 99, width: `${Math.round((c.visitors / maxV) * 100)}%`, background: 'var(--green)' }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Devices */}
+                  <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Devices</h3>
+                    {wa.devices.map((d, i) => {
+                      const maxV = wa.devices[0]?.visitors ?? 1
+                      return (
+                        <div key={i} style={{ marginBottom: 10 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{d.device}</span>
+                            <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>{fmt(d.visitors)}</span>
+                          </div>
+                          <div style={{ height: 4, borderRadius: 99, background: 'var(--line)' }}>
+                            <div style={{ height: 4, borderRadius: 99, width: `${Math.round((d.visitors / maxV) * 100)}%`, background: '#e7c873' }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Countries */}
+              {wa.countries.length > 0 && (
+                <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Top countries</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px 24px' }}>
+                    {wa.countries.slice(0, 10).map((c, i) => {
+                      const maxV = wa.countries[0]?.visitors ?? 1
+                      return (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 12, color: 'var(--text-dim)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.country}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', flexShrink: 0 }}>{fmt(c.visitors)}</span>
+                          <div style={{ width: 60, height: 4, borderRadius: 99, background: 'var(--line)', flexShrink: 0 }}>
+                            <div style={{ height: 4, borderRadius: 99, width: `${Math.round((c.visitors / maxV) * 100)}%`, background: '#5eead4' }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Active hours heatmap */}
+              {wa.activeHours.length > 0 && (
+                <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px', overflowX: 'auto' }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Active hours</h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>Unique users by day and hour (UTC), last 28 days</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '40px repeat(24, 1fr)', gap: 2, minWidth: 600 }}>
+                    {/* Hour labels */}
+                    <div />
+                    {Array.from({ length: 24 }, (_, h) => (
+                      <div key={h} style={{ fontSize: 9, color: 'var(--text-faint)', textAlign: 'center', paddingBottom: 4 }}>
+                        {h === 0 ? '12a' : h < 12 ? `${h}a` : h === 12 ? '12p' : `${h - 12}p`}
+                      </div>
+                    ))}
+                    {/* Rows */}
+                    {DOW.map((day, dowIdx) => (
+                      <React.Fragment key={day}>
+                        <div style={{ fontSize: 10, color: 'var(--text-faint)', display: 'flex', alignItems: 'center', paddingRight: 6 }}>{day}</div>
+                        {Array.from({ length: 24 }, (_, h) => {
+                          const val = heatmapGrid[`${dowIdx + 1}_${h}`] ?? 0
+                          const intensity = val / maxHeatmap
+                          return (
+                            <div
+                              key={h}
+                              title={`${day} ${h}:00 — ${val} users`}
+                              style={{
+                                height: 18, borderRadius: 3,
+                                background: intensity > 0
+                                  ? `rgba(47, 191, 113, ${0.12 + intensity * 0.88})`
+                                  : 'var(--line)',
+                              }}
+                            />
+                          )
+                        })}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </section>
+          )
+        })()}
+
         {/* ── GSC Section ── */}
         <section style={{ marginBottom: 36 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -698,7 +827,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             </div>
             {!gsc?.connected && <ComingSoonBadge />}
           </div>
-          <div style={{ position: 'relative', opacity: gsc?.connected ? 1 : 0.55 }}>
+          <div style={{ position: 'relative', opacity: gsc?.connected && !gsc?.error ? 1 : 0.55 }}>
             {/* KPI row */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
               {[
@@ -762,13 +891,22 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
               </div>
             </div>
 
-            {/* Coming soon overlay */}
-            {!gsc?.connected && (
+            {/* Not connected / error overlay */}
+            {(!gsc?.connected || gsc?.error) && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 14 }}>
-                <div style={{ textAlign: 'center', padding: '20px 28px', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14 }}>
-                  <Search size={22} style={{ color: 'var(--text-faint)', marginBottom: 10 }} />
-                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Connect Search Console</p>
-                  <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Go to Settings → Integrations → GSC API</p>
+                <div style={{ textAlign: 'center', padding: '20px 28px', background: 'var(--card)', border: `1px solid ${gsc?.error ? '#f8717140' : 'var(--line)'}`, borderRadius: 14 }}>
+                  <Search size={22} style={{ color: gsc?.error ? '#f87171' : 'var(--text-faint)', marginBottom: 10 }} />
+                  {gsc?.error ? (
+                    <>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: '#f87171', marginBottom: 4 }}>GSC auth failed</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Check your service account key in Settings → Integrations</p>
+                    </>
+                  ) : (
+                    <>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Connect Search Console</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Go to Settings → Integrations → GSC API</p>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -786,7 +924,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             </div>
             {!ga4?.connected && <ComingSoonBadge />}
           </div>
-          <div style={{ position: 'relative', opacity: ga4?.connected ? 1 : 0.55 }}>
+          <div style={{ position: 'relative', opacity: ga4?.connected && !ga4?.error ? 1 : 0.55 }}>
             {/* KPI row */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
               {[
@@ -884,13 +1022,22 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
               </div>
             </div>
 
-            {/* Coming soon overlay */}
-            {!ga4?.connected && (
+            {/* Not connected / error overlay */}
+            {(!ga4?.connected || ga4?.error) && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 14 }}>
-                <div style={{ textAlign: 'center', padding: '20px 28px', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14 }}>
-                  <BarChart2 size={22} style={{ color: 'var(--text-faint)', marginBottom: 10 }} />
-                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Connect Google Analytics 4</p>
-                  <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Go to Settings → Integrations → GA4 API</p>
+                <div style={{ textAlign: 'center', padding: '20px 28px', background: 'var(--card)', border: `1px solid ${ga4?.error ? '#f8717140' : 'var(--line)'}`, borderRadius: 14 }}>
+                  <BarChart2 size={22} style={{ color: ga4?.error ? '#f87171' : 'var(--text-faint)', marginBottom: 10 }} />
+                  {ga4?.error ? (
+                    <>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: '#f87171', marginBottom: 4 }}>GA4 auth failed</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Check your service account key in Settings → Integrations</p>
+                    </>
+                  ) : (
+                    <>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Connect Google Analytics 4</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Go to Settings → Integrations → GA4 API</p>
+                    </>
+                  )}
                 </div>
               </div>
             )}
