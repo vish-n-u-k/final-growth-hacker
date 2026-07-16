@@ -771,7 +771,6 @@ header {
   margin-top: 6px; padding-right: 4px;
   display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
 }
-.sm-item-expanded .md-item-detail { display: none; }
 
 /* Tags */
 .md-tag {

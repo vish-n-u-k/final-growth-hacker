@@ -781,7 +781,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           {skipped && item.userSkipReason && (
             <p className="md-item-detail" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>{item.userSkipReason}</p>
           )}
-          {!skipped && item.aiDetail && <p className="md-item-detail">{parseBold(item.aiDetail)}</p>}
+          {!skipped && item.aiDetail && <p className="md-item-detail" style={isExpanded ? { display: 'block', overflow: 'visible', WebkitLineClamp: 'unset' } : {}}>{parseBold(item.aiDetail)}</p>}
           {/* Fallback skip button for items with no expandable content */}
           {!skipped && !done && !hasDetail && (
             <div className="md-skip-control" onClick={(e) => e.stopPropagation()}>
@@ -1010,7 +1010,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           {skipped && s?.userSkipReason && (
             <p className="md-item-detail" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>{s.userSkipReason}</p>
           )}
-          {!skipped && s?.aiDetail && <p className="md-item-detail">{parseBold(s.aiDetail)}</p>}
+          {!skipped && s?.aiDetail && <p className="md-item-detail" style={isExpanded ? { display: 'block', overflow: 'visible', WebkitLineClamp: 'unset' } : {}}>{parseBold(s.aiDetail)}</p>}
           {/* Fallback skip for items with no expandable content */}
           {!skipped && !done && !hasDetail && (
             <div className="md-skip-control" onClick={(e) => e.stopPropagation()}>
