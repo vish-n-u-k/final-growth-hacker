@@ -7,6 +7,7 @@ export const GEO_COMPETITOR_GAP_MODULE: ModuleDefinition = {
   order: 5,
   unlockThreshold: 80,
   dynamic: true,
+  comingSoon: true,
   requirements: [
     {
       key: 'website_url',

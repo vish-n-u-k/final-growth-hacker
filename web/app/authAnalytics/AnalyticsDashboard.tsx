@@ -583,8 +583,26 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
             Last 24 hours
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {activityTiles.map((item) => (
+          {/* Group 1: activity events */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
+            {activityTiles.filter(t => !['dau', 'mau'].includes(t.key)).map((item) => (
+              <StatCard
+                key={item.key}
+                icon={item.icon} iconTone={item.tone}
+                label={item.label} value={item.value}
+                source={item.source} deltaValue={item.delta}
+                invertGood={item.invertGood}
+                loading={item.loading}
+                comingSoon={item.comingSoon}
+              />
+            ))}
+          </div>
+          {/* Group 2: active users */}
+          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 10 }}>
+            Active users
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+            {activityTiles.filter(t => ['dau', 'mau'].includes(t.key)).map((item) => (
               <StatCard
                 key={item.key}
                 icon={item.icon} iconTone={item.tone}
@@ -603,12 +621,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
             Growth &amp; retention
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-            <KpiCard label="DAU" value={data ? fmt(data.dau) : '—'} sub="Daily active users" source="PostHog" delta={0} loading={phLoading} />
-            <KpiCard label="MAU" value={data ? fmt(data.mau) : '—'} sub="Monthly active users" source="PostHog" delta={0} loading={phLoading} />
-            <KpiCard label="New signups (24h)" value={data ? fmt(data.signups24h) : '—'} sub="New persons created today" source="PostHog" delta={0} loading={phLoading} />
-            <KpiCard label="Module avg score" value={`${avgScore}%`} sub="Across all active modules" source="Internal" delta={0} />
-            {/* Stripe — coming soon */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
             <KpiCard label="MRR" value="$0" sub="Monthly recurring revenue" source="Stripe" delta={0} comingSoon />
             <KpiCard label="ARR" value="$0" sub="Annualised run rate" source="Stripe" delta={0} comingSoon />
             <KpiCard label="Churn rate" value="0%" sub="Paid cancellations, 30d" source="Stripe" delta={0} bad comingSoon />
@@ -630,8 +643,6 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
 
           const webKpis = [
             { label: 'Visitors',     value: fmt(wa.visitors.current),  prior: wa.visitors.prior,  current: wa.visitors.current,  suffix: '' },
-            { label: 'Page views',   value: fmt(wa.pageviews.current), prior: wa.pageviews.prior, current: wa.pageviews.current, suffix: '' },
-            { label: 'Sessions',     value: fmt(wa.sessions.current),  prior: wa.sessions.prior,  current: wa.sessions.current,  suffix: '' },
             { label: 'Avg duration', value: wa.avgDurationSecs != null ? fmtDuration(wa.avgDurationSecs) : '—', prior: wa.avgDurationSecsPrior ?? 0, current: wa.avgDurationSecs ?? 0, suffix: '' },
             { label: 'Bounce rate',  value: wa.bounceRate != null ? `${wa.bounceRate}%` : '—', prior: wa.bounceRatePrior ?? 0, current: wa.bounceRate ?? 0, suffix: '%', invertGood: true },
           ]
@@ -642,13 +653,13 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <img src="https://www.google.com/s2/favicons?domain=posthog.com&sz=32" width={13} height={13} style={{ borderRadius: 2 }} alt="" />
                   <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', margin: 0 }}>
-                    Web Analytics · last 28 days
+                    App Analytics · last 28 days
                   </h2>
                 </div>
               </div>
 
               {/* KPI row */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
                 {webKpis.map(k => {
                   const chg = pctChange(k.current, k.prior)
                   const good = k.invertGood ? (chg ?? 0) < 0 : (chg ?? 0) > 0
@@ -669,76 +680,16 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 })}
               </div>
 
-              {/* Visitors chart */}
-              {wa.visitorsChart.length > 0 && (
+
+              {/* Devices */}
+              {wa.devices.length > 0 && (
                 <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Unique visitors</h3>
-                  <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>Daily unique visitors — last 30 days</p>
-                  <div style={{ height: 160 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={wa.visitorsChart} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="visitFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#4ade80" stopOpacity={0.2} />
-                            <stop offset="100%" stopColor="#4ade80" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <XAxis dataKey="date" tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                        <YAxis tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} width={24} />
-                        <Tooltip contentStyle={{ background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 8, fontSize: 11 }} itemStyle={{ color: '#4ade80' }} />
-                        <Area type="monotone" dataKey="visitors" stroke="#4ade80" strokeWidth={2} fill="url(#visitFill)" dot={false} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              )}
-
-              {/* Top paths + Channels/Devices/Countries */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
-
-                {/* Top paths */}
-                <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Top paths</h3>
-                  <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>By unique visitors, last 28 days</p>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Devices</h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {wa.topPaths.slice(0, 8).map((p, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.path}</span>
-                        <span style={{ fontSize: 11, color: 'var(--text-dim)', flexShrink: 0 }}>{fmt(p.visitors)}</span>
-                        <span style={{ fontSize: 11, color: 'var(--text-faint)', flexShrink: 0, minWidth: 36, textAlign: 'right' }}>{fmt(p.views)} views</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Channels + Devices stacked */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {/* Channels */}
-                  <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
-                    <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Traffic channels</h3>
-                    {wa.channels.slice(0, 5).map((c, i) => {
-                      const maxV = wa.channels[0]?.visitors ?? 1
-                      return (
-                        <div key={i} style={{ marginBottom: 10 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{c.channel}</span>
-                            <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>{fmt(c.visitors)}</span>
-                          </div>
-                          <div style={{ height: 4, borderRadius: 99, background: 'var(--line)' }}>
-                            <div style={{ height: 4, borderRadius: 99, width: `${Math.round((c.visitors / maxV) * 100)}%`, background: 'var(--green)' }} />
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* Devices */}
-                  <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
-                    <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Devices</h3>
                     {wa.devices.map((d, i) => {
                       const maxV = wa.devices[0]?.visitors ?? 1
                       return (
-                        <div key={i} style={{ marginBottom: 10 }}>
+                        <div key={i}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                             <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{d.device}</span>
                             <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>{fmt(d.visitors)}</span>
@@ -751,7 +702,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                     })}
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Countries */}
               {wa.countries.length > 0 && (
@@ -1044,28 +995,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           </div>
         </section>
 
-        {/* Module health */}
-        <section>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)' }}>
-              Module health
-            </h2>
-            <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>
-              {modules.filter(m => !m.locked).length} of {modules.length} active · avg {avgScore}%
-            </span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {modules.map((m) => (
-              <ModuleRow
-                key={m.name}
-                m={m}
-                expanded={expandedModule === m.name}
-                onToggle={() => setExpandedModule(expandedModule === m.name ? null : m.name)}
-                onFix={(mod) => setRedirectTarget(mod.name)}
-              />
-            ))}
-          </div>
-        </section>
+        {/* Module health — hidden for now */}
 
       </div>
     </div>
