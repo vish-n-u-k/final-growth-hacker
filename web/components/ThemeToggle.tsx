@@ -3,15 +3,15 @@
 import { useEffect, useState } from 'react'
 
 export default function ThemeToggle() {
-  const [light, setLight] = useState(false)
+  const [light, setLight] = useState(true)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
     const stored = localStorage.getItem('gh_theme')
-    if (stored === 'light') {
-      document.documentElement.classList.add('light')
-      setLight(true)
+    if (stored === 'dark') {
+      document.documentElement.classList.remove('light')
+      setLight(false)
     }
   }, [])
 
@@ -54,8 +54,8 @@ export default function ThemeToggle() {
       className="w-10 h-10 border border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--green)] hover:text-[var(--text)] bg-transparent rounded-[10px] grid place-items-center transition-all duration-150 flex-shrink-0 cursor-pointer"
       suppressHydrationWarning
     >
-      {/* Always render sun on server; swap after mount to avoid hydration mismatch */}
-      {mounted ? (light ? moonIcon : sunIcon) : sunIcon}
+      {/* Light is the default, so render moon on server; swap after mount to avoid hydration mismatch */}
+      {mounted ? (light ? moonIcon : sunIcon) : moonIcon}
     </button>
   )
 }
