@@ -321,7 +321,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
   const isModuleLocked = (modData: ModuleData): boolean => {
     if (process.env.NEXT_PUBLIC_APP_ENV !== 'production') return false
-    if (modData.order <= 2) return false  // Foundation, Website Audit, SEO always unlocked
+    if (modData.order <= 3) return false  // Foundation, Website Audit, SEO always unlocked
     const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order)
     return !prev || liveScores[prev.id] < 80
   }
@@ -781,7 +781,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           {skipped && item.userSkipReason && (
             <p className="md-item-detail" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>{item.userSkipReason}</p>
           )}
-          {!skipped && item.aiDetail && <p className="md-item-detail">{parseBold(item.aiDetail)}</p>}
+          {!skipped && item.aiDetail && <p className="md-item-detail" style={isExpanded ? { display: 'block', overflow: 'visible', WebkitLineClamp: 'unset' } : {}}>{parseBold(item.aiDetail)}</p>}
           {/* Fallback skip button for items with no expandable content */}
           {!skipped && !done && !hasDetail && (
             <div className="md-skip-control" onClick={(e) => e.stopPropagation()}>
@@ -1010,7 +1010,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           {skipped && s?.userSkipReason && (
             <p className="md-item-detail" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>{s.userSkipReason}</p>
           )}
-          {!skipped && s?.aiDetail && <p className="md-item-detail">{parseBold(s.aiDetail)}</p>}
+          {!skipped && s?.aiDetail && <p className="md-item-detail" style={isExpanded ? { display: 'block', overflow: 'visible', WebkitLineClamp: 'unset' } : {}}>{parseBold(s.aiDetail)}</p>}
           {/* Fallback skip for items with no expandable content */}
           {!skipped && !done && !hasDetail && (
             <div className="md-skip-control" onClick={(e) => e.stopPropagation()}>
@@ -1166,7 +1166,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             )}
             <h1><span className="hero-brand-name">{brand.name}</span>&apos;s road to 500 users</h1>
           </div>
-          <p>One level at a time. Clear each gate before you level up — don't skip ahead.</p>
+          <p>One module at a time. Clear each gate before you level up — don't skip ahead.</p>
         </div>
 
         {/* Overview */}

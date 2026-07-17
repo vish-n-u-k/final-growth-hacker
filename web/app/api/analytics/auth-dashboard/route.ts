@@ -63,6 +63,20 @@ async function phQuery(host: string, projectId: string, apiKey: string, query: o
   } catch { return null }
 }
 
+async function hogqlRows(host: string, projectId: string, apiKey: string, query: string): Promise<unknown[][] | null> {
+  try {
+    const res = await fetch(`${host}/api/projects/${projectId}/query`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: { kind: 'HogQLQuery', query } }),
+      signal: AbortSignal.timeout(12000),
+    })
+    if (!res.ok) return null
+    const data = await res.json() as { results?: unknown[][] }
+    return data.results ?? null
+  } catch { return null }
+}
+
 // ── GSC ────────────────────────────────────────────────────────────────────────
 
 async function gscQuery(
@@ -87,10 +101,9 @@ async function gscQuery(
 }
 
 async function fetchGsc(clientEmail: string, privateKey: string, siteUrl: string) {
-  // connected = true as long as credentials exist; data fields may be null if API call fails
-  const base = { connected: true, clicks7d: null as number | null, impressions7d: null as number | null, avgCtr7d: null as number | null, avgPosition7d: null as number | null, topQueries: [] as { query: string; clicks: number; impressions: number; position: number }[], topPages: [] as { page: string; clicks: number; impressions: number }[], clickTrend: [] as { date: string; clicks: number }[] }
+  const base = { connected: true, error: false, clicks7d: null as number | null, impressions7d: null as number | null, avgCtr7d: null as number | null, avgPosition7d: null as number | null, topQueries: [] as { query: string; clicks: number; impressions: number; position: number }[], topPages: [] as { page: string; clicks: number; impressions: number }[], clickTrend: [] as { date: string; clicks: number }[] }
   const token = await getServiceToken(clientEmail, privateKey, 'https://www.googleapis.com/auth/webmasters.readonly')
-  if (!token) return base  // credentials exist but token failed — still "connected"
+  if (!token) return { ...base, error: true }
 
   const endDate   = new Date().toISOString().split('T')[0]
   const startDate = new Date(Date.now() - 6  * 86400_000).toISOString().split('T')[0]
@@ -149,10 +162,9 @@ async function ga4Report(token: string, propertyId: string, body: object): Promi
 }
 
 async function fetchGa4(clientEmail: string, privateKey: string, propertyId: string) {
-  // connected = true as long as credentials exist; data fields may be null if API call fails
-  const base = { connected: true, sessions7d: null, activeUsers7d: null, newUsers7d: null, pageviews7d: null, engagementRate7d: null, trafficSources: [] as { channel: string; sessions: number }[], topPages: [] as { page: string; sessions: number; newUsers: number; engagementRate: number }[], dailyTrend: [] as { date: string; newUsers: number; sessions: number }[] }
+  const base = { connected: true, error: false, sessions7d: null as number | null, activeUsers7d: null as number | null, newUsers7d: null as number | null, pageviews7d: null as number | null, engagementRate7d: null as number | null, trafficSources: [] as { channel: string; sessions: number }[], topPages: [] as { page: string; sessions: number; newUsers: number; engagementRate: number }[], dailyTrend: [] as { date: string; newUsers: number; sessions: number }[] }
   const token = await getServiceToken(clientEmail, privateKey, 'https://www.googleapis.com/auth/analytics.readonly')
-  if (!token) return base  // credentials exist but token failed — still "connected"
+  if (!token) return { ...base, error: true }
 
   type GA4Report = { rows?: { dimensionValues?: { value: string }[]; metricValues: { value: string }[] }[] }
 
@@ -247,7 +259,27 @@ export async function GET(request: NextRequest) {
 
   // ── PostHog ────────────────────────────────────────────────────────────────
 
-  let posthogData = { posthogConnected: false, signups24h: 0, signins24h: 0, dau: 0, mau: 0, deletedAccounts24h: 0, retention: null as null | { day: string; rate: number }[], funnel: null as null | { stage: string; value: number }[] }
+  type WebAnalytics = {
+    visitors: { current: number; prior: number }
+    pageviews: { current: number; prior: number }
+    sessions: { current: number; prior: number }
+    avgDurationSecs: number | null; avgDurationSecsPrior: number | null
+    bounceRate: number | null; bounceRatePrior: number | null
+    visitorsChart: { date: string; visitors: number }[]
+    topPaths: { path: string; visitors: number; views: number }[]
+    channels: { channel: string; visitors: number; views: number }[]
+    devices: { device: string; visitors: number; views: number }[]
+    countries: { country: string; visitors: number }[]
+    activeHours: { dow: number; hour: number; users: number }[]
+  }
+
+  let posthogData: {
+    posthogConnected: boolean; signups24h: number; signins24h: number
+    dau: number; mau: number; deletedAccounts24h: number
+    retention: { day: string; rate: number }[] | null
+    funnel: { stage: string; value: number }[] | null
+    webAnalytics: WebAnalytics | null
+  } = { posthogConnected: false, signups24h: 0, signins24h: 0, dau: 0, mau: 0, deletedAccounts24h: 0, retention: null, funnel: null, webAnalytics: null }
 
   if (phInt?.apiKey) {
     const meta = (phInt.metadata as Record<string, string> | null) ?? {}
@@ -255,23 +287,49 @@ export async function GET(request: NextRequest) {
     const host = (meta['posthog_host'] ?? 'https://us.posthog.com').replace(/\/$/, '')
 
     if (projectId) {
-      const [signups24h, signins24h, dau, mau, deletedAccounts24h, retentionRaw, funnelRaw] = await Promise.all([
-        hogql(host, projectId, phInt.apiKey, `SELECT count() FROM persons WHERE created_at >= now() - interval 1 day`),
-        hogql(host, projectId, phInt.apiKey, `SELECT count() FROM events WHERE event = '$identify' AND timestamp >= now() - interval 1 day`),
-        hogql(host, projectId, phInt.apiKey, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp >= now() - interval 1 day`),
-        hogql(host, projectId, phInt.apiKey, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp >= now() - interval 30 day`),
-        hogql(host, projectId, phInt.apiKey, `SELECT count() FROM events WHERE event IN ('account_deleted', 'user_deleted', 'delete_account') AND timestamp >= now() - interval 1 day`),
-        phQuery(host, projectId, phInt.apiKey, {
+      const key = phInt.apiKey
+      const [
+        signups24h, signins24h, dau, mau, deletedAccounts24h,
+        retentionRaw, funnelRaw,
+        coreCurrentRows, corePriorRows,
+        sessionCurrentRows, sessionPriorRows,
+        visitorsChartRows, topPathsRows,
+        channelsRows, devicesRows, countriesRows, activeHoursRows,
+      ] = await Promise.all([
+        hogql(host, projectId, key, `SELECT count() FROM persons WHERE created_at >= now() - interval 1 day`),
+        hogql(host, projectId, key, `SELECT count() FROM events WHERE event = '$identify' AND timestamp >= now() - interval 1 day`),
+        hogql(host, projectId, key, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp >= now() - interval 1 day`),
+        hogql(host, projectId, key, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp >= now() - interval 30 day`),
+        hogql(host, projectId, key, `SELECT count() FROM events WHERE event IN ('account_deleted', 'user_deleted', 'delete_account') AND timestamp >= now() - interval 1 day`),
+        phQuery(host, projectId, key, {
           kind: 'RetentionQuery',
           retentionFilter: { retention_type: 'retention_first_time', target_entity: { id: '$pageview', type: 'events' }, returning_entity: { id: '$pageview', type: 'events' }, total_intervals: 7, period: 'Day' },
           dateRange: { date_from: '-30d' },
         }),
-        phQuery(host, projectId, phInt.apiKey, {
+        phQuery(host, projectId, key, {
           kind: 'FunnelsQuery',
           series: [{ kind: 'EventsNode', event: '$pageview', name: 'Visited site' }, { kind: 'EventsNode', event: '$identify', name: 'Signed up' }],
           funnelsFilter: { funnel_window_days: 14 },
           dateRange: { date_from: '-30d' },
         }),
+        // Web analytics — core metrics (28d current vs prior)
+        hogqlRows(host, projectId, key, `SELECT count(DISTINCT person_id), count(), count(DISTINCT $session_id) FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 28 day`),
+        hogqlRows(host, projectId, key, `SELECT count(DISTINCT person_id), count(), count(DISTINCT $session_id) FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 56 day AND timestamp < now() - interval 28 day`),
+        // Session duration + bounce rate via sessions virtual table
+        hogqlRows(host, projectId, key, `SELECT count(), round(avg($session_duration)), round(countIf($pagecount <= 1) * 100.0 / count()) FROM sessions WHERE $start_timestamp >= now() - interval 28 day`),
+        hogqlRows(host, projectId, key, `SELECT count(), round(avg($session_duration)), round(countIf($pagecount <= 1) * 100.0 / count()) FROM sessions WHERE $start_timestamp >= now() - interval 56 day AND $start_timestamp < now() - interval 28 day`),
+        // Visitors chart (30d daily)
+        hogqlRows(host, projectId, key, `SELECT toDate(timestamp), count(DISTINCT person_id) FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 30 day GROUP BY 1 ORDER BY 1 ASC`),
+        // Top paths
+        hogqlRows(host, projectId, key, `SELECT properties.$pathname, count(DISTINCT person_id), count() FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 28 day AND properties.$pathname IS NOT NULL AND properties.$pathname != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10`),
+        // Channels
+        hogqlRows(host, projectId, key, `SELECT coalesce(properties.$channel_type, 'Unknown'), count(DISTINCT person_id), count() FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 28 day GROUP BY 1 ORDER BY 2 DESC LIMIT 8`),
+        // Devices
+        hogqlRows(host, projectId, key, `SELECT coalesce(properties.$device_type, 'Unknown'), count(DISTINCT person_id), count() FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 28 day GROUP BY 1 ORDER BY 2 DESC`),
+        // Countries
+        hogqlRows(host, projectId, key, `SELECT coalesce(properties.$geoip_country_name, 'Unknown'), count(DISTINCT person_id) FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 28 day AND properties.$geoip_country_name IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 10`),
+        // Active hours heatmap
+        hogqlRows(host, projectId, key, `SELECT toDayOfWeek(timestamp), toHour(timestamp), count(DISTINCT person_id) FROM events WHERE timestamp >= now() - interval 28 day GROUP BY 1, 2 ORDER BY 1, 2`),
       ])
 
       let retention: { day: string; rate: number }[] | null = null
@@ -298,7 +356,28 @@ export async function GET(request: NextRequest) {
         if (steps?.length) funnel = steps.map(s => ({ stage: s.name, value: s.count }))
       } catch { /* null */ }
 
-      posthogData = { posthogConnected: true, signups24h, signins24h, dau, mau, deletedAccounts24h, retention, funnel }
+      const coreC = coreCurrentRows?.[0]
+      const coreP = corePriorRows?.[0]
+      const sessC = sessionCurrentRows?.[0]
+      const sessP = sessionPriorRows?.[0]
+
+      const webAnalytics: WebAnalytics = {
+        visitors: { current: Number(coreC?.[0] ?? 0), prior: Number(coreP?.[0] ?? 0) },
+        pageviews: { current: Number(coreC?.[1] ?? 0), prior: Number(coreP?.[1] ?? 0) },
+        sessions:  { current: Number(coreC?.[2] ?? 0), prior: Number(coreP?.[2] ?? 0) },
+        avgDurationSecs:      sessC?.[1] != null ? Number(sessC[1]) : null,
+        avgDurationSecsPrior: sessP?.[1] != null ? Number(sessP[1]) : null,
+        bounceRate:      sessC?.[2] != null ? Number(sessC[2]) : null,
+        bounceRatePrior: sessP?.[2] != null ? Number(sessP[2]) : null,
+        visitorsChart: (visitorsChartRows ?? []).map(r => ({ date: String(r[0]), visitors: Number(r[1]) })),
+        topPaths:  (topPathsRows  ?? []).map(r => ({ path: String(r[0]), visitors: Number(r[1]), views: Number(r[2]) })),
+        channels:  (channelsRows  ?? []).map(r => ({ channel: String(r[0]), visitors: Number(r[1]), views: Number(r[2]) })),
+        devices:   (devicesRows   ?? []).map(r => ({ device: String(r[0]), visitors: Number(r[1]), views: Number(r[2]) })),
+        countries: (countriesRows ?? []).map(r => ({ country: String(r[0]), visitors: Number(r[1]) })),
+        activeHours: (activeHoursRows ?? []).map(r => ({ dow: Number(r[0]), hour: Number(r[1]), users: Number(r[2]) })),
+      }
+
+      posthogData = { posthogConnected: true, signups24h, signins24h, dau, mau, deletedAccounts24h, retention, funnel, webAnalytics }
     }
   }
 

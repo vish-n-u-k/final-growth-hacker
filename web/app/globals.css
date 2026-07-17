@@ -193,8 +193,8 @@ header {
 .overview-dis-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
 .overview-dis-btn-primary { display: inline-flex; align-items: center; gap: 7px; padding: 10px 20px; border-radius: 10px; border: none; background: var(--green-bright); color: #0a1410; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity .15s; }
 .overview-dis-btn-primary:hover { opacity: 0.88; }
-.overview-dis-btn-secondary { padding: 10px 18px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text-dim); font-size: 14px; font-weight: 500; cursor: pointer; transition: border-color .15s, color .15s; }
-.overview-dis-btn-secondary:hover { border-color: var(--text-dim); color: var(--text); }
+.overview-dis-btn-secondary { display: none; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text-dim); font-size: 14px; font-weight: 500; cursor: pointer; transition: border-color .15s, color .15s; }
+.overview-dis-btn-secondary:hover {display: none; border-color: var(--text-dim); color: var(--text); }
 .overview-dis-disclaimer { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-faint); margin: 0; line-height: 1.5; }
 .overview .meta { flex: 1; min-width: 220px; }
 .overview .meta .lvl {
@@ -771,7 +771,6 @@ header {
   margin-top: 6px; padding-right: 4px;
   display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden;
 }
-.sm-item-expanded .md-item-detail { display: none; }
 
 /* Tags */
 .md-tag {
