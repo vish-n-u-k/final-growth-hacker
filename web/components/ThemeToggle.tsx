@@ -3,13 +3,16 @@
 import { useEffect, useState } from 'react'
 
 export default function ThemeToggle() {
-  const [light, setLight] = useState(false)
+  const [light, setLight] = useState(true)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
     const stored = localStorage.getItem('gh_theme')
-    if (stored === 'light') {
+    if (stored === 'dark') {
+      document.documentElement.classList.remove('light')
+      setLight(false)
+    } else {
       document.documentElement.classList.add('light')
       setLight(true)
     }

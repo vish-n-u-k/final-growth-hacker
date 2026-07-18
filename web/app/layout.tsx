@@ -28,7 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{if(localStorage.getItem('gh_theme')==='light'){document.documentElement.classList.add('light')}}catch(e){}})()`,
+            __html: `(function(){try{if(localStorage.getItem('gh_theme')!=='dark'){document.documentElement.classList.add('light')}}catch(e){document.documentElement.classList.add('light')}})()`,
           }}
         />
       </head>
