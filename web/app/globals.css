@@ -584,6 +584,28 @@ header {
 }
 .md-btn-reanalyze:hover:not(:disabled) { background: #1a3526; }
 .md-btn-reanalyze:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Analytics button */
+.btn-analytics {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--green);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--green-bright);
+  font-size: 13px; font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background .15s, box-shadow .15s, border-color .15s, color .15s;
+}
+.btn-analytics:hover:not(:disabled) {
+  background: #1a3526;
+  border-color: var(--green-bright);
+  box-shadow: 0 4px 16px rgba(47, 191, 113, 0.25), 0 1px 4px rgba(0,0,0,0.4);
+  color: #fff;
+}
+.btn-analytics:disabled { opacity: .7; cursor: default; }
+
 @keyframes md-spin { to { transform: rotate(360deg); } }
 @keyframes btn-shimmer {
   0% { transform: translateX(-150%); }

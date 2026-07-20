@@ -255,6 +255,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [verifyingItems, setVerifyingItems] = useState<Set<string>>(new Set())
   const [applyingFix, setApplyingFix] = useState<Set<string>>(new Set())
   const [reanalyzingMap, setReanalyzingMap] = useState<Record<string, boolean>>({})
+  const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [lastAnalyzedAtMap, setLastAnalyzedAtMap] = useState<Record<string, string | null>>({})
   const [pageVerdictsMap, setPageVerdictsMap] = useState<Record<string, ModuleData['pageVerdicts']>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.pageVerdicts]))
@@ -1264,28 +1265,19 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
         {/* Overview */}
         <div className={`overview${!connectedIntegrations['posthog'] ? ' overview--disconnected' : ''}`} style={{ position: 'relative' }}>
           <button
-            onClick={() => router.push('/authAnalytics')}
-            style={{
-              position: 'absolute',
-              top: '16px',
-              right: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '6px 12px',
-              border: '1px solid var(--line)',
-              borderRadius: '8px',
-              background: 'transparent',
-              color: 'var(--text-dim)',
-              fontSize: '13px',
-              cursor: 'pointer',
-              zIndex: 1,
-            }}
+            onClick={() => { setAnalyticsLoading(true); router.push('/authAnalytics') }}
+            className="btn-analytics"
+            style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 1 }}
+            disabled={analyticsLoading}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-              <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Analytics
+            {analyticsLoading ? (
+              <span className="md-spin" style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+            {analyticsLoading ? 'Loading…' : 'Analytics'}
           </button>
           {!connectedIntegrations['posthog'] ? (
             <>
