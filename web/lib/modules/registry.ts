@@ -32,8 +32,8 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
   BRAND_AUDIT_MODULE,             // order: 8
   CONTENT_AUDIT_MODULE,           // order: 9
   COMPETITOR_ANALYSIS_MODULE,     // order: 10
-  META_ADS_MODULE,                // order: 11
-  GMAIL_OUTREACH_MODULE,          // order: 12
+  GMAIL_OUTREACH_MODULE,          // order: 11
+  META_ADS_MODULE,                // order: 12
   USER_ANALYTICS_MODULE,          // order: 13
   OUTREACH_TARGETS_MODULE,        // order: 14
   BUSINESS_STAGE_MODULE,          // order: 15

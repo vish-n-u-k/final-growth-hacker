@@ -4,7 +4,7 @@ export const META_ADS_MODULE: ModuleDefinition = {
   type: 'meta-ads',
   name: 'Meta Ads Audit',
   description: 'Audit your Meta advertising performance — campaign efficiency, budget allocation, audience fatigue, and conversion optimisation based on live data from your ad account.',
-  order: 11,
+  order: 12,
   unlockThreshold: 80,
   dynamic: true,
   requirements: [],

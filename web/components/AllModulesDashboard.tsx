@@ -82,6 +82,63 @@ function getDynamicCatStats(categorySlug: string, items: DBItemFull[]) {
   return { total: catItems.length, done, totalWeight, doneWeight, aiWeight, pct: totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0 }
 }
 
+function renderMd(text: string, color: string) {
+  const lines = text.split('\n')
+  const out: React.ReactNode[] = []
+
+  function inlineFormat(s: string): React.ReactNode[] {
+    const parts: React.ReactNode[] = []
+    let rest = s
+    let key = 0
+    while (rest.length) {
+      const bold = rest.match(/\*\*(.+?)\*\*/)
+      const italic = rest.match(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/)
+      const candidates = [bold, italic].filter(Boolean) as RegExpMatchArray[]
+      if (!candidates.length) { parts.push(rest); break }
+      const first = candidates.reduce((a, b) => (a.index! <= b.index! ? a : b))
+      if (first.index! > 0) parts.push(rest.slice(0, first.index))
+      if (first === bold) parts.push(<strong key={key++} style={{ color, fontWeight: 700 }}>{first[1]}</strong>)
+      else parts.push(<em key={key++}>{first[1]}</em>)
+      rest = rest.slice(first.index! + first[0].length)
+    }
+    return parts
+  }
+
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i].trim()
+    if (!line) { i++; continue }
+
+    // Numbered list block
+    if (/^\d+\./.test(line)) {
+      const items: React.ReactNode[] = []
+      while (i < lines.length && /^\d+\./.test(lines[i].trim())) {
+        const content = lines[i].trim().replace(/^\d+\.\s*/, '')
+        items.push(<li key={i} style={{ marginBottom: '6px' }}>{inlineFormat(content)}</li>)
+        i++
+      }
+      out.push(<ol key={i} style={{ paddingLeft: '18px', margin: '8px 0', color }}>{items}</ol>)
+      continue
+    }
+
+    // Bullet list block
+    if (/^[-•]/.test(line)) {
+      const items: React.ReactNode[] = []
+      while (i < lines.length && /^[-•]/.test(lines[i].trim())) {
+        const content = lines[i].trim().replace(/^[-•]\s*/, '')
+        items.push(<li key={i} style={{ marginBottom: '6px' }}>{inlineFormat(content)}</li>)
+        i++
+      }
+      out.push(<ul key={i} style={{ paddingLeft: '18px', margin: '8px 0', color }}>{items}</ul>)
+      continue
+    }
+
+    out.push(<p key={i} style={{ margin: '0 0 10px', color, lineHeight: 1.8 }}>{inlineFormat(line)}</p>)
+    i++
+  }
+  return <div style={{ fontSize: '14.5px' }}>{out}</div>
+}
+
 function userCountToBarPct(count: number): number {
   if (count <= 0) return 0
   if (count <= 10) return (count / 10) * 25
@@ -283,6 +340,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   )
   const [userCount, setUserCount] = useState(0)
   const [editingCount, setEditingCount] = useState(false)
+  const [editCountValue, setEditCountValue] = useState('')
   const [posthogLoading, setPosthogLoading] = useState(false)
   const [posthogDataStartDate, setPosthogDataStartDate] = useState<string | null>(null)
   const [stageModalOpen, setStageModalOpen] = useState(false)
@@ -295,12 +353,17 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const autoAnalysisTriggered = useRef(false)
 
   useEffect(() => {
+    try {
+      const saved = localStorage.getItem('gh_user_count')
+      if (saved) setUserCount(parseInt(saved, 10))
+    } catch {}
     if (!connectedIntegrations['posthog']) return
     setPosthogLoading(true)
     fetch('/api/posthog/user-count')
       .then((r) => r.json())
       .then((d: { count?: number; dataStartDate?: string | null }) => {
-        if (d.count != null) setUserCount(d.count)
+        const hasOverride = (() => { try { return !!localStorage.getItem('gh_user_count') } catch { return false } })()
+        if (d.count != null && !hasOverride) setUserCount(d.count)
         if (d.dataStartDate) setPosthogDataStartDate(d.dataStartDate)
       })
       .catch(() => {})
@@ -1165,17 +1228,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             <Button
               variant="outline"
               size="icon"
-              onClick={() => router.push('/authAnalytics')}
-              title="Analytics"
-              className="w-10 h-10 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--green)] hover:text-[var(--text)] bg-transparent rounded-[10px]"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
               onClick={() => router.push('/settings')}
               title="Settings"
               className="w-10 h-10 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--green)] hover:text-[var(--text)] bg-transparent rounded-[10px]"
@@ -1215,7 +1267,31 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
         </div>
 
         {/* Overview */}
-        <div className={`overview${!connectedIntegrations['posthog'] ? ' overview--disconnected' : ''}`}>
+        <div className={`overview${!connectedIntegrations['posthog'] ? ' overview--disconnected' : ''}`} style={{ position: 'relative' }}>
+          <button
+            onClick={() => router.push('/authAnalytics')}
+            style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              border: '1px solid var(--line)',
+              borderRadius: '8px',
+              background: 'transparent',
+              color: 'var(--text-dim)',
+              fontSize: '13px',
+              cursor: 'pointer',
+              zIndex: 1,
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+              <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Analytics
+          </button>
           {!connectedIntegrations['posthog'] ? (
             <>
               {/* Header row */}
@@ -1267,9 +1343,44 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           ) : (
             <>
               <div>
-                <div className="big-num" style={{ cursor: 'default' }}>
-                  {posthogLoading ? <span className="count-loading"><span /><span /><span /></span> : userCount.toLocaleString()}
-                  <span>/500</span>
+                <div
+                  className="big-num"
+                  style={{ cursor: editingCount ? 'default' : 'pointer', display: 'flex', alignItems: 'baseline', gap: '4px' }}
+                  title={editingCount ? undefined : 'Click to edit'}
+                  onClick={() => {
+                    if (!editingCount && !posthogLoading) {
+                      setEditCountValue(String(userCount))
+                      setEditingCount(true)
+                    }
+                  }}
+                >
+                  {posthogLoading ? (
+                    <span className="count-loading"><span /><span /><span /></span>
+                  ) : editingCount ? (
+                    <input
+                      autoFocus
+                      type="number"
+                      min="0"
+                      value={editCountValue}
+                      onChange={e => setEditCountValue(e.target.value)}
+                      onBlur={() => {
+                        const v = parseInt(editCountValue, 10)
+                        if (!isNaN(v) && v >= 0) {
+                          setUserCount(v)
+                          try { localStorage.setItem('gh_user_count', String(v)) } catch {}
+                        }
+                        setEditingCount(false)
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                        if (e.key === 'Escape') setEditingCount(false)
+                      }}
+                      onClick={e => e.stopPropagation()}
+                    />
+                  ) : (
+                    userCount.toLocaleString()
+                  )}
+                  {!editingCount && <span>/500</span>}
                 </div>
               </div>
               <div className="meta">
@@ -1427,9 +1538,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       Click <b style={{ color: 'var(--green-bright)' }}>Re-analyse</b> above to generate your personalised stage playbook.
                     </p>
                   ) : activeItem ? (
-                    <p style={{ fontSize: '14.5px', color: isRedFlag ? '#ff8080' : 'var(--text-dim)', lineHeight: 1.8 }}>
-                      {activeItem.aiNarrative ?? activeItem.aiDetail}
-                    </p>
+                    renderMd(activeItem.aiNarrative ?? activeItem.aiDetail ?? '', isRedFlag ? '#ff8080' : 'var(--text-dim)')
                   ) : (
                     <p style={{ fontSize: '14px', color: 'var(--text-faint)', lineHeight: 1.75 }}>
                       Click <b style={{ color: 'var(--green-bright)' }}>Re-analyse</b> to generate content for this section.

@@ -45,7 +45,7 @@ export async function GET() {
 
   try {
     const [countRes, startRes] = await Promise.all([
-      hogql('SELECT count() FROM persons'),
+      hogql("SELECT count(DISTINCT properties.$email) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email)"),
       hogql('SELECT min(timestamp) FROM events'),
     ])
 
