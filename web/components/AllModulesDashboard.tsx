@@ -1165,6 +1165,17 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             <Button
               variant="outline"
               size="icon"
+              onClick={() => router.push('/authAnalytics')}
+              title="Analytics"
+              className="w-10 h-10 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--green)] hover:text-[var(--text)] bg-transparent rounded-[10px]"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
               onClick={() => router.push('/settings')}
               title="Settings"
               className="w-10 h-10 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--green)] hover:text-[var(--text)] bg-transparent rounded-[10px]"

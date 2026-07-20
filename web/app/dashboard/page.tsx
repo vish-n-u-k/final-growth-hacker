@@ -65,7 +65,6 @@ export default async function DashboardPage() {
   for (const mod of allModulesRaw) {
     const def = MODULE_MAP[mod.type]
     if (!def) continue
-    if (mod.type === 'business-stage') continue
 
     const items = itemsByModule.get(mod.id) ?? []
     const cats = catsByModule.get(mod.id) ?? []
