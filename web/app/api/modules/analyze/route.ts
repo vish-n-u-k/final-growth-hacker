@@ -447,7 +447,7 @@ Key One-Liners: ${pb.keyOneLiners}`
     }
 
     const { items: freshItems, categories: freshCats } = await getFreshModuleState(moduleId)
-    return NextResponse.json({ ok: true, score, lastAnalyzedAt: new Date().toISOString(), items: freshItems, categories: freshCats, pageVerdicts })
+    return NextResponse.json({ ok: true, dynamic: def.dynamic ?? false, score, lastAnalyzedAt: new Date().toISOString(), items: freshItems, categories: freshCats, pageVerdicts })
   }
 
   // Foundation: fetch + analyse in one pass (avoids double fetch)
@@ -787,5 +787,5 @@ Key One-Liners: ${pb.keyOneLiners}`
   }
 
   const { items: freshItems, categories: freshCats } = await getFreshModuleState(moduleId)
-  return NextResponse.json({ ok: true, score, lastAnalyzedAt: new Date().toISOString(), items: freshItems, categories: freshCats })
+  return NextResponse.json({ ok: true, dynamic: def.dynamic ?? false, score, lastAnalyzedAt: new Date().toISOString(), items: freshItems, categories: freshCats })
 }
