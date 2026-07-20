@@ -288,6 +288,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [stageModalOpen, setStageModalOpen] = useState(false)
   const [stageModalTab, setStageModalTab] = useState(0)
   const [competitorPanelOpen, setCompetitorPanelOpen] = useState(false)
+  const [resolvedBsModId, setResolvedBsModId] = useState<string | null>(
+    () => allModulesData.find((m) => m.type === 'business-stage')?.id ?? null,
+  )
+  const [ensuringBs, setEnsuringBs] = useState(false)
   const autoAnalysisTriggered = useRef(false)
 
   useEffect(() => {
@@ -410,6 +414,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const handleReanalyze = async (modId: string, reqValues: Record<string, string>, overrideReqs?: Record<string, string>) => {
     setSetupErrorMap(prev => ({ ...prev, [modId]: null }))
     setReanalyzingMap(prev => ({ ...prev, [modId]: true }))
+    try {
     const body: Record<string, unknown> = { moduleId: modId }
     const reqs = overrideReqs ?? reqValues
     const nonEmpty = Object.fromEntries(Object.entries(reqs).filter(([, v]) => typeof v === 'string' && (v as string).trim()))
@@ -422,6 +427,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     if (res.ok) {
       const data = await res.json() as {
         ok: boolean
+        dynamic: boolean
         score: number
         lastAnalyzedAt: string
         items: Array<{
@@ -438,10 +444,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
       setLastAnalyzedAtMap(prev => ({ ...prev, [modId]: data.lastAnalyzedAt }))
 
-      const modDef = allModulesData.find(m => m.id === modId)?.definition
+      const isDynamic = data.dynamic ?? allModulesData.find(m => m.id === modId)?.definition.dynamic
       const catIdToSlug = new Map(data.categories.map(c => [c.id, c.slug]))
 
-      if (modDef?.dynamic) {
+      if (isDynamic) {
         const fullItems: DBItemFull[] = data.items.map(item => ({
           id: item.id,
           slug: item.slug,
@@ -496,6 +502,34 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
       const data = await res.json().catch(() => ({}))
       setSetupErrorMap(prev => ({ ...prev, [modId]: (data as { error?: string }).error ?? 'Analysis failed. Please try again.' }))
       setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
+    }
+    } catch {
+      setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
+      setSetupErrorMap(prev => ({ ...prev, [modId]: 'Network error. Please try again.' }))
+    }
+  }
+
+  // Ensures the business-stage module exists (creates it if missing), then runs analysis.
+  const handleEnsureAndReanalyze = async () => {
+    setEnsuringBs(true)
+    try {
+      const res = await fetch('/api/modules/ensure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'business-stage' }),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setSetupErrorMap(prev => ({ ...prev, ['bs-ensure']: (d as { error?: string }).error ?? 'Setup failed.' }))
+        return
+      }
+      const { moduleId } = await res.json() as { moduleId: string }
+      setResolvedBsModId(moduleId)
+      await handleReanalyze(moduleId, {})
+    } catch {
+      setSetupErrorMap(prev => ({ ...prev, ['bs-ensure']: 'Network error. Please try again.' }))
+    } finally {
+      setEnsuringBs(false)
     }
   }
 
@@ -1274,11 +1308,12 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
         {/* Business Stage Modal */}
         {stageModalOpen && (() => {
-          const bsMod = allModulesData.find(m => m.type === 'business-stage')
-          const bsItems = bsMod ? (dynItemsMap[bsMod.id] ?? []) : []
+          const bsItems = resolvedBsModId ? (dynItemsMap[resolvedBsModId] ?? []) : []
           const classItem = bsItems.find(i => i.categorySlug === 'classification')
             ?? bsItems.find(i => i.categorySlug === 'business-classification')
-          const bsReanalyzing = bsMod ? (reanalyzingMap[bsMod.id] ?? false) : false
+          const bsReanalyzing = resolvedBsModId ? (reanalyzingMap[resolvedBsModId] ?? false) : false
+          const bsBusy = ensuringBs || bsReanalyzing
+          const bsError = resolvedBsModId ? setupErrorMap[resolvedBsModId] : setupErrorMap['bs-ensure']
 
           // Old slug fallbacks for data analyzed before the schema change
           const TABS = [
@@ -1310,19 +1345,22 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {bsMod && (
-                      <button
-                        onClick={() => handleReanalyze(bsMod.id, reqValuesMap[bsMod.id] ?? {})}
-                        disabled={bsReanalyzing}
-                        style={{
-                          fontSize: '12px', fontWeight: 600, padding: '5px 14px', borderRadius: '20px', cursor: bsReanalyzing ? 'default' : 'pointer',
-                          border: '1px solid var(--green)', color: 'var(--green-bright)', background: 'transparent',
-                          fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', opacity: bsReanalyzing ? 0.6 : 1,
-                        }}
-                      >
-                        {bsReanalyzing ? <><span className="md-spin" style={{ width: '10px', height: '10px', borderWidth: '1.5px' }} />Analysing…</> : 'Re-analyse'}
-                      </button>
+                    {bsError && (
+                      <span style={{ fontSize: '11px', color: '#ff8080', maxWidth: '200px', lineHeight: 1.3 }}>
+                        {bsError}
+                      </span>
                     )}
+                    <button
+                      onClick={() => resolvedBsModId ? handleReanalyze(resolvedBsModId, {}) : handleEnsureAndReanalyze()}
+                      disabled={bsBusy}
+                      style={{
+                        fontSize: '12px', fontWeight: 600, padding: '5px 14px', borderRadius: '20px', cursor: bsBusy ? 'default' : 'pointer',
+                        border: '1px solid var(--green)', color: 'var(--green-bright)', background: 'transparent',
+                        fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', opacity: bsBusy ? 0.6 : 1,
+                      }}
+                    >
+                      {bsBusy ? <><span className="md-spin" style={{ width: '10px', height: '10px', borderWidth: '1.5px' }} />{ensuringBs ? 'Setting up…' : 'Analysing…'}</> : 'Re-analyse'}
+                    </button>
                     <button
                       onClick={() => setStageModalOpen(false)}
                       style={{ width: '32px', height: '32px', borderRadius: '10px', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-faint)', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: '16px', flexShrink: 0, fontFamily: 'inherit' }}
