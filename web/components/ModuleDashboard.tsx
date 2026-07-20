@@ -225,19 +225,11 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
   }
 
   const toggleCat = (slug: string) =>
-    setOpenCats((prev) => {
-      const next = new Set(prev)
-      next.has(slug) ? next.delete(slug) : next.add(slug)
-      return next
-    })
+    setOpenCats((prev) => prev.has(slug) ? new Set() : new Set([slug]))
 
   const toggleExpand = (slug: string, e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.md-cb')) return
-    setExpandedItems((prev) => {
-      const next = new Set(prev)
-      next.has(slug) ? next.delete(slug) : next.add(slug)
-      return next
-    })
+    setExpandedItems((prev) => prev.has(slug) ? new Set() : new Set([slug]))
   }
 
   const toggleItem = useCallback(
@@ -968,10 +960,10 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                       </div>
                       <div className="md-cat-hd-right">
                         <div className="md-cat-mini-bar">
-                          <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
-                          <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
+                          <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) + '60' }} />
+                          <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) }} />
                         </div>
-                        <span className="md-cat-pct">{stats.pct}%</span>
+                        <span className="md-cat-pct" style={{ color: ringColor(stats.pct) }}>{stats.pct}%</span>
                         <svg className={`md-chev${isOpen ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
                           <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                         </svg>
@@ -1181,10 +1173,10 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                       </div>
                       <div className="md-cat-hd-right">
                         <div className="md-cat-mini-bar">
-                          <div className="md-cat-mini-self" style={{ width: `${Math.round((stats.doneWeight / stats.totalWeight) * 100)}%` }} />
-                          <div className="md-cat-mini-ai" style={{ width: `${Math.round((stats.aiWeight / stats.totalWeight) * 100)}%` }} />
+                          <div className="md-cat-mini-self" style={{ width: `${Math.round((stats.doneWeight / stats.totalWeight) * 100)}%`, background: ringColor(stats.pct) + '60' }} />
+                          <div className="md-cat-mini-ai" style={{ width: `${Math.round((stats.aiWeight / stats.totalWeight) * 100)}%`, background: ringColor(stats.pct) }} />
                         </div>
-                        <span className="md-cat-pct">{stats.pct}%</span>
+                        <span className="md-cat-pct" style={{ color: ringColor(stats.pct) }}>{stats.pct}%</span>
                         <svg className={`md-chev${isOpen ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
                           <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                         </svg>
