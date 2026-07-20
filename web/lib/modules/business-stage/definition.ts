@@ -46,7 +46,7 @@ PEH 250–500: concern=brand dilution from rapid expansion | insight=consistency
 OUTPUT RULES:
 1. Return ONLY a valid JSON array. No markdown, no text outside the array.
 2. Generate EXACTLY 5 items — one per slug: "classification", "concern", "insight", "actions", "red-flag".
-3. detail = one sentence. narrative = 2–3 sentences personalised to this specific business, citing evidence from the data.
+3. detail = one sentence (plain text, no markdown). narrative = SHORT and punchy. Use **bold** for key terms. Max 4 bullet points or numbered items. Each point max 12 words. No long sentences.
 4. verified: true, fixable: false for all. weight: 3 for concern/red-flag | 2 for insight/actions | 1 for classification.`,
   categories: [
     {
@@ -56,7 +56,7 @@ OUTPUT RULES:
       prompt: `Generate exactly 1 item.
 label: "{ARCHETYPE} · Stage {RANGE}" — e.g. "HVP · Stage 10–50" or "EBP · Stage 0–10".
 detail: One sentence stating the archetype and stage with the single strongest signal that confirmed it.
-narrative: 2–3 sentences covering: (1) which archetype and why, citing 2–3 specific signals from the data; (2) which stage and the evidence — logo counts, testimonials, customer claims, or copy signals; (3) what this classification means for how the business should be thinking about growth right now.`,
+narrative: 3 bullet points (- item). **Bold** the key term in each. Cover: archetype signal, stage evidence, growth implication. Max 10 words per bullet.`,
     },
     {
       slug: 'concern',
@@ -65,7 +65,7 @@ narrative: 2–3 sentences covering: (1) which archetype and why, citing 2–3 s
       prompt: `Generate exactly 1 item. Use the "concern" from the stage matrix for this archetype and stage.
 label: The name of the core concern (e.g. "Retention Risk" or "No Proven Case Studies").
 detail: One sentence stating the concern directly.
-narrative: 2–4 sentences explaining the concern personalised to this specific business — reference what you actually see (or don't see) on the website that confirms this concern applies. Be direct and specific. Do not be generic.`,
+narrative: 3 bullet points (- item). **Bold** the core problem term in each. One bullet = what's broken, one = the evidence, one = the consequence. Max 12 words per bullet. Be blunt.`,
     },
     {
       slug: 'insight',
@@ -74,7 +74,7 @@ narrative: 2–4 sentences explaining the concern personalised to this specific 
       prompt: `Generate exactly 1 item. Use the "insight" from the stage matrix for this archetype and stage.
 label: The headline insight (e.g. "Fix the Leak Before the Tap" or "One Reference Client Changes Everything").
 detail: One sentence stating the core insight.
-narrative: 2–3 sentences explaining why this insight matters for this specific business right now, referencing what you observe on their website. The narrative should feel like advice from a trusted advisor, not a generic recommendation.`,
+narrative: 3 bullet points (- item). **Bold** the key principle in the first bullet. Why it matters now, what the data shows, what changes if you act on it. Max 12 words per bullet.`,
     },
     {
       slug: 'actions',
@@ -83,7 +83,7 @@ narrative: 2–3 sentences explaining why this insight matters for this specific
       prompt: `Generate exactly 1 item. Use the "actions" from the stage matrix for this archetype and stage.
 label: "30-Day Action Plan".
 detail: One sentence summarising the priority action.
-narrative: 3–4 specific, concrete actions for this business to advance to the next stage. Each action should be completable within 30 days. Reference specific gaps or weaknesses observed on the website to justify each action. Write as a numbered or comma-separated list within the narrative — not bullet points.`,
+narrative: 3 numbered actions (1. 2. 3. format). Each starts with a **bold** verb. Max 12 words each. Specific and completable within 30 days.`,
     },
     {
       slug: 'red-flag',
@@ -92,7 +92,7 @@ narrative: 3–4 specific, concrete actions for this business to advance to the 
       prompt: `Generate exactly 1 item. Use the "red_flag" from the stage matrix for this archetype and stage.
 label: The red flag name (e.g. "No Analytics Installed" or "Missing Pricing Page").
 detail: One sentence stating the red flag directly.
-narrative: 2–3 sentences explaining exactly what this red flag signals, why it will block growth at this stage, and what the consequence is if it is not addressed. Cite specific evidence from the website data. Do not soften the warning.`,
+narrative: 3 bullet points (- item). **Bold** the danger term in each. What it signals, why it blocks growth, what happens if ignored. Max 12 words per bullet. No softening.`,
     },
   ],
 }

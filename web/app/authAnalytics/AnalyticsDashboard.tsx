@@ -71,6 +71,7 @@ interface DashboardData {
   webAnalytics: WebAnalytics | null
   gsc: GscData
   ga4: Ga4Data
+  snapshotAt?: string | null
 }
 
 /* ── Fallback data (shown while loading or when PostHog not connected) ── */
@@ -87,6 +88,16 @@ const FALLBACK_FUNNEL = [
 ]
 
 /* ── Helpers ──────────────────────────────────────────── */
+function formatTimeAgo(isoString: string): string {
+  const diffMs = Date.now() - new Date(isoString).getTime()
+  const mins = Math.floor(diffMs / 60_000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
 function toneColor(tone: string): string {
   if (tone === 'green')  return '#4ade80'  // --green-bright
   if (tone === 'amber')  return '#e7c873'  // --gold
@@ -450,15 +461,16 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   const [redirectTarget, setRedirectTarget] = useState<string | null>(null)
   const [data, setData] = useState<DashboardData | null>(null)
   const [phLoading, setPhLoading] = useState(true)
+  const [snapshotAt, setSnapshotAt] = useState<string | null>(null)
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
 
-  // Fetch analytics data
+  // Fetch analytics data (returns cached snapshot unless force=true)
   useEffect(() => {
     setPhLoading(true)
     fetch(`/api/analytics/auth-dashboard?brandId=${brand.id}`)
       .then(r => r.json())
-      .then((d: DashboardData) => setData(d))
+      .then((d: DashboardData) => { setData(d); setSnapshotAt(d.snapshotAt ?? null) })
       .catch(() => setData(null))
       .finally(() => setPhLoading(false))
   }, [brand.id])
@@ -563,16 +575,29 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 </button>
               ))}
             </div>
-            <button
-              onClick={() => { setPhLoading(true); fetch(`/api/analytics/auth-dashboard?brandId=${brand.id}`).then(r => r.json()).then((d: DashboardData) => setData(d)).finally(() => setPhLoading(false)) }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
-                padding: '7px 14px', borderRadius: 99, border: '1px solid var(--line)',
-                background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer',
-              }}
-            >
-              <RefreshCw size={12} style={{ animation: phLoading ? 'spin 1s linear infinite' : 'none' }} /> Refresh
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+              <button
+                onClick={() => {
+                  setPhLoading(true)
+                  fetch(`/api/analytics/auth-dashboard?brandId=${brand.id}&force=true`)
+                    .then(r => r.json())
+                    .then((d: DashboardData) => { setData(d); setSnapshotAt(d.snapshotAt ?? null) })
+                    .finally(() => setPhLoading(false))
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
+                  padding: '7px 14px', borderRadius: 99, border: '1px solid var(--line)',
+                  background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer',
+                }}
+              >
+                <RefreshCw size={12} style={{ animation: phLoading ? 'spin 1s linear infinite' : 'none' }} /> Refresh
+              </button>
+              {snapshotAt && !phLoading && (
+                <span style={{ fontSize: 10, color: 'var(--text-faint)', paddingRight: 2 }}>
+                  fetched {formatTimeAgo(snapshotAt)}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 

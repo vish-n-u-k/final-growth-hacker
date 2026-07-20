@@ -5,6 +5,8 @@ import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 
+export const dynamic = 'force-dynamic'
+
 export const maxDuration = 45
 
 // ── JWT helpers ────────────────────────────────────────────────────────────────
@@ -240,12 +242,22 @@ export async function GET(request: NextRequest) {
   const brandId = request.nextUrl.searchParams.get('brandId')
   if (!brandId) return NextResponse.json({ error: 'brandId required' }, { status: 400 })
 
+  const force = request.nextUrl.searchParams.get('force') === 'true'
+
   const [brand] = await db
     .select()
     .from(brands)
     .where(and(eq(brands.id, brandId), eq(brands.userId, user.id)))
     .limit(1)
   if (!brand) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Return cached snapshot if available and not forced refresh
+  if (!force && brand.analyticsSnapshot && brand.analyticsSnapshotAt) {
+    return NextResponse.json({
+      ...(brand.analyticsSnapshot as object),
+      snapshotAt: brand.analyticsSnapshotAt.toISOString(),
+    })
+  }
 
   const integrations = await db
     .select()
@@ -403,9 +415,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({
+  const snapshot = {
     ...posthogData,
     gsc: gscData,
     ga4: ga4Data,
-  })
+  }
+  const snapshotAt = new Date()
+
+  // Persist to DB so next load is instant
+  await db
+    .update(brands)
+    .set({ analyticsSnapshot: snapshot, analyticsSnapshotAt: snapshotAt })
+    .where(eq(brands.id, brandId))
+
+  return NextResponse.json({ ...snapshot, snapshotAt: snapshotAt.toISOString() })
 }
