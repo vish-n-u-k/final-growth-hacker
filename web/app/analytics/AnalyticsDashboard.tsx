@@ -141,7 +141,7 @@ function SourcePill({ children }: { children: React.ReactNode }) {
 }
 
 function Delta({ value, invertGood = false }: { value: number; invertGood?: boolean }) {
-  if (value === 0) return <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>— flat vs yesterday</span>
+  // if (value === 0) return <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>— flat vs yesterday</span>
   const good = invertGood ? value < 0 : value > 0
   const Icon = value > 0 ? TrendingUp : TrendingDown
   return (

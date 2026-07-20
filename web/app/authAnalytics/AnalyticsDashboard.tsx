@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell,
 } from 'recharts'
@@ -152,7 +153,7 @@ function SourcePill({ children }: { children: React.ReactNode }) {
 }
 
 function Delta({ value, invertGood = false }: { value: number; invertGood?: boolean }) {
-  if (value === 0) return <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>— flat vs yesterday</span>
+  // if (value === 0) return <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>— flat vs yesterday</span>
   const good = invertGood ? value < 0 : value > 0
   const Icon = value > 0 ? TrendingUp : TrendingDown
   return (
@@ -189,7 +190,7 @@ function StatCard({
       border: '1px solid var(--line)',
       borderRadius: 16, padding: '20px 22px',
       display: 'flex', flexDirection: 'column', gap: 16,
-      opacity: comingSoon ? 0.65 : 1,
+      opacity: comingSoon ? 0.9 : 1,
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div style={{
@@ -210,10 +211,10 @@ function StatCard({
         }}>
           {comingSoon ? '—' : loading ? '—' : typeof value === 'number' ? fmt(value) : value}
         </div>
-        <div style={{ fontSize: 14, marginTop: 6, color: 'var(--text-dim)' }}>{label}</div>
+        <div style={{ fontSize: 14, marginTop: 6, color: 'var(--text)' }}>{label}</div>
       </div>
       {comingSoon
-        ? <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>Connect Stripe to unlock</span>
+        ? <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Connect Stripe to unlock</span>
         : loading
           ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>loading…</span>
           : <Delta value={deltaValue} invertGood={invertGood} />
@@ -230,7 +231,7 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon }:
     <div style={{
       background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16,
       padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 10,
-      opacity: comingSoon ? 0.65 : 1,
+      opacity: comingSoon ? 0.9 : 1,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)' }}>
@@ -248,7 +249,7 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon }:
       </div>
       <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>{sub}</div>
       {comingSoon
-        ? <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>Connect Stripe to unlock</span>
+        ? <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Connect Stripe to unlock</span>
         : loading
           ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>loading…</span>
           : <Delta value={delta} invertGood={bad} />
@@ -456,6 +457,8 @@ interface Props {
 }
 
 export default function AnalyticsDashboard({ brand, modules }: Props) {
+  const router = useRouter()
+  const [backLoading, setBackLoading] = useState(false)
   const [range, setRange] = useState('24h')
   const [expandedModule, setExpandedModule] = useState<string | null>(null)
   const [redirectTarget, setRedirectTarget] = useState<string | null>(null)
@@ -544,11 +547,17 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <button style={{
-              width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer',
-            }}>
-              <ArrowLeft size={15} />
+            <button
+              onClick={() => { setBackLoading(true); router.push('/dashboard') }}
+              style={{
+                width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer',
+              }}
+            >
+              {backLoading
+                ? <RefreshCw size={14} style={{ animation: 'spin 0.7s linear infinite' }} />
+                : <ArrowLeft size={15} />
+              }
             </button>
             <div>
               <h1 style={{
@@ -562,20 +571,20 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
               </p>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ display: 'flex', padding: '3px', border: '1px solid var(--line)', borderRadius: 99, background: 'var(--bg-soft)' }}>
-              {['24h', '7d', '30d'].map((r) => (
-                <button key={r} onClick={() => setRange(r)} style={{
-                  fontSize: 12, fontWeight: 600, padding: '5px 14px', borderRadius: 99,
-                  border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-                  background: range === r ? 'var(--text)' : 'transparent',
-                  color: range === r ? 'var(--bg)' : 'var(--text-dim)',
-                }}>
-                  {r}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', padding: '3px', border: '1px solid var(--line)', borderRadius: 99, background: 'var(--bg-soft)' }}>
+                {['24h', '7d', '30d'].map((r) => (
+                  <button key={r} onClick={() => setRange(r)} style={{
+                    fontSize: 12, fontWeight: 600, padding: '5px 14px', borderRadius: 99,
+                    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                    background: range === r ? 'var(--text)' : 'transparent',
+                    color: range === r ? 'var(--bg)' : 'var(--text-dim)',
+                  }}>
+                    {r}
+                  </button>
+                ))}
+              </div>
               <button
                 onClick={() => {
                   setPhLoading(true)
@@ -592,12 +601,12 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
               >
                 <RefreshCw size={12} style={{ animation: phLoading ? 'spin 1s linear infinite' : 'none' }} /> Refresh
               </button>
-              {snapshotAt && !phLoading && (
-                <span style={{ fontSize: 10, color: 'var(--text-faint)', paddingRight: 2 }}>
-                  fetched {formatTimeAgo(snapshotAt)}
-                </span>
-              )}
             </div>
+            {snapshotAt && !phLoading && (
+              <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>
+                fetched {formatTimeAgo(snapshotAt)}
+              </span>
+            )}
           </div>
         </div>
 
