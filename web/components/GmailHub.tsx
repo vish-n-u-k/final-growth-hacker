@@ -74,7 +74,7 @@ const THREADS: Thread[] = [
         body: 'Hi,\n\nWe\'re putting together a feature on AI tools for growth marketers and would love to include your product. Could you share a brief description, key differentiators, and a demo video link?\n\nDeadline: Friday EOD.\n\nThanks,\nTC Editorial' }
     ],
     aiSummary: 'High-priority press opportunity. TechCrunch running an AI marketing tools roundup. Deadline Friday EOD. Respond within 24 hours with product description, differentiators, and demo video link.',
-    aiDraft: 'Hi,\n\nThanks for reaching out — we\'d love to be included!\n\nGrowth Hacker is an AI-powered marketing audit platform for SMBs. We surface gaps across SEO, GEO, content quality, and social presence — mapping every finding to a weighted growth score with AI-drafted fixes.\n\nKey differentiators:\n• Combined SEO + GEO (AI discoverability) audit\n• AI-verified checks with human override capability\n• Module-based progression system that guides growth teams\n\nDemo: [video link] | Product: [URL]\n\nBest,\n[Your name]',
+    aiDraft: 'Hi,\n\nThanks for reaching out — we\'d love to be included!\n\nGrowJin is an AI-powered marketing audit platform for SMBs. We surface gaps across SEO, GEO, content quality, and social presence — mapping every finding to a weighted growth score with AI-drafted fixes.\n\nKey differentiators:\n• Combined SEO + GEO (AI discoverability) audit\n• AI-verified checks with human override capability\n• Module-based progression system that guides growth teams\n\nDemo: [video link] | Product: [URL]\n\nBest,\n[Your name]',
   },
   {
     id: 't4', from: 'Aisha Okonkwo', email: 'aisha@brightleaf.co', initials: 'AO',
@@ -144,7 +144,7 @@ const DRAFTS: Draft[] = [
     id: 'd3', to: 'TechCrunch Editorial', email: 'tips@techcrunch.com', urgency: 'high',
     subject: 'Re: AI marketing tools roundup',
     context: 'Press feature — deadline Friday EOD',
-    content: 'Hi,\n\nThanks for reaching out — we\'d love to be included!\n\nGrowth Hacker is an AI-powered marketing audit platform for SMBs — SEO, GEO, content quality, and social presence in one dashboard.\n\nDemo: [video link] | Product: [URL]\n\nHappy to provide additional assets.\n\nBest,\n[Your name]',
+    content: 'Hi,\n\nThanks for reaching out — we\'d love to be included!\n\nGrowJin is an AI-powered marketing audit platform for SMBs — SEO, GEO, content quality, and social presence in one dashboard.\n\nDemo: [video link] | Product: [URL]\n\nHappy to provide additional assets.\n\nBest,\n[Your name]',
   },
   {
     id: 'd4', to: 'Aisha Okonkwo', email: 'aisha@brightleaf.co', urgency: 'low',
@@ -471,7 +471,7 @@ export default function GmailHub({
               <div className="gh-connect-eyebrow">Gmail Integration</div>
               <h2 className="gh-connect-h2">Your inbox already contains your next 10 customers</h2>
               <p className="gh-connect-p">
-                Growth Hacker reads your Gmail to detect inbound leads, draft contextual replies in your voice, and surface deals that have gone quiet — without ever sending anything without your explicit approval.
+                GrowJin reads your Gmail to detect inbound leads, draft contextual replies in your voice, and surface deals that have gone quiet — without ever sending anything without your explicit approval.
               </p>
 
               <div className="gh-connect-feats">

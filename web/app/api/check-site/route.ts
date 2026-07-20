@@ -14,7 +14,7 @@ async function safeFetch(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
       signal: AbortSignal.timeout(10000),
-      headers: { 'User-Agent': 'GrowthHackerBot/1.0 (Site Checker)' },
+      headers: { 'User-Agent': 'GrowJinBot/1.0 (Site Checker)' },
     })
     if (!res.ok) return null
     return await res.text()

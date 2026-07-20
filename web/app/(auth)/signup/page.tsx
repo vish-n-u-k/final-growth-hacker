@@ -62,7 +62,7 @@ export default function SignupPage() {
               <path d="M5 12h4l2-6 3 12 2-6h3" stroke="#06140c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
-          <span>Growth Tracker</span>
+          <span>GrowJin</span>
         </div>
         <h1>Check your email</h1>
         <p className="auth-sub" style={{ marginBottom: 0 }}>
@@ -84,7 +84,7 @@ export default function SignupPage() {
             <path d="M5 12h4l2-6 3 12 2-6h3" stroke="#06140c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
-        <span>Growth Tracker</span>
+        <span>GrowJin</span>
       </div>
       <h1>Create account</h1>
       <p className="auth-sub">Start tracking your road to 500 users</p>

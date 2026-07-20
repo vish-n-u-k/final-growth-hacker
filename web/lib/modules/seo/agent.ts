@@ -72,7 +72,7 @@ async function fetchPageContent(websiteUrl: string): Promise<{
     const urlPath = new URL(url).pathname.replace(/\/$/, '')
     const domain = new URL(url).hostname
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthHackerBot/1.0; +https://growthhacker.app)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growthhacker.app)' },
       signal: AbortSignal.timeout(10000),
     })
     if (!res.ok) return { ...empty, urlPath }

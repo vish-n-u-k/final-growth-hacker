@@ -18,7 +18,7 @@ const outfit = Outfit({
 })
 
 export const metadata: Metadata = {
-  title: 'Growth Tracker',
+  title: 'GrowJin',
   description: 'Your road to 500 users',
 }
 

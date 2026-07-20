@@ -263,7 +263,7 @@ export async function getFaviconColor(faviconUrl: string): Promise<string> {
     const timer = setTimeout(() => controller.abort(), 8000)
     const res = await fetch(faviconUrl, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'GrowthHackerBot/1.0' },
+      headers: { 'User-Agent': 'GrowJinBot/1.0' },
     })
     clearTimeout(timer)
     if (!res.ok) return ''
@@ -294,7 +294,7 @@ async function probeFirstMatch(origin: string, paths: string[]): Promise<string 
         const res = await fetch(`${origin}${path}`, {
           method: 'HEAD',
           signal: AbortSignal.timeout(5000),
-          headers: { 'User-Agent': 'GrowthHackerBot/1.0' },
+          headers: { 'User-Agent': 'GrowJinBot/1.0' },
           redirect: 'follow',
         })
         return res.ok ? `${origin}${path}` : null
@@ -326,7 +326,7 @@ async function safeFetch(url: string, timeoutMs = 12000): Promise<string | null>
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'GrowthHackerBot/1.0 (Site Auditor)' },
+      headers: { 'User-Agent': 'GrowJinBot/1.0 (Site Auditor)' },
     })
     clearTimeout(timer)
     if (!res.ok) return null

@@ -26,7 +26,7 @@ export async function fetchGmailOutreachData(
 
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthHackerBot/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowJinBot/1.0)' },
       signal: AbortSignal.timeout(12000),
     })
     if (!res.ok) return result

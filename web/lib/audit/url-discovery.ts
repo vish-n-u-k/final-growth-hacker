@@ -6,7 +6,7 @@
  *  2. BFS link crawl (fallback when sitemap returns < crawlFallbackThreshold URLs)
  */
 
-const UA = 'Mozilla/5.0 (compatible; GrowthHackerBot/1.0; +https://growthhacker.app)'
+const UA = 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growthhacker.app)'
 
 export interface DiscoveredUrl {
   url: string

@@ -44,7 +44,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
                 <path d="M5 12h4l2-6 3 12 2-6h3" stroke="#06140c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </span>
-            Growth Hacker
+            GrowJin
 
           </div>
           <button className="logout-btn" onClick={() => router.push('/dashboard')}>

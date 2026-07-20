@@ -404,19 +404,14 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
   const toggleCat = (modId: string, slug: string) =>
     setOpenCatsMap(prev => {
-      const cats = new Set(prev[modId] ?? [])
-      cats.has(slug) ? cats.delete(slug) : cats.add(slug)
-      return { ...prev, [modId]: cats }
+      const cats = prev[modId] ?? new Set()
+      return { ...prev, [modId]: cats.has(slug) ? new Set() : new Set([slug]) }
     })
 
   const toggleExpand = (modId: string, slug: string, e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.md-cb')) return
     const key = `${modId}:${slug}`
-    setExpandedItems(prev => {
-      const next = new Set(prev)
-      next.has(key) ? next.delete(key) : next.add(key)
-      return next
-    })
+    setExpandedItems(prev => prev.has(key) ? new Set() : new Set([key]))
   }
 
   const toggleItem = useCallback(async (modId: string, isDynamic: boolean, itemId: string, slug: string, current: boolean, e: React.MouseEvent) => {
@@ -1221,7 +1216,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 <path d="M5 12h4l2-6 3 12 2-6h3" stroke="#06140c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </span>
-            Growth Hacker
+            GrowJin
           </div>
           <div className="md-header-actions">
             <ThemeToggle />
@@ -1319,7 +1314,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 {/* Right: CTA */}
                 <div className="overview-dis-right">
                   <div className="overview-dis-title">Connect PostHog to start counting</div>
-                  <p className="overview-dis-desc">Growth Hacker reads your active users straight from PostHog to place you on the road and match tactics to your current phase. Connect it once and your count updates on its own.</p>
+                  <p className="overview-dis-desc">GrowJin reads your active users straight from PostHog to place you on the road and match tactics to your current phase. Connect it once and your count updates on its own.</p>
                   <div className="overview-dis-bar">
                     <div className="overview-dis-track" />
                     <div className="overview-dis-labels">
@@ -1552,7 +1547,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
         {/* Module accordion stack */}
         <div className="levels">
-          {sortedByOrder.filter(m => m.type !== 'user-acquisition').map((modData) => {
+          {sortedByOrder.filter(m => m.type !== 'user-acquisition' && m.type !== 'business-stage').map((modData) => {
             const isOpen = openModules.has(modData.id)
             const isLocked = isModuleLocked(modData)
             const liveScore = liveScores[modData.id] ?? 0
@@ -1931,7 +1926,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                           <div>
                             <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>Connect Gmail to use this module</div>
                             <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, maxWidth: 360 }}>
-                              This module identifies potential clients from your website and lets you generate and send cold emails directly from Growth Hacker.
+                              This module identifies potential clients from your website and lets you generate and send cold emails directly from GrowJin.
                             </div>
                           </div>
                           <a
@@ -1987,10 +1982,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                   {!isCatComingSoon && (
                                     <div className="md-cat-hd-right">
                                       <div className="md-cat-mini-bar">
-                                        <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
-                                        <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
+                                        <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) + '60' }} />
+                                        <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) }} />
                                       </div>
-                                      <span className="md-cat-pct">{stats.pct}%</span>
+                                      <span className="md-cat-pct" style={{ color: ringColor(stats.pct) }}>{stats.pct}%</span>
                                       <svg className={`md-chev${isOpenCat ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
                                         <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                                       </svg>
@@ -2034,10 +2029,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                   </div>
                                   <div className="md-cat-hd-right">
                                     <div className="md-cat-mini-bar">
-                                      <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%` }} />
-                                      <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%` }} />
+                                      <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) + '60' }} />
+                                      <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) }} />
                                     </div>
-                                    <span className="md-cat-pct">{stats.pct}%</span>
+                                    <span className="md-cat-pct" style={{ color: ringColor(stats.pct) }}>{stats.pct}%</span>
                                     <svg className={`md-chev${isOpenCat ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
                                       <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                                     </svg>

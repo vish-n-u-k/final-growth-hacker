@@ -22,7 +22,7 @@ async function safeFetch(url: string, timeoutMs = 12000): Promise<string | null>
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'GrowthHackerBot/1.0 (Competitor Analyser)' },
+      headers: { 'User-Agent': 'GrowJinBot/1.0 (Competitor Analyser)' },
     })
     clearTimeout(timer)
     if (!res.ok) return null

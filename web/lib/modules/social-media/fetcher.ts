@@ -144,7 +144,7 @@ async function fetchHtml(url: string): Promise<string> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), 10000)
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'GrowthHackerBot/1.0 (Site Auditor)' },
+      headers: { 'User-Agent': 'GrowJinBot/1.0 (Site Auditor)' },
       signal: controller.signal,
     })
     clearTimeout(timer)
@@ -182,7 +182,7 @@ const PLATFORM_UA: Partial<Record<SocialProvider, string>> = {
   twitter:   'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
   tiktok:    'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
 }
-const DEFAULT_UA = 'GrowthHackerBot/1.0 (Site Auditor)'
+const DEFAULT_UA = 'GrowJinBot/1.0 (Site Auditor)'
 
 async function fetchPublicPageMeta(url: string, platform: SocialProvider): Promise<PageMeta> {
   try {

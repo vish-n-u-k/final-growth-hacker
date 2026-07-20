@@ -32,7 +32,7 @@ export async function fetchAutocompleteSuggestions(seed: string): Promise<string
       seeds.map(async (s) => {
         const url = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(s)}&hl=en`
         const res = await fetch(url, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthHackerBot/1.0)' },
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowJinBot/1.0)' },
           signal: AbortSignal.timeout(5000),
         })
         if (!res.ok) return []
@@ -60,7 +60,7 @@ async function runSingleSeed(seed: string): Promise<string[]> {
   try {
     const url = `https://suggestqueries.google.com/complete/search?client=firefox&q=${encodeURIComponent(seed)}&hl=en`
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthHackerBot/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowJinBot/1.0)' },
       signal: AbortSignal.timeout(5000),
     })
     if (!res.ok) return []
@@ -107,7 +107,7 @@ export async function fetchGoogleTrends(keyword: string): Promise<number | null>
     })
     const exploreUrl = `https://trends.google.com/trends/api/explore?hl=en-US&tz=0&req=${encodeURIComponent(req)}`
     const exploreRes = await fetch(exploreUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthHackerBot/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowJinBot/1.0)' },
       signal: AbortSignal.timeout(8000),
     })
     if (!exploreRes.ok) return null
@@ -121,7 +121,7 @@ export async function fetchGoogleTrends(keyword: string): Promise<number | null>
 
     const widgetUrl = `https://trends.google.com/trends/api/widgetdata?hl=en-US&tz=0&req=${encodeURIComponent(JSON.stringify(widget.request))}&token=${encodeURIComponent(widget.token)}`
     const widgetRes = await fetch(widgetUrl, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthHackerBot/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowJinBot/1.0)' },
       signal: AbortSignal.timeout(8000),
     })
     if (!widgetRes.ok) return null

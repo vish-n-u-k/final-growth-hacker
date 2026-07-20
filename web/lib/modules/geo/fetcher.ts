@@ -12,7 +12,7 @@ export interface GeoFetchData {
 async function fetchText(url: string, timeoutMs = 8000): Promise<string | null> {
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthHackerBot/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowJinBot/1.0)' },
       signal: AbortSignal.timeout(timeoutMs),
     })
     if (!res.ok) return null

@@ -31,7 +31,7 @@ export interface ContentAuditFetchResult {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const UA = 'GrowthHackerBot/1.0 (Content Audit)'
+const UA = 'GrowJinBot/1.0 (Content Audit)'
 const PAGE_TIMEOUT_MS = 8000
 const DEFAULT_MAX_PAGES = 30
 const MAX_PAGES_HARD_LIMIT = 50
