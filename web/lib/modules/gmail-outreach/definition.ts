@@ -3,7 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const GMAIL_OUTREACH_MODULE: ModuleDefinition = {
   type: 'gmail-outreach',
   name: 'Gmail Outreach',
-  description: 'AI reads your website and playbook to identify the best potential clients, generate personalised cold emails, and let you send or save them to Gmail Drafts.',
+  description: 'Writes personalised cold emails to your ideal clients and sends them straight from your Gmail.',
   order: 11,
   unlockThreshold: 50,
   dynamic: true,

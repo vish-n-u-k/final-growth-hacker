@@ -3,7 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const BACKLINKS_MODULE: ModuleDefinition = {
   type: 'backlinks',
   name: 'Backlinks & Link Building',
-  description: 'Audit your link profile, detect toxic links, find competitor backlink gaps, and score high-authority outreach targets.',
+  description: 'Finds which websites link to you and spots new opportunities to get more sites linking back to yours.',
   order: 6,
   unlockThreshold: 80,
   dynamic: true,

@@ -3,7 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const WEBSITE_MODULE: ModuleDefinition = {
   type: 'website',
   name: 'Website Audit',
-  description: 'Rule-based audit across UX, speed, mobile, trust, conversion, forms, and technical health. Identifies issues and generates prioritised fixes.',
+  description: 'Checks if your website is fast, easy to use, and set up to turn visitors into customers.',
   order: 2,
   unlockThreshold: 80,
   requirements: [

@@ -3,7 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const COMMUNITY_FINDER_MODULE: ModuleDefinition = {
   type: 'community-finder',
   name: 'Social Media Community Finder',
-  description: 'Discover real, active communities where your audience hangs out — Reddit free, plus Facebook & LinkedIn when Apify is connected.',
+  description: 'Finds the online groups and forums where your potential customers are already hanging out.',
   order: 13,
   unlockThreshold: 80,
   dynamic: true,

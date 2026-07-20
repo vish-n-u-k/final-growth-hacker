@@ -3,7 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const BRAND_AUDIT_MODULE: ModuleDefinition = {
   type: 'brand-audit',
   name: 'Brand Audit',
-  description: 'Evaluate brand positioning, messaging, voice, consistency, audience fit, trust signals, AI visibility, differentiation, and overall brand strength.',
+  description: 'Checks how clearly and consistently your brand comes across to customers — and whether it stands out from the crowd.',
   order: 8,
   unlockThreshold: 80,
   dynamic: true,

@@ -3,7 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const GEO_MODULE: ModuleDefinition = {
   type: 'geo',
   name: 'GEO Audit',
-  description: 'Generative Engine Optimization — audit how visible and citable your site is to AI engines like ChatGPT, Perplexity, Gemini, and Claude.',
+  description: 'Checks if AI tools like ChatGPT and Perplexity can find, understand, and recommend your business.',
   order: 4,
   unlockThreshold: 80,
   dynamic: false,

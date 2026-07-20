@@ -3,7 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const COMPETITOR_AUDIT_MODULE: ModuleDefinition = {
   type: 'competitor-audit',
   name: 'Competitor Audit',
-  description: 'Analyze your competitors across 8 dimensions — discover who they are, find keyword and content gaps, benchmark SEO and social media, uncover ad strategies, and get a complete SWOT analysis.',
+  description: 'Sizes up your rivals across SEO, content, ads, and social — then tells you exactly where you can beat them.',
   order: 4,
   unlockThreshold: 80,
   dynamic: true,

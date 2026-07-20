@@ -3,7 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const SEO_MODULE: ModuleDefinition = {
   type: 'seo',
   name: 'SEO Audit',
-  description: 'Rule-based SEO audit across meta tags, headings, images, internal links, structured data, and technical performance. Deterministic checks with AI-generated impact narratives.',
+  description: 'Checks if Google can find and rank your website — page titles, headings, links, and more.',
   order: 3,
   unlockThreshold: 80,
   dynamic: false,

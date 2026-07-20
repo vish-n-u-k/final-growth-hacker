@@ -3,8 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const BUSINESS_STAGE_MODULE: ModuleDefinition = {
   type: 'business-stage',
   name: 'Business Stage Analysis',
-  description:
-    'Identifies your business archetype (HVP/EBP/PEH) and growth stage, then delivers a personalised playbook: your core concern, the key insight, next actions, and the red flag to watch.',
+  description: 'Figures out what stage your business is at and gives you a personalised plan for what to focus on next.',
   order: 15,
   unlockThreshold: 0,
   dynamic: true,

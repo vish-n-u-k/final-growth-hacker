@@ -1597,9 +1597,11 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     {isLocked
                       ? (() => {
                           const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order)
-                          return prev
-                            ? <div className="focus">Complete <b>{prev.name}</b> at 80%+ to unlock — currently {liveScores[prev.id] ?? 0}%</div>
-                            : <div className="focus">Complete the previous module at 80%+ to unlock</div>
+                          return (
+                            <>
+                              {def.description && <div className="focus">{def.description}</div>}
+                            </>
+                          )
                         })()
                       : !isOpen && <div className="focus">{def.description}</div>
                     }
