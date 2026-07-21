@@ -1,0 +1,111 @@
+{
+  "serverProps": {
+    "brand": {
+      "id": "String",
+      "name": "String"
+    },
+    "modules": [
+      {
+        "name": "String",
+        "score": "Number",
+        "source": "String (AI + Rules | AI | Internal | Locked)",
+        "desc": "String",
+        "insight": "String | null",
+        "locked": "Boolean"
+      }
+    ]
+  },
+
+  "apiResponse": {
+    "_endpoint": "GET /api/analytics/auth-dashboard?brandId=&force=",
+    "_cached": "brands.analyticsSnapshot / brands.analyticsSnapshotAt",
+
+    "snapshotAt": "String | null",
+
+    "posthogConnected": "Boolean",
+    "signups24h": "Number",
+    "signins24h": "Number",
+    "dau": "Number",
+    "mau": "Number",
+    "deletedAccounts24h": "Number",
+
+    "retention": [
+      {
+        "day": "String (D0 | D1 | D3 | D7 | D14 | D30)",
+        "rate": "Number (0-100)"
+      }
+    ],
+
+    "funnel": [
+      {
+        "stage": "String",
+        "value": "Number"
+      }
+    ],
+
+    "webAnalytics": {
+      "visitors": { "current": "Number", "prior": "Number" },
+      "pageviews": { "current": "Number", "prior": "Number" },
+      "sessions": { "current": "Number", "prior": "Number" },
+      "avgDurationSecs": "Number | null",
+      "avgDurationSecsPrior": "Number | null",
+      "bounceRate": "Number | null",
+      "bounceRatePrior": "Number | null",
+      "visitorsChart": [
+        { "date": "String (YYYY-MM-DD)", "visitors": "Number" }
+      ],
+      "topPaths": [
+        { "path": "String", "visitors": "Number", "views": "Number" }
+      ],
+      "channels": [
+        { "channel": "String", "visitors": "Number", "views": "Number" }
+      ],
+      "devices": [
+        { "device": "String", "visitors": "Number", "views": "Number" }
+      ],
+      "countries": [
+        { "country": "String", "visitors": "Number" }
+      ],
+      "activeHours": [
+        { "dow": "Number (1-7)", "hour": "Number (0-23)", "users": "Number" }
+      ]
+    },
+
+    "gsc": {
+      "connected": "Boolean",
+      "error": "Boolean",
+      "clicks7d": "Number | null",
+      "impressions7d": "Number | null",
+      "avgCtr7d": "Number | null",
+      "avgPosition7d": "Number | null",
+      "topQueries": [
+        { "query": "String", "clicks": "Number", "impressions": "Number", "position": "Number" }
+      ],
+      "topPages": [
+        { "page": "String", "clicks": "Number", "impressions": "Number" }
+      ],
+      "clickTrend": [
+        { "date": "String (YYYY-MM-DD)", "clicks": "Number" }
+      ]
+    },
+
+    "ga4": {
+      "connected": "Boolean",
+      "error": "Boolean",
+      "sessions7d": "Number | null",
+      "activeUsers7d": "Number | null",
+      "newUsers7d": "Number | null",
+      "pageviews7d": "Number | null",
+      "engagementRate7d": "Number | null",
+      "trafficSources": [
+        { "channel": "String", "sessions": "Number" }
+      ],
+      "topPages": [
+        { "page": "String", "sessions": "Number", "newUsers": "Number", "engagementRate": "Number" }
+      ],
+      "dailyTrend": [
+        { "date": "String (YYYY-MM-DD)", "newUsers": "Number", "sessions": "Number" }
+      ]
+    }
+  }
+}

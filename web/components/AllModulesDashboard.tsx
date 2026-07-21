@@ -1210,7 +1210,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     <>
       {/* Header */}
       <header>
-        <div className="wrap md-header-inner">
+        <div className="md-header-inner">
           <div className="logo" style={{ cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
             <span className="mark">
               <svg viewBox="0 0 24 24" fill="none">
@@ -1221,25 +1221,27 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           </div>
           <div className="md-header-actions">
             <ThemeToggle />
-            <Button
-              variant="outline"
-              size="icon"
+            <button
               onClick={() => router.push('/settings')}
               title="Settings"
-              className="w-10 h-10 border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--green)] hover:text-[var(--text)] bg-transparent rounded-[10px]"
+              style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: 'pointer', color: 'var(--text-dim)', flexShrink: 0, transition: 'color 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-dim)')}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
                 <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-            </Button>
-            <Button
-              variant="ghost"
+            </button>
+            <button
               onClick={handleLogout}
-              className="mob-hide text-[var(--text-faint)] hover:text-[var(--text-dim)] w-54 border border-[var(--line)] hover:border-[var(--green)] text-sm"
+              className="mob-hide"
+              style={{ fontSize: 13, color: 'var(--text-dim)', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.15s, color 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--green)'; e.currentTarget.style.color = 'var(--text)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.color = 'var(--text-dim)' }}
             >
               {userEmail} · Sign out
-            </Button>
+            </button>
           </div>
         </div>
       </header>
@@ -1881,7 +1883,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                           )}
                         </div>
                         {playbookOpen && (
-                          <div style={{ borderTop: '1px solid var(--line)', padding: '16px' }}>
+                          <div style={{ borderTop: '1px solid var(--line)', padding: '16px', maxHeight: 420, overflowY: 'auto' }}>
                             {!playbookData ? (
                               <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, margin: 0 }}>
                                 The AI will read your website and generate your full Sales Playbook — email templates, call scripts, objection handlers, and more — when you run Foundation analysis.

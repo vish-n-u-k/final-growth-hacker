@@ -590,6 +590,7 @@ header {
 
 .md-header-inner {
   display: flex; align-items: center; justify-content: space-between; width: 100%;
+  padding: 0 40px; box-sizing: border-box;
 }
 .md-header-actions { display: flex; align-items: center; gap: 12px; }
 
@@ -2114,7 +2115,7 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: #06140c; border-col
 
   /* ── Header: keep logo + icons, hide sign-out text ── */
   header { padding: 14px 0; }
-  .md-header-inner { gap: 8px; }
+  .md-header-inner { gap: 8px; padding: 0 16px; }
   .md-header-actions { gap: 6px; }
 
   /* ── Hero: shrink text, hide subtitle ── */

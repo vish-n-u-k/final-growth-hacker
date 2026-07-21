@@ -204,7 +204,7 @@ function StatCard({
       </div>
       <div>
         <div style={{
-          fontSize: 40, fontWeight: 700, lineHeight: 1, letterSpacing: '-1px',
+          fontSize: 'clamp(24px, 5vw, 40px)', fontWeight: 700, lineHeight: 1, letterSpacing: '-1px',
           color: comingSoon || loading ? '#555f5a' : 'var(--text)',
           filter: comingSoon ? 'blur(6px)' : 'none',
           userSelect: comingSoon ? 'none' : 'auto',
@@ -240,7 +240,7 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon }:
         {comingSoon ? <ComingSoonBadge /> : <SourcePill>{source}</SourcePill>}
       </div>
       <div style={{
-        fontSize: 38, fontWeight: 700, letterSpacing: '-1px', lineHeight: 1,
+        fontSize: 'clamp(22px, 5vw, 38px)', fontWeight: 700, letterSpacing: '-1px', lineHeight: 1,
         color: comingSoon || loading ? 'var(--text-faint)' : 'var(--text)',
         filter: comingSoon ? 'blur(6px)' : 'none',
         userSelect: comingSoon ? 'none' : 'auto',
@@ -467,6 +467,14 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   const [snapshotAt, setSnapshotAt] = useState<string | null>(null)
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)')
+    setIsMobile(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   // Fetch analytics data (returns cached snapshot unless force=true)
   useEffect(() => {
@@ -542,10 +550,10 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
         </div>
       )}
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 28px' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 16px' : '32px 28px' }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <button
               onClick={() => { setBackLoading(true); router.push('/dashboard') }}
@@ -571,8 +579,8 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
               </p>
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'flex-start' : 'flex-end', gap: 5 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', padding: '3px', border: '1px solid var(--line)', borderRadius: 99, background: 'var(--bg-soft)' }}>
                 {['24h', '7d', '30d'].map((r) => (
                   <button key={r} onClick={() => setRange(r)} style={{
@@ -618,7 +626,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             Last 24 hours
           </h2>
           {/* Group 1: activity events */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
             {activityTiles.filter(t => !['dau', 'mau'].includes(t.key)).map((item) => (
               <StatCard
                 key={item.key}
@@ -635,7 +643,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 10 }}>
             Active users
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
             {activityTiles.filter(t => ['dau', 'mau'].includes(t.key)).map((item) => (
               <StatCard
                 key={item.key}
@@ -655,7 +663,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
             Growth &amp; retention
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
             <KpiCard label="MRR" value="$0" sub="Monthly recurring revenue" source="Stripe" delta={0} comingSoon />
             <KpiCard label="ARR" value="$0" sub="Annualised run rate" source="Stripe" delta={0} comingSoon />
             <KpiCard label="Churn rate" value="0%" sub="Paid cancellations, 30d" source="Stripe" delta={0} bad comingSoon />
@@ -693,7 +701,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
               </div>
 
               {/* KPI row */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
                 {webKpis.map(k => {
                   const chg = pctChange(k.current, k.prior)
                   const good = k.invertGood ? (chg ?? 0) < 0 : (chg ?? 0) > 0
@@ -742,7 +750,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
               {wa.countries.length > 0 && (
                 <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Top countries</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px 24px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: '8px 24px' }}>
                     {wa.countries.slice(0, 10).map((c, i) => {
                       const maxV = wa.countries[0]?.visitors ?? 1
                       return (
@@ -814,7 +822,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           </div>
           <div style={{ position: 'relative', opacity: gsc?.connected && !gsc?.error ? 1 : 0.55 }}>
             {/* KPI row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
               {[
                 { label: 'Organic clicks', value: gsc?.clicks7d,      suffix: '',  sub: '7 days' },
                 { label: 'Impressions',    value: gsc?.impressions7d,  suffix: '',  sub: '7 days' },
@@ -831,7 +839,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
               {/* Click trend chart */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Click trend</h3>
@@ -911,7 +919,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           </div>
           <div style={{ position: 'relative', opacity: ga4?.connected && !ga4?.error ? 1 : 0.55 }}>
             {/* KPI row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
               {[
                 { label: 'Sessions',        value: ga4?.sessions7d,       suffix: '' },
                 { label: 'Active users',    value: ga4?.activeUsers7d,    suffix: '' },
@@ -929,7 +937,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14, marginBottom: 14 }}>
               {/* Daily trend chart */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>New users</h3>
@@ -988,7 +996,8 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
               <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Top landing pages</h3>
               <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Entry pages by sessions — 7 days</p>
-              <div style={{ filter: !ga4?.connected ? 'blur(4px)' : 'none' }}>
+              <div style={{ filter: !ga4?.connected ? 'blur(4px)' : 'none', overflowX: 'auto' }}>
+                <div style={{ minWidth: isMobile ? 380 : 'unset' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '6px 20px', fontSize: 11, fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid var(--line)' }}>
                   <span>Page</span><span>Sessions</span><span>New users</span><span>Engagement</span>
                 </div>
@@ -1004,6 +1013,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                     <span style={{ fontSize: 12, textAlign: 'right', color: p.engagementRate >= 60 ? 'var(--green-bright)' : p.engagementRate >= 40 ? 'var(--gold)' : '#f87171' }}>{p.engagementRate}%</span>
                   </div>
                 ))}
+                </div>
               </div>
             </div>
 

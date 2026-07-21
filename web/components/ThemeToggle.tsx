@@ -51,7 +51,7 @@ export default function ThemeToggle() {
     <button
       onClick={toggle}
       title={light ? 'Switch to dark mode' : 'Switch to light mode'}
-      className="w-10 h-10 border border-[var(--line)] text-[var(--text-dim)] hover:border-[var(--green)] hover:text-[var(--text)] bg-transparent rounded-[10px] grid place-items-center transition-all duration-150 flex-shrink-0 cursor-pointer"
+      className="w-8 h-8 text-[var(--text-dim)] hover:text-[var(--text)] grid place-items-center transition-colors duration-150 flex-shrink-0 cursor-pointer rounded-[8px] border border-[var(--line)] bg-[var(--card)]"
       suppressHydrationWarning
     >
       {/* Light is the default, so render moon on server; swap after mount to avoid hydration mismatch */}
