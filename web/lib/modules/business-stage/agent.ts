@@ -9,7 +9,13 @@ const CATEGORY_SLUGS = ['classification', 'concern', 'insight', 'actions', 'red-
 function buildContext(data: BusinessStageFetchResult, brainContext?: string): string {
   const yesNo = (v: boolean) => (v ? 'Yes' : 'No')
 
-  return `${brainContext ? `=== Prior context about this brand ===\n${brainContext}\n\n` : ''}=== Website Signals ===
+  return `${brainContext ? `=== Prior context about this brand ===\n${brainContext}\n\n` : ''}=== Verified User Count ===
+${data.userCount != null
+    ? `ACTUAL COUNT (from PostHog analytics — use this, do not guess from website signals): ${data.userCount} users`
+    : 'Not available — estimate from website signals below.'
+}
+
+=== Website Signals ===
 URL: ${data.url}
 Title: "${data.title}"
 Meta description: "${data.metaDescription}"

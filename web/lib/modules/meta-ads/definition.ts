@@ -4,7 +4,7 @@ export const META_ADS_MODULE: ModuleDefinition = {
   type: 'meta-ads',
   name: 'Meta Ads Audit',
   tagline: 'maximize returns on your ad spend',
-  description: 'Checks if your Facebook and Instagram ads are actually working — and shows you where you might be wasting money.',
+  description: 'Audits creatives and targeting so you stop wasting ad spend.',
   order: 12,
   unlockThreshold: 80,
   dynamic: true,

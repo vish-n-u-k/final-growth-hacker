@@ -584,7 +584,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
       }
       const { moduleId } = await res.json() as { moduleId: string }
       setResolvedBsModId(moduleId)
-      await handleReanalyze(moduleId, {})
+      await handleReanalyze(moduleId, { user_count: String(userCount) })
     } catch {
       setSetupErrorMap(prev => ({ ...prev, ['bs-ensure']: 'Network error. Please try again.' }))
     } finally {
@@ -1501,7 +1501,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       </span>
                     )}
                     <button
-                      onClick={() => resolvedBsModId ? handleReanalyze(resolvedBsModId, {}) : handleEnsureAndReanalyze()}
+                      onClick={() => resolvedBsModId ? handleReanalyze(resolvedBsModId, { user_count: String(userCount) }) : handleEnsureAndReanalyze()}
                       disabled={bsBusy}
                       style={{
                         fontSize: '12px', fontWeight: 600, padding: '5px 14px', borderRadius: '20px', cursor: bsBusy ? 'default' : 'pointer',

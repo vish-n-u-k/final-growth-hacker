@@ -308,7 +308,7 @@ export async function GET(request: NextRequest) {
         visitorsChartRows, topPathsRows,
         channelsRows, devicesRows, countriesRows, activeHoursRows,
       ] = await Promise.all([
-        hogql(host, projectId, key, `SELECT count() FROM persons WHERE created_at >= now() - interval 1 day`),
+        hogql(host, projectId, key, `SELECT count(DISTINCT properties.$email) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email) AND created_at >= now() - interval 1 day`),
         hogql(host, projectId, key, `SELECT count() FROM events WHERE event = '$identify' AND timestamp >= now() - interval 1 day`),
         hogql(host, projectId, key, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp >= now() - interval 1 day`),
         hogql(host, projectId, key, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp >= now() - interval 30 day`),

@@ -2,6 +2,7 @@ import { load } from 'cheerio'
 
 export interface BusinessStageFetchResult {
   url: string
+  userCount: number | null   // actual count from PostHog (null if not connected)
   // Page basics
   title: string
   metaDescription: string
@@ -115,6 +116,7 @@ export async function fetchBusinessStageData(
 ): Promise<BusinessStageFetchResult> {
   const rawUrl = requirements['website_url'] ?? ''
   const url = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`
+  const userCount = requirements['user_count'] ? parseInt(requirements['user_count'], 10) : null
 
   const html = await safeFetch(url, 15000)
   if (!html) {
@@ -208,6 +210,7 @@ export async function fetchBusinessStageData(
 
   return {
     url,
+    userCount,
     title,
     metaDescription,
     h1,

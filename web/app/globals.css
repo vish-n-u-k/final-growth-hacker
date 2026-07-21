@@ -1667,6 +1667,8 @@ html.light {
   --gop-err-text: #dc2626;
 }
 
+html.light .level-info .focus { color: #9ca3af; }
+
 html.light body {
   background-image:
     radial-gradient(900px 500px at 85% -5%, #14a04e12, transparent),

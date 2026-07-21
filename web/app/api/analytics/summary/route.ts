@@ -126,7 +126,7 @@ function firstNum(rows: unknown[][] | null): number | null {
 
 async function fetchPostHog(apiKey: string, projectId: string, host: string): Promise<PostHogSnapshot> {
   const [totalRows, dauRows, mauRows, new7dRows, sessions7dRows, startRows] = await Promise.all([
-    runHogQL(host, projectId, apiKey, `SELECT count() FROM persons`),
+    runHogQL(host, projectId, apiKey, `SELECT count(DISTINCT properties.$email) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email)`),
     runHogQL(host, projectId, apiKey, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - INTERVAL 1 DAY`),
     runHogQL(host, projectId, apiKey, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - INTERVAL 30 DAY`),
     runHogQL(host, projectId, apiKey, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - INTERVAL 7 DAY AND person.created_at > now() - INTERVAL 7 DAY`),

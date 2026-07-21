@@ -65,7 +65,7 @@ async function fetchPosthogCount(brandId: string): Promise<{ count: number; conn
         Authorization: `Bearer ${integration.apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ query: { kind: 'HogQLQuery', query: 'SELECT count() FROM persons' } }),
+      body: JSON.stringify({ query: { kind: 'HogQLQuery', query: `SELECT count(DISTINCT properties.$email) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email)` } }),
       signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) return { count: 0, connected: true }
