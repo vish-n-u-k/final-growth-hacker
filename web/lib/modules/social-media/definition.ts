@@ -4,7 +4,7 @@ export const SOCIAL_MEDIA_MODULE: ModuleDefinition = {
   type: 'social-media',
   name: 'Social Media Audit',
   tagline: 'audit and improve your social presence',
-  description: 'Scores your social impact to fuel organic reach.',
+  description: 'Turns followers into subscribers.',
   order: 7,
   unlockThreshold: 80,
   dynamic: true,

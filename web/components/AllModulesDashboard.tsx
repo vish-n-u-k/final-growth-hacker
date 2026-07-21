@@ -1421,7 +1421,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 <div className="journey-bar">
                   <div style={{ position: 'relative', height: '46px' }}>
                     <button
-                      onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}
                       title="View your stage analysis"
                       style={{
                         position: 'absolute',
@@ -1435,9 +1434,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         border: '1.5px solid #dddddd',
                         display: 'grid',
                         placeItems: 'center',
-                        cursor: 'pointer',
+                        cursor: 'default',
                         padding: 0,
                         boxShadow: '0 2px 12px rgba(0,0,0,0.28)',
+                        pointerEvents: 'none',
                       }}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}

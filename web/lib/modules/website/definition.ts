@@ -4,7 +4,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
   type: 'website',
   name: 'Website Audit',
   tagline: 'turn your website into a sales tool',
-  description: 'Flags UX/speed issues before they lose sales.',
+  description: 'Turns visitors into paying customers.',
   order: 2,
   unlockThreshold: 80,
   requirements: [

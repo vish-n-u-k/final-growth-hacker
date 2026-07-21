@@ -4,7 +4,7 @@ export const GEO_COMPETITOR_GAP_MODULE: ModuleDefinition = {
   type: 'geo-competitor-gap',
   name: 'GEO Competitor Gap',
   tagline: 'close AI visibility gaps vs competitors',
-  description: 'Spots what rivals rank for in AI so you steal their visibility.',
+  description: 'Takes AI visibility from rivals.',
   order: 5,
   unlockThreshold: 80,
   dynamic: true,

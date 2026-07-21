@@ -4,7 +4,7 @@ export const GEO_MODULE: ModuleDefinition = {
   type: 'geo',
   name: 'GEO Audit',
   tagline: 'get found by AI search engines',
-  description: 'Shows how AI engines see you so they cite you first.',
+  description: 'Steals referral clicks from AI engines.',
   order: 4,
   unlockThreshold: 80,
   dynamic: false,

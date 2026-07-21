@@ -4,7 +4,7 @@ export const BACKLINKS_MODULE: ModuleDefinition = {
   type: 'backlinks',
   name: 'Backlinks & Link Building',
   tagline: 'build authority through quality backlinks',
-  description: 'Finds quality link opportunities so your domain authority grows.',
+  description: 'Raises authority for more organic traffic.',
   order: 6,
   unlockThreshold: 80,
   dynamic: true,

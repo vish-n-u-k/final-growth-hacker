@@ -4,7 +4,7 @@ export const GMAIL_OUTREACH_MODULE: ModuleDefinition = {
   type: 'gmail-outreach',
   name: 'Gmail Outreach',
   tagline: 'land meetings via personalised cold email',
-  description: 'Tests deliverability so your cold emails actually land.',
+  description: 'Fills your sales pipeline fast.',
   order: 11,
   unlockThreshold: 50,
   dynamic: true,

@@ -4,7 +4,7 @@ export const FOUNDATION_MODULE: ModuleDefinition = {
   type: 'foundation',
   name: 'Foundation',
   tagline: 'get your business basics set up',
-  description: 'Scans your infrastructure so growth doesn\'t break it.',
+  description: 'Prevents revenue-killing tech failures.',
   order: 1,
   unlockThreshold: 0, // always unlocked — no threshold required
   requirements: [

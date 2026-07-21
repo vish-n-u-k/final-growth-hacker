@@ -4,7 +4,7 @@ export const CONTENT_AUDIT_MODULE: ModuleDefinition = {
   type: 'content-audit',
   name: 'Content Audit',
   tagline: 'improve and prune your website content',
-  description: 'Reveals content gaps so you own every search angle.',
+  description: 'Wins more ranking keywords.',
   order: 9,
   unlockThreshold: 80,
   dynamic: true,

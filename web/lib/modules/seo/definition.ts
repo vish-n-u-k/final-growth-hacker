@@ -2,9 +2,9 @@ import type { ModuleDefinition } from '../types'
 
 export const SEO_MODULE: ModuleDefinition = {
   type: 'seo',
-  name: 'SEO Audit',
+  name: 'SEO Health Audit',
   tagline: 'rank higher in Google search results',
-  description: 'Checks on-page SEO so you stay ahead in search.',
+  description: 'Pulls in free search traffic daily.',
   order: 3,
   unlockThreshold: 80,
   dynamic: false,
@@ -218,58 +218,6 @@ export const SEO_MODULE: ModuleDefinition = {
             { slug: 'schema.type',             label: 'Structured data type match',                        prompt: 'Rule engine check.', order: 3, weight: 2 },
             { slug: 'schema.required-fields',  label: 'Required structured data fields',                   prompt: 'Rule engine check.', order: 4, weight: 2 },
             { slug: 'schema.twitter-card',     label: 'Twitter/X Card tags',                               prompt: 'Rule engine check.', order: 5, weight: 1, fixable: true, fixType: 'template' },
-          ],
-        },
-      ],
-    },
-
-    // ── 7. Link Building ──────────────────────────────────────────────────────
-    {
-      slug: 'link-building',
-      label: 'Link Building',
-      order: 7,
-      subCategories: [
-        {
-          slug: 'lb-directories',
-          label: 'Directories & Aggregators',
-          order: 1,
-          items: [
-            { slug: 'lb-product-hunt',   label: 'Submit to Product Hunt',                  prompt: 'Generate specific submission advice for Product Hunt. Include what to prepare (tagline under 60 chars, a short description, screenshots/GIF, first comment strategy) and when to launch (Tuesday–Thursday). Submission URL: https://www.producthunt.com/posts/new', order: 1, weight: 2 },
-            { slug: 'lb-futurepedia',    label: 'List on Futurepedia',                     prompt: 'Generate specific advice for getting listed on Futurepedia, one of the largest AI tool directories. Include what category this product fits, what description to write, and the submission URL: https://www.futurepedia.io/submit-tool', order: 2, weight: 2 },
-            { slug: 'lb-theresanai',     label: "Submit to There's An AI For That",        prompt: "Generate specific advice for submitting to There's An AI For That (theresanaiforthat.com). Include what use-case tags to select, how to write the description, and the submission URL: https://theresanaiforthat.com/submit/", order: 3, weight: 2 },
-            { slug: 'lb-alternativeto',  label: 'Create AlternativeTo listing',            prompt: 'Generate specific advice for creating a listing on AlternativeTo. Include which competitors to list this product as an alternative to, how to write the description, and the URL: https://alternativeto.net/software/add/', order: 4, weight: 1 },
-            { slug: 'lb-saashub',        label: 'List on SaaSHub',                         prompt: 'Generate specific advice for getting listed on SaaSHub. Include how to position the product, what category fits, and the submission URL: https://www.saashub.com/add-service', order: 5, weight: 1 },
-            { slug: 'lb-toolify',        label: 'Submit to Toolify.ai',                   prompt: 'Generate specific advice for submitting to Toolify.ai. Include what description and tags to use, and the submission URL: https://www.toolify.ai/submit', order: 6, weight: 1 },
-          ],
-        },
-        {
-          slug: 'lb-review-platforms',
-          label: 'Review Platforms',
-          order: 2,
-          items: [
-            { slug: 'lb-g2',          label: 'Create a G2 listing',          prompt: 'Generate specific advice for creating a product listing on G2. Include what category to list under, what profile information is required, how to get the first 5 reviews quickly (e.g. ask beta users or team), and the URL to get started: https://sell.g2.com/free-listing', order: 1, weight: 2 },
-            { slug: 'lb-capterra',    label: 'Create a Capterra listing',    prompt: 'Generate specific advice for submitting to Capterra. Include what software category fits, what information Capterra requires for approval, and the submission URL: https://www.capterra.com/vendors/sign-up', order: 2, weight: 2 },
-            { slug: 'lb-trustpilot',  label: 'Set up a Trustpilot profile',  prompt: 'Generate specific advice for setting up a Trustpilot business profile. Include how to claim the profile, how to get the first reviews, and the URL: https://business.trustpilot.com/', order: 3, weight: 1 },
-          ],
-        },
-        {
-          slug: 'lb-communities',
-          label: 'Communities',
-          order: 3,
-          items: [
-            { slug: 'lb-hacker-news',    label: 'Submit a Show HN post',          prompt: 'Generate a specific Show HN post strategy for this product. Include the ideal title format, what to write in the first comment, best time to post (weekday mornings US Eastern), and the submission URL: https://news.ycombinator.com/submit', order: 1, weight: 2 },
-            { slug: 'lb-indie-hackers',  label: 'Share on Indie Hackers',         prompt: 'Generate specific advice for sharing this product on Indie Hackers. Include whether to post in the product showcase, what angle resonates with the IH community (building in public, metrics, story), and the URL: https://www.indiehackers.com/products/new', order: 2, weight: 1 },
-            { slug: 'lb-reddit',         label: 'Post in relevant subreddits',    prompt: 'Generate 3 specific subreddits that are a good fit for this product. For each, name the subreddit, its rules around self-promotion, and the right post format (e.g. "I built X" vs "tool recommendation thread"). Be specific to this product category.', order: 3, weight: 1 },
-          ],
-        },
-        {
-          slug: 'lb-press',
-          label: 'Press & Media',
-          order: 4,
-          items: [
-            { slug: 'lb-bens-bites',    label: "Pitch to Ben's Bites newsletter",   prompt: "Generate a specific pitch strategy for Ben's Bites, a high-traffic AI newsletter. Include the pitch angle, ideal length (under 100 words), what they look for in new tools, and the submission URL: https://www.bensbites.com/submit", order: 1, weight: 2 },
-            { slug: 'lb-tldr-ai',       label: 'Pitch to TLDR AI newsletter',       prompt: 'Generate a specific pitch strategy for TLDR AI newsletter. Include what story angle works, pitch format, and the submission URL: https://tldr.tech/ai/sponsor', order: 2, weight: 1 },
-            { slug: 'lb-youtube',       label: 'Reach out to YouTube tool reviewers', prompt: 'Generate a specific outreach strategy for YouTube channels that review AI/SaaS tools. Name 2-3 specific channels relevant to this product category, what to offer (free access, affiliate), and a short email pitch template.', order: 3, weight: 1 },
           ],
         },
       ],
