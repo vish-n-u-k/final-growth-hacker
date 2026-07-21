@@ -220,6 +220,24 @@ header {
 /* ── Levels ── */
 .levels { padding-bottom: 80px; display: flex; flex-direction: column; gap: 28px; }
 
+.levels-lock-separator {
+  display: flex; align-items: center; gap: 16px;
+  margin: 16px 0 28px;
+  padding: 0 4px;
+}
+.levels-lock-separator-line {
+  flex: 1; height: 1px; background: var(--line);
+}
+.levels-lock-separator-text {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 15px; font-weight: 500; color: var(--text-dim);
+  white-space: nowrap; letter-spacing: 0.01em;
+  padding: 8px 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+}
+
 .level {
   padding: 5px;
   background: var(--card); border: 1px solid var(--line);
@@ -244,7 +262,7 @@ header {
 .level-info { flex: 1; }
 .level-info .name { font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
 .level-info .range { font-size: 13px; color: var(--text-faint); font-weight: 500; }
-.level-info .focus { font-size: 13.5px; color: var(--text-dim); margin-top: 3px; }
+.level-info .focus { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
 
 .pill { font-size: 12px; font-weight: 600; padding: 6px 13px; border-radius: 20px; letter-spacing: .3px; }
 .pill.now { background: var(--green); color: #06140c; }

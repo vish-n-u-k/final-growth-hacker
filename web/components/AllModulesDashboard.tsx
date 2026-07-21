@@ -1525,7 +1525,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       Click <b style={{ color: 'var(--green-bright)' }}>Re-analyse</b> above to generate your personalised stage playbook.
                     </p>
                   ) : activeItem ? (
-                    renderMd(activeItem.aiNarrative ?? activeItem.aiDetail ?? '', isRedFlag ? '#ff8080' : 'var(--text-dim)')
+                    renderMd(activeItem.aiNarrative ?? activeItem.aiDetail ?? '', isRedFlag ? '' : 'var(--text-dim)')
                   ) : (
                     <p style={{ fontSize: '14px', color: 'var(--text-faint)', lineHeight: 1.75 }}>
                       Click <b style={{ color: 'var(--green-bright)' }}>Re-analyse</b> to generate content for this section.
@@ -1539,7 +1539,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
         {/* Module accordion stack */}
         <div className="levels">
-          {sortedByOrder.filter(m => m.type !== 'user-acquisition' && m.type !== 'business-stage').map((modData) => {
+          {(() => {
+            const filtered = sortedByOrder.filter(m => m.type !== 'user-acquisition' && m.type !== 'business-stage')
+            let separatorPlaced = false
+            return filtered.map((modData) => {
             const isOpen = openModules.has(modData.id)
             const isLocked = isModuleLocked(modData)
             const liveScore = liveScores[modData.id] ?? 0
@@ -1560,8 +1563,25 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             const hasNoFindings = def.dynamic && dynItems.length === 0
             const needsSetup = missingReqs.length > 0 || (hasNoFindings && def.requirements.length > 0)
 
+            const showSeparator = isLocked && !separatorPlaced
+            if (showSeparator) separatorPlaced = true
+
             return (
-              <div key={modData.id} className={`level ${stateClass}${isDone ? ' done' : ''}${isOpen ? ' open' : ''}`}>
+              <div key={modData.id}>
+                {showSeparator && (
+                  <div className="levels-lock-separator">
+                    <div className="levels-lock-separator-line" />
+                    <div className="levels-lock-separator-text">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                        <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
+                        <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                      Hit <strong>80%</strong> on the modules above to <strong>unlock</strong> these
+                    </div>
+                    <div className="levels-lock-separator-line" />
+                  </div>
+                )}
+              <div className={`level ${stateClass}${isDone ? ' done' : ''}${isOpen ? ' open' : ''}`}>
 
                 {/* Level head */}
                 <div className="level-head" onClick={() => !isLocked && toggleModule(modData.id)}>
@@ -2120,8 +2140,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   </div>
                 )}
               </div>
+            </div>
             )
-          })}
+          })
+        })()}
         </div>
 
         <p className="foot-note">
