@@ -262,7 +262,8 @@ header {
 .level-info { flex: 1; }
 .level-info .name { font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
 .level-info .range { font-size: 13px; color: var(--text-faint); font-weight: 500; }
-.level-info .focus { font-size: 12px; color: var(--text-dim); margin-top: 3px; }
+.level-info .focus { font-size: 16px; font-weight: 500; color: var(--text-dim); margin-top: 3px; font-style: italic; }
+.level-name-tagline { display: none; }
 
 .pill { font-size: 12px; font-weight: 600; padding: 6px 13px; border-radius: 20px; letter-spacing: .3px; }
 .pill.now { background: var(--green); color: #06140c; }
@@ -1031,6 +1032,9 @@ header {
 }
 .md-sidebar-item-name {
   font-size: 13px; font-weight: 500; color: var(--text-dim); line-height: 1.2;
+}
+.md-sidebar-item-tagline {
+  font-size: 11px; font-weight: 400; color: var(--text-dim); opacity: 0.65;
 }
 .md-sidebar-item-active .md-sidebar-item-name { color: var(--text); }
 .md-sidebar-item-pct {
@@ -2016,6 +2020,39 @@ html.light .sp-custom-input, html.light .sp-add-btn { background: #f4f8f6; borde
 .count-loading span:nth-child(2) { animation-delay: .15s; }
 .count-loading span:nth-child(3) { animation-delay: .3s; }
 
+/* ── MRR tooltip ──────────────────────────────────────────────────────────── */
+.mrr-tip-wrap { position: relative; display: inline-flex; align-items: center; }
+.mrr-tip-box {
+  display: none;
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: #1a1a2a;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+  padding: 8px 12px;
+  border-radius: 10px;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  z-index: 9999;
+}
+.mrr-tip-caret {
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0; height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-right: 6px solid #1a1a2a;
+}
+.mrr-tip-wrap:hover .mrr-tip-box { display: block; }
+html.light .mrr-tip-box { background: #1a1a2a; color: #ffffff; }
+
 /* ── Skeleton loading ─────────────────────────────────────────────────────── */
 @keyframes skel-pulse {
   0%, 100% { opacity: 1; }
@@ -2114,6 +2151,7 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: #06140c; border-col
   /* Hide description in collapsed header — too long for mobile */
   .level-info .focus { display: none; }
   .level-info .range { display: none; }
+  .level-name-tagline { display: none; }
 
   /* Progress bar: shrink the track, hide % text */
   .level-prog { gap: 6px; font-size: 11px; }

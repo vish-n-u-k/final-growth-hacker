@@ -80,6 +80,7 @@ export interface ModuleRequirement {
 export interface ModuleDefinition {
   type: string
   name: string
+  tagline?: string
   description: string
   order: number
   unlockThreshold: number

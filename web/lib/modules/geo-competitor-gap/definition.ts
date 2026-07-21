@@ -3,6 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const GEO_COMPETITOR_GAP_MODULE: ModuleDefinition = {
   type: 'geo-competitor-gap',
   name: 'GEO Competitor Gap',
+  tagline: 'close AI visibility gaps vs competitors',
   description: 'Shows you where AI tools recommend your competitors instead of you — and what to do about it.',
   order: 5,
   unlockThreshold: 80,

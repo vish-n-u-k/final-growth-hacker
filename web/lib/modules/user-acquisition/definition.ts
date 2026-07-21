@@ -3,6 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const USER_ACQUISITION_MODULE: ModuleDefinition = {
   type: 'user-acquisition',
   name: 'User Acquisition',
+  tagline: 'find and convert your first customers',
   description: 'Gives you specific tactics to get more users based on exactly where your business is right now.',
   order: 0,
   unlockThreshold: 0, // always unlocked

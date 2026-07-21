@@ -5,6 +5,7 @@ import type { FixPlan } from '@/lib/modules/seo/fix-agent'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull } from '@/lib/modules/types'
+import { MODULE_MAP } from '@/lib/modules/registry'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -743,7 +744,12 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                 onClick={() => !locked && router.push(`/dashboard/${m.id}`)}
               >
                 <div className="md-sidebar-item-top">
-                  <span className="md-sidebar-item-name">{m.name}</span>
+                  <span className="md-sidebar-item-name">
+                    {m.name}
+                    {MODULE_MAP[m.type]?.tagline && (
+                      <span className="md-sidebar-item-tagline"> — {MODULE_MAP[m.type].tagline}</span>
+                    )}
+                  </span>
                   {locked ? (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--text-faint)', flexShrink: 0 }}>
                       <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />

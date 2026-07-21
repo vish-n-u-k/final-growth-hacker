@@ -3,7 +3,8 @@ import type { ModuleDefinition } from '../types'
 export const COMPETITOR_ANALYSIS_MODULE: ModuleDefinition = {
   type: 'competitor-analysis',
   name: 'Competitor Analysis',
-  description: 'Looks at what your competitors are doing online and shows you where you can get ahead of them.',
+  tagline: 'find gaps your competitors leave open',
+  description: 'Exposes rival moves so you counter and win.',
   order: 10,
   unlockThreshold: 80,
   dynamic: true,

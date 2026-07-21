@@ -3,7 +3,8 @@ import type { ModuleDefinition } from '../types'
 export const SOCIAL_MEDIA_MODULE: ModuleDefinition = {
   type: 'social-media',
   name: 'Social Media Audit',
-  description: 'Checks how your social media profiles look and whether they are helping or hurting your business.',
+  tagline: 'audit and improve your social presence',
+  description: 'Scores your social impact to fuel organic reach.',
   order: 7,
   unlockThreshold: 80,
   dynamic: true,

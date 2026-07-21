@@ -3,6 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const BACKLINKS_MODULE: ModuleDefinition = {
   type: 'backlinks',
   name: 'Backlinks & Link Building',
+  tagline: 'build authority through quality backlinks',
   description: 'Finds which websites link to you and spots new opportunities to get more sites linking back to yours.',
   order: 6,
   unlockThreshold: 80,

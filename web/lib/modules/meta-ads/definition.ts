@@ -3,6 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const META_ADS_MODULE: ModuleDefinition = {
   type: 'meta-ads',
   name: 'Meta Ads Audit',
+  tagline: 'maximize returns on your ad spend',
   description: 'Checks if your Facebook and Instagram ads are actually working — and shows you where you might be wasting money.',
   order: 12,
   unlockThreshold: 80,

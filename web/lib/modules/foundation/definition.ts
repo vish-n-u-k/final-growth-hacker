@@ -3,7 +3,8 @@ import type { ModuleDefinition } from '../types'
 export const FOUNDATION_MODULE: ModuleDefinition = {
   type: 'foundation',
   name: 'Foundation',
-  description: 'Makes sure your website is live, secure, trackable, and ready before you start any marketing.',
+  tagline: 'get your business basics set up',
+  description: 'Scans your infrastructure so growth doesn\'t break it.',
   order: 1,
   unlockThreshold: 0, // always unlocked — no threshold required
   requirements: [

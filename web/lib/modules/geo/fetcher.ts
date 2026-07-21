@@ -7,6 +7,7 @@ export interface GeoFetchData {
   aiSummaryJson: string | null // /ai/summary.json
   aiFaqJson: string | null     // /ai/faq.json
   aiServiceJson: string | null // /ai/service.json
+  sitemapUrls: string[]        // <loc> URLs extracted from /sitemap.xml
 }
 
 async function fetchText(url: string, timeoutMs = 8000): Promise<string | null> {
@@ -36,7 +37,7 @@ export async function fetchGeoData(
     return { error: `Invalid URL: ${rawUrl}` }
   }
 
-  const [html, robotsTxt, llmsTxt, aiTxt, aiSummaryJson, aiFaqJson, aiServiceJson] = await Promise.all([
+  const [html, robotsTxt, llmsTxt, aiTxt, aiSummaryJson, aiFaqJson, aiServiceJson, sitemapXml] = await Promise.all([
     fetchText(url, 12000),
     fetchText(`${origin}/robots.txt`),
     fetchText(`${origin}/llms.txt`),
@@ -44,9 +45,14 @@ export async function fetchGeoData(
     fetchText(`${origin}/ai/summary.json`),
     fetchText(`${origin}/ai/faq.json`),
     fetchText(`${origin}/ai/service.json`),
+    fetchText(`${origin}/sitemap.xml`),
   ])
 
   if (!html) return { error: `Could not fetch ${url}` }
+
+  const sitemapUrls = sitemapXml
+    ? [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/gi)].map(m => m[1].trim()).slice(0, 200)
+    : []
 
   return {
     url,
@@ -57,5 +63,6 @@ export async function fetchGeoData(
     aiSummaryJson,
     aiFaqJson,
     aiServiceJson,
+    sitemapUrls,
   }
 }

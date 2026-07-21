@@ -1369,6 +1369,47 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   )}
                   {!editingCount && <span>/500</span>}
                 </div>
+                {!editingCount && (
+                  <div style={{
+                    marginTop: '10px',
+                    background: 'rgba(47,191,113,0.07)',
+                    border: '1px solid rgba(47,191,113,0.18)',
+                    borderRadius: '10px',
+                    padding: '10px 14px',
+                    display: 'inline-flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    minWidth: '150px',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 500 }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M9 9h4.5a1.5 1.5 0 0 1 0 3H9m0 0h4.5a1.5 1.5 0 0 1 0 3H9"/></svg>
+                        Projected MRR
+                      </div>
+                      <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }} className="mrr-tip-wrap">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-dim)', flexShrink: 0, cursor: 'default' }}>
+                          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="0.5" fill="currentColor" strokeWidth="3"/>
+                        </svg>
+                        <div className="mrr-tip-box">
+                          Pricing data sourced from your website
+                          <span className="mrr-tip-caret" />
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                      <span style={{ fontSize: '22px', fontWeight: 700, color: 'var(--green-bright)', fontFamily: 'var(--font-display)', lineHeight: 1 }}>
+                        ${(19 * 500).toLocaleString()}
+                      </span>
+                      <span style={{
+                        fontSize: '10px', fontWeight: 600, color: 'var(--green)',
+                        background: 'rgba(47,191,113,0.15)', borderRadius: '4px',
+                        padding: '2px 6px', letterSpacing: '0.02em'
+                      }}>
+                        $19 × 500
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="meta">
                 <div className="lvl">
@@ -1611,6 +1652,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   <div className="level-info">
                     <div className="name">
                       {modData.name}
+                      {def.tagline && <span className="level-name-tagline"> — {def.tagline}</span>}
                       {isLocked && <span className="pill soon">Locked</span>}
                       {!isLocked && def.comingSoon && <span className="pill soon">Coming Soon</span>}
                     </div>

@@ -3,7 +3,8 @@ import type { ModuleDefinition } from '../types'
 export const CONTENT_AUDIT_MODULE: ModuleDefinition = {
   type: 'content-audit',
   name: 'Content Audit',
-  description: 'Reviews every page on your website and tells you which ones to keep, improve, merge, or delete.',
+  tagline: 'improve and prune your website content',
+  description: 'Reveals content gaps so you own every search angle.',
   order: 9,
   unlockThreshold: 80,
   dynamic: true,

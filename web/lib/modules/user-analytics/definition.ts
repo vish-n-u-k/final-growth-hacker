@@ -3,6 +3,7 @@ import type { ModuleDefinition } from '../types'
 export const USER_ANALYTICS_MODULE: ModuleDefinition = {
   type: 'user-analytics',
   name: 'User Analytics',
+  tagline: 'see where users drop off and why',
   description: 'Shows you who is using your product, where they give up, and what to fix to keep more of them.',
   order: 13,
   unlockThreshold: 80,

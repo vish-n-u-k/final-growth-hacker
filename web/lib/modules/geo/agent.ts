@@ -109,6 +109,14 @@ function extractPageData(html: string) {
   const ogUpdatedTime = $('meta[property="og:updated_time"]').attr('content') ?? ''
   const rssLink = $('link[type="application/rss+xml"], link[type="application/atom+xml"]').attr('href') ?? ''
 
+  // Extract nav links BEFORE stripping nav
+  const navLinks: string[] = []
+  $('nav a, header a').each((_, el) => {
+    const href = $(el).attr('href') ?? ''
+    const text = $(el).text().trim()
+    if (href && text) navLinks.push(`${text}|${href}`)
+  })
+
   $('script, style, nav, footer, header').remove()
   const bodyText = ($('main, article, [role="main"], body').first().text() ?? '')
     .replace(/\s+/g, ' ')
@@ -128,13 +136,23 @@ function extractPageData(html: string) {
     /(?:faq|frequently asked|common questions)/i.test(bodyText.slice(0, 500))
 
   return {
-    lang, title, h1, headings, bodyText,
+    lang, title, h1, headings, bodyText, navLinks,
     articleModifiedTime, ogUpdatedTime, rssLink,
     statsCount, externalLinks, listItems, tableCount, hasFaqHeadings,
   }
 }
 
 // ── Pre-compute rule findings ─────────────────────────────────────────────────
+
+const ABOUT_PATH_PATTERN = /\/(about|about-us|about_us|company|who-we-are|our-story|team|us)(\/|$)/i
+
+function checkAboutPage(navLinks: string[], sitemapUrls: string[]): { found: boolean; source: string } {
+  const navMatch = navLinks.find(l => ABOUT_PATH_PATTERN.test(l.split('|')[1] ?? '') || /\babout\b|\bcompany\b|\bour story\b|\bwho we are\b/i.test(l.split('|')[0] ?? ''))
+  if (navMatch) return { found: true, source: navMatch.split('|')[0] ?? 'nav link' }
+  const sitemapMatch = sitemapUrls.find(u => ABOUT_PATH_PATTERN.test(u))
+  if (sitemapMatch) return { found: true, source: sitemapMatch }
+  return { found: false, source: '' }
+}
 
 export function buildRuleFindings(data: GeoFetchData) {
   const tier1Bots = ['GPTBot', 'ClaudeBot', 'Google-Extended', 'Amazonbot', 'CCBot', 'Meta-ExternalAgent']
@@ -154,6 +172,7 @@ export function buildRuleFindings(data: GeoFetchData) {
   const hasSameAs = hasOrg && Array.isArray((orgSchema as Record<string, unknown>)['sameAs']) && ((orgSchema as Record<string, unknown>)['sameAs'] as unknown[]).length > 0
 
   const page = extractPageData(data.html)
+  const aboutCheck = checkAboutPage(page.navLinks, data.sitemapUrls)
 
   // llms.txt structure
   const llmsPresent = data.llmsTxt !== null
@@ -180,6 +199,8 @@ export function buildRuleFindings(data: GeoFetchData) {
     aiServicePresent: data.aiServiceJson !== null,
     page,
     hasDateModified,
+    aboutPage: aboutCheck,
+    sitemapUrls: data.sitemapUrls,
   }
 }
 
@@ -189,7 +210,6 @@ const GEO_AI_SLUGS = new Set([
   'geo-entity-wikipedia',
   'geo-entity-sameas-depth',
   'geo-entity-nap',
-  'geo-entity-about',
   'geo-structure-h1',
   'geo-content-citations',
   'geo-competitor-share',
@@ -540,6 +560,20 @@ function buildGeoRuleResults(f: ReturnType<typeof buildRuleFindings>): ModuleAna
         'Add a FAQ section with 5–8 questions as H2/H3 headings followed by clear 2–3 sentence answers.')
   )
 
+  // ── About page ──
+  results.push(f.aboutPage.found
+    ? re('geo-entity-about', true,
+        `**About page found** — linked from site navigation${f.aboutPage.source ? ` ("${f.aboutPage.source}")` : ''}.`,
+        'About page linked in navigation',
+        'AI engines use the About page to build an accurate brand profile and verify the entity.',
+        '')
+    : re('geo-entity-about', false,
+        '**No About page detected** in site navigation or sitemap.',
+        'No About page found',
+        '**Without an About page AI has no source** to build an accurate brand profile — it may confuse the brand or omit it from entity-based answers.',
+        'Create an /about page with your brand story, founding team, and mission. Link it from the main navigation.')
+  )
+
   return results
 }
 
@@ -596,6 +630,7 @@ function buildRuleContext(f: ReturnType<typeof buildRuleFindings>, itemSlugs?: s
     `List items count: ${f.page.listItems} | Tables: ${f.page.tableCount}`,
     `FAQ-style headings detected: ${f.page.hasFaqHeadings}`,
     `Body excerpt: ${f.page.bodyText.slice(0, 400)}`,
+    f.sitemapUrls.length > 0 ? `\n── Sitemap URLs (${f.sitemapUrls.length} total, first 30 shown) ──\n${f.sitemapUrls.slice(0, 30).join('\n')}` : '── Sitemap: not found ──',
   ].filter(Boolean).join('\n')
   return sections
 }

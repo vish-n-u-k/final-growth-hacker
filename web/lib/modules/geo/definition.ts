@@ -3,7 +3,8 @@ import type { ModuleDefinition } from '../types'
 export const GEO_MODULE: ModuleDefinition = {
   type: 'geo',
   name: 'GEO Audit',
-  description: 'Checks if AI tools like ChatGPT and Perplexity can find, understand, and recommend your business.',
+  tagline: 'get found by AI search engines',
+  description: 'Shows how AI engines see you so they cite you first.',
   order: 4,
   unlockThreshold: 80,
   dynamic: false,
