@@ -249,7 +249,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     return first ? new Set([first.id]) : new Set([sorted[0]?.id ?? ''])
   })
   const [openCatsMap, setOpenCatsMap] = useState<Record<string, Set<string>>>(() =>
-    Object.fromEntries(allModulesData.map(m => [m.id, new Set([m.definition.categories[0]?.slug ?? ''])]))
+    Object.fromEntries(allModulesData.map(m => [m.id, new Set<string>()]))
   )
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
   const [verifyingItems, setVerifyingItems] = useState<Set<string>>(new Set())
@@ -1374,8 +1374,8 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 {!editingCount && (
                   <div style={{
                     marginTop: '10px',
-                    background: 'rgba(47,191,113,0.07)',
-                    border: '1px solid rgba(47,191,113,0.18)',
+                    background: 'var(--bg-soft)',
+                    border: '1px solid var(--line)',
                     borderRadius: '10px',
                     padding: '10px 14px',
                     display: 'inline-flex',
@@ -1399,12 +1399,12 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                      <span style={{ fontSize: '22px', fontWeight: 700, color: 'var(--green-bright)', fontFamily: 'var(--font-display)', lineHeight: 1 }}>
-                        ${(19 * 500).toLocaleString()}
+                      <span style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display)', lineHeight: 1 }}>
+                        $9.5K
                       </span>
                       <span style={{
-                        fontSize: '10px', fontWeight: 600, color: 'var(--green)',
-                        background: 'rgba(47,191,113,0.15)', borderRadius: '4px',
+                        fontSize: '10px', fontWeight: 600, color: 'var(--text-dim)',
+                        background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '4px',
                         padding: '2px 6px', letterSpacing: '0.02em'
                       }}>
                         $19 × 500
@@ -1421,31 +1421,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 </div>
                 <div className="desc">{activeModule?.definition.description}</div>
                 <div className="journey-bar">
-                  <div style={{ position: 'relative', height: '46px' }}>
-                    <button
-                      title="View your stage analysis"
-                      style={{
-                        position: 'absolute',
-                        bottom: 0,
-                        left: `${barPct}%`,
-                        transform: 'translateX(-50%)',
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '50%',
-                        background: '#ffffff',
-                        border: '1.5px solid #dddddd',
-                        display: 'grid',
-                        placeItems: 'center',
-                        cursor: 'default',
-                        padding: 0,
-                        boxShadow: '0 2px 12px rgba(0,0,0,0.28)',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src="/bulb (1).png" alt="" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
-                    </button>
-                  </div>
                   <div className="journey-track">
                     <div className="journey-fill" style={{ width: `${barPct}%` }} />
                   </div>

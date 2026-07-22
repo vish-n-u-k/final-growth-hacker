@@ -171,7 +171,7 @@ function ModuleRing({ score }: { score: number }) {
 export default function ModuleDashboard({ brand, module: mod, definition: def, itemStates: initial, fullItems: initialFullItems, allModules, userEmail, githubConnected, connectedIntegrations, modulePrUrl: initialPrUrl, pageVerdicts }: Props) {
   const [states, setStates] = useState(initial)
   const [dynItems, setDynItems] = useState<DBItemFull[]>(initialFullItems ?? [])
-  const [openCats, setOpenCats] = useState<Set<string>>(() => new Set([def.categories[0]?.slug ?? '']))
+  const [openCats, setOpenCats] = useState<Set<string>>(new Set())
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
   const [verifyingItems, setVerifyingItems] = useState<Set<string>>(new Set())
   const [applyingFix, setApplyingFix] = useState<Set<string>>(new Set())
