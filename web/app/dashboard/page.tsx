@@ -37,8 +37,12 @@ export default async function DashboardPage() {
 
   const githubConnected = allIntegrations.some(i => i.provider === 'github' && i.status === 'connected')
   const connectedIntegrations: Record<string, boolean> = {}
+  const socialLinks: Record<string, string> = {}
   for (const row of allIntegrations) {
     connectedIntegrations[row.provider] = row.status === 'connected'
+    if (row.type === 'social' && row.status === 'connected' && row.metadata && typeof row.metadata === 'object' && 'url' in row.metadata) {
+      socialLinks[row.provider] = (row.metadata as { url: string }).url
+    }
   }
 
   // Group by moduleId
@@ -187,6 +191,7 @@ export default async function DashboardPage() {
       userEmail={user.email ?? ''}
       githubConnected={githubConnected}
       connectedIntegrations={connectedIntegrations}
+      socialLinks={socialLinks}
     />
   )
 }

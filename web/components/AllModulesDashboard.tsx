@@ -36,6 +36,7 @@ interface Props {
   userEmail: string
   githubConnected: boolean
   connectedIntegrations: Record<string, boolean>
+  socialLinks: Record<string, string>
 }
 
 function timeAgo(iso: string | null): string {
@@ -231,7 +232,7 @@ function LevelRing({ score }: { score: number }) {
   )
 }
 
-export default function AllModulesDashboard({ brand, allModulesData, userEmail, githubConnected, connectedIntegrations }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, userEmail, githubConnected, connectedIntegrations, socialLinks }: Props) {
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.itemStates]))
   )
@@ -310,6 +311,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [generatingDraft, setGeneratingDraft] = useState<Set<string>>(new Set())
   const [skipPrompting, setSkipPrompting] = useState<Set<string>>(new Set())
   const [skipReasonDraft, setSkipReasonDraft] = useState<Record<string, string>>({})
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null)
 
   // Playbook state (Foundation module only)
   const [playbookData, setPlaybookData] = useState<Record<string, string> | null>(brand.playbook ?? null)
@@ -1260,6 +1262,69 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
               />
             )}
             <h1><span className="hero-brand-name">{brand.name}</span>&apos;s road to 500 users</h1>
+          </div>
+          {/* Website URL + social icons */}
+          <div className="hero-meta" onClick={() => setActiveTooltip(null)}>
+            {brand.websiteUrl && (
+              <a
+                href={brand.websiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hero-website-url"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke="currentColor" strokeWidth="2"/>
+                </svg>
+                {brand.websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+              </a>
+            )}
+            {brand.websiteUrl && <div className="hero-meta-divider" />}
+            <div className="hero-social-icons">
+              {([
+                { key: 'instagram', label: 'Instagram', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" stroke="currentColor" strokeWidth="2"/><circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor"/></svg> },
+                { key: 'linkedin', label: 'LinkedIn', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M7 10v7M7 7v.01M11 17v-4a2 2 0 0 1 4 0v4M11 10v7" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg> },
+                { key: 'twitter', label: 'X / Twitter', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> },
+                { key: 'facebook', label: 'Facebook', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+                { key: 'youtube', label: 'YouTube', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58 2.78 2.78 0 0 0 1.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.96-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z" stroke="currentColor" strokeWidth="2"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="currentColor"/></svg> },
+                { key: 'tiktok', label: 'TikTok', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.83a8.16 8.16 0 0 0 4.78 1.52V6.9a4.85 4.85 0 0 1-1.01-.21z"/></svg> },
+                { key: 'pinterest', label: 'Pinterest', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.24 2.65 7.86 6.39 9.29-.09-.78-.17-1.98.04-2.83.18-.77 1.22-5.17 1.22-5.17s-.31-.62-.31-1.54c0-1.44.84-2.52 1.88-2.52.89 0 1.32.67 1.32 1.47 0 .9-.57 2.24-.87 3.48-.25 1.04.52 1.89 1.54 1.89 1.85 0 3.09-2.37 3.09-5.18 0-2.14-1.44-3.64-3.5-3.64-2.38 0-3.78 1.79-3.78 3.63 0 .72.28 1.49.62 1.91.07.08.08.15.06.24-.06.26-.2.83-.23.95-.04.15-.13.18-.3.11-1.12-.52-1.82-2.17-1.82-3.49 0-2.84 2.06-5.44 5.94-5.44 3.12 0 5.54 2.22 5.54 5.19 0 3.1-1.95 5.59-4.66 5.59-.91 0-1.77-.47-2.06-1.03l-.56 2.1c-.2.78-.75 1.75-1.12 2.34.84.26 1.74.4 2.67.4 5.52 0 10-4.48 10-10S17.52 2 12 2z"/></svg> },
+              ] as { key: string; label: string; icon: JSX.Element }[])
+              .sort((a, b) => (socialLinks[b.key] ? 1 : 0) - (socialLinks[a.key] ? 1 : 0))
+              .map(({ key, label, icon }) => {
+                const url = socialLinks[key]
+                const connected = !!url
+                return (
+                  <div key={key} className="hero-social-icon-wrap">
+                    {connected ? (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hero-social-icon hero-social-icon--connected"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {icon}
+                      </a>
+                    ) : (
+                      <button
+                        className="hero-social-icon hero-social-icon--dim"
+                        onClick={(e) => { e.stopPropagation(); setActiveTooltip(activeTooltip === key ? null : key) }}
+                      >
+                        {icon}
+                      </button>
+                    )}
+                    {activeTooltip === key && (
+                      <div className="hero-social-tooltip">
+                        <strong>Add {label}</strong>
+                        Re-run Foundation analysis or add the link in Settings
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
           <p>One module at a time. Clear each gate before you level up — don't skip ahead.</p>
         </div>
