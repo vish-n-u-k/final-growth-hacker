@@ -1385,7 +1385,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 500 }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v12M9 9h4.5a1.5 1.5 0 0 1 0 3H9m0 0h4.5a1.5 1.5 0 0 1 0 3H9"/></svg>
                         Projected MRR
                       </div>
                       <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }} className="mrr-tip-wrap">
