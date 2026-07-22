@@ -1590,8 +1590,8 @@ html.light .btn-analytics { background: #ffffff; }
 
 /* ── Light mode ─────────────────────────────────────────────────────────── */
 html.light {
-  --bg: #f2f8f4;
-  --bg-soft: #e6f0ea;
+  --bg: #fafcfb;
+  --bg-soft: #f0f6f2;
   --card: #ffffff;
   --card-hi: #eef6f1cc;
   --line: #c8ddd0;
@@ -1604,23 +1604,23 @@ html.light {
   --text-faint: #7aaa8a;
   --gold: #7a5a08;
   --locked: #90b8a0;
-  --background: #f2f8f4;
+  --background: #fafcfb;
   --foreground: #0c1d13;
   --card-foreground: #0c1d13;
   --popover: #ffffff;
   --popover-foreground: #0c1d13;
   --primary: #179a50;
   --primary-foreground: #ffffff;
-  --secondary: #e6f0ea;
+  --secondary: #f0f6f2;
   --secondary-foreground: #3a6048;
-  --muted: #e6f0ea;
+  --muted: #f0f6f2;
   --muted-foreground: #7aaa8a;
   --accent: #d0eadb;
   --accent-foreground: #14a04e;
   --border: #c8ddd0;
-  --input: #e6f0ea;
+  --input: #f0f6f2;
   --ring: #179a50;
-  --sidebar: #e6f0ea;
+  --sidebar: #f0f6f2;
   --sidebar-foreground: #3a6048;
   --sidebar-primary: #179a50;
   --sidebar-primary-foreground: #ffffff;
