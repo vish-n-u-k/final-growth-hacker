@@ -302,6 +302,12 @@ header {
 .overview-body .meta .desc strong { color: var(--text); font-weight: 700; }
 .overview-body .journey-bar { margin-top: 14px; }
 .journey-bar { width: 100%; margin-top: 18px; }
+.journey-tag-wrap { position: relative; height: 18px; padding: 0 7px; }
+.journey-tag {
+  position: absolute; bottom: 0; transform: translateX(-50%);
+  font-size: 12px; font-weight: 700; color: var(--green);
+  white-space: nowrap;
+}
 .journey-track-wrap { position: relative; padding: 0 7px; }
 .journey-dots { position: absolute; inset: 0; }
 .journey-dot {
@@ -315,7 +321,6 @@ header {
   background: var(--green); border-color: var(--green);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent);
 }
-.journey-label-active { color: var(--green); font-weight: 700; }
 .overview-body .journey-track { height: 6px; }
 .journey-track {
   height: 10px; background: var(--bg-soft);

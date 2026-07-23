@@ -401,7 +401,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const barPct = userCountToBarPct(userCount)
 
   const JOURNEY_MILESTONES = [0, 10, 50, 100, 500]
-  const journeyMilestoneIdx = JOURNEY_MILESTONES.reduce((acc, m, i) => (userCount >= m ? i : acc), 0)
 
   const toggleModule = (modId: string) =>
     setOpenModules(prev =>
@@ -1488,25 +1487,25 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
               <div className="meta">
                 <div className="desc">{activeModule?.definition.description}</div>
                 <div className="journey-bar">
+                  <div className="journey-tag-wrap">
+                    <span className="journey-tag" style={{ left: `${barPct}%` }}>
+                      {userCount.toLocaleString()} · you’re here
+                    </span>
+                  </div>
                   <div className="journey-track-wrap">
                     <div className="journey-track">
                       <div className="journey-fill" style={{ width: `${barPct}%` }} />
                     </div>
                     <div className="journey-dots">
                       {JOURNEY_MILESTONES.map((m, i) => (
-                        <span
-                          key={m}
-                          className={`journey-dot${i === journeyMilestoneIdx ? ' journey-dot-active' : ''}`}
-                          style={{ left: `${i * 25}%` }}
-                        />
+                        <span key={m} className="journey-dot" style={{ left: `${i * 25}%` }} />
                       ))}
+                      <span className="journey-dot journey-dot-active" style={{ left: `${barPct}%` }} />
                     </div>
                   </div>
                   <div className="journey-labels">
-                    {JOURNEY_MILESTONES.map((m, i) => (
-                      <span key={m} className={i === journeyMilestoneIdx ? 'journey-label-active' : ''}>
-                        {m}{i === journeyMilestoneIdx ? ' · you’re here' : ''}
-                      </span>
+                    {JOURNEY_MILESTONES.map(m => (
+                      <span key={m}>{m}</span>
                     ))}
                   </div>
                 </div>
