@@ -163,11 +163,11 @@ header {
 .hero-badge {
   display: inline-flex; align-items: center; gap: 7px;
   margin-top: 12px; padding: 5px 14px;
-  background: color-mix(in srgb, var(--green) 12%, var(--card));
+  background: #e3f2ea;
   border-radius: 999px;
-  font-size: 13px; font-weight: 600; color: var(--green);
+  font-size: 13px; font-weight: 600; color: #146b54;
 }
-.hero-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+.hero-badge-dot { width: 6px; height: 6px; border-radius: 50%; background: #146b54; flex-shrink: 0; }
 .overview-card .hero-meta { margin-top: 14px; }
 .hero-divider { height: 1px; background: var(--line); margin: 18px 0; }
 .overview-eyebrow {
