@@ -290,7 +290,7 @@ export async function fetchBrandAuditData(
     safeFetch(url, 15000),
     fetch(`${origin}/robots.txt`, { signal: AbortSignal.timeout(5000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthAuditBot/1.0)' } }).catch(() => null),
     fetch(`${origin}/sitemap.xml`, { method: 'HEAD', signal: AbortSignal.timeout(5000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthAuditBot/1.0)' } }).catch(() => null),
-    discoverAllUrls(url, undefined, { maxUrls: 150 }),
+    discoverAllUrls(url, undefined, { maxUrls: 150, enrichMeta: 20 }),
   ])
 
   if (!homeRaw) {

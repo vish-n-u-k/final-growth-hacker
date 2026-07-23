@@ -46,7 +46,7 @@ Rules:
       slug: 'feature-comparison',
       label: 'Feature Comparison',
       order: 2,
-      prompt: `Analyze each competitor's product capabilities from their website content (feature sections, pricing pages, product tours, nav structure, etc.). For each distinct feature category (e.g., "Real-time Collaboration", "AI-powered automation", "Mobile app", "API/Integrations", "Analytics dashboard", "Team permissions", "Workflow automation", "Content calendar"), identify which competitors promote it prominently.
+      prompt: `Analyze each competitor's product capabilities from their website content (feature sections, pricing or plans pages — any page serving this purpose such as /pricing, /plans, /packages, /cost — product tours, nav structure, etc.). For each distinct feature category (e.g., "Real-time Collaboration", "AI-powered automation", "Mobile app", "API/Integrations", "Analytics dashboard", "Team permissions", "Workflow automation", "Content calendar"), identify which competitors promote it prominently.
 
 Generate 4–6 findings, each comparing one feature category across competitors:
 
@@ -75,7 +75,7 @@ verified: false for all missing features. fixable: false for feature gaps (requi
       slug: 'content-gap',
       label: 'Content Gap',
       order: 4,
-      prompt: `Compare the body content samples. Identify content themes, page types, or formats present in competitor content (comparison pages, case studies, pricing pages, FAQs, integration lists, testimonials with specifics) that are clearly absent from the user's site. Generate 3–5 findings. For each, suggest a specific content format and cite the competitor who has it. Action example: "Competitor X has a detailed comparison page. Create a '[Your Product] vs [Competitor]' page targeting decision-stage visitors."`,
+      prompt: `Compare the body content samples. Identify content themes, page types, or formats present in competitor content (comparison pages, case studies, pricing or plans pages — any page serving this purpose such as /pricing, /plans, /packages, /cost — FAQs, integration lists, testimonials with specifics) that are clearly absent from the user's site. Generate 3–5 findings. For each, suggest a specific content format and cite the competitor who has it. Action example: "Competitor X has a detailed comparison page. Create a '[Your Product] vs [Competitor]' page targeting decision-stage visitors."`,
     },
     {
       slug: 'seo-gap',

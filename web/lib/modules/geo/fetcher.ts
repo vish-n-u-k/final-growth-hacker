@@ -1,3 +1,11 @@
+export interface SitemapPageMeta {
+  url: string
+  path: string
+  title: string
+  metaDescription: string
+  h1: string
+}
+
 export interface GeoFetchData {
   url: string
   html: string
@@ -8,6 +16,7 @@ export interface GeoFetchData {
   aiFaqJson: string | null     // /ai/faq.json
   aiServiceJson: string | null // /ai/service.json
   sitemapUrls: string[]        // <loc> URLs extracted from /sitemap.xml
+  sitemapPageMeta: SitemapPageMeta[] // title/meta/h1 for sampled sitemap pages
 }
 
 async function fetchText(url: string, timeoutMs = 8000): Promise<string | null> {
@@ -21,6 +30,50 @@ async function fetchText(url: string, timeoutMs = 8000): Promise<string | null> 
   } catch {
     return null
   }
+}
+
+function extractPageMeta(html: string): { title: string; metaDescription: string; h1: string } {
+  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)
+  const title = titleMatch?.[1]?.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() ?? ''
+
+  const metaMatch =
+    /<meta\s[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i.exec(html) ??
+    /<meta\s[^>]*content=["']([^"']*)["'][^>]*name=["']description["']/i.exec(html)
+  const metaDescription = metaMatch?.[1]?.trim() ?? ''
+
+  const h1Match = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html)
+  const h1 = h1Match?.[1]?.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() ?? ''
+
+  return { title, metaDescription, h1 }
+}
+
+async function fetchSitemapPageMeta(sitemapUrls: string[], origin: string, max = 20): Promise<SitemapPageMeta[]> {
+  // Sample one URL per top-level path prefix for variety
+  const byPrefix = new Map<string, string>()
+  const overflow: string[] = []
+  for (const url of sitemapUrls) {
+    try {
+      const prefix = new URL(url).pathname.split('/').filter(Boolean)[0] ?? ''
+      if (!byPrefix.has(prefix)) byPrefix.set(prefix, url)
+      else overflow.push(url)
+    } catch {
+      overflow.push(url)
+    }
+  }
+  const sample = [...byPrefix.values(), ...overflow].slice(0, max)
+
+  const results = await Promise.all(
+    sample.map(async (url) => {
+      const html = await fetchText(url, 4000)
+      if (!html) return null
+      const { title, metaDescription, h1 } = extractPageMeta(html)
+      if (!title && !metaDescription && !h1) return null
+      const path = (() => { try { return new URL(url).pathname || '/' } catch { return url } })()
+      return { url, path, title, metaDescription, h1 }
+    }),
+  )
+
+  return results.filter((r): r is SitemapPageMeta => r !== null)
 }
 
 export async function fetchGeoData(
@@ -54,6 +107,10 @@ export async function fetchGeoData(
     ? [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/gi)].map(m => m[1].trim()).slice(0, 200)
     : []
 
+  const sitemapPageMeta = sitemapUrls.length > 0
+    ? await fetchSitemapPageMeta(sitemapUrls, origin, 20)
+    : []
+
   return {
     url,
     html,
@@ -64,5 +121,6 @@ export async function fetchGeoData(
     aiFaqJson,
     aiServiceJson,
     sitemapUrls,
+    sitemapPageMeta,
   }
 }

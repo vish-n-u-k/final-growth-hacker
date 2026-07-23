@@ -103,6 +103,20 @@ ${formatSocialProfiles(data.socialProfiles)}
 Pages discovered: ${urlDiscovery.totalDiscovered} (via ${source})
 Sitemap: ${data.sitemapStatus === 200 ? 'found (HTTP 200)' : `not found (HTTP ${data.sitemapStatus || 'no response'})`}
 Top URL sections: ${topPrefixes || 'none'}
+${(() => {
+  const withMeta = urlDiscovery.urls.filter(u => u.title || u.metaDescription || u.h1)
+  if (withMeta.length === 0) return ''
+  const lines = ['Page metadata (sample):']
+  for (const u of withMeta) {
+    const path = (() => { try { return new URL(u.url).pathname || '/' } catch { return u.url } })()
+    const parts: string[] = []
+    if (u.title) parts.push(`title: "${u.title}"`)
+    if (u.h1 && u.h1 !== u.title) parts.push(`h1: "${u.h1}"`)
+    if (u.metaDescription) parts.push(`meta: "${u.metaDescription.length > 120 ? u.metaDescription.slice(0, 120) + '…' : u.metaDescription}"`)
+    lines.push(`  ${path} — ${parts.join(' | ')}`)
+  }
+  return lines.join('\n')
+})()}
 
 === robots.txt ===
 ${data.robotsTxt || '(not found or empty)'}

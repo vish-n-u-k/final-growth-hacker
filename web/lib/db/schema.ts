@@ -100,6 +100,9 @@ export const moduleItems = pgTable(
     aiData: jsonb('ai_data'),              // structured data payload (e.g. calendar entries JSON for content-calendar-30-day)
     userSkipped: boolean('user_skipped').default(false),
     userSkipReason: text('user_skip_reason'),
+    exportType: text('export_type'),           // 'auto' | 'needs_choice' | 'external' | null
+    choiceOptions: jsonb('choice_options'),     // string[] | null — AI-generated options for modal
+    userChoice: text('user_choice'),            // chosen value from modal (null until user picks)
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   },
   (table) => ({

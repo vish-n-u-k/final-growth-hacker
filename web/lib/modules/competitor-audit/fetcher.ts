@@ -79,9 +79,9 @@ export async function fetchCompetitorAuditData(
     ]),
     Promise.all([
       normalizedUserUrl
-        ? discoverAllUrls(normalizedUserUrl, undefined, { maxUrls: 150 })
+        ? discoverAllUrls(normalizedUserUrl, undefined, { maxUrls: 150, enrichMeta: 20 })
         : Promise.resolve({ urls: [], sitemapFound: false, sitemapCount: 0, crawlUsed: false, totalDiscovered: 0, urlsByPrefix: {} } as UrlDiscoveryResult),
-      ...normalizedCompetitorUrls.map(u => discoverAllUrls(u, undefined, { maxUrls: 150 })),
+      ...normalizedCompetitorUrls.map(u => discoverAllUrls(u, undefined, { maxUrls: 150, enrichMeta: 10 })),
     ]),
   ])
 

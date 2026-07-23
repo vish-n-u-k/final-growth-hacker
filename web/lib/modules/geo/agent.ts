@@ -201,6 +201,7 @@ export function buildRuleFindings(data: GeoFetchData) {
     hasDateModified,
     aboutPage: aboutCheck,
     sitemapUrls: data.sitemapUrls,
+    sitemapPageMeta: data.sitemapPageMeta,
   }
 }
 
@@ -630,7 +631,19 @@ function buildRuleContext(f: ReturnType<typeof buildRuleFindings>, itemSlugs?: s
     `List items count: ${f.page.listItems} | Tables: ${f.page.tableCount}`,
     `FAQ-style headings detected: ${f.page.hasFaqHeadings}`,
     `Body excerpt: ${f.page.bodyText.slice(0, 400)}`,
-    f.sitemapUrls.length > 0 ? `\n── Sitemap URLs (${f.sitemapUrls.length} total, first 30 shown) ──\n${f.sitemapUrls.slice(0, 30).join('\n')}` : '── Sitemap: not found ──',
+    f.sitemapUrls.length > 0
+      ? `\n── Sitemap URLs (${f.sitemapUrls.length} total, first 30 shown) ──\n${f.sitemapUrls.slice(0, 30).join('\n')}` +
+        (f.sitemapPageMeta && f.sitemapPageMeta.length > 0
+          ? `\n\n── Sitemap page metadata (${f.sitemapPageMeta.length} pages sampled) ──\n` +
+            f.sitemapPageMeta.map(p => {
+              const parts: string[] = []
+              if (p.title) parts.push(`title: "${p.title}"`)
+              if (p.h1 && p.h1 !== p.title) parts.push(`h1: "${p.h1}"`)
+              if (p.metaDescription) parts.push(`meta: "${p.metaDescription.length > 120 ? p.metaDescription.slice(0, 120) + '…' : p.metaDescription}"`)
+              return `  ${p.path} — ${parts.join(' | ')}`
+            }).join('\n')
+          : '')
+      : '── Sitemap: not found ──',
   ].filter(Boolean).join('\n')
   return sections
 }

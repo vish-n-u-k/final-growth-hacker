@@ -205,8 +205,8 @@ export async function fetchCompetitorAnalysisData(
     ]),
     Promise.all(psiUrls.map(u => fetchPsi(u))),
     Promise.all([
-      discoverAllUrls(userUrl, undefined, { maxUrls: 150 }),
-      ...rawUrls.map(u => discoverAllUrls(u, undefined, { maxUrls: 150 })),
+      discoverAllUrls(userUrl, undefined, { maxUrls: 150, enrichMeta: 20 }),
+      ...rawUrls.map(u => discoverAllUrls(u, undefined, { maxUrls: 150, enrichMeta: 10 })),
     ]),
   ])
 

@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useRef, JSX } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull } from '@/lib/modules/types'
+import ExportPrepModal, { type ExportPrepItem } from '@/components/ExportPrepModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -349,6 +350,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [stageModalOpen, setStageModalOpen] = useState(false)
   const [stageModalTab, setStageModalTab] = useState(0)
   const [competitorPanelOpen, setCompetitorPanelOpen] = useState(false)
+  const [exportPrepOpen, setExportPrepOpen] = useState(false)
+  const [exportPrepModuleId, setExportPrepModuleId] = useState<string | null>(null)
+  const [exportClassificationsMap, setExportClassificationsMap] = useState<Record<string, Record<string, { exportType: 'auto' | 'needs_choice' | 'skip'; choiceOptions?: string[] }>>>({})
+  const [exportClassifyingMap, setExportClassifyingMap] = useState<Record<string, boolean>>({})
   const [resolvedBsModId, setResolvedBsModId] = useState<string | null>(
     () => allModulesData.find((m) => m.type === 'business-stage')?.id ?? null,
   )
@@ -435,7 +440,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
         [modId]: {
           ...prev[modId],
           [slug]: {
-            ...(prev[modId]?.[slug] ?? { id: itemId, aiDetail: null, aiNarrative: null, aiAction: null, aiVerified: false, completedBy: null, fixable: false, fixInputKey: null, fixIntegrationProvider: null }),
+            ...(prev[modId]?.[slug] ?? { id: itemId, aiDetail: null, aiHighlight: null, aiNarrative: null, aiAction: null, aiVerified: false, completedBy: null, fixable: false, fixInputKey: null, fixIntegrationProvider: null, userSkipped: false, userSkipReason: null, exportType: null, choiceOptions: null, userChoice: null }),
             userChecked: next,
           },
         },
@@ -501,6 +506,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           aiVerified: boolean; userChecked: boolean; completedBy: string | null
           fixable: boolean; fixInputKey: string | null; fixIntegrationProvider: string | null
           userSkipped: boolean; userSkipReason: string | null
+          exportType: string | null; choiceOptions: string[] | null; userChoice: string | null
         }>
         categories: Array<{ id: string; slug: string }>
         pageVerdicts?: ModuleData['pageVerdicts']
@@ -533,6 +539,9 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           fixIntegrationProvider: item.fixIntegrationProvider ?? null,
           userSkipped: item.userSkipped ?? false,
           userSkipReason: item.userSkipReason ?? null,
+          exportType: item.exportType ?? null,
+          choiceOptions: item.choiceOptions ?? null,
+          userChoice: item.userChoice ?? null,
         }))
         setDynItemsMap(prev => ({ ...prev, [modId]: fullItems }))
       } else {
@@ -552,6 +561,9 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             fixIntegrationProvider: item.fixIntegrationProvider ?? null,
             userSkipped: item.userSkipped ?? false,
             userSkipReason: item.userSkipReason ?? null,
+            exportType: item.exportType ?? null,
+            choiceOptions: item.choiceOptions ?? null,
+            userChoice: item.userChoice ?? null,
           }
         }
         setStatesMap(prev => ({ ...prev, [modId]: itemStates }))
@@ -562,6 +574,33 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
       }
 
       setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
+
+      // Auto-open export prep modal: classify failing items via AI then show modal
+      const failingForClassify = (data.items as { slug: string; label: string; aiDetail: string | null; aiAction: string | null; aiVerified: boolean; userChecked: boolean; userSkipped: boolean }[])
+        .filter(i => !i.aiVerified && !i.userChecked && !i.userSkipped && (i.aiDetail || i.aiAction))
+        .map(i => ({ slug: i.slug, label: i.label, aiDetail: i.aiDetail, aiAction: i.aiAction }))
+
+      if (failingForClassify.length > 0) {
+        setExportPrepModuleId(modId)
+        setExportClassifyingMap(prev => ({ ...prev, [modId]: true }))
+        setExportPrepOpen(true)
+        try {
+          const classRes = await fetch('/api/items/classify-export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ moduleId: modId, items: failingForClassify }),
+          })
+          if (classRes.ok) {
+            const { classifications } = await classRes.json() as { classifications: { slug: string; exportType: 'auto' | 'needs_choice' | 'skip'; choiceOptions?: string[] }[] }
+            const classMap: Record<string, { exportType: 'auto' | 'needs_choice' | 'skip'; choiceOptions?: string[] }> = {}
+            for (const c of classifications) classMap[c.slug] = { exportType: c.exportType, choiceOptions: c.choiceOptions }
+            setExportClassificationsMap(prev => ({ ...prev, [modId]: classMap }))
+          }
+        } catch {
+          // non-fatal — modal still opens, user can generate without choices
+        }
+        setExportClassifyingMap(prev => ({ ...prev, [modId]: false }))
+      }
     } else {
       const data = await res.json().catch(() => ({}))
       setSetupErrorMap(prev => ({ ...prev, [modId]: (data as { error?: string }).error ?? 'Analysis failed. Please try again.' }))
@@ -650,7 +689,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
         ...prev,
         [modId]: {
           ...(prev[modId] ?? {}),
-          [slug]: { ...(prev[modId]?.[slug] ?? { id: itemId, aiDetail: null, aiHighlight: null, aiNarrative: null, aiAction: null, aiVerified: false, userChecked: false, completedBy: null, fixable: false, fixInputKey: null, fixIntegrationProvider: null, userSkipped: false, userSkipReason: null }), userSkipped: skipped, userSkipReason: skipped ? reason || null : null },
+          [slug]: { ...(prev[modId]?.[slug] ?? { id: itemId, aiDetail: null, aiHighlight: null, aiNarrative: null, aiAction: null, aiVerified: false, userChecked: false, completedBy: null, fixable: false, fixInputKey: null, fixIntegrationProvider: null, userSkipped: false, userSkipReason: null, exportType: null, choiceOptions: null, userChoice: null }), userSkipped: skipped, userSkipReason: skipped ? reason || null : null },
         },
       }))
     }
@@ -800,6 +839,170 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     const a = document.createElement('a')
     a.href = url; a.download = `${cat.slug}-todo.md`; a.click()
     URL.revokeObjectURL(url)
+  }
+
+  // ── Export Prep helpers ───────────────────────────────────────────────────────
+
+  // Derive export type from a static item definition (mirrors server-side logic)
+  const deriveExportType = (item: ModuleItemDefinition): 'auto' | 'needs_choice' | 'external' | null => {
+    if (item.exportType) return item.exportType
+    if (item.fixType === 'template') return 'auto'
+    if (item.fixType === 'value' || item.fixType === 'patch') return 'needs_choice'
+    if (item.fixable) return 'auto'
+    if (item.assistedInput) return 'external'
+    return null
+  }
+
+  const getExportPrepItems = (modData: ModuleData): ExportPrepItem[] => {
+    const classifications = exportClassificationsMap[modData.id] ?? {}
+    const states = statesMap[modData.id] ?? {}
+    const dynItems = dynItemsMap[modData.id] ?? []
+    const result: ExportPrepItem[] = []
+    if (modData.definition.dynamic) {
+      dynItems.filter(i => !i.aiVerified && !i.userChecked && !i.userSkipped).forEach(item => {
+        if (classifications[item.slug]?.exportType === 'needs_choice') {
+          const c = classifications[item.slug]
+          result.push({ id: item.id, label: item.label, exportType: 'needs_choice', choiceOptions: c.choiceOptions ?? null, userChoice: item.userChoice, aiDetail: item.aiDetail, aiAction: item.aiAction, weight: item.weight })
+        }
+      })
+    } else {
+      const allDefItems = (modData.definition.categories as ModuleCategoryDefinition[]).flatMap(c => c.subCategories.flatMap(s => s.items))
+      allDefItems.forEach(defItem => {
+        const s = states[defItem.slug]
+        if (s?.aiVerified || s?.userChecked || s?.userSkipped) return
+        if (classifications[defItem.slug]?.exportType === 'needs_choice') {
+          const c = classifications[defItem.slug]
+          result.push({ id: s?.id ?? '', label: defItem.label, exportType: 'needs_choice', choiceOptions: c.choiceOptions ?? null, userChoice: s?.userChoice ?? null, aiDetail: s?.aiDetail ?? null, aiAction: s?.aiAction ?? null, weight: defItem.weight })
+        }
+      })
+    }
+    return result
+  }
+
+  const saveChoice = async (itemId: string, choice: string) => {
+    await fetch('/api/items/save-choice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId, choice }),
+    })
+    // Update local state for both static and dynamic items
+    for (const [modId, states] of Object.entries(statesMap)) {
+      const entry = Object.entries(states).find(([, s]) => s.id === itemId)
+      if (entry) {
+        const [slug] = entry
+        setStatesMap(prev => ({ ...prev, [modId]: { ...prev[modId], [slug]: { ...prev[modId][slug], userChoice: choice } } }))
+        return
+      }
+    }
+    for (const [modId, items] of Object.entries(dynItemsMap)) {
+      if (items.some(i => i.id === itemId)) {
+        setDynItemsMap(prev => ({ ...prev, [modId]: prev[modId].map(i => i.id === itemId ? { ...i, userChoice: choice } : i) }))
+        return
+      }
+    }
+  }
+
+  const buildClaudeCodePrompt = (modData: ModuleData, localChoices: Record<string, string>, skippedIds: Set<string> = new Set()): string => {
+    const classifications = exportClassificationsMap[modData.id] ?? {}
+    const states = statesMap[modData.id] ?? {}
+    const dynItems = dynItemsMap[modData.id] ?? []
+    const brandUrl = brand.websiteUrl ?? 'your website'
+
+    const autoItems: { label: string; weight: number; aiDetail: string; aiAction: string; fixGuide?: string[] }[] = []
+    const choiceItems: { label: string; weight: number; aiDetail: string; aiAction: string; choice: string; fixGuide?: string[] }[] = []
+    const skipItems: { label: string; aiAction: string }[] = []
+
+    if (modData.definition.dynamic) {
+      dynItems.filter(i => !i.aiVerified && !i.userChecked && !i.userSkipped && (i.aiAction || i.aiDetail)).forEach(item => {
+        if (skippedIds.has(item.id)) return
+        const et = classifications[item.slug]?.exportType
+        if (et === 'skip') {
+          skipItems.push({ label: item.label, aiAction: item.aiAction ?? '' })
+        } else if (et === 'needs_choice') {
+          const choice = localChoices[item.id] ?? item.userChoice ?? ''
+          choiceItems.push({ label: item.label, weight: item.weight, aiDetail: item.aiDetail ?? '', aiAction: item.aiAction ?? '', choice })
+        } else if (item.aiAction) {
+          autoItems.push({ label: item.label, weight: item.weight, aiDetail: item.aiDetail ?? '', aiAction: item.aiAction })
+        }
+      })
+    } else {
+      const allDefItems = (modData.definition.categories as ModuleCategoryDefinition[]).flatMap(c => c.subCategories.flatMap(s => s.items))
+      allDefItems.forEach(defItem => {
+        const s = states[defItem.slug]
+        if (s?.aiVerified || s?.userChecked || s?.userSkipped) return
+        if (!s?.aiAction && !s?.aiDetail) return
+        if (s?.id && skippedIds.has(s.id)) return
+        const et = classifications[defItem.slug]?.exportType
+        if (et === 'skip') {
+          skipItems.push({ label: defItem.label, aiAction: s?.aiAction ?? '' })
+        } else if (et === 'needs_choice') {
+          const choice = localChoices[s?.id ?? ''] ?? s?.userChoice ?? ''
+          choiceItems.push({ label: defItem.label, weight: defItem.weight, aiDetail: s?.aiDetail ?? '', aiAction: s?.aiAction ?? '', choice, fixGuide: defItem.fixGuide })
+        } else if (s?.aiAction) {
+          autoItems.push({ label: defItem.label, weight: defItem.weight, aiDetail: s?.aiDetail ?? '', aiAction: s?.aiAction, fixGuide: defItem.fixGuide })
+        }
+      })
+    }
+
+    const totalCode = choiceItems.length + autoItems.length
+    const lines: string[] = []
+    const wl = (w: number) => w === 3 ? 'CRITICAL' : w === 2 ? 'IMPORTANT' : 'MINOR'
+
+    lines.push(`Implement ${totalCode} fix${totalCode !== 1 ? 'es' : ''} for ${brand.name} at ${brandUrl}. Do not ask questions. Work sequentially.`)
+    lines.push('')
+    lines.push('First: explore the repo. Identify the framework (Next.js, Nuxt, Remix, etc.) and find head/meta/layout files.')
+    lines.push('')
+    lines.push('---')
+    lines.push('')
+    lines.push(`## Code changes to implement (${totalCode} item${totalCode !== 1 ? 's' : ''})`)
+    lines.push('')
+
+    let n = 0
+    choiceItems.forEach(item => {
+      n++
+      lines.push(`### ${n}. ${item.label} [${wl(item.weight)}]`)
+      if (item.aiDetail) lines.push(`Problem: ${item.aiDetail}`)
+      if (item.choice) {
+        lines.push(`Use this exact value: "${item.choice}"`)
+      } else if (item.aiAction) {
+        lines.push(`Action: ${item.aiAction}`)
+      }
+      if (item.fixGuide?.length) {
+        lines.push('Steps:')
+        item.fixGuide.forEach((step, i) => lines.push(`${i + 1}. ${step}`))
+      }
+      lines.push('')
+    })
+
+    autoItems.forEach(item => {
+      n++
+      lines.push(`### ${n}. ${item.label} [${wl(item.weight)}]`)
+      if (item.aiDetail) lines.push(`Problem: ${item.aiDetail}`)
+      if (item.aiAction) lines.push(`Action: ${item.aiAction}`)
+      if (item.fixGuide?.length) {
+        lines.push('Steps:')
+        item.fixGuide.forEach((step, i) => lines.push(`${i + 1}. ${step}`))
+      }
+      lines.push('')
+    })
+
+    if (skipItems.length > 0) {
+      lines.push('---')
+      lines.push('')
+      lines.push('## When all code changes are done')
+      lines.push('Create GROWTH_TODO.md with these manual steps:')
+      lines.push('')
+      skipItems.forEach((item, i) => {
+        lines.push(`### ${i + 1}. ${item.label}`)
+        if (item.aiAction) lines.push(item.aiAction)
+        lines.push('')
+      })
+    }
+
+    lines.push('---')
+    lines.push(`Reply with: files modified${skipItems.length > 0 ? ' + items added to GROWTH_TODO.md' : ''}`)
+
+    return lines.join('\n')
   }
 
   // ── Dynamic item renderer ────────────────────────────────────────────────────
@@ -2255,6 +2458,34 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           Click any item to see full analysis and action · AI verified = confirmed by Claude · Self-reported = marked by you
         </p>
       </div>
+
+      {/* Export Prep Modal */}
+      {exportPrepOpen && exportPrepModuleId && (() => {
+        const modData = allModulesData.find(m => m.id === exportPrepModuleId)
+        if (!modData) return null
+        const items = getExportPrepItems(modData)
+        return (
+          <ExportPrepModal
+            brandName={brand.name}
+            moduleName={modData.name}
+            items={items}
+            classifying={exportClassifyingMap[exportPrepModuleId] ?? false}
+            onChoiceSave={saveChoice}
+            onDone={(localChoices, skippedIds) => {
+              setExportPrepOpen(false)
+              const prompt = buildClaudeCodePrompt(modData, localChoices, skippedIds)
+              const blob = new Blob([prompt], { type: 'text/markdown' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `${modData.type}-claude-export.md`
+              a.click()
+              URL.revokeObjectURL(url)
+            }}
+            onSkip={() => setExportPrepOpen(false)}
+          />
+        )
+      })()}
     </>
   )
 }

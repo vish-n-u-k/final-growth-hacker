@@ -40,8 +40,18 @@ import { analyzeBusinessStage } from '@/lib/modules/business-stage/agent'
 import { fetchGmailOutreachData } from '@/lib/modules/gmail-outreach/fetcher'
 import { analyzeGmailOutreach } from '@/lib/modules/gmail-outreach/agent'
 import { generatePlaybook, type PlaybookData } from '@/lib/playbook/generator'
-import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition } from '@/lib/modules/types'
+import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition, ModuleItemDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
+
+// Derive export type from static item definition (saves adding to every definition file)
+function deriveExportType(item: ModuleItemDefinition): 'auto' | 'needs_choice' | 'external' | null {
+  if (item.exportType) return item.exportType  // explicit override wins
+  if (item.fixType === 'template') return 'auto'
+  if (item.fixType === 'value' || item.fixType === 'patch') return 'needs_choice'
+  if (item.fixable) return 'auto'
+  if (item.assistedInput) return 'external'
+  return null
+}
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
 
 export const maxDuration = 300
@@ -90,7 +100,7 @@ async function runAnalysis(
       const data = await fetchWebsiteData(requirements)
       if ('error' in data) throw new Error(data.error)
       const url = requirements['website_url'] ?? ''
-      return analyzeWebsite(data, url)
+      return analyzeWebsite(data, url, requirements['brand_name'])
     }
     case 'seo': {
       const data = await fetchSeoData(requirements)
@@ -109,7 +119,7 @@ async function runAnalysis(
         gscClientEmail: gscMeta['client_email'],
         gscPrivateKey: gscMeta['private_key'],
       }
-      return analyzeSeo(data, url, brainCtx, seoIntegrations)
+      return analyzeSeo(data, url, brainCtx, seoIntegrations, requirements['brand_name'])
     }
     case 'competitor-audit': {
       if (!requirements['competitor_urls']) {
@@ -593,6 +603,8 @@ Key One-Liners: ${pb.keyOneLiners}`
           userCheckedAt: wasChecked ? new Date() : null,
           completedBy: r.verified ? 'ai' : wasChecked ? 'user' : null,
           fixable: (r as DynamicModuleAnalysisResult).fixable ?? false,
+          exportType: (r as DynamicModuleAnalysisResult).exportType ?? null,
+          choiceOptions: (r as DynamicModuleAnalysisResult).choiceOptions ?? null,
           updatedAt: new Date(),
         })
       }),
@@ -751,6 +763,8 @@ Key One-Liners: ${pb.keyOneLiners}`
             fixType: defItem?.fixType ?? null,
             fixInputKey: defItem?.assistedInput?.key ?? defItem?.upgradeInput?.key ?? null,
             fixIntegrationProvider: defItem?.assistedInput?.integrationProvider ?? (defItem?.upgradeInput ? 'brand_assets' : null),
+            exportType: (r as ModuleAnalysisResult).exportType ?? (defItem ? deriveExportType(defItem) : null),
+            choiceOptions: (r as ModuleAnalysisResult).choiceOptions ?? null,
             updatedAt: new Date(),
           })
           .where(and(eq(moduleItems.moduleId, moduleId), eq(moduleItems.slug, r.slug)))

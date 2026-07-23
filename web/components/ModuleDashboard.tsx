@@ -26,6 +26,9 @@ export interface DBItemState {
   fixIntegrationProvider: string | null
   userSkipped: boolean
   userSkipReason: string | null
+  exportType: string | null
+  choiceOptions: string[] | null
+  userChoice: string | null
 }
 
 interface ModuleSummary {
@@ -245,7 +248,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
         setStates((prev) => ({
           ...prev,
           [slug]: {
-            ...(prev[slug] ?? { id: itemId, aiDetail: null, aiNarrative: null, aiAction: null, aiVerified: false, completedBy: null }),
+            ...(prev[slug] ?? { id: itemId, aiDetail: null, aiHighlight: null, aiNarrative: null, aiAction: null, aiVerified: false, completedBy: null, fixable: false, fixInputKey: null, fixIntegrationProvider: null, userSkipped: false, userSkipReason: null, exportType: null, choiceOptions: null, userChoice: null }),
             userChecked: next,
           },
         }))

@@ -116,7 +116,8 @@ function buildFindingMap(audit: SeoAuditResult): Map<string, { text: string; lev
 async function generateNarratives(
   websiteUrl: string,
   failedItems: { slug: string; label: string; detail: string; action: string }[],
-): Promise<Map<string, { highlight: string; narrative: string }>> {
+  brandName?: string,
+): Promise<Map<string, { highlight: string; narrative: string; exportType?: 'auto' | 'needs_choice' | 'external'; choiceOptions?: string[] }>> {
   if (failedItems.length === 0) return new Map()
 
   const itemList = failedItems
@@ -125,18 +126,23 @@ async function generateNarratives(
 
   const raw = await callAI({
     system: SEO_MODULE.systemPrompt,
-    prompt: `Website: ${websiteUrl}
+    prompt: `Website: ${websiteUrl}${brandName ? `\nBrand: ${brandName}` : ''}
 
-For each failing SEO check below, return two things in plain English any business owner can understand — no jargon:
+For each failing SEO check below, return in plain English any business owner can understand — no jargon:
 - highlight: 5–8 plain English words capturing the key point (no period, no full sentence)
 - narrative: exactly 1 plain English sentence on why this hurts the business; wrap the key risk in **double asterisks**
+- exportType: classify how this fix can be implemented — one of:
+  "auto" = Claude Code can implement it from code alone with no input (inserting a canonical tag, robots noindex removal, og:url template — deterministic code insertions)
+  "needs_choice" = the fix needs the user to decide the exact value (title tag wording, meta description copy, H1 text, alt text — content decisions only a human can make for their brand)
+  "external" = requires action outside the codebase entirely (creating a Google Search Console account, Google Analytics setup, social media registration, DNS changes at a registrar)
+- choiceOptions: (ONLY when exportType is "needs_choice") exactly 3 specific, ready-to-use strings the user can pick. For title tags: 3 actual title strings (50–60 chars, brand name included). For meta descriptions: 3 actual description strings (140–155 chars). Specific to this brand — never generic placeholders. Omit for auto/external.
 
 ${itemList}
 
 Return ONLY a valid JSON array:
-[{ "slug": "...", "highlight": "...", "narrative": "..." }, ...]
+[{ "slug": "...", "highlight": "...", "narrative": "...", "exportType": "auto|needs_choice|external", "choiceOptions": ["...", "...", "..."] }, ...]
 No markdown fences, no text outside the array.`,
-    maxTokens: 4000,
+    maxTokens: 5000,
     model: 'claude-haiku-4-5-20251001',
   })
 
@@ -144,8 +150,13 @@ No markdown fences, no text outside the array.`,
   const nEnd = raw.lastIndexOf(']')
   if (nStart === -1 || nEnd === -1 || nEnd < nStart) return new Map()
   try {
-    const rows = JSON.parse(raw.slice(nStart, nEnd + 1)) as { slug: string; highlight: string; narrative: string }[]
-    return new Map(rows.filter((r) => r.slug && r.narrative).map((r) => [r.slug, { highlight: r.highlight ?? '', narrative: r.narrative }]))
+    const rows = JSON.parse(raw.slice(nStart, nEnd + 1)) as { slug: string; highlight: string; narrative: string; exportType?: string; choiceOptions?: string[] }[]
+    return new Map(rows.filter((r) => r.slug && r.narrative).map((r) => [r.slug, {
+      highlight: r.highlight ?? '',
+      narrative: r.narrative,
+      exportType: (r.exportType === 'auto' || r.exportType === 'needs_choice' || r.exportType === 'external') ? r.exportType : undefined,
+      choiceOptions: r.choiceOptions,
+    }]))
   } catch {
     return new Map()
   }
@@ -439,6 +450,7 @@ export async function analyzeSeo(
   websiteUrl: string,
   brainContext?: string,
   integrations: SeoIntegrations = {},
+  brandName?: string,
 ): Promise<ModuleAnalysisResult[]> {
   const findingMap = buildFindingMap(audit)
   const allItems = getAllItems(SEO_MODULE)
@@ -480,14 +492,17 @@ export async function analyzeSeo(
   // Generate narratives for failing items in one batch call
   const failedItems = baseResults
     .filter((r) => r.isFail)
-    .map((r) => ({
-      slug: r.slug,
-      label: allItems.find((i) => i.slug === r.slug)?.label ?? r.slug,
-      detail: r.detail,
-      action: r.action,
-    }))
+    .map((r) => {
+      const defItem = allItems.find((i) => i.slug === r.slug)
+      return {
+        slug: r.slug,
+        label: defItem?.label ?? r.slug,
+        detail: r.detail,
+        action: r.action,
+      }
+    })
 
-  const narrativeMap = await generateNarratives(websiteUrl, failedItems)
+  const narrativeMap = await generateNarratives(websiteUrl, failedItems, brandName)
 
   const ruleResults: ModuleAnalysisResult[] = baseResults.map(({ isFail: _, ...r }) => {
     const enrichment = narrativeMap.get(r.slug)
@@ -495,6 +510,8 @@ export async function analyzeSeo(
       ...r,
       highlight: enrichment?.highlight ?? '',
       narrative: enrichment?.narrative ?? '',
+      exportType: enrichment?.exportType,
+      choiceOptions: enrichment?.choiceOptions,
     }
   })
 

@@ -84,14 +84,14 @@ Generate 4–6 findings.`,
 Using the page summaries:
 - Total pages found — is the library thin (< 10 pages), moderate (10–30), or substantial (30+)?
 - Average word count across all pages — shallow (< 400), acceptable (400–800), or deep (800+)?
-- Content type diversity — are there blogs, product/feature pages, case studies, about/company pages, a pricing page? Flag what's missing.
+- Content type diversity — are there blogs, product/feature/platform/solutions pages, case studies, about/company pages, a pricing or plans page (any URL serving this purpose — e.g. /pricing, /plans, /packages, /cost, /subscribe — use the page titles and metadata provided to identify it, not just the URL slug)? Flag what's missing.
 - Are there any pages with extremely thin content (< 200 words) that are likely indexed?
 
-Pass condition: 15+ pages, avg word count > 600, has core page types (product, about, blog/resources).
+Pass condition: 15+ pages, avg word count > 600, has core page types (product/platform/solutions/features page, about, blog/resources).
 Fail condition: fewer than 10 pages, avg word count < 400, or missing core page types.
 
 Weight 3: fewer than 5 content pages total, or no blog/resource section at all.
-Weight 2: average word count below 400, or missing a key page type like pricing or about.
+Weight 2: average word count below 400, or missing a key page type like a pricing/plans page or about page — use page titles and metadata to identify these, not just the URL slug.
 Weight 1: minor gaps such as no case studies section.
 
 Generate 3–5 findings.`,

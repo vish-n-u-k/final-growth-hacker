@@ -96,6 +96,9 @@ export default async function DashboardPage() {
         fixIntegrationProvider: item.fixIntegrationProvider ?? null,
         userSkipped: item.userSkipped ?? false,
         userSkipReason: item.userSkipReason ?? null,
+        exportType: (item.exportType as string | null) ?? null,
+        choiceOptions: (item.choiceOptions as string[] | null) ?? null,
+        userChoice: (item.userChoice as string | null) ?? null,
       }))
 
       const audits = auditsByModule.get(mod.id) ?? []
@@ -140,6 +143,9 @@ export default async function DashboardPage() {
           fixIntegrationProvider: item.fixIntegrationProvider ?? null,
           userSkipped: item.userSkipped ?? false,
           userSkipReason: item.userSkipReason ?? null,
+          exportType: (item.exportType as string | null) ?? null,
+          choiceOptions: (item.choiceOptions as string[] | null) ?? null,
+          userChoice: (item.userChoice as string | null) ?? null,
         }
       }
 

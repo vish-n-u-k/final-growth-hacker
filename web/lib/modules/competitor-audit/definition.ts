@@ -67,7 +67,7 @@ Generate 3–6 items for specific keyword gaps you observe.`,
       order: 3,
       prompt: `Analyze competitor website structure and content visible in the HTML (nav links, section headings, page sections, blog/resource links, case study links, etc.). Identify content types or sections competitors have that the user's site lacks.
 
-Flag: missing blog/resource section → weight 3 if competitors use it heavily; missing case studies, comparison pages, or pricing page → weight 2; minor content format differences → weight 1.
+Flag: missing blog/resource section → weight 3 if competitors use it heavily; missing case studies, comparison pages, or a page showing plans/pricing (any URL that serves this purpose — e.g. /pricing, /plans, /packages, /cost, /subscribe) → weight 2; minor content format differences → weight 1.
 
 Generate 3–5 items for content structure and format gaps.`,
     },
@@ -105,7 +105,7 @@ Generate 2–4 items based on observable signals.`,
       slug: 'market-positioning',
       label: 'Market Positioning',
       order: 7,
-      prompt: `Analyze competitor homepage messaging: hero headline, sub-headline, value proposition, target audience signals, pricing page presence, feature claims, trust signals (logos, user counts, awards), and unique selling points. Compare against the user's site messaging.
+      prompt: `Analyze competitor homepage messaging: hero headline, sub-headline, value proposition, target audience signals, presence of a pricing or plans page (any page where visitors can see cost — e.g. /pricing, /plans, /packages, /cost, /subscribe — check the page metadata provided), feature claims, trust signals (logos, user counts, awards), and unique selling points. Compare against the user's site messaging.
 
 Flag: competitor has a clearer, more specific value prop targeting the same audience → weight 2–3; competitor dominates a specific segment user could serve → weight 3; competitor's CTA or pricing is more compelling → weight 2; minor messaging differences → weight 1.
 

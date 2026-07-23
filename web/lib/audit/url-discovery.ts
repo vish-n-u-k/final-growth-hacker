@@ -11,8 +11,11 @@ const UA = 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growthhacker.app)'
 export interface DiscoveredUrl {
   url: string
   source: 'sitemap' | 'crawl'
-  depth?: number       // crawl only — click depth from homepage
-  sitemapName?: string // sitemap only — which child sitemap this came from
+  depth?: number        // crawl only — click depth from homepage
+  sitemapName?: string  // sitemap only — which child sitemap this came from
+  title?: string        // page <title> (populated by enrichUrlsWithMeta)
+  metaDescription?: string // <meta name="description"> content
+  h1?: string           // first <h1> text
 }
 
 export interface UrlDiscoveryResult {
@@ -23,6 +26,64 @@ export interface UrlDiscoveryResult {
   totalDiscovered: number
   urlsByPrefix: Record<string, number> // e.g. { '/blog': 42, '/products': 15 }
 }
+
+// ── Page meta extraction ──────────────────────────────────────────────────────
+
+function extractPageMeta(html: string): { title: string; metaDescription: string; h1: string } {
+  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)
+  const title = titleMatch?.[1]?.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() ?? ''
+
+  const metaMatch =
+    /<meta\s[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i.exec(html) ??
+    /<meta\s[^>]*content=["']([^"']*)["'][^>]*name=["']description["']/i.exec(html)
+  const metaDescription = metaMatch?.[1]?.trim() ?? ''
+
+  const h1Match = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html)
+  const h1 = h1Match?.[1]?.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() ?? ''
+
+  return { title, metaDescription, h1 }
+}
+
+/**
+ * Enrich a sample of discovered URLs with their page-level metadata (title, meta description, h1).
+ * Samples one URL per top-level path prefix for variety, up to maxEnrich total.
+ */
+export async function enrichUrlsWithMeta(
+  urls: DiscoveredUrl[],
+  maxEnrich = 20,
+): Promise<DiscoveredUrl[]> {
+  // Pick one URL per top-level prefix first for variety, then fill remaining slots
+  const byPrefix = new Map<string, DiscoveredUrl>()
+  const overflow: DiscoveredUrl[] = []
+  for (const item of urls) {
+    try {
+      const prefix = new URL(item.url).pathname.split('/').filter(Boolean)[0] ?? ''
+      if (!byPrefix.has(prefix)) byPrefix.set(prefix, item)
+      else overflow.push(item)
+    } catch {
+      overflow.push(item)
+    }
+  }
+  const sample = [...byPrefix.values(), ...overflow].slice(0, maxEnrich)
+
+  const enriched = await Promise.all(
+    sample.map(async (item) => {
+      const html = await safeFetchText(item.url, 4000)
+      if (!html) return item
+      const { title, metaDescription, h1 } = extractPageMeta(html)
+      const extra: Partial<DiscoveredUrl> = {}
+      if (title) extra.title = title
+      if (metaDescription) extra.metaDescription = metaDescription
+      if (h1) extra.h1 = h1
+      return { ...item, ...extra }
+    }),
+  )
+
+  const enrichedMap = new Map(enriched.map(u => [u.url, u]))
+  return urls.map(u => enrichedMap.get(u.url) ?? u)
+}
+
+// ── Fetch helpers ─────────────────────────────────────────────────────────────
 
 async function safeFetchText(url: string, timeoutMs = 7000): Promise<string | null> {
   try {
@@ -183,6 +244,7 @@ export async function discoverAllUrls(
     maxUrls?: number
     maxCrawlDepth?: number
     crawlFallbackThreshold?: number
+    enrichMeta?: boolean | number // fetch title/meta/h1 for a sample of discovered URLs
   },
 ): Promise<UrlDiscoveryResult> {
   const maxUrls = opts?.maxUrls ?? 300
@@ -207,7 +269,14 @@ export async function discoverAllUrls(
     finalUrls = await crawlSite(origin, homepageHtml, maxUrls, maxCrawlDepth)
   }
 
-  const capped = finalUrls.slice(0, maxUrls)
+  let capped = finalUrls.slice(0, maxUrls)
+
+  const enrichCount = typeof opts?.enrichMeta === 'number'
+    ? opts.enrichMeta
+    : opts?.enrichMeta ? 20 : 0
+  if (enrichCount > 0) {
+    capped = await enrichUrlsWithMeta(capped, enrichCount)
+  }
 
   return {
     urls: capped,
@@ -232,16 +301,29 @@ export function formatUrlProfile(discovery: UrlDiscoveryResult, label = 'Site'):
     .map(([p, n]) => `${p} (${n})`)
     .join(', ')
 
-  const sampleUrls = discovery.urls
-    .slice(0, 12)
-    .map(u => new URL(u.url).pathname)
-    .join(', ')
-
   const lines = [
     `${label} pages discovered: ${discovery.totalDiscovered} (via ${source})`,
     prefixes ? `Content distribution: ${prefixes}` : '',
-    sampleUrls ? `Sample paths: ${sampleUrls}` : '',
   ]
+
+  const withMeta = discovery.urls.filter(u => u.title || u.metaDescription || u.h1)
+  if (withMeta.length > 0) {
+    lines.push('Page metadata (sample):')
+    for (const u of withMeta) {
+      const path = (() => { try { return new URL(u.url).pathname || '/' } catch { return u.url } })()
+      const parts: string[] = []
+      if (u.title) parts.push(`title: "${u.title}"`)
+      if (u.h1 && u.h1 !== u.title) parts.push(`h1: "${u.h1}"`)
+      if (u.metaDescription) parts.push(`meta: "${u.metaDescription.length > 120 ? u.metaDescription.slice(0, 120) + '…' : u.metaDescription}"`)
+      lines.push(`  ${path} — ${parts.join(' | ')}`)
+    }
+  } else {
+    const sampleUrls = discovery.urls
+      .slice(0, 12)
+      .map(u => { try { return new URL(u.url).pathname } catch { return u.url } })
+      .join(', ')
+    if (sampleUrls) lines.push(`Sample paths: ${sampleUrls}`)
+  }
 
   return lines.filter(Boolean).join('\n')
 }

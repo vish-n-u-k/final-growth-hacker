@@ -14,6 +14,7 @@ export interface ModuleItemDefinition {
   fixGuide?: string[]  // static step-by-step instructions shown in expanded item body (handoff doc)
   fixable?: boolean  // true = this item can be auto-fixed via GitHub
   fixType?: FixType  // controls which fix path is used (undefined = legacy full-file Claude flow)
+  exportType?: 'auto' | 'needs_choice' | 'external'  // optional override; derived from fixType/fixable if not set
   assistedInput?: {  // fix is BLOCKED until user saves this value in an integration
     key: string                 // metadata key stored in brandIntegrations e.g. 'ga4_measurement_id'
     integrationProvider: string // provider slug e.g. 'google_analytics'
@@ -101,6 +102,8 @@ export interface ModuleAnalysisResult {
   narrative: string
   action: string
   verified: boolean
+  exportType?: 'auto' | 'needs_choice' | 'external'
+  choiceOptions?: string[]  // 2-3 ready-to-use values for needs_choice items
 }
 
 // ── Analysis result — dynamic modules (Claude generates the items themselves) ──
@@ -117,6 +120,8 @@ export interface DynamicModuleAnalysisResult {
   verified: boolean     // true = passes | false = needs attention
   fixable: boolean      // true = safe to auto-fix via GitHub (meta/title/canonical/OG tags only)
   fixType?: FixType     // controls which fix path is used
+  exportType?: 'auto' | 'needs_choice' | 'external'
+  choiceOptions?: string[]  // 2-3 ready-to-use values for needs_choice items
 }
 
 // ── Full item row passed to dashboard for dynamic modules ─────────────────────
@@ -142,6 +147,9 @@ export interface DBItemFull {
   fixIntegrationProvider: string | null
   userSkipped: boolean
   userSkipReason: string | null
+  exportType: string | null
+  choiceOptions: string[] | null
+  userChoice: string | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
