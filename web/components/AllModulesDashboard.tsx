@@ -1487,11 +1487,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
               <div className="meta">
                 <div className="desc">{activeModule?.definition.description}</div>
                 <div className="journey-bar">
-                  <div className="journey-tag-wrap">
-                    <span className="journey-tag" style={{ left: `${barPct}%` }}>
-                      {userCount.toLocaleString()} · you’re here
-                    </span>
-                  </div>
                   <div className="journey-track-wrap">
                     <div className="journey-track">
                       <div className="journey-fill" style={{ width: `${barPct}%` }} />
@@ -1507,6 +1502,11 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     {JOURNEY_MILESTONES.map(m => (
                       <span key={m}>{m}</span>
                     ))}
+                  </div>
+                  <div className="journey-tag-wrap">
+                    <span className="journey-tag" style={{ left: `${barPct}%` }}>
+                      {userCount.toLocaleString()} · you’re here
+                    </span>
                   </div>
                 </div>
               </div>
