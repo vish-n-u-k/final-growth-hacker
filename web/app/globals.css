@@ -211,6 +211,8 @@ header {
 .hero-social-icon--connected:hover {
   color: var(--green-bright); background: #1a3526; border-color: var(--green);
 }
+html.light .hero-social-icon { background: #f6f7f6; border-color: #e5e7e5; }
+html.light .hero-social-icon--connected { color: #5b6560; }
 .hero-social-icon--dim {
   color: #a3aaa6; opacity: 1;
   background: #f3f4f3; border-color: #e2e4e2;
