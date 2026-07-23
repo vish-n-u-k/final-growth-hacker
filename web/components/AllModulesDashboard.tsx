@@ -399,6 +399,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const activeModule = sortedByOrder.find(m => !isModuleLocked(m))
   const currentLevel = activeModule?.order ?? 0
   const barPct = userCountToBarPct(userCount)
+  const journeyTagPct = Math.min(Math.max(barPct, 9), 91)
 
   const JOURNEY_MILESTONES = [0, 10, 50, 100, 500]
 
@@ -1504,7 +1505,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     ))}
                   </div>
                   <div className="journey-tag-wrap">
-                    <span className="journey-tag" style={{ left: `${barPct}%` }}>
+                    <span className="journey-tag" style={{ left: `${journeyTagPct}%` }}>
                       {userCount.toLocaleString()} · you’re here
                     </span>
                   </div>
