@@ -298,7 +298,7 @@ header {
   font-weight: 600; letter-spacing: .5px; text-transform: uppercase;
 }
 .overview .meta .desc { color: var(--text-dim); font-size: 14.5px; margin-top: 6px; line-height: 1.5; }
-.overview-body .meta .desc { color: var(--text-dim); font-size: 14.5px; line-height: 1.55; }
+.overview-body .meta .desc { color: var(--text-dim); font-size: 14.5px; line-height: 1.55; max-width: 480px; }
 .overview-body .meta .desc strong { color: var(--text); font-weight: 700; }
 .overview-body .journey-bar { margin-top: 14px; }
 .journey-bar { width: 100%; margin-top: 18px; }
