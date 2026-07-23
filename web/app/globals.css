@@ -163,7 +163,7 @@ header {
 .hero-badge {
   display: inline-flex; align-items: center; gap: 7px;
   margin-top: 12px; padding: 5px 14px;
-  background: #e3f2ea;
+  background: #f2f4f3;
   border-radius: 999px;
   font-size: 13px; font-weight: 600; color: #146b54;
 }
