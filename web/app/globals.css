@@ -174,7 +174,7 @@ header {
   font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--green); margin-bottom: 6px;
 }
-.overview-tracking { color: var(--text-faint); font-size: 12.5px; margin-top: 6px; }
+.overview-tracking { color: #8b938f; font-size: 12.5px; margin-top: 6px; }
 
 /* ── Hero meta row (website url + social icons) ── */
 .hero-meta {
