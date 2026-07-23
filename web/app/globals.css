@@ -186,7 +186,7 @@ header {
 }
 .hero-website-url {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 13.5px; color: var(--text-faint); font-family: var(--font-body);
+  font-size: 13.5px; color: #8b938f; font-family: var(--font-body);
   text-decoration: none; border: 1px solid transparent;
   background: transparent; border-radius: 20px;
   padding: 4px 10px 4px 8px; transition: color .15s, background .15s, border-color .15s;
