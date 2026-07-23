@@ -62,13 +62,15 @@ interface WebAnalytics {
 
 interface DashboardData {
   posthogConnected: boolean
-  signups24h: number
-  signins24h: number
-  dau: number
-  mau: number
-  deletedAccounts24h: number
+  signups24h: number; signups7d: number; signups30d: number
+  signins24h: number; signins7d: number; signins30d: number
+  dau: number; activeUsers7d: number; mau: number
+  deletedAccounts24h: number; deleted7d: number; deleted30d: number
   retention: { day: string; rate: number }[] | null
   funnel: { stage: string; value: number }[] | null
+  activationFunnel: { stage: string; value: number }[] | null
+  wau: { week: string; users: number }[] | null
+  pmf: { event: string; label: string; retainedAvg: number; churnedAvg: number }[] | null
   webAnalytics: WebAnalytics | null
   gsc: GscData
   ga4: Ga4Data
@@ -152,14 +154,13 @@ function SourcePill({ children }: { children: React.ReactNode }) {
   )
 }
 
-function Delta({ value, invertGood = false }: { value: number; invertGood?: boolean }) {
-  // if (value === 0) return <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>— flat vs yesterday</span>
+function Delta({ value, invertGood = false, period = 'yesterday' }: { value: number; invertGood?: boolean; period?: string }) {
   const good = invertGood ? value < 0 : value > 0
   const Icon = value > 0 ? TrendingUp : TrendingDown
   return (
     <span style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500, color: good ? 'var(--green-bright)' : '#f87171' }}>
       <Icon size={13} />
-      {value > 0 ? '+' : ''}{value} vs yesterday
+      {value > 0 ? '+' : ''}{value} vs {period}
     </span>
   )
 }
@@ -177,10 +178,10 @@ function ComingSoonBadge() {
 }
 
 function StatCard({
-  icon: Icon, iconTone, label, value, source, deltaValue, invertGood, loading, comingSoon,
+  icon: Icon, iconTone, label, value, source, deltaValue, invertGood, loading, comingSoon, period,
 }: {
   icon: React.ElementType; iconTone: string; label: string; value: string | number
-  source: string; deltaValue: number; invertGood?: boolean; loading?: boolean; comingSoon?: boolean
+  source: string; deltaValue: number; invertGood?: boolean; loading?: boolean; comingSoon?: boolean; period?: string
 }) {
   const iconColor = toneColor(iconTone)
   const textColor = comingSoon ? '#555f5a' : iconColor
@@ -217,7 +218,7 @@ function StatCard({
         ? <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Connect Stripe to unlock</span>
         : loading
           ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>loading…</span>
-          : <Delta value={deltaValue} invertGood={invertGood} />
+          : <Delta value={deltaValue} invertGood={invertGood} period={period} />
       }
     </div>
   )
@@ -341,6 +342,172 @@ function FunnelCard({ data, loading }: { data: { stage: string; value: number }[
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+function ActivationFunnelCard({ data, loading }: { data: { stage: string; value: number }[] | null; loading: boolean }) {
+  const displayData = data ?? []
+  const max = displayData[0]?.value ?? 1
+  return (
+    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+        <div>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)' }}>
+            Activation funnel
+          </h3>
+          <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 3 }}>
+            Signup → brand setup → first post → social → publish · last 90 days
+            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
+          </p>
+        </div>
+        <SourcePill>PostHog</SourcePill>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 24 }}>
+        {loading
+          ? [1, 2, 3, 4, 5].map(i => (
+              <div key={i}>
+                <div style={{ height: 14, width: '60%', borderRadius: 4, background: 'var(--line)', marginBottom: 8 }} />
+                <div style={{ height: 8, borderRadius: 99, background: 'var(--line)' }} />
+              </div>
+            ))
+          : displayData.length === 0
+            ? <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>No funnel data — ensure onboarding_started, post_generated, social_account_connected and post_shared events are firing in PostHog</div>
+          : displayData.map((f, i) => {
+              const pct = Math.round((f.value / max) * 100)
+              const prev = i > 0 ? displayData[i - 1].value : null
+              const stepPct = prev ? Math.round((f.value / prev) * 100) : 100
+              return (
+                <div key={f.stage}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 14, color: 'var(--text-dim)' }}>{f.stage}</span>
+                    <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {f.value.toLocaleString()}
+                      {prev && (
+                        <span style={{ fontWeight: 500, fontSize: 13, color: stepPct < 30 ? '#f87171' : 'var(--text-dim)' }}>
+                          {stepPct}% of prev
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div style={{ height: 8, borderRadius: 99, background: 'var(--line)' }}>
+                    <div style={{ height: 8, borderRadius: 99, width: `${pct}%`, background: 'linear-gradient(90deg, var(--green), var(--green-bright))' }} />
+                  </div>
+                </div>
+              )
+            })
+        }
+      </div>
+    </div>
+  )
+}
+
+function WauChart({ data, loading }: { data: { week: string; users: number }[] | null; loading: boolean }) {
+  const chartData = data ?? []
+  return (
+    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+        <div>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)' }}>
+            Daily active users
+          </h3>
+          <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 3 }}>
+            Unique identified users per day — last 30 days
+            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
+          </p>
+        </div>
+        <SourcePill>PostHog</SourcePill>
+      </div>
+      {!loading && chartData.length === 0 ? (
+        <div style={{ marginTop: 24, padding: '28px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
+          No event data in PostHog for the last 30 days
+        </div>
+      ) : (
+      <div style={{ width: '100%', height: 200, marginTop: 24 }}>
+        <ResponsiveContainer>
+          <AreaChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+            <defs>
+              <linearGradient id="wauFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%"   stopColor="var(--lime)" stopOpacity={0.25} />
+                <stop offset="100%" stopColor="var(--lime)" stopOpacity={0}    />
+              </linearGradient>
+            </defs>
+            <XAxis dataKey="week" tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+            <YAxis tick={{ fill: 'var(--text-faint)', fontSize: 11 }} axisLine={false} tickLine={false} width={28} />
+            <Tooltip
+              contentStyle={{ background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 8, fontSize: 12 }}
+              labelStyle={{ color: 'var(--text-dim)' }}
+              itemStyle={{ color: 'var(--lime)' }}
+              formatter={(v) => [v, 'Active users']}
+            />
+            <Area type="monotone" dataKey="users" stroke="var(--lime)" strokeWidth={2.5} fill="url(#wauFill)" dot={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      )}
+    </div>
+  )
+}
+
+function PmfCard({ data, loading }: { data: { event: string; label: string; retainedAvg: number; churnedAvg: number }[] | null; loading: boolean }) {
+  const displayData = data ?? []
+  const maxVal = Math.max(...displayData.flatMap(d => [d.retainedAvg, d.churnedAvg]), 1)
+  return (
+    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+        <div>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)' }}>
+            Product-market fit signals
+          </h3>
+          <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 3 }}>
+            Avg events per user — retained vs churned · last 90 days
+            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
+          </p>
+        </div>
+        <SourcePill>PostHog</SourcePill>
+      </div>
+      <div style={{ display: 'flex', gap: 20, fontSize: 11, color: 'var(--text-dim)', marginTop: 20, marginBottom: 4 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--green-bright)', display: 'inline-block' }} />
+          Retained
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 2, background: '#f87171', display: 'inline-block' }} />
+          Churned
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginTop: 16 }}>
+        {loading
+          ? [1, 2, 3, 4].map(i => (
+              <div key={i}>
+                <div style={{ height: 12, width: '50%', borderRadius: 4, background: 'var(--line)', marginBottom: 8 }} />
+                <div style={{ height: 6, borderRadius: 99, background: 'var(--line)', marginBottom: 4 }} />
+                <div style={{ height: 6, borderRadius: 99, background: 'var(--line)' }} />
+              </div>
+            ))
+          : displayData.length === 0
+            ? <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>No feature event data — ensure feed_viewed, post_generated, post_shared etc. are firing in PostHog</div>
+          : displayData.map(d => (
+              <div key={d.event}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{d.label}</span>
+                  <span style={{ fontSize: 12, display: 'flex', gap: 14, flexShrink: 0 }}>
+                    <span style={{ color: 'var(--green-bright)', fontWeight: 600 }}>{d.retainedAvg}×</span>
+                    <span style={{ color: '#f87171', fontWeight: 600 }}>{d.churnedAvg}×</span>
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ height: 6, borderRadius: 99, background: 'var(--line)' }}>
+                    <div style={{ height: 6, borderRadius: 99, width: `${Math.round((d.retainedAvg / maxVal) * 100)}%`, background: 'var(--green-bright)' }} />
+                  </div>
+                  <div style={{ height: 6, borderRadius: 99, background: 'var(--line)' }}>
+                    <div style={{ height: 6, borderRadius: 99, width: `${Math.round((d.churnedAvg / maxVal) * 100)}%`, background: '#f87171' }} />
+                  </div>
+                </div>
+              </div>
+            ))
+        }
       </div>
     </div>
   )
@@ -516,21 +683,29 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   const gsc = data?.gsc
   const ga4 = data?.ga4
 
+  // Range-derived values
+  const rangeLabel      = range === '7d' ? 'Last 7 days' : range === '30d' ? 'Last 30 days' : 'Last 24 hours'
+  const rangePeriod     = range === '7d' ? 'prev 7d'     : range === '30d' ? 'prev 30d'     : 'yesterday'
+  const signupsVal      = range === '7d' ? (data?.signups7d ?? 0)          : range === '30d' ? (data?.signups30d ?? 0)          : (data?.signups24h ?? 0)
+  const signinsVal      = range === '7d' ? (data?.signins7d ?? 0)          : range === '30d' ? (data?.signins30d ?? 0)          : (data?.signins24h ?? 0)
+  const deletedVal      = range === '7d' ? (data?.deleted7d ?? 0)          : range === '30d' ? (data?.deleted30d ?? 0)          : (data?.deletedAccounts24h ?? 0)
+  const activeUsersVal  = range === '7d' ? (data?.activeUsers7d ?? 0)      : range === '30d' ? (data?.mau ?? 0)                 : (data?.dau ?? 0)
+  const activeUsersLabel = range === '7d' ? '7-day active users'           : range === '30d' ? 'Monthly active users'           : 'Daily active users'
+
   // Build activity tiles — real PostHog data + Stripe (coming soon)
   const activityTiles: {
     key: string; label: string; value: string | number; delta: number
     source: string; icon: React.ElementType; tone: string
-    loading?: boolean; comingSoon?: boolean; invertGood?: boolean
+    loading?: boolean; comingSoon?: boolean; invertGood?: boolean; period?: string
   }[] = [
-    { key: 'signups',  label: 'New signups',         value: data?.signups24h         ?? 0, delta: 0, source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading },
-    { key: 'signins',  label: 'Sign-ins',             value: data?.signins24h         ?? 0, delta: 0, source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading },
-    { key: 'dau',      label: 'Daily active users',   value: data?.dau                ?? 0, delta: 0, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading },
-    { key: 'mau',      label: 'Monthly active users', value: data?.mau                ?? 0, delta: 0, source: 'PostHog',  icon: Crown,         tone: 'green',   loading: phLoading },
-    { key: 'deleted',  label: 'Deleted account',      value: data?.deletedAccounts24h ?? 0, delta: 0, source: 'PostHog',  icon: Trash2,        tone: 'red',     loading: phLoading, invertGood: true },
-    { key: 'pro',      label: 'Became PRO',           value: 0,                             delta: 0, source: 'Stripe',   icon: Crown,         tone: 'amber',   comingSoon: true },
-    { key: 'unsub',    label: 'Unsubscribed',         value: 0,                             delta: 0, source: 'Stripe',   icon: UserMinus,     tone: 'red',     comingSoon: true, invertGood: true },
-    { key: 'contact',  label: 'Contacted support',    value: 0,                             delta: 0, source: 'Internal', icon: MessageSquare, tone: 'neutral', comingSoon: true },
-    { key: 'reviews',  label: 'Reviews left',         value: 0,                             delta: 0, source: 'Internal', icon: Star,          tone: 'amber',   comingSoon: true },
+    { key: 'signups',  label: 'New signups',      value: signupsVal,      delta: 0, source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading, period: rangePeriod },
+    { key: 'signins',  label: 'Sign-ins',          value: signinsVal,      delta: 0, source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading, period: rangePeriod },
+    { key: 'au',       label: activeUsersLabel,    value: activeUsersVal,  delta: 0, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading, period: rangePeriod },
+    { key: 'deleted',  label: 'Deleted account',   value: deletedVal,      delta: 0, source: 'PostHog',  icon: Trash2,        tone: 'red',     loading: phLoading, period: rangePeriod, invertGood: true },
+    { key: 'pro',      label: 'Became PRO',        value: 0, delta: 0, source: 'Stripe',   icon: Crown,         tone: 'amber',   comingSoon: true },
+    { key: 'unsub',    label: 'Unsubscribed',      value: 0, delta: 0, source: 'Stripe',   icon: UserMinus,     tone: 'red',     comingSoon: true, invertGood: true },
+    { key: 'contact',  label: 'Support contacted', value: 0, delta: 0, source: 'Internal', icon: MessageSquare, tone: 'neutral', comingSoon: true },
+    { key: 'reviews',  label: 'Reviews left',      value: 0, delta: 0, source: 'Internal', icon: Star,          tone: 'amber',   comingSoon: true },
   ]
 
   const avgScore = modules.filter(m => !m.locked).length > 0
@@ -620,31 +795,13 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
 
         {/* Summary + Todo — hidden for now */}
 
-        {/* Last 24 hours */}
+        {/* Activity section — range-driven */}
         <section style={{ marginBottom: 36 }}>
           <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
-            Last 24 hours
+            {rangeLabel}
           </h2>
-          {/* Group 1: activity events */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
-            {activityTiles.filter(t => !['dau', 'mau'].includes(t.key)).map((item) => (
-              <StatCard
-                key={item.key}
-                icon={item.icon} iconTone={item.tone}
-                label={item.label} value={item.value}
-                source={item.source} deltaValue={item.delta}
-                invertGood={item.invertGood}
-                loading={item.loading}
-                comingSoon={item.comingSoon}
-              />
-            ))}
-          </div>
-          {/* Group 2: active users */}
-          <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 10 }}>
-            Active users
-          </div>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
-            {activityTiles.filter(t => ['dau', 'mau'].includes(t.key)).map((item) => (
+            {activityTiles.map((item) => (
               <StatCard
                 key={item.key}
                 icon={item.icon} iconTone={item.tone}
@@ -653,6 +810,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 invertGood={item.invertGood}
                 loading={item.loading}
                 comingSoon={item.comingSoon}
+                period={item.period}
               />
             ))}
           </div>
@@ -673,6 +831,25 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             <RetentionCurve data={retentionData} loading={phLoading} />
             <FunnelCard data={funnelData} loading={phLoading} />
           </div>
+        </section>
+
+        {/* ── Product signals ── */}
+        <section style={{ marginBottom: 36 }}>
+          <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
+            Product signals
+          </h2>
+          {!data?.posthogConnected && !phLoading ? (
+            <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '28px 24px', textAlign: 'center' }}>
+              <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>PostHog not connected</p>
+              <p style={{ fontSize: 13, color: 'var(--text-dim)' }}>Go to Settings → Integrations → PostHog to connect</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <WauChart data={data?.wau ?? null} loading={phLoading} />
+              <ActivationFunnelCard data={data?.activationFunnel ?? null} loading={phLoading} />
+              <PmfCard data={data?.pmf ?? null} loading={phLoading} />
+            </div>
+          )}
         </section>
 
         {/* ── PostHog Web Analytics ── */}

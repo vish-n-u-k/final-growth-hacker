@@ -194,14 +194,23 @@ header {
   position: absolute; bottom: calc(100% + 7px); left: 50%;
   transform: translateX(-50%);
   background: var(--card); border: 1px solid var(--line);
-  border-radius: 10px; padding: 9px 14px;
+  border-radius: 10px; padding: 12px 14px;
   font-size: 12px; line-height: 1.5; color: var(--text-dim);
   white-space: nowrap; box-shadow: 0 8px 24px rgba(0,0,0,.6);
-  z-index: 200; pointer-events: none;
+  z-index: 200; display: flex; flex-direction: column; gap: 8px;
 }
 .hero-social-tooltip strong {
-  color: var(--text); font-weight: 600; display: block; margin-bottom: 2px;
+  color: var(--text); font-weight: 600; display: block;
 }
+.hero-social-tooltip-btn {
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  background: #0f2e1e; border: 1px solid var(--green); border-radius: 8px;
+  color: var(--green-bright); font-size: 12.5px; font-weight: 600;
+  font-family: var(--font-body); padding: 8px 14px; cursor: pointer;
+  transition: background .15s; width: 100%; text-decoration: none;
+  margin-top: 4px; letter-spacing: .1px;
+}
+.hero-social-tooltip-btn:hover { background: #1a3a28; }
 .hero-social-tooltip::after {
   content: ''; position: absolute; top: 100%; left: 50%;
   transform: translateX(-50%);

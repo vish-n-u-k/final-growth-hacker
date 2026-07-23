@@ -251,10 +251,12 @@ export async function GET(request: NextRequest) {
     .limit(1)
   if (!brand) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Return cached snapshot if available and not forced refresh
-  if (!force && brand.analyticsSnapshot && brand.analyticsSnapshotAt) {
+  // Return cached snapshot if available, not forced, and contains new fields
+  const snap = brand.analyticsSnapshot as Record<string, unknown> | null
+  const snapIsFresh = snap && snap['_v'] === 7 && 'signups7d' in snap
+  if (!force && snapIsFresh && brand.analyticsSnapshotAt) {
     return NextResponse.json({
-      ...(brand.analyticsSnapshot as object),
+      ...snap,
       snapshotAt: brand.analyticsSnapshotAt.toISOString(),
     })
   }
@@ -286,12 +288,25 @@ export async function GET(request: NextRequest) {
   }
 
   let posthogData: {
-    posthogConnected: boolean; signups24h: number; signins24h: number
-    dau: number; mau: number; deletedAccounts24h: number
+    posthogConnected: boolean
+    signups24h: number; signups7d: number; signups30d: number
+    signins24h: number; signins7d: number; signins30d: number
+    dau: number; activeUsers7d: number; mau: number
+    deletedAccounts24h: number; deleted7d: number; deleted30d: number
     retention: { day: string; rate: number }[] | null
     funnel: { stage: string; value: number }[] | null
+    activationFunnel: { stage: string; value: number }[] | null
+    wau: { week: string; users: number }[] | null
+    pmf: { event: string; label: string; retainedAvg: number; churnedAvg: number }[] | null
     webAnalytics: WebAnalytics | null
-  } = { posthogConnected: false, signups24h: 0, signins24h: 0, dau: 0, mau: 0, deletedAccounts24h: 0, retention: null, funnel: null, webAnalytics: null }
+  } = {
+    posthogConnected: false,
+    signups24h: 0, signups7d: 0, signups30d: 0,
+    signins24h: 0, signins7d: 0, signins30d: 0,
+    dau: 0, activeUsers7d: 0, mau: 0,
+    deletedAccounts24h: 0, deleted7d: 0, deleted30d: 0,
+    retention: null, funnel: null, activationFunnel: null, wau: null, pmf: null, webAnalytics: null,
+  }
 
   if (phInt?.apiKey) {
     const meta = (phInt.metadata as Record<string, string> | null) ?? {}
@@ -301,18 +316,22 @@ export async function GET(request: NextRequest) {
     if (projectId) {
       const key = phInt.apiKey
       const [
-        signups24h, signins24h, dau, mau, deletedAccounts24h,
+        signupsRows, signinsRows, activeUsersRows, deletedRows,
         retentionRaw, funnelRaw,
         coreCurrentRows, corePriorRows,
         sessionCurrentRows, sessionPriorRows,
         visitorsChartRows, topPathsRows,
         channelsRows, devicesRows, countriesRows, activeHoursRows,
+        activationFunnelRaw, wauRows, pmfRetainedRows, pmfChurnedRows,
       ] = await Promise.all([
-        hogql(host, projectId, key, `SELECT count(DISTINCT properties.$email) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email) AND created_at >= now() - interval 1 day`),
-        hogql(host, projectId, key, `SELECT count() FROM events WHERE event = '$identify' AND timestamp >= now() - interval 1 day`),
-        hogql(host, projectId, key, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp >= now() - interval 1 day`),
-        hogql(host, projectId, key, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp >= now() - interval 30 day`),
-        hogql(host, projectId, key, `SELECT count() FROM events WHERE event IN ('account_deleted', 'user_deleted', 'delete_account') AND timestamp >= now() - interval 1 day`),
+        // Signups: all 3 windows in one query
+        hogqlRows(host, projectId, key, `SELECT countIf(created_at >= now() - interval 1 day), countIf(created_at >= now() - interval 7 day), countIf(created_at >= now() - interval 30 day) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email)`),
+        // Sign-ins ($identify events): all 3 windows in one query
+        hogqlRows(host, projectId, key, `SELECT countIf(timestamp >= now() - interval 1 day), countIf(timestamp >= now() - interval 7 day), countIf(timestamp >= now() - interval 30 day) FROM events WHERE event = '$identify' AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)`),
+        // Active users (distinct identified persons): all 3 windows in one query
+        hogqlRows(host, projectId, key, `SELECT count(DISTINCT if(timestamp >= now() - interval 1 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 7 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 30 day, person_id, null)) FROM events WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1) AND timestamp >= now() - interval 30 day`),
+        // Deleted accounts: all 3 windows in one query
+        hogqlRows(host, projectId, key, `SELECT countIf(timestamp >= now() - interval 1 day), countIf(timestamp >= now() - interval 7 day), countIf(timestamp >= now() - interval 30 day) FROM events WHERE event IN ('account_deleted', 'user_deleted', 'delete_account') AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)`),
         phQuery(host, projectId, key, {
           kind: 'RetentionQuery',
           retentionFilter: { retention_type: 'retention_first_time', target_entity: { id: '$pageview', type: 'events' }, returning_entity: { id: '$pageview', type: 'events' }, total_intervals: 7, period: 'Day' },
@@ -342,6 +361,25 @@ export async function GET(request: NextRequest) {
         hogqlRows(host, projectId, key, `SELECT coalesce(properties.$geoip_country_name, 'Unknown'), count(DISTINCT person_id) FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 28 day AND properties.$geoip_country_name IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 10`),
         // Active hours heatmap
         hogqlRows(host, projectId, key, `SELECT toDayOfWeek(timestamp), toHour(timestamp), count(DISTINCT person_id) FROM events WHERE timestamp >= now() - interval 28 day GROUP BY 1, 2 ORDER BY 1, 2`),
+        // Activation funnel: signup → brand setup → first post → social → publish
+        phQuery(host, projectId, key, {
+          kind: 'FunnelsQuery',
+          series: [
+            { kind: 'EventsNode', event: 'onboarding_started',       name: 'Signed up'       },
+            { kind: 'EventsNode', event: 'onboarding_completed',     name: 'Brand setup'     },
+            { kind: 'EventsNode', event: 'post_generated',           name: 'First post'      },
+            { kind: 'EventsNode', event: 'social_account_connected', name: 'Social connected'},
+            { kind: 'EventsNode', event: 'post_shared',              name: 'Published'       },
+          ],
+          funnelsFilter: { funnel_window_days: 30 },
+          dateRange: { date_from: '-90d' },
+        }),
+        // Daily active users — 30 days (identified users only)
+        hogqlRows(host, projectId, key, `SELECT toDate(timestamp) AS day, count(DISTINCT person_id) FROM events WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1) AND timestamp >= now() - interval 30 day GROUP BY day ORDER BY day ASC`),
+        // PMF — retained users (active last 28d, never deleted, identified): avg events per user per feature
+        hogqlRows(host, projectId, key, `SELECT event, round(count() / count(DISTINCT person_id), 1) FROM events WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1) AND person_id IN (SELECT DISTINCT person_id FROM events WHERE timestamp >= now() - interval 28 day) AND person_id NOT IN (SELECT DISTINCT person_id FROM events WHERE event = 'account_deleted') AND event IN ('feed_viewed', 'post_generate_started', 'post_generated', 'post_downloaded', 'post_shared', 'post_schedule_started', 'social_account_connected') AND timestamp >= now() - interval 90 day GROUP BY event`),
+        // PMF — churned users (identified): avg events per user per feature
+        hogqlRows(host, projectId, key, `SELECT event, round(count() / count(DISTINCT person_id), 1) FROM events WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1) AND person_id IN (SELECT DISTINCT person_id FROM events WHERE event = 'account_deleted') AND event IN ('feed_viewed', 'post_generate_started', 'post_generated', 'post_downloaded', 'post_shared', 'post_schedule_started', 'social_account_connected') AND timestamp >= now() - interval 90 day GROUP BY event`),
       ])
 
       let retention: { day: string; rate: number }[] | null = null
@@ -389,7 +427,48 @@ export async function GET(request: NextRequest) {
         activeHours: (activeHoursRows ?? []).map(r => ({ dow: Number(r[0]), hour: Number(r[1]), users: Number(r[2]) })),
       }
 
-      posthogData = { posthogConnected: true, signups24h, signins24h, dau, mau, deletedAccounts24h, retention, funnel, webAnalytics }
+      let activationFunnel: { stage: string; value: number }[] | null = null
+      try {
+        const afd = activationFunnelRaw as { results?: Array<Array<{ name: string; count: number }>> } | null
+        const steps = afd?.results?.[0]
+        if (steps?.length) activationFunnel = steps.map(s => ({ stage: s.name, value: s.count }))
+      } catch { /* null */ }
+
+      const wau: { week: string; users: number }[] | null = wauRows
+        ? (wauRows as unknown[][]).map(r => ({ week: String(r[0]).split('T')[0].split(' ')[0], users: Number(r[1]) }))
+        : null  // 'week' key reused for daily dates
+
+      const PMF_LABELS: Record<string, string> = {
+        feed_viewed: 'Feed viewed', post_generate_started: 'Post gen started',
+        post_generated: 'Post created', post_downloaded: 'Post downloaded',
+        post_shared: 'Post shared', post_schedule_started: 'Post scheduled',
+        social_account_connected: 'Social connected',
+      }
+      let pmf: { event: string; label: string; retainedAvg: number; churnedAvg: number }[] | null = null
+      if (pmfRetainedRows && pmfChurnedRows) {
+        const retMap = new Map((pmfRetainedRows as unknown[][]).map(r => [String(r[0]), Number(r[1])]))
+        const churnMap = new Map((pmfChurnedRows as unknown[][]).map(r => [String(r[0]), Number(r[1])]))
+        const allEvents = Array.from(new Set([...retMap.keys(), ...churnMap.keys()]))
+        pmf = allEvents.map(ev => ({
+          event: ev, label: PMF_LABELS[ev] ?? ev,
+          retainedAvg: retMap.get(ev) ?? 0, churnedAvg: churnMap.get(ev) ?? 0,
+        })).sort((a, b) => b.retainedAvg - a.retainedAvg)
+      }
+
+      // Extract values from combined countIf row queries
+      const [signups24h, signups7d, signups30d] = (signupsRows?.[0] ?? [0, 0, 0]).map(Number)
+      const [signins24h, signins7d, signins30d] = (signinsRows?.[0] ?? [0, 0, 0]).map(Number)
+      const [dau, activeUsers7d, mau]           = (activeUsersRows?.[0] ?? [0, 0, 0]).map(Number)
+      const [deletedAccounts24h, deleted7d, deleted30d] = (deletedRows?.[0] ?? [0, 0, 0]).map(Number)
+
+      posthogData = {
+        posthogConnected: true,
+        signups24h, signups7d, signups30d,
+        signins24h, signins7d, signins30d,
+        dau, activeUsers7d, mau,
+        deletedAccounts24h, deleted7d, deleted30d,
+        retention, funnel, activationFunnel, wau, pmf, webAnalytics,
+      }
     }
   }
 
@@ -416,6 +495,7 @@ export async function GET(request: NextRequest) {
   }
 
   const snapshot = {
+    _v: 7,
     ...posthogData,
     gsc: gscData,
     ga4: ga4Data,

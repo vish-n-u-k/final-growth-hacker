@@ -190,6 +190,15 @@ Target audience: ${brand.targetAudience ?? 'infer from brand context'}${brand.us
 Current audit findings (areas to improve):
 ${findingsList}
 
+IMPORTANT — Frekto platform capabilities (you are generating briefs for Frekto, an AI social media content creator):
+- Frekto creates SHORT-FORM content only: carousels, stat drops, quote cards, educational frameworks, tip posts, and short videos (under 2 minutes max).
+- For video platforms (instagram, youtube, tiktok): Frekto renders short animated videos under 2 minutes — NOT long-form videos. Never suggest 5, 8, or 10-minute videos. Think 15–90 second clips: a quick tip, a stat reveal, a before/after, a 3-step framework.
+- TikTok: Frekto exports MP4 only (no direct publish). Briefs should be for short vertical video (9:16), under 60 seconds.
+- YouTube: Frekto creates short YouTube Shorts (under 60 seconds, 9:16 or 16:9), not full-length videos.
+- Instagram Reels: short animated video, 15–60 seconds, 4:5 or 9:16.
+- For image platforms (linkedin, twitter, facebook): Frekto creates static or animated carousels, quote cards, stat visualizations, and framework breakdowns — not blog posts or long copy.
+- The instruction you write is Frekto's creative prompt. Be specific about the post FORMAT (e.g. "carousel", "stat drop", "quote card", "3-step framework reel", "before/after short") and the TOPIC. Frekto handles brand colors and visual design automatically.
+
 Evaluate all 6 platforms for this brand and decide which ones are worth posting on based on their industry, audience, and stage.
 
 Platform specs and suggested start dates:
@@ -203,7 +212,7 @@ Platform specs and suggested start dates:
 For each platform return:
 1. shouldPost — true/false. Set false if the platform clearly doesn't suit this brand's industry or audience.
 2. If shouldPost true:
-   - instruction — compelling 1-2 sentence series brief (max 400 chars). Prioritise repurpose pages, GSC keywords, competitor gaps, brand voice.
+   - instruction — compelling 1-2 sentence series brief for Frekto (max 400 chars). Specify the post FORMAT (carousel/stat drop/quote card/short reel/framework etc.) and topic. Prioritise repurpose pages, GSC keywords, competitor gaps, brand voice. For video platforms always specify short-form (under 60 seconds).
    - count — recommended posts: 2-5
    - cadence, format, outputFormat, startDate — use the values above exactly
    - reason — array of exactly 3 bullet strings:
