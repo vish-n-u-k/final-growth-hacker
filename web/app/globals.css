@@ -212,7 +212,7 @@ header {
   color: var(--green-bright); background: #1a3526; border-color: var(--green);
 }
 .hero-social-icon--dim {
-  color: var(--text-faint); opacity: 0.55;
+  color: #a3aaa6; opacity: 1;
 }
 .hero-social-icon--dim:hover { opacity: 0.75; }
 .hero-social-name-tag {
