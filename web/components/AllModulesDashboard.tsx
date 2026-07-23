@@ -400,6 +400,9 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const currentLevel = activeModule?.order ?? 0
   const barPct = userCountToBarPct(userCount)
 
+  const JOURNEY_MILESTONES = [0, 10, 50, 100, 500]
+  const journeyMilestoneIdx = JOURNEY_MILESTONES.reduce((acc, m, i) => (userCount >= m ? i : acc), 0)
+
   const toggleModule = (modId: string) =>
     setOpenModules(prev =>
       prev.has(modId) ? new Set() : new Set([modId])
@@ -1249,8 +1252,24 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
       </header>
 
       <div className="wrap">
-        {/* Hero */}
-        <div className="hero">
+        {/* Hero + Overview */}
+        <div className="overview-card" style={{ position: 'relative' }}>
+          <button
+            onClick={() => { setAnalyticsLoading(true); router.push('/authAnalytics') }}
+            className="btn-analytics"
+            style={{ position: 'absolute', top: '24px', right: '24px', zIndex: 1 }}
+            disabled={analyticsLoading}
+          >
+            {analyticsLoading ? (
+              <span className="md-spin" style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+            {analyticsLoading ? 'Loading…' : 'Analytics'}
+          </button>
+
           <div className="hero-brand">
             {brand.logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -1262,6 +1281,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
               />
             )}
             <h1><span className="hero-brand-name">{brand.name}</span>&apos;s road to 500 users</h1>
+          </div>
+          <div className="hero-badge">
+            <span className="hero-badge-dot" />
+            One module at a time — clear each gate before you level up
           </div>
           {/* Website URL + social icons */}
           <div className="hero-meta" onClick={() => setActiveTooltip(null)}>
@@ -1333,26 +1356,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
               })}
             </div>
           </div>
-          <p>One module at a time. Clear each gate before you level up — don't skip ahead.</p>
-        </div>
 
-        {/* Overview */}
-        <div className={`overview${!connectedIntegrations['posthog'] ? ' overview--disconnected' : ''}`} style={{ position: 'relative' }}>
-          <button
-            onClick={() => { setAnalyticsLoading(true); router.push('/authAnalytics') }}
-            className="btn-analytics"
-            style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 1 }}
-            disabled={analyticsLoading}
-          >
-            {analyticsLoading ? (
-              <span className="md-spin" style={{ width: '13px', height: '13px', flexShrink: 0 }} />
-            ) : (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
-            {analyticsLoading ? 'Loading…' : 'Analytics'}
-          </button>
+          <div className="hero-divider" />
+
+          <div className={`overview-body${!connectedIntegrations['posthog'] ? ' overview-body--disconnected' : ''}`}>
           {!connectedIntegrations['posthog'] ? (
             <>
               {/* Header row */}
@@ -1404,6 +1411,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
           ) : (
             <>
               <div>
+                <div className="overview-eyebrow">Users on board</div>
                 <div
                   className="big-num"
                   style={{ cursor: editingCount ? 'default' : 'pointer', display: 'flex', alignItems: 'baseline', gap: '4px' }}
@@ -1444,23 +1452,20 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   {!editingCount && <span>/500</span>}
                 </div>
                 {!editingCount && (
-                  <div style={{
-                    marginTop: '10px',
-                    background: 'var(--bg-soft)',
-                    border: '1px solid var(--line)',
-                    borderRadius: '10px',
-                    padding: '10px 14px',
-                    display: 'inline-flex',
-                    flexDirection: 'column',
-                    gap: '4px',
-                    minWidth: '150px',
-                  }}>
+                  <div className="overview-tracking">
+                    {posthogDataStartDate
+                      ? `Tracking since ${new Date(posthogDataStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
+                      : posthogLoading ? '…' : `Level ${currentLevel}`}
+                  </div>
+                )}
+                {!editingCount && (
+                  <div className="mrr-box">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 500 }}>
+                      <div className="mrr-box-label">
                         Projected MRR
                       </div>
                       <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }} className="mrr-tip-wrap">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-dim)', flexShrink: 0, cursor: 'default' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--gold)', flexShrink: 0, cursor: 'default', opacity: 0.75 }}>
                           <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="0.5" fill="currentColor" strokeWidth="3"/>
                         </svg>
                         <div className="mrr-tip-box">
@@ -1470,14 +1475,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                      <span style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display)', lineHeight: 1 }}>
+                      <span className="mrr-box-value">
                         $9.5K
                       </span>
-                      <span style={{
-                        fontSize: '10px', fontWeight: 600, color: 'var(--text-dim)',
-                        background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: '4px',
-                        padding: '2px 6px', letterSpacing: '0.02em'
-                      }}>
+                      <span className="mrr-box-chip">
                         $19 × 500
                       </span>
                     </div>
@@ -1485,23 +1486,34 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 )}
               </div>
               <div className="meta">
-                <div className="lvl">
-                  {posthogDataStartDate
-                    ? `Since ${new Date(posthogDataStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
-                    : posthogLoading ? '…' : `Level ${currentLevel}`}
-                </div>
                 <div className="desc">{activeModule?.definition.description}</div>
                 <div className="journey-bar">
-                  <div className="journey-track">
-                    <div className="journey-fill" style={{ width: `${barPct}%` }} />
+                  <div className="journey-track-wrap">
+                    <div className="journey-track">
+                      <div className="journey-fill" style={{ width: `${barPct}%` }} />
+                    </div>
+                    <div className="journey-dots">
+                      {JOURNEY_MILESTONES.map((m, i) => (
+                        <span
+                          key={m}
+                          className={`journey-dot${i === journeyMilestoneIdx ? ' journey-dot-active' : ''}`}
+                          style={{ left: `${i * 25}%` }}
+                        />
+                      ))}
+                    </div>
                   </div>
                   <div className="journey-labels">
-                    <span>0</span><span>10</span><span>50</span><span>100</span><span>500</span>
+                    {JOURNEY_MILESTONES.map((m, i) => (
+                      <span key={m} className={i === journeyMilestoneIdx ? 'journey-label-active' : ''}>
+                        {m}{i === journeyMilestoneIdx ? ' · you’re here' : ''}
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>
             </>
           )}
+          </div>
         </div>
 
         {/* Business Stage Modal */}
