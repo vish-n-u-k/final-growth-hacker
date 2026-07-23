@@ -264,7 +264,7 @@ header {
   width: 130px; outline: none;
 }
 .overview-body {
-  display: flex; align-items: center; gap: 28px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 56px; flex-wrap: wrap;
 }
 .overview-body .big-num { font-size: 48px; }
 .overview-body .big-num span { font-size: 18px; }
