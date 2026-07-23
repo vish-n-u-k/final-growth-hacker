@@ -213,6 +213,7 @@ header {
 }
 .hero-social-icon--dim {
   color: #a3aaa6; opacity: 1;
+  background: #f3f4f3; border-color: #e2e4e2;
 }
 .hero-social-icon--dim:hover { opacity: 0.75; }
 .hero-social-name-tag {
