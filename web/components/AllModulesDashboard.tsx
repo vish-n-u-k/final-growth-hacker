@@ -1338,6 +1338,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         {icon}
                       </button>
                     )}
+                    <span className="hero-social-name-tag">{label}</span>
                     {activeTooltip === key && (
                       <div className="hero-social-tooltip" onClick={(e) => e.stopPropagation()}>
                         <strong>Add {label}</strong>

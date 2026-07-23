@@ -195,12 +195,12 @@ header {
 .hero-website-url:hover {
   color: var(--text-dim); background: var(--bg-soft); border-color: var(--line);
 }
-.hero-social-icons { display: flex; align-items: center; gap: 4px; }
+.hero-social-icons { display: flex; align-items: center; gap: 6px; }
 .hero-social-icon-wrap { position: relative; }
 .hero-social-icon {
   display: grid; place-items: center;
   width: 34px; height: 34px; border-radius: 10px;
-  border: 1px solid transparent; background: transparent;
+  border: 1px solid var(--line); background: var(--bg-soft);
   cursor: pointer; transition: color .15s, background .15s, border-color .15s, opacity .15s;
   padding: 0; text-decoration: none; flex-shrink: 0;
 }
@@ -212,9 +212,17 @@ header {
   color: var(--green-bright); background: #1a3526; border-color: var(--green);
 }
 .hero-social-icon--dim {
-  color: var(--text-faint); opacity: 0.28;
+  color: var(--text-faint); opacity: 0.55;
 }
-.hero-social-icon--dim:hover { opacity: 0.5; }
+.hero-social-icon--dim:hover { opacity: 0.75; }
+.hero-social-name-tag {
+  position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  display: none;
+  background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+  padding: 4px 10px; font-size: 12px; color: var(--text-dim); white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0,0,0,.15); z-index: 50;
+}
+.hero-social-icon-wrap:hover .hero-social-name-tag { display: block; }
 .hero-social-tooltip {
   position: absolute; bottom: calc(100% + 7px); left: 50%;
   transform: translateX(-50%);
