@@ -1486,7 +1486,9 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                 )}
               </div>
               <div className="meta">
-                <div className="desc">{activeModule?.definition.description}</div>
+                <div className="desc">
+                  Specific tactics to get more users, based on <strong>exactly where {brand.name} is today</strong> — not a generic playbook.
+                </div>
                 <div className="journey-bar">
                   <div className="journey-track-wrap">
                     <div className="journey-track">
