@@ -848,6 +848,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 
 .md-cat {
   background: var(--card); border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
   border-radius: 16px;
 }
 .md-cat-coming-soon { opacity: 0.4; filter: grayscale(25%); pointer-events: none; }

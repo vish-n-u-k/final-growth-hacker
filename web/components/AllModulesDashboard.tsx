@@ -2297,7 +2297,11 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                             {
                               const isCatComingSoon = !!(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon
                               return (
-                              <div key={cat.slug} className={`md-cat${isOpenCat ? ' md-cat-open' : ''}${isCatComingSoon ? ' md-cat-coming-soon' : ''}`}>
+                              <div
+                                key={cat.slug}
+                                className={`md-cat${isOpenCat ? ' md-cat-open' : ''}${isCatComingSoon ? ' md-cat-coming-soon' : ''}`}
+                                style={isCatComingSoon ? undefined : { borderLeftColor: ringColor(stats.pct) }}
+                              >
                                 <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => !isCatComingSoon && toggleCat(modData.id, cat.slug)} style={isCatComingSoon ? { cursor: 'default' } : {}}>
                                   <div className="md-cat-hd-left">
                                     <span className="md-cat-hd-name">{cat.label}</span>
@@ -2348,7 +2352,11 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                             const stats = getCatStats(cat, states)
                             const isOpenCat = openCats.has(cat.slug)
                             return (
-                              <div key={cat.slug} className={`md-cat${isOpenCat ? ' md-cat-open' : ''}`}>
+                              <div
+                                key={cat.slug}
+                                className={`md-cat${isOpenCat ? ' md-cat-open' : ''}`}
+                                style={{ borderLeftColor: ringColor(stats.pct) }}
+                              >
                                 <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => toggleCat(modData.id, cat.slug)}>
                                   <div className="md-cat-hd-left">
                                     <span className="md-cat-hd-name">{cat.label}</span>
