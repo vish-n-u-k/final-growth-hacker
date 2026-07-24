@@ -2147,7 +2147,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                           )}
                         </div>
                         {playbookOpen && (
-                          <div style={{ borderTop: '1px solid var(--line)', padding: '16px', maxHeight: 420, overflowY: 'auto' }}>
+                          <div className="playbook-scroll" style={{ borderTop: '1px solid var(--line)', padding: '16px', maxHeight: 420, overflowY: 'scroll' }}>
                             {!playbookData ? (
                               <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, margin: 0 }}>
                                 The AI will read your website and generate your full Sales Playbook — email templates, call scripts, objection handlers, and more — when you run Foundation analysis.
@@ -2183,15 +2183,15 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                 </div>
                               </div>
                             ) : (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
                                 {PLAYBOOK_SECTIONS.map((section) => (
                                   <div key={section.id}>
-                                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>{section.label}</div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>{section.label}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                                       {section.fields.map((field) => (
                                         <div key={field.key}>
-                                          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 5 }}>{field.label}</div>
-                                          <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 6 }}>{field.label}</div>
+                                          <div style={{ fontSize: 16, color: 'var(--text)', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>
                                             {playbookData[field.key] || <span style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>Not generated</span>}
                                           </div>
                                         </div>
@@ -2200,7 +2200,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                   </div>
                                 ))}
                                 {playbookData.generatedAt && (
-                                  <div style={{ fontSize: 11, color: 'var(--text-dim)', borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+                                  <div style={{ fontSize: 12, color: 'var(--text-dim)', borderTop: '1px solid var(--line)', paddingTop: 10 }}>
                                     Generated {new Date(playbookData.generatedAt).toLocaleDateString()}
                                   </div>
                                 )}
