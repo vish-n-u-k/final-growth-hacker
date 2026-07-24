@@ -380,7 +380,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
   border-radius: 18px; overflow: hidden; transition: .2s;
   box-shadow: inset 3px 0 0 var(--brand);
 }
-.level.active { box-shadow: inset 3px 0 0 var(--brand), 0 8px 30px #00000040; }
+.level.active { box-shadow: inset 3px 0 0 var(--brand), 0 4px 14px #00000014; }
 .level.done { border-color: var(--line); }
 .level.locked { opacity: .55; }
 
