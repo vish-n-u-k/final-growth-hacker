@@ -3020,11 +3020,14 @@ html.light .cs-module { background: var(--card); border-color: var(--line); }
 .eh-feed-scroll::-webkit-scrollbar-track { background: transparent; }
 .eh-feed-scroll::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
 
-.playbook-scroll { scrollbar-width: thin; scrollbar-color: #9aa3a0 #e6eae8; }
-.playbook-scroll::-webkit-scrollbar { width: 10px; }
-.playbook-scroll::-webkit-scrollbar-track { background: #e6eae8; border-radius: 6px; }
-.playbook-scroll::-webkit-scrollbar-thumb { background: #9aa3a0; border-radius: 6px; border: 1px solid #e6eae8; }
-.playbook-scroll::-webkit-scrollbar-thumb:hover { background: #7d8683; }
+.playbook-scroll {
+  background: #f5f7f6;
+  scrollbar-width: auto; scrollbar-color: #8a938f #dde3e0;
+}
+.playbook-scroll::-webkit-scrollbar { width: 14px; }
+.playbook-scroll::-webkit-scrollbar-track { background: #dde3e0; border-radius: 7px; margin: 4px 0; }
+.playbook-scroll::-webkit-scrollbar-thumb { background: #8a938f; border-radius: 7px; border: 3px solid #dde3e0; }
+.playbook-scroll::-webkit-scrollbar-thumb:hover { background: #6c7572; }
 
 .eh-feed-item { display: flex; gap: 11px; padding: 12px 18px; border-bottom: 1px solid var(--line); transition: background .1s; }
 .eh-feed-item:last-child { border-bottom: none; }

@@ -2152,7 +2152,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                           )}
                         </div>
                         {playbookOpen && (
-                          <div className="playbook-scroll" style={{ borderTop: '1px solid var(--line)', padding: '16px', maxHeight: 420, overflowY: 'scroll' }}>
+                          <div className="playbook-scroll" style={{ borderTop: '1px solid var(--line)', padding: '16px 10px 16px 16px', maxHeight: 420, overflowY: 'scroll' }}>
                             {!playbookData ? (
                               <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, margin: 0 }}>
                                 The AI will read your website and generate your full Sales Playbook — email templates, call scripts, objection handlers, and more — when you run Foundation analysis.
