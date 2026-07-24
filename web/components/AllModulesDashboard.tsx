@@ -220,7 +220,7 @@ function LevelRing({ score }: { score: number }) {
         stroke={color} strokeWidth="4" strokeLinecap="round"
         strokeDasharray={circ}
         strokeDashoffset={score === 0 ? circ : offset}
-        style={{ transform: 'rotate(-90deg)', transformOrigin: '23px 23px', transition: 'stroke-dashoffset .5s ease', filter: `drop-shadow(0 0 4px ${color}90)` }}
+        style={{ transform: 'rotate(-90deg)', transformOrigin: '23px 23px', transition: 'stroke-dashoffset .5s ease' }}
       />
       <text
         x="23" y="23" textAnchor="middle" dominantBaseline="central"
@@ -1897,7 +1897,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     style={!isLocked && modData.type !== 'gmail-outreach' ? {
                       borderColor: ringColor(liveScore) + '60',
                       background: ringColor(liveScore) + '0d',
-                      boxShadow: `0 0 0 1px ${ringColor(liveScore)}25, 0 0 14px ${ringColor(liveScore)}18`,
+                      boxShadow: `0 0 0 1px ${ringColor(liveScore)}25`,
                     } : undefined}
                   >
                     {isLocked ? (
