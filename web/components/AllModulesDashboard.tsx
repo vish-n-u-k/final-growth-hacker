@@ -2121,13 +2121,14 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                           tabIndex={0}
                           onClick={() => { if (!playbookEditing) setPlaybookOpen(v => !v) }}
                           onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !playbookEditing && setPlaybookOpen(v => !v)}
-                          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', cursor: playbookEditing ? 'default' : 'pointer', userSelect: 'none' }}
+                          style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: '12px 16px', cursor: playbookEditing ? 'default' : 'pointer', userSelect: 'none' }}
                         >
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--green)', flexShrink: 0 }}>
                             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                           </svg>
                           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Playbook</span>
+                          <span style={{ fontSize: 12, color: 'var(--text-faint)', fontWeight: 400 }}>(your AI-generated sales playbook — ICP, scripts & objections)</span>
                           {playbookData
                             ? <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 500, marginLeft: 2 }}>Generated</span>
                             : <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 2 }}>Run analysis to generate</span>
@@ -2135,9 +2136,14 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                           {playbookData && !playbookEditing && (
                             <button
                               onClick={(e) => { e.stopPropagation(); setPlaybookDraft({ ...playbookData }); setPlaybookEditing(true); setPlaybookOpen(true) }}
-                              style={{ marginLeft: 'auto', fontSize: 11, padding: '3px 10px', borderRadius: 6, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}
+                              title="Edit playbook"
+                              aria-label="Edit playbook"
+                              style={{ marginLeft: 'auto', width: 26, height: 26, display: 'grid', placeItems: 'center', flexShrink: 0, padding: 0, borderRadius: 6, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}
                             >
-                              Edit
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                                <path d="M12 20h9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
                             </button>
                           )}
                           {!playbookEditing && (
