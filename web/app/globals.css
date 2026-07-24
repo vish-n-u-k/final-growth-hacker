@@ -928,8 +928,8 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 }
 .md-cb svg { width: 12px; height: 12px; }
 .md-cb-ai {
-  background: linear-gradient(150deg, var(--green-bright), var(--green));
-  border-color: var(--green); box-shadow: 0 0 8px var(--green-glow);
+  background: linear-gradient(150deg, #6b7570, #566058);
+  border-color: #566058; box-shadow: none;
 }
 .md-cb-self { border: 1.5px dashed var(--lime); }
 

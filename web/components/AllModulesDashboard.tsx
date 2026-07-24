@@ -209,7 +209,7 @@ function ringColor(score: number): string {
 }
 
 function LevelRing({ score }: { score: number }) {
-  const r = 16
+  const r = 20
   const circ = 2 * Math.PI * r
   const offset = circ * (1 - Math.max(score, 0) / 100)
   const color = ringColor(score)
@@ -225,7 +225,7 @@ function LevelRing({ score }: { score: number }) {
       <text
         x="23" y="23" textAnchor="middle" dominantBaseline="central"
         fill={color}
-        style={{ fontSize: '11px', fontWeight: 800, fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.5px' }}
+        style={{ fontSize: '12px', fontWeight: 800, fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.5px' }}
       >
         {score}%
       </text>
@@ -1895,9 +1895,8 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   <div
                     className="level-badge"
                     style={!isLocked && modData.type !== 'gmail-outreach' ? {
-                      borderColor: ringColor(liveScore) + '60',
-                      background: ringColor(liveScore) + '0d',
-                      boxShadow: `0 0 0 1px ${ringColor(liveScore)}25`,
+                      background: 'transparent',
+                      border: 'none',
                     } : undefined}
                   >
                     {isLocked ? (
