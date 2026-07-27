@@ -669,7 +669,7 @@ export async function analyzeGeo(
     .map((item, idx) => `${idx + 1}. [${item.slug}] ${item.label}\nInstructions: ${item.prompt}`)
     .join('\n\n')
 
-  const maxTokens = Math.min(aiItems.length * 120, 2000)
+  const maxTokens = Math.min(aiItems.length * 200, 3000)
 
   const raw = await callAI({
     system: GEO_MODULE.systemPrompt,
@@ -683,7 +683,9 @@ Body excerpt: ${findings.page.bodyText.slice(0, 800)}
 Organization schema: ${findings.hasOrg ? `present${findings.hasSameAs ? ' with sameAs links' : ', no sameAs links'}` : 'not found'}
 
 ── Checks to evaluate ──
-For each check respond with ONLY this schema:
+You MUST return exactly one JSON entry for EVERY slug listed below — no exceptions. If data is insufficient to make a definitive call, use your best judgment from the page content above and set verified: false. Never skip or omit a slug.
+
+Return ONLY a JSON array:
 [{"slug": "...", "d": "**key fact** in plain English under 12 words", "h": "5-8 plain words", "n": "why it matters — **key risk** under 20 words", "a": "concrete next step under 25 words", "verified": true or false}]
 
 ${itemList}`,

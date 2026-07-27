@@ -4,6 +4,87 @@ import { eq } from 'drizzle-orm'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult } from '@/lib/modules/types'
 import { callAI } from '@/lib/ai/client'
 
+// ── Canonical decision store ──────────────────────────────────────────────────
+
+interface CanonicalDecision {
+  moduleType: string
+  concern: string
+  recommendation: string
+  verified: boolean
+  slug: string
+  establishedAt: string
+}
+
+const CANONICAL_SLUG_KEYS: Record<string, string> = {
+  'page-title-set':       'page_title',
+  'title.present':        'page_title',
+  'title.length':         'page_title',
+  'title.keyword':        'page_title',
+  'title.brand':          'page_title',
+  'description.present':  'meta_description',
+  'description.length':   'meta_description',
+  'description.keyword':  'meta_description',
+  'description.cta':      'meta_description',
+  'h1.exists':            'h1_heading',
+  'geo-structure-h1':     'h1_heading',
+  'value-prop-exists':    'value_proposition',
+  'cta-exists':           'cta_text',
+  'og.title':             'og_title',
+  'no-noindex':           'robots_indexing',
+  'robots.noindex':       'robots_indexing',
+}
+
+const DYNAMIC_LABEL_PATTERNS: Array<{ keywords: string[]; concern: string }> = [
+  { keywords: ['title', 'tag'],        concern: 'page_title' },
+  { keywords: ['meta', 'description'], concern: 'meta_description' },
+  { keywords: ['h1'],                  concern: 'h1_heading' },
+  { keywords: ['value', 'prop'],       concern: 'value_proposition' },
+  { keywords: ['cta'],                 concern: 'cta_text' },
+  { keywords: ['call', 'action'],      concern: 'cta_text' },
+  { keywords: ['og', 'title'],         concern: 'og_title' },
+]
+
+function getCanonicalConcernKey(slug: string, label: string, isDynamic: boolean): string | null {
+  if (!isDynamic && CANONICAL_SLUG_KEYS[slug]) return CANONICAL_SLUG_KEYS[slug]
+  if (isDynamic) {
+    const lower = label.toLowerCase()
+    for (const p of DYNAMIC_LABEL_PATTERNS) {
+      if (p.keywords.every(kw => lower.includes(kw))) return p.concern
+    }
+  }
+  return null
+}
+
+function extractRecommendationText(
+  r: ModuleAnalysisResult | DynamicModuleAnalysisResult,
+): string | null {
+  if (r.verified && r.detail?.trim()) return r.detail.trim()
+  if (!r.verified && r.action?.trim()) return r.action.trim()
+  if (r.detail?.trim()) return r.detail.trim()
+  return null
+}
+
+function buildCanonicalConstraintBlock(
+  decisions: CanonicalDecision[],
+  currentModuleType: string,
+): string {
+  const relevant = decisions.filter(d => d.moduleType !== currentModuleType)
+  if (relevant.length === 0) return ''
+  const lines = relevant.map(d => {
+    const status = d.verified
+      ? `CONFIRMED PASSING by ${d.moduleType}`
+      : `RECOMMENDED ACTION by ${d.moduleType}`
+    return `• [${d.concern.toUpperCase().replace(/_/g, ' ')}] ${status}: "${d.recommendation}"`
+  })
+  return `=== ESTABLISHED DECISIONS — DO NOT CONTRADICT ===
+These decisions were established by earlier modules. You MUST be consistent with them.
+You may refine or build upon them, but MUST NOT recommend a conflicting approach.
+
+${lines.join('\n')}
+
+===`
+}
+
 // ── 1. Filter brain context for relevance before a module runs ────────────────
 // Called before each module's agent runs (skip for Foundation — it runs first).
 // Uses Haiku: fast + cheap, just a filtering/summarising task.
@@ -18,15 +99,24 @@ export async function getRelevantContext(
 
   const facts = ctx.facts as Record<string, unknown> | null
   const userResolved = (ctx.userResolved as string[]) ?? []
+  const canonical = (facts?.['canonical'] as Record<string, CanonicalDecision> | undefined) ?? {}
+  const canonicalEntries = Object.values(canonical)
 
-  if (!facts && !ctx.summary) return ''
+  if (!facts && !ctx.summary && canonicalEntries.length === 0) return ''
 
-  const text = await callAI({
-    system: 'You are a concise analyst. Extract only what is relevant. Return plain text bullet points or "No prior context."',
-    prompt: `Accumulated knowledge about this brand from previous module analyses:
+  // Exclude canonical from the facts sent to Haiku — it's injected separately as hard constraints
+  const factsForHaiku = facts
+    ? Object.fromEntries(Object.entries(facts).filter(([k]) => k !== 'canonical'))
+    : null
+
+  let filteredBullets = ''
+  if (factsForHaiku || ctx.summary) {
+    const raw = await callAI({
+      system: 'You are a concise analyst. Extract only what is relevant. Return plain text bullet points or "No prior context."',
+      prompt: `Accumulated knowledge about this brand from previous module analyses:
 
 FACTS:
-${facts ? JSON.stringify(facts, null, 2) : 'None yet'}
+${factsForHaiku ? JSON.stringify(factsForHaiku, null, 2) : 'None yet'}
 
 SUMMARY:
 ${ctx.summary ?? 'Not yet available'}
@@ -40,11 +130,17 @@ Its purpose: ${modulePurpose}
 Extract only what is directly relevant to this module's analysis.
 Return 3–6 concise bullet points. Plain text only, no JSON.
 If nothing is relevant return exactly: "No prior context."`,
-    maxTokens: 400,
-    model: 'claude-haiku-4-5-20251001',
-  })
+      maxTokens: 400,
+      model: 'claude-haiku-4-5-20251001',
+    })
+    filteredBullets = raw.trim()
+  }
 
-  return text.trim()
+  const canonicalBlock = buildCanonicalConstraintBlock(canonicalEntries, moduleType)
+  const parts: string[] = []
+  if (filteredBullets && filteredBullets !== 'No prior context.') parts.push(filteredBullets)
+  if (canonicalBlock) parts.push(canonicalBlock)
+  return parts.join('\n\n').trim()
 }
 
 // ── 2. Extract facts after a module runs and merge into brain_context ─────────
@@ -67,15 +163,41 @@ export async function extractAndMergeFacts(
   const [existing] = await db.select().from(brainContext).where(eq(brainContext.brandId, brandId))
   const existingFacts = (existing?.facts as Record<string, unknown>) ?? {}
 
+  // Build canonical decisions — first-wins per concern key
+  const isDynamic = results.length > 0 && 'category' in results[0]
+  const existingCanonical =
+    (existingFacts['canonical'] as Record<string, CanonicalDecision> | undefined) ?? {}
+  const newCanonical = { ...existingCanonical }
+
+  for (const result of results) {
+    const slug = result.slug
+    const label = 'label' in result ? (result as DynamicModuleAnalysisResult).label : slug
+    const concernKey = getCanonicalConcernKey(slug, label, isDynamic)
+    if (!concernKey) continue
+    if (newCanonical[concernKey]) continue  // first-wins: already established
+    const recommendation = extractRecommendationText(result)
+    if (!recommendation) continue
+    newCanonical[concernKey] = {
+      moduleType,
+      concern: concernKey,
+      recommendation,
+      verified: result.verified,
+      slug,
+      establishedAt: new Date().toISOString(),
+    }
+  }
+
+  const updatedFacts = { ...existingFacts, [moduleType]: newFacts, canonical: newCanonical }
+
   if (existing) {
     await db
       .update(brainContext)
-      .set({ facts: { ...existingFacts, [moduleType]: newFacts }, summary, lastUpdated: new Date() })
+      .set({ facts: updatedFacts, summary, lastUpdated: new Date() })
       .where(eq(brainContext.brandId, brandId))
   } else {
     await db.insert(brainContext).values({
       brandId,
-      facts: { [moduleType]: newFacts },
+      facts: updatedFacts,
       summary,
       userResolved: [],
     })

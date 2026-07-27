@@ -82,14 +82,14 @@ export async function analyzeWebsite(
     const finding = findingMap.get(item.slug)
 
     if (!finding) {
-      // Item wasn't returned by the engine (e.g. no forms on page → form checks return info)
+      // Rule engine didn't cover this item — send to Claude for best-effort judgment
       return {
         slug: item.slug,
-        detail: 'Could not be checked automatically for this page.',
+        detail: item.prompt,
         narrative: '',
         action: '',
         verified: false,
-        isFail: false,
+        isFail: true,
       }
     }
 

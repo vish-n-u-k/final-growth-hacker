@@ -35,7 +35,7 @@ H2s: ${e.h2s.join(' | ') || '(none)'}
 Body text (first 800 chars): ${e.bodyTextSnippet}
 CTA buttons: ${e.ctaTexts.join(', ') || '(none)'}
 
-Evaluate these ${aiItems.length} checks:
+Evaluate these ${aiItems.length} checks. You MUST return exactly one result for every slug listed — never skip a slug. If data is limited, make your best inference and set verified: false.
 ${JSON.stringify(aiItems, null, 2)}
 
 Also determine "brandColor": the primary brand/accent color as a 6-digit hex (e.g. "#3b82f6"). Look at CSS variables (--primary, --brand, --color-primary, --accent etc.) and button/CTA backgrounds in the style content below. Use "" if unsure.

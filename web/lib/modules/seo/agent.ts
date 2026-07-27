@@ -117,6 +117,7 @@ async function generateNarratives(
   websiteUrl: string,
   failedItems: { slug: string; label: string; detail: string; action: string }[],
   brandName?: string,
+  brainCtx?: string,
 ): Promise<Map<string, { highlight: string; narrative: string; exportType?: 'auto' | 'needs_choice' | 'external'; choiceOptions?: string[] }>> {
   if (failedItems.length === 0) return new Map()
 
@@ -127,7 +128,7 @@ async function generateNarratives(
   const raw = await callAI({
     system: SEO_MODULE.systemPrompt,
     prompt: `Website: ${websiteUrl}${brandName ? `\nBrand: ${brandName}` : ''}
-
+${brainCtx ? `\n${brainCtx}\n` : ''}
 For each failing SEO check below, return in plain English any business owner can understand — no jargon:
 - highlight: 5–8 plain English words capturing the key point (no period, no full sentence)
 - narrative: exactly 1 plain English sentence on why this hurts the business; wrap the key risk in **double asterisks**
@@ -467,14 +468,14 @@ export async function analyzeSeo(
     const finding = findingMap.get(item.slug)
 
     if (!finding) {
-      // Item wasn't returned by engine (e.g. no images on page → image checks return nothing)
+      // Rule engine didn't cover this item — send to Claude for best-effort judgment
       return {
         slug: item.slug,
-        detail: 'Could not be checked automatically for this page.',
+        detail: item.prompt,
         narrative: '',
         action: '',
         verified: false,
-        isFail: false,
+        isFail: true,
       }
     }
 
@@ -502,7 +503,7 @@ export async function analyzeSeo(
       }
     })
 
-  const narrativeMap = await generateNarratives(websiteUrl, failedItems, brandName)
+  const narrativeMap = await generateNarratives(websiteUrl, failedItems, brandName, brainContext)
 
   const ruleResults: ModuleAnalysisResult[] = baseResults.map(({ isFail: _, ...r }) => {
     const enrichment = narrativeMap.get(r.slug)
