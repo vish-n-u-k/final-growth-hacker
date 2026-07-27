@@ -1080,7 +1080,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       <span className="md-priority-label">Important</span>
                     </span>
                   )}
-                  {aiV && <Badge className="md-tag md-tag-ai">AI <SparkleIcon size={11} style={{ marginLeft: 2 }} /></Badge>}
+                  {aiV && <Badge className="md-tag md-tag-ai" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>AI <SparkleIcon size={11} style={{ color: '#178a4c' }} /></Badge>}
                   {!aiV && userC && <Badge className="md-tag md-tag-self">Self</Badge>}
                   {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
                 </>
@@ -1309,7 +1309,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       <span className="md-priority-label">Important</span>
                     </span>
                   )}
-                  {aiV && <span className="md-tag md-tag-ai">AI <SparkleIcon size={11} style={{ marginLeft: 2 }} /></span>}
+                  {aiV && <span className="md-tag md-tag-ai" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>AI <SparkleIcon size={11} style={{ color: '#178a4c' }} /></span>}
                   {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
                   {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
                 </>
