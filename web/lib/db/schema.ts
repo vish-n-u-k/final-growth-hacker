@@ -280,6 +280,21 @@ export const frektoScheduledPosts = pgTable('frekto_scheduled_posts', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
+// ── Analysis Requests (admin queue) ──────────────────────────────────────────
+
+export const analysisRequests = pgTable('analysis_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  moduleId: uuid('module_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  userEmail: text('user_email').notNull(),
+  brandName: text('brand_name').notNull(),
+  websiteUrl: text('website_url').notNull(),
+  moduleName: text('module_name').notNull(),
+  status: text('status').notNull().default('pending'), // 'pending' | 'done'
+  requestedAt: timestamp('requested_at', { withTimezone: true }).defaultNow(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+})
+
 // ── Features ──────────────────────────────────────────────────────────────────
 
 export const features = pgTable(

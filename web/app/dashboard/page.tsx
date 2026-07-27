@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands, modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit } from '@/lib/db/schema'
-import { eq, inArray } from 'drizzle-orm'
+import { brands, modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit, analysisRequests } from '@/lib/db/schema'
+import { eq, inArray, and } from 'drizzle-orm'
 import { MODULE_MAP, MODULE_REGISTRY } from '@/lib/modules/registry'
 import AllModulesDashboard, { type ModuleData } from '@/components/AllModulesDashboard'
 import { type DBItemState } from '@/components/ModuleDashboard'
@@ -34,6 +34,17 @@ export default async function DashboardPage() {
     db.select().from(brandIntegrations).where(eq(brandIntegrations.brandId, brand.id)),
     db.select().from(modulePageAudit).where(inArray(modulePageAudit.moduleId, moduleIds)),
   ])
+
+  let pendingModuleIds: string[] = []
+  try {
+    const pendingRequestsRaw = await db
+      .select({ moduleId: analysisRequests.moduleId })
+      .from(analysisRequests)
+      .where(and(eq(analysisRequests.userId, user.id), eq(analysisRequests.status, 'pending')))
+    pendingModuleIds = pendingRequestsRaw.map(r => r.moduleId)
+  } catch {
+    // analysis_requests table not yet created — safe to ignore
+  }
 
   const githubConnected = allIntegrations.some(i => i.provider === 'github' && i.status === 'connected')
   const connectedIntegrations: Record<string, boolean> = {}
@@ -194,6 +205,7 @@ export default async function DashboardPage() {
     <AllModulesDashboard
       brand={{ id: brand.id, name: brand.name, keywords: brand.keywords ?? '', websiteUrl: brand.websiteUrl, logoUrl: brand.logoUrl ?? '', themeColor: brand.themeColor ?? '', playbook: (brand.playbook as Record<string, string> | null) ?? null }}
       allModulesData={allModulesData}
+      pendingModuleIds={pendingModuleIds}
       userEmail={user.email ?? ''}
       githubConnected={githubConnected}
       connectedIntegrations={connectedIntegrations}

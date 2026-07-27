@@ -1,0 +1,155 @@
+'use client'
+
+import { useState } from 'react'
+import type { analysisRequests } from '@/lib/db/schema'
+
+type Request = typeof analysisRequests.$inferSelect
+
+interface Props {
+  requests: Request[]
+}
+
+function timeAgo(iso: Date | null): string {
+  if (!iso) return '—'
+  const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000)
+  if (diff < 60) return 'Just now'
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
+  return `${Math.floor(diff / 86400)}d ago`
+}
+
+export default function AdminDashboard({ requests: initial }: Props) {
+  const [requests, setRequests] = useState(initial)
+  const [running, setRunning] = useState<Record<string, boolean>>({})
+  const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const handleRun = async (req: Request) => {
+    setRunning(prev => ({ ...prev, [req.id]: true }))
+    setErrors(prev => ({ ...prev, [req.id]: '' }))
+    try {
+      const res = await fetch('/api/modules/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleId: req.moduleId }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setErrors(prev => ({ ...prev, [req.id]: (data as { error?: string }).error ?? 'Analysis failed.' }))
+        return
+      }
+      // Mark done in DB
+      await fetch('/api/admin/requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: req.id }),
+      })
+      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'done', completedAt: new Date() } : r))
+    } catch {
+      setErrors(prev => ({ ...prev, [req.id]: 'Network error.' }))
+    } finally {
+      setRunning(prev => ({ ...prev, [req.id]: false }))
+    }
+  }
+
+  const pending = requests.filter(r => r.status === 'pending')
+  const done = requests.filter(r => r.status === 'done')
+
+  return (
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px', fontFamily: 'var(--font-body, sans-serif)', color: 'var(--text, #e8f3ec)' }}>
+      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Admin — Analysis Queue</h1>
+      <p style={{ color: 'var(--text-dim, #8aa897)', marginBottom: 32, fontSize: 14 }}>
+        {pending.length} pending · {done.length} completed
+      </p>
+
+      {pending.length === 0 && (
+        <p style={{ color: 'var(--text-dim, #8aa897)', fontSize: 14 }}>No pending requests.</p>
+      )}
+
+      {pending.length > 0 && (
+        <section style={{ marginBottom: 48 }}>
+          <h2 style={{ fontSize: 14, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-dim, #8aa897)', marginBottom: 12 }}>Pending</h2>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--line, #1e3830)', color: 'var(--text-dim, #8aa897)' }}>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>User</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>Brand</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>Module</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>Requested</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {pending.map(req => (
+                <tr key={req.id} style={{ borderBottom: '1px solid var(--line, #1e3830)' }}>
+                  <td style={{ padding: '10px 12px' }}>{req.userEmail}</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span>{req.brandName}</span>
+                    <a href={req.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 11, color: 'var(--text-dim, #8aa897)', textDecoration: 'none' }}>
+                      {req.websiteUrl}
+                    </a>
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span>{req.moduleName}</span>
+                    <a href={`/dashboard/${req.moduleId}`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 11, color: 'var(--green, #2fbf71)', textDecoration: 'none' }}>
+                      View module
+                    </a>
+                  </td>
+                  <td style={{ padding: '10px 12px', color: 'var(--text-dim, #8aa897)' }}>{timeAgo(req.requestedAt)}</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    {errors[req.id] && <p style={{ color: '#f87171', fontSize: 11, marginBottom: 4 }}>{errors[req.id]}</p>}
+                    <button
+                      onClick={() => handleRun(req)}
+                      disabled={running[req.id]}
+                      style={{
+                        background: 'var(--green, #2fbf71)',
+                        color: '#06140c',
+                        border: 'none',
+                        borderRadius: 6,
+                        padding: '6px 14px',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: running[req.id] ? 'not-allowed' : 'pointer',
+                        opacity: running[req.id] ? 0.6 : 1,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {running[req.id] ? 'Running…' : 'Run Analysis'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {done.length > 0 && (
+        <section>
+          <h2 style={{ fontSize: 14, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-dim, #8aa897)', marginBottom: 12 }}>Completed</h2>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, opacity: 0.65 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--line, #1e3830)', color: 'var(--text-dim, #8aa897)' }}>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>User</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>Brand</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>Module</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>Requested</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>Completed</th>
+              </tr>
+            </thead>
+            <tbody>
+              {done.map(req => (
+                <tr key={req.id} style={{ borderBottom: '1px solid var(--line, #1e3830)' }}>
+                  <td style={{ padding: '10px 12px' }}>{req.userEmail}</td>
+                  <td style={{ padding: '10px 12px' }}>{req.brandName}</td>
+                  <td style={{ padding: '10px 12px' }}>{req.moduleName}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--text-dim, #8aa897)' }}>{timeAgo(req.requestedAt)}</td>
+                  <td style={{ padding: '10px 12px', color: 'var(--green, #2fbf71)' }}>{timeAgo(req.completedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+    </div>
+  )
+}

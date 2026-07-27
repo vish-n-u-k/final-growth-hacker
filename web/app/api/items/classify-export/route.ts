@@ -30,22 +30,23 @@ export async function POST(request: NextRequest) {
     .join('\n\n')
 
   const raw = await callAI({
-    system: 'You classify marketing audit findings by how they can be fixed. Be precise. Output only valid JSON.',
+    system: 'You classify marketing audit findings by how they can be fixed in a Claude Code session. Be precise. Output only valid JSON.',
     prompt: `Brand: ${brand.name}
 Website: ${brand.websiteUrl ?? ''}
 
 For each failing item below, classify it as exactly one of:
-- "auto": Claude Code can implement this entirely from code with no content decisions — inserting HTML tags, fixing attributes, adding structured data markup, removing directives
-- "needs_choice": The exact value/wording must come from the user — title tag copy, meta description text, H1 headline, CTA button label, hero text, alt text, brand description, any copy or content that only the brand owner can decide
-- "skip": Cannot be done in code at all — requires creating external accounts (Google Search Console, Google Analytics, social profiles), DNS registrar changes, Wikipedia submissions, third-party service registrations
 
-For "needs_choice" items only: return exactly 3 specific ready-to-use options the user can choose from. Make them concrete and specific to ${brand.name} — never generic placeholders.
+- "auto": Claude Code can implement this from the codebase alone, with no external data needed. This includes: schema markup, meta tags, canonical tags, FAQ sections with factual comparisons the brand can defend, internal landing pages, alt text, sitemap fixes, structured data, competitor comparison pages, robots.txt, heading structure, internal linking. Claude can write copy like titles, descriptions, and FAQ answers without needing external facts.
+
+- "needs_choice": The fix requires a specific statistic, percentage, dollar figure, citation, testimonial, quote, or any claim attributed to a named real company, study, or report. Nothing in this category should ever be invented — the user must supply the real data. Examples: "saves X hours per week", "HubSpot reports Y%", "our customers see Z% improvement", a specific customer quote or review.
+
+- "skip": Cannot be done in code at all — requires creating or claiming accounts on external platforms (Google Search Console, Google Analytics, Wikipedia, Crunchbase, G2, Capterra), DNS changes, PR/media outreach, securing press coverage, building external backlinks, posting on social media.
 
 Items to classify:
 ${itemList}
 
 Return ONLY a valid JSON array, no markdown:
-[{"slug": "...", "exportType": "auto|needs_choice|skip", "choiceOptions": ["...", "...", "..."]}]`,
+[{"slug": "...", "exportType": "auto|needs_choice|skip"}]`,
     maxTokens: 4000,
     model: 'claude-haiku-4-5-20251001',
   })
@@ -65,7 +66,6 @@ Return ONLY a valid JSON array, no markdown:
       .map(r => ({
         slug: r.slug,
         exportType: r.exportType as 'auto' | 'needs_choice' | 'skip',
-        choiceOptions: r.exportType === 'needs_choice' ? (r.choiceOptions ?? []) : undefined,
       }))
     return NextResponse.json({ classifications })
   } catch {

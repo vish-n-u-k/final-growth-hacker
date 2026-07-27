@@ -50,7 +50,10 @@
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && for f in lib/audit/url-discovery.ts lib/audit/seo-audit.ts lib/modules/foundation/fetcher.ts lib/modules/seo/keyword-fetchers.ts lib/modules/seo/agent.ts lib/modules/social-media/fetcher.ts lib/modules/geo/fetcher.ts lib/modules/gmail-outreach/fetcher.ts lib/modules/competitor-audit/fetcher.ts lib/modules/content-audit/fetcher.ts app/api/check-site/route.ts; do sed -i 's/GrowthHackerBot/GrowJinBot/g' \"$f\" && echo \"Done: $f\"; done)",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx drizzle-kit generate 2>&1 | tail -5)",
       "WebFetch(domain:frekto.ai)",
-      "Bash(find \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" -type f -name \"*.tsx\" -o -name \"*.ts\" | xargs grep -l \"export\" | head -20)"
+      "Bash(find \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" -type f -name \"*.tsx\" -o -name \"*.ts\" | xargs grep -l \"export\" | head -20)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm install resend 2>&1 | tail -5)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && node -e \"const pkg = require\\('./package.json'\\); console.log\\(pkg.dependencies.resend\\)\")",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit --skipLibCheck 2>&1 | head -30)"
     ]
   }
 }

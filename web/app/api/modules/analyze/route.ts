@@ -237,7 +237,9 @@ export async function POST(request: NextRequest) {
   }
 
   const [brand] = await db.select().from(brands).where(eq(brands.id, mod.brandId))
-  if (!brand || brand.userId !== user.id) {
+  const adminEmails = (process.env.ADMIN_EMAILS ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  const isAdmin = adminEmails.includes(user.email ?? '')
+  if (!brand || (!isAdmin && brand.userId !== user.id)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 

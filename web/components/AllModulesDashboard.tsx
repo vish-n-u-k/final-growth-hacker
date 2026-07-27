@@ -34,6 +34,7 @@ export interface ModuleData {
 interface Props {
   brand: { id: string; name: string; keywords?: string; websiteUrl?: string; logoUrl?: string; themeColor?: string; playbook?: Record<string, string> | null }
   allModulesData: ModuleData[]
+  pendingModuleIds?: string[]
   userEmail: string
   githubConnected: boolean
   connectedIntegrations: Record<string, boolean>
@@ -241,7 +242,7 @@ function LevelRing({ score }: { score: number }) {
   )
 }
 
-export default function AllModulesDashboard({ brand, allModulesData, userEmail, githubConnected, connectedIntegrations, socialLinks }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, githubConnected, connectedIntegrations, socialLinks }: Props) {
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.itemStates]))
   )
@@ -265,6 +266,10 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [verifyingItems, setVerifyingItems] = useState<Set<string>>(new Set())
   const [applyingFix, setApplyingFix] = useState<Set<string>>(new Set())
   const [reanalyzingMap, setReanalyzingMap] = useState<Record<string, boolean>>({})
+  const [requestedMap, setRequestedMap] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(pendingModuleIds.map(id => [id, true]))
+  )
+  const [showRequestedModal, setShowRequestedModal] = useState(false)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [lastAnalyzedAtMap, setLastAnalyzedAtMap] = useState<Record<string, string | null>>({})
   const [pageVerdictsMap, setPageVerdictsMap] = useState<Record<string, ModuleData['pageVerdicts']>>(() =>
@@ -362,6 +367,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const [exportPrepModuleId, setExportPrepModuleId] = useState<string | null>(null)
   const [exportClassificationsMap, setExportClassificationsMap] = useState<Record<string, Record<string, { exportType: 'auto' | 'needs_choice' | 'skip'; choiceOptions?: string[] }>>>({})
   const [exportClassifyingMap, setExportClassifyingMap] = useState<Record<string, boolean>>({})
+  const [exportingMap, setExportingMap] = useState<Record<string, boolean>>({})
   const [resolvedBsModId, setResolvedBsModId] = useState<string | null>(
     () => allModulesData.find((m) => m.type === 'business-stage')?.id ?? null,
   )
@@ -491,6 +497,28 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
   const handleReanalyze = async (modId: string, reqValues: Record<string, string>, overrideReqs?: Record<string, string>) => {
     setSetupErrorMap(prev => ({ ...prev, [modId]: null }))
     setReanalyzingMap(prev => ({ ...prev, [modId]: true }))
+
+    if (process.env.NEXT_PUBLIC_APP_ENV === 'production') {
+      const modName = allModulesData.find(m => m.id === modId)?.name ?? modId
+      try {
+        const res = await fetch('/api/request-analysis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ moduleId: modId, moduleName: modName }),
+        })
+        if (res.ok) {
+          setRequestedMap(prev => ({ ...prev, [modId]: true }))
+          setShowRequestedModal(true)
+        } else {
+          const data = await res.json().catch(() => ({}))
+          setSetupErrorMap(prev => ({ ...prev, [modId]: (data as { error?: string }).error ?? 'Request failed. Please try again.' }))
+        }
+      } finally {
+        setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
+      }
+      return
+    }
+
     try {
     const body: Record<string, unknown> = { moduleId: modId }
     const reqs = overrideReqs ?? reqValues
@@ -583,32 +611,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
       setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
 
-      // Auto-open export prep modal: classify failing items via AI then show modal
-      const failingForClassify = (data.items as { slug: string; label: string; aiDetail: string | null; aiAction: string | null; aiVerified: boolean; userChecked: boolean; userSkipped: boolean }[])
-        .filter(i => !i.aiVerified && !i.userChecked && !i.userSkipped && (i.aiDetail || i.aiAction))
-        .map(i => ({ slug: i.slug, label: i.label, aiDetail: i.aiDetail, aiAction: i.aiAction }))
-
-      if (failingForClassify.length > 0) {
-        setExportPrepModuleId(modId)
-        setExportClassifyingMap(prev => ({ ...prev, [modId]: true }))
-        setExportPrepOpen(true)
-        try {
-          const classRes = await fetch('/api/items/classify-export', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ moduleId: modId, items: failingForClassify }),
-          })
-          if (classRes.ok) {
-            const { classifications } = await classRes.json() as { classifications: { slug: string; exportType: 'auto' | 'needs_choice' | 'skip'; choiceOptions?: string[] }[] }
-            const classMap: Record<string, { exportType: 'auto' | 'needs_choice' | 'skip'; choiceOptions?: string[] }> = {}
-            for (const c of classifications) classMap[c.slug] = { exportType: c.exportType, choiceOptions: c.choiceOptions }
-            setExportClassificationsMap(prev => ({ ...prev, [modId]: classMap }))
-          }
-        } catch {
-          // non-fatal — modal still opens, user can generate without choices
-        }
-        setExportClassifyingMap(prev => ({ ...prev, [modId]: false }))
-      }
+      // Export prep modal disabled for now
     } else {
       const data = await res.json().catch(() => ({}))
       setSetupErrorMap(prev => ({ ...prev, [modId]: (data as { error?: string }).error ?? 'Analysis failed. Please try again.' }))
@@ -910,14 +913,17 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
     }
   }
 
-  const buildClaudeCodePrompt = (modData: ModuleData, localChoices: Record<string, string>, skippedIds: Set<string> = new Set()): string => {
-    const classifications = exportClassificationsMap[modData.id] ?? {}
+  const buildClaudeCodePrompt = (modData: ModuleData, skippedIds: Set<string> = new Set(), overrideClassifications?: Record<string, { exportType: 'auto' | 'needs_choice' | 'skip' }>): string => {
+    const classifications = overrideClassifications ?? exportClassificationsMap[modData.id] ?? {}
     const states = statesMap[modData.id] ?? {}
     const dynItems = dynItemsMap[modData.id] ?? []
     const brandUrl = brand.websiteUrl ?? 'your website'
 
-    const autoItems: { label: string; weight: number; aiDetail: string; aiAction: string; fixGuide?: string[] }[] = []
-    const choiceItems: { label: string; weight: number; aiDetail: string; aiAction: string; choice: string; fixGuide?: string[] }[] = []
+    // Part 1: structural/technical auto-fixes (no external data needed)
+    const part1Items: { label: string; aiDetail: string; aiAction: string; fixGuide?: string[] }[] = []
+    // Part 2: items requiring a real stat, citation, or external claim — Claude asks one at a time
+    const part2Items: { label: string; aiDetail: string; aiAction: string }[] = []
+    // Part 3 (skip): manual tasks the user does outside of code
     const skipItems: { label: string; aiAction: string }[] = []
 
     if (modData.definition.dynamic) {
@@ -927,10 +933,9 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
         if (et === 'skip') {
           skipItems.push({ label: item.label, aiAction: item.aiAction ?? '' })
         } else if (et === 'needs_choice') {
-          const choice = localChoices[item.id] ?? item.userChoice ?? ''
-          choiceItems.push({ label: item.label, weight: item.weight, aiDetail: item.aiDetail ?? '', aiAction: item.aiAction ?? '', choice })
+          part2Items.push({ label: item.label, aiDetail: item.aiDetail ?? '', aiAction: item.aiAction ?? '' })
         } else if (item.aiAction) {
-          autoItems.push({ label: item.label, weight: item.weight, aiDetail: item.aiDetail ?? '', aiAction: item.aiAction })
+          part1Items.push({ label: item.label, aiDetail: item.aiDetail ?? '', aiAction: item.aiAction })
         }
       })
     } else {
@@ -944,73 +949,168 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
         if (et === 'skip') {
           skipItems.push({ label: defItem.label, aiAction: s?.aiAction ?? '' })
         } else if (et === 'needs_choice') {
-          const choice = localChoices[s?.id ?? ''] ?? s?.userChoice ?? ''
-          choiceItems.push({ label: defItem.label, weight: defItem.weight, aiDetail: s?.aiDetail ?? '', aiAction: s?.aiAction ?? '', choice, fixGuide: defItem.fixGuide })
+          part2Items.push({ label: defItem.label, aiDetail: s?.aiDetail ?? '', aiAction: s?.aiAction ?? '' })
         } else if (s?.aiAction) {
-          autoItems.push({ label: defItem.label, weight: defItem.weight, aiDetail: s?.aiDetail ?? '', aiAction: s?.aiAction, fixGuide: defItem.fixGuide })
+          part1Items.push({ label: defItem.label, aiDetail: s?.aiDetail ?? '', aiAction: s?.aiAction, fixGuide: defItem.fixGuide })
         }
       })
     }
 
-    const totalCode = choiceItems.length + autoItems.length
     const lines: string[] = []
-    const wl = (w: number) => w === 3 ? 'CRITICAL' : w === 2 ? 'IMPORTANT' : 'MINOR'
+    const slugName = brand.name.toLowerCase().replace(/\s+/g, '-')
 
-    lines.push(`Implement ${totalCode} fix${totalCode !== 1 ? 'es' : ''} for ${brand.name} at ${brandUrl}. Do not ask questions. Work sequentially.`)
-    lines.push('')
-    lines.push('First: explore the repo. Identify the framework (Next.js, Nuxt, Remix, etc.) and find head/meta/layout files.')
-    lines.push('')
+    // YAML frontmatter
+    lines.push('---')
+    lines.push(`description: ${brand.name} growth fixes — structural auto-fixes, then Q&A for stats/citations, then a user checklist`)
+    lines.push('argument-hint: (none)')
+    lines.push('allowed-tools: Read, Edit, Write, Grep, Glob, Bash(git:*)')
     lines.push('---')
     lines.push('')
-    lines.push(`## Code changes to implement (${totalCode} item${totalCode !== 1 ? 's' : ''})`)
+
+    // Title + tone
+    lines.push(`# ${brand.name} — Growth fixes`)
+    lines.push(`Website: ${brandUrl}`)
+    lines.push('')
+    lines.push('**Tone:** plain English, friendly, short sentences — no jargon, no dumping a wall of changes at once.')
+    lines.push('')
+    lines.push('First explore the repo to find the relevant files (schema, meta tags, content files, landing pages) before changing anything.')
     lines.push('')
 
-    let n = 0
-    choiceItems.forEach(item => {
-      n++
-      lines.push(`### ${n}. ${item.label} [${wl(item.weight)}]`)
-      if (item.aiDetail) lines.push(`Problem: ${item.aiDetail}`)
-      if (item.choice) {
-        lines.push(`Use this exact value: "${item.choice}"`)
-      } else if (item.aiAction) {
-        lines.push(`Action: ${item.aiAction}`)
-      }
-      if (item.fixGuide?.length) {
-        lines.push('Steps:')
-        item.fixGuide.forEach((step, i) => lines.push(`${i + 1}. ${step}`))
-      }
-      lines.push('')
-    })
-
-    autoItems.forEach(item => {
-      n++
-      lines.push(`### ${n}. ${item.label} [${wl(item.weight)}]`)
-      if (item.aiDetail) lines.push(`Problem: ${item.aiDetail}`)
-      if (item.aiAction) lines.push(`Action: ${item.aiAction}`)
-      if (item.fixGuide?.length) {
-        lines.push('Steps:')
-        item.fixGuide.forEach((step, i) => lines.push(`${i + 1}. ${step}`))
-      }
-      lines.push('')
-    })
-
-    if (skipItems.length > 0) {
+    // Part 1: structural/technical auto-fixes only
+    if (part1Items.length > 0) {
       lines.push('---')
       lines.push('')
-      lines.push('## When all code changes are done')
-      lines.push('Create GROWTH_TODO.md with these manual steps:')
+      lines.push('## Part 1 — Fix these automatically (no questions)')
       lines.push('')
-      skipItems.forEach((item, i) => {
+      lines.push('These are all structural or technical fixes — no external facts, statistics, or citations needed. Do all of them without asking. When done, give the user a 2–3 sentence plain-English summary of what changed. No code snippets, no file paths.')
+      lines.push('')
+      part1Items.forEach((item, i) => {
         lines.push(`### ${i + 1}. ${item.label}`)
-        if (item.aiAction) lines.push(item.aiAction)
+        if (item.aiDetail) lines.push(`Issue: ${item.aiDetail}`)
+        if (item.aiAction) lines.push(`Fix: ${item.aiAction}`)
+        if (item.fixGuide?.length) {
+          item.fixGuide.forEach((step, si) => lines.push(`${si + 1}. ${step}`))
+        }
         lines.push('')
       })
     }
 
+    // Part 2: items requiring external data — one question at a time
+    if (part2Items.length > 0) {
+      lines.push('---')
+      lines.push('')
+      lines.push('## Part 2 — Ask before changing (one at a time)')
+      lines.push('')
+      lines.push('Each item below needs a real statistic, citation, or claim the user must supply. Never invent a number or attribute a claim to a real company or study.')
+      lines.push('')
+      lines.push('Rules:')
+      lines.push('- Ask ONE question at a time. Wait for the answer before doing anything.')
+      lines.push('- Ask each question as a multiple-choice question with exactly these options: [Provide it now] / [Skip for now]. This triggers the structured options UI — do not ask in plain prose.')
+      lines.push('- Apply the change, confirm in one sentence, then move to the next.')
+      lines.push('- If the user skips or has no answer: do not add anything. Log it in Part 3.')
+      lines.push('')
+      part2Items.forEach((item, i) => {
+        lines.push(`### ${i + 1}. ${item.label}`)
+        if (item.aiDetail) lines.push(`Issue: ${item.aiDetail}`)
+        const actionLower = item.aiAction ? item.aiAction.charAt(0).toLowerCase() + item.aiAction.slice(1) : 'add this to the site'
+        lines.push(`Ask as a multiple-choice question with options [Provide it now] / [Skip for now]: "Got a real number, study, or source I can use to ${actionLower}?"`)
+        lines.push(`- If they choose "Provide it now": ask them to share it, then add it exactly as they provided — no paraphrasing, no invented gaps.`)
+        lines.push(`- If they choose "Skip for now": do not add anything. Record this in Part 3.`)
+        lines.push('')
+      })
+      if (part2Items.length >= 3) {
+        lines.push(`After the first 2–3 questions, offer: "I have ${part2Items.length} questions total. Want to keep going one by one, or shall I handle the rest on my own using what you've told me so far?"`)
+        lines.push('- If they want to continue one by one: keep going.')
+        lines.push('- If they want auto: apply what you have, skip the rest, log skipped items in Part 3.')
+        lines.push('')
+      }
+      lines.push('After all questions: give a one-sentence summary of what was added.')
+      lines.push('')
+    }
+
+    // Part 3: skipped items log
     lines.push('---')
-    lines.push(`Reply with: files modified${skipItems.length > 0 ? ' + items added to GROWTH_TODO.md' : ''}`)
+    lines.push('')
+    lines.push('## Part 3 — Log what was skipped')
+    lines.push('')
+    lines.push('If anything was skipped in Part 2:')
+    lines.push(`- Write a file called \`${slugName}-skipped-items.md\` — list each skipped item, what it was for, and one line on what's still needed to complete it.`)
+    lines.push('- Tell the user in plain English that this file was created and where to find it.')
+    lines.push('')
+    lines.push('If nothing was skipped, skip this step and say so briefly.')
+    lines.push('')
+
+    // Part 4: manual checklist (external tasks only)
+    if (skipItems.length > 0) {
+      lines.push('---')
+      lines.push('')
+      lines.push('## Part 4 — Checklist for the user')
+      lines.push('')
+      lines.push("These can't be done in code. Show this as a simple checklist after Parts 1–3 are done:")
+      lines.push('')
+      skipItems.forEach(item => {
+        lines.push(`- [ ] **${item.label}**: ${item.aiAction}`)
+      })
+      lines.push('')
+    }
+
+    // Closing
+    lines.push('---')
+    lines.push('')
+    const hasPart2 = part2Items.length > 0
+    const hasPart4 = skipItems.length > 0
+    if (!hasPart2 && !hasPart4) {
+      lines.push('When Parts 1 and 3 are complete, send the user a friendly summary of everything that was fixed.')
+    } else if (hasPart4) {
+      lines.push('When Parts 1–3 are complete, show the Part 4 checklist.')
+    } else {
+      lines.push('When Parts 1–3 are complete, send the user a friendly summary of everything that was fixed.')
+    }
 
     return lines.join('\n')
+  }
+
+  const handleTopExport = async (modData: ModuleData, states: Record<string, DBItemState>, dynItems: DBItemFull[]) => {
+    setExportingMap(prev => ({ ...prev, [modData.id]: true }))
+
+    // Build list of failing items to classify
+    let failingItems: { slug: string; label: string; aiDetail: string | null; aiAction: string | null }[] = []
+    if (modData.definition.dynamic) {
+      failingItems = dynItems
+        .filter(i => !i.aiVerified && !i.userChecked && !i.userSkipped && (i.aiDetail || i.aiAction))
+        .map(i => ({ slug: i.slug, label: i.label, aiDetail: i.aiDetail, aiAction: i.aiAction }))
+    } else {
+      const allDefItems = (modData.definition.categories as ModuleCategoryDefinition[]).flatMap(c => c.subCategories.flatMap(s => s.items))
+      failingItems = allDefItems
+        .filter(defItem => { const s = states[defItem.slug]; return s && !s.aiVerified && !s.userChecked && !s.userSkipped && (s.aiDetail || s.aiAction) })
+        .map(defItem => { const s = states[defItem.slug]!; return { slug: defItem.slug, label: defItem.label, aiDetail: s.aiDetail, aiAction: s.aiAction } })
+    }
+
+    // Classify via AI
+    const classifications: Record<string, { exportType: 'auto' | 'needs_choice' | 'skip'; choiceOptions?: string[] }> = {}
+    if (failingItems.length > 0) {
+      try {
+        const classRes = await fetch('/api/items/classify-export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ moduleId: modData.id, items: failingItems }),
+        })
+        if (classRes.ok) {
+          const { classifications: result } = await classRes.json() as { classifications: { slug: string; exportType: 'auto' | 'needs_choice' | 'skip'; choiceOptions?: string[] }[] }
+          for (const c of result) classifications[c.slug] = { exportType: c.exportType, choiceOptions: c.choiceOptions }
+        }
+      } catch { /* non-fatal — generate without classification */ }
+    }
+
+    const prompt = buildClaudeCodePrompt(modData, new Set(), classifications)
+    const blob = new Blob([prompt], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${modData.type}-claude-export.md`
+    a.click()
+    URL.revokeObjectURL(url)
+    setExportingMap(prev => ({ ...prev, [modData.id]: false }))
   }
 
   // ── Dynamic item renderer ────────────────────────────────────────────────────
@@ -1424,6 +1524,24 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
 
   return (
     <>
+      {/* Analysis Requested Modal */}
+      {showRequestedModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowRequestedModal(false)}>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '36px 40px', maxWidth: 420, width: '90%', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(47,191,113,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17l-5-5" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10, color: 'var(--text)' }}>Request sent</h2>
+            <p style={{ color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.65, marginBottom: 26 }}>
+              Your analysis request has been received. We&apos;ll email you when it&apos;s ready — usually within a few hours.
+            </p>
+            <Button onClick={() => setShowRequestedModal(false)} style={{ minWidth: 100 }}>Got it</Button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header>
         <div className="md-header-inner">
@@ -1867,6 +1985,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             const reanalyzing = reanalyzingMap[modData.id] ?? false
             const reqValues = reqValuesMap[modData.id] ?? {}
             const setupError = setupErrorMap[modData.id] ?? null
+            const requested = requestedMap[modData.id] ?? false
             const prUrl = prUrlMap[modData.id] ?? null
             const def = modData.definition
             const effectiveLastAnalyzedAt = lastAnalyzedAtMap[modData.id] !== undefined ? lastAnalyzedAtMap[modData.id] : modData.lastAnalyzedAt
@@ -1938,6 +2057,11 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         })()
                       : !isOpen && <div className="focus">{def.description}</div>
                     }
+                    {!isLocked && effectiveLastAnalyzedAt && (
+                      <div style={{ fontSize: 11, color: 'var(--text-faint, #4a6b5c)', marginTop: 3 }}>
+                        Last analysed {timeAgo(effectiveLastAnalyzedAt)}
+                      </div>
+                    )}
                   </div>
 
                   {!isLocked && (
@@ -1953,24 +2077,37 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={e => e.stopPropagation()}>
                       {!!effectiveLastAnalyzedAt && modData.type !== 'community-finder' && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); downloadModuleMd(modData, states, dynItems) }}
+                          onClick={(e) => { e.stopPropagation(); handleTopExport(modData, states, dynItems) }}
+                          disabled={exportingMap[modData.id]}
                           className="level-export-btn"
-                          title="Export incomplete items as a report"
+                          title="Export as Claude Code prompt"
                         >
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                          <span className="level-export-label">Export</span>
+                          {exportingMap[modData.id] ? (
+                            <><span className="md-spin" style={{ width: '10px', height: '10px', borderWidth: '1.5px' }} /><span className="level-export-label">Preparing…</span></>
+                          ) : (
+                            <><svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg><span className="level-export-label">Export</span></>
+                          )}
                         </button>
                       )}
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleReanalyze(modData.id, reqValues) }}
-                        disabled={reanalyzing}
-                        className={`level-reanalyze-btn${reanalyzing ? ' btn-analysing' : ''}`}
-                        title={effectiveLastAnalyzedAt ? 'Re-analyse' : 'Analyse'}
+                        onClick={(e) => { e.stopPropagation(); if (!requested) handleReanalyze(modData.id, reqValues) }}
+                        disabled={reanalyzing || requested}
+                        className={`level-reanalyze-btn${reanalyzing ? ' btn-analysing' : ''}${requested ? ' btn-requested' : ''}`}
+                        title={requested ? 'Analysis request sent — pending admin review' : effectiveLastAnalyzedAt ? 'Re-analyse' : 'Analyse'}
+                        style={requested ? { opacity: 1, color: 'var(--gold)', borderColor: 'var(--gold)', cursor: 'default' } : undefined}
                       >
                         {reanalyzing ? (
-                          <><span className="md-spin" style={{ width: '10px', height: '10px', borderWidth: '1.5px' }} /><span className="level-reanalyze-label">{effectiveLastAnalyzedAt ? 'Re-analysing…' : 'Analysing…'}</span></>
+                          <><span className="md-spin" style={{ width: '10px', height: '10px', borderWidth: '1.5px' }} /><span className="level-reanalyze-label">Requesting…</span></>
+                        ) : requested ? (
+                          <>
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                              <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                            <span className="level-reanalyze-label">Requested</span>
+                          </>
                         ) : (
                           <>
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
@@ -2049,12 +2186,23 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                         </div>
                         {setupError && <p className="md-setup-error">{setupError}</p>}
                         <Button
-                          disabled={reanalyzing || missingReqs.length > 0}
-                          onClick={() => handleReanalyze(modData.id, reqValues, reqValues)}
-                          className={`mt-3 gap-1.5 bg-[var(--green)] text-[#06140c] hover:bg-[var(--green-bright)] font-semibold${reanalyzing ? ' btn-analysing' : ''}`}
+                          disabled={reanalyzing || requested || missingReqs.length > 0}
+                          onClick={() => { if (!requested) handleReanalyze(modData.id, reqValues, reqValues) }}
+                          className={`mt-3 gap-1.5 font-semibold${reanalyzing ? ' btn-analysing' : ''}`}
+                          style={requested
+                            ? { background: 'transparent', border: '1px solid var(--gold)', color: 'var(--gold)', cursor: 'default' }
+                            : { background: 'var(--green)', color: '#06140c' }}
                         >
                           {reanalyzing ? (
-                            <><span className="md-spin" style={{ borderTopColor: '#06140c', borderColor: 'rgba(6,20,12,0.2)' }} />Analysing…</>
+                            <><span className="md-spin" style={{ borderTopColor: requested ? 'var(--gold)' : '#06140c', borderColor: requested ? 'rgba(231,200,115,0.2)' : 'rgba(6,20,12,0.2)' }} />Requesting…</>
+                          ) : requested ? (
+                            <>
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                                <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                              </svg>
+                              Analysis Requested
+                            </>
                           ) : (
                             <>
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
@@ -2492,9 +2640,9 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
             items={items}
             classifying={exportClassifyingMap[exportPrepModuleId] ?? false}
             onChoiceSave={saveChoice}
-            onDone={(localChoices, skippedIds) => {
+            onDone={(_localChoices, skippedIds) => {
               setExportPrepOpen(false)
-              const prompt = buildClaudeCodePrompt(modData, localChoices, skippedIds)
+              const prompt = buildClaudeCodePrompt(modData, skippedIds)
               const blob = new Blob([prompt], { type: 'text/markdown' })
               const url = URL.createObjectURL(blob)
               const a = document.createElement('a')

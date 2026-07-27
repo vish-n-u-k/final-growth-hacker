@@ -181,6 +181,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
   const [prUrl, setPrUrl] = useState<string | null>(initialPrUrl)
   const [fixPlanModal, setFixPlanModal] = useState<{ itemId: string; slug: string; plan: FixPlan } | null>(null)
   const [reanalyzing, setReanalyzing] = useState(false)
+  const [requested, setRequested] = useState(false)
   const [reqValues, setReqValues] = useState<Record<string, string>>(mod.requirements ?? {})
   const [setupError, setSetupError] = useState<string | null>(null)
   const [generatingDraft, setGeneratingDraft] = useState<Set<string>>(new Set())
@@ -292,6 +293,27 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
 
   const handleReanalyze = async (overrideReqs?: Record<string, string>) => {
     setSetupError(null)
+
+    if (process.env.NEXT_PUBLIC_APP_ENV === 'production') {
+      setReanalyzing(true)
+      try {
+        const res = await fetch('/api/request-analysis', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ moduleId: mod.id, moduleName: def.name }),
+        })
+        if (res.ok) {
+          setRequested(true)
+        } else {
+          const data = await res.json().catch(() => ({}))
+          setSetupError((data as { error?: string }).error ?? 'Request failed. Please try again.')
+        }
+      } finally {
+        setReanalyzing(false)
+      }
+      return
+    }
+
     setReanalyzing(true)
     const body: Record<string, unknown> = { moduleId: mod.id }
     const reqs = overrideReqs ?? reqValues
@@ -600,6 +622,24 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
 
   return (
     <>
+      {/* Analysis Requested Modal */}
+      {requested && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setRequested(false)}>
+          <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '36px 40px', maxWidth: 420, width: '90%', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(47,191,113,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17l-5-5" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10, color: 'var(--text)' }}>Request sent</h2>
+            <p style={{ color: 'var(--text-dim)', fontSize: 14, lineHeight: 1.65, marginBottom: 26 }}>
+              Your analysis request has been received. We&apos;ll email you when it&apos;s ready — usually within a few hours.
+            </p>
+            <Button onClick={() => setRequested(false)} style={{ minWidth: 100 }}>Got it</Button>
+          </div>
+        </div>
+      )}
+
       {/* Fix Plan Modal */}
       {fixPlanModal && (
         <FixPlanModal
