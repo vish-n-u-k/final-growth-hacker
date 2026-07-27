@@ -2127,7 +2127,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                           </svg>
                           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Playbook</span>
-                          <span style={{ fontSize: 12, color: 'var(--text-faint)', fontWeight: 400 }}>(your AI-generated sales playbook — ICP, scripts & objections)</span>
+                          <span style={{ fontSize: 12, color: '#8b938f', fontWeight: 400 }}>(your AI-generated sales playbook — ICP, scripts & objections)</span>
                           {playbookData
                             ? <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 500, marginLeft: 2 }}>Generated</span>
                             : <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 2 }}>Run analysis to generate</span>
