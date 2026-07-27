@@ -298,7 +298,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 .overview-dis-labels { display: flex; justify-content: space-between; margin-top: 5px; }
 .overview-dis-labels span { font-size: 11px; color: var(--text-faint); }
 .overview-dis-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-.overview-dis-btn-primary { display: inline-flex; align-items: center; gap: 7px; padding: 10px 20px; border-radius: 10px; border: none; background: var(--green-bright); color: #0a1410; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity .15s; }
+.overview-dis-btn-primary { display: inline-flex; align-items: center; gap: 7px; padding: 10px 20px; border-radius: 10px; border: none; background: var(--green-bright); color: #ffffff; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity .15s; }
 .overview-dis-btn-primary:hover { opacity: 0.88; }
 .overview-dis-btn-secondary { display: none; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text-dim); font-size: 14px; font-weight: 500; cursor: pointer; transition: border-color .15s, color .15s; }
 .overview-dis-btn-secondary:hover {display: none; border-color: var(--text-dim); color: var(--text); }
