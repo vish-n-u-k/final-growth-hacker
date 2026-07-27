@@ -534,6 +534,19 @@ function SocialProfilesCard({ connected }: { connected: ConnectedIntegration | n
   )
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function renderStep(step: string): React.ReactNode {
+  // Supports markdown-style links: [label](url)
+  const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
+  if (parts.length === 1) return step
+  return parts.map((part, i) => {
+    const m = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+    if (m) return <a key={i} href={m[2]} target="_blank" rel="noopener noreferrer" className="st-guide-link">{m[1]}</a>
+    return part
+  })
+}
+
 // ── Integrations Section ──────────────────────────────────────────────────────
 
 function IntegrationsSection({
@@ -696,7 +709,7 @@ function IntegrationCard({
               {showGuide && (
                 <ol className="st-guide-steps">
                   {def.setupSteps.map((step, i) => (
-                    <li key={i} className="st-guide-step">{step}</li>
+                    <li key={i} className="st-guide-step">{renderStep(step)}</li>
                   ))}
                 </ol>
               )}
