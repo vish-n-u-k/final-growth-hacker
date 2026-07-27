@@ -461,6 +461,17 @@ Key One-Liners: ${pb.keyOneLiners}`
       console.error('Brain fact extraction failed (non-fatal):', err)
     }
 
+    // Mark playbook stale so user knows it can be regenerated with richer context
+    if (brand.playbook) {
+      try {
+        await db.update(brands)
+          .set({ playbook: { ...(brand.playbook as object), _stale: true } })
+          .where(eq(brands.id, brand.id))
+      } catch {
+        // Non-fatal
+      }
+    }
+
     const { items: freshItems, categories: freshCats } = await getFreshModuleState(moduleId)
     return NextResponse.json({ ok: true, dynamic: def.dynamic ?? false, score, lastAnalyzedAt: new Date().toISOString(), items: freshItems, categories: freshCats, pageVerdicts })
   }
