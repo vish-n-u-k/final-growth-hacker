@@ -208,6 +208,14 @@ function ringColor(score: number): string {
   return '#f43f5e'
 }
 
+function SparkleIcon({ size = 12, style }: { size?: number; style?: React.CSSProperties }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+      <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+    </svg>
+  )
+}
+
 function LevelRing({ score }: { score: number }) {
   const r = 20
   const circ = 2 * Math.PI * r
@@ -1072,7 +1080,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       <span className="md-priority-label">Important</span>
                     </span>
                   )}
-                  {aiV && <Badge className="md-tag md-tag-ai">AI ✓</Badge>}
+                  {aiV && <Badge className="md-tag md-tag-ai">AI <SparkleIcon size={11} style={{ marginLeft: 2 }} /></Badge>}
                   {!aiV && userC && <Badge className="md-tag md-tag-self">Self</Badge>}
                   {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
                 </>
@@ -1301,7 +1309,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                       <span className="md-priority-label">Important</span>
                     </span>
                   )}
-                  {aiV && <span className="md-tag md-tag-ai">AI ✓</span>}
+                  {aiV && <span className="md-tag md-tag-ai">AI <SparkleIcon size={11} style={{ marginLeft: 2 }} /></span>}
                   {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
                   {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
                 </>
