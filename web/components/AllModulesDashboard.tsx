@@ -1909,7 +1909,7 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                   >
                     {isLocked ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src="/lock.svg" alt="" width={36} height={36} style={{ objectFit: 'contain' }} />
+                      <img src="/lock-gold.svg" alt="" width={36} height={36} style={{ objectFit: 'contain' }} />
                     ) : modData.type === 'gmail-outreach' ? (
                       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                         <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.7"/>
