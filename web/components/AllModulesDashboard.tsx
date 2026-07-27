@@ -2178,14 +2178,6 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                     </div>
                                   </div>
                                 ))}
-                                <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
-                                  <button onClick={handlePlaybookSave} disabled={playbookSaving} className="level-reanalyze-btn" style={{ fontSize: 12, padding: '6px 16px' }}>
-                                    {playbookSaving ? 'Saving…' : playbookSaved ? 'Saved ✓' : 'Save'}
-                                  </button>
-                                  <button onClick={() => setPlaybookEditing(false)} style={{ fontSize: 12, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}>
-                                    Cancel
-                                  </button>
-                                </div>
                               </div>
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
@@ -2211,6 +2203,16 @@ export default function AllModulesDashboard({ brand, allModulesData, userEmail, 
                                 )}
                               </div>
                             )}
+                          </div>
+                        )}
+                        {playbookOpen && playbookEditing && (
+                          <div style={{ display: 'flex', gap: 8, padding: '12px 16px', borderTop: '1px solid var(--line)', background: 'var(--card)' }}>
+                            <button onClick={handlePlaybookSave} disabled={playbookSaving} className="level-reanalyze-btn" style={{ fontSize: 12, padding: '6px 16px' }}>
+                              {playbookSaving ? 'Saving…' : playbookSaved ? 'Saved ✓' : 'Save'}
+                            </button>
+                            <button onClick={() => setPlaybookEditing(false)} style={{ fontSize: 12, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}>
+                              Cancel
+                            </button>
                           </div>
                         )}
                       </div>
