@@ -411,7 +411,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const isModuleLocked = (modData: ModuleData): boolean => {
     if (process.env.NEXT_PUBLIC_APP_ENV !== 'production') return false
     if (modData.order <= 3) return false  // Foundation, Website Audit, SEO always unlocked
-    const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order)
+    const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order && !p.definition?.comingSoon)
     return !prev || liveScores[prev.id] < 80
   }
 

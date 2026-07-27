@@ -441,8 +441,11 @@ Key One-Liners: ${pb.keyOneLiners}`
       .set({ status: 'complete', score, lastAnalyzedAt: new Date() })
       .where(eq(modules.id, moduleId))
 
-    // Unlock next module if threshold met
-    const nextDef = Object.values(MODULE_MAP).find(m => m.order === def.order + 1)
+    // Unlock next module if threshold met (skip comingSoon modules in the chain)
+    const nextDef = Object.values(MODULE_MAP)
+      .filter(m => !m.comingSoon)
+      .sort((a, b) => a.order - b.order)
+      .find(m => m.order > def.order)
     if (nextDef && score >= nextDef.unlockThreshold) {
       const brandMods = await db.select().from(modules).where(eq(modules.brandId, brand.id))
       const nextMod = brandMods.find(m => m.type === nextDef.type)
@@ -785,8 +788,11 @@ Key One-Liners: ${pb.keyOneLiners}`
     .set({ status: 'complete', score, lastAnalyzedAt: new Date() })
     .where(eq(modules.id, moduleId))
 
-  // Unlock next module if score meets its threshold
-  const nextDef = Object.values(MODULE_MAP).find((m) => m.order === def.order + 1)
+  // Unlock next module if score meets its threshold (skip comingSoon modules in the chain)
+  const nextDef = Object.values(MODULE_MAP)
+    .filter((m) => !m.comingSoon)
+    .sort((a, b) => a.order - b.order)
+    .find((m) => m.order > def.order)
   if (nextDef && score >= nextDef.unlockThreshold) {
     const brandMods = await db.select().from(modules).where(eq(modules.brandId, brand.id))
     const nextMod = brandMods.find((m) => m.type === nextDef.type)

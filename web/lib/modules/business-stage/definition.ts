@@ -5,7 +5,7 @@ export const BUSINESS_STAGE_MODULE: ModuleDefinition = {
   name: 'Business Stage Analysis',
   tagline: 'identify your stage and next priority',
   description: 'Figures out what stage your business is at and gives you a personalised plan for what to focus on next.',
-  order: 15,
+  order: 14,
   unlockThreshold: 0,
   dynamic: true,
   requirements: [],

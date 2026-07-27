@@ -5,7 +5,7 @@ export const META_ADS_MODULE: ModuleDefinition = {
   name: 'Meta Ads Audit',
   tagline: 'maximize returns on your ad spend',
   description: 'Doubles ROAS, halves ad spend.',
-  order: 12,
+  order: 11,
   unlockThreshold: 80,
   dynamic: true,
   requirements: [],

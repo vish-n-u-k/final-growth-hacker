@@ -5,7 +5,7 @@ export const BRAND_AUDIT_MODULE: ModuleDefinition = {
   name: 'Brand Audit',
   tagline: 'align your brand across all channels',
   description: 'Builds trust that closes deals.',
-  order: 8,
+  order: 7,
   unlockThreshold: 80,
   dynamic: true,
   requirements: [

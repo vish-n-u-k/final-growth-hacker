@@ -27,16 +27,16 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
   SEO_MODULE,                     // order: 3
   GEO_MODULE,                     // order: 4
   GEO_COMPETITOR_GAP_MODULE,      // order: 5
-  BACKLINKS_MODULE,               // order: 6 — Coming Soon
-  SOCIAL_MEDIA_MODULE,            // order: 7
-  BRAND_AUDIT_MODULE,             // order: 8
-  CONTENT_AUDIT_MODULE,           // order: 9
-  COMPETITOR_ANALYSIS_MODULE,     // order: 10
-  GMAIL_OUTREACH_MODULE,          // order: 11
-  META_ADS_MODULE,                // order: 12
-  USER_ANALYTICS_MODULE,          // order: 13
-  OUTREACH_TARGETS_MODULE,        // order: 14
-  BUSINESS_STAGE_MODULE,          // order: 15
+  SOCIAL_MEDIA_MODULE,            // order: 6
+  BRAND_AUDIT_MODULE,             // order: 7
+  CONTENT_AUDIT_MODULE,           // order: 8
+  COMPETITOR_ANALYSIS_MODULE,     // order: 9
+  GMAIL_OUTREACH_MODULE,          // order: 10
+  META_ADS_MODULE,                // order: 11
+  USER_ANALYTICS_MODULE,          // order: 12
+  OUTREACH_TARGETS_MODULE,        // order: 13
+  BUSINESS_STAGE_MODULE,          // order: 14
+  BACKLINKS_MODULE,               // order: 50 — Coming Soon (out of main chain)
 ]
 
 export const MODULE_MAP: Record<string, ModuleDefinition> = Object.fromEntries(
