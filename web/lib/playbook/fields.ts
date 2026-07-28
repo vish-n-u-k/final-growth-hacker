@@ -1,4 +1,6 @@
 export interface PlaybookData {
+  _stale?: boolean   // true = new module data available, user should regenerate
+
   // Executive Summary
   executiveSummary: string
 

@@ -116,6 +116,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
 // ── Playbook Section ──────────────────────────────────────────────────────────
 
 function PlaybookSection({ playbook }: { playbook: Record<string, string> | null }) {
+  const isStale = !!(playbook as Record<string, unknown> | null)?._stale
   const [values, setValues] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {}
     for (const f of PLAYBOOK_FIELDS) init[f.key] = playbook?.[f.key] ?? ''
@@ -124,8 +125,21 @@ function PlaybookSection({ playbook }: { playbook: Record<string, string> | null
   const [openSections, setOpenSections] = useState<Set<string>>(new Set([PLAYBOOK_SECTIONS[0]?.id ?? '']))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
   const [error, setError] = useState('')
   const router = useRouter()
+
+  const handleRegenerate = async () => {
+    setRegenerating(true)
+    setError('')
+    const res = await fetch('/api/settings/playbook', { method: 'POST' })
+    if (res.ok) {
+      router.refresh()
+    } else {
+      setError('Regeneration failed — try again')
+    }
+    setRegenerating(false)
+  }
 
   const toggleSection = (id: string) => setOpenSections(prev => {
     const next = new Set(prev)
@@ -168,6 +182,21 @@ function PlaybookSection({ playbook }: { playbook: Record<string, string> | null
         </div>
       ) : (
         <form onSubmit={handleSave}>
+          {isStale && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 14px', marginBottom: 16, borderRadius: 8, border: '1px solid var(--gold)', background: 'rgba(231,200,115,0.07)' }}>
+              <p style={{ margin: 0, fontSize: 12, color: 'var(--gold)', lineHeight: 1.5 }}>
+                New module data is available. Regenerate to update your playbook with richer brand intelligence.
+              </p>
+              <button
+                type="button"
+                onClick={handleRegenerate}
+                disabled={regenerating}
+                style={{ flexShrink: 0, fontSize: 12, padding: '6px 14px', borderRadius: 6, border: '1px solid var(--gold)', background: 'transparent', color: 'var(--gold)', cursor: regenerating ? 'not-allowed' : 'pointer', opacity: regenerating ? 0.6 : 1 }}
+              >
+                {regenerating ? 'Regenerating…' : 'Regenerate'}
+              </button>
+            </div>
+          )}
           {PLAYBOOK_SECTIONS.map((section) => {
             const isOpen = openSections.has(section.id)
             return (
@@ -505,6 +534,19 @@ function SocialProfilesCard({ connected }: { connected: ConnectedIntegration | n
   )
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function renderStep(step: string): React.ReactNode {
+  // Supports markdown-style links: [label](url)
+  const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
+  if (parts.length === 1) return step
+  return parts.map((part, i) => {
+    const m = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+    if (m) return <a key={i} href={m[2]} target="_blank" rel="noopener noreferrer" className="st-guide-link">{m[1]}</a>
+    return part
+  })
+}
+
 // ── Integrations Section ──────────────────────────────────────────────────────
 
 function IntegrationsSection({
@@ -667,7 +709,7 @@ function IntegrationCard({
               {showGuide && (
                 <ol className="st-guide-steps">
                   {def.setupSteps.map((step, i) => (
-                    <li key={i} className="st-guide-step">{step}</li>
+                    <li key={i} className="st-guide-step">{renderStep(step)}</li>
                   ))}
                 </ol>
               )}

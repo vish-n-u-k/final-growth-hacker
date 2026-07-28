@@ -6,6 +6,7 @@ export type { PlaybookData } from './fields'
 export async function generatePlaybook(
   data: FoundationFetchResult,
   brandName: string,
+  brainCtx?: string,
 ): Promise<PlaybookData | null> {
   if (!data.extracted) return null
 
@@ -24,7 +25,7 @@ Company: ${brandName}
 URL: ${data.url}
 
 Website data:
-${siteContext}
+${siteContext}${brainCtx ? `\n\nAdditional brand intelligence from completed audits:\n${brainCtx}` : ''}
 
 Generate the complete Sales Playbook as a single JSON object. Use \\n for line breaks within string values. Be specific and detailed — especially for email templates, scripts, and sequences. If you cannot infer something confidently, write a realistic placeholder based on what you do know.
 
