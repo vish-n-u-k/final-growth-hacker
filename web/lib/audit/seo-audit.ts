@@ -768,8 +768,17 @@ function checkInternalLinks($: cheerio.CheerioAPI, pageUrl: string, discoveredUr
   // pagerank.nav — check if key pages are in nav
   const navLinks = $('nav a, header a').toArray()
   const navHrefs = navLinks.map((el) => $(el).attr('href')?.toLowerCase() ?? '')
-  const keyPages = ['pricing', 'price', 'product', 'feature', 'about', 'blog', 'contact']
-  const missingNav = keyPages.filter((page) => !navHrefs.some((href) => href.includes(page)))
+  const keyPageGroups: Record<string, string[]> = {
+    pricing: ['pricing', 'price', 'plans'],
+    product: ['product'],
+    feature: ['feature'],
+    about: ['about'],
+    blog: ['blog'],
+    contact: ['contact'],
+  }
+  const missingNav = Object.entries(keyPageGroups)
+    .filter(([, keywords]) => !navHrefs.some((href) => keywords.some((kw) => href.includes(kw))))
+    .map(([label]) => label)
   if (missingNav.length === 0) {
     findings.push(f('pagerank.nav', 'good', 'Navigation links cover all key page types.'))
   } else if (missingNav.length <= 2) {
