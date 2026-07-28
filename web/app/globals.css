@@ -2278,12 +2278,16 @@ html.light .level-export-btn:hover { background: #e0e0e0; }
 }
 .btn-analysing::after {
   content: '';
-  position: absolute; inset: 0;
+  position: absolute; inset: 0; z-index: 0;
   background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);
   animation: btn-shimmer 1.4s ease-in-out infinite;
 }
-.level-reanalyze-btn .md-spin { border-top-color: var(--green); border-color: var(--line); }
-html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); border-color: var(--line); }
+.btn-analysing .md-spin,
+.btn-analysing .level-reanalyze-label {
+  position: relative; z-index: 1;
+}
+.level-reanalyze-btn .md-spin { border-top-color: var(--green); border-color: rgba(23,154,80,0.25); border-width: 2px; }
+html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); border-color: rgba(23,154,80,0.25); border-width: 2px; }
 
 /* ── Mobile Responsive ───────────────────────────────────────────────────── */
 

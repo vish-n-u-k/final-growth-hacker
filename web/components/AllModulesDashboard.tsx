@@ -2108,7 +2108,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         style={requested ? { opacity: 1, color: 'var(--gold)', borderColor: 'var(--gold)', cursor: 'default' } : undefined}
                       >
                         {reanalyzing ? (
-                          <><span className="md-spin" style={{ width: '10px', height: '10px', borderWidth: '1.5px' }} /><span className="level-reanalyze-label">Requesting…</span></>
+                          <><span className="md-spin" style={{ width: '11px', height: '11px', borderWidth: '2px' }} /><span className="level-reanalyze-label">Requesting…</span></>
                         ) : requested ? (
                           <>
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
