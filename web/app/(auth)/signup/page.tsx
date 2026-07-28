@@ -110,7 +110,7 @@ export default function SignupPage() {
         <Button
           type="submit"
           disabled={loading}
-          className="w-full h-12 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90 mt-4"
+          className="w-full h-12 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-white font-semibold hover:opacity-90 mt-4"
         >
           {loading ? 'Creating account…' : 'Create account'}
         </Button>

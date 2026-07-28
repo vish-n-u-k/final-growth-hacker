@@ -343,7 +343,7 @@ export default function FrektoTestPage() {
               background: generating || !apiKey.trim() || !topic.trim()
                 ? 'rgba(47,191,113,0.2)'
                 : 'var(--green)',
-              color: generating || !apiKey.trim() || !topic.trim() ? 'var(--text-dim)' : '#06140c',
+              color: generating || !apiKey.trim() || !topic.trim() ? 'var(--text-dim)' : '#ffffff',
               width: '100%',
             }}
           >
