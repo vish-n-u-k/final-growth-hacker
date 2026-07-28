@@ -295,6 +295,21 @@ export const analysisRequests = pgTable('analysis_requests', {
   completedAt: timestamp('completed_at', { withTimezone: true }),
 })
 
+// ── AI Usage Logs ─────────────────────────────────────────────────────────────
+
+export const aiUsageLogs = pgTable('ai_usage_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  brandId: uuid('brand_id').references(() => brands.id, { onDelete: 'cascade' }),
+  moduleType: text('module_type').notNull(),
+  websiteUrl: text('website_url'),
+  model: text('model').notNull(),
+  provider: text('provider').notNull(), // 'sdk' | 'cli' | 'gemini'
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  costUsd: text('cost_usd'), // stored as decimal string e.g. "0.001234"
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
+
 // ── Features ──────────────────────────────────────────────────────────────────
 
 export const features = pgTable(

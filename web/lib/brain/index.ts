@@ -76,11 +76,17 @@ function buildCanonicalConstraintBlock(
       : `RECOMMENDED ACTION by ${d.moduleType}`
     return `• [${d.concern.toUpperCase().replace(/_/g, ' ')}] ${status}: "${d.recommendation}"`
   })
-  return `=== ESTABLISHED DECISIONS — DO NOT CONTRADICT ===
-These decisions were established by earlier modules. You MUST be consistent with them.
-You may refine or build upon them, but MUST NOT recommend a conflicting approach.
+  return `=== LOCKED DECISIONS — THESE ARE NOT YOURS TO CHANGE ===
+The following copy and content directions were established by earlier modules and are now locked.
 
 ${lines.join('\n')}
+
+RULES — apply to every finding you generate in this analysis:
+1. For any finding that touches a locked concern above: DO NOT invent or suggest alternative copy.
+2. If the current value conflicts with a locked decision, your action MUST be: "Align with the [concern] direction established by [module]: [recommendation]" — not a new creative suggestion.
+3. If the current value already aligns, confirm it and move on.
+4. This applies to ALL findings you generate that relate to a locked concern — not just the first one.
+5. You may analyse WHY the current value is problematic, but the fix direction is already decided. Do not override it.
 
 ===`
 }

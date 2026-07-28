@@ -294,7 +294,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
   const handleReanalyze = async (overrideReqs?: Record<string, string>) => {
     setSetupError(null)
 
-    if (process.env.NEXT_PUBLIC_APP_ENV === 'production') {
+    if (process.env.NEXT_PUBLIC_APP_ENV === 'production' && mod.type !== 'foundation') {
       setReanalyzing(true)
       try {
         const res = await fetch('/api/request-analysis', {

@@ -1,5 +1,24 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { db } from '@/lib/db'
+import { aiUsageLogs } from '@/lib/db/schema'
+
+// ── Per-request context (brand + module) threaded via AsyncLocalStorage ────────
+
+interface AICallContext {
+  brandId: string
+  moduleType: string
+  websiteUrl?: string
+}
+
+const aiContextStore = new AsyncLocalStorage<AICallContext>()
+
+export function withAIContext<T>(ctx: AICallContext, fn: () => Promise<T>): Promise<T> {
+  return aiContextStore.run(ctx, fn)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface CallAIOptions {
   system: string
@@ -66,20 +85,67 @@ async function callViaCLI(system: string, prompt: string, model: string): Promis
         return
       }
 
-      let parsed: { result?: string; is_error?: boolean }
+      let parsed: Record<string, unknown>
       try {
-        parsed = JSON.parse(stdout) as { result?: string; is_error?: boolean }
+        parsed = JSON.parse(stdout) as Record<string, unknown>
       } catch {
         reject(new Error(`claude CLI stdout is not valid JSON (exit ${code}): ${stdout.slice(0, 300)}`))
         return
       }
 
       console.log('[CLI] parsed keys:', Object.keys(parsed))
-      console.log('[CLI] parsed.is_error:', parsed.is_error)
-      console.log('[CLI] parsed.result preview:', String(parsed.result ?? '').slice(0, 200))
+      console.log('[CLI] parsed.is_error:', parsed['is_error'])
+      console.log('[CLI] parsed.result preview:', String(parsed['result'] ?? '').slice(0, 200))
 
-      if (parsed.is_error) {
-        reject(new Error(`claude CLI error: ${parsed.result ?? 'unknown error'}`))
+      // ── Token / cost logging ──────────────────────────────────────────────
+      const usage = parsed['usage'] as Record<string, number> | undefined
+      const inputTok = ((usage?.['input_tokens'] ?? 0) + (usage?.['cache_creation_input_tokens'] ?? 0) + (usage?.['cache_read_input_tokens'] ?? 0)) || undefined
+      const outputTok = (usage?.['output_tokens']) as number | undefined
+      const costUsd = (parsed['total_cost_usd']) as number | undefined
+      console.log('┌─ [USAGE:CLI] ───────────────────────────────────────────')
+      console.log('│  All CLI fields:', JSON.stringify(parsed, (k, v) => k === 'result' ? '<truncated>' : v))
+      if (inputTok !== undefined || outputTok !== undefined) {
+        const inTok = inputTok ?? 0
+        const outTok = outputTok ?? 0
+        // Haiku 4.5 rates: $0.80/MTok in · $4/MTok out
+        // Sonnet 4.6 rates: $3/MTok in · $15/MTok out
+        const isHaiku = cliModel === 'haiku'
+        const inRate = isHaiku ? 0.80 : 3.00
+        const outRate = isHaiku ? 4.00 : 15.00
+        const estimatedCost = (inTok / 1_000_000) * inRate + (outTok / 1_000_000) * outRate
+        console.log(`│  input_tokens : ${inTok.toLocaleString()}`)
+        console.log(`│  output_tokens: ${outTok.toLocaleString()}`)
+        console.log(`│  cost (calc)  : $${estimatedCost.toFixed(6)}`)
+      }
+      if (costUsd !== undefined) {
+        console.log(`│  cost_usd (CLI reported): $${costUsd.toFixed(6)}`)
+      }
+      console.log('└─────────────────────────────────────────────────────────')
+      // ─────────────────────────────────────────────────────────────────────
+
+      // Save to DB if brand/module context is set
+      const _ctx = aiContextStore.getStore()
+      if (_ctx) {
+        const inTok = inputTok ?? 0
+        const outTok = outputTok ?? 0
+        const isHaikuDb = cliModel === 'haiku'
+        const inRateDb = isHaikuDb ? 0.80 : 3.00
+        const outRateDb = isHaikuDb ? 4.00 : 15.00
+        const calcCost = costUsd ?? ((inTok > 0 || outTok > 0) ? (inTok / 1_000_000) * inRateDb + (outTok / 1_000_000) * outRateDb : null)
+        db.insert(aiUsageLogs).values({
+          brandId: _ctx.brandId,
+          moduleType: _ctx.moduleType,
+          websiteUrl: _ctx.websiteUrl,
+          model: cliModel,
+          provider: 'cli',
+          inputTokens: inTok || null,
+          outputTokens: outTok || null,
+          costUsd: calcCost != null ? calcCost.toFixed(8) : null,
+        }).catch(e => console.error('[USAGE] DB insert failed:', e))
+      }
+
+      if (parsed['is_error']) {
+        reject(new Error(`claude CLI error: ${parsed['result'] ?? 'unknown error'}`))
         return
       }
 
@@ -88,12 +154,12 @@ async function callViaCLI(system: string, prompt: string, model: string): Promis
         return
       }
 
-      if (typeof parsed.result !== 'string') {
+      if (typeof parsed['result'] !== 'string') {
         reject(new Error(`claude CLI JSON missing "result" field. Full output: ${stdout.slice(0, 500)}`))
         return
       }
 
-      resolve(parsed.result)
+      resolve(parsed['result'] as string)
     })
   })
 }
@@ -120,6 +186,25 @@ export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet
     })
     const result = await geminiModel.generateContent(prompt)
     response = result.response.text()
+    const gUsage = result.response.usageMetadata
+    console.log('┌─ [USAGE:Gemini] ────────────────────────────────────────')
+    console.log(`│  promptTokenCount    : ${gUsage?.promptTokenCount ?? 'n/a'}`)
+    console.log(`│  candidatesTokenCount: ${gUsage?.candidatesTokenCount ?? 'n/a'}`)
+    console.log(`│  totalTokenCount     : ${gUsage?.totalTokenCount ?? 'n/a'}`)
+    console.log('└─────────────────────────────────────────────────────────')
+    const _gCtx = aiContextStore.getStore()
+    if (_gCtx) {
+      db.insert(aiUsageLogs).values({
+        brandId: _gCtx.brandId,
+        moduleType: _gCtx.moduleType,
+        websiteUrl: _gCtx.websiteUrl,
+        model: 'gemini-2.0-flash',
+        provider: 'gemini',
+        inputTokens: gUsage?.promptTokenCount ?? null,
+        outputTokens: gUsage?.candidatesTokenCount ?? null,
+        costUsd: null, // Gemini pricing varies, skip for now
+      }).catch(e => console.error('[USAGE] DB insert failed:', e))
+    }
   } else {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     const userContent = cachePrefix
@@ -135,6 +220,30 @@ export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet
       messages: [{ role: 'user', content: userContent }],
     })
     response = message.content[0].type === 'text' ? message.content[0].text : '[]'
+    const u = message.usage
+    const isHaiku = model.includes('haiku')
+    const inRate = isHaiku ? 0.80 : 3.00
+    const outRate = isHaiku ? 4.00 : 15.00
+    const cost = (u.input_tokens / 1_000_000) * inRate + (u.output_tokens / 1_000_000) * outRate
+    console.log('┌─ [USAGE:SDK] ───────────────────────────────────────────')
+    console.log(`│  model        : ${model}`)
+    console.log(`│  input_tokens : ${u.input_tokens.toLocaleString()}`)
+    console.log(`│  output_tokens: ${u.output_tokens.toLocaleString()}`)
+    console.log(`│  cost (calc)  : $${cost.toFixed(6)}`)
+    console.log('└─────────────────────────────────────────────────────────')
+    const _sdkCtx = aiContextStore.getStore()
+    if (_sdkCtx) {
+      db.insert(aiUsageLogs).values({
+        brandId: _sdkCtx.brandId,
+        moduleType: _sdkCtx.moduleType,
+        websiteUrl: _sdkCtx.websiteUrl,
+        model,
+        provider: 'sdk',
+        inputTokens: u.input_tokens,
+        outputTokens: u.output_tokens,
+        costUsd: cost.toFixed(8),
+      }).catch(e => console.error('[USAGE] DB insert failed:', e))
+    }
   }
 
   console.log('─── RESPONSE ─────────────────────────────────────────────────────────────────')

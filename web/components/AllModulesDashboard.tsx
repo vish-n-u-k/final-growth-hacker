@@ -15,6 +15,16 @@ import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/
 import { PLAYBOOK_SECTIONS } from '@/lib/playbook/fields'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 
+function renderMdStep(step: string): React.ReactNode {
+  const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
+  if (parts.length === 1) return step
+  return parts.map((part, i) => {
+    const m = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+    if (m) return <a key={i} href={m[2]} target="_blank" rel="noopener noreferrer" className="st-guide-link">{m[1]}</a>
+    return part
+  })
+}
+
 export interface ModuleData {
   id: string
   type: string
@@ -498,7 +508,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     setSetupErrorMap(prev => ({ ...prev, [modId]: null }))
     setReanalyzingMap(prev => ({ ...prev, [modId]: true }))
 
-    if (process.env.NEXT_PUBLIC_APP_ENV === 'production') {
+    const modType = allModulesData.find(m => m.id === modId)?.type
+    if (process.env.NEXT_PUBLIC_APP_ENV === 'production' && modType !== 'foundation') {
       const modName = allModulesData.find(m => m.id === modId)?.name ?? modId
       try {
         const res = await fetch('/api/request-analysis', {
@@ -1151,7 +1162,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         </span>
         <div className="md-item-body">
           <div className="md-item-top">
-            <span className="md-item-lbl">{item.label}</span>
+            <span className="md-item-lbl">{item.aiHighlight || item.label}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
               {skipped ? (
                 <>
@@ -1215,7 +1226,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           )}
           {isExpanded && hasDetail && (
             <div className="sm-expanded-body" onClick={(e) => e.stopPropagation()}>
-              {item.aiHighlight && <p className="sm-highlight">{item.aiHighlight}</p>}
               {item.aiNarrative && <p className="sm-narrative">{parseBold(item.aiNarrative)}</p>}
               {item.aiAction && (
                 <div className="sm-action-box">
@@ -1380,7 +1390,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         </span>
         <div className="md-item-body">
           <div className="md-item-top">
-            <span className="md-item-lbl">{item.label}</span>
+            <span className="md-item-lbl">{s?.aiHighlight || item.label}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
               {skipped ? (
                 <>
@@ -1444,7 +1454,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           )}
           {isExpanded && hasDetail && (
             <div className="sm-expanded-body" onClick={(e) => e.stopPropagation()}>
-              {s?.aiHighlight && <p className="sm-highlight">{s.aiHighlight}</p>}
               {s?.aiNarrative && <p className="sm-narrative">{parseBold(s.aiNarrative)}</p>}
               {s?.aiAction && (
                 <div className="sm-action-box">
@@ -1469,7 +1478,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       {intDef.setupSteps.map((step, i) => (
                         <li key={i} className="sm-setup-step">
                           <span className="sm-setup-step-num">{i + 1}</span>
-                          <span>{step}</span>
+                          <span>{renderMdStep(step)}</span>
                         </li>
                       ))}
                     </ol>
@@ -1484,7 +1493,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     {item.fixGuide.map((step, i) => (
                       <li key={i} className="sm-fix-guide-step">
                         <span className="sm-fix-guide-num">{i + 1}</span>
-                        <span style={{ whiteSpace: 'pre-wrap' }}>{step}</span>
+                        <span style={{ whiteSpace: 'pre-wrap' }}>{renderMdStep(step)}</span>
                       </li>
                     ))}
                   </ol>
@@ -2059,7 +2068,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     }
                     {!isLocked && effectiveLastAnalyzedAt && (
                       <div style={{ fontSize: 11, color: 'var(--text-faint, #4a6b5c)', marginTop: 3 }}>
-                        Last analysed {timeAgo(effectiveLastAnalyzedAt)}
+                        Analysed {timeAgo(effectiveLastAnalyzedAt)}
                       </div>
                     )}
                   </div>

@@ -8,7 +8,7 @@ import {
 import {
   ArrowLeft, RefreshCw, UserPlus, LogIn, Crown, UserMinus,
   Trash2, MessageSquare, Star, TrendingDown, TrendingUp,
-  Zap, ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle,
+  Zap, ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle, Copy,
 } from 'lucide-react'
 
 /* ── Types ────────────────────────────────────────────── */
@@ -75,6 +75,17 @@ interface DashboardData {
   gsc: GscData
   ga4: Ga4Data
   snapshotAt?: string | null
+}
+
+interface UserRow {
+  name: string | null
+  email: string
+  userId: string
+  timestamp: string
+  source: string | null
+  location: string | null
+  plan: string | null
+  sessions?: number
 }
 
 /* ── Fallback data (shown while loading or when PostHog not connected) ── */
@@ -178,10 +189,11 @@ function ComingSoonBadge() {
 }
 
 function StatCard({
-  icon: Icon, iconTone, label, value, source, deltaValue, invertGood, loading, comingSoon, period,
+  icon: Icon, iconTone, label, value, source, deltaValue, invertGood, loading, comingSoon, period, onViewDetails,
 }: {
   icon: React.ElementType; iconTone: string; label: string; value: string | number
   source: string; deltaValue: number; invertGood?: boolean; loading?: boolean; comingSoon?: boolean; period?: string
+  onViewDetails?: () => void
 }) {
   const iconColor = toneColor(iconTone)
   const textColor = comingSoon ? '#555f5a' : iconColor
@@ -220,6 +232,19 @@ function StatCard({
           ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>loading…</span>
           : <Delta value={deltaValue} invertGood={invertGood} period={period} />
       }
+      {!comingSoon && !loading && onViewDetails && (
+        <button
+          onClick={onViewDetails}
+          style={{
+            alignSelf: 'flex-start', fontSize: 12, fontWeight: 600,
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            color: 'var(--green-bright)', background: 'none', border: 'none',
+            cursor: 'pointer', padding: 0, marginTop: -4,
+          }}
+        >
+          View details <ArrowRight size={11} />
+        </button>
+      )}
     </div>
   )
 }
@@ -259,7 +284,7 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon }:
   )
 }
 
-function RetentionCurve({ data, loading }: { data: { day: string; rate: number }[]; loading: boolean }) {
+function RetentionCurve({ data, loading, onViewDetails }: { data: { day: string; rate: number }[]; loading: boolean; onViewDetails?: () => void }) {
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -272,7 +297,14 @@ function RetentionCurve({ data, loading }: { data: { day: string; rate: number }
             {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <SourcePill>PostHog</SourcePill>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {!loading && onViewDetails && (
+            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              View details <ArrowRight size={11} />
+            </button>
+          )}
+          <SourcePill>PostHog</SourcePill>
+        </div>
       </div>
       <div style={{ width: '100%', height: 200, marginTop: 24 }}>
         <ResponsiveContainer>
@@ -299,7 +331,7 @@ function RetentionCurve({ data, loading }: { data: { day: string; rate: number }
   )
 }
 
-function FunnelCard({ data, loading }: { data: { stage: string; value: number }[]; loading: boolean }) {
+function FunnelCard({ data, loading, onViewDetails }: { data: { stage: string; value: number }[]; loading: boolean; onViewDetails?: () => void }) {
   const max = data[0]?.value ?? 1
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
@@ -313,7 +345,14 @@ function FunnelCard({ data, loading }: { data: { stage: string; value: number }[
             {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <SourcePill>PostHog</SourcePill>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {!loading && onViewDetails && (
+            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              View details <ArrowRight size={11} />
+            </button>
+          )}
+          <SourcePill>PostHog</SourcePill>
+        </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 24 }}>
         {data.map((f, i) => {
@@ -347,7 +386,7 @@ function FunnelCard({ data, loading }: { data: { stage: string; value: number }[
   )
 }
 
-function ActivationFunnelCard({ data, loading }: { data: { stage: string; value: number }[] | null; loading: boolean }) {
+function ActivationFunnelCard({ data, loading, onViewDetails }: { data: { stage: string; value: number }[] | null; loading: boolean; onViewDetails?: () => void }) {
   const displayData = data ?? []
   const max = displayData[0]?.value ?? 1
   return (
@@ -362,7 +401,14 @@ function ActivationFunnelCard({ data, loading }: { data: { stage: string; value:
             {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <SourcePill>PostHog</SourcePill>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {!loading && onViewDetails && (
+            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              View details <ArrowRight size={11} />
+            </button>
+          )}
+          <SourcePill>PostHog</SourcePill>
+        </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 24 }}>
         {loading
@@ -403,7 +449,7 @@ function ActivationFunnelCard({ data, loading }: { data: { stage: string; value:
   )
 }
 
-function WauChart({ data, loading }: { data: { week: string; users: number }[] | null; loading: boolean }) {
+function WauChart({ data, loading, onViewDetails }: { data: { week: string; users: number }[] | null; loading: boolean; onViewDetails?: () => void }) {
   const chartData = data ?? []
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
@@ -417,7 +463,14 @@ function WauChart({ data, loading }: { data: { week: string; users: number }[] |
             {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <SourcePill>PostHog</SourcePill>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {!loading && onViewDetails && (
+            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              View details <ArrowRight size={11} />
+            </button>
+          )}
+          <SourcePill>PostHog</SourcePill>
+        </div>
       </div>
       {!loading && chartData.length === 0 ? (
         <div style={{ marginTop: 24, padding: '28px 0', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
@@ -450,7 +503,7 @@ function WauChart({ data, loading }: { data: { week: string; users: number }[] |
   )
 }
 
-function PmfCard({ data, loading }: { data: { event: string; label: string; retainedAvg: number; churnedAvg: number }[] | null; loading: boolean }) {
+function PmfCard({ data, loading, onViewDetails }: { data: { event: string; label: string; retainedAvg: number; churnedAvg: number }[] | null; loading: boolean; onViewDetails?: () => void }) {
   const displayData = data ?? []
   const maxVal = Math.max(...displayData.flatMap(d => [d.retainedAvg, d.churnedAvg]), 1)
   return (
@@ -465,7 +518,14 @@ function PmfCard({ data, loading }: { data: { event: string; label: string; reta
             {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <SourcePill>PostHog</SourcePill>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {!loading && onViewDetails && (
+            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+              View details <ArrowRight size={11} />
+            </button>
+          )}
+          <SourcePill>PostHog</SourcePill>
+        </div>
       </div>
       <div style={{ display: 'flex', gap: 20, fontSize: 11, color: 'var(--text-dim)', marginTop: 20, marginBottom: 4 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -509,6 +569,218 @@ function PmfCard({ data, loading }: { data: { event: string; label: string; reta
             ))
         }
       </div>
+    </div>
+  )
+}
+
+function DetailView({
+  type, users, loading, onBack, snapshotData, isMobile, onCopy,
+}: {
+  type: 'signups' | 'signins' | 'dau' | 'deleted' | 'retention' | 'funnel' | 'activation-funnel' | 'wau' | 'pmf'
+  users: UserRow[]
+  loading: boolean
+  onBack: () => void
+  snapshotData: DashboardData | null
+  isMobile: boolean
+  onCopy: (text: string, msg: string) => void
+}) {
+  const TITLE: Record<string, string> = {
+    signups: 'New signups', signins: 'Sign-ins',
+    dau: 'Active users', deleted: 'Deleted accounts', retention: 'Retention cohorts',
+    funnel: 'Conversion funnel', 'activation-funnel': 'Activation funnel',
+    wau: 'Daily active users', pmf: 'PMF signals',
+  }
+
+  function fmtTs(ts: string): string {
+    try {
+      const d = new Date(ts)
+      if (isNaN(d.getTime())) return ts
+      return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    } catch { return ts }
+  }
+
+  return (
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 16px' : '32px 28px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
+        <button
+          onClick={onBack}
+          style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}
+        >
+          <ArrowLeft size={15} />
+        </button>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.4px', color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)', margin: 0 }}>
+            {TITLE[type]}
+          </h1>
+          {(type === 'signups' || type === 'signins' || type === 'dau' || type === 'deleted') && (
+            <p style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>
+              {loading ? 'Loading...' : `${users.length} result${users.length === 1 ? '' : 's'}`}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {type !== 'signups' && type !== 'signins' && type !== 'dau' && type !== 'deleted' ? (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
+          <div style={{ overflowX: 'auto' }}>
+            {type === 'retention' && (() => {
+              const rows = snapshotData?.retention ?? FALLBACK_RETENTION
+              return (
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 300 }}>
+                  <thead><tr>
+                    <th style={{ textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-faint)', padding: '0 32px 12px 0', borderBottom: '1px solid var(--line)' }}>Day</th>
+                    <th style={{ textAlign: 'right', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-faint)', padding: '0 0 12px', borderBottom: '1px solid var(--line)' }}>Retention rate</th>
+                  </tr></thead>
+                  <tbody>
+                    {rows.map(r => (
+                      <tr key={r.day}>
+                        <td style={{ padding: '10px 32px 10px 0', fontSize: 14, color: 'var(--text-dim)', borderBottom: '1px solid var(--line)' }}>{r.day}</td>
+                        <td style={{ padding: '10px 0', fontSize: 14, fontWeight: 600, textAlign: 'right', borderBottom: '1px solid var(--line)', color: r.rate >= 50 ? 'var(--green-bright)' : r.rate >= 20 ? 'var(--gold)' : '#f87171' }}>{r.rate}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            })()}
+            {(type === 'funnel' || type === 'activation-funnel') && (() => {
+              const rows = type === 'funnel' ? (snapshotData?.funnel ?? FALLBACK_FUNNEL) : (snapshotData?.activationFunnel ?? [])
+              const max = rows[0]?.value ?? 1
+              return rows.length === 0 ? (
+                <div style={{ padding: '20px 0', color: 'var(--text-faint)', fontSize: 13 }}>No funnel data in snapshot</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 400 }}>
+                  <thead><tr>
+                    <th style={{ textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-faint)', padding: '0 0 12px', borderBottom: '1px solid var(--line)' }}>Stage</th>
+                    <th style={{ textAlign: 'right', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-faint)', padding: '0 0 12px 32px', borderBottom: '1px solid var(--line)' }}>Users</th>
+                    <th style={{ textAlign: 'right', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-faint)', padding: '0 0 12px 32px', borderBottom: '1px solid var(--line)' }}>Step rate</th>
+                  </tr></thead>
+                  <tbody>
+                    {rows.map((f, i) => {
+                      const prev = i > 0 ? rows[i - 1].value : null
+                      const stepPct = prev ? Math.round((f.value / prev) * 100) : Math.round((f.value / max) * 100)
+                      return (
+                        <tr key={f.stage}>
+                          <td style={{ padding: '10px 0', fontSize: 14, color: 'var(--text-dim)', borderBottom: '1px solid var(--line)' }}>{f.stage}</td>
+                          <td style={{ padding: '10px 0 10px 32px', fontSize: 14, fontWeight: 600, textAlign: 'right', borderBottom: '1px solid var(--line)', color: 'var(--text)' }}>{f.value.toLocaleString()}</td>
+                          <td style={{ padding: '10px 0 10px 32px', fontSize: 14, fontWeight: 600, textAlign: 'right', borderBottom: '1px solid var(--line)', color: i === 0 ? 'var(--text-faint)' : stepPct < 30 ? '#f87171' : 'var(--green-bright)' }}>
+                            {i === 0 ? '100%' : `${stepPct}%`}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )
+            })()}
+            {type === 'wau' && (() => {
+              const rows = snapshotData?.wau ?? []
+              return rows.length === 0 ? (
+                <div style={{ padding: '20px 0', color: 'var(--text-faint)', fontSize: 13 }}>No daily active user data in snapshot</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 300 }}>
+                  <thead><tr>
+                    <th style={{ textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-faint)', padding: '0 32px 12px 0', borderBottom: '1px solid var(--line)' }}>Date</th>
+                    <th style={{ textAlign: 'right', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-faint)', padding: '0 0 12px', borderBottom: '1px solid var(--line)' }}>Active users</th>
+                  </tr></thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={i}>
+                        <td style={{ padding: '10px 32px 10px 0', fontSize: 14, color: 'var(--text-dim)', borderBottom: '1px solid var(--line)' }}>{r.week}</td>
+                        <td style={{ padding: '10px 0', fontSize: 14, fontWeight: 600, textAlign: 'right', borderBottom: '1px solid var(--line)', color: 'var(--text)' }}>{r.users}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            })()}
+            {type === 'pmf' && (() => {
+              const rows = snapshotData?.pmf ?? []
+              return rows.length === 0 ? (
+                <div style={{ padding: '20px 0', color: 'var(--text-faint)', fontSize: 13 }}>No PMF signal data in snapshot</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 400 }}>
+                  <thead><tr>
+                    <th style={{ textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-faint)', padding: '0 0 12px', borderBottom: '1px solid var(--line)' }}>Feature</th>
+                    <th style={{ textAlign: 'right', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-faint)', padding: '0 0 12px 32px', borderBottom: '1px solid var(--line)' }}>Retained avg</th>
+                    <th style={{ textAlign: 'right', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-faint)', padding: '0 0 12px 32px', borderBottom: '1px solid var(--line)' }}>Churned avg</th>
+                  </tr></thead>
+                  <tbody>
+                    {rows.map(d => (
+                      <tr key={d.event}>
+                        <td style={{ padding: '10px 0', fontSize: 14, color: 'var(--text-dim)', borderBottom: '1px solid var(--line)' }}>{d.label}</td>
+                        <td style={{ padding: '10px 0 10px 32px', fontSize: 14, fontWeight: 600, textAlign: 'right', borderBottom: '1px solid var(--line)', color: 'var(--green-bright)' }}>{d.retainedAvg}×</td>
+                        <td style={{ padding: '10px 0 10px 32px', fontSize: 14, fontWeight: 600, textAlign: 'right', borderBottom: '1px solid var(--line)', color: '#f87171' }}>{d.churnedAvg}×</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            })()}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+            <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>Click the copy icon next to any email to copy individually</span>
+            <button
+              onClick={() => {
+                const emails = users.map(u => u.email).filter(Boolean).join(', ')
+                if (emails) onCopy(emails, `Copied ${users.length} email${users.length === 1 ? '' : 's'}`)
+              }}
+              disabled={users.length === 0 || loading}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, padding: '7px 16px', borderRadius: 99, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: users.length === 0 || loading ? 'not-allowed' : 'pointer', opacity: users.length === 0 || loading ? 0.5 : 1 }}
+            >
+              <Copy size={13} /> Copy all emails
+            </button>
+          </div>
+
+          <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, overflow: 'hidden' }}>
+            {loading ? (
+              <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 14 }}>Loading users…</div>
+            ) : users.length === 0 ? (
+              <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 14 }}>No users found for this time range</div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                      {['User', 'User ID', 'Email', 'Timestamp', 'Source', 'Location', 'Plan'].map(h => (
+                        <th key={h} style={{ textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-faint)', padding: '12px 16px', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((u, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid var(--line)' }}>
+                        <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text)', whiteSpace: 'nowrap' }}>{u.name ?? '—'}</td>
+                        <td style={{ padding: '12px 16px', fontSize: 11, color: 'var(--text-faint)', fontFamily: 'monospace', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.userId}</td>
+                        <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13, color: 'var(--text)' }}>{u.email || '—'}</span>
+                            {u.email && (
+                              <button
+                                onClick={() => onCopy(u.email, `Copied ${u.email}`)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', padding: 2, display: 'flex', alignItems: 'center' }}
+                                title="Copy email"
+                              >
+                                <Copy size={12} />
+                              </button>
+                            )}
+                          </span>
+                        </td>
+                        <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{fmtTs(u.timestamp)}</td>
+                        <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-dim)' }}>{u.source ?? '—'}</td>
+                        <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-dim)' }}>{u.location ?? '—'}</td>
+                        <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-dim)' }}>{u.plan ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -635,6 +907,10 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [detailView, setDetailView] = useState<'signups'|'signins'|'dau'|'deleted'|'retention'|'funnel'|'activation-funnel'|'wau'|'pmf'|null>(null)
+  const [detailUsers, setDetailUsers] = useState<UserRow[]>([])
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [toastMsg, setToastMsg] = useState<string|null>(null)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)')
     setIsMobile(mq.matches)
@@ -642,6 +918,23 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
+
+  const openDetail = (type: 'signups'|'signins'|'dau'|'deleted'|'retention'|'funnel'|'activation-funnel'|'wau'|'pmf') => {
+    setDetailView(type)
+    if (type !== 'signups' && type !== 'signins' && type !== 'dau' && type !== 'deleted') return
+    setDetailLoading(true)
+    setDetailUsers([])
+    fetch(`/api/analytics/users?brandId=${brand.id}&type=${type}&range=${range}`)
+      .then(r => r.json())
+      .then((d: { users: UserRow[] }) => setDetailUsers(d.users ?? []))
+      .catch(() => setDetailUsers([]))
+      .finally(() => setDetailLoading(false))
+  }
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg)
+    setTimeout(() => setToastMsg(null), 1600)
+  }
 
   // Fetch analytics data (returns cached snapshot unless force=true)
   useEffect(() => {
@@ -697,11 +990,12 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
     key: string; label: string; value: string | number; delta: number
     source: string; icon: React.ElementType; tone: string
     loading?: boolean; comingSoon?: boolean; invertGood?: boolean; period?: string
+    onViewDetails?: () => void
   }[] = [
-    { key: 'signups',  label: 'New signups',      value: signupsVal,      delta: 0, source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading, period: rangePeriod },
-    { key: 'signins',  label: 'Sign-ins',          value: signinsVal,      delta: 0, source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading, period: rangePeriod },
-    { key: 'au',       label: activeUsersLabel,    value: activeUsersVal,  delta: 0, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading, period: rangePeriod },
-    { key: 'deleted',  label: 'Deleted account',   value: deletedVal,      delta: 0, source: 'PostHog',  icon: Trash2,        tone: 'red',     loading: phLoading, period: rangePeriod, invertGood: true },
+    { key: 'signups',  label: 'New signups',      value: signupsVal,      delta: 0, source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signups') : undefined },
+    { key: 'signins',  label: 'Sign-ins',          value: signinsVal,      delta: 0, source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signins') : undefined },
+    { key: 'au',       label: activeUsersLabel,    value: activeUsersVal,  delta: 0, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('dau') : undefined },
+    { key: 'deleted',  label: 'Deleted account',   value: deletedVal,      delta: 0, source: 'PostHog',  icon: Trash2,        tone: 'red',     loading: phLoading, period: rangePeriod, invertGood: true, onViewDetails: data?.posthogConnected ? () => openDetail('deleted') : undefined },
     { key: 'pro',      label: 'Became PRO',        value: 0, delta: 0, source: 'Stripe',   icon: Crown,         tone: 'amber',   comingSoon: true },
     { key: 'unsub',    label: 'Unsubscribed',      value: 0, delta: 0, source: 'Stripe',   icon: UserMinus,     tone: 'red',     comingSoon: true, invertGood: true },
     { key: 'contact',  label: 'Support contacted', value: 0, delta: 0, source: 'Internal', icon: MessageSquare, tone: 'neutral', comingSoon: true },
@@ -711,6 +1005,27 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   const avgScore = modules.filter(m => !m.locked).length > 0
     ? Math.round(modules.filter(m => !m.locked).reduce((s, m) => s + m.score, 0) / modules.filter(m => !m.locked).length)
     : 0
+
+  if (detailView !== null) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
+        {toastMsg && (
+          <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: 'var(--text)', color: 'var(--bg)', fontSize: 13, fontWeight: 600, padding: '10px 20px', borderRadius: 99, zIndex: 100, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
+            <CheckCircle2 size={14} /> {toastMsg}
+          </div>
+        )}
+        <DetailView
+          type={detailView}
+          users={detailUsers}
+          loading={detailLoading}
+          onBack={() => setDetailView(null)}
+          snapshotData={data}
+          isMobile={isMobile}
+          onCopy={(text, msg) => { void navigator.clipboard.writeText(text); showToast(msg) }}
+        />
+      </div>
+    )
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
@@ -811,6 +1126,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 loading={item.loading}
                 comingSoon={item.comingSoon}
                 period={item.period}
+                onViewDetails={item.onViewDetails}
               />
             ))}
           </div>
@@ -828,8 +1144,8 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             <KpiCard label="Onboarding drop-off" value="0%" sub="Users who don't return after signup" source="Stripe" delta={0} bad comingSoon />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <RetentionCurve data={retentionData} loading={phLoading} />
-            <FunnelCard data={funnelData} loading={phLoading} />
+            <RetentionCurve data={retentionData} loading={phLoading} onViewDetails={data?.posthogConnected ? () => openDetail('retention') : undefined} />
+            <FunnelCard data={funnelData} loading={phLoading} onViewDetails={data?.posthogConnected ? () => openDetail('funnel') : undefined} />
           </div>
         </section>
 
@@ -845,9 +1161,9 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <WauChart data={data?.wau ?? null} loading={phLoading} />
-              <ActivationFunnelCard data={data?.activationFunnel ?? null} loading={phLoading} />
-              <PmfCard data={data?.pmf ?? null} loading={phLoading} />
+              <WauChart data={data?.wau ?? null} loading={phLoading} onViewDetails={data?.posthogConnected ? () => openDetail('wau') : undefined} />
+              <ActivationFunnelCard data={data?.activationFunnel ?? null} loading={phLoading} onViewDetails={data?.posthogConnected ? () => openDetail('activation-funnel') : undefined} />
+              <PmfCard data={data?.pmf ?? null} loading={phLoading} onViewDetails={data?.posthogConnected ? () => openDetail('pmf') : undefined} />
             </div>
           )}
         </section>

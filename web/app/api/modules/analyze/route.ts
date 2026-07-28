@@ -53,6 +53,7 @@ function deriveExportType(item: ModuleItemDefinition): 'auto' | 'needs_choice' |
   return null
 }
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
+import { withAIContext } from '@/lib/ai/client'
 
 export const maxDuration = 300
 
@@ -314,7 +315,10 @@ Key One-Liners: ${pb.keyOneLiners}`
     let contentAuditOutput: Awaited<ReturnType<typeof analyzeContentAudit>>
     try {
       const data = await fetchContentAuditData(requirements)
-      contentAuditOutput = await analyzeContentAudit(data, brainCtx)
+      contentAuditOutput = await withAIContext(
+        { brandId: brand.id, moduleType: mod.type, websiteUrl: brand.websiteUrl ?? undefined },
+        () => analyzeContentAudit(data, brainCtx),
+      )
     } catch (err) {
       await db.update(modules).set({ status: 'pending' }).where(eq(modules.id, moduleId))
       console.error('Content audit analysis failed:', err)
@@ -483,10 +487,13 @@ Key One-Liners: ${pb.keyOneLiners}`
       const prefetch = await fetchFoundationData(requirements)
       if (!prefetch.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)
 
-      const [{ brandColor, results }, playbookResult] = await Promise.all([
-        analyzeFoundation(prefetch),
-        generatePlaybook(prefetch, brand.name).catch(() => null),
-      ])
+      const [{ brandColor, results }, playbookResult] = await withAIContext(
+        { brandId: brand.id, moduleType: mod.type, websiteUrl: brand.websiteUrl ?? undefined },
+        () => Promise.all([
+          analyzeFoundation(prefetch),
+          generatePlaybook(prefetch, brand.name).catch(() => null),
+        ]),
+      )
       console.log('[Foundation] brandColor from Claude:', brandColor || '(empty)')
       foundationResults = results
 
@@ -546,7 +553,10 @@ Key One-Liners: ${pb.keyOneLiners}`
     results = foundationResults
   } else {
     try {
-      results = await runAnalysis(mod.type, requirements, brainCtx)
+      results = await withAIContext(
+        { brandId: brand.id, moduleType: mod.type, websiteUrl: brand.websiteUrl ?? undefined },
+        () => runAnalysis(mod.type, requirements, brainCtx),
+      )
     } catch (err) {
       await db.update(modules).set({ status: 'pending' }).where(eq(modules.id, moduleId))
       console.error('Module analysis failed:', err)

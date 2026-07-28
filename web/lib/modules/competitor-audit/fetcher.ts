@@ -18,13 +18,10 @@ export interface CompetitorAuditFetchResult {
 
 async function safeFetch(url: string, timeoutMs = 12000): Promise<string | null> {
   try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), timeoutMs)
     const res = await fetch(url, {
-      signal: controller.signal,
+      signal: AbortSignal.timeout(timeoutMs),
       headers: { 'User-Agent': 'GrowJinBot/1.0 (Competitor Analyser)' },
     })
-    clearTimeout(timer)
     if (!res.ok) return null
     return await res.text()
   } catch {
