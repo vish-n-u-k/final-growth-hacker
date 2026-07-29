@@ -148,22 +148,15 @@ function pctChange(current: number, prior: number): number | null {
 }
 
 /* ── Sub-components ───────────────────────────────────── */
-const SOURCE_LOGOS: Record<string, string> = {
-  'PostHog': 'https://www.google.com/s2/favicons?domain=posthog.com&sz=32',
-  'Stripe':  'https://www.google.com/s2/favicons?domain=stripe.com&sz=32',
-}
-
 function SourcePill({ children }: { children: React.ReactNode }) {
-  const label = String(children)
-  const logo = SOURCE_LOGOS[label]
   return (
     <span style={{
-      fontSize: 10, fontWeight: 600, letterSpacing: '0.07em',
-      textTransform: 'uppercase', padding: '3px 9px', borderRadius: 99,
-      border: '1px solid var(--line)', color: 'var(--text-faint)',
-      display: 'inline-flex', alignItems: 'center', gap: 5,
+      fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
+      textTransform: 'uppercase', padding: '4px 10px', borderRadius: 99,
+      background: 'var(--text)', color: 'var(--bg)',
+      display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
     }}>
-      {logo && <img src={logo} width={12} height={12} style={{ borderRadius: 2, display: 'block' }} alt="" />}
+      <span style={{ width: 6, height: 6, borderRadius: 2, background: 'currentColor', opacity: 0.9, flexShrink: 0 }} />
       {children}
     </span>
   )
@@ -205,6 +198,7 @@ function StatCard({
     <div style={{
       background: 'var(--card)',
       border: '1px solid var(--line)',
+      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
       borderRadius: 16, padding: isMobile ? '16px 14px' : '20px 22px',
       display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16,
       opacity: comingSoon ? 0.9 : 1,
@@ -259,7 +253,9 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon, i
 }) {
   return (
     <div style={{
-      background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16,
+      background: 'var(--card)', border: '1px solid var(--line)',
+      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+      borderRadius: 16,
       padding: isMobile ? '16px 14px' : '22px 24px', display: 'flex', flexDirection: 'column', gap: 10,
       opacity: comingSoon ? 0.9 : 1,
     }}>
@@ -290,7 +286,7 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon, i
 
 function RetentionCurve({ data, loading, onViewDetails }: { data: { day: string; rate: number }[]; loading: boolean; onViewDetails?: () => void }) {
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
+    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', borderRadius: 16, padding: '22px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)' }}>
@@ -338,7 +334,7 @@ function RetentionCurve({ data, loading, onViewDetails }: { data: { day: string;
 function FunnelCard({ data, loading, onViewDetails }: { data: { stage: string; value: number }[]; loading: boolean; onViewDetails?: () => void }) {
   const max = data[0]?.value ?? 1
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
+    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', borderRadius: 16, padding: '22px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)' }}>
@@ -773,9 +769,17 @@ function DetailView({
                           </span>
                         </td>
                         <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{fmtTs(u.timestamp)}</td>
-                        <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-dim)' }}>{u.source ?? '—'}</td>
-                        <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-dim)' }}>{u.location ?? '—'}</td>
-                        <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-dim)' }}>{u.plan ?? '—'}</td>
+                        <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                          {u.source
+                            ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: 'rgba(74,222,128,0.12)', color: 'var(--green-bright)' }}>{u.source}</span>
+                            : <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>—</span>}
+                        </td>
+                        <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{u.location ?? '—'}</td>
+                        <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                          {u.plan
+                            ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: 'var(--bg-soft)', color: 'var(--text-dim)' }}>{u.plan}</span>
+                            : <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>—</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
