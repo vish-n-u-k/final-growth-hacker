@@ -193,11 +193,11 @@ function ComingSoonBadge() {
 }
 
 function StatCard({
-  icon: Icon, iconTone, label, value, source, deltaValue, invertGood, loading, comingSoon, period, onViewDetails,
+  icon: Icon, iconTone, label, value, source, deltaValue, invertGood, loading, comingSoon, period, onViewDetails, isMobile,
 }: {
   icon: React.ElementType; iconTone: string; label: string; value: string | number
   source: string; deltaValue: number; invertGood?: boolean; loading?: boolean; comingSoon?: boolean; period?: string
-  onViewDetails?: () => void
+  onViewDetails?: () => void; isMobile?: boolean
 }) {
   const iconColor = toneColor(iconTone)
   const textColor = comingSoon ? '#555f5a' : iconColor
@@ -205,17 +205,17 @@ function StatCard({
     <div style={{
       background: 'var(--card)',
       border: '1px solid var(--line)',
-      borderRadius: 16, padding: '20px 22px',
-      display: 'flex', flexDirection: 'column', gap: 16,
+      borderRadius: 16, padding: isMobile ? '16px 14px' : '20px 22px',
+      display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16,
       opacity: comingSoon ? 0.9 : 1,
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 6px' }}>
         <div style={{
-          width: 36, height: 36, borderRadius: 10,
+          width: isMobile ? 30 : 36, height: isMobile ? 30 : 36, borderRadius: isMobile ? 8 : 10, flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: `${iconColor}1f`, color: iconColor,
         }}>
-          <Icon size={17} />
+          <Icon size={isMobile ? 15 : 17} />
         </div>
         {comingSoon ? <ComingSoonBadge /> : <SourcePill>{source}</SourcePill>}
       </div>
@@ -253,17 +253,17 @@ function StatCard({
   )
 }
 
-function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon }: {
+function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon, isMobile }: {
   label: string; value: string; sub: string; source: string
-  delta: number; bad?: boolean; loading?: boolean; comingSoon?: boolean
+  delta: number; bad?: boolean; loading?: boolean; comingSoon?: boolean; isMobile?: boolean
 }) {
   return (
     <div style={{
       background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16,
-      padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 10,
+      padding: isMobile ? '16px 14px' : '22px 24px', display: 'flex', flexDirection: 'column', gap: 10,
       opacity: comingSoon ? 0.9 : 1,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
         <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)' }}>
           {label}
         </span>
@@ -1137,6 +1137,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 comingSoon={item.comingSoon}
                 period={item.period}
                 onViewDetails={item.onViewDetails}
+                isMobile={isMobile}
               />
             ))}
           </div>
@@ -1148,10 +1149,10 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             Growth &amp; retention
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
-            <KpiCard label="MRR" value="$0" sub="Monthly recurring revenue" source="Stripe" delta={0} comingSoon />
-            <KpiCard label="ARR" value="$0" sub="Annualised run rate" source="Stripe" delta={0} comingSoon />
-            <KpiCard label="Churn rate" value="0%" sub="Paid cancellations, 30d" source="Stripe" delta={0} bad comingSoon />
-            <KpiCard label="Onboarding drop-off" value="0%" sub="Users who don't return after signup" source="Stripe" delta={0} bad comingSoon />
+            <KpiCard label="MRR" value="$0" sub="Monthly recurring revenue" source="Stripe" delta={0} comingSoon isMobile={isMobile} />
+            <KpiCard label="ARR" value="$0" sub="Annualised run rate" source="Stripe" delta={0} comingSoon isMobile={isMobile} />
+            <KpiCard label="Churn rate" value="0%" sub="Paid cancellations, 30d" source="Stripe" delta={0} bad comingSoon isMobile={isMobile} />
+            <KpiCard label="Onboarding drop-off" value="0%" sub="Users who don't return after signup" source="Stripe" delta={0} bad comingSoon isMobile={isMobile} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <RetentionCurve data={retentionData} loading={phLoading} onViewDetails={data?.posthogConnected ? () => openDetail('retention') : undefined} />
