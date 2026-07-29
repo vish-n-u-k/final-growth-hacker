@@ -337,6 +337,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const [skipReasonDraft, setSkipReasonDraft] = useState<Record<string, string>>({})
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (!activeTooltip) return
+    const close = () => setActiveTooltip(null)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [activeTooltip])
+
   // Playbook state (Foundation module only)
   const [playbookData, setPlaybookData] = useState<Record<string, string> | null>(brand.playbook ?? null)
   const [playbookOpen, setPlaybookOpen] = useState(false)
