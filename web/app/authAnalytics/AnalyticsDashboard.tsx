@@ -333,7 +333,7 @@ function RetentionCurve({ data, loading, onViewDetails }: { data: { day: string;
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
           <SourcePill>PostHog</SourcePill>
           {!loading && onViewDetails && (
-            <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
               View details <ArrowRight size={11} />
             </button>
           )}
@@ -381,7 +381,7 @@ function FunnelCard({ data, loading, onViewDetails }: { data: { stage: string; v
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
           <SourcePill>PostHog</SourcePill>
           {!loading && onViewDetails && (
-            <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
               View details <ArrowRight size={11} />
             </button>
           )}
@@ -437,7 +437,7 @@ function ActivationFunnelCard({ data, loading, onViewDetails }: { data: { stage:
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
           <SourcePill>PostHog</SourcePill>
           {!loading && onViewDetails && (
-            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
               View details <ArrowRight size={11} />
             </button>
           )}
@@ -499,7 +499,7 @@ function WauChart({ data, loading, onViewDetails }: { data: { week: string; user
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
           <SourcePill>PostHog</SourcePill>
           {!loading && onViewDetails && (
-            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
               View details <ArrowRight size={11} />
             </button>
           )}
@@ -554,7 +554,7 @@ function PmfCard({ data, loading, onViewDetails }: { data: { event: string; labe
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
           <SourcePill>PostHog</SourcePill>
           {!loading && onViewDetails && (
-            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
               View details <ArrowRight size={11} />
             </button>
           )}
