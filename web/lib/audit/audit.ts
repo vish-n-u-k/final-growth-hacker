@@ -190,19 +190,6 @@ function auditUX($: cheerio.CheerioAPI): Finding[] {
     findings.push(f('viewport-meta', 'good', 'Viewport meta tag is correctly configured.'))
   }
 
-  // no-inline-styles
-  const inlineCount = $('[style]').length
-  if (inlineCount > 20) {
-    findings.push(f('no-inline-styles', 'bad',
-      `${inlineCount} elements use inline styles — makes the page hard to maintain and theme.`,
-      'Move inline styles into a CSS stylesheet.'))
-  } else if (inlineCount > 10) {
-    findings.push(f('no-inline-styles', 'ok',
-      `${inlineCount} elements use inline styles — consider moving them to a stylesheet.`))
-  } else {
-    findings.push(f('no-inline-styles', 'good', `Minimal inline styles (${inlineCount} elements).`))
-  }
-
   return findings
 }
 

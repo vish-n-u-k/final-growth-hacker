@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef, JSX } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull } from '@/lib/modules/types'
@@ -13,6 +13,7 @@ import ComingSoon from '@/components/ComingSoon'
 import { type DBItemState } from './ModuleDashboard'
 import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/registry'
 import { PLAYBOOK_SECTIONS } from '@/lib/playbook/fields'
+import { CONFLICT_GROUPS, SLUG_TOPIC } from '@/lib/modules/conflict-map'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 
 function renderMdStep(step: string): React.ReactNode {
@@ -49,6 +50,7 @@ interface Props {
   githubConnected: boolean
   connectedIntegrations: Record<string, boolean>
   socialLinks: Record<string, string>
+  conflictLinks?: { itemIdA: string; itemIdB: string }[]
 }
 
 function timeAgo(iso: string | null): string {
@@ -252,13 +254,31 @@ function LevelRing({ score }: { score: number }) {
   )
 }
 
-export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, githubConnected, connectedIntegrations, socialLinks }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, githubConnected, connectedIntegrations, socialLinks, conflictLinks = [] }: Props) {
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.itemStates]))
   )
   const [dynItemsMap, setDynItemsMap] = useState<Record<string, DBItemFull[]>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.fullItems]))
   )
+
+  // itemId → module info (for resolving conflict link IDs back to module+slug context)
+  const itemIdInfoMap = useMemo(() => {
+    const map = new Map<string, { moduleId: string; moduleType: string; moduleName: string; slug: string }>()
+    for (const mod of allModulesData) {
+      if (mod.definition.dynamic) {
+        for (const item of mod.fullItems) {
+          map.set(item.id, { moduleId: mod.id, moduleType: mod.type, moduleName: mod.name, slug: item.slug })
+        }
+      } else {
+        for (const [slug, state] of Object.entries(mod.itemStates)) {
+          if (state.id) map.set(state.id, { moduleId: mod.id, moduleType: mod.type, moduleName: mod.name, slug })
+        }
+      }
+    }
+    return map
+  }, [allModulesData])
+
   const [openModules, setOpenModules] = useState<Set<string>>(() => {
     // Open the first module that isn't locked (previous scored < 80%)
     const sorted = [...allModulesData].sort((a, b) => a.order - b.order)
@@ -1131,6 +1151,52 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     setExportingMap(prev => ({ ...prev, [modData.id]: false }))
   }
 
+  // ── Cross-module conflict awareness ──────────────────────────────────────────
+  // Primary: uses AI-detected item_links from the DB (covers all related slugs, not just entry points).
+  // Fallback: static CONFLICT_GROUPS for entry-point slugs when DB links haven't been written yet.
+  const getConflictsForItem = (modId: string, slug: string, itemId?: string) => {
+    // Primary path — DB-backed links
+    if (itemId && conflictLinks.length > 0) {
+      const myLinks = conflictLinks.filter(l => l.itemIdA === itemId || l.itemIdB === itemId)
+      if (myLinks.length > 0) {
+        const seen = new Set<string>()
+        const results: { topic: string; moduleName: string; aiAction: string | null }[] = []
+        for (const link of myLinks) {
+          const otherId = link.itemIdA === itemId ? link.itemIdB : link.itemIdA
+          if (seen.has(otherId)) continue
+          seen.add(otherId)
+          const info = itemIdInfoMap.get(otherId)
+          if (!info || info.moduleId === modId) continue
+          const otherMod = allModulesData.find(m => m.id === info.moduleId)
+          if (!otherMod) continue
+          const aiAction = otherMod.definition.dynamic
+            ? (dynItemsMap[info.moduleId]?.find(i => i.id === otherId)?.aiAction ?? null)
+            : (statesMap[info.moduleId]?.[info.slug]?.aiAction ?? null)
+          const topic = SLUG_TOPIC[info.slug] ?? SLUG_TOPIC[slug] ?? 'Shared Element'
+          results.push({ topic, moduleName: otherMod.name, aiAction })
+        }
+        if (results.length > 0) return results
+      }
+    }
+    // Fallback — static map (shows entry-point slugs before DB links exist)
+    const moduleType = allModulesData.find(m => m.id === modId)?.type
+    if (!moduleType) return null
+    const results: { topic: string; moduleName: string; aiAction: string | null }[] = []
+    for (const group of CONFLICT_GROUPS) {
+      if (!group.entries.some(e => e.moduleType === moduleType && e.slug === slug)) continue
+      for (const entry of group.entries) {
+        if (entry.moduleType === moduleType) continue
+        const otherMod = allModulesData.find(m => m.type === entry.moduleType)
+        if (!otherMod) continue
+        const aiAction = otherMod.definition.dynamic
+          ? (dynItemsMap[otherMod.id]?.find(i => i.slug === entry.slug)?.aiAction ?? null)
+          : (statesMap[otherMod.id]?.[entry.slug]?.aiAction ?? null)
+        results.push({ topic: group.topic, moduleName: otherMod.name, aiAction })
+      }
+    }
+    return results.length > 0 ? results : null
+  }
+
   // ── Dynamic item renderer ────────────────────────────────────────────────────
   // Convert **word** markers to <strong> in any text
   const parseBold = (text: string) =>
@@ -1279,6 +1345,23 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   )}
                 </div>
               )}
+              {(() => {
+                const conflicts = getConflictsForItem(modId, item.slug, item.id)
+                if (!conflicts?.length) return null
+                return (
+                  <div className="sm-conflict-notice">
+                    {conflicts.map((c, i) => (
+                      <div key={i} className="sm-conflict-row">
+                        <strong>{c.topic}</strong>
+                        {' — also in '}
+                        <em>{c.moduleName}</em>
+                        {': '}
+                        {c.aiAction ?? 'Not yet analyzed in this module.'}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
               {item.slug === 'content-calendar-30-day' && !!item.aiData && (
                 <a
                   href={`/api/modules/${modId}/calendar`}
@@ -1468,6 +1551,23 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <p className="sm-action-text">{parseBold(s.aiAction)}</p>
                 </div>
               )}
+              {(() => {
+                const conflicts = getConflictsForItem(modId, item.slug, s?.id)
+                if (!conflicts?.length) return null
+                return (
+                  <div className="sm-conflict-notice">
+                    {conflicts.map((c, i) => (
+                      <div key={i} className="sm-conflict-row">
+                        <strong>{c.topic}</strong>
+                        {' — also in '}
+                        <em>{c.moduleName}</em>
+                        {': '}
+                        {c.aiAction ?? 'Not yet analyzed in this module.'}
+                      </div>
+                    ))}
+                  </div>
+                )
+              })()}
               {(() => {
                 const provider = item.assistedInput?.integrationProvider
                 if (!provider || connectedIntegrations[provider]) return null

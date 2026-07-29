@@ -64,33 +64,6 @@ function extractRecommendationText(
   return null
 }
 
-function buildCanonicalConstraintBlock(
-  decisions: CanonicalDecision[],
-  currentModuleType: string,
-): string {
-  const relevant = decisions.filter(d => d.moduleType !== currentModuleType)
-  if (relevant.length === 0) return ''
-  const lines = relevant.map(d => {
-    const status = d.verified
-      ? `CONFIRMED PASSING by ${d.moduleType}`
-      : `RECOMMENDED ACTION by ${d.moduleType}`
-    return `• [${d.concern.toUpperCase().replace(/_/g, ' ')}] ${status}: "${d.recommendation}"`
-  })
-  return `=== LOCKED DECISIONS — THESE ARE NOT YOURS TO CHANGE ===
-The following copy and content directions were established by earlier modules and are now locked.
-
-${lines.join('\n')}
-
-RULES — apply to every finding you generate in this analysis:
-1. For any finding that touches a locked concern above: DO NOT invent or suggest alternative copy.
-2. If the current value conflicts with a locked decision, your action MUST be: "Align with the [concern] direction established by [module]: [recommendation]" — not a new creative suggestion.
-3. If the current value already aligns, confirm it and move on.
-4. This applies to ALL findings you generate that relate to a locked concern — not just the first one.
-5. You may analyse WHY the current value is problematic, but the fix direction is already decided. Do not override it.
-
-===`
-}
-
 // ── 1. Filter brain context for relevance before a module runs ────────────────
 // Called before each module's agent runs (skip for Foundation — it runs first).
 // Uses Haiku: fast + cheap, just a filtering/summarising task.
@@ -105,21 +78,19 @@ export async function getRelevantContext(
 
   const facts = ctx.facts as Record<string, unknown> | null
   const userResolved = (ctx.userResolved as string[]) ?? []
-  const canonical = (facts?.['canonical'] as Record<string, CanonicalDecision> | undefined) ?? {}
-  const canonicalEntries = Object.values(canonical)
 
-  if (!facts && !ctx.summary && canonicalEntries.length === 0) return ''
+  if (!facts && !ctx.summary) return ''
 
-  // Exclude canonical from the facts sent to Haiku — it's injected separately as hard constraints
+  // Exclude internal canonical store from facts sent to Haiku — it's for DB tracking only, not prompt injection
   const factsForHaiku = facts
     ? Object.fromEntries(Object.entries(facts).filter(([k]) => k !== 'canonical'))
     : null
 
-  let filteredBullets = ''
-  if (factsForHaiku || ctx.summary) {
-    const raw = await callAI({
-      system: 'You are a concise analyst. Extract only what is relevant. Return plain text bullet points or "No prior context."',
-      prompt: `Accumulated knowledge about this brand from previous module analyses:
+  if (!factsForHaiku && !ctx.summary) return ''
+
+  const raw = await callAI({
+    system: 'You are a concise analyst. Extract only what is relevant. Return plain text bullet points or "No prior context."',
+    prompt: `Accumulated knowledge about this brand from previous module analyses:
 
 FACTS:
 ${factsForHaiku ? JSON.stringify(factsForHaiku, null, 2) : 'None yet'}
@@ -136,17 +107,12 @@ Its purpose: ${modulePurpose}
 Extract only what is directly relevant to this module's analysis.
 Return 3–6 concise bullet points. Plain text only, no JSON.
 If nothing is relevant return exactly: "No prior context."`,
-      maxTokens: 400,
-      model: 'claude-haiku-4-5-20251001',
-    })
-    filteredBullets = raw.trim()
-  }
+    maxTokens: 400,
+    model: 'claude-haiku-4-5-20251001',
+  })
 
-  const canonicalBlock = buildCanonicalConstraintBlock(canonicalEntries, moduleType)
-  const parts: string[] = []
-  if (filteredBullets && filteredBullets !== 'No prior context.') parts.push(filteredBullets)
-  if (canonicalBlock) parts.push(canonicalBlock)
-  return parts.join('\n\n').trim()
+  const filtered = raw.trim()
+  return filtered === 'No prior context.' ? '' : filtered
 }
 
 // ── 2. Extract facts after a module runs and merge into brain_context ─────────

@@ -55,13 +55,6 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               fixable: true,
               fixType: 'patch',
             },
-            {
-              slug: 'no-inline-styles',
-              label: 'Inline styles usage',
-              prompt: 'Checked by rule engine.',
-              order: 4,
-              weight: 1,
-            },
           ],
         },
       ],

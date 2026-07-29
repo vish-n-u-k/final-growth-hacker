@@ -134,7 +134,7 @@ async function analyzeBrandCategoryBatch(
     .map(c => `--- Category: "${c.slug}" (label: "${c.label}") ---\n${c.prompt}`)
     .join('\n\n')
 
-  const maxTokens = Math.min(categoryBatch.length * 150, 2000)
+  const maxTokens = Math.min(categoryBatch.length * 700, 4000)
 
   const prompt = `${baseContext}
 

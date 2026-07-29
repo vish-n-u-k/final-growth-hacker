@@ -53,6 +53,7 @@ function deriveExportType(item: ModuleItemDefinition): 'auto' | 'needs_choice' |
   return null
 }
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
+import { detectAndStoreConflicts } from '@/lib/brain/conflict-detector'
 import { withAIContext } from '@/lib/ai/client'
 
 export const maxDuration = 300
@@ -465,6 +466,11 @@ Key One-Liners: ${pb.keyOneLiners}`
       console.error('Brain fact extraction failed (non-fatal):', err)
     }
 
+    // Detect cross-module conflicts (fire-and-forget)
+    detectAndStoreConflicts(brand.id, moduleId, allItems.map(i => ({ id: i.id, slug: i.slug, label: i.label ?? '' }))).catch(err =>
+      console.error('Conflict detection failed (non-fatal):', err)
+    )
+
     // Mark playbook stale so user knows it can be regenerated with richer context
     if (brand.playbook) {
       try {
@@ -828,6 +834,11 @@ Key One-Liners: ${pb.keyOneLiners}`
   } catch (err) {
     console.error('Brain fact extraction failed (non-fatal):', err)
   }
+
+  // Detect cross-module conflicts (fire-and-forget)
+  detectAndStoreConflicts(brand.id, moduleId, allItems.map(i => ({ id: i.id, slug: i.slug, label: i.label ?? '' }))).catch(err =>
+    console.error('Conflict detection failed (non-fatal):', err)
+  )
 
   const { items: freshItems, categories: freshCats } = await getFreshModuleState(moduleId)
   return NextResponse.json({ ok: true, dynamic: def.dynamic ?? false, score, lastAnalyzedAt: new Date().toISOString(), items: freshItems, categories: freshCats })

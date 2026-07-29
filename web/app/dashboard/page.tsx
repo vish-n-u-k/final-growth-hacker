@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands, modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit, analysisRequests } from '@/lib/db/schema'
+import { brands, modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit, analysisRequests, itemLinks } from '@/lib/db/schema'
 import { eq, inArray, and } from 'drizzle-orm'
 import { MODULE_MAP, MODULE_REGISTRY } from '@/lib/modules/registry'
 import AllModulesDashboard, { type ModuleData } from '@/components/AllModulesDashboard'
@@ -34,6 +34,25 @@ export default async function DashboardPage() {
     db.select().from(brandIntegrations).where(eq(brandIntegrations.brandId, brand.id)),
     db.select().from(modulePageAudit).where(inArray(modulePageAudit.moduleId, moduleIds)),
   ])
+
+  // Load cross-module conflict links (item_links table may not exist yet — safe to ignore)
+  const allItemIds = allItemsRaw.map(i => i.id)
+  let conflictLinks: { itemIdA: string; itemIdB: string }[] = []
+  if (allItemIds.length > 0) {
+    try {
+      const [linksA, linksB] = await Promise.all([
+        db.select({ itemIdA: itemLinks.itemIdA, itemIdB: itemLinks.itemIdB })
+          .from(itemLinks)
+          .where(and(inArray(itemLinks.itemIdA, allItemIds), eq(itemLinks.relationshipType, 'same_issue'))),
+        db.select({ itemIdA: itemLinks.itemIdA, itemIdB: itemLinks.itemIdB })
+          .from(itemLinks)
+          .where(and(inArray(itemLinks.itemIdB, allItemIds), eq(itemLinks.relationshipType, 'same_issue'))),
+      ])
+      conflictLinks = [...linksA, ...linksB]
+    } catch {
+      // item_links table not yet created — safe to ignore
+    }
+  }
 
   let pendingModuleIds: string[] = []
   try {
@@ -210,6 +229,7 @@ export default async function DashboardPage() {
       githubConnected={githubConnected}
       connectedIntegrations={connectedIntegrations}
       socialLinks={socialLinks}
+      conflictLinks={conflictLinks}
     />
   )
 }
