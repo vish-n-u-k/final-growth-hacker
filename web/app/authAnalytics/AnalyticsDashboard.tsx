@@ -148,15 +148,22 @@ function pctChange(current: number, prior: number): number | null {
 }
 
 /* ── Sub-components ───────────────────────────────────── */
+const SOURCE_LOGOS: Record<string, string> = {
+  'PostHog': 'https://www.google.com/s2/favicons?domain=posthog.com&sz=32',
+  'Stripe':  'https://www.google.com/s2/favicons?domain=stripe.com&sz=32',
+}
+
 function SourcePill({ children }: { children: React.ReactNode }) {
+  const label = String(children)
+  const logo = SOURCE_LOGOS[label]
   return (
     <span style={{
-      fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
-      textTransform: 'uppercase', padding: '4px 10px', borderRadius: 99,
-      background: 'var(--text)', color: 'var(--bg)',
-      display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
+      fontSize: 10, fontWeight: 600, letterSpacing: '0.07em',
+      textTransform: 'uppercase', padding: '3px 9px', borderRadius: 99,
+      border: '1px solid var(--line)', color: 'var(--text-faint)',
+      display: 'inline-flex', alignItems: 'center', gap: 5,
     }}>
-      <span style={{ width: 6, height: 6, borderRadius: 2, background: 'currentColor', opacity: 0.9, flexShrink: 0 }} />
+      {logo && <img src={logo} width={12} height={12} style={{ borderRadius: 2, display: 'block' }} alt="" />}
       {children}
     </span>
   )
