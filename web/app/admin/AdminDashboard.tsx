@@ -102,7 +102,7 @@ export default function AdminDashboard({ requests: initial }: Props) {
                       disabled={running[req.id]}
                       style={{
                         background: 'var(--green, #2fbf71)',
-                        color: '#06140c',
+                        color: '#ffffff',
                         border: 'none',
                         borderRadius: 6,
                         padding: '6px 14px',

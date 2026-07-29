@@ -199,7 +199,7 @@ export default function OnboardingPage() {
               <p className="auth-error">{error}</p>
               <Button
                 onClick={() => { setState('step2'); setError('') }}
-                className="w-full gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:opacity-90 py-3 sm:py-3 h-auto sm:h-12 rounded-12"
+                className="w-full gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-white font-semibold hover:opacity-90 py-3 sm:py-3 h-auto sm:h-12 rounded-12"
               >
                 Try again
               </Button>
@@ -236,7 +236,7 @@ export default function OnboardingPage() {
               <Button
                 type="submit"
                 disabled={!websiteUrl.trim()}
-                className="w-full h-14 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:shadow-lg hover:shadow-[var(--green-glow)] disabled:opacity-50 rounded-14 transition-all"
+                className="w-full h-14 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-white font-semibold hover:shadow-lg hover:shadow-[var(--green-glow)] disabled:opacity-50 rounded-14 transition-all"
               >
                 Continue
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
@@ -359,11 +359,11 @@ export default function OnboardingPage() {
                     type="button"
                     disabled={!brandName.trim()}
                     onClick={() => { if (!submitting) handleSubmit(false) }}
-                    className="w-full h-14 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-[#06140c] font-semibold hover:shadow-lg hover:shadow-[var(--green-glow)] disabled:opacity-50 rounded-14 transition-all"
+                    className="w-full h-14 gap-2 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-white font-semibold hover:shadow-lg hover:shadow-[var(--green-glow)] disabled:opacity-50 rounded-14 transition-all"
                     style={{ cursor: submitting ? 'not-allowed' : undefined }}
                   >
                     {submitting ? (
-                      <><span className="md-spin" style={{ borderColor: 'rgba(6,20,12,0.2)', borderTopColor: '#000000' }} />Setting up…</>
+                      <><span className="md-spin" style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#ffffff' }} />Setting up…</>
                     ) : (
                       <>Set Up My Website
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">

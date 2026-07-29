@@ -904,10 +904,10 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
             <Button
               disabled={reanalyzing || missingRequirements.length > 0}
               onClick={() => handleReanalyze(reqValues)}
-              className="mt-3 gap-1.5 bg-[var(--green)] text-[#06140c] hover:bg-[var(--green-bright)] font-semibold"
+              className="mt-3 gap-1.5 bg-[var(--green)] text-white hover:bg-[var(--green-bright)] font-semibold"
             >
               {reanalyzing ? (
-                <><span className="md-spin" style={{ borderTopColor: '#06140c', borderColor: '#06140c40' }} />Analysing…</>
+                <><span className="md-spin" style={{ borderTopColor: '#ffffff', borderColor: 'rgba(255,255,255,0.3)' }} />Analysing…</>
               ) : (
                 <>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
@@ -964,11 +964,11 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                   size="sm"
                   disabled={reanalyzing}
                   onClick={() => handleReanalyze(reqValues)}
-                  className="gap-1.5 bg-[var(--green)] text-[#06140c] hover:bg-[var(--green-bright)] font-semibold text-xs"
+                  className="gap-1.5 bg-[var(--green)] text-white hover:bg-[var(--green-bright)] font-semibold text-xs"
                 >
                   {reanalyzing ? (
                     <>
-                      <span className="md-spin" style={{ borderTopColor: '#06140c', borderColor: '#06140c40', width: 12, height: 12 }} />
+                      <span className="md-spin" style={{ borderTopColor: '#ffffff', borderColor: 'rgba(255,255,255,0.3)', width: 12, height: 12 }} />
                       Running…
                     </>
                   ) : (
@@ -1550,7 +1550,7 @@ function SocialProfilesPanel({ moduleId, requirements }: { moduleId: string; req
           disabled={saving}
           style={{
             background: saved ? 'rgba(47,191,113,0.15)' : 'var(--green)',
-            color: saved ? 'var(--green)' : '#06140c',
+            color: saved ? 'var(--green)' : '#ffffff',
             border: saved ? '1px solid var(--green)' : 'none',
             fontSize: '12px', fontWeight: 600, height: '32px', padding: '0 16px',
           }}
@@ -1775,7 +1775,7 @@ function FrektoContentStudio({
               cursor: generating || !topic.trim() ? 'not-allowed' : 'pointer',
               border: 'none',
               background: generating || !topic.trim() ? 'rgba(47,191,113,0.25)' : 'var(--green)',
-              color: generating || !topic.trim() ? 'var(--text-dim)' : '#06140c',
+              color: generating || !topic.trim() ? 'var(--text-dim)' : '#ffffff',
               transition: 'all 0.15s',
             }}
           >
@@ -2042,7 +2042,7 @@ function SmartScheduler({
               padding: '8px 20px', borderRadius: '7px', fontSize: '12.5px', fontWeight: 600,
               cursor: generating ? 'not-allowed' : 'pointer', border: 'none',
               background: generating ? 'rgba(47,191,113,0.25)' : 'var(--green)',
-              color: generating ? 'var(--text-dim)' : '#06140c',
+              color: generating ? 'var(--text-dim)' : '#ffffff',
               transition: 'all 0.15s', marginBottom: '16px',
             }}
           >

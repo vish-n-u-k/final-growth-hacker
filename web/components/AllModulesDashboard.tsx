@@ -2200,10 +2200,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                           className={`mt-3 gap-1.5 font-semibold${reanalyzing ? ' btn-analysing' : ''}`}
                           style={requested
                             ? { background: 'transparent', border: '1px solid var(--gold)', color: 'var(--gold)', cursor: 'default' }
-                            : { background: 'var(--green)', color: '#06140c' }}
+                            : { background: 'var(--green)', color: '#ffffff' }}
                         >
                           {reanalyzing ? (
-                            <><span className="md-spin" style={{ borderTopColor: requested ? 'var(--gold)' : '#06140c', borderColor: requested ? 'rgba(231,200,115,0.2)' : 'rgba(6,20,12,0.2)' }} />Requesting…</>
+                            <><span className="md-spin" style={{ borderTopColor: requested ? 'var(--gold)' : '#ffffff', borderColor: requested ? 'rgba(231,200,115,0.2)' : 'rgba(255,255,255,0.3)' }} />Requesting…</>
                           ) : requested ? (
                             <>
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
@@ -2423,7 +2423,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                           </div>
                           <a
                             href="/api/gmail/connect"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 22px', borderRadius: 10, background: 'var(--green)', border: 'none', fontSize: 13.5, fontWeight: 700, color: '#06140c', textDecoration: 'none', transition: '.15s' }}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 22px', borderRadius: 10, background: 'var(--green)', border: 'none', fontSize: 13.5, fontWeight: 700, color: '#ffffff', textDecoration: 'none', transition: '.15s' }}
                           >
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
                               <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.8"/>
@@ -3207,7 +3207,7 @@ function SmartScheduler({ moduleId, brandId, connected }: { moduleId: string; br
         <a href="/settings" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>Go to Settings → Integrations</a>
       ) : (
         <>
-          <button onClick={handleGenerate} disabled={generating} style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '8px 20px', borderRadius: '7px', fontSize: '12.5px', fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer', border: 'none', background: generating ? 'rgba(47,191,113,0.25)' : 'var(--green)', color: generating ? 'var(--text-dim)' : '#06140c', marginBottom: '16px' }}>
+          <button onClick={handleGenerate} disabled={generating} style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '8px 20px', borderRadius: '7px', fontSize: '12.5px', fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer', border: 'none', background: generating ? 'rgba(47,191,113,0.25)' : 'var(--green)', color: generating ? 'var(--text-dim)' : '#ffffff', marginBottom: '16px' }}>
             {generating ? <><span className="md-spin" style={{ borderTopColor: 'var(--green)', borderColor: 'rgba(47,191,113,0.2)' }} />Analyzing brand…</> : hasGenerated ? 'Regenerate ideas' : 'Generate post ideas'}
           </button>
           {genError && <p style={{ fontSize: '12px', color: '#ef4444', marginBottom: '12px' }}>{genError}</p>}
@@ -3465,7 +3465,7 @@ function FrektoPostingSection({ moduleId, brandName, connected }: { moduleId: st
           <button
             disabled={generating || !topic.trim()}
             onClick={handleGenerate}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '9px 20px', borderRadius: '7px', fontSize: '13px', fontWeight: 600, cursor: generating || !topic.trim() ? 'not-allowed' : 'pointer', border: 'none', background: generating || !topic.trim() ? 'rgba(47,191,113,0.2)' : 'var(--green)', color: generating || !topic.trim() ? 'var(--text-dim)' : '#06140c', alignSelf: 'flex-start' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '9px 20px', borderRadius: '7px', fontSize: '13px', fontWeight: 600, cursor: generating || !topic.trim() ? 'not-allowed' : 'pointer', border: 'none', background: generating || !topic.trim() ? 'rgba(47,191,113,0.2)' : 'var(--green)', color: generating || !topic.trim() ? 'var(--text-dim)' : '#ffffff', alignSelf: 'flex-start' }}
           >
             {generating ? (
               <><span className="md-spin" style={{ borderTopColor: 'var(--green)', borderColor: 'rgba(47,191,113,0.2)' }} />Generating… (15–90s)</>

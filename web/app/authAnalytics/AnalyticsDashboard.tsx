@@ -852,7 +852,7 @@ function ModuleRow({ m, expanded, onToggle, onFix }: {
                 style={{
                   flexShrink: 0, fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 99,
                   display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-                  background: 'var(--green)', color: '#06140c', border: 'none', cursor: 'pointer',
+                  background: 'var(--green)', color: '#ffffff', border: 'none', cursor: 'pointer',
                 }}
               >
                 Fix now <ArrowRight size={12} />

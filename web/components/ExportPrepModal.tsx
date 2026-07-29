@@ -262,7 +262,7 @@ export default function ExportPrepModal({ brandName, moduleName, items, classify
             onClick={handleGenerate}
             disabled={saving || classifying}
             style={{
-              fontSize: 13, fontWeight: 600, color: '#06140c',
+              fontSize: 13, fontWeight: 600, color: '#ffffff',
               background: (saving || classifying) ? 'rgba(47,191,113,0.6)' : 'var(--green)',
               border: 'none', borderRadius: 8, padding: '8px 18px',
               cursor: (saving || classifying) ? 'default' : 'pointer', fontFamily: 'inherit',
@@ -273,7 +273,7 @@ export default function ExportPrepModal({ brandName, moduleName, items, classify
               <>
                 <span style={{
                   display: 'inline-block', width: 12, height: 12,
-                  border: '2px solid rgba(6,20,12,0.25)', borderTopColor: '#06140c',
+                  border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#ffffff',
                   borderRadius: '50%', animation: 'spin 0.7s linear infinite',
                 }} />
                 Saving…
