@@ -120,7 +120,7 @@ function toneColor(tone: string): string {
   if (tone === 'green')  return '#4ade80'  // --green-bright
   if (tone === 'amber')  return '#e7c873'  // --gold
   if (tone === 'red')    return '#f87171'
-  return '#8d9690'                         // --text-dim
+  return '#64748b'                         // neutral slate — visible against a light card
 }
 
 function scoreColor(score: number): string {
@@ -208,7 +208,6 @@ function StatCard({
       boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
       borderRadius: 16, padding: isMobile ? '16px 14px' : '20px 22px',
       display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16,
-      opacity: comingSoon ? 0.9 : 1,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 6px' }}>
         <div style={{
