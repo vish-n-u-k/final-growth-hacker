@@ -25,10 +25,6 @@ export default function DashboardLoading() {
             <div key={i} className="skel" style={{ height: '72px', borderRadius: '18px' }} />
           ))}
         </div>
-
-        <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-          <span className="md-spin" style={{ width: '48px', height: '48px' }} />
-        </div>
       </div>
     </>
   )

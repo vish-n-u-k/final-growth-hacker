@@ -22,9 +22,6 @@ export default function SettingsLoading() {
 
         <div className="skel" style={{ height: '320px', borderRadius: '16px' }} />
 
-        <div style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-          <span className="md-spin" style={{ width: '48px', height: '48px' }} />
-        </div>
       </div>
     </>
   )
