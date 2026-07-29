@@ -320,7 +320,7 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon, i
 function RetentionCurve({ data, loading, onViewDetails }: { data: { day: string; rate: number }[]; loading: boolean; onViewDetails?: () => void }) {
   return (
     <div style={{ background: MOCK.card, border: `1px solid ${MOCK.border}`, boxShadow: MOCK.shadow, borderRadius: 14, padding: '26px 26px 8px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 12px', marginBottom: 4 }}>
         <div>
           <h3 style={{ fontSize: 19, fontWeight: 700, color: MOCK.text, fontFamily: 'var(--font-display, Fraunces, serif)' }}>
             Retention curve
@@ -330,9 +330,9 @@ function RetentionCurve({ data, loading, onViewDetails }: { data: { day: string;
             {loading && <span style={{ color: MOCK.muted2, marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           {!loading && onViewDetails && (
-            <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               View details <ArrowRight size={11} />
             </button>
           )}
@@ -368,7 +368,7 @@ function FunnelCard({ data, loading, onViewDetails }: { data: { stage: string; v
   const max = data[0]?.value ?? 1
   return (
     <div style={{ background: MOCK.card, border: `1px solid ${MOCK.border}`, boxShadow: MOCK.shadow, borderRadius: 14, padding: '26px 26px 8px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 12px', marginBottom: 4 }}>
         <div>
           <h3 style={{ fontSize: 19, fontWeight: 700, color: MOCK.text, fontFamily: 'var(--font-display, Fraunces, serif)' }}>
             Conversion funnel
@@ -378,9 +378,9 @@ function FunnelCard({ data, loading, onViewDetails }: { data: { stage: string; v
             {loading && <span style={{ color: MOCK.muted2, marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           {!loading && onViewDetails && (
-            <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               View details <ArrowRight size={11} />
             </button>
           )}
