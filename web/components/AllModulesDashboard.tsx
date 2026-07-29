@@ -1595,7 +1595,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           <button
             onClick={() => { setAnalyticsLoading(true); router.push('/authAnalytics') }}
             className="btn-analytics"
-            style={{ position: 'absolute', top: '24px', right: '24px', zIndex: 1 }}
             disabled={analyticsLoading}
           >
             {analyticsLoading ? (
