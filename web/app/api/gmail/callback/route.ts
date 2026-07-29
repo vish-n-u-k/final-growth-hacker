@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { brandIntegrations } from '@/lib/db/schema'
+import { storeAdminGmailTokens } from '@/lib/gmail/admin-token'
 
 export async function GET(req: NextRequest) {
   const origin      = req.nextUrl.origin
   const code        = req.nextUrl.searchParams.get('code')
-  const brandId     = req.nextUrl.searchParams.get('state')
+  const state       = req.nextUrl.searchParams.get('state')
   const errorParam  = req.nextUrl.searchParams.get('error')
 
   // User cancelled or Google returned an error
-  if (errorParam || !code || !brandId) {
-    return NextResponse.redirect(`${origin}/gmail-hub?error=cancelled`)
+  if (errorParam || !code || !state) {
+    const errDest = state === 'admin' ? `${origin}/admin?gmail=cancelled` : `${origin}/gmail-hub?error=cancelled`
+    return NextResponse.redirect(errDest)
   }
 
   // ── Exchange code for tokens ─────────────────────────────────────────────
@@ -48,8 +50,21 @@ export async function GET(req: NextRequest) {
   const profile = profileRes.ok ? await profileRes.json() : {}
   const gmailAddress: string = profile.email ?? 'unknown'
 
-  // ── Upsert into brandIntegrations ────────────────────────────────────────
+  // ── Admin flow — store in admin_settings ─────────────────────────────────
 
+  if (state === 'admin') {
+    await storeAdminGmailTokens({
+      access_token:  tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expires_in:    tokens.expires_in,
+      email:         gmailAddress,
+    })
+    return NextResponse.redirect(`${origin}/admin?gmail=connected`)
+  }
+
+  // ── User flow — upsert into brandIntegrations ─────────────────────────────
+
+  const brandId = state
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000)
 
   await db

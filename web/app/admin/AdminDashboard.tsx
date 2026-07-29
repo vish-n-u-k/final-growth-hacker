@@ -7,6 +7,8 @@ type Request = typeof analysisRequests.$inferSelect
 
 interface Props {
   requests: Request[]
+  gmailAddress: string | null
+  gmailParam?: string
 }
 
 function timeAgo(iso: Date | null): string {
@@ -18,7 +20,7 @@ function timeAgo(iso: Date | null): string {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
-export default function AdminDashboard({ requests: initial }: Props) {
+export default function AdminDashboard({ requests: initial, gmailAddress, gmailParam }: Props) {
   const [requests, setRequests] = useState(initial)
   const [running, setRunning] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -37,7 +39,7 @@ export default function AdminDashboard({ requests: initial }: Props) {
         setErrors(prev => ({ ...prev, [req.id]: (data as { error?: string }).error ?? 'Analysis failed.' }))
         return
       }
-      // Mark done in DB
+      // Mark done in DB + send notification email
       await fetch('/api/admin/requests', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -54,12 +56,73 @@ export default function AdminDashboard({ requests: initial }: Props) {
   const pending = requests.filter(r => r.status === 'pending')
   const done = requests.filter(r => r.status === 'done')
 
+  const gmailBannerMsg =
+    gmailParam === 'connected' ? 'Gmail connected successfully.' :
+    gmailParam === 'cancelled' ? 'Gmail connection cancelled.' :
+    gmailParam === 'error'     ? 'Gmail connection failed. Please try again.' :
+    null
+
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px', fontFamily: 'var(--font-body, sans-serif)', color: 'var(--text, #e8f3ec)' }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Admin — Analysis Queue</h1>
-      <p style={{ color: 'var(--text-dim, #8aa897)', marginBottom: 32, fontSize: 14 }}>
+      <p style={{ color: 'var(--text-dim, #8aa897)', marginBottom: 24, fontSize: 14 }}>
         {pending.length} pending · {done.length} completed
       </p>
+
+      {/* Gmail connection status */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '12px 16px',
+        borderRadius: 8,
+        background: 'var(--card, #122620)',
+        border: '1px solid var(--line, #1e3830)',
+        marginBottom: 32,
+        fontSize: 13,
+      }}>
+        <span style={{ color: 'var(--text-dim, #8aa897)' }}>Notification Gmail:</span>
+        {gmailAddress ? (
+          <>
+            <span style={{ color: 'var(--green, #2fbf71)', fontWeight: 600 }}>{gmailAddress}</span>
+            <a
+              href="/api/admin/gmail/connect"
+              style={{ marginLeft: 'auto', color: 'var(--text-dim, #8aa897)', fontSize: 12, textDecoration: 'underline' }}
+            >
+              Reconnect
+            </a>
+          </>
+        ) : (
+          <>
+            <span style={{ color: '#f87171' }}>Not connected — emails will not be sent</span>
+            <a
+              href="/api/admin/gmail/connect"
+              style={{
+                marginLeft: 'auto',
+                background: 'var(--green, #2fbf71)',
+                color: '#000',
+                borderRadius: 6,
+                padding: '5px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+                textDecoration: 'none',
+              }}
+            >
+              Connect Gmail
+            </a>
+          </>
+        )}
+      </div>
+
+      {gmailBannerMsg && (
+        <p style={{
+          fontSize: 13,
+          marginBottom: 20,
+          color: gmailParam === 'connected' ? 'var(--green, #2fbf71)' : '#f87171',
+        }}>
+          {gmailBannerMsg}
+        </p>
+      )}
 
       {pending.length === 0 && (
         <p style={{ color: 'var(--text-dim, #8aa897)', fontSize: 14 }}>No pending requests.</p>

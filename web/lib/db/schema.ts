@@ -312,6 +312,14 @@ export const aiUsageLogs = pgTable('ai_usage_logs', {
 
 // ── Features ──────────────────────────────────────────────────────────────────
 
+// ── Admin Settings ────────────────────────────────────────────────────────────
+
+export const adminSettings = pgTable('admin_settings', {
+  key: text('key').primaryKey(),
+  value: text('value'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
 export const features = pgTable(
   'features',
   {
