@@ -184,7 +184,7 @@ function ComingSoonBadge() {
   return (
     <span style={{
       fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase',
-      padding: '3px 9px', borderRadius: 99,
+      padding: '3px 9px', borderRadius: 99, whiteSpace: 'nowrap', flexShrink: 0,
       color: 'var(--gold)', background: '#e7c87318', border: '1px solid #e7c87330',
     }}>
       Coming soon
