@@ -609,7 +609,7 @@ function PmfCard({ data, loading, onViewDetails }: { data: { event: string; labe
 function DetailMobileRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 0' }}>
-      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-faint)', flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: MOCK.muted2, flexShrink: 0 }}>{label}</span>
       {value}
     </div>
   )
@@ -646,16 +646,16 @@ function DetailView({
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
         <button
           onClick={onBack}
-          style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}
+          style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${MOCK.border}`, background: MOCK.card, color: MOCK.text, cursor: 'pointer' }}
         >
           <ArrowLeft size={15} />
         </button>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.4px', color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)', margin: 0 }}>
+          <h1 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.4px', color: MOCK.text, fontFamily: 'var(--font-display, Fraunces, serif)', margin: 0 }}>
             {TITLE[type]}
           </h1>
           {(type === 'signups' || type === 'signins' || type === 'dau' || type === 'deleted') && (
-            <p style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>
+            <p style={{ fontSize: 13.5, fontWeight: 600, color: MOCK.green, marginTop: 4 }}>
               {loading ? 'Loading...' : `${users.length} result${users.length === 1 ? '' : 's'}`}
             </p>
           )}
@@ -768,7 +768,7 @@ function DetailView({
             alignItems: isMobile ? 'stretch' : 'center',
             justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10,
           }}>
-            <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>Click the copy icon next to any email to copy individually</span>
+            <span style={{ fontSize: 13, color: MOCK.muted2 }}>Click the copy icon next to any email to copy individually</span>
             <button
               onClick={() => {
                 const emails = users.map(u => u.email).filter(Boolean).join(', ')
@@ -777,8 +777,8 @@ function DetailView({
               disabled={users.length === 0 || loading}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, fontWeight: 600,
-                padding: '9px 16px', borderRadius: 99, border: '1px solid var(--line)',
-                background: 'transparent', color: 'var(--text-dim)', cursor: users.length === 0 || loading ? 'not-allowed' : 'pointer',
+                padding: '9px 16px', borderRadius: 99, border: `1px solid ${MOCK.border}`,
+                background: MOCK.card, color: MOCK.text, cursor: users.length === 0 || loading ? 'not-allowed' : 'pointer',
                 opacity: users.length === 0 || loading ? 0.5 : 1,
               }}
             >
@@ -786,26 +786,26 @@ function DetailView({
             </button>
           </div>
 
-          <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, overflow: 'hidden' }}>
+          <div style={{ background: MOCK.card, border: `1px solid ${MOCK.border}`, boxShadow: MOCK.shadow, borderRadius: 14, overflow: 'hidden' }}>
             {loading ? (
-              <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 14 }}>Loading users…</div>
+              <div style={{ padding: '40px 24px', textAlign: 'center', color: MOCK.muted2, fontSize: 14 }}>Loading users…</div>
             ) : users.length === 0 ? (
-              <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 14 }}>No users found for this time range</div>
+              <div style={{ padding: '40px 24px', textAlign: 'center', color: MOCK.muted2, fontSize: 14 }}>No users found for this time range</div>
             ) : isMobile ? (
               users.map((u, i) => (
-                <div key={i} style={{ padding: '18px 16px', borderBottom: i < users.length - 1 ? '1px solid var(--line)' : 'none' }}>
+                <div key={i} style={{ padding: '18px 16px', borderBottom: i < users.length - 1 ? `1px solid ${MOCK.border}` : 'none' }}>
                   <div style={{ textAlign: 'center', marginBottom: 6 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-faint)' }}>User</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>{u.name ?? '—'}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: MOCK.muted2 }}>User</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: MOCK.text, marginTop: 2 }}>{u.name ?? '—'}</div>
                   </div>
-                  <DetailMobileRow label="User ID" value={<span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--text-faint)' }}>{u.userId}</span>} />
+                  <DetailMobileRow label="User ID" value={<span style={{ fontFamily: 'monospace', fontSize: 12, color: MOCK.muted2 }}>{u.userId}</span>} />
                   <DetailMobileRow label="Email" value={
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 13, color: 'var(--text)' }}>{u.email || '—'}</span>
+                      <span style={{ fontSize: 13, color: MOCK.text }}>{u.email || '—'}</span>
                       {u.email && (
                         <button
                           onClick={() => onCopy(u.email, `Copied ${u.email}`)}
-                          style={{ background: 'none', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', color: 'var(--text-faint)', padding: 4, display: 'flex', alignItems: 'center' }}
+                          style={{ background: 'none', border: `1px solid ${MOCK.border}`, borderRadius: 6, cursor: 'pointer', color: MOCK.muted2, padding: 4, display: 'flex', alignItems: 'center' }}
                           title="Copy email"
                         >
                           <Copy size={12} />
@@ -813,17 +813,17 @@ function DetailView({
                       )}
                     </span>
                   } />
-                  <DetailMobileRow label="Signed up" value={<span style={{ fontSize: 13, color: 'var(--text)' }}>{fmtTs(u.timestamp)}</span>} />
+                  <DetailMobileRow label="Signed up" value={<span style={{ fontSize: 13, color: MOCK.text }}>{fmtTs(u.timestamp)}</span>} />
                   <DetailMobileRow label="Source" value={
                     u.source
-                      ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: 'rgba(74,222,128,0.12)', color: 'var(--green-bright)' }}>{u.source}</span>
-                      : <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>—</span>
+                      ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: MOCK.greenSoft, color: MOCK.green }}>{u.source}</span>
+                      : <span style={{ fontSize: 12, color: MOCK.muted2 }}>—</span>
                   } />
-                  <DetailMobileRow label="Location" value={<span style={{ fontSize: 13, color: 'var(--text)' }}>{u.location ?? '—'}</span>} />
+                  <DetailMobileRow label="Location" value={<span style={{ fontSize: 13, color: MOCK.text }}>{u.location ?? '—'}</span>} />
                   <DetailMobileRow label="Plan" value={
                     u.plan
-                      ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: 'var(--bg-soft)', color: 'var(--text-dim)' }}>{u.plan}</span>
-                      : <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>—</span>
+                      ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: '#F0EEE6', color: MOCK.muted }}>{u.plan}</span>
+                      : <span style={{ fontSize: 12, color: MOCK.muted2 }}>—</span>
                   } />
                 </div>
               ))
@@ -831,24 +831,24 @@ function DetailView({
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid var(--line)' }}>
+                    <tr style={{ borderBottom: `1px solid ${MOCK.border}` }}>
                       {['User', 'User ID', 'Email', 'Timestamp', 'Source', 'Location', 'Plan'].map(h => (
-                        <th key={h} style={{ textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-faint)', padding: '12px 16px', whiteSpace: 'nowrap' }}>{h}</th>
+                        <th key={h} style={{ textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: MOCK.muted, background: '#FBF9F4', padding: '12px 16px', whiteSpace: 'nowrap' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {users.map((u, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--line)' }}>
-                        <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--text)', whiteSpace: 'nowrap' }}>{u.name ?? '—'}</td>
-                        <td style={{ padding: '12px 16px', fontSize: 11, color: 'var(--text-faint)', fontFamily: 'monospace', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.userId}</td>
+                      <tr key={i} style={{ borderBottom: `1px solid ${MOCK.border}` }}>
+                        <td style={{ padding: '12px 16px', fontSize: 13, color: MOCK.text, whiteSpace: 'nowrap' }}>{u.name ?? '—'}</td>
+                        <td style={{ padding: '12px 16px', fontSize: 11, color: MOCK.muted2, fontFamily: 'monospace', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.userId}</td>
                         <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 13, color: 'var(--text)' }}>{u.email || '—'}</span>
+                            <span style={{ fontSize: 13, color: MOCK.text }}>{u.email || '—'}</span>
                             {u.email && (
                               <button
                                 onClick={() => onCopy(u.email, `Copied ${u.email}`)}
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-faint)', padding: 2, display: 'flex', alignItems: 'center' }}
+                                style={{ background: 'none', border: `1px solid ${MOCK.border}`, borderRadius: 7, cursor: 'pointer', color: MOCK.muted, padding: 4, display: 'flex', alignItems: 'center' }}
                                 title="Copy email"
                               >
                                 <Copy size={12} />
@@ -856,17 +856,17 @@ function DetailView({
                             )}
                           </span>
                         </td>
-                        <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{fmtTs(u.timestamp)}</td>
+                        <td style={{ padding: '12px 16px', fontSize: 12, color: MOCK.text, whiteSpace: 'nowrap' }}>{fmtTs(u.timestamp)}</td>
                         <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                           {u.source
-                            ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: 'rgba(74,222,128,0.12)', color: 'var(--green-bright)' }}>{u.source}</span>
-                            : <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>—</span>}
+                            ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: MOCK.greenSoft, color: MOCK.green }}>{u.source}</span>
+                            : <span style={{ fontSize: 12, color: MOCK.muted2 }}>—</span>}
                         </td>
-                        <td style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{u.location ?? '—'}</td>
+                        <td style={{ padding: '12px 16px', fontSize: 12, color: MOCK.text, whiteSpace: 'nowrap' }}>{u.location ?? '—'}</td>
                         <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                           {u.plan
-                            ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: 'var(--bg-soft)', color: 'var(--text-dim)' }}>{u.plan}</span>
-                            : <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>—</span>}
+                            ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: '#F0EEE6', color: MOCK.muted }}>{u.plan}</span>
+                            : <span style={{ fontSize: 12, color: MOCK.muted2 }}>—</span>}
                         </td>
                       </tr>
                     ))}
@@ -1110,9 +1110,9 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
 
   if (detailView !== null) {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
+      <div style={{ minHeight: '100vh', background: MOCK.bg, fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
         {toastMsg && (
-          <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: 'var(--text)', color: 'var(--bg)', fontSize: 13, fontWeight: 600, padding: '10px 20px', borderRadius: 99, zIndex: 100, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
+          <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: MOCK.badgeDark, color: '#ffffff', fontSize: 13, fontWeight: 600, padding: '10px 20px', borderRadius: 99, zIndex: 100, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
             <CheckCircle2 size={14} /> {toastMsg}
           </div>
         )}
