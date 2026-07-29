@@ -748,7 +748,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
   padding: 9px 18px;
   border: none;
   border-radius: 10px;
-  background: #12241a;
+  background: #0f5c48;
   color: #eaf7ee;
   font-size: 13px; font-weight: 700;
   font-family: inherit;
@@ -756,7 +756,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
   transition: background .15s, box-shadow .15s;
 }
 .btn-analytics:hover:not(:disabled) {
-  background: #0f5c48;
+  background: #12241a;
   box-shadow: 0 2px 10px rgba(0,0,0,0.18);
 }
 .btn-analytics:disabled { opacity: .7; cursor: default; }
