@@ -580,6 +580,15 @@ function PmfCard({ data, loading, onViewDetails }: { data: { event: string; labe
   )
 }
 
+function DetailMobileRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 0' }}>
+      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-faint)', flexShrink: 0 }}>{label}</span>
+      {value}
+    </div>
+  )
+}
+
 function DetailView({
   type, users, loading, onBack, snapshotData, isMobile, onCopy,
 }: {
@@ -727,7 +736,12 @@ function DetailView({
         </div>
       ) : (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+          <div style={{
+            display: 'flex',
+            flexDirection: isMobile ? 'column-reverse' : 'row',
+            alignItems: isMobile ? 'stretch' : 'center',
+            justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10,
+          }}>
             <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>Click the copy icon next to any email to copy individually</span>
             <button
               onClick={() => {
@@ -735,7 +749,12 @@ function DetailView({
                 if (emails) onCopy(emails, `Copied ${users.length} email${users.length === 1 ? '' : 's'}`)
               }}
               disabled={users.length === 0 || loading}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, padding: '7px 16px', borderRadius: 99, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: users.length === 0 || loading ? 'not-allowed' : 'pointer', opacity: users.length === 0 || loading ? 0.5 : 1 }}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 13, fontWeight: 600,
+                padding: '9px 16px', borderRadius: 99, border: '1px solid var(--line)',
+                background: 'transparent', color: 'var(--text-dim)', cursor: users.length === 0 || loading ? 'not-allowed' : 'pointer',
+                opacity: users.length === 0 || loading ? 0.5 : 1,
+              }}
             >
               <Copy size={13} /> Copy all emails
             </button>
@@ -746,6 +765,42 @@ function DetailView({
               <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 14 }}>Loading users…</div>
             ) : users.length === 0 ? (
               <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 14 }}>No users found for this time range</div>
+            ) : isMobile ? (
+              users.map((u, i) => (
+                <div key={i} style={{ padding: '18px 16px', borderBottom: i < users.length - 1 ? '1px solid var(--line)' : 'none' }}>
+                  <div style={{ textAlign: 'center', marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-faint)' }}>User</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginTop: 2 }}>{u.name ?? '—'}</div>
+                  </div>
+                  <DetailMobileRow label="User ID" value={<span style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--text-faint)' }}>{u.userId}</span>} />
+                  <DetailMobileRow label="Email" value={
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 13, color: 'var(--text)' }}>{u.email || '—'}</span>
+                      {u.email && (
+                        <button
+                          onClick={() => onCopy(u.email, `Copied ${u.email}`)}
+                          style={{ background: 'none', border: '1px solid var(--line)', borderRadius: 6, cursor: 'pointer', color: 'var(--text-faint)', padding: 4, display: 'flex', alignItems: 'center' }}
+                          title="Copy email"
+                        >
+                          <Copy size={12} />
+                        </button>
+                      )}
+                    </span>
+                  } />
+                  <DetailMobileRow label="Signed up" value={<span style={{ fontSize: 13, color: 'var(--text)' }}>{fmtTs(u.timestamp)}</span>} />
+                  <DetailMobileRow label="Source" value={
+                    u.source
+                      ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: 'rgba(74,222,128,0.12)', color: 'var(--green-bright)' }}>{u.source}</span>
+                      : <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>—</span>
+                  } />
+                  <DetailMobileRow label="Location" value={<span style={{ fontSize: 13, color: 'var(--text)' }}>{u.location ?? '—'}</span>} />
+                  <DetailMobileRow label="Plan" value={
+                    u.plan
+                      ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: 'var(--bg-soft)', color: 'var(--text-dim)' }}>{u.plan}</span>
+                      : <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>—</span>
+                  } />
+                </div>
+              ))
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
