@@ -116,11 +116,29 @@ function formatTimeAgo(isoString: string): string {
   return `${Math.floor(hrs / 24)}d ago`
 }
 
+/* ── Reference-mockup palette (Overview page only) ── */
+const MOCK = {
+  bg: '#FAF8F3', card: '#FFFFFF', border: '#E7E3D7',
+  text: '#1E231F', muted: '#7A8078', muted2: '#9AA098',
+  green: '#3E7B58', greenSoft: '#E7F2EA',
+  amberBg: '#FBF1D8', amberText: '#96742A',
+  red: '#C1503D', redSoft: '#FBEAE7',
+  badgeDark: '#1E231F',
+  shadow: '0 1px 2px rgba(30,35,31,0.04)',
+}
+
 function toneColor(tone: string): string {
-  if (tone === 'green')  return '#4ade80'  // --green-bright
-  if (tone === 'amber')  return '#e7c873'  // --gold
-  if (tone === 'red')    return '#f87171'
-  return '#64748b'                         // neutral slate — visible against a light card
+  if (tone === 'green')  return MOCK.green
+  if (tone === 'amber')  return MOCK.amberText
+  if (tone === 'red')    return MOCK.red
+  return MOCK.muted
+}
+
+function toneBg(tone: string): string {
+  if (tone === 'green')  return MOCK.greenSoft
+  if (tone === 'amber')  return MOCK.amberBg
+  if (tone === 'red')    return MOCK.redSoft
+  return '#F0EEE6'
 }
 
 function scoreColor(score: number): string {
@@ -173,7 +191,7 @@ function Delta({ value, invertGood = false, period = 'yesterday' }: { value: num
   const good = invertGood ? value < 0 : value > 0
   const Icon = value > 0 ? TrendingUp : TrendingDown
   return (
-    <span style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500, color: good ? 'var(--green-bright)' : '#f87171' }}>
+    <span style={{ fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600, color: good ? MOCK.green : MOCK.red }}>
       <Icon size={13} />
       {value > 0 ? '+' : ''}{value} vs {period}
     </span>
@@ -183,9 +201,9 @@ function Delta({ value, invertGood = false, period = 'yesterday' }: { value: num
 function ComingSoonBadge() {
   return (
     <span style={{
-      fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase',
-      padding: '3px 9px', borderRadius: 99, whiteSpace: 'nowrap', flexShrink: 0,
-      color: 'var(--gold)', background: '#e7c87318', border: '1px solid #e7c87330',
+      fontSize: 10.5, fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
+      padding: '5px 10px', borderRadius: 99, whiteSpace: 'nowrap', flexShrink: 0,
+      color: MOCK.amberText, background: MOCK.amberBg,
     }}>
       Coming soon
     </span>
@@ -200,22 +218,22 @@ function StatCard({
   onViewDetails?: () => void; isMobile?: boolean
 }) {
   const iconColor = toneColor(iconTone)
-  const textColor = comingSoon ? '#555f5a' : iconColor
+  const iconBg = toneBg(iconTone)
   return (
     <div style={{
-      background: 'var(--card)',
-      border: '1px solid var(--line)',
-      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-      borderRadius: 16, padding: isMobile ? '16px 14px' : '20px 22px',
+      background: MOCK.card,
+      border: `1px solid ${MOCK.border}`,
+      boxShadow: MOCK.shadow,
+      borderRadius: 14, padding: isMobile ? '16px 14px' : '22px 22px 18px',
       display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 6px' }}>
         <div style={{
-          width: isMobile ? 30 : 36, height: isMobile ? 30 : 36, borderRadius: isMobile ? 8 : 10, flexShrink: 0,
+          width: isMobile ? 30 : 38, height: isMobile ? 30 : 38, borderRadius: isMobile ? 8 : 10, flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: `${iconColor}1f`, color: iconColor,
+          background: iconBg, color: iconColor,
         }}>
-          <Icon size={isMobile ? 15 : 17} />
+          <Icon size={isMobile ? 15 : 19} />
         </div>
         {comingSoon ? <ComingSoonBadge /> : <SourcePill>{source}</SourcePill>}
       </div>
@@ -224,18 +242,19 @@ function StatCard({
           <div className="an-skeleton" style={{ width: 56, height: 32, borderRadius: 8 }} />
         ) : (
           <div style={{
-            fontSize: 'clamp(24px, 5vw, 40px)', fontWeight: 700, lineHeight: 1, letterSpacing: '-1px',
-            color: comingSoon ? '#555f5a' : 'var(--text)',
+            fontSize: 'clamp(24px, 5vw, 38px)', fontWeight: 800, lineHeight: 1, letterSpacing: '-1px',
+            color: comingSoon ? MOCK.green : MOCK.text,
             filter: comingSoon ? 'blur(6px)' : 'none',
+            opacity: comingSoon ? 0.6 : 1,
             userSelect: comingSoon ? 'none' : 'auto',
           }}>
             {comingSoon ? '—' : typeof value === 'number' ? fmt(value) : value}
           </div>
         )}
-        <div style={{ fontSize: 14, marginTop: 6, color: 'var(--text)' }}>{label}</div>
+        <div style={{ fontSize: 15, fontWeight: 600, marginTop: 4, color: MOCK.text }}>{label}</div>
       </div>
       {comingSoon
-        ? <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Connect Stripe to unlock</span>
+        ? <span style={{ fontSize: 12.5, color: MOCK.muted }}>Connect Stripe to unlock</span>
         : loading
           ? <div className="an-skeleton" style={{ width: 90, height: 13, borderRadius: 4 }} />
           : <Delta value={deltaValue} invertGood={invertGood} period={period} />
@@ -244,9 +263,9 @@ function StatCard({
         <button
           onClick={onViewDetails}
           style={{
-            alignSelf: 'flex-start', fontSize: 12, fontWeight: 600,
+            alignSelf: 'flex-start', fontSize: 12.5, fontWeight: 700,
             display: 'inline-flex', alignItems: 'center', gap: 4,
-            color: 'var(--green-bright)', background: 'none', border: 'none',
+            color: MOCK.green, background: 'none', border: 'none',
             cursor: 'pointer', padding: 0, marginTop: -4,
           }}
         >
@@ -263,14 +282,13 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon, i
 }) {
   return (
     <div style={{
-      background: 'var(--card)', border: '1px solid var(--line)',
-      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-      borderRadius: 16,
-      padding: isMobile ? '16px 14px' : '22px 24px', display: 'flex', flexDirection: 'column', gap: 10,
-      opacity: comingSoon ? 0.9 : 1,
+      background: MOCK.card, border: `1px solid ${MOCK.border}`,
+      boxShadow: MOCK.shadow,
+      borderRadius: 14,
+      padding: isMobile ? '16px 14px' : '22px 22px 18px', display: 'flex', flexDirection: 'column', gap: 10,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: MOCK.green }}>
           {label}
         </span>
         {comingSoon ? <ComingSoonBadge /> : <SourcePill>{source}</SourcePill>}
@@ -279,17 +297,18 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon, i
         <div className="an-skeleton" style={{ width: 64, height: 30, borderRadius: 8 }} />
       ) : (
         <div style={{
-          fontSize: 'clamp(22px, 5vw, 38px)', fontWeight: 700, letterSpacing: '-1px', lineHeight: 1,
-          color: comingSoon ? 'var(--text-faint)' : 'var(--text)',
+          fontSize: 'clamp(22px, 5vw, 30px)', fontWeight: 800, letterSpacing: '-1px', lineHeight: 1,
+          color: comingSoon ? MOCK.green : MOCK.text,
           filter: comingSoon ? 'blur(6px)' : 'none',
+          opacity: comingSoon ? 0.6 : 1,
           userSelect: comingSoon ? 'none' : 'auto',
         }}>
           {value}
         </div>
       )}
-      <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>{sub}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 500, color: MOCK.muted }}>{sub}</div>
       {comingSoon
-        ? <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Connect Stripe to unlock</span>
+        ? <span style={{ fontSize: 12.5, color: MOCK.muted }}>Connect Stripe to unlock</span>
         : loading
           ? <div className="an-skeleton" style={{ width: 90, height: 13, borderRadius: 4 }} />
           : <Delta value={delta} invertGood={bad} />
@@ -300,20 +319,20 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon, i
 
 function RetentionCurve({ data, loading, onViewDetails }: { data: { day: string; rate: number }[]; loading: boolean; onViewDetails?: () => void }) {
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', borderRadius: 16, padding: '22px 24px' }}>
+    <div style={{ background: MOCK.card, border: `1px solid ${MOCK.border}`, boxShadow: MOCK.shadow, borderRadius: 14, padding: '26px 26px 8px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)' }}>
+          <h3 style={{ fontSize: 19, fontWeight: 700, color: MOCK.text, fontFamily: 'var(--font-display, Fraunces, serif)' }}>
             Retention curve
           </h3>
-          <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 3 }}>
+          <p style={{ fontSize: 13.5, color: MOCK.muted, marginTop: 3 }}>
             Share of signed-up users still active N days after signup.
-            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
+            {loading && <span style={{ color: MOCK.muted2, marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {!loading && onViewDetails && (
-            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               View details <ArrowRight size={11} />
             </button>
           )}
@@ -325,19 +344,19 @@ function RetentionCurve({ data, loading, onViewDetails }: { data: { day: string;
           <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="retFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%"   stopColor="#5eead4" stopOpacity={0.25} />
-                <stop offset="100%" stopColor="#5eead4" stopOpacity={0}    />
+                <stop offset="0%"   stopColor="#3EBFA6" stopOpacity={0.25} />
+                <stop offset="100%" stopColor="#3EBFA6" stopOpacity={0}    />
               </linearGradient>
             </defs>
-            <XAxis dataKey="day" tick={{ fill: 'var(--text-faint)', fontSize: 11 }} axisLine={{ stroke: 'var(--line)' }} tickLine={false} />
-            <YAxis tick={{ fill: 'var(--text-faint)', fontSize: 11 }} axisLine={false} tickLine={false} width={28} />
+            <XAxis dataKey="day" tick={{ fill: MOCK.muted2, fontSize: 11 }} axisLine={{ stroke: MOCK.border }} tickLine={false} />
+            <YAxis tick={{ fill: MOCK.muted2, fontSize: 11 }} axisLine={false} tickLine={false} width={28} />
             <Tooltip
-              contentStyle={{ background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 8, fontSize: 12 }}
-              labelStyle={{ color: 'var(--text-dim)' }}
-              itemStyle={{ color: '#5eead4' }}
+              contentStyle={{ background: MOCK.card, border: `1px solid ${MOCK.border}`, borderRadius: 8, fontSize: 12 }}
+              labelStyle={{ color: MOCK.muted }}
+              itemStyle={{ color: '#3EBFA6' }}
               formatter={(v) => [`${v}%`, 'Retained']}
             />
-            <Area type="monotone" dataKey="rate" stroke="#5eead4" strokeWidth={2.5} fill="url(#retFill)" dot={false} />
+            <Area type="monotone" dataKey="rate" stroke="#3EBFA6" strokeWidth={2.5} fill="url(#retFill)" dot={false} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -348,20 +367,20 @@ function RetentionCurve({ data, loading, onViewDetails }: { data: { day: string;
 function FunnelCard({ data, loading, onViewDetails }: { data: { stage: string; value: number }[]; loading: boolean; onViewDetails?: () => void }) {
   const max = data[0]?.value ?? 1
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', boxShadow: '0 1px 2px rgba(0,0,0,0.04)', borderRadius: 16, padding: '22px 24px' }}>
+    <div style={{ background: MOCK.card, border: `1px solid ${MOCK.border}`, boxShadow: MOCK.shadow, borderRadius: 14, padding: '26px 26px 8px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)' }}>
+          <h3 style={{ fontSize: 19, fontWeight: 700, color: MOCK.text, fontFamily: 'var(--font-display, Fraunces, serif)' }}>
             Conversion funnel
           </h3>
-          <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 3 }}>
+          <p style={{ fontSize: 13.5, color: MOCK.muted, marginTop: 3 }}>
             Where users fall off between arriving and paying.
-            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
+            {loading && <span style={{ color: MOCK.muted2, marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {!loading && onViewDetails && (
-            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               View details <ArrowRight size={11} />
             </button>
           )}
@@ -376,20 +395,20 @@ function FunnelCard({ data, loading, onViewDetails }: { data: { stage: string; v
           return (
             <div key={f.stage}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: 14, color: 'var(--text-dim)' }}>{f.stage}</span>
-                <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 14, color: MOCK.muted }}>{f.stage}</span>
+                <span style={{ fontSize: 14, color: MOCK.text, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                   {f.value.toLocaleString()}
                   {prev && (
-                    <span style={{ fontWeight: 500, fontSize: 13, color: stepPct < 30 ? '#f87171' : 'var(--text-dim)' }}>
+                    <span style={{ fontWeight: 500, fontSize: 13, color: stepPct < 30 ? MOCK.red : MOCK.muted }}>
                       {stepPct}% of prev
                     </span>
                   )}
                 </span>
               </div>
-              <div style={{ height: 8, borderRadius: 99, background: 'var(--line)' }}>
+              <div style={{ height: 8, borderRadius: 99, background: MOCK.greenSoft }}>
                 <div style={{
                   height: 8, borderRadius: 99, width: `${pct}%`,
-                  background: 'linear-gradient(90deg, var(--green), var(--green-bright))',
+                  background: MOCK.green,
                 }} />
               </div>
             </div>
@@ -1081,7 +1100,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
     { key: 'deleted',  label: 'Deleted account',   value: deletedVal,      delta: deletedVal - deletedPrior,         source: 'PostHog',  icon: Trash2,        tone: 'red',     loading: phLoading, period: rangePeriod, invertGood: true, onViewDetails: data?.posthogConnected ? () => openDetail('deleted') : undefined },
     { key: 'pro',      label: 'Became PRO',        value: 0, delta: 0, source: 'Stripe',   icon: Crown,         tone: 'amber',   comingSoon: true },
     { key: 'unsub',    label: 'Unsubscribed',      value: 0, delta: 0, source: 'Stripe',   icon: UserMinus,     tone: 'red',     comingSoon: true, invertGood: true },
-    { key: 'contact',  label: 'Support contacted', value: 0, delta: 0, source: 'Internal', icon: MessageSquare, tone: 'neutral', comingSoon: true },
+    { key: 'contact',  label: 'Support contacted', value: 0, delta: 0, source: 'Internal', icon: MessageSquare, tone: 'amber', comingSoon: true },
     { key: 'reviews',  label: 'Reviews left',      value: 0, delta: 0, source: 'Internal', icon: Star,          tone: 'amber',   comingSoon: true },
   ]
 
@@ -1111,7 +1130,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
+    <div style={{ minHeight: '100vh', background: MOCK.bg, fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
 
       {redirectTarget && (
         <div style={{
@@ -1132,7 +1151,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
               onClick={() => { setBackLoading(true); router.push('/dashboard') }}
               style={{
                 width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer',
+                border: `1px solid ${MOCK.border}`, background: MOCK.card, color: MOCK.text, cursor: 'pointer',
               }}
             >
               {backLoading
@@ -1142,25 +1161,25 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             </button>
             <div>
               <h1 style={{
-                fontSize: 22, fontWeight: 700, letterSpacing: '-0.4px', color: 'var(--text)',
+                fontSize: 30, fontWeight: 700, letterSpacing: '-0.4px', color: MOCK.text,
                 fontFamily: 'var(--font-display, Fraunces, serif)', margin: 0,
               }}>
                 User Analytics
               </h1>
-              <p style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>
+              <p style={{ fontSize: 13.5, fontWeight: 600, color: MOCK.green, marginTop: 4 }}>
                 {brand.name} · {[data?.posthogConnected && 'PostHog', gsc?.connected && 'GSC', ga4?.connected && 'GA4'].filter(Boolean).join(' · ') || 'No integrations connected'}
               </p>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'flex-start' : 'flex-end', gap: 5 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', padding: '3px', border: '1px solid var(--line)', borderRadius: 99, background: 'var(--bg-soft)' }}>
+              <div style={{ display: 'flex', padding: '3px', border: `1px solid ${MOCK.border}`, borderRadius: 99, background: MOCK.card }}>
                 {['24h', '7d', '30d'].map((r) => (
                   <button key={r} onClick={() => setRange(r)} style={{
-                    fontSize: 12, fontWeight: 600, padding: '5px 14px', borderRadius: 99,
+                    fontSize: 13.5, fontWeight: 600, padding: '5px 14px', borderRadius: 99,
                     border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-                    background: range === r ? 'var(--text)' : 'transparent',
-                    color: range === r ? 'var(--bg)' : 'var(--text-dim)',
+                    background: range === r ? MOCK.badgeDark : 'transparent',
+                    color: range === r ? '#ffffff' : MOCK.muted,
                   }}>
                     {r}
                   </button>
@@ -1177,14 +1196,14 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 title="Refresh"
                 style={{
                   width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer',
+                  border: `1px solid ${MOCK.border}`, background: MOCK.card, color: MOCK.text, cursor: 'pointer',
                 }}
               >
                 <RefreshCw size={14} style={{ animation: phLoading ? 'spin 1s linear infinite' : 'none' }} />
               </button>
             </div>
             {snapshotAt && !phLoading && (
-              <span style={{ fontSize: 10, color: 'var(--text-faint)' }}>
+              <span style={{ fontSize: 11.5, color: MOCK.muted2 }}>
                 fetched {formatTimeAgo(snapshotAt)}
               </span>
             )}
@@ -1195,7 +1214,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
 
         {/* Activity section — range-driven */}
         <section style={{ marginBottom: 36 }}>
-          <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
+          <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: MOCK.green, marginBottom: 14 }}>
             {rangeLabel}
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
@@ -1218,7 +1237,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
 
         {/* Growth & retention KPIs */}
         <section style={{ marginBottom: 36 }}>
-          <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
+          <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: MOCK.green, marginBottom: 14 }}>
             Growth &amp; retention
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
@@ -1235,7 +1254,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
 
         {/* ── Product signals ── */}
         <section style={{ marginBottom: 36 }}>
-          <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
+          <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: MOCK.green, marginBottom: 14 }}>
             Product signals
           </h2>
           {!data?.posthogConnected && !phLoading ? (
