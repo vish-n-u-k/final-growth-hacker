@@ -33,7 +33,7 @@ function buildNotificationEmail(opts: {
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;margin-bottom:14px;">
       <tr>
         <td style="padding:0 4px;">
-          <img src="https://growjin.com/favicon.svg" alt="" width="22" height="22" style="width:22px;height:22px;vertical-align:middle;margin-right:6px;" />
+          <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzJmYmY3MSIvPjxwYXRoIGQ9Ik00IDE2aDUuMzNsMi42Ny04IDQgMTYgMi42Ny04SDI4IiBzdHJva2U9IiMwNjE0MGMiIHN0cm9rZS13aWR0aD0iMi44IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIGZpbGw9Im5vbmUiLz48L3N2Zz4=" alt="" width="22" height="22" style="width:22px;height:22px;vertical-align:middle;margin-right:6px;" />
           <span style="font-size:18px;font-weight:700;color:#2fbf71;letter-spacing:-0.4px;vertical-align:middle;">GrowJin</span>
         </td>
       </tr>
