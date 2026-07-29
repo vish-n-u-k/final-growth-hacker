@@ -424,7 +424,7 @@ function ActivationFunnelCard({ data, loading, onViewDetails }: { data: { stage:
   const max = displayData[0]?.value ?? 1
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 12px', marginBottom: 4 }}>
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)' }}>
             Activation funnel
@@ -434,9 +434,9 @@ function ActivationFunnelCard({ data, loading, onViewDetails }: { data: { stage:
             {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           {!loading && onViewDetails && (
-            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               View details <ArrowRight size={11} />
             </button>
           )}
@@ -486,7 +486,7 @@ function WauChart({ data, loading, onViewDetails }: { data: { week: string; user
   const chartData = data ?? []
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 12px', marginBottom: 4 }}>
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)' }}>
             Daily active users
@@ -496,9 +496,9 @@ function WauChart({ data, loading, onViewDetails }: { data: { week: string; user
             {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           {!loading && onViewDetails && (
-            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               View details <ArrowRight size={11} />
             </button>
           )}
@@ -541,7 +541,7 @@ function PmfCard({ data, loading, onViewDetails }: { data: { event: string; labe
   const maxVal = Math.max(...displayData.flatMap(d => [d.retainedAvg, d.churnedAvg]), 1)
   return (
     <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 12px', marginBottom: 4 }}>
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)' }}>
             Product-market fit signals
@@ -551,9 +551,9 @@ function PmfCard({ data, loading, onViewDetails }: { data: { event: string; labe
             {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           {!loading && onViewDetails && (
-            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               View details <ArrowRight size={11} />
             </button>
           )}
