@@ -1155,16 +1155,19 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   // Primary: uses AI-detected item_links from the DB (covers all related slugs, not just entry points).
   // Fallback: static CONFLICT_GROUPS for entry-point slugs when DB links haven't been written yet.
   const getConflictsForItem = (modId: string, slug: string, itemId?: string) => {
+    // Grouped result type: one entry per module, with all its actions collected
+    type ConflictResult = { topic: string; moduleName: string; aiActions: string[] }
+    const byModule = new Map<string, ConflictResult>()
+
     // Primary path — DB-backed links
     if (itemId && conflictLinks.length > 0) {
       const myLinks = conflictLinks.filter(l => l.itemIdA === itemId || l.itemIdB === itemId)
       if (myLinks.length > 0) {
-        const seen = new Set<string>()
-        const results: { topic: string; moduleName: string; aiAction: string | null }[] = []
+        const seenOtherId = new Set<string>()
         for (const link of myLinks) {
           const otherId = link.itemIdA === itemId ? link.itemIdB : link.itemIdA
-          if (seen.has(otherId)) continue
-          seen.add(otherId)
+          if (seenOtherId.has(otherId)) continue
+          seenOtherId.add(otherId)
           const info = itemIdInfoMap.get(otherId)
           if (!info || info.moduleId === modId) continue
           const otherMod = allModulesData.find(m => m.id === info.moduleId)
@@ -1173,15 +1176,22 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             ? (dynItemsMap[info.moduleId]?.find(i => i.id === otherId)?.aiAction ?? null)
             : (statesMap[info.moduleId]?.[info.slug]?.aiAction ?? null)
           const topic = SLUG_TOPIC[info.slug] ?? SLUG_TOPIC[slug] ?? 'Shared Element'
-          results.push({ topic, moduleName: otherMod.name, aiAction })
+          const existing = byModule.get(info.moduleId)
+          if (existing) {
+            if (aiAction && !existing.aiActions.includes(aiAction)) existing.aiActions.push(aiAction)
+          } else {
+            byModule.set(info.moduleId, { topic, moduleName: otherMod.name, aiActions: aiAction ? [aiAction] : [] })
+          }
         }
+        // Filter: only modules that have at least one suggestion
+        const results = [...byModule.values()].filter(r => r.aiActions.length > 0)
         if (results.length > 0) return results
       }
     }
+
     // Fallback — static map (shows entry-point slugs before DB links exist)
     const moduleType = allModulesData.find(m => m.id === modId)?.type
     if (!moduleType) return null
-    const results: { topic: string; moduleName: string; aiAction: string | null }[] = []
     for (const group of CONFLICT_GROUPS) {
       if (!group.entries.some(e => e.moduleType === moduleType && e.slug === slug)) continue
       for (const entry of group.entries) {
@@ -1191,10 +1201,16 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         const aiAction = otherMod.definition.dynamic
           ? (dynItemsMap[otherMod.id]?.find(i => i.slug === entry.slug)?.aiAction ?? null)
           : (statesMap[otherMod.id]?.[entry.slug]?.aiAction ?? null)
-        results.push({ topic: group.topic, moduleName: otherMod.name, aiAction })
+        const existing = byModule.get(otherMod.id)
+        if (existing) {
+          if (aiAction && !existing.aiActions.includes(aiAction)) existing.aiActions.push(aiAction)
+        } else {
+          byModule.set(otherMod.id, { topic: group.topic, moduleName: otherMod.name, aiActions: aiAction ? [aiAction] : [] })
+        }
       }
     }
-    return results.length > 0 ? results : null
+    const fallbackResults = [...byModule.values()].filter(r => r.aiActions.length > 0)
+    return fallbackResults.length > 0 ? fallbackResults : null
   }
 
   // ── Dynamic item renderer ────────────────────────────────────────────────────
@@ -1355,8 +1371,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <strong>{c.topic}</strong>
                         {' — also in '}
                         <em>{c.moduleName}</em>
-                        {': '}
-                        {c.aiAction ?? 'Not yet analyzed in this module.'}
+                        {':'}
+                        {c.aiActions.length === 1
+                          ? <span> {c.aiActions[0]}</span>
+                          : <ul className="sm-conflict-actions">{c.aiActions.map((a, j) => <li key={j}>{a}</li>)}</ul>
+                        }
                       </div>
                     ))}
                   </div>
@@ -1561,8 +1580,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <strong>{c.topic}</strong>
                         {' — also in '}
                         <em>{c.moduleName}</em>
-                        {': '}
-                        {c.aiAction ?? 'Not yet analyzed in this module.'}
+                        {':'}
+                        {c.aiActions.length === 1
+                          ? <span> {c.aiActions[0]}</span>
+                          : <ul className="sm-conflict-actions">{c.aiActions.map((a, j) => <li key={j}>{a}</li>)}</ul>
+                        }
                       </div>
                     ))}
                   </div>

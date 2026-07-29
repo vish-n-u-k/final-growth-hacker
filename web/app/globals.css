@@ -1330,6 +1330,14 @@ html.light .hero-social-icon--connected { color: #5b6560; }
   color: var(--text);
   font-weight: 500;
 }
+.sm-conflict-actions {
+  margin: 4px 0 0 16px;
+  padding: 0;
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
 
 /* Setup guide — dashboard checklist item */
 .sm-setup-guide {
