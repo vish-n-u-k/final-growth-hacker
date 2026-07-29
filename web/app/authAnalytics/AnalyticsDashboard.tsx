@@ -1112,13 +1112,13 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                     .then((d: DashboardData) => { setData(d); setSnapshotAt(d.snapshotAt ?? null) })
                     .finally(() => setPhLoading(false))
                 }}
+                title="Refresh"
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
-                  padding: '7px 14px', borderRadius: 99, border: '1px solid var(--line)',
-                  background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer',
+                  width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer',
                 }}
               >
-                <RefreshCw size={12} style={{ animation: phLoading ? 'spin 1s linear infinite' : 'none' }} /> Refresh
+                <RefreshCw size={14} style={{ animation: phLoading ? 'spin 1s linear infinite' : 'none' }} />
               </button>
             </div>
             {snapshotAt && !phLoading && (
