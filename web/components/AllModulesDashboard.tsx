@@ -1592,21 +1592,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       <div className="wrap">
         {/* Hero + Overview */}
         <div className="overview-card" style={{ position: 'relative' }}>
-          <button
-            onClick={() => { setAnalyticsLoading(true); router.push('/authAnalytics') }}
-            className="btn-analytics"
-            disabled={analyticsLoading}
-          >
-            {analyticsLoading ? (
-              <span className="md-spin" style={{ width: '13px', height: '13px', flexShrink: 0 }} />
-            ) : (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
-            <span className="btn-analytics-label">{analyticsLoading ? 'Loading…' : 'Analytics'}</span>
-          </button>
-
           <div className="hero-brand">
             {brand.logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -1694,6 +1679,21 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               })}
             </div>
           </div>
+
+          <button
+            onClick={() => { setAnalyticsLoading(true); router.push('/authAnalytics') }}
+            className="btn-analytics"
+            disabled={analyticsLoading}
+          >
+            {analyticsLoading ? (
+              <span className="md-spin" style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+            <span className="btn-analytics-label">{analyticsLoading ? 'Loading…' : 'Analytics'}</span>
+          </button>
 
           <div className="hero-divider" />
 

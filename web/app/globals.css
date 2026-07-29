@@ -2350,11 +2350,13 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
   .level-reanalyze-btn { padding: 7px; gap: 0; }
   .level-reanalyze-btn .level-reanalyze-label { display: none; }
 
-  /* Analytics btn: icon only on mobile, reposition so it clears the heading */
-  .btn-analytics { top: 16px; right: 16px; padding: 8px; gap: 0; }
-  .btn-analytics .btn-analytics-label { display: none; }
+  /* Analytics btn: full-width, in normal flow below the social icons on mobile */
+  .btn-analytics {
+    position: static; width: 100%;
+    justify-content: center; padding: 13px 18px; margin: 4px 0 2px;
+  }
   .overview-card { padding: 20px; }
-  .overview-card .hero-brand h1 { font-size: 20px; padding-right: 52px; }
+  .overview-card .hero-brand h1 { font-size: 20px; }
 
   /* ── Level body ── */
   .tasks { padding: 6px 18px 20px; }
