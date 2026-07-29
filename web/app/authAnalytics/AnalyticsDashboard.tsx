@@ -330,13 +330,13 @@ function RetentionCurve({ data, loading, onViewDetails }: { data: { day: string;
             {loading && <span style={{ color: MOCK.muted2, marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
+          <SourcePill>PostHog</SourcePill>
           {!loading && onViewDetails && (
             <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               View details <ArrowRight size={11} />
             </button>
           )}
-          <SourcePill>PostHog</SourcePill>
         </div>
       </div>
       <div style={{ width: '100%', height: 200, marginTop: 24 }}>
@@ -378,13 +378,13 @@ function FunnelCard({ data, loading, onViewDetails }: { data: { stage: string; v
             {loading && <span style={{ color: MOCK.muted2, marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
+          <SourcePill>PostHog</SourcePill>
           {!loading && onViewDetails && (
             <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               View details <ArrowRight size={11} />
             </button>
           )}
-          <SourcePill>PostHog</SourcePill>
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 24 }}>
@@ -434,13 +434,13 @@ function ActivationFunnelCard({ data, loading, onViewDetails }: { data: { stage:
             {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
+          <SourcePill>PostHog</SourcePill>
           {!loading && onViewDetails && (
             <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               View details <ArrowRight size={11} />
             </button>
           )}
-          <SourcePill>PostHog</SourcePill>
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18, marginTop: 24 }}>
@@ -496,13 +496,13 @@ function WauChart({ data, loading, onViewDetails }: { data: { week: string; user
             {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
+          <SourcePill>PostHog</SourcePill>
           {!loading && onViewDetails && (
             <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               View details <ArrowRight size={11} />
             </button>
           )}
-          <SourcePill>PostHog</SourcePill>
         </div>
       </div>
       {!loading && chartData.length === 0 ? (
@@ -551,13 +551,13 @@ function PmfCard({ data, loading, onViewDetails }: { data: { event: string; labe
             {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
+          <SourcePill>PostHog</SourcePill>
           {!loading && onViewDetails && (
             <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               View details <ArrowRight size={11} />
             </button>
           )}
-          <SourcePill>PostHog</SourcePill>
         </div>
       </div>
       <div style={{ display: 'flex', gap: 20, fontSize: 11, color: 'var(--text-dim)', marginTop: 20, marginBottom: 4 }}>
