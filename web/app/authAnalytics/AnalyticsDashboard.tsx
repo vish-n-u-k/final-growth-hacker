@@ -221,20 +221,24 @@ function StatCard({
         {comingSoon ? <ComingSoonBadge /> : <SourcePill>{source}</SourcePill>}
       </div>
       <div>
-        <div style={{
-          fontSize: 'clamp(24px, 5vw, 40px)', fontWeight: 700, lineHeight: 1, letterSpacing: '-1px',
-          color: comingSoon || loading ? '#555f5a' : 'var(--text)',
-          filter: comingSoon ? 'blur(6px)' : 'none',
-          userSelect: comingSoon ? 'none' : 'auto',
-        }}>
-          {comingSoon ? '—' : loading ? '—' : typeof value === 'number' ? fmt(value) : value}
-        </div>
+        {loading && !comingSoon ? (
+          <div className="an-skeleton" style={{ width: 56, height: 32, borderRadius: 8 }} />
+        ) : (
+          <div style={{
+            fontSize: 'clamp(24px, 5vw, 40px)', fontWeight: 700, lineHeight: 1, letterSpacing: '-1px',
+            color: comingSoon ? '#555f5a' : 'var(--text)',
+            filter: comingSoon ? 'blur(6px)' : 'none',
+            userSelect: comingSoon ? 'none' : 'auto',
+          }}>
+            {comingSoon ? '—' : typeof value === 'number' ? fmt(value) : value}
+          </div>
+        )}
         <div style={{ fontSize: 14, marginTop: 6, color: 'var(--text)' }}>{label}</div>
       </div>
       {comingSoon
         ? <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Connect Stripe to unlock</span>
         : loading
-          ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>loading…</span>
+          ? <div className="an-skeleton" style={{ width: 90, height: 13, borderRadius: 4 }} />
           : <Delta value={deltaValue} invertGood={invertGood} period={period} />
       }
       {!comingSoon && !loading && onViewDetails && (
@@ -272,19 +276,23 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon, i
         </span>
         {comingSoon ? <ComingSoonBadge /> : <SourcePill>{source}</SourcePill>}
       </div>
-      <div style={{
-        fontSize: 'clamp(22px, 5vw, 38px)', fontWeight: 700, letterSpacing: '-1px', lineHeight: 1,
-        color: comingSoon || loading ? 'var(--text-faint)' : 'var(--text)',
-        filter: comingSoon ? 'blur(6px)' : 'none',
-        userSelect: comingSoon ? 'none' : 'auto',
-      }}>
-        {comingSoon ? value : loading ? '—' : value}
-      </div>
+      {loading && !comingSoon ? (
+        <div className="an-skeleton" style={{ width: 64, height: 30, borderRadius: 8 }} />
+      ) : (
+        <div style={{
+          fontSize: 'clamp(22px, 5vw, 38px)', fontWeight: 700, letterSpacing: '-1px', lineHeight: 1,
+          color: comingSoon ? 'var(--text-faint)' : 'var(--text)',
+          filter: comingSoon ? 'blur(6px)' : 'none',
+          userSelect: comingSoon ? 'none' : 'auto',
+        }}>
+          {value}
+        </div>
+      )}
       <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>{sub}</div>
       {comingSoon
         ? <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Connect Stripe to unlock</span>
         : loading
-          ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>loading…</span>
+          ? <div className="an-skeleton" style={{ width: 90, height: 13, borderRadius: 4 }} />
           : <Delta value={delta} invertGood={bad} />
       }
     </div>
