@@ -2349,6 +2349,10 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
   .level-reanalyze-btn { padding: 7px; gap: 0; }
   .level-reanalyze-btn .level-reanalyze-label { display: none; }
 
+  /* Analytics btn: icon only on mobile */
+  .btn-analytics { padding: 9px; gap: 0; }
+  .btn-analytics .btn-analytics-label { display: none; }
+
   /* ── Level body ── */
   .tasks { padding: 6px 18px 20px; }
 

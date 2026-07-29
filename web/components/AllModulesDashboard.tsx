@@ -1605,7 +1605,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             )}
-            {analyticsLoading ? 'Loading…' : 'Analytics'}
+            <span className="btn-analytics-label">{analyticsLoading ? 'Loading…' : 'Analytics'}</span>
           </button>
 
           <div className="hero-brand">
