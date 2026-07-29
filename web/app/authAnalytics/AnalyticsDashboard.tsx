@@ -266,7 +266,7 @@ function StatCard({
             alignSelf: 'flex-start', fontSize: 12.5, fontWeight: 700,
             display: 'inline-flex', alignItems: 'center', gap: 4,
             color: MOCK.green, background: 'none', border: 'none',
-            cursor: 'pointer', padding: 0, marginTop: -4,
+            cursor: 'pointer', padding: 0, marginTop: -4, textDecoration: 'underline',
           }}
         >
           View details <ArrowRight size={11} />
