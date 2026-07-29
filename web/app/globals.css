@@ -760,10 +760,6 @@ html.light .hero-social-icon--connected { color: #5b6560; }
   box-shadow: 0 2px 10px rgba(0,0,0,0.18);
 }
 .btn-analytics:disabled { opacity: .7; cursor: default; }
-@media (max-width: 640px) {
-  .btn-analytics { padding: 9px; }
-  .btn-analytics-label { display: none; }
-}
 
 @keyframes md-spin { to { transform: rotate(360deg); } }
 @keyframes btn-shimmer {
