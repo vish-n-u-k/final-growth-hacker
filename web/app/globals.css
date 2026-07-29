@@ -479,6 +479,15 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 }
 .auth-input:focus { border-color: var(--green); }
 .auth-input::placeholder { color: var(--text-faint); }
+.auth-password-wrap { position: relative; }
+.auth-password-wrap .auth-input { width: 100%; padding-right: 44px; }
+.auth-password-toggle {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer; padding: 6px;
+  color: var(--text-faint); display: flex; align-items: center; justify-content: center;
+  transition: color .15s;
+}
+.auth-password-toggle:hover { color: var(--text-dim); }
 .auth-error {
   font-size: 13px; color: #f87171;
   padding: 8px 12px; background: rgba(248, 113, 113, 0.08); border-radius: 8px;
