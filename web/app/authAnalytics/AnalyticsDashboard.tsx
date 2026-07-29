@@ -63,9 +63,13 @@ interface WebAnalytics {
 interface DashboardData {
   posthogConnected: boolean
   signups24h: number; signups7d: number; signups30d: number
+  signupsPrev24h: number; signupsPrev7d: number; signupsPrev30d: number
   signins24h: number; signins7d: number; signins30d: number
+  signinsPrev24h: number; signinsPrev7d: number; signinsPrev30d: number
   dau: number; activeUsers7d: number; mau: number
+  dauPrev: number; activeUsersPrev7d: number; mauPrev: number
   deletedAccounts24h: number; deleted7d: number; deleted30d: number
+  deletedPrev24h: number; deletedPrev7d: number; deletedPrev30d: number
   retention: { day: string; rate: number }[] | null
   funnel: { stage: string; value: number }[] | null
   activationFunnel: { stage: string; value: number }[] | null
@@ -985,6 +989,12 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   const activeUsersVal  = range === '7d' ? (data?.activeUsers7d ?? 0)      : range === '30d' ? (data?.mau ?? 0)                 : (data?.dau ?? 0)
   const activeUsersLabel = range === '7d' ? '7-day active users'           : range === '30d' ? 'Monthly active users'           : 'Daily active users'
 
+  // Prior period values for delta calculation
+  const signupsPrior     = range === '7d' ? (data?.signupsPrev7d ?? 0)      : range === '30d' ? (data?.signupsPrev30d ?? 0)      : (data?.signupsPrev24h ?? 0)
+  const signinsPrior     = range === '7d' ? (data?.signinsPrev7d ?? 0)      : range === '30d' ? (data?.signinsPrev30d ?? 0)      : (data?.signinsPrev24h ?? 0)
+  const activeUsersPrior = range === '7d' ? (data?.activeUsersPrev7d ?? 0)  : range === '30d' ? (data?.mauPrev ?? 0)             : (data?.dauPrev ?? 0)
+  const deletedPrior     = range === '7d' ? (data?.deletedPrev7d ?? 0)      : range === '30d' ? (data?.deletedPrev30d ?? 0)      : (data?.deletedPrev24h ?? 0)
+
   // Build activity tiles — real PostHog data + Stripe (coming soon)
   const activityTiles: {
     key: string; label: string; value: string | number; delta: number
@@ -992,10 +1002,10 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
     loading?: boolean; comingSoon?: boolean; invertGood?: boolean; period?: string
     onViewDetails?: () => void
   }[] = [
-    { key: 'signups',  label: 'New signups',      value: signupsVal,      delta: 0, source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signups') : undefined },
-    { key: 'signins',  label: 'Sign-ins',          value: signinsVal,      delta: 0, source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signins') : undefined },
-    { key: 'au',       label: activeUsersLabel,    value: activeUsersVal,  delta: 0, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('dau') : undefined },
-    { key: 'deleted',  label: 'Deleted account',   value: deletedVal,      delta: 0, source: 'PostHog',  icon: Trash2,        tone: 'red',     loading: phLoading, period: rangePeriod, invertGood: true, onViewDetails: data?.posthogConnected ? () => openDetail('deleted') : undefined },
+    { key: 'signups',  label: 'New signups',      value: signupsVal,      delta: signupsVal - signupsPrior,         source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signups') : undefined },
+    { key: 'signins',  label: 'Sign-ins',          value: signinsVal,      delta: signinsVal - signinsPrior,         source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signins') : undefined },
+    { key: 'au',       label: activeUsersLabel,    value: activeUsersVal,  delta: activeUsersVal - activeUsersPrior, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('dau') : undefined },
+    { key: 'deleted',  label: 'Deleted account',   value: deletedVal,      delta: deletedVal - deletedPrior,         source: 'PostHog',  icon: Trash2,        tone: 'red',     loading: phLoading, period: rangePeriod, invertGood: true, onViewDetails: data?.posthogConnected ? () => openDetail('deleted') : undefined },
     { key: 'pro',      label: 'Became PRO',        value: 0, delta: 0, source: 'Stripe',   icon: Crown,         tone: 'amber',   comingSoon: true },
     { key: 'unsub',    label: 'Unsubscribed',      value: 0, delta: 0, source: 'Stripe',   icon: UserMinus,     tone: 'red',     comingSoon: true, invertGood: true },
     { key: 'contact',  label: 'Support contacted', value: 0, delta: 0, source: 'Internal', icon: MessageSquare, tone: 'neutral', comingSoon: true },

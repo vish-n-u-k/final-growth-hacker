@@ -253,7 +253,7 @@ export async function GET(request: NextRequest) {
 
   // Return cached snapshot if available, not forced, and contains new fields
   const snap = brand.analyticsSnapshot as Record<string, unknown> | null
-  const snapIsFresh = snap && snap['_v'] === 7 && 'signups7d' in snap
+  const snapIsFresh = snap && snap['_v'] === 8 && 'signupsPrev24h' in snap
   if (!force && snapIsFresh && brand.analyticsSnapshotAt) {
     return NextResponse.json({
       ...snap,
@@ -290,9 +290,13 @@ export async function GET(request: NextRequest) {
   let posthogData: {
     posthogConnected: boolean
     signups24h: number; signups7d: number; signups30d: number
+    signupsPrev24h: number; signupsPrev7d: number; signupsPrev30d: number
     signins24h: number; signins7d: number; signins30d: number
+    signinsPrev24h: number; signinsPrev7d: number; signinsPrev30d: number
     dau: number; activeUsers7d: number; mau: number
+    dauPrev: number; activeUsersPrev7d: number; mauPrev: number
     deletedAccounts24h: number; deleted7d: number; deleted30d: number
+    deletedPrev24h: number; deletedPrev7d: number; deletedPrev30d: number
     retention: { day: string; rate: number }[] | null
     funnel: { stage: string; value: number }[] | null
     activationFunnel: { stage: string; value: number }[] | null
@@ -302,9 +306,13 @@ export async function GET(request: NextRequest) {
   } = {
     posthogConnected: false,
     signups24h: 0, signups7d: 0, signups30d: 0,
+    signupsPrev24h: 0, signupsPrev7d: 0, signupsPrev30d: 0,
     signins24h: 0, signins7d: 0, signins30d: 0,
+    signinsPrev24h: 0, signinsPrev7d: 0, signinsPrev30d: 0,
     dau: 0, activeUsers7d: 0, mau: 0,
+    dauPrev: 0, activeUsersPrev7d: 0, mauPrev: 0,
     deletedAccounts24h: 0, deleted7d: 0, deleted30d: 0,
+    deletedPrev24h: 0, deletedPrev7d: 0, deletedPrev30d: 0,
     retention: null, funnel: null, activationFunnel: null, wau: null, pmf: null, webAnalytics: null,
   }
 
@@ -324,14 +332,14 @@ export async function GET(request: NextRequest) {
         channelsRows, devicesRows, countriesRows, activeHoursRows,
         activationFunnelRaw, wauRows, pmfRetainedRows, pmfChurnedRows,
       ] = await Promise.all([
-        // Signups: all 3 windows in one query
-        hogqlRows(host, projectId, key, `SELECT countIf(created_at >= now() - interval 1 day), countIf(created_at >= now() - interval 7 day), countIf(created_at >= now() - interval 30 day) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email)`),
-        // Sign-ins ($identify events): all 3 windows in one query
-        hogqlRows(host, projectId, key, `SELECT countIf(timestamp >= now() - interval 1 day), countIf(timestamp >= now() - interval 7 day), countIf(timestamp >= now() - interval 30 day) FROM events WHERE event = '$identify' AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)`),
-        // Active users (distinct identified persons): all 3 windows in one query
-        hogqlRows(host, projectId, key, `SELECT count(DISTINCT if(timestamp >= now() - interval 1 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 7 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 30 day, person_id, null)) FROM events WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1) AND timestamp >= now() - interval 30 day`),
-        // Deleted accounts: all 3 windows in one query
-        hogqlRows(host, projectId, key, `SELECT countIf(timestamp >= now() - interval 1 day), countIf(timestamp >= now() - interval 7 day), countIf(timestamp >= now() - interval 30 day) FROM events WHERE event IN ('account_deleted', 'user_deleted', 'delete_account') AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)`),
+        // Signups: 3 current windows + 3 prior period windows in one query
+        hogqlRows(host, projectId, key, `SELECT countIf(created_at >= now() - interval 1 day), countIf(created_at >= now() - interval 7 day), countIf(created_at >= now() - interval 30 day), countIf(created_at >= now() - interval 2 day AND created_at < now() - interval 1 day), countIf(created_at >= now() - interval 14 day AND created_at < now() - interval 7 day), countIf(created_at >= now() - interval 60 day AND created_at < now() - interval 30 day) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email)`),
+        // Sign-ins: 3 current windows + 3 prior period windows in one query
+        hogqlRows(host, projectId, key, `SELECT countIf(timestamp >= now() - interval 1 day), countIf(timestamp >= now() - interval 7 day), countIf(timestamp >= now() - interval 30 day), countIf(timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day), countIf(timestamp >= now() - interval 14 day AND timestamp < now() - interval 7 day), countIf(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day) FROM events WHERE event = '$identify' AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)`),
+        // Active users: 3 current windows + 3 prior period windows in one query
+        hogqlRows(host, projectId, key, `SELECT count(DISTINCT if(timestamp >= now() - interval 1 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 7 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 30 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 14 day AND timestamp < now() - interval 7 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day, person_id, null)) FROM events WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1) AND timestamp >= now() - interval 60 day`),
+        // Deleted accounts: 3 current windows + 3 prior period windows in one query
+        hogqlRows(host, projectId, key, `SELECT countIf(timestamp >= now() - interval 1 day), countIf(timestamp >= now() - interval 7 day), countIf(timestamp >= now() - interval 30 day), countIf(timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day), countIf(timestamp >= now() - interval 14 day AND timestamp < now() - interval 7 day), countIf(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day) FROM events WHERE event IN ('account_deleted', 'user_deleted', 'delete_account') AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)`),
         phQuery(host, projectId, key, {
           kind: 'RetentionQuery',
           retentionFilter: { retention_type: 'retention_first_time', target_entity: { id: '$pageview', type: 'events' }, returning_entity: { id: '$pageview', type: 'events' }, total_intervals: 7, period: 'Day' },
@@ -455,18 +463,22 @@ export async function GET(request: NextRequest) {
         })).sort((a, b) => b.retainedAvg - a.retainedAvg)
       }
 
-      // Extract values from combined countIf row queries
-      const [signups24h, signups7d, signups30d] = (signupsRows?.[0] ?? [0, 0, 0]).map(Number)
-      const [signins24h, signins7d, signins30d] = (signinsRows?.[0] ?? [0, 0, 0]).map(Number)
-      const [dau, activeUsers7d, mau]           = (activeUsersRows?.[0] ?? [0, 0, 0]).map(Number)
-      const [deletedAccounts24h, deleted7d, deleted30d] = (deletedRows?.[0] ?? [0, 0, 0]).map(Number)
+      // Extract values from combined countIf row queries (current + prior period)
+      const [signups24h, signups7d, signups30d, signupsPrev24h, signupsPrev7d, signupsPrev30d] = (signupsRows?.[0] ?? [0,0,0,0,0,0]).map(Number)
+      const [signins24h, signins7d, signins30d, signinsPrev24h, signinsPrev7d, signinsPrev30d] = (signinsRows?.[0] ?? [0,0,0,0,0,0]).map(Number)
+      const [dau, activeUsers7d, mau, dauPrev, activeUsersPrev7d, mauPrev]                    = (activeUsersRows?.[0] ?? [0,0,0,0,0,0]).map(Number)
+      const [deletedAccounts24h, deleted7d, deleted30d, deletedPrev24h, deletedPrev7d, deletedPrev30d] = (deletedRows?.[0] ?? [0,0,0,0,0,0]).map(Number)
 
       posthogData = {
         posthogConnected: true,
         signups24h, signups7d, signups30d,
+        signupsPrev24h, signupsPrev7d, signupsPrev30d,
         signins24h, signins7d, signins30d,
+        signinsPrev24h, signinsPrev7d, signinsPrev30d,
         dau, activeUsers7d, mau,
+        dauPrev, activeUsersPrev7d, mauPrev,
         deletedAccounts24h, deleted7d, deleted30d,
+        deletedPrev24h, deletedPrev7d, deletedPrev30d,
         retention, funnel, activationFunnel, wau, pmf, webAnalytics,
       }
     }
@@ -495,7 +507,7 @@ export async function GET(request: NextRequest) {
   }
 
   const snapshot = {
-    _v: 7,
+    _v: 8,
     ...posthogData,
     gsc: gscData,
     ga4: ga4Data,
