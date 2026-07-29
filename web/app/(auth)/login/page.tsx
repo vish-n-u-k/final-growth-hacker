@@ -53,11 +53,9 @@ export default function LoginPage() {
     <div className="auth-card">
       <div className="auth-logo">
         <span className="mark">
-          <svg viewBox="0 0 24 24" fill="none">
-            <path d="M5 12h4l2-6 3 12 2-6h3" stroke="#06140c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <img src="/favicon.svg" alt="" />
         </span>
-        <span>DEV - GrowJin</span>
+        <span>GrowJin</span>
       </div>
       <h1>Welcome back</h1>
       <p className="auth-sub">Sign in to your account</p>

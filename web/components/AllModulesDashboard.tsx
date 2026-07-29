@@ -356,6 +356,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const [skipPrompting, setSkipPrompting] = useState<Set<string>>(new Set())
   const [skipReasonDraft, setSkipReasonDraft] = useState<Record<string, string>>({})
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null)
+  const [conflictModal, setConflictModal] = useState<{
+    modId: string; slug: string; itemId: string; isDynamic: boolean; itemLabel: string
+    conflicts: { topic: string; moduleName: string; aiActions: string[] }[]
+  } | null>(null)
 
   useEffect(() => {
     if (!activeTooltip) return
@@ -1159,6 +1163,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     type ConflictResult = { topic: string; moduleName: string; aiActions: string[] }
     const byModule = new Map<string, ConflictResult>()
 
+    // Only show suggestions from modules that come BEFORE the current one in the sequence
+    const currentMod = allModulesData.find(m => m.id === modId)
+    const currentOrder = currentMod?.order ?? 0
+
     // Primary path — DB-backed links
     if (itemId && conflictLinks.length > 0) {
       const myLinks = conflictLinks.filter(l => l.itemIdA === itemId || l.itemIdB === itemId)
@@ -1171,7 +1179,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           const info = itemIdInfoMap.get(otherId)
           if (!info || info.moduleId === modId) continue
           const otherMod = allModulesData.find(m => m.id === info.moduleId)
-          if (!otherMod) continue
+          if (!otherMod || otherMod.order >= currentOrder) continue
           const aiAction = otherMod.definition.dynamic
             ? (dynItemsMap[info.moduleId]?.find(i => i.id === otherId)?.aiAction ?? null)
             : (statesMap[info.moduleId]?.[info.slug]?.aiAction ?? null)
@@ -1183,21 +1191,20 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             byModule.set(info.moduleId, { topic, moduleName: otherMod.name, aiActions: aiAction ? [aiAction] : [] })
           }
         }
-        // Filter: only modules that have at least one suggestion
         const results = [...byModule.values()].filter(r => r.aiActions.length > 0)
         if (results.length > 0) return results
       }
     }
 
     // Fallback — static map (shows entry-point slugs before DB links exist)
-    const moduleType = allModulesData.find(m => m.id === modId)?.type
+    const moduleType = currentMod?.type
     if (!moduleType) return null
     for (const group of CONFLICT_GROUPS) {
       if (!group.entries.some(e => e.moduleType === moduleType && e.slug === slug)) continue
       for (const entry of group.entries) {
         if (entry.moduleType === moduleType) continue
         const otherMod = allModulesData.find(m => m.type === entry.moduleType)
-        if (!otherMod) continue
+        if (!otherMod || otherMod.order >= currentOrder) continue
         const aiAction = otherMod.definition.dynamic
           ? (dynItemsMap[otherMod.id]?.find(i => i.slug === entry.slug)?.aiAction ?? null)
           : (statesMap[otherMod.id]?.[entry.slug]?.aiAction ?? null)
@@ -1235,7 +1242,18 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       <div
         key={item.slug}
         className={`md-item sm-item${!done && !skipped && item.weight === 3 ? ' md-item-critical' : ''}${done ? ' md-item-done' : ''}${skipped ? ' md-item-skipped' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
-        onClick={(e) => hasDetail && toggleExpand(modId, item.slug, e)}
+        onClick={(e) => {
+          if (!hasDetail) return
+          if (!isExpanded && !done && !skipped) {
+            const conflicts = getConflictsForItem(modId, item.slug, item.id)
+            if (conflicts?.length) {
+              e.stopPropagation()
+              setConflictModal({ modId, slug: item.slug, itemId: item.id, isDynamic: true, itemLabel: item.label, conflicts })
+              return
+            }
+          }
+          toggleExpand(modId, item.slug, e)
+        }}
         style={{ cursor: hasDetail ? 'pointer' : 'default' }}
       >
         <span
@@ -1361,26 +1379,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   )}
                 </div>
               )}
-              {(() => {
-                const conflicts = getConflictsForItem(modId, item.slug, item.id)
-                if (!conflicts?.length) return null
-                return (
-                  <div className="sm-conflict-notice">
-                    {conflicts.map((c, i) => (
-                      <div key={i} className="sm-conflict-row">
-                        <strong>{c.topic}</strong>
-                        {' — also in '}
-                        <em>{c.moduleName}</em>
-                        {':'}
-                        {c.aiActions.length === 1
-                          ? <span> {c.aiActions[0]}</span>
-                          : <ul className="sm-conflict-actions">{c.aiActions.map((a, j) => <li key={j}>{a}</li>)}</ul>
-                        }
-                      </div>
-                    ))}
-                  </div>
-                )
-              })()}
               {item.slug === 'content-calendar-30-day' && !!item.aiData && (
                 <a
                   href={`/api/modules/${modId}/calendar`}
@@ -1481,7 +1479,18 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       <div
         key={item.slug}
         className={`md-item sm-item${!done && !skipped && item.weight === 3 ? ' md-item-critical' : ''}${done ? ' md-item-done' : ''}${skipped ? ' md-item-skipped' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
-        onClick={(e) => hasDetail && toggleExpand(modId, item.slug, e)}
+        onClick={(e) => {
+          if (!hasDetail) return
+          if (!isExpanded && !done && !skipped) {
+            const conflicts = getConflictsForItem(modId, item.slug, s?.id)
+            if (conflicts?.length) {
+              e.stopPropagation()
+              setConflictModal({ modId, slug: item.slug, itemId: s?.id ?? '', isDynamic: false, itemLabel: item.label, conflicts })
+              return
+            }
+          }
+          toggleExpand(modId, item.slug, e)
+        }}
         style={{ cursor: hasDetail ? 'pointer' : 'default' }}
       >
         <span
@@ -1570,26 +1579,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <p className="sm-action-text">{parseBold(s.aiAction)}</p>
                 </div>
               )}
-              {(() => {
-                const conflicts = getConflictsForItem(modId, item.slug, s?.id)
-                if (!conflicts?.length) return null
-                return (
-                  <div className="sm-conflict-notice">
-                    {conflicts.map((c, i) => (
-                      <div key={i} className="sm-conflict-row">
-                        <strong>{c.topic}</strong>
-                        {' — also in '}
-                        <em>{c.moduleName}</em>
-                        {':'}
-                        {c.aiActions.length === 1
-                          ? <span> {c.aiActions[0]}</span>
-                          : <ul className="sm-conflict-actions">{c.aiActions.map((a, j) => <li key={j}>{a}</li>)}</ul>
-                        }
-                      </div>
-                    ))}
-                  </div>
-                )
-              })()}
               {(() => {
                 const provider = item.assistedInput?.integrationProvider
                 if (!provider || connectedIntegrations[provider]) return null
@@ -1680,14 +1669,70 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         </div>
       )}
 
+      {/* Cross-module conflict modal */}
+      {conflictModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+          onClick={() => setConflictModal(null)}
+        >
+          <div
+            style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '32px 36px', maxWidth: 520, width: '100%' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
+              Heads up — this was already looked at
+            </h2>
+            <p style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 20, lineHeight: 1.65 }}>
+              An earlier module already reviewed <strong style={{ color: 'var(--text)' }}>{conflictModal.itemLabel}</strong> and left a suggestion. Here&apos;s what it said:
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+              {conflictModal.conflicts.map((c, i) => (
+                <div key={i} style={{ background: 'rgba(231,200,115,0.07)', border: '1px solid rgba(231,200,115,0.2)', borderRadius: 8, padding: '12px 16px' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>{c.moduleName}</div>
+                  {c.aiActions.length === 1 ? (
+                    <p style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6, margin: 0 }}>{c.aiActions[0]}</p>
+                  ) : (
+                    <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {c.aiActions.map((a, j) => <li key={j} style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.6 }}>{a}</li>)}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-faint)', marginBottom: 24, lineHeight: 1.6 }}>
+              If you&apos;ve already acted on this, you can skip it here to keep your checklist clean. Or tap &quot;Review anyway&quot; if you want to see what this module has to say about it.
+            </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  handleSkip(conflictModal.modId, conflictModal.isDynamic, conflictModal.itemId, conflictModal.slug, true, 'Already covered in an earlier module')
+                  setConflictModal(null)
+                }}
+                style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: 'pointer', border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)' }}
+              >
+                Skip this check
+              </button>
+              <button
+                onClick={() => {
+                  const { modId, slug } = conflictModal
+                  setConflictModal(null)
+                  setExpandedItems(new Set([`${modId}:${slug}`]))
+                }}
+                style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', background: 'var(--green)', color: '#fff' }}
+              >
+                Review anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header>
         <div className="md-header-inner">
           <div className="logo" style={{ cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
             <span className="mark">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M5 12h4l2-6 3 12 2-6h3" stroke="#06140c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <img src="/favicon.svg" alt="" />
             </span>
             GrowJin
           </div>

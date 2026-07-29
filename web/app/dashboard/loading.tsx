@@ -5,9 +5,7 @@ export default function DashboardLoading() {
         <div className="wrap md-header-inner">
           <div className="logo">
             <span className="mark">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M5 12h4l2-6 3 12 2-6h3" stroke="#06140c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <img src="/favicon.svg" alt="" />
             </span>
             GrowJin
           </div>

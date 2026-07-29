@@ -40,9 +40,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
         <div className="wrap md-header-inner">
           <div className="logo" style={{ cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
             <span className="mark">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M5 12h4l2-6 3 12 2-6h3" stroke="#06140c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <img src="/favicon.svg" alt="" />
             </span>
             GrowJin
 
@@ -542,7 +540,11 @@ function renderStep(step: string): React.ReactNode {
   if (parts.length === 1) return step
   return parts.map((part, i) => {
     const m = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
-    if (m) return <a key={i} href={m[2]} target="_blank" rel="noopener noreferrer" className="st-guide-link">{m[1]}</a>
+    if (m) {
+      // Replace " → " with " →\u00a0" so lines can break before an arrow but not after
+      const label = m[1].replace(/ → /g, ' \u2192\u00a0')
+      return <a key={i} href={m[2]} target="_blank" rel="noopener noreferrer" className="st-guide-link">{label}</a>
+    }
     return part
   })
 }
