@@ -302,7 +302,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 .overview-dis-btn-primary:hover { opacity: 0.88; }
 .overview-dis-btn-secondary { display: none; padding: 10px 18px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text-dim); font-size: 14px; font-weight: 500; cursor: pointer; transition: border-color .15s, color .15s; }
 .overview-dis-btn-secondary:hover {display: none; border-color: var(--text-dim); color: var(--text); }
-.overview-dis-disclaimer { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-faint); margin: 0; line-height: 1.5; }
+.overview-dis-disclaimer { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-faint); margin: 0; line-height: 1.5; }
 .overview .meta, .overview-body .meta { flex: 1; min-width: 220px; }
 .overview .meta .lvl {
   font-size: 14px; color: var(--green);
