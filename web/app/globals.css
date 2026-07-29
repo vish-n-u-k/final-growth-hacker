@@ -3792,7 +3792,7 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
 
 /* Skeletons */
 .an-metrics-loading { display: flex; flex-direction: column; gap: 10px; }
-.an-skeleton { background: var(--bg-soft); border-radius: 6px; animation: an-skeleton-pulse 1.4s ease-in-out infinite; }
+.an-skeleton { background: var(--line); border-radius: 6px; animation: an-skeleton-pulse 1.4s ease-in-out infinite; }
 @keyframes an-skeleton-pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.45 } }
 .an-skeleton-action { height: 52px; }
 .an-skeleton-line { height: 16px; margin-bottom: 6px; }
