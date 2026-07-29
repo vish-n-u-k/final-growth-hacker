@@ -2325,6 +2325,10 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
   .journey-bar { margin-top: 10px; }
   .journey-labels { font-size: 10px; }
 
+  /* Overview body (hero/overview card stats + journey): the 110px desktop
+     column-gap becomes a huge row-gap once this wraps to stacked rows */
+  .overview-body { gap: 24px; }
+
   /* ── Module levels ── */
   .levels { gap: 12px; }
   .level { border-radius: 14px; }
