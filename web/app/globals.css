@@ -635,8 +635,8 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 .ob-field-label { font-size: 12px; font-weight: 500; color: var(--text-dim); letter-spacing: 0.1px; }
 
 .ob-input {
-  background: #d9f3e6; border: 2px solid var(--green);
-  border-radius: 14px; padding: 14px 16px; color: #0c1d13;
+  background: var(--card); border: 2px solid var(--line);
+  border-radius: 14px; padding: 14px 16px; color: var(--text);
   font-size: 15px; font-family: inherit; outline: none;
   transition: all .2s; width: 100%;
   min-height: 48px;
@@ -647,12 +647,13 @@ html.light .hero-social-icon--connected { color: #5b6560; }
   border-color: var(--green-bright);
   box-shadow: 0 0 0 4px var(--green-glow);
   background: #d9f3e6;
+  color: #0c1d13;
 }
-.ob-input::placeholder { color: #7aaa8a; }
+.ob-input::placeholder { color: var(--text-faint); }
 
 .ob-textarea {
-  background: #d9f3e6; border: 2px solid var(--green);
-  border-radius: 14px; padding: 14px 16px; color: #0c1d13;
+  background: var(--card); border: 2px solid var(--line);
+  border-radius: 14px; padding: 14px 16px; color: var(--text);
   font-size: 15px; font-family: inherit; outline: none;
   transition: all .2s; width: 100%;
   resize: none; overflow: hidden; line-height: 1.6;
@@ -662,8 +663,9 @@ html.light .hero-social-icon--connected { color: #5b6560; }
   border-color: var(--green-bright);
   box-shadow: 0 0 0 4px var(--green-glow);
   background: #d9f3e6;
+  color: #0c1d13;
 }
-.ob-textarea::placeholder { color: #7aaa8a; }
+.ob-textarea::placeholder { color: var(--text-faint); }
 
 /* URL input row */
 .ob-url-wrap {
