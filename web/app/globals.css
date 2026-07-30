@@ -2653,7 +2653,7 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
   }
 
   .st-page-hd {
-    padding: 36px 40px 28px 200px;
+    padding: 36px 40px 28px;
     display: block;
     margin: 0;
     width: 100%;
