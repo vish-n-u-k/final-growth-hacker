@@ -55,17 +55,6 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
           <div className="md-header-actions">
             <ThemeToggle />
             <button
-              onClick={() => router.push('/dashboard')}
-              title="Back to dashboard"
-              style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: 'pointer', color: 'var(--text-dim)', flexShrink: 0, transition: 'color 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-dim)')}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            <button
               onClick={handleLogout}
               className="mob-hide"
               style={{ fontSize: 13, color: 'var(--text-dim)', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.15s, color 0.15s' }}
@@ -90,8 +79,21 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
             <line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        <h1 className="st-page-title">Settings</h1>
-        <p className="st-page-sub">Manage your brand, integrations, and account.</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button
+            onClick={() => router.push('/dashboard')}
+            title="Back to dashboard"
+            style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--text)', cursor: 'pointer', flexShrink: 0 }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <div>
+            <h1 className="st-page-title">Settings</h1>
+            <p className="st-page-sub">Manage your brand, integrations, and account.</p>
+          </div>
+        </div>
       </div>
 
       <div
