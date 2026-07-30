@@ -1577,7 +1577,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 /* Layout */
 .st-layout {
   display: grid;
-  grid-template-columns: 164px 1fr;
+  grid-template-columns: 200px 1fr;
   gap: 0;
   align-items: start;
   padding-bottom: 60px;
@@ -2688,7 +2688,7 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
 
   .st-layout {
     display: grid !important;
-    grid-template-columns: 164px 1fr !important;
+    grid-template-columns: 200px 1fr !important;
     padding: 28px 40px 60px !important;
     max-width: 1200px;
     gap: 0 !important;
