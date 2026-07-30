@@ -1577,7 +1577,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 /* Layout */
 .st-layout {
   display: grid;
-  grid-template-columns: 164px 1fr;
+  grid-template-columns: 200px 1fr;
   gap: 0;
   align-items: start;
   padding-bottom: 60px;
@@ -1613,7 +1613,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 /* Content */
 .st-content {
   min-width: 0;
-  padding: 32px 0 0 40px;
+  padding: 32px 0 0 56px;
 }
 
 /* Section */
@@ -1647,11 +1647,13 @@ html.light .hero-social-icon--connected { color: #5b6560; }
   font-family: inherit; font-size: 14px; outline: none;
   transition: border-color .15s, box-shadow .15s;
 }
-.st-input::placeholder { color: var(--text-faint); }
+.st-input::placeholder { color: #9aa3ad; }
 .st-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px #2fbf7120; }
 .st-input:disabled { opacity: .45; cursor: default; }
-.st-field-hint { font-size: 12px; color: var(--text-faint); margin: 0; line-height: 1.5; }
+.st-field-hint { font-size: 12px; color: #9aa3ad; margin: 0; line-height: 1.5; }
 .st-error { font-size: 13px; color: #f87171; margin: 0; }
+
+.st-form-submit { display: flex; }
 
 /* Buttons */
 .st-btn-primary {
@@ -1691,22 +1693,23 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 .st-int-chevron { flex-shrink: 0; color: var(--text-dim); transition: transform .2s ease; }
 
 .st-int-group-hd {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: flex-start; gap: 10px;
   width: 100%; background: none; border: none; cursor: pointer;
   padding: 13px 16px; text-align: left; font-family: inherit;
 }
 .st-int-group-hd:hover { background: color-mix(in srgb, var(--green) 6%, transparent); }
 .st-int-group-hd:not(:last-child) { border-bottom: 1px solid var(--line); }
+.st-int-group-hd .st-int-chevron { margin-top: 3px; }
 .st-int-group-label {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px;
   font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim);
 }
 .st-int-group-count {
   font-size: .65rem; font-weight: 700; letter-spacing: normal; text-transform: none;
   color: var(--green-bright); background: color-mix(in srgb, var(--green) 14%, transparent);
-  padding: 2px 8px; border-radius: 99px;
+  padding: 2px 8px; border-radius: 99px; white-space: nowrap; flex-shrink: 0;
 }
-.st-int-group-count-muted { color: var(--text-faint); background: var(--bg-soft); border: 1px solid var(--line); }
+.st-int-group-count-muted { color: #9ca3af; background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.28); }
 .st-int-group-body { display: flex; flex-direction: column; }
 .st-integrations { display: flex; flex-direction: column; }
 
@@ -1739,8 +1742,8 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 .st-int-form-actions { display: flex; gap: 8px; align-items: center; }
 .st-docs-link {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 12.5px; color: var(--green); text-decoration: none;
-  transition: color .15s;
+  font-size: 12.5px; color: var(--green); text-decoration: underline;
+  text-underline-offset: 2px; transition: color .15s;
 }
 .st-docs-link:hover { color: var(--green-bright); }
 
@@ -1786,7 +1789,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 /* Account */
 .st-divider { height: 1px; background: var(--line); margin: 6px 0; }
 .st-account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.st-hint { font-size: 12.5px; color: var(--text-faint); margin: 0; line-height: 1.55; max-width: 400px; }
+.st-hint { font-size: 12.5px; color: #9aa3ad; margin: 0; line-height: 1.55; max-width: 400px; }
 
 /* ── Light mode ─────────────────────────────────────────────────────────── */
 html.light {
@@ -1937,6 +1940,13 @@ html.light .hero-social-tooltip::after { border-top-color: #d8e4de; }
 html.light .hero-meta-divider { background: #d8e4de; }
 
 html.light .st-tab-active { background: #d0eadb88 !important; }
+html.light .st-int-group-count-muted { color: #6b7280; background: #f1f2f4; border-color: #dcdfe3; }
+html.light .st-input::placeholder,
+html.light .st-field-hint,
+html.light .st-hint,
+html.light .sp-platform-input::placeholder,
+html.light .sp-custom-input::placeholder,
+html.light .sp-insight { color: #6b7280; }
 
 html.light .ob-card { background: radial-gradient(600px 300px at 80% -10%, #14a04e08, transparent), var(--card); }
 html.light .overview { background: radial-gradient(500px 220px at 90% 0%, color-mix(in srgb, var(--brand) 10%, transparent), transparent), var(--card); }
@@ -2030,7 +2040,7 @@ html.light .sm-draft-btn:hover:not(:disabled) { background: #d0eadb; }
   font-size: 13px; color: var(--text); font-family: var(--font-body);
   width: 100%; outline: none; transition: background .12s;
 }
-.sp-platform-input::placeholder { color: var(--text-faint); font-size: 12.5px; }
+.sp-platform-input::placeholder { color: #9aa3ad; font-size: 12.5px; }
 .sp-platform-input:focus { background: rgba(47,191,113,.04); }
 .sp-platform-cell {
   display: flex; align-items: center; justify-content: center;
@@ -2058,7 +2068,7 @@ html.light .sm-draft-btn:hover:not(:disabled) { background: #d0eadb; }
   font-size: 13px; color: var(--text); font-family: var(--font-body);
   outline: none; transition: border-color .15s, box-shadow .15s;
 }
-.sp-custom-input::placeholder { color: var(--text-faint); }
+.sp-custom-input::placeholder { color: #9aa3ad; }
 .sp-custom-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px #2fbf7120; }
 .sp-add-btn {
   background: var(--bg-soft); border: 1px solid var(--line);
@@ -2072,7 +2082,7 @@ html.light .sm-draft-btn:hover:not(:disabled) { background: #d0eadb; }
 .sp-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .sp-insight {
   display: flex; align-items: center; gap: 7px;
-  font-size: 12.5px; color: var(--text-faint); line-height: 1.5;
+  font-size: 12.5px; color: #9aa3ad; line-height: 1.5;
   flex: 1; min-width: 0;
 }
 .sp-insight svg { flex-shrink: 0; color: var(--green); }
@@ -2486,6 +2496,20 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
   .st-int-form-actions { flex-wrap: wrap; }
   .st-btn-primary, .st-btn-ghost, .st-btn-danger { width: 100%; justify-content: center; }
 
+  .sp-footer { flex-direction: column; align-items: stretch; gap: 10px; }
+  .sp-platform-row { grid-template-columns: 1fr 32px; grid-template-rows: auto auto; }
+  .sp-platform-label { grid-column: 1; grid-row: 1; border-right: none; border-bottom: 1px solid var(--line); padding: 8px 12px 4px; }
+  .sp-platform-cell { grid-column: 2; grid-row: 1; border-left: none; border-bottom: 1px solid var(--line); }
+  .sp-platform-input { grid-column: 1 / span 2; grid-row: 2; padding: 8px 12px 10px; }
+
+  .st-form-submit {
+    position: sticky; bottom: 0; z-index: 5;
+    background: var(--card);
+    margin-top: 8px; padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -6px 16px rgba(0,0,0,0.06);
+  }
+
   /* ── Settings guide ── */
   .st-guide-step { font-size: 12.5px; }
   .st-guide-toggle { font-size: 12.5px; }
@@ -2605,8 +2629,8 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
   .st-tabs {
     position: fixed !important;
     top: 0 !important;
-    left: -280px !important;
-    width: 280px !important;
+    left: -320px !important;
+    width: 320px !important;
     height: 100vh !important;
     display: flex !important;
     flex-direction: column !important;
@@ -2642,7 +2666,7 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
   }
 
   .st-page-hd {
-    padding: 36px 40px 28px 200px;
+    padding: 36px 40px 28px;
     display: block;
     margin: 0;
     width: 100%;
@@ -2664,7 +2688,7 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
 
   .st-layout {
     display: grid !important;
-    grid-template-columns: 164px 1fr !important;
+    grid-template-columns: 200px 1fr !important;
     padding: 28px 40px 60px !important;
     max-width: 1200px;
     gap: 0 !important;
@@ -2737,12 +2761,7 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
 
   .st-content {
     min-width: 0;
-    padding: 32px 0 0 40px;
-  }
-
-  .st-content {
-    min-width: 0;
-    padding: 24px 0 0;
+    padding: 32px 0 0 56px;
   }
 
   .st-section { gap: 20px; }
