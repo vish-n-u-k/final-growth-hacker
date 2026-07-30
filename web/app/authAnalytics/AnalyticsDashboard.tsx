@@ -1341,7 +1341,18 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             </div>
 
             {/* Progress track */}
-            <RoadToGoalTrack current={data?.mau ?? 0} milestones={[0, 10, 50, 100, 500]} />
+            {phLoading ? (
+              <div style={{ position: 'relative', paddingBottom: 36 }}>
+                <div className="an-skeleton" style={{ height: 5, borderRadius: 99 }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
+                  {[0, 1, 2, 3, 4].map(i => (
+                    <div key={i} className="an-skeleton" style={{ width: 24, height: 11, borderRadius: 4 }} />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <RoadToGoalTrack current={data?.mau ?? 0} milestones={[0, 10, 50, 100, 500]} />
+            )}
 
             {/* MRR box */}
             <div style={{
