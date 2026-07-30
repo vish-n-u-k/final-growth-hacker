@@ -264,9 +264,11 @@ function PlaybookSection({ playbook }: { playbook: Record<string, string> | null
             </p>
           )}
           {error && <p className="st-error">{error}</p>}
-          <button type="submit" disabled={saving} className="st-btn-primary">
-            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save changes'}
-          </button>
+          <div className="st-form-submit">
+            <button type="submit" disabled={saving} className="st-btn-primary">
+              {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save changes'}
+            </button>
+          </div>
         </form>
       )}
     </div>
@@ -382,9 +384,11 @@ function BrandSection({ brand }: { brand: { name: string; websiteUrl: string; ke
             />
           </div>
           {error && <p className="st-error">{error}</p>}
-          <button type="submit" disabled={saving} className="st-btn-primary">
-            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save changes'}
-          </button>
+          <div className="st-form-submit">
+            <button type="submit" disabled={saving} className="st-btn-primary">
+              {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save changes'}
+            </button>
+          </div>
         </form>
       </div>
     </div>
