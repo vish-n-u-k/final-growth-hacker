@@ -376,7 +376,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 .level {
   padding: 5px;
   background: var(--card); border: 1px solid var(--line);
-  border-radius: 18px; overflow: hidden; transition: .2s;
+  border-radius: 18px; transition: .2s;
   box-shadow: inset 3px 0 0 var(--brand);
 }
 .level.active { box-shadow: inset 3px 0 0 var(--brand), 0 4px 14px #00000014; }

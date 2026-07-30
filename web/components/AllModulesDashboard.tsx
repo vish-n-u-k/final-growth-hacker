@@ -2228,20 +2228,25 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   {!isLocked && !def.comingSoon && !(modData.type === 'gmail-outreach' && !connectedIntegrations['gmail']) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={e => e.stopPropagation()}>
                       {!!effectiveLastAnalyzedAt && modData.type !== 'community-finder' && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleTopExport(modData, states, dynItems) }}
-                          disabled={exportingMap[modData.id]}
-                          className="level-export-btn"
-                          title="Export as Claude Code prompt"
-                        >
-                          {exportingMap[modData.id] ? (
-                            <><span className="md-spin" style={{ width: '10px', height: '10px', borderWidth: '1.5px' }} /><span className="level-export-label">Preparing…</span></>
-                          ) : (
-                            <><svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg><span className="level-export-label">Export</span></>
+                        <span className="md-info-wrap" style={{ display: 'inline-flex' }}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); if (liveScore < 100) handleTopExport(modData, states, dynItems) }}
+                            disabled={exportingMap[modData.id] || liveScore >= 100}
+                            className="level-export-btn"
+                            style={liveScore >= 100 ? { opacity: 0.4, cursor: 'not-allowed', pointerEvents: 'none' } : undefined}
+                          >
+                            {exportingMap[modData.id] ? (
+                              <><span className="md-spin" style={{ width: '10px', height: '10px', borderWidth: '1.5px' }} /><span className="level-export-label">Preparing…</span></>
+                            ) : (
+                              <><svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg><span className="level-export-label">Export</span></>
+                            )}
+                          </button>
+                          {liveScore >= 100 && (
+                            <span className="md-tooltip" style={{ width: 180, zIndex: 1000, bottom: 'auto', top: 'calc(100% + 6px)' }}>All items complete — nothing left to export</span>
                           )}
-                        </button>
+                        </span>
                       )}
                       <button
                         onClick={(e) => { e.stopPropagation(); if (!requested) handleReanalyze(modData.id, reqValues) }}

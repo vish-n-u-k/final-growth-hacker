@@ -668,19 +668,18 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
             GrowJin
           </div>
           <div className="md-header-actions">
-            {overall.open > 0 && (
-              <Button
-                variant="outline"
-                onClick={downloadFullModuleMd}
-                className="gap-2 border-[var(--green)] px-4 h-10 text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)] text-sm font-semibold"
-                title="Export all incomplete items as a Markdown action plan"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Export Incomplete
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              onClick={overall.pct >= 100 ? undefined : downloadFullModuleMd}
+              disabled={overall.pct >= 100}
+              className="gap-2 border-[var(--green)] px-4 h-10 text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)] text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none"
+              title={overall.pct >= 100 ? 'Nothing left to export — all items complete' : 'Export all incomplete items as a Markdown action plan'}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Export Incomplete
+            </Button>
             <Button
               variant="outline"
               onClick={() => handleReanalyze()}
