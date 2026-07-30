@@ -679,6 +679,7 @@ function IntegrationCard({
   def: IntegrationDefinition
   connected: ConnectedIntegration | null
 }) {
+  const [isOpen, setIsOpen] = useState(false)
   const [editing, setEditing] = useState(!connected)
   const [fields, setFields] = useState<Record<string, string>>(() => {
     if (!connected) return {}
@@ -733,7 +734,12 @@ function IntegrationCard({
 
   return (
     <div className={`st-int-card${isConnected ? ' st-int-card-connected' : ''}`}>
-      <div className="st-int-card-hd">
+      <button
+        type="button"
+        className="st-int-card-hd"
+        onClick={() => setIsOpen((v) => !v)}
+        aria-expanded={isOpen}
+      >
         <div className="st-int-card-info">
           <div className="st-int-provider-name">{def.name}</div>
           <p className="st-int-desc">{def.description}</p>
@@ -744,9 +750,18 @@ function IntegrationCard({
           ) : (
             <span className="st-int-badge st-int-badge-none">Not connected</span>
           )}
+          <svg
+            width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className="st-int-card-chevron"
+            style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          >
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
         </div>
-      </div>
+      </button>
 
+      {isOpen && (
+      <div className="st-int-card-body">
       {isConnected && !editing ? (
         <div className="st-int-actions">
           <button className="st-btn-ghost" onClick={() => setEditing(true)}>Edit credentials</button>
@@ -815,6 +830,8 @@ function IntegrationCard({
             </a>
           )}
         </form>
+      )}
+      </div>
       )}
     </div>
   )

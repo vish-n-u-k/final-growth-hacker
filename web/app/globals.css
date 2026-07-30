@@ -1711,8 +1711,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 .st-integrations { display: flex; flex-direction: column; gap: 10px; }
 .st-int-card {
   background: var(--card); border: 1px solid var(--line);
-  border-radius: 16px; padding: 24px 26px;
-  display: flex; flex-direction: column; gap: 18px;
+  border-radius: 16px; overflow: hidden;
   transition: border-color .2s;
 }
 .st-int-card-connected {
@@ -1720,11 +1719,20 @@ html.light .hero-social-icon--connected { color: #5b6560; }
   background: radial-gradient(600px 160px at 100% 0%, #2fbf710a, transparent), var(--card);
 }
 
-.st-int-card-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.st-int-card-hd {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  width: 100%; background: none; border: none; cursor: pointer;
+  padding: 24px 26px; text-align: left; font-family: inherit;
+}
 .st-int-card-info { display: flex; flex-direction: column; gap: 4px; }
 .st-int-provider-name { font-size: 15px; font-weight: 600; color: var(--text); }
 .st-int-desc { font-size: 13px; color: var(--text-dim); margin: 0; line-height: 1.5; }
-.st-int-status-wrap { flex-shrink: 0; padding-top: 2px; }
+.st-int-status-wrap { flex-shrink: 0; padding-top: 2px; display: flex; align-items: center; gap: 12px; }
+.st-int-card-chevron { flex-shrink: 0; color: var(--text-dim); transition: transform .2s ease; }
+.st-int-card-body {
+  display: flex; flex-direction: column; gap: 18px;
+  padding: 0 26px 24px; border-top: 1px solid var(--line); padding-top: 18px;
+}
 
 .st-int-badge {
   display: inline-flex; align-items: center; gap: 6px;
@@ -2491,8 +2499,9 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
   }
   .st-tab { padding: 8px 14px; font-size: 12.5px; white-space: nowrap; }
   .st-content { padding: 24px 0 0; }
-  .st-int-card { padding: 18px 16px; border-radius: 12px; }
-  .st-int-card-hd { flex-direction: column; gap: 10px; }
+  .st-int-card { border-radius: 12px; }
+  .st-int-card-hd { flex-direction: column; gap: 10px; padding: 18px 16px; }
+  .st-int-card-body { padding: 14px 16px 18px; }
   .st-int-status-wrap { align-self: flex-start; }
   .st-int-actions { flex-wrap: wrap; }
   .st-int-form-actions { flex-wrap: wrap; }
@@ -2767,15 +2776,15 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
   .st-input { font-size: 14px; padding: 10px 12px; }
   .st-label { font-size: 10px; }
 
-  .st-int-card {
-    padding: 18px 20px;
-    gap: 14px;
-  }
-
   .st-int-card-hd {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+    padding: 18px 20px;
+  }
+
+  .st-int-card-body {
+    padding: 14px 20px 18px;
   }
 
   .st-int-provider-name { font-size: 14px; }
