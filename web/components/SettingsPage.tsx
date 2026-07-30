@@ -570,6 +570,9 @@ function IntegrationsSection({
 
   const groupOrder = ['developer', 'analytics', 'social']
 
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ developer: true, analytics: false, social: false })
+  const toggleGroup = (key: string) => setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
+
   return (
     <div className="st-section">
       <div className="st-section-hd">
@@ -579,24 +582,49 @@ function IntegrationsSection({
       {groupOrder.map((groupKey) => {
         const defs = grouped[groupKey]
         const groupMeta = INTEGRATION_GROUPS[groupKey]
+        const isOpen = !!openGroups[groupKey]
+        const connectedCount = (defs ?? []).filter((def) => connected[def.provider]?.status === 'connected').length
         return (
           <div key={groupKey} className="st-int-group">
-            <div className="st-int-group-hd">
-              <span className="st-int-group-label">{groupMeta.label}</span>
-              <span className="st-int-group-desc">{groupMeta.description}</span>
-            </div>
-            {groupKey === 'social' && (
-              <SocialProfilesCard connected={connected['social_profiles'] ?? null} />
-            )}
-            {defs && defs.length > 0 && (
-              <div className="st-integrations">
-                {defs.map((def) => (
-                  <IntegrationCard
-                    key={def.provider}
-                    def={def}
-                    connected={connected[def.provider] ?? null}
-                  />
-                ))}
+            <button
+              type="button"
+              className="st-int-group-hd"
+              onClick={() => toggleGroup(groupKey)}
+              aria-expanded={isOpen}
+            >
+              <div className="st-int-group-hd-text">
+                <span className="st-int-group-label">
+                  {groupMeta.label}
+                  {connectedCount > 0 && (
+                    <span className="st-int-group-count">{connectedCount} connected</span>
+                  )}
+                </span>
+                <span className="st-int-group-desc">{groupMeta.description}</span>
+              </div>
+              <svg
+                width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className="st-int-group-chevron"
+                style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              >
+                <path d="M6 9l6 6 6-6"/>
+              </svg>
+            </button>
+            {isOpen && (
+              <div className="st-int-group-body">
+                {groupKey === 'social' && (
+                  <SocialProfilesCard connected={connected['social_profiles'] ?? null} />
+                )}
+                {defs && defs.length > 0 && (
+                  <div className="st-integrations">
+                    {defs.map((def) => (
+                      <IntegrationCard
+                        key={def.provider}
+                        def={def}
+                        connected={connected[def.provider] ?? null}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
