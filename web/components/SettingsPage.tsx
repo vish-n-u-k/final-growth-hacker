@@ -840,7 +840,7 @@ function IntegrationCard({
               {showGuide && (
                 <ol className="st-guide-steps">
                   {def.setupSteps.map((step, i) => (
-                    <li key={i} className="st-guide-step">{renderStep(step)}</li>
+                    <li key={i} className="st-guide-step"><span>{renderStep(step)}</span></li>
                   ))}
                 </ol>
               )}
