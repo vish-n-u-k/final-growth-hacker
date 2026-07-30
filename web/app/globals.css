@@ -2629,8 +2629,8 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
   .st-tabs {
     position: fixed !important;
     top: 0 !important;
-    left: -280px !important;
-    width: 280px !important;
+    left: -320px !important;
+    width: 320px !important;
     height: 100vh !important;
     display: flex !important;
     flex-direction: column !important;
