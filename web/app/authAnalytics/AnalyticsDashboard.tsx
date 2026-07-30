@@ -1200,7 +1200,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
 
   if (detailView !== null) {
     return (
-      <div style={{ minHeight: '100vh', background: MOCK.bg, fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
         {toastMsg && (
           <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: MOCK.badgeDark, color: '#ffffff', fontSize: 13, fontWeight: 600, padding: '10px 20px', borderRadius: 99, zIndex: 100, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
             <CheckCircle2 size={14} /> {toastMsg}
@@ -1220,7 +1220,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: MOCK.bg, fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
 
       {redirectTarget && (
         <div style={{
