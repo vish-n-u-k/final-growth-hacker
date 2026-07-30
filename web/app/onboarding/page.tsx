@@ -180,7 +180,7 @@ export default function OnboardingPage() {
       <header className="ob-header">
         <div className="logo">
           <span className="mark">
-            <img src="/favicon.svg" alt="" />
+            <img src="/growjinlogo.svg" alt="" />
           </span>
           GrowJin
         </div>

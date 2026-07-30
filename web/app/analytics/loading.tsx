@@ -5,7 +5,7 @@ export default function AnalyticsLoading() {
         <div className="wrap md-header-inner">
           <div className="logo">
             <span className="mark">
-              <img src="/favicon.svg" alt="" />
+              <img src="/growjinlogo.svg" alt="" />
             </span>
             GrowJin
           </div>

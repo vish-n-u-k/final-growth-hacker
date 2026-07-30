@@ -253,7 +253,7 @@ export async function GET(request: NextRequest) {
 
   // Return cached snapshot if available, not forced, and contains new fields
   const snap = brand.analyticsSnapshot as Record<string, unknown> | null
-  const snapIsFresh = snap && snap['_v'] === 8 && 'signupsPrev24h' in snap
+  const snapIsFresh = snap && snap['_v'] === 9 && 'totalUsers' in snap
   if (!force && snapIsFresh && brand.analyticsSnapshotAt) {
     return NextResponse.json({
       ...snap,
@@ -297,6 +297,7 @@ export async function GET(request: NextRequest) {
     dauPrev: number; activeUsersPrev7d: number; mauPrev: number
     deletedAccounts24h: number; deleted7d: number; deleted30d: number
     deletedPrev24h: number; deletedPrev7d: number; deletedPrev30d: number
+    totalUsers: number
     retention: { day: string; rate: number }[] | null
     funnel: { stage: string; value: number }[] | null
     activationFunnel: { stage: string; value: number }[] | null
@@ -313,6 +314,7 @@ export async function GET(request: NextRequest) {
     dauPrev: 0, activeUsersPrev7d: 0, mauPrev: 0,
     deletedAccounts24h: 0, deleted7d: 0, deleted30d: 0,
     deletedPrev24h: 0, deletedPrev7d: 0, deletedPrev30d: 0,
+    totalUsers: 0,
     retention: null, funnel: null, activationFunnel: null, wau: null, pmf: null, webAnalytics: null,
   }
 
@@ -331,6 +333,7 @@ export async function GET(request: NextRequest) {
         visitorsChartRows, topPathsRows,
         channelsRows, devicesRows, countriesRows, activeHoursRows,
         activationFunnelRaw, wauRows, pmfRetainedRows, pmfChurnedRows,
+        totalUsersRows,
       ] = await Promise.all([
         // Signups: 3 current windows + 3 prior period windows in one query
         hogqlRows(host, projectId, key, `SELECT countIf(created_at >= now() - interval 1 day), countIf(created_at >= now() - interval 7 day), countIf(created_at >= now() - interval 30 day), countIf(created_at >= now() - interval 2 day AND created_at < now() - interval 1 day), countIf(created_at >= now() - interval 14 day AND created_at < now() - interval 7 day), countIf(created_at >= now() - interval 60 day AND created_at < now() - interval 30 day) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email)`),
@@ -388,6 +391,8 @@ export async function GET(request: NextRequest) {
         hogqlRows(host, projectId, key, `SELECT event, round(count() / count(DISTINCT person_id), 1) FROM events WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1) AND person_id IN (SELECT DISTINCT person_id FROM events WHERE timestamp >= now() - interval 28 day) AND person_id NOT IN (SELECT DISTINCT person_id FROM events WHERE event = 'account_deleted') AND event IN ('feed_viewed', 'post_generate_started', 'post_generated', 'post_downloaded', 'post_shared', 'post_schedule_started', 'social_account_connected') AND timestamp >= now() - interval 90 day GROUP BY event`),
         // PMF — churned users (identified): avg events per user per feature
         hogqlRows(host, projectId, key, `SELECT event, round(count() / count(DISTINCT person_id), 1) FROM events WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1) AND person_id IN (SELECT DISTINCT person_id FROM events WHERE event = 'account_deleted') AND event IN ('feed_viewed', 'post_generate_started', 'post_generated', 'post_downloaded', 'post_shared', 'post_schedule_started', 'social_account_connected') AND timestamp >= now() - interval 90 day GROUP BY event`),
+        // Total unique identified users ever
+        hogqlRows(host, projectId, key, `SELECT count(DISTINCT properties.$email) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email)`),
       ])
 
       let retention: { day: string; rate: number }[] | null = null
@@ -468,6 +473,7 @@ export async function GET(request: NextRequest) {
       const [signins24h, signins7d, signins30d, signinsPrev24h, signinsPrev7d, signinsPrev30d] = (signinsRows?.[0] ?? [0,0,0,0,0,0]).map(Number)
       const [dau, activeUsers7d, mau, dauPrev, activeUsersPrev7d, mauPrev]                    = (activeUsersRows?.[0] ?? [0,0,0,0,0,0]).map(Number)
       const [deletedAccounts24h, deleted7d, deleted30d, deletedPrev24h, deletedPrev7d, deletedPrev30d] = (deletedRows?.[0] ?? [0,0,0,0,0,0]).map(Number)
+      const totalUsers = Number(totalUsersRows?.[0]?.[0] ?? 0)
 
       posthogData = {
         posthogConnected: true,
@@ -479,6 +485,7 @@ export async function GET(request: NextRequest) {
         dauPrev, activeUsersPrev7d, mauPrev,
         deletedAccounts24h, deleted7d, deleted30d,
         deletedPrev24h, deletedPrev7d, deletedPrev30d,
+        totalUsers,
         retention, funnel, activationFunnel, wau, pmf, webAnalytics,
       }
     }
@@ -507,7 +514,7 @@ export async function GET(request: NextRequest) {
   }
 
   const snapshot = {
-    _v: 8,
+    _v: 9,
     ...posthogData,
     gsc: gscData,
     ga4: ga4Data,

@@ -63,7 +63,8 @@ function timeAgo(iso: string | null): string {
 }
 
 function getCatStats(cat: ModuleCategoryDefinition, states: Record<string, DBItemState>) {
-  const items = cat.subCategories.flatMap((s) => s.items)
+  const allItems = cat.subCategories.flatMap((s) => s.items)
+  const items = allItems.filter((i) => !states[i.slug]?.userSkipped)
   const totalWeight = items.reduce((sum, i) => sum + i.weight, 0)
   const aiWeight = items.filter((i) => states[i.slug]?.aiVerified).reduce((sum, i) => sum + i.weight, 0)
   const doneWeight = items.filter((i) => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).reduce((sum, i) => sum + i.weight, 0)
@@ -72,7 +73,8 @@ function getCatStats(cat: ModuleCategoryDefinition, states: Record<string, DBIte
 }
 
 function getOverall(def: ModuleDefinition, states: Record<string, DBItemState>) {
-  const items = (def.categories as ModuleCategoryDefinition[]).flatMap((c) => c.subCategories.flatMap((s) => s.items))
+  const allItems = (def.categories as ModuleCategoryDefinition[]).flatMap((c) => c.subCategories.flatMap((s) => s.items))
+  const items = allItems.filter((i) => !states[i.slug]?.userSkipped)
   const totalWeight = items.reduce((sum, i) => sum + i.weight, 0)
   const doneWeight = items.filter((i) => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).reduce((sum, i) => sum + i.weight, 0)
   return { pct: totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0 }
@@ -397,8 +399,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     Object.fromEntries(allModulesData.map(m => [m.id, m.agentPrUrl]))
   )
   const [userCount, setUserCount] = useState(0)
-  const [editingCount, setEditingCount] = useState(false)
-  const [editCountValue, setEditCountValue] = useState('')
   const [posthogLoading, setPosthogLoading] = useState(false)
   const [posthogDataStartDate, setPosthogDataStartDate] = useState<string | null>(null)
   const [stageModalOpen, setStageModalOpen] = useState(false)
@@ -1732,7 +1732,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         <div className="md-header-inner">
           <div className="logo" style={{ cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
             <span className="mark">
-              <img src="/favicon.svg" alt="" />
+              <img src="/growjinlogo.svg" alt="" />
             </span>
             GrowJin
           </div>
@@ -1926,51 +1926,21 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 <div className="overview-eyebrow">Users on board</div>
                 <div
                   className="big-num"
-                  style={{ cursor: editingCount ? 'default' : 'pointer', display: 'flex', alignItems: 'baseline', gap: '4px' }}
-                  title={editingCount ? undefined : 'Click to edit'}
-                  onClick={() => {
-                    if (!editingCount && !posthogLoading) {
-                      setEditCountValue(String(userCount))
-                      setEditingCount(true)
-                    }
-                  }}
+                  style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}
                 >
                   {posthogLoading ? (
                     <span className="count-loading"><span /><span /><span /></span>
-                  ) : editingCount ? (
-                    <input
-                      autoFocus
-                      type="number"
-                      min="0"
-                      value={editCountValue}
-                      onChange={e => setEditCountValue(e.target.value)}
-                      onBlur={() => {
-                        const v = parseInt(editCountValue, 10)
-                        if (!isNaN(v) && v >= 0) {
-                          setUserCount(v)
-                          try { localStorage.setItem('gh_user_count', String(v)) } catch {}
-                        }
-                        setEditingCount(false)
-                      }}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                        if (e.key === 'Escape') setEditingCount(false)
-                      }}
-                      onClick={e => e.stopPropagation()}
-                    />
                   ) : (
                     userCount.toLocaleString()
                   )}
-                  {!editingCount && <span>/500</span>}
+                  <span>/500</span>
                 </div>
-                {!editingCount && (
-                  <div className="overview-tracking">
-                    {posthogDataStartDate
-                      ? `Tracking since ${new Date(posthogDataStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
-                      : posthogLoading ? '…' : `Level ${currentLevel}`}
-                  </div>
-                )}
-                {!editingCount && (
+                <div className="overview-tracking">
+                  {posthogDataStartDate
+                    ? `Tracking since ${new Date(posthogDataStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
+                    : posthogLoading ? '…' : `Level ${currentLevel}`}
+                </div>
+                {(
                   <div className="mrr-box">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                       <div className="mrr-box-label">

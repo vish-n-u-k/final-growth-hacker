@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   title: 'GrowJin',
   description: 'Your road to 500 users',
   icons: {
-    icon: '/favicon.svg',
+    icon: '/growjinlogo.svg',
   },
 }
 

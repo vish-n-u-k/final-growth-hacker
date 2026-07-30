@@ -40,7 +40,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
         <div className="wrap md-header-inner">
           <div className="logo" style={{ cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
             <span className="mark">
-              <img src="/favicon.svg" alt="" />
+              <img src="/growjinlogo.svg" alt="" />
             </span>
             GrowJin
 
@@ -558,8 +558,20 @@ function IntegrationsSection({
   registry: IntegrationDefinition[]
   connected: Record<string, ConnectedIntegration>
 }) {
-  // Group integrations by their group field, excluding customUI entries from the card grid
-  const grouped = registry
+  const [query, setQuery] = useState('')
+
+  const q = query.trim().toLowerCase()
+
+  const filtered = registry.filter((def) => {
+    if (!q) return true
+    return (
+      def.name.toLowerCase().includes(q) ||
+      def.description.toLowerCase().includes(q) ||
+      def.provider.toLowerCase().includes(q)
+    )
+  })
+
+  const grouped = filtered
     .filter((def) => !def.customUI)
     .reduce<Record<string, IntegrationDefinition[]>>((acc, def) => {
       const g = def.group ?? 'developer'
@@ -570,38 +582,69 @@ function IntegrationsSection({
 
   const groupOrder = ['developer', 'analytics', 'social']
 
+  const showSocialProfiles = !q || 'social media profiles'.includes(q) || 'profile urls'.includes(q)
+
+  const totalVisible = filtered.filter((d) => !d.customUI).length + (showSocialProfiles ? 1 : 0)
+
   return (
     <div className="st-section">
       <div className="st-section-hd">
         <h2 className="st-section-title">Integrations</h2>
         <p className="st-section-desc">Connect external services to unlock automated fixes and richer analysis.</p>
       </div>
-      {groupOrder.map((groupKey) => {
-        const defs = grouped[groupKey]
-        const groupMeta = INTEGRATION_GROUPS[groupKey]
-        return (
-          <div key={groupKey} className="st-int-group">
-            <div className="st-int-group-hd">
-              <span className="st-int-group-label">{groupMeta.label}</span>
-              <span className="st-int-group-desc">{groupMeta.description}</span>
-            </div>
-            {groupKey === 'social' && (
-              <SocialProfilesCard connected={connected['social_profiles'] ?? null} />
-            )}
-            {defs && defs.length > 0 && (
-              <div className="st-integrations">
-                {defs.map((def) => (
-                  <IntegrationCard
-                    key={def.provider}
-                    def={def}
-                    connected={connected[def.provider] ?? null}
-                  />
-                ))}
+
+      <div style={{ position: 'relative', marginBottom: 20 }}>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round"
+          style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)', pointerEvents: 'none' }}
+        >
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          className="st-input"
+          style={{ paddingLeft: 34 }}
+          type="text"
+          placeholder="Search integrations..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+
+      {totalVisible === 0 ? (
+        <div className="st-card" style={{ textAlign: 'center', padding: '32px 20px' }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-dim)' }}>No integrations match &quot;{query}&quot;</p>
+        </div>
+      ) : (
+        groupOrder.map((groupKey) => {
+          const defs = grouped[groupKey]
+          const groupMeta = INTEGRATION_GROUPS[groupKey]
+          const hasSocialProfiles = groupKey === 'social' && showSocialProfiles
+          if (!hasSocialProfiles && (!defs || defs.length === 0)) return null
+          return (
+            <div key={groupKey} className="st-int-group">
+              <div className="st-int-group-hd">
+                <span className="st-int-group-label">{groupMeta.label}</span>
+                <span className="st-int-group-desc">{groupMeta.description}</span>
               </div>
-            )}
-          </div>
-        )
-      })}
+              {hasSocialProfiles && (
+                <SocialProfilesCard connected={connected['social_profiles'] ?? null} />
+              )}
+              {defs && defs.length > 0 && (
+                <div className="st-integrations">
+                  {defs.map((def) => (
+                    <IntegrationCard
+                      key={def.provider}
+                      def={def}
+                      connected={connected[def.provider] ?? null}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })
+      )}
     </div>
   )
 }

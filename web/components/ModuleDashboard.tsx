@@ -663,7 +663,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
         <div className="wrap md-header-inner">
           <div className="logo" style={{ cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
             <span className="mark">
-              <img src="/favicon.svg" alt="" />
+              <img src="/growjinlogo.svg" alt="" />
             </span>
             GrowJin
           </div>

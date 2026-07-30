@@ -81,7 +81,7 @@ export default function SignupPage() {
     <div className="auth-card">
       <div className="auth-logo">
         <span className="mark">
-          <img src="/favicon.svg" alt="" />
+          <img src="/growjinlogo.svg" alt="" />
         </span>
         <span>GrowJin</span>
       </div>

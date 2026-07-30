@@ -68,6 +68,7 @@ interface DashboardData {
   signinsPrev24h: number; signinsPrev7d: number; signinsPrev30d: number
   dau: number; activeUsers7d: number; mau: number
   dauPrev: number; activeUsersPrev7d: number; mauPrev: number
+  totalUsers: number
   deletedAccounts24h: number; deleted7d: number; deleted30d: number
   deletedPrev24h: number; deletedPrev7d: number; deletedPrev30d: number
   retention: { day: string; rate: number }[] | null
@@ -1333,7 +1334,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                     color: MOCK.text, lineHeight: 1,
                     fontFamily: 'var(--font-display, Fraunces, serif)',
                   }}>
-                    {data?.mau ?? 0}
+                    {data?.totalUsers ?? 0}
                   </span>
                   <span style={{ fontSize: 18, fontWeight: 600, color: MOCK.muted }}>/500</span>
                 </div>
@@ -1341,7 +1342,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             </div>
 
             {/* Progress track */}
-            <RoadToGoalTrack current={data?.mau ?? 0} milestones={[0, 10, 50, 100, 500]} />
+            <RoadToGoalTrack current={data?.totalUsers ?? 0} milestones={[0, 10, 50, 100, 500]} />
 
             {/* MRR box */}
             <div style={{
@@ -1350,15 +1351,17 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             }}>
               <div style={{
                 fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-                letterSpacing: '0.08em', color: MOCK.amberText, marginBottom: 4,
+                letterSpacing: '0.08em', color: MOCK.amberText, marginBottom: 6,
               }}>
                 Projected MRR
               </div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: MOCK.amberText, letterSpacing: '-0.5px' }}>
-                —
-              </div>
-              <div style={{ fontSize: 11, color: MOCK.amberText, opacity: 0.75, marginTop: 2 }}>
-                Connect Stripe to unlock
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontSize: 22, fontWeight: 800, color: MOCK.amberText, letterSpacing: '-0.5px' }}>
+                  $9.5K
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: MOCK.amberText, opacity: 0.75 }}>
+                  $19 × 500
+                </span>
               </div>
             </div>
           </div>
