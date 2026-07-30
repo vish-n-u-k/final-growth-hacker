@@ -611,6 +611,7 @@ function IntegrationsSection({
         const groupMeta = INTEGRATION_GROUPS[groupKey]
         const isOpen = !!openGroups[groupKey]
         const connectedCount = (defs ?? []).filter((def) => connected[def.provider]?.status === 'connected').length
+        const notConnectedCount = (defs?.length ?? 0) - connectedCount
         return (
           <div key={groupKey} className="st-int-group">
             <button
@@ -630,6 +631,9 @@ function IntegrationsSection({
                 {groupMeta.label}
                 {connectedCount > 0 && (
                   <span className="st-int-group-count">{connectedCount} connected</span>
+                )}
+                {notConnectedCount > 0 && (
+                  <span className="st-int-group-count st-int-group-count-muted">{notConnectedCount} not connected</span>
                 )}
               </span>
             </button>
