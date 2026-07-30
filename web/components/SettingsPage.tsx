@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { IntegrationDefinition } from '@/lib/integrations/registry'
 import { INTEGRATION_GROUPS } from '@/lib/integrations/registry'
 import { PLAYBOOK_FIELDS, PLAYBOOK_SECTIONS } from '@/lib/playbook/fields'
+import ThemeToggle from '@/components/ThemeToggle'
 
 interface ConnectedIntegration {
   status: string
@@ -34,20 +35,46 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
     setDrawerOpen(false)
   }
 
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
   return (
     <>
       <header>
-        <div className="wrap md-header-inner">
+        <div className="md-header-inner">
           <div className="logo" style={{ cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
             <span className="mark">
               <img src="/favicon.svg" alt="" />
             </span>
             GrowJin
-
           </div>
-          <button className="logout-btn" onClick={() => router.push('/dashboard')}>
-           Back 
-          </button>
+          <div className="md-header-actions">
+            <ThemeToggle />
+            <button
+              onClick={() => router.push('/dashboard')}
+              title="Back to dashboard"
+              style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: 'pointer', color: 'var(--text-dim)', flexShrink: 0, transition: 'color 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-dim)')}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button
+              onClick={handleLogout}
+              className="mob-hide"
+              style={{ fontSize: 13, color: 'var(--text-dim)', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.15s, color 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--green)'; e.currentTarget.style.color = 'var(--text)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.color = 'var(--text-dim)' }}
+            >
+              {userEmail} · Sign out
+            </button>
+          </div>
         </div>
       </header>
 

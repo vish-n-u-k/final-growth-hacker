@@ -2,12 +2,17 @@ export default function SettingsLoading() {
   return (
     <>
       <header>
-        <div className="wrap md-header-inner">
+        <div className="md-header-inner">
           <div className="logo">
             <span className="mark">
               <img src="/favicon.svg" alt="" />
             </span>
             GrowJin
+          </div>
+          <div className="md-header-actions">
+            <div className="skel" style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--line)' }} />
+            <div className="skel" style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--line)' }} />
+            <div className="skel mob-hide" style={{ width: '140px', height: '30px', borderRadius: '8px', background: 'var(--line)' }} />
           </div>
         </div>
       </header>
