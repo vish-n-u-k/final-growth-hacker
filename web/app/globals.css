@@ -2286,7 +2286,7 @@ html.light .mrr-tip-box { background: #1a1a2a; color: #ffffff; }
   50% { opacity: .4; }
 }
 .skel {
-  background: var(--bg-soft); border: 1px solid var(--line);
+  background: var(--bg-soft); border: none;
   animation: skel-pulse 1.6s ease-in-out infinite;
 }
 
