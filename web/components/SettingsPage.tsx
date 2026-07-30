@@ -597,8 +597,12 @@ function IntegrationsSection({
 
   const groupOrder = ['developer', 'analytics', 'social']
 
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
-  const toggleGroup = (key: string) => setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
+  const [openGroup, setOpenGroup] = useState<string | null>(null)
+  const [openItem, setOpenItem] = useState<string | null>(null)
+  const toggleGroup = (key: string) => {
+    setOpenGroup((prev) => (prev === key ? null : key))
+    setOpenItem(null)
+  }
 
   return (
     <div className="st-section">
@@ -609,7 +613,7 @@ function IntegrationsSection({
       {groupOrder.map((groupKey) => {
         const defs = grouped[groupKey]
         const groupMeta = INTEGRATION_GROUPS[groupKey]
-        const isOpen = !!openGroups[groupKey]
+        const isOpen = openGroup === groupKey
         const connectedCount = (defs ?? []).filter((def) => connected[def.provider]?.status === 'connected').length
         const notConnectedCount = (defs?.length ?? 0) - connectedCount
         return (
@@ -649,6 +653,8 @@ function IntegrationsSection({
                         key={def.provider}
                         def={def}
                         connected={connected[def.provider] ?? null}
+                        isOpen={openItem === def.provider}
+                        onToggle={() => setOpenItem((prev) => (prev === def.provider ? null : def.provider))}
                       />
                     ))}
                   </div>
@@ -702,11 +708,14 @@ function ProviderIcon({ provider }: { provider: string }) {
 function IntegrationCard({
   def,
   connected,
+  isOpen,
+  onToggle,
 }: {
   def: IntegrationDefinition
   connected: ConnectedIntegration | null
+  isOpen: boolean
+  onToggle: () => void
 }) {
-  const [isOpen, setIsOpen] = useState(false)
   const [editing, setEditing] = useState(!connected)
   const [fields, setFields] = useState<Record<string, string>>(() => {
     if (!connected) return {}
@@ -764,7 +773,7 @@ function IntegrationCard({
       <button
         type="button"
         className="st-int-card-hd"
-        onClick={() => setIsOpen((v) => !v)}
+        onClick={onToggle}
         aria-expanded={isOpen}
       >
         <svg
