@@ -595,14 +595,6 @@ function IntegrationsSection({
       return acc
     }, {})
 
-  // Includes customUI entries (e.g. Social Profiles) so the collapsed preview lists everything inside
-  const allNamesByGroup = registry.reduce<Record<string, string[]>>((acc, def) => {
-    const g = def.group ?? 'developer'
-    if (!acc[g]) acc[g] = []
-    acc[g].push(def.name)
-    return acc
-  }, {})
-
   const groupOrder = ['developer', 'analytics', 'social']
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
@@ -627,25 +619,19 @@ function IntegrationsSection({
               onClick={() => toggleGroup(groupKey)}
               aria-expanded={isOpen}
             >
-              <div className="st-int-group-hd-text">
-                <span className="st-int-group-label">
-                  {groupMeta.label}
-                  {connectedCount > 0 && (
-                    <span className="st-int-group-count">{connectedCount} connected</span>
-                  )}
-                </span>
-                <span className="st-int-group-desc">{groupMeta.description}</span>
-                {!isOpen && allNamesByGroup[groupKey] && allNamesByGroup[groupKey].length > 0 && (
-                  <span className="st-int-group-preview">{allNamesByGroup[groupKey].join(' · ')}</span>
-                )}
-              </div>
               <svg
-                width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                className="st-int-group-chevron"
-                style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className="st-int-chevron"
+                style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
               >
-                <path d="M6 9l6 6 6-6"/>
+                <path d="M9 6l6 6-6 6"/>
               </svg>
+              <span className="st-int-group-label">
+                {groupMeta.label}
+                {connectedCount > 0 && (
+                  <span className="st-int-group-count">{connectedCount} connected</span>
+                )}
+              </span>
             </button>
             {isOpen && (
               <div className="st-int-group-body">
@@ -669,6 +655,43 @@ function IntegrationsSection({
         )
       })}
     </div>
+  )
+}
+
+const PROVIDER_ICON_DOMAIN: Record<string, string> = {
+  github: 'github.com',
+  google_analytics: 'analytics.google.com',
+  ga4_api: 'analytics.google.com',
+  google_search_console: 'search.google.com',
+  gsc_api: 'search.google.com',
+  google_psi: 'pagespeed.web.dev',
+  posthog: 'posthog.com',
+  serpapi: 'serpapi.com',
+  serper: 'serper.dev',
+  apify: 'apify.com',
+  youtube: 'youtube.com',
+  twitter: 'x.com',
+  instagram: 'instagram.com',
+  facebook: 'facebook.com',
+  linkedin: 'linkedin.com',
+  meta_ads: 'business.facebook.com',
+  frekto: 'frekto.ai',
+  tiktok: 'tiktok.com',
+}
+
+function ProviderIcon({ provider }: { provider: string }) {
+  const domain = PROVIDER_ICON_DOMAIN[provider]
+  return (
+    <span className="st-int-icon">
+      {domain ? (
+        <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} alt="" width={14} height={14} />
+      ) : (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+      )}
+    </span>
   )
 }
 
@@ -733,35 +756,31 @@ function IntegrationCard({
   }
 
   return (
-    <div className={`st-int-card${isConnected ? ' st-int-card-connected' : ''}`}>
+    <div className="st-int-card">
       <button
         type="button"
         className="st-int-card-hd"
         onClick={() => setIsOpen((v) => !v)}
         aria-expanded={isOpen}
       >
-        <div className="st-int-card-info">
-          <div className="st-int-provider-name">{def.name}</div>
-          <p className="st-int-desc">{def.description}</p>
-        </div>
-        <div className="st-int-status-wrap">
-          {isConnected ? (
-            <span className="st-int-badge st-int-badge-connected">Connected</span>
-          ) : (
-            <span className="st-int-badge st-int-badge-none">Not connected</span>
-          )}
-          <svg
-            width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-            className="st-int-card-chevron"
-            style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-          >
-            <path d="M6 9l6 6 6-6"/>
-          </svg>
-        </div>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          className="st-int-chevron"
+          style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+        >
+          <path d="M9 6l6 6-6 6"/>
+        </svg>
+        <ProviderIcon provider={def.provider} />
+        <span className="st-int-provider-name">{def.name}</span>
+        <span
+          className={`st-int-badge-dot${isConnected ? ' st-int-badge-dot-connected' : ''}`}
+          title={isConnected ? 'Connected' : 'Not connected'}
+        />
       </button>
 
       {isOpen && (
       <div className="st-int-card-body">
+      <p className="st-int-desc">{def.description}</p>
       {isConnected && !editing ? (
         <div className="st-int-actions">
           <button className="st-btn-ghost" onClick={() => setEditing(true)}>Edit credentials</button>
