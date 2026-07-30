@@ -112,7 +112,7 @@ function buildNotificationEmail(opts: {
       <tr>
         <td style="padding:18px 40px;background:#f7f9f7;border-top:1px solid #e0e8e3;text-align:center;">
           <p style="margin:0;font-size:12px;color:#8a9e90;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-            You received this email because you requested an analysis on <a href="https://growjin.com" style="color:#2fbf71;text-decoration:none;">growjin.com</a>.
+            You received this email because you requested an analysis on <a href="https://final-growth-hacker.vercel.app" style="color:#2fbf71;text-decoration:none;">GrowJin</a>.
           </p>
         </td>
       </tr>
@@ -179,7 +179,7 @@ export async function PATCH(req: NextRequest) {
     const verifiedWeight = items.filter(i => i.aiVerified).reduce((s, i) => s + i.weight, 0)
     const aiPct = totalWeight > 0 ? Math.round((verifiedWeight / totalWeight) * 100) : 0
 
-    const dashboardUrl = `https://growjin.com/dashboard/${request.moduleId}`
+    const dashboardUrl = `https://final-growth-hacker.vercel.app/dashboard/${request.moduleId}`
     const bodyHtml = buildNotificationEmail({
       moduleName:      request.moduleName,
       brandName:       request.brandName,
