@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { IntegrationDefinition } from '@/lib/integrations/registry'
 import { INTEGRATION_GROUPS } from '@/lib/integrations/registry'
 import { PLAYBOOK_FIELDS, PLAYBOOK_SECTIONS } from '@/lib/playbook/fields'
+import ThemeToggle from '@/components/ThemeToggle'
 
 interface ConnectedIntegration {
   status: string
@@ -34,24 +35,50 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
     setDrawerOpen(false)
   }
 
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/login')
+    router.refresh()
+  }
+
   return (
     <>
       <header>
-        <div className="wrap md-header-inner">
+        <div className="md-header-inner">
           <div className="logo" style={{ cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
             <span className="mark">
               <img src="/growjinlogo.svg" alt="" />
             </span>
             GrowJin
-
           </div>
-          <button className="logout-btn" onClick={() => router.push('/dashboard')}>
-           Back 
-          </button>
+          <div className="md-header-actions">
+            <ThemeToggle />
+            <button
+              onClick={() => router.push('/dashboard')}
+              title="Back to dashboard"
+              style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: 'pointer', color: 'var(--text-dim)', flexShrink: 0, transition: 'color 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-dim)')}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <button
+              onClick={handleLogout}
+              className="mob-hide"
+              style={{ fontSize: 13, color: 'var(--text-dim)', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.15s, color 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--green)'; e.currentTarget.style.color = 'var(--text)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.color = 'var(--text-dim)' }}
+            >
+              {userEmail} · Sign out
+            </button>
+          </div>
         </div>
       </header>
 
-      <div className="wrap st-page-hd">
+      <div className="st-page-hd">
         <button
           className="st-drawer-toggle"
           onClick={() => setDrawerOpen(!drawerOpen)}
@@ -68,7 +95,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
       </div>
 
       <div
-        className={`wrap st-layout${drawerOpen ? ' drawer-open' : ''}`}
+        className={`st-layout${drawerOpen ? ' drawer-open' : ''}`}
         onClick={(e) => {
           if ((e.target as HTMLElement).classList.contains('st-layout')) {
             setDrawerOpen(false)
@@ -582,9 +609,12 @@ function IntegrationsSection({
 
   const groupOrder = ['developer', 'analytics', 'social']
 
-  const showSocialProfiles = !q || 'social media profiles'.includes(q) || 'profile urls'.includes(q)
-
-  const totalVisible = filtered.filter((d) => !d.customUI).length + (showSocialProfiles ? 1 : 0)
+  const [openGroup, setOpenGroup] = useState<string | null>(null)
+  const [openItem, setOpenItem] = useState<string | null>(null)
+  const toggleGroup = (key: string) => {
+    setOpenGroup((prev) => (prev === key ? null : key))
+    setOpenItem(null)
+  }
 
   return (
     <div className="st-section">
@@ -592,69 +622,111 @@ function IntegrationsSection({
         <h2 className="st-section-title">Integrations</h2>
         <p className="st-section-desc">Connect external services to unlock automated fixes and richer analysis.</p>
       </div>
-
-      <div style={{ position: 'relative', marginBottom: 20 }}>
-        <svg
-          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-          strokeLinecap="round" strokeLinejoin="round"
-          style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)', pointerEvents: 'none' }}
-        >
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input
-          className="st-input"
-          style={{ paddingLeft: 34 }}
-          type="text"
-          placeholder="Search integrations..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </div>
-
-      {totalVisible === 0 ? (
-        <div className="st-card" style={{ textAlign: 'center', padding: '32px 20px' }}>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-dim)' }}>No integrations match &quot;{query}&quot;</p>
-        </div>
-      ) : (
-        groupOrder.map((groupKey) => {
-          const defs = grouped[groupKey]
-          const groupMeta = INTEGRATION_GROUPS[groupKey]
-          const hasSocialProfiles = groupKey === 'social' && showSocialProfiles
-          if (!hasSocialProfiles && (!defs || defs.length === 0)) return null
-          return (
-            <div key={groupKey} className="st-int-group">
-              <div className="st-int-group-hd">
-                <span className="st-int-group-label">{groupMeta.label}</span>
-                <span className="st-int-group-desc">{groupMeta.description}</span>
+      {groupOrder.map((groupKey) => {
+        const defs = grouped[groupKey]
+        const groupMeta = INTEGRATION_GROUPS[groupKey]
+        const isOpen = openGroup === groupKey
+        const connectedCount = (defs ?? []).filter((def) => connected[def.provider]?.status === 'connected').length
+        const notConnectedCount = (defs?.length ?? 0) - connectedCount
+        return (
+          <div key={groupKey} className="st-int-group">
+            <button
+              type="button"
+              className="st-int-group-hd"
+              onClick={() => toggleGroup(groupKey)}
+              aria-expanded={isOpen}
+            >
+              <svg
+                width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className="st-int-chevron"
+                style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+              >
+                <path d="M9 6l6 6-6 6"/>
+              </svg>
+              <span className="st-int-group-label">
+                {groupMeta.label}
+                {connectedCount > 0 && (
+                  <span className="st-int-group-count">{connectedCount} connected</span>
+                )}
+                {notConnectedCount > 0 && (
+                  <span className="st-int-group-count st-int-group-count-muted">{notConnectedCount} not connected</span>
+                )}
+              </span>
+            </button>
+            {isOpen && (
+              <div className="st-int-group-body">
+                {groupKey === 'social' && (
+                  <SocialProfilesCard connected={connected['social_profiles'] ?? null} />
+                )}
+                {defs && defs.length > 0 && (
+                  <div className="st-integrations">
+                    {defs.map((def) => (
+                      <IntegrationCard
+                        key={def.provider}
+                        def={def}
+                        connected={connected[def.provider] ?? null}
+                        isOpen={openItem === def.provider}
+                        onToggle={() => setOpenItem((prev) => (prev === def.provider ? null : def.provider))}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              {hasSocialProfiles && (
-                <SocialProfilesCard connected={connected['social_profiles'] ?? null} />
-              )}
-              {defs && defs.length > 0 && (
-                <div className="st-integrations">
-                  {defs.map((def) => (
-                    <IntegrationCard
-                      key={def.provider}
-                      def={def}
-                      connected={connected[def.provider] ?? null}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        })
-      )}
+            )}
+          </div>
+        )
+      })}
     </div>
+  )
+}
+
+const PROVIDER_ICON_DOMAIN: Record<string, string> = {
+  github: 'github.com',
+  google_analytics: 'analytics.google.com',
+  ga4_api: 'analytics.google.com',
+  google_search_console: 'search.google.com',
+  gsc_api: 'search.google.com',
+  google_psi: 'pagespeed.web.dev',
+  posthog: 'posthog.com',
+  serpapi: 'serpapi.com',
+  serper: 'serper.dev',
+  apify: 'apify.com',
+  youtube: 'youtube.com',
+  twitter: 'x.com',
+  instagram: 'instagram.com',
+  facebook: 'facebook.com',
+  linkedin: 'linkedin.com',
+  meta_ads: 'business.facebook.com',
+  frekto: 'frekto.ai',
+  tiktok: 'tiktok.com',
+}
+
+function ProviderIcon({ provider }: { provider: string }) {
+  const domain = PROVIDER_ICON_DOMAIN[provider]
+  return (
+    <span className="st-int-icon">
+      {domain ? (
+        <img src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`} alt="" width={14} height={14} />
+      ) : (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+      )}
+    </span>
   )
 }
 
 function IntegrationCard({
   def,
   connected,
+  isOpen,
+  onToggle,
 }: {
   def: IntegrationDefinition
   connected: ConnectedIntegration | null
+  isOpen: boolean
+  onToggle: () => void
 }) {
   const [editing, setEditing] = useState(!connected)
   const [fields, setFields] = useState<Record<string, string>>(() => {
@@ -709,21 +781,31 @@ function IntegrationCard({
   }
 
   return (
-    <div className={`st-int-card${isConnected ? ' st-int-card-connected' : ''}`}>
-      <div className="st-int-card-hd">
-        <div className="st-int-card-info">
-          <div className="st-int-provider-name">{def.name}</div>
-          <p className="st-int-desc">{def.description}</p>
-        </div>
-        <div className="st-int-status-wrap">
-          {isConnected ? (
-            <span className="st-int-badge st-int-badge-connected">Connected</span>
-          ) : (
-            <span className="st-int-badge st-int-badge-none">Not connected</span>
-          )}
-        </div>
-      </div>
+    <div className="st-int-card">
+      <button
+        type="button"
+        className="st-int-card-hd"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+      >
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          className="st-int-chevron"
+          style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+        >
+          <path d="M9 6l6 6-6 6"/>
+        </svg>
+        <ProviderIcon provider={def.provider} />
+        <span className="st-int-provider-name">{def.name}</span>
+        <span
+          className={`st-int-badge-dot${isConnected ? ' st-int-badge-dot-connected' : ''}`}
+          title={isConnected ? 'Connected' : 'Not connected'}
+        />
+      </button>
 
+      {isOpen && (
+      <div className="st-int-card-body">
+      <p className="st-int-desc">{def.description}</p>
       {isConnected && !editing ? (
         <div className="st-int-actions">
           <button className="st-btn-ghost" onClick={() => setEditing(true)}>Edit credentials</button>
@@ -792,6 +874,8 @@ function IntegrationCard({
             </a>
           )}
         </form>
+      )}
+      </div>
       )}
     </div>
   )

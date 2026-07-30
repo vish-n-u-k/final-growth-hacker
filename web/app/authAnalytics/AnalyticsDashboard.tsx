@@ -1201,7 +1201,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
 
   if (detailView !== null) {
     return (
-      <div style={{ minHeight: '100vh', background: MOCK.bg, fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
+      <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
         {toastMsg && (
           <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: MOCK.badgeDark, color: '#ffffff', fontSize: 13, fontWeight: 600, padding: '10px 20px', borderRadius: 99, zIndex: 100, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.3)' }}>
             <CheckCircle2 size={14} /> {toastMsg}
@@ -1221,7 +1221,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: MOCK.bg, fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
 
       {redirectTarget && (
         <div style={{
@@ -1342,7 +1342,18 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             </div>
 
             {/* Progress track */}
-            <RoadToGoalTrack current={data?.totalUsers ?? 0} milestones={[0, 10, 50, 100, 500]} />
+            {phLoading ? (
+              <div style={{ position: 'relative', paddingBottom: 36 }}>
+                <div className="an-skeleton" style={{ height: 5, borderRadius: 99 }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
+                  {[0, 1, 2, 3, 4].map(i => (
+                    <div key={i} className="an-skeleton" style={{ width: 24, height: 11, borderRadius: 4 }} />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <RoadToGoalTrack current={data?.mau ?? 0} milestones={[0, 10, 50, 100, 500]} />
+            )}
 
             {/* MRR box */}
             <div style={{
