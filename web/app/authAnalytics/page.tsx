@@ -78,7 +78,7 @@ export default async function AuthAnalyticsPage() {
 
   return (
     <AnalyticsDashboard
-      brand={{ id: brand.id, name: brand.name }}
+      brand={{ id: brand.id, name: brand.name, websiteUrl: brand.websiteUrl, createdAt: brand.createdAt?.toISOString() ?? null }}
       modules={moduleHealth}
     />
   )

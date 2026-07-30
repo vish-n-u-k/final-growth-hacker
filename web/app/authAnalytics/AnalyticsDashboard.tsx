@@ -985,9 +985,99 @@ function renderSummary(text: string): React.ReactNode[] {
   })
 }
 
+/* ── Road to 500 progress track ───────────────────────── */
+function RoadToGoalTrack({ current, milestones }: { current: number; milestones: number[] }) {
+  const goal = milestones[milestones.length - 1]
+  const n = milestones.length - 1
+
+  let pct = 0
+  if (current >= goal) {
+    pct = 100
+  } else {
+    for (let i = 0; i < n; i++) {
+      if (current <= milestones[i + 1]) {
+        const segStart = (i / n) * 100
+        const segEnd = ((i + 1) / n) * 100
+        const t = (current - milestones[i]) / (milestones[i + 1] - milestones[i])
+        pct = segStart + t * (segEnd - segStart)
+        break
+      }
+    }
+  }
+
+  return (
+    <div style={{ position: 'relative', paddingBottom: 36 }}>
+      {/* Track */}
+      <div style={{ position: 'relative', height: 5, background: '#E7E3D7', borderRadius: 99 }}>
+        {/* Fill */}
+        <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${pct}%`, background: MOCK.green, borderRadius: 99 }} />
+
+        {/* Milestone dots */}
+        {milestones.map((ms, i) => {
+          const msPct = (i / n) * 100
+          const passed = ms <= current
+          return (
+            <div key={ms} style={{ position: 'absolute', top: '50%', left: `${msPct}%`, transform: 'translate(-50%, -50%)', zIndex: 1 }}>
+              <div style={{
+                width: 10, height: 10, borderRadius: '50%',
+                background: passed ? MOCK.green : MOCK.card,
+                border: `2px solid ${passed ? MOCK.green : '#C8C4B8'}`,
+              }} />
+            </div>
+          )
+        })}
+
+        {/* Current position dot */}
+        <div style={{ position: 'absolute', top: '50%', left: `${pct}%`, transform: 'translate(-50%, -50%)', zIndex: 4 }}>
+          <div style={{
+            width: 18, height: 18, borderRadius: '50%',
+            background: MOCK.green,
+            border: `3px solid ${MOCK.card}`,
+            boxShadow: `0 0 0 2px ${MOCK.green}`,
+          }} />
+        </div>
+      </div>
+
+      {/* Milestone labels */}
+      {milestones.map((ms, i) => {
+        const msPct = (i / n) * 100
+        return (
+          <div key={ms} style={{
+            position: 'absolute',
+            left: `${msPct}%`,
+            top: 14,
+            transform: i === 0 ? 'none' : i === n ? 'translateX(-100%)' : 'translateX(-50%)',
+            fontSize: 11,
+            color: MOCK.muted2,
+            fontWeight: 500,
+            userSelect: 'none',
+          }}>
+            {ms}
+          </div>
+        )
+      })}
+
+      {/* You're here label */}
+      <div style={{
+        position: 'absolute',
+        left: `${pct}%`,
+        top: 28,
+        transform: 'translateX(-50%)',
+        fontSize: 11.5,
+        fontWeight: 700,
+        color: MOCK.green,
+        whiteSpace: 'nowrap',
+        userSelect: 'none',
+      }}>
+        {current} · you're here
+      </div>
+    </div>
+  )
+}
+
 /* ── Main component ───────────────────────────────────── */
 interface Props {
-  brand: { id: string; name: string }
+  brand: { id: string; name: string; websiteUrl: string; createdAt: string | null }
   modules: ModuleHealth[]
 }
 
@@ -1211,6 +1301,68 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
         </div>
 
         {/* Summary + Todo — hidden for now */}
+
+        {/* Road to 500 banner */}
+        <div style={{
+          background: MOCK.card,
+          border: `1px solid ${MOCK.border}`,
+          borderRadius: 18,
+          padding: isMobile ? '20px 16px' : '24px 28px',
+          marginBottom: 28,
+        }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: isMobile ? '1fr' : '180px 1fr auto',
+            gap: isMobile ? 20 : 32,
+            alignItems: 'center',
+          }}>
+            {/* Users count */}
+            <div>
+              <div style={{
+                fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                letterSpacing: '0.08em', color: MOCK.green, marginBottom: 6,
+              }}>
+                Users on board
+              </div>
+              {phLoading ? (
+                <div className="an-skeleton" style={{ width: 80, height: 52, borderRadius: 8 }} />
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                  <span style={{
+                    fontSize: 52, fontWeight: 800, letterSpacing: '-2px',
+                    color: MOCK.text, lineHeight: 1,
+                    fontFamily: 'var(--font-display, Fraunces, serif)',
+                  }}>
+                    {data?.mau ?? 0}
+                  </span>
+                  <span style={{ fontSize: 18, fontWeight: 600, color: MOCK.muted }}>/500</span>
+                </div>
+              )}
+            </div>
+
+            {/* Progress track */}
+            <RoadToGoalTrack current={data?.mau ?? 0} milestones={[0, 10, 50, 100, 500]} />
+
+            {/* MRR box */}
+            <div style={{
+              background: MOCK.amberBg, border: '1px solid #E8D5A0',
+              borderRadius: 12, padding: '12px 16px', flexShrink: 0,
+            }}>
+              <div style={{
+                fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                letterSpacing: '0.08em', color: MOCK.amberText, marginBottom: 4,
+              }}>
+                Projected MRR
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: MOCK.amberText, letterSpacing: '-0.5px' }}>
+                —
+              </div>
+              <div style={{ fontSize: 11, color: MOCK.amberText, opacity: 0.75, marginTop: 2 }}>
+                Connect Stripe to unlock
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Activity section — range-driven */}
         <section style={{ marginBottom: 36 }}>

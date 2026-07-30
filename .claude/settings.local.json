@@ -53,7 +53,9 @@
       "Bash(find \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" -type f -name \"*.tsx\" -o -name \"*.ts\" | xargs grep -l \"export\" | head -20)",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm install resend 2>&1 | tail -5)",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && node -e \"const pkg = require\\('./package.json'\\); console.log\\(pkg.dependencies.resend\\)\")",
-      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit --skipLibCheck 2>&1 | head -30)"
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit --skipLibCheck 2>&1 | head -30)",
+      "Bash(grep -r \"impersonate\\\\|admin.*user\\\\|user.*list\" \"C:/Users/vishn/Desktop/Final Growth Hacker/web/app/api\" --include=\"*.ts\" 2>/dev/null | head -20)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit --project tsconfig.json 2>&1 | grep -E \"admin|view\\\\[brandId\\\\]|users/route\" | head -30)"
     ]
   }
 }
