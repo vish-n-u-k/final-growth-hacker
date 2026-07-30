@@ -2643,7 +2643,6 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
 
   .st-page-hd {
     padding: 36px 40px 28px 200px;
-    border-bottom: none;
     display: block;
     margin: 0;
     width: 100%;
@@ -2666,11 +2665,11 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
   .st-layout {
     display: grid !important;
     grid-template-columns: 164px 1fr !important;
-    padding: 28px 0 60px !important;
+    padding: 28px 40px 60px !important;
+    max-width: 1200px;
     gap: 0 !important;
     align-items: start !important;
     position: relative;
-    border-top: 1px solid var(--line);
   }
 
   .st-layout::before {

@@ -78,7 +78,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
         </div>
       </header>
 
-      <div className="wrap st-page-hd">
+      <div className="st-page-hd">
         <button
           className="st-drawer-toggle"
           onClick={() => setDrawerOpen(!drawerOpen)}
@@ -95,7 +95,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
       </div>
 
       <div
-        className={`wrap st-layout${drawerOpen ? ' drawer-open' : ''}`}
+        className={`st-layout${drawerOpen ? ' drawer-open' : ''}`}
         onClick={(e) => {
           if ((e.target as HTMLElement).classList.contains('st-layout')) {
             setDrawerOpen(false)
