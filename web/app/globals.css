@@ -1613,7 +1613,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 /* Content */
 .st-content {
   min-width: 0;
-  padding: 32px 0 0 40px;
+  padding: 32px 0 0 56px;
 }
 
 /* Section */
@@ -2761,12 +2761,7 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
 
   .st-content {
     min-width: 0;
-    padding: 32px 0 0 40px;
-  }
-
-  .st-content {
-    min-width: 0;
-    padding: 24px 0 0;
+    padding: 32px 0 0 56px;
   }
 
   .st-section { gap: 20px; }
