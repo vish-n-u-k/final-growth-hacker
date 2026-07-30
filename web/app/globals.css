@@ -1647,10 +1647,10 @@ html.light .hero-social-icon--connected { color: #5b6560; }
   font-family: inherit; font-size: 14px; outline: none;
   transition: border-color .15s, box-shadow .15s;
 }
-.st-input::placeholder { color: var(--text-faint); }
+.st-input::placeholder { color: #9aa3ad; }
 .st-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px #2fbf7120; }
 .st-input:disabled { opacity: .45; cursor: default; }
-.st-field-hint { font-size: 12px; color: var(--text-faint); margin: 0; line-height: 1.5; }
+.st-field-hint { font-size: 12px; color: #9aa3ad; margin: 0; line-height: 1.5; }
 .st-error { font-size: 13px; color: #f87171; margin: 0; }
 
 .st-form-submit { display: flex; }
@@ -1742,8 +1742,8 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 .st-int-form-actions { display: flex; gap: 8px; align-items: center; }
 .st-docs-link {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 12.5px; color: var(--green); text-decoration: none;
-  transition: color .15s;
+  font-size: 12.5px; color: var(--green); text-decoration: underline;
+  text-underline-offset: 2px; transition: color .15s;
 }
 .st-docs-link:hover { color: var(--green-bright); }
 
@@ -1789,7 +1789,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 /* Account */
 .st-divider { height: 1px; background: var(--line); margin: 6px 0; }
 .st-account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-.st-hint { font-size: 12.5px; color: var(--text-faint); margin: 0; line-height: 1.55; max-width: 400px; }
+.st-hint { font-size: 12.5px; color: #9aa3ad; margin: 0; line-height: 1.55; max-width: 400px; }
 
 /* ── Light mode ─────────────────────────────────────────────────────────── */
 html.light {
@@ -1941,6 +1941,12 @@ html.light .hero-meta-divider { background: #d8e4de; }
 
 html.light .st-tab-active { background: #d0eadb88 !important; }
 html.light .st-int-group-count-muted { color: #6b7280; background: #f1f2f4; border-color: #dcdfe3; }
+html.light .st-input::placeholder,
+html.light .st-field-hint,
+html.light .st-hint,
+html.light .sp-platform-input::placeholder,
+html.light .sp-custom-input::placeholder,
+html.light .sp-insight { color: #6b7280; }
 
 html.light .ob-card { background: radial-gradient(600px 300px at 80% -10%, #14a04e08, transparent), var(--card); }
 html.light .overview { background: radial-gradient(500px 220px at 90% 0%, color-mix(in srgb, var(--brand) 10%, transparent), transparent), var(--card); }
@@ -2034,7 +2040,7 @@ html.light .sm-draft-btn:hover:not(:disabled) { background: #d0eadb; }
   font-size: 13px; color: var(--text); font-family: var(--font-body);
   width: 100%; outline: none; transition: background .12s;
 }
-.sp-platform-input::placeholder { color: var(--text-faint); font-size: 12.5px; }
+.sp-platform-input::placeholder { color: #9aa3ad; font-size: 12.5px; }
 .sp-platform-input:focus { background: rgba(47,191,113,.04); }
 .sp-platform-cell {
   display: flex; align-items: center; justify-content: center;
@@ -2062,7 +2068,7 @@ html.light .sm-draft-btn:hover:not(:disabled) { background: #d0eadb; }
   font-size: 13px; color: var(--text); font-family: var(--font-body);
   outline: none; transition: border-color .15s, box-shadow .15s;
 }
-.sp-custom-input::placeholder { color: var(--text-faint); }
+.sp-custom-input::placeholder { color: #9aa3ad; }
 .sp-custom-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px #2fbf7120; }
 .sp-add-btn {
   background: var(--bg-soft); border: 1px solid var(--line);
@@ -2076,7 +2082,7 @@ html.light .sm-draft-btn:hover:not(:disabled) { background: #d0eadb; }
 .sp-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .sp-insight {
   display: flex; align-items: center; gap: 7px;
-  font-size: 12.5px; color: var(--text-faint); line-height: 1.5;
+  font-size: 12.5px; color: #9aa3ad; line-height: 1.5;
   flex: 1; min-width: 0;
 }
 .sp-insight svg { flex-shrink: 0; color: var(--green); }
@@ -2489,6 +2495,12 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
   .st-int-actions { flex-wrap: wrap; }
   .st-int-form-actions { flex-wrap: wrap; }
   .st-btn-primary, .st-btn-ghost, .st-btn-danger { width: 100%; justify-content: center; }
+
+  .sp-footer { flex-direction: column; align-items: stretch; gap: 10px; }
+  .sp-platform-row { grid-template-columns: 1fr 32px; grid-template-rows: auto auto; }
+  .sp-platform-label { grid-column: 1; grid-row: 1; border-right: none; border-bottom: 1px solid var(--line); padding: 8px 12px 4px; }
+  .sp-platform-cell { grid-column: 2; grid-row: 1; border-left: none; border-bottom: 1px solid var(--line); }
+  .sp-platform-input { grid-column: 1 / span 2; grid-row: 2; padding: 8px 12px 10px; }
 
   .st-form-submit {
     position: sticky; bottom: 0; z-index: 5;
