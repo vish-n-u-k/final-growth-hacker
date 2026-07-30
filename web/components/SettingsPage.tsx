@@ -568,9 +568,17 @@ function IntegrationsSection({
       return acc
     }, {})
 
+  // Includes customUI entries (e.g. Social Profiles) so the collapsed preview lists everything inside
+  const allNamesByGroup = registry.reduce<Record<string, string[]>>((acc, def) => {
+    const g = def.group ?? 'developer'
+    if (!acc[g]) acc[g] = []
+    acc[g].push(def.name)
+    return acc
+  }, {})
+
   const groupOrder = ['developer', 'analytics', 'social']
 
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ developer: true, analytics: false, social: false })
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const toggleGroup = (key: string) => setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }))
 
   return (
@@ -600,6 +608,9 @@ function IntegrationsSection({
                   )}
                 </span>
                 <span className="st-int-group-desc">{groupMeta.description}</span>
+                {!isOpen && allNamesByGroup[groupKey] && allNamesByGroup[groupKey].length > 0 && (
+                  <span className="st-int-group-preview">{allNamesByGroup[groupKey].join(' · ')}</span>
+                )}
               </div>
               <svg
                 width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"

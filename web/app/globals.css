@@ -1705,6 +1705,7 @@ html.light .hero-social-icon--connected { color: #5b6560; }
   padding: 2px 8px; border-radius: 99px;
 }
 .st-int-group-desc { font-size: .78rem; color: var(--text-faint); }
+.st-int-group-preview { font-size: .76rem; color: var(--text-dim); margin-top: 4px; }
 .st-int-group-chevron { flex-shrink: 0; color: var(--text-dim); transition: transform .2s ease; }
 .st-int-group-body { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; }
 .st-integrations { display: flex; flex-direction: column; gap: 10px; }
