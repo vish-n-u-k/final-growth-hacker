@@ -1063,7 +1063,7 @@ function RoadToGoalTrack({ current, milestones }: { current: number; milestones:
         position: 'absolute',
         left: `${pct}%`,
         top: 28,
-        transform: 'translateX(-50%)',
+        transform: pct < 5 ? 'translateX(0)' : pct > 95 ? 'translateX(-100%)' : 'translateX(-50%)',
         fontSize: 11.5,
         fontWeight: 700,
         color: MOCK.green,
