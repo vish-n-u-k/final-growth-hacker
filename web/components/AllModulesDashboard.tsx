@@ -1808,18 +1808,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           <div className="md-header-actions">
             <ThemeToggle />
             <button
-              onClick={() => router.push('/dashboard/keywords')}
-              title="Keyword Tracking"
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: 'pointer', color: 'var(--text-dim)', fontSize: 12, fontWeight: 500, fontFamily: 'inherit', transition: 'color 0.15s, border-color 0.15s', flexShrink: 0 }}
-              onMouseEnter={e => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--green)' }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.borderColor = 'var(--line)' }}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              Keywords
-            </button>
-            <button
               onClick={() => router.push('/settings')}
               title="Settings"
               style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: 'pointer', color: 'var(--text-dim)', flexShrink: 0, transition: 'color 0.15s' }}
