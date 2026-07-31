@@ -55,7 +55,12 @@
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && node -e \"const pkg = require\\('./package.json'\\); console.log\\(pkg.dependencies.resend\\)\")",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit --skipLibCheck 2>&1 | head -30)",
       "Bash(grep -r \"impersonate\\\\|admin.*user\\\\|user.*list\" \"C:/Users/vishn/Desktop/Final Growth Hacker/web/app/api\" --include=\"*.ts\" 2>/dev/null | head -20)",
-      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit --project tsconfig.json 2>&1 | grep -E \"admin|view\\\\[brandId\\\\]|users/route\" | head -30)"
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit --project tsconfig.json 2>&1 | grep -E \"admin|view\\\\[brandId\\\\]|users/route\" | head -30)",
+      "Bash(cd \"C:/Users/vishn/Desktop/Final Growth Hacker/web\" && npx tsc --noEmit --project tsconfig.json 2>&1 | head -30)",
+      "Bash(cd \"C:/Users/vishn/Desktop/Final Growth Hacker/web\" && npx tsc --noEmit 2>&1 | head -20)",
+      "Bash(find \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" -name \"*analytics*\" -o -name \"*posthog*\" 2>/dev/null | head -20)",
+      "Bash(grep -r \"posthog\\\\|analytics\\\\|user.*count\" \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\lib\" --include=\"*.ts\" --include=\"*.tsx\" 2>/dev/null | head -10)",
+      "Bash(find \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" -path \"*/modules/seo*\" -type f 2>/dev/null | head -20)"
     ]
   }
 }

@@ -910,12 +910,16 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const classifications = exportClassificationsMap[modData.id] ?? {}
     const states = statesMap[modData.id] ?? {}
     const dynItems = dynItemsMap[modData.id] ?? []
-    const result: ExportPrepItem[] = []
+    const autoItems: ExportPrepItem[] = []
+    const needsChoiceItems: ExportPrepItem[] = []
     if (modData.definition.dynamic) {
       dynItems.filter(i => !i.aiVerified && !i.userChecked && !i.userSkipped).forEach(item => {
-        if (classifications[item.slug]?.exportType === 'needs_choice') {
+        const et = classifications[item.slug]?.exportType
+        if (et === 'auto') {
+          autoItems.push({ id: item.id, label: item.label, exportType: 'auto', choiceOptions: null, userChoice: null, aiDetail: item.aiDetail, aiAction: item.aiAction, weight: item.weight })
+        } else if (et === 'needs_choice') {
           const c = classifications[item.slug]
-          result.push({ id: item.id, label: item.label, exportType: 'needs_choice', choiceOptions: c.choiceOptions ?? null, userChoice: item.userChoice, aiDetail: item.aiDetail, aiAction: item.aiAction, weight: item.weight })
+          needsChoiceItems.push({ id: item.id, label: item.label, exportType: 'needs_choice', choiceOptions: c.choiceOptions ?? null, userChoice: item.userChoice, aiDetail: item.aiDetail, aiAction: item.aiAction, weight: item.weight })
         }
       })
     } else {
@@ -923,13 +927,16 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       allDefItems.forEach(defItem => {
         const s = states[defItem.slug]
         if (s?.aiVerified || s?.userChecked || s?.userSkipped) return
-        if (classifications[defItem.slug]?.exportType === 'needs_choice') {
+        const et = classifications[defItem.slug]?.exportType
+        if (et === 'auto') {
+          autoItems.push({ id: s?.id ?? '', label: defItem.label, exportType: 'auto', choiceOptions: null, userChoice: null, aiDetail: s?.aiDetail ?? null, aiAction: s?.aiAction ?? null, weight: defItem.weight })
+        } else if (et === 'needs_choice') {
           const c = classifications[defItem.slug]
-          result.push({ id: s?.id ?? '', label: defItem.label, exportType: 'needs_choice', choiceOptions: c.choiceOptions ?? null, userChoice: s?.userChoice ?? null, aiDetail: s?.aiDetail ?? null, aiAction: s?.aiAction ?? null, weight: defItem.weight })
+          needsChoiceItems.push({ id: s?.id ?? '', label: defItem.label, exportType: 'needs_choice', choiceOptions: c.choiceOptions ?? null, userChoice: s?.userChoice ?? null, aiDetail: s?.aiDetail ?? null, aiAction: s?.aiAction ?? null, weight: defItem.weight })
         }
       })
     }
-    return result
+    return [...autoItems, ...needsChoiceItems]
   }
 
   const saveChoice = async (itemId: string, choice: string) => {
@@ -1009,22 +1016,81 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     lines.push('---')
     lines.push('')
 
-    // Title + tone
+    // Title + Step 0 environment check
     lines.push(`# ${brand.name} — Growth fixes`)
     lines.push(`Website: ${brandUrl}`)
+    lines.push('')
+    const totalIssues = part1Items.length + part2Items.length + skipItems.length
+    const fixableCount = part1Items.length + part2Items.length
+    const fixSummary = fixableCount > 0 && skipItems.length > 0
+      ? `${fixableCount} fixable directly in the codebase, ${skipItems.length} requiring off-page/off-code action`
+      : fixableCount > 0
+      ? `all ${totalIssues} fixable directly in the codebase`
+      : `all ${totalIssues} requiring off-page/off-code action`
+    lines.push('---')
+    lines.push('')
+    lines.push('## Step 0 — Environment check (do this first, silently, before anything else)')
+    lines.push('')
+    lines.push('Determine whether you currently have **working file-system and code tools** available (e.g. Read, Edit, Write, Grep, Glob, Bash or equivalent) **and** access to an actual local repository/codebase you can act on.')
+    lines.push('')
+    lines.push('**If YES** — you\'re running as an agentic coding assistant (e.g. Claude Code, Cursor, Windsurf) with real tool access and a repo is present:')
+    lines.push('→ Proceed to Part 1 below and work through this file normally, one item at a time, exactly as written.')
+    lines.push('')
+    lines.push(`**If NO** — you\'re a conversational assistant in a chat interface with no file/code tools, or no repository is present, or you\'re otherwise unable to actually read/write files in a ${brand.name} codebase:`)
+    lines.push('→ Do **not** attempt to implement any fixes, do not run the Part 1/2 questions, and do not claim any change was made. Instead, give a concise executive-style summary — not a step-by-step walkthrough — using this exact shape:')
+    lines.push('')
+    lines.push(`1. **One-line framing**: state that this is an action script meant to run inside an agentic coding tool (Claude Code, Cursor, Windsurf) connected to the real ${brand.name} repo, not something to execute in plain chat.`)
+    lines.push(`2. **Executive summary** (2–3 sentences): GrowJin audited **${brand.name}** (${brandUrl}) and found **${totalIssues} issue${totalIssues === 1 ? '' : 's'}** worth fixing — ${fixSummary} — organized into sequential parts meant to be run one step at a time with user approval at each step.`)
+    lines.push('3. **Grouped breakdown**, one line per item, short headers only — do not restate the full Issue/Fix prose:')
+    if (part1Items.length > 0) lines.push(`   - Part 1 — ${part1Items.length} technical/structural fix${part1Items.length === 1 ? '' : 'es'} (in-code, yes/no approval per item): ${part1Items.map(i => i.label).join(', ')}`)
+    if (part2Items.length > 0) lines.push(`   - Part 2 — ${part2Items.length} item${part2Items.length === 1 ? '' : 's'} needing real user-supplied data before writing (in-code, never invented): ${part2Items.map(i => i.label).join(', ')}`)
+    lines.push('   - Part 3 — Skipped-items log (auto-generated if anything was skipped)')
+    if (skipItems.length > 0) lines.push(`   - Part 4 — ${skipItems.length} off-page task${skipItems.length === 1 ? '' : 's'} for the user (can\'t be done in code): ${skipItems.map(i => i.label).join(', ')}`)
+    lines.push('4. **Closing line**: one sentence pointing them to an agentic coding environment connected to the real repo if they want the fixes applied.')
+    lines.push('5. Stop there — do not proceed to Parts 1–4. Keep the whole summary under ~200 words.')
+    lines.push('')
+    lines.push('**Example of what your output should look like:**')
+    lines.push('')
+    lines.push('---')
+    lines.push('')
+    lines.push(`*This file is a growth fix script built for Claude Code — it\'s not meant to be executed in a chat interface.*`)
+    lines.push('')
+    lines.push(`GrowJin audited **${brand.name}** (${brandUrl}) and found **${totalIssues} issue${totalIssues === 1 ? '' : 's'}** worth addressing.${fixableCount > 0 ? ` ${fixableCount} can be fixed directly in the codebase${skipItems.length > 0 ? ` and ${skipItems.length} require off-page action` : ''}.` : ` All require off-page action.`} The fixes are organized into sequential parts and run one at a time — nothing changes without your approval.`)
+    lines.push('')
+    lines.push('**What\'s in this file:**')
+    if (part1Items.length > 0) lines.push(`- **Part 1** — ${part1Items.length} technical fix${part1Items.length === 1 ? '' : 'es'} (in-code, you approve each one): ${part1Items.map(i => i.label).join(' · ')}`)
+    if (part2Items.length > 0) lines.push(`- **Part 2** — ${part2Items.length} item${part2Items.length === 1 ? '' : 's'} that need real data from you before anything is written: ${part2Items.map(i => i.label).join(' · ')}`)
+    lines.push('- **Part 3** — Skipped-items log (auto-created if you skip anything)')
+    if (skipItems.length > 0) lines.push(`- **Part 4** — ${skipItems.length} task${skipItems.length === 1 ? '' : 's'} to do outside of code: ${skipItems.map(i => i.label).join(' · ')}`)
+    lines.push('')
+    lines.push(`*To apply these fixes, drop this file into Claude Code, Cursor, or Windsurf connected to the ${brand.name} codebase.*`)
+    lines.push('')
+    lines.push('---')
+    lines.push('')
+    lines.push('*(End of example — your actual output should follow this structure exactly.)*')
+    lines.push('')
+    lines.push('---')
     lines.push('')
     lines.push('**Tone:** plain English, friendly, short sentences — no jargon, no dumping a wall of changes at once.')
     lines.push('')
     lines.push('First explore the repo to find the relevant files (schema, meta tags, content files, landing pages) before changing anything.')
     lines.push('')
 
-    // Part 1: structural/technical auto-fixes only
+    // Part 1: structural/technical fixes — ask Yes/No before each
     if (part1Items.length > 0) {
       lines.push('---')
       lines.push('')
-      lines.push('## Part 1 — Fix these automatically (no questions)')
+      lines.push('## Part 1 — Confirm each fix before implementing')
+      lines.push('*(Only reached if Step 0 confirmed real tool + repo access.)*')
       lines.push('')
-      lines.push('These are all structural or technical fixes — no external facts, statistics, or citations needed. Do all of them without asking. When done, give the user a 2–3 sentence plain-English summary of what changed. No code snippets, no file paths.')
+      lines.push('These are structural or technical fixes that can be done in code. Go through them one at a time.')
+      lines.push('')
+      lines.push('Rules:')
+      lines.push('- For each item, briefly describe the fix in one sentence, then ask as a multiple-choice question with exactly these options: [Yes, implement this] / [No, skip]. This triggers the structured options UI — do not ask in plain prose.')
+      lines.push('- Wait for the answer before doing anything.')
+      lines.push('- If Yes: implement the fix, confirm in one sentence, then move to the next.')
+      lines.push('- If No: skip it and log it in Part 3.')
+      lines.push('- One item at a time — never batch.')
       lines.push('')
       part1Items.forEach((item, i) => {
         lines.push(`### ${i + 1}. ${item.label}`)
@@ -1042,6 +1108,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       lines.push('---')
       lines.push('')
       lines.push('## Part 2 — Ask before changing (one at a time)')
+      lines.push('*(Only reached if Step 0 confirmed real tool + repo access.)*')
       lines.push('')
       lines.push('Each item below needs a real statistic, citation, or claim the user must supply. Never invent a number or attribute a claim to a real company or study.')
       lines.push('')
@@ -1074,8 +1141,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     lines.push('---')
     lines.push('')
     lines.push('## Part 3 — Log what was skipped')
+    lines.push('*(Only reached if Step 0 confirmed real tool + repo access.)*')
     lines.push('')
-    lines.push('If anything was skipped in Part 2:')
+    lines.push('If anything was skipped in Part 1 or Part 2:')
     lines.push(`- Write a file called \`${slugName}-skipped-items.md\` — list each skipped item, what it was for, and one line on what's still needed to complete it.`)
     lines.push('- Tell the user in plain English that this file was created and where to find it.')
     lines.push('')
@@ -1087,6 +1155,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       lines.push('---')
       lines.push('')
       lines.push('## Part 4 — Checklist for the user')
+      lines.push('*(Only reached if Step 0 confirmed real tool + repo access.)*')
       lines.push('')
       lines.push("These can't be done in code. Show this as a simple checklist after Parts 1–3 are done:")
       lines.push('')
@@ -1149,7 +1218,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${modData.type}-claude-export.md`
+    a.download = `${brand.name}-${modData.name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-')}-Report-Growjin.md`
     a.click()
     URL.revokeObjectURL(url)
     setExportingMap(prev => ({ ...prev, [modData.id]: false }))
@@ -1738,6 +1807,18 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           </div>
           <div className="md-header-actions">
             <ThemeToggle />
+            <button
+              onClick={() => router.push('/dashboard/keywords')}
+              title="Keyword Tracking"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: 'pointer', color: 'var(--text-dim)', fontSize: 12, fontWeight: 500, fontFamily: 'inherit', transition: 'color 0.15s, border-color 0.15s', flexShrink: 0 }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--text)'; e.currentTarget.style.borderColor = 'var(--green)' }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-dim)'; e.currentTarget.style.borderColor = 'var(--line)' }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Keywords
+            </button>
             <button
               onClick={() => router.push('/settings')}
               title="Settings"
@@ -2807,7 +2888,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               const url = URL.createObjectURL(blob)
               const a = document.createElement('a')
               a.href = url
-              a.download = `${modData.type}-claude-export.md`
+              a.download = `${brand.name}-${modData.name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-')}-Report-Growjin.md`
               a.click()
               URL.revokeObjectURL(url)
             }}

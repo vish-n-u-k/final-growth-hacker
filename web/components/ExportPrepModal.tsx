@@ -39,6 +39,7 @@ export default function ExportPrepModal({ brandName, moduleName, items, classify
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
 
+  const autoItems = items.filter(i => i.exportType === 'auto')
   const needsChoiceItems = items.filter(i => i.exportType === 'needs_choice')
 
   const toggleSkip = (itemId: string) => {
@@ -101,7 +102,7 @@ export default function ExportPrepModal({ brandName, moduleName, items, classify
         <div style={{ padding: '24px 24px 20px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
             <div style={{ fontSize: 19, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display)', lineHeight: 1.2 }}>
-              Almost ready to export
+              Export — {moduleName}
             </div>
             <button
               onClick={onSkip}
@@ -117,8 +118,8 @@ export default function ExportPrepModal({ brandName, moduleName, items, classify
           <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
             {classifying
               ? 'Analyzing which items need your input…'
-              : needsChoiceItems.length > 0
-              ? `Answer a few quick questions so Claude Code has everything it needs to implement ${moduleName} fixes for ${brandName} without asking questions.`
+              : (autoItems.length > 0 || needsChoiceItems.length > 0)
+              ? `Review what Claude Code will change for ${brandName}. Opt out of anything you don't want touched, then answer any questions before generating.`
               : `Your Claude Code prompt is ready. Click Generate to copy it.`}
           </div>
           <div style={{ height: '1px', background: 'var(--line)', marginTop: 20 }} />
@@ -138,10 +139,73 @@ export default function ExportPrepModal({ brandName, moduleName, items, classify
             </div>
           )}
 
+          {/* Section: auto */}
+          {!classifying && autoItems.length > 0 && (
+            <div>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14, marginTop: 16 }}>
+                Auto-implemented by Claude Code
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.55, margin: '0 0 12px' }}>
+                These will be implemented automatically — no questions asked. Skip any you don't want changed.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {autoItems.map(item => {
+                  const isSkipped = skippedIds.has(item.id)
+                  return (
+                    <div
+                      key={item.id}
+                      style={{
+                        background: isSkipped ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.025)',
+                        border: `1px solid ${isSkipped ? 'rgba(255,255,255,0.04)' : 'var(--line)'}`,
+                        borderRadius: 10, padding: '12px 14px',
+                        opacity: isSkipped ? 0.45 : 1, transition: 'opacity 0.15s',
+                        display: 'flex', alignItems: 'flex-start', gap: 10,
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: item.aiDetail ? 5 : 0 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textDecoration: isSkipped ? 'line-through' : 'none' }}>{item.label}</span>
+                          <span style={{
+                            fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                            background: `${weightColor(item.weight)}18`,
+                            color: weightColor(item.weight),
+                            border: `1px solid ${weightColor(item.weight)}40`,
+                            textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0,
+                          }}>
+                            {weightLabel(item.weight)}
+                          </span>
+                        </div>
+                        {item.aiDetail && !isSkipped && (
+                          <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: 0, lineHeight: 1.5 }}>
+                            {item.aiDetail}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => toggleSkip(item.id)}
+                        style={{
+                          background: 'transparent',
+                          border: `1px solid ${isSkipped ? 'var(--green)' : 'var(--line)'}`,
+                          borderRadius: 5,
+                          color: isSkipped ? 'var(--green)' : 'var(--text-dim)',
+                          cursor: 'pointer', fontSize: 11, padding: '2px 8px',
+                          fontFamily: 'inherit', flexShrink: 0,
+                        }}
+                      >
+                        {isSkipped ? 'Include' : 'Skip'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Section: needs_choice */}
           {!classifying && needsChoiceItems.length > 0 && (
-            <div>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14, marginTop: 16 }}>
+            <div style={{ marginTop: autoItems.length > 0 ? 20 : 0 }}>
+              {autoItems.length > 0 && <div style={{ height: 1, background: 'var(--line)', marginBottom: 20 }} />}
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>
                 Choose values
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -233,9 +297,9 @@ export default function ExportPrepModal({ brandName, moduleName, items, classify
             </div>
           )}
 
-          {!classifying && needsChoiceItems.length === 0 && (
+          {!classifying && autoItems.length === 0 && needsChoiceItems.length === 0 && (
             <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.65, marginTop: 16 }}>
-              All pending items can be auto-implemented by Claude Code. Click Generate to copy your prompt.
+              Your Claude Code prompt is ready. Click Generate to copy it.
             </p>
           )}
         </div>

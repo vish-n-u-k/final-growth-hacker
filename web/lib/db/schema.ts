@@ -1,6 +1,6 @@
 import {
   pgTable, uuid, integer, timestamp, unique,
-  text, boolean, jsonb, type AnyPgColumn,
+  text, boolean, jsonb, type AnyPgColumn, real, index,
 } from 'drizzle-orm/pg-core'
 
 // ── Brands ───────────────────────────────────────────────────────────────────
@@ -319,6 +319,45 @@ export const adminSettings = pgTable('admin_settings', {
   value: text('value'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 })
+
+// ── Keyword Snapshots ─────────────────────────────────────────────────────────
+
+export const keywordSnapshots = pgTable(
+  'keyword_snapshots',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    keyword: text('keyword').notNull(),
+    impressions: integer('impressions').notNull().default(0),
+    clicks: integer('clicks').notNull().default(0),
+    position: real('position').notNull(),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    brandFetchedIdx: index('idx_keyword_snapshots_brand_fetched').on(table.brandId, table.fetchedAt),
+  }),
+)
+
+// ── Tracked Keywords (active keyword strategy) ────────────────────────────────
+
+export const trackedKeywords = pgTable(
+  'tracked_keywords',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    keyword: text('keyword').notNull(),
+    status: text('status').notNull().default('suggested'), // 'suggested' | 'tracking' | 'implemented' | 'dismissed'
+    aiReason: text('ai_reason'),
+    aiIntent: text('ai_intent'), // 'informational' | 'commercial' | 'transactional'
+    source: text('source'), // 'ai_suggested' | 'site_scan' | 'manual'
+    suggestedAt: timestamp('suggested_at', { withTimezone: true }).notNull().defaultNow(),
+    trackingStartedAt: timestamp('tracking_started_at', { withTimezone: true }),
+    implementedAt: timestamp('implemented_at', { withTimezone: true }),
+  },
+  (table) => ({
+    uniq: unique('tracked_keywords_unique').on(table.brandId, table.keyword),
+  }),
+)
 
 export const features = pgTable(
   'features',

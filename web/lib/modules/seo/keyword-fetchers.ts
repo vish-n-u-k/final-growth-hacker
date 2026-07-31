@@ -1,4 +1,4 @@
-import { createSign } from 'crypto'
+import { createSign, createPrivateKey } from 'crypto'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -157,39 +157,43 @@ export async function fetchSerpApiPAA(query: string, apiKey: string): Promise<st
 
 // ── Google Search Console — Service Account auth ──────────────────────────────
 
-async function getGscAccessToken(clientEmail: string, privateKey: string): Promise<string | null> {
-  try {
-    const now = Math.floor(Date.now() / 1000)
-    const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
-    const payload = base64url(JSON.stringify({
-      iss: clientEmail,
-      scope: 'https://www.googleapis.com/auth/webmasters.readonly',
-      aud: 'https://oauth2.googleapis.com/token',
-      iat: now,
-      exp: now + 3600,
-    }))
-    const signingInput = `${header}.${payload}`
-    const sign = createSign('RSA-SHA256')
-    sign.update(signingInput)
-    // private_key may have literal \n from JSON — replace with real newlines
-    const signature = sign.sign(privateKey.replace(/\\n/g, '\n'), 'base64url')
-    const jwt = `${signingInput}.${signature}`
+async function getGscAccessToken(clientEmail: string, privateKey: string): Promise<string> {
+  const now = Math.floor(Date.now() / 1000)
+  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
+  const payload = base64url(JSON.stringify({
+    iss: clientEmail,
+    scope: 'https://www.googleapis.com/auth/webmasters.readonly',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+  }))
+  const signingInput = `${header}.${payload}`
+  const sign = createSign('RSA-SHA256')
+  sign.update(signingInput)
+  // private_key may have literal \n from JSON — replace with real newlines
+  // createPrivateKey handles both PKCS#8 (BEGIN PRIVATE KEY) and PKCS#1 (BEGIN RSA PRIVATE KEY)
+  const keyObj = createPrivateKey(privateKey.replace(/\\n/g, '\n'))
+  const signature = sign.sign(keyObj, 'base64url')
+  const jwt = `${signingInput}.${signature}`
 
-    const res = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion: jwt,
-      }),
-      signal: AbortSignal.timeout(10000),
-    })
-    if (!res.ok) return null
-    const data = await res.json() as { access_token?: string }
-    return data.access_token ?? null
-  } catch {
-    return null
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }),
+    signal: AbortSignal.timeout(10000),
+  })
+
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({})) as { error?: string; error_description?: string }
+    throw new Error(`Google OAuth failed (${res.status}): ${errBody.error ?? ''} — ${errBody.error_description ?? res.statusText}`)
   }
+
+  const data = await res.json() as { access_token?: string }
+  if (!data.access_token) throw new Error('Google OAuth returned no access_token')
+  return data.access_token
 }
 
 export interface GscRow {
@@ -200,54 +204,61 @@ export interface GscRow {
 }
 
 // Tries URL-prefix property first, then domain property — GSC has two formats
+// Throws on auth failure or hard errors so callers can surface the reason to users.
 export async function fetchGscTopQueries(
   clientEmail: string,
   privateKey: string,
   siteUrl: string,
+  rowLimit = 25,
 ): Promise<GscRow[]> {
-  try {
-    const accessToken = await getGscAccessToken(clientEmail, privateKey)
-    if (!accessToken) return []
-
-    const url = siteUrl.startsWith('http') ? siteUrl : `https://${siteUrl}`
-    const hostname = new URL(url).hostname
-    const endDate = new Date().toISOString().split('T')[0]
-    const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    const body = JSON.stringify({
-      startDate,
-      endDate,
-      dimensions: ['query'],
-      rowLimit: 25,
-      orderBy: [{ fieldName: 'impressions', sortOrder: 'DESCENDING' }],
-    })
-    const headers = {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    }
-
-    for (const siteId of [encodeURIComponent(url), `sc-domain%3A${hostname}`]) {
-      try {
-        const res = await fetch(
-          `https://www.googleapis.com/webmasters/v3/sites/${siteId}/searchAnalytics/query`,
-          { method: 'POST', headers, body, signal: AbortSignal.timeout(15000) },
-        )
-        if (!res.ok) continue
-        const data = await res.json() as {
-          rows?: { keys: string[]; impressions: number; clicks: number; position: number }[]
-        }
-        if (!data.rows?.length) continue
-        return data.rows.map((r) => ({
-          query: r.keys[0],
-          impressions: r.impressions,
-          clicks: r.clicks,
-          position: Math.round(r.position * 10) / 10,
-        }))
-      } catch {
-        continue
-      }
-    }
-    return []
-  } catch {
-    return []
+  const accessToken = await getGscAccessToken(clientEmail, privateKey)
+  if (!accessToken) {
+    throw new Error('GSC auth failed — check your service account email and private key.')
   }
+
+  const url = siteUrl.startsWith('http') ? siteUrl : `https://${siteUrl}`
+  const hostname = new URL(url).hostname
+  const endDate = new Date().toISOString().split('T')[0]
+  const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+  const body = JSON.stringify({
+    startDate,
+    endDate,
+    dimensions: ['query'],
+    rowLimit,
+    orderBy: [{ fieldName: 'impressions', sortOrder: 'DESCENDING' }],
+  })
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+  }
+
+  const siteIds = [encodeURIComponent(url), `sc-domain%3A${hostname}`]
+  const lastErrors: string[] = []
+
+  for (const siteId of siteIds) {
+    const res = await fetch(
+      `https://www.googleapis.com/webmasters/v3/sites/${siteId}/searchAnalytics/query`,
+      { method: 'POST', headers, body, signal: AbortSignal.timeout(15000) },
+    )
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText)
+      lastErrors.push(`${decodeURIComponent(siteId)}: HTTP ${res.status} — ${errText.slice(0, 200)}`)
+      continue
+    }
+    const data = await res.json() as {
+      rows?: { keys: string[]; impressions: number; clicks: number; position: number }[]
+    }
+    if (!data.rows?.length) {
+      lastErrors.push(`${decodeURIComponent(siteId)}: no rows returned (site may have no Search Console data yet)`)
+      continue
+    }
+    return data.rows.map((r) => ({
+      query: r.keys[0],
+      impressions: r.impressions,
+      clicks: r.clicks,
+      position: Math.round(r.position * 10) / 10,
+    }))
+  }
+
+  throw new Error(`GSC returned no data. Tried:\n${lastErrors.join('\n')}`)
 }
