@@ -18,13 +18,34 @@ export default async function DashboardPage() {
   const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
   if (!brand) redirect('/onboarding')
 
-  const allModulesRaw = await db
+  let allModulesRaw = await db
     .select()
     .from(modules)
     .where(eq(modules.brandId, brand.id))
     .orderBy(modules.order)
 
   if (allModulesRaw.length === 0) redirect('/onboarding')
+
+  // Seed any modules added to the registry after this user onboarded
+  const seededTypes = new Set(allModulesRaw.map(m => m.type))
+  const missingDefs = MODULE_REGISTRY.filter(def => !seededTypes.has(def.type) && !def.comingSoon)
+  if (missingDefs.length > 0) {
+    await Promise.all(missingDefs.map(def =>
+      db.insert(modules).values({
+        brandId: brand.id,
+        type: def.type,
+        name: def.name,
+        order: def.order,
+        status: def.unlockThreshold === 0 ? 'pending' : 'locked',
+        requirements: brand.websiteUrl ? { website_url: brand.websiteUrl } : {},
+      }).onConflictDoNothing()
+    ))
+    allModulesRaw = await db
+      .select()
+      .from(modules)
+      .where(eq(modules.brandId, brand.id))
+      .orderBy(modules.order)
+  }
 
   const moduleIds = allModulesRaw.map((m) => m.id)
 
