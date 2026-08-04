@@ -9,6 +9,7 @@ import {
   ArrowLeft, RefreshCw, UserPlus, LogIn, Crown, UserMinus,
   Trash2, MessageSquare, Star, TrendingDown, TrendingUp,
   Zap, ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle, Copy,
+  Plus, X as XIcon,
 } from 'lucide-react'
 
 /* ── Types ────────────────────────────────────────────── */
@@ -69,6 +70,7 @@ interface DashboardData {
   dau: number; activeUsers7d: number; mau: number
   dauPrev: number; activeUsersPrev7d: number; mauPrev: number
   totalUsers: number
+  proUsers: number
   deletedAccounts24h: number; deleted7d: number; deleted30d: number
   deletedPrev24h: number; deletedPrev7d: number; deletedPrev30d: number
   retention: { day: string; rate: number }[] | null
@@ -91,6 +93,16 @@ interface UserRow {
   location: string | null
   plan: string | null
   sessions?: number
+}
+
+interface CustomMetricData {
+  id: string
+  eventName: string
+  label: string
+  tone: string
+  metricType: string
+  count24h: number; count7d: number; count30d: number
+  uniqueUsers24h: number; uniqueUsers7d: number; uniqueUsers30d: number
 }
 
 /* ── Fallback data (shown while loading or when PostHog not connected) ── */
@@ -1098,6 +1110,16 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   const [detailUsers, setDetailUsers] = useState<UserRow[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
   const [toastMsg, setToastMsg] = useState<string|null>(null)
+  const [customMetrics, setCustomMetrics] = useState<CustomMetricData[]>([])
+  const [showAddMetric, setShowAddMetric] = useState(false)
+  const [phEvents, setPhEvents] = useState<{ event: string; cnt: number }[]>([])
+  const [eventsLoading, setEventsLoading] = useState(false)
+  const [eventSearch, setEventSearch] = useState('')
+  const [newMetricEvent, setNewMetricEvent] = useState('')
+  const [newMetricLabel, setNewMetricLabel] = useState('')
+  const [newMetricTone, setNewMetricTone] = useState('green')
+  const [newMetricType, setNewMetricType] = useState('count')
+  const [savingMetric, setSavingMetric] = useState(false)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)')
     setIsMobile(mq.matches)
@@ -1121,6 +1143,61 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   const showToast = (msg: string) => {
     setToastMsg(msg)
     setTimeout(() => setToastMsg(null), 1600)
+  }
+
+  const loadCustomMetrics = () => {
+    fetch(`/api/analytics/custom-metrics?brandId=${brand.id}`)
+      .then(r => r.json())
+      .then((d: { metrics: CustomMetricData[] }) => setCustomMetrics(d.metrics ?? []))
+      .catch(() => {})
+  }
+
+  const openAddMetric = () => {
+    setShowAddMetric(true)
+    setNewMetricEvent('')
+    setNewMetricLabel('')
+    setNewMetricTone('green')
+    setNewMetricType('count')
+    setEventSearch('')
+    if (phEvents.length === 0) {
+      setEventsLoading(true)
+      fetch(`/api/analytics/posthog-events?brandId=${brand.id}`)
+        .then(r => r.json())
+        .then((d: { events: { event: string; cnt: number }[] }) => setPhEvents(d.events ?? []))
+        .catch(() => {})
+        .finally(() => setEventsLoading(false))
+    }
+  }
+
+  const saveMetric = async () => {
+    if (!newMetricEvent || !newMetricLabel || savingMetric) return
+    setSavingMetric(true)
+    try {
+      const res = await fetch('/api/analytics/custom-metrics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brandId: brand.id,
+          eventName: newMetricEvent,
+          label: newMetricLabel,
+          tone: newMetricTone,
+          metricType: newMetricType,
+        }),
+      })
+      if (res.ok) {
+        setShowAddMetric(false)
+        loadCustomMetrics()
+        showToast('Metric added')
+      }
+    } finally {
+      setSavingMetric(false)
+    }
+  }
+
+  const deleteMetric = async (id: string) => {
+    setCustomMetrics(prev => prev.filter(m => m.id !== id))
+    await fetch(`/api/analytics/custom-metrics/${id}?brandId=${brand.id}`, { method: 'DELETE' })
+    showToast('Metric removed')
   }
 
   // Fetch analytics data (returns cached snapshot unless force=true)
@@ -1158,6 +1235,9 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brand.id, phLoading])
 
+  // Load custom metric cards (always fresh — not cached in snapshot)
+  useEffect(() => { loadCustomMetrics() }, [brand.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const retentionData = data?.retention ?? FALLBACK_RETENTION
   const funnelData    = data?.funnel    ?? FALLBACK_FUNNEL
   const gsc = data?.gsc
@@ -1189,7 +1269,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
     { key: 'signins',  label: 'Sign-ins',          value: signinsVal,      delta: signinsVal - signinsPrior,         source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signins') : undefined },
     { key: 'au',       label: activeUsersLabel,    value: activeUsersVal,  delta: activeUsersVal - activeUsersPrior, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('dau') : undefined },
     { key: 'deleted',  label: 'Deleted account',   value: deletedVal,      delta: deletedVal - deletedPrior,         source: 'PostHog',  icon: Trash2,        tone: 'red',     loading: phLoading, period: rangePeriod, invertGood: true, onViewDetails: data?.posthogConnected ? () => openDetail('deleted') : undefined },
-    { key: 'pro',      label: 'Became PRO',        value: 0, delta: 0, source: 'Stripe',   icon: Crown,         tone: 'amber',   comingSoon: true },
+    { key: 'pro',      label: 'Became PRO',        value: data?.proUsers ?? 0, delta: 0, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading },
     { key: 'unsub',    label: 'Unsubscribed',      value: 0, delta: 0, source: 'Stripe',   icon: UserMinus,     tone: 'red',     comingSoon: true, invertGood: true },
     { key: 'contact',  label: 'Support contacted', value: 0, delta: 0, source: 'Internal', icon: MessageSquare, tone: 'amber', comingSoon: true },
     { key: 'reviews',  label: 'Reviews left',      value: 0, delta: 0, source: 'Internal', icon: Star,          tone: 'amber',   comingSoon: true },
@@ -1220,8 +1300,146 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
     )
   }
 
+  // ── Computed value for a custom metric given the current range ───────────────
+  const customMetricValue = (m: CustomMetricData) => {
+    if (m.metricType === 'unique_users') {
+      return range === '7d' ? m.uniqueUsers7d : range === '30d' ? m.uniqueUsers30d : m.uniqueUsers24h
+    }
+    return range === '7d' ? m.count7d : range === '30d' ? m.count30d : m.count24h
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
+
+      {/* ── Add Metric Modal ──────────────────────────────────────── */}
+      {showAddMetric && (
+        <div
+          onClick={e => { if (e.target === e.currentTarget) setShowAddMetric(false) }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(30,35,31,0.55)',
+            zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+          }}
+        >
+          <div style={{ background: MOCK.card, borderRadius: 18, width: '100%', maxWidth: 500, padding: 28, boxShadow: '0 24px 64px rgba(0,0,0,0.22)', maxHeight: '90vh', overflowY: 'auto' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: MOCK.text, margin: 0 }}>Add custom metric</h3>
+                <p style={{ fontSize: 13, color: MOCK.muted, margin: '4px 0 0' }}>Pick any PostHog event and give it a name</p>
+              </div>
+              <button onClick={() => setShowAddMetric(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: MOCK.muted, padding: 4, display: 'flex' }}>
+                <XIcon size={18} />
+              </button>
+            </div>
+
+            {/* Event picker */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 11.5, fontWeight: 700, color: MOCK.muted, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 8 }}>
+                PostHog event
+              </label>
+              <input
+                value={eventSearch}
+                onChange={e => { setEventSearch(e.target.value); if (newMetricEvent && !e.target.value.toLowerCase().includes(newMetricEvent.toLowerCase())) setNewMetricEvent('') }}
+                placeholder="Search events..."
+                autoFocus
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `1px solid ${MOCK.border}`, fontSize: 14, color: MOCK.text, background: MOCK.bg, outline: 'none', boxSizing: 'border-box' }}
+              />
+              <div style={{ maxHeight: 200, overflowY: 'auto', border: `1px solid ${MOCK.border}`, borderTop: 'none', borderRadius: '0 0 10px 10px' }}>
+                {eventsLoading ? (
+                  <div style={{ padding: '14px 16px', color: MOCK.muted, fontSize: 13 }}>Loading events from PostHog...</div>
+                ) : phEvents.filter(e => !eventSearch || e.event.toLowerCase().includes(eventSearch.toLowerCase())).length === 0 ? (
+                  <div style={{ padding: '14px 16px', color: MOCK.muted, fontSize: 13 }}>No events found</div>
+                ) : (
+                  phEvents
+                    .filter(e => !eventSearch || e.event.toLowerCase().includes(eventSearch.toLowerCase()))
+                    .slice(0, 40)
+                    .map(e => (
+                      <button
+                        key={e.event}
+                        onClick={() => {
+                          setNewMetricEvent(e.event)
+                          setEventSearch(e.event)
+                          if (!newMetricLabel) setNewMetricLabel(e.event)
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          width: '100%', padding: '9px 14px', background: newMetricEvent === e.event ? MOCK.greenSoft : 'transparent',
+                          border: 'none', borderBottom: `1px solid ${MOCK.border}`,
+                          cursor: 'pointer', textAlign: 'left', color: MOCK.text, fontSize: 13,
+                        }}
+                      >
+                        <span style={{ fontFamily: 'monospace', fontWeight: newMetricEvent === e.event ? 700 : 400 }}>{e.event}</span>
+                        <span style={{ color: MOCK.muted, fontSize: 11.5, flexShrink: 0, marginLeft: 8 }}>{e.cnt.toLocaleString()}</span>
+                      </button>
+                    ))
+                )}
+              </div>
+            </div>
+
+            {/* Display name */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 11.5, fontWeight: 700, color: MOCK.muted, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 8 }}>
+                Display name
+              </label>
+              <input
+                value={newMetricLabel}
+                onChange={e => setNewMetricLabel(e.target.value)}
+                placeholder="e.g. Became PRO"
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `1px solid ${MOCK.border}`, fontSize: 14, color: MOCK.text, background: MOCK.bg, outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            {/* Count type + Colour */}
+            <div style={{ display: 'flex', gap: 14, marginBottom: 24 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: MOCK.muted, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 8 }}>Count type</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {(['count', 'unique_users'] as const).map(t => (
+                    <button key={t} onClick={() => setNewMetricType(t)} style={{
+                      flex: 1, padding: '8px 6px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      border: `1px solid ${newMetricType === t ? MOCK.green : MOCK.border}`,
+                      background: newMetricType === t ? MOCK.greenSoft : 'transparent',
+                      color: newMetricType === t ? MOCK.green : MOCK.muted,
+                    }}>
+                      {t === 'count' ? 'Total fires' : 'Unique users'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 11.5, fontWeight: 700, color: MOCK.muted, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 8 }}>Colour</label>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {(['green', 'amber', 'red'] as const).map(t => (
+                    <button key={t} onClick={() => setNewMetricTone(t)} style={{
+                      flex: 1, padding: '8px 0', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      border: `1px solid ${newMetricTone === t ? toneColor(t) : MOCK.border}`,
+                      background: newMetricTone === t ? toneBg(t) : 'transparent',
+                      color: newMetricTone === t ? toneColor(t) : MOCK.muted,
+                    }}>
+                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Save */}
+            <button
+              onClick={() => void saveMetric()}
+              disabled={!newMetricEvent || !newMetricLabel || savingMetric}
+              style={{
+                width: '100%', padding: '12px', borderRadius: 10, border: 'none',
+                cursor: !newMetricEvent || !newMetricLabel || savingMetric ? 'not-allowed' : 'pointer',
+                background: !newMetricEvent || !newMetricLabel ? MOCK.border : MOCK.green,
+                color: !newMetricEvent || !newMetricLabel ? MOCK.muted : '#fff',
+                fontSize: 14, fontWeight: 700, opacity: savingMetric ? 0.7 : 1,
+              }}
+            >
+              {savingMetric ? 'Saving...' : 'Add metric'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {redirectTarget && (
         <div style={{
@@ -1380,9 +1598,24 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
 
         {/* Activity section — range-driven */}
         <section style={{ marginBottom: 36 }}>
-          <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: MOCK.green, marginBottom: 14 }}>
-            {rangeLabel}
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: MOCK.green, margin: 0 }}>
+              {rangeLabel}
+            </h2>
+            {data?.posthogConnected && (
+              <button
+                onClick={openAddMetric}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  fontSize: 12, fontWeight: 700, padding: '6px 12px', borderRadius: 99,
+                  border: `1px solid ${MOCK.border}`, background: MOCK.card,
+                  color: MOCK.green, cursor: 'pointer',
+                }}
+              >
+                <Plus size={12} /> Add metric
+              </button>
+            )}
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
             {activityTiles.map((item) => (
               <StatCard
@@ -1398,6 +1631,49 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 isMobile={isMobile}
               />
             ))}
+            {/* Custom metric cards */}
+            {customMetrics.map(m => (
+              <div key={m.id} style={{ position: 'relative' }}>
+                <StatCard
+                  icon={Zap}
+                  iconTone={m.tone}
+                  label={m.label}
+                  value={customMetricValue(m)}
+                  source="PostHog"
+                  deltaValue={0}
+                  period={rangePeriod}
+                  isMobile={isMobile}
+                />
+                <button
+                  onClick={() => void deleteMetric(m.id)}
+                  title="Remove metric"
+                  style={{
+                    position: 'absolute', top: 10, right: 10,
+                    background: MOCK.card, border: `1px solid ${MOCK.border}`,
+                    borderRadius: 6, padding: '3px', cursor: 'pointer',
+                    color: MOCK.muted, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    lineHeight: 1,
+                  }}
+                >
+                  <XIcon size={11} />
+                </button>
+              </div>
+            ))}
+            {/* Add metric placeholder card */}
+            {data?.posthogConnected && (
+              <button
+                onClick={openAddMetric}
+                style={{
+                  background: 'transparent', border: `2px dashed ${MOCK.border}`,
+                  borderRadius: 14, padding: '22px', display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: 8,
+                  cursor: 'pointer', color: MOCK.muted, minHeight: 130,
+                }}
+              >
+                <Plus size={18} />
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Add metric</span>
+              </button>
+            )}
           </div>
         </section>
 

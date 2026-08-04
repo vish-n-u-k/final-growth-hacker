@@ -76,7 +76,8 @@ export async function GET(request: NextRequest) {
         id,
         toString(created_at),
         NULL,
-        NULL
+        NULL,
+        properties.plan
       FROM persons
       WHERE is_identified = 1
         AND isNotNull(properties.$email)
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest) {
       timestamp: String(r[3] ?? ''),
       source: null,
       location: null,
-      plan: 'Free',
+      plan: r[6] ? String(r[6]) : 'Free',
     }))
   } else if (type === 'signins') {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
@@ -101,7 +102,8 @@ export async function GET(request: NextRequest) {
         person_id,
         toString(timestamp),
         properties.$channel_type,
-        properties.$geoip_country_name
+        properties.$geoip_country_name,
+        person.properties.plan
       FROM events
       WHERE event = '$identify'
         AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)
@@ -116,7 +118,7 @@ export async function GET(request: NextRequest) {
       timestamp: String(r[3] ?? ''),
       source: r[4] ? String(r[4]) : null,
       location: r[5] ? String(r[5]) : null,
-      plan: 'Free',
+      plan: r[6] ? String(r[6]) : 'Free',
     }))
   } else if (type === 'dau') {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
@@ -127,6 +129,7 @@ export async function GET(request: NextRequest) {
         toString(max(timestamp)),
         any(properties.$channel_type),
         any(properties.$geoip_country_name),
+        any(person.properties.plan),
         count() as sessions
       FROM events
       WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1)
@@ -142,8 +145,8 @@ export async function GET(request: NextRequest) {
       timestamp: String(r[3] ?? ''),
       source: r[4] ? String(r[4]) : null,
       location: r[5] ? String(r[5]) : null,
-      plan: 'Free',
-      sessions: Number(r[6] ?? 0),
+      plan: r[6] ? String(r[6]) : 'Free',
+      sessions: Number(r[7] ?? 0),
     }))
   } else if (type === 'deleted') {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
@@ -153,7 +156,8 @@ export async function GET(request: NextRequest) {
         person_id,
         toString(timestamp),
         properties.$channel_type,
-        properties.$geoip_country_name
+        properties.$geoip_country_name,
+        person.properties.plan
       FROM events
       WHERE event IN ('account_deleted', 'user_deleted', 'delete_account')
         AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)
@@ -168,7 +172,7 @@ export async function GET(request: NextRequest) {
       timestamp: String(r[3] ?? ''),
       source: r[4] ? String(r[4]) : null,
       location: r[5] ? String(r[5]) : null,
-      plan: 'Free',
+      plan: r[6] ? String(r[6]) : 'Free',
     }))
   }
 

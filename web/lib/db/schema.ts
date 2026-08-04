@@ -389,3 +389,18 @@ export const features = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   },
 )
+
+// ── Custom Analytics Metrics ──────────────────────────────────────────────────
+// User-defined metric cards on the auth analytics dashboard.
+// Each row maps a PostHog event → a display label + visual config.
+
+export const customMetrics = pgTable('custom_metrics', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  eventName: text('event_name').notNull(),   // PostHog event name, e.g. 'pro_plan_upgraded'
+  label: text('label').notNull(),            // display name, e.g. 'Became PRO'
+  tone: text('tone').notNull().default('green'),        // 'green' | 'amber' | 'red'
+  metricType: text('metric_type').notNull().default('count'), // 'count' | 'unique_users'
+  order: integer('order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
