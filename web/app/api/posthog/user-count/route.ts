@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { buildPostHogFilter } from '@/lib/posthog/filter'
 
 export async function GET() {
   const supabase = await createClient()
@@ -43,9 +44,11 @@ export async function GET() {
     signal: AbortSignal.timeout(8000),
   })
 
+  const { personsCountQuery } = buildPostHogFilter(meta)
+
   try {
     const [countRes, startRes] = await Promise.all([
-      hogql("SELECT count(DISTINCT properties.$email) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email)"),
+      hogql(personsCountQuery),
       hogql('SELECT min(timestamp) FROM events'),
     ])
 

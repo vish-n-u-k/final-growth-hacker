@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { buildPostHogFilter } from '@/lib/posthog/filter'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,8 @@ async function fetchPosthogCount(brandId: string): Promise<{ count: number; conn
 
   if (!projectId) return { count: 0, connected: true }
 
+  const { personsCountQuery } = buildPostHogFilter(meta)
+
   try {
     const res = await fetch(`${host}/api/projects/${projectId}/query`, {
       method: 'POST',
@@ -65,7 +68,7 @@ async function fetchPosthogCount(brandId: string): Promise<{ count: number; conn
         Authorization: `Bearer ${integration.apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ query: { kind: 'HogQLQuery', query: `SELECT count(DISTINCT properties.$email) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email)` } }),
+      body: JSON.stringify({ query: { kind: 'HogQLQuery', query: personsCountQuery } }),
       signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) return { count: 0, connected: true }

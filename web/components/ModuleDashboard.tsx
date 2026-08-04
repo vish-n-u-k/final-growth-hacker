@@ -132,11 +132,7 @@ function getDynamicCatStats(categorySlug: string, items: DBItemFull[]) {
 }
 
 function userCountToBarPct(count: number): number {
-  if (count <= 0) return 0
-  if (count <= 10) return (count / 10) * 25
-  if (count <= 50) return 25 + ((count - 10) / 40) * 25
-  if (count <= 100) return 50 + ((count - 50) / 50) * 25
-  return 75 + Math.min((count - 100) / 400, 1) * 25
+  return Math.min(Math.max(count / 500, 0), 1) * 100
 }
 
 function ringColor(score: number): string {

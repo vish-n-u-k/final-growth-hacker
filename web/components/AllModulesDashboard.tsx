@@ -158,11 +158,7 @@ function renderMd(text: string, color: string) {
 }
 
 function userCountToBarPct(count: number): number {
-  if (count <= 0) return 0
-  if (count <= 10) return (count / 10) * 25
-  if (count <= 50) return 25 + ((count - 10) / 40) * 25
-  if (count <= 100) return 50 + ((count - 50) / 50) * 25
-  return 75 + Math.min((count - 100) / 400, 1) * 25
+  return Math.min(Math.max(count / 500, 0), 1) * 100
 }
 
 function InlineIntegrationForm({ intDef, onConnected }: { intDef: IntegrationDefinition; onConnected: () => void }) {
@@ -418,17 +414,20 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const autoAnalysisTriggered = useRef(false)
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem('gh_user_count')
-      if (saved) setUserCount(parseInt(saved, 10))
-    } catch {}
-    if (!connectedIntegrations['posthog']) return
+    if (!connectedIntegrations['posthog']) {
+      // PostHog not connected — use manually entered count from localStorage
+      try {
+        const saved = localStorage.getItem('gh_user_count')
+        if (saved) setUserCount(parseInt(saved, 10))
+      } catch {}
+      return
+    }
+    // PostHog connected — always use live API count, localStorage is irrelevant
     setPosthogLoading(true)
     fetch('/api/posthog/user-count')
       .then((r) => r.json())
       .then((d: { count?: number; dataStartDate?: string | null }) => {
-        const hasOverride = (() => { try { return !!localStorage.getItem('gh_user_count') } catch { return false } })()
-        if (d.count != null && !hasOverride) setUserCount(d.count)
+        if (d.count != null) setUserCount(d.count)
         if (d.dataStartDate) setPosthogDataStartDate(d.dataStartDate)
       })
       .catch(() => {})
@@ -463,7 +462,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const barPct = userCountToBarPct(userCount)
   const journeyTagPct = Math.min(Math.max(barPct, 9), 91)
 
-  const JOURNEY_MILESTONES = [0, 10, 50, 100, 500]
+  const JOURNEY_MILESTONES = [0, 100, 200, 300, 400, 500]
 
   const toggleModule = (modId: string) =>
     setOpenModules(prev =>
@@ -2064,7 +2063,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     </div>
                     <div className="journey-dots">
                       {JOURNEY_MILESTONES.map((m, i) => (
-                        <span key={m} className="journey-dot" style={{ left: `${i * 25}%` }} />
+                        <span key={m} className="journey-dot" style={{ left: `${i * (100 / (JOURNEY_MILESTONES.length - 1))}%` }} />
                       ))}
                       <span className="journey-dot journey-dot-active" style={{ left: `${barPct}%` }} />
                     </div>

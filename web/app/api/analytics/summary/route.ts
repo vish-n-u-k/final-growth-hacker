@@ -5,6 +5,7 @@ import { brands, brandIntegrations, modules, moduleItems, moduleCategories } fro
 import { eq, and } from 'drizzle-orm'
 import { createSign } from 'crypto'
 import Anthropic from '@anthropic-ai/sdk'
+import { buildPostHogFilter } from '@/lib/posthog/filter'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -124,12 +125,14 @@ function firstNum(rows: unknown[][] | null): number | null {
   return isNaN(n) ? null : n
 }
 
-async function fetchPostHog(apiKey: string, projectId: string, host: string): Promise<PostHogSnapshot> {
+async function fetchPostHog(apiKey: string, projectId: string, host: string, meta: Record<string, string> = {}): Promise<PostHogSnapshot> {
+  const f = buildPostHogFilter(meta)
+
   const [totalRows, dauRows, mauRows, new7dRows, sessions7dRows, startRows] = await Promise.all([
-    runHogQL(host, projectId, apiKey, `SELECT count(DISTINCT properties.$email) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email)`),
-    runHogQL(host, projectId, apiKey, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - INTERVAL 1 DAY`),
-    runHogQL(host, projectId, apiKey, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - INTERVAL 30 DAY`),
-    runHogQL(host, projectId, apiKey, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - INTERVAL 7 DAY AND person.created_at > now() - INTERVAL 7 DAY`),
+    runHogQL(host, projectId, apiKey, f.personsCountQuery),
+    runHogQL(host, projectId, apiKey, `SELECT count(DISTINCT ${f.eventDistinctCol}) FROM events WHERE ${f.eventPersonWherePrefix}timestamp > now() - INTERVAL 1 DAY`),
+    runHogQL(host, projectId, apiKey, `SELECT count(DISTINCT ${f.eventDistinctCol}) FROM events WHERE ${f.eventPersonWherePrefix}timestamp > now() - INTERVAL 30 DAY`),
+    runHogQL(host, projectId, apiKey, `SELECT count(DISTINCT ${f.eventDistinctCol}) FROM events WHERE ${f.eventPersonWherePrefix}timestamp > now() - INTERVAL 7 DAY AND person.created_at > now() - INTERVAL 7 DAY`),
     runHogQL(host, projectId, apiKey, `SELECT count(DISTINCT $session_id) FROM events WHERE timestamp > now() - INTERVAL 7 DAY AND $session_id IS NOT NULL AND $session_id != ''`),
     runHogQL(host, projectId, apiKey, `SELECT min(timestamp) FROM events`),
   ])
@@ -457,7 +460,7 @@ export async function GET() {
 
   const [posthog, gsc, ga4, psi] = await Promise.all([
     posthogInt?.apiKey
-      ? fetchPostHog(posthogInt.apiKey, (posthogInt.metadata as Record<string, string> | null)?.project_id ?? '', ((posthogInt.metadata as Record<string, string> | null)?.posthog_host ?? 'https://us.posthog.com').replace(/\/$/, ''))
+      ? fetchPostHog(posthogInt.apiKey, (posthogInt.metadata as Record<string, string> | null)?.project_id ?? '', ((posthogInt.metadata as Record<string, string> | null)?.posthog_host ?? 'https://us.posthog.com').replace(/\/$/, ''), (posthogInt.metadata as Record<string, string> | null) ?? {})
       : Promise.resolve<PostHogSnapshot>({ connected: false, totalUsers: null, dau: null, mau: null, newUsers7d: null, sessions7d: null, dataStartDate: null }),
 
     gscApiInt && (gscApiInt.metadata as Record<string, string> | null)?.client_email && (gscApiInt.metadata as Record<string, string> | null)?.private_key

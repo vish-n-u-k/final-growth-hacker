@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { buildPostHogFilter } from '@/lib/posthog/filter'
 
 export const dynamic = 'force-dynamic'
 
@@ -253,7 +254,7 @@ export async function GET(request: NextRequest) {
 
   // Return cached snapshot if available, not forced, and contains new fields
   const snap = brand.analyticsSnapshot as Record<string, unknown> | null
-  const snapIsFresh = snap && snap['_v'] === 9 && 'totalUsers' in snap
+  const snapIsFresh = snap && snap['_v'] === 10 && 'totalUsers' in snap
   if (!force && snapIsFresh && brand.analyticsSnapshotAt) {
     return NextResponse.json({
       ...snap,
@@ -325,6 +326,7 @@ export async function GET(request: NextRequest) {
 
     if (projectId) {
       const key = phInt.apiKey
+      const f = buildPostHogFilter(meta)
       const [
         signupsRows, signinsRows, activeUsersRows, deletedRows,
         retentionRaw, funnelRaw,
@@ -336,13 +338,13 @@ export async function GET(request: NextRequest) {
         totalUsersRows,
       ] = await Promise.all([
         // Signups: 3 current windows + 3 prior period windows in one query
-        hogqlRows(host, projectId, key, `SELECT countIf(created_at >= now() - interval 1 day), countIf(created_at >= now() - interval 7 day), countIf(created_at >= now() - interval 30 day), countIf(created_at >= now() - interval 2 day AND created_at < now() - interval 1 day), countIf(created_at >= now() - interval 14 day AND created_at < now() - interval 7 day), countIf(created_at >= now() - interval 60 day AND created_at < now() - interval 30 day) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email)`),
+        hogqlRows(host, projectId, key, `SELECT countIf(created_at >= now() - interval 1 day), countIf(created_at >= now() - interval 7 day), countIf(created_at >= now() - interval 30 day), countIf(created_at >= now() - interval 2 day AND created_at < now() - interval 1 day), countIf(created_at >= now() - interval 14 day AND created_at < now() - interval 7 day), countIf(created_at >= now() - interval 60 day AND created_at < now() - interval 30 day) FROM persons ${f.personWhereClause}`),
         // Sign-ins: 3 current windows + 3 prior period windows in one query
-        hogqlRows(host, projectId, key, `SELECT countIf(timestamp >= now() - interval 1 day), countIf(timestamp >= now() - interval 7 day), countIf(timestamp >= now() - interval 30 day), countIf(timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day), countIf(timestamp >= now() - interval 14 day AND timestamp < now() - interval 7 day), countIf(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day) FROM events WHERE event = '$identify' AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)`),
+        hogqlRows(host, projectId, key, `SELECT countIf(timestamp >= now() - interval 1 day), countIf(timestamp >= now() - interval 7 day), countIf(timestamp >= now() - interval 30 day), countIf(timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day), countIf(timestamp >= now() - interval 14 day AND timestamp < now() - interval 7 day), countIf(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day) FROM events WHERE event = '$identify' ${f.personSubqueryAndClause}`),
         // Active users: 3 current windows + 3 prior period windows in one query
-        hogqlRows(host, projectId, key, `SELECT count(DISTINCT if(timestamp >= now() - interval 1 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 7 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 30 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 14 day AND timestamp < now() - interval 7 day, person_id, null)), count(DISTINCT if(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day, person_id, null)) FROM events WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1) AND timestamp >= now() - interval 60 day`),
+        hogqlRows(host, projectId, key, `SELECT count(DISTINCT if(timestamp >= now() - interval 1 day, ${f.eventDistinctCol}, null)), count(DISTINCT if(timestamp >= now() - interval 7 day, ${f.eventDistinctCol}, null)), count(DISTINCT if(timestamp >= now() - interval 30 day, ${f.eventDistinctCol}, null)), count(DISTINCT if(timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day, ${f.eventDistinctCol}, null)), count(DISTINCT if(timestamp >= now() - interval 14 day AND timestamp < now() - interval 7 day, ${f.eventDistinctCol}, null)), count(DISTINCT if(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day, ${f.eventDistinctCol}, null)) FROM events WHERE ${f.eventPersonWherePrefix}timestamp >= now() - interval 60 day`),
         // Deleted accounts: 3 current windows + 3 prior period windows in one query
-        hogqlRows(host, projectId, key, `SELECT countIf(timestamp >= now() - interval 1 day), countIf(timestamp >= now() - interval 7 day), countIf(timestamp >= now() - interval 30 day), countIf(timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day), countIf(timestamp >= now() - interval 14 day AND timestamp < now() - interval 7 day), countIf(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day) FROM events WHERE event IN ('account_deleted', 'user_deleted', 'delete_account') AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)`),
+        hogqlRows(host, projectId, key, `SELECT countIf(timestamp >= now() - interval 1 day), countIf(timestamp >= now() - interval 7 day), countIf(timestamp >= now() - interval 30 day), countIf(timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day), countIf(timestamp >= now() - interval 14 day AND timestamp < now() - interval 7 day), countIf(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day) FROM events WHERE event IN ('account_deleted', 'user_deleted', 'delete_account') ${f.personSubqueryAndClause}`),
         phQuery(host, projectId, key, {
           kind: 'RetentionQuery',
           retentionFilter: { retention_type: 'retention_first_time', target_entity: { id: '$pageview', type: 'events' }, returning_entity: { id: '$pageview', type: 'events' }, total_intervals: 7, period: 'Day' },
@@ -385,14 +387,14 @@ export async function GET(request: NextRequest) {
           funnelsFilter: { funnel_window_days: 30 },
           dateRange: { date_from: '-90d' },
         }),
-        // Daily active users — 30 days (identified users only)
-        hogqlRows(host, projectId, key, `SELECT toDate(timestamp) AS day, count(DISTINCT person_id) FROM events WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1) AND timestamp >= now() - interval 30 day GROUP BY day ORDER BY day ASC`),
-        // PMF — retained users (active last 28d, never deleted, identified): avg events per user per feature
-        hogqlRows(host, projectId, key, `SELECT event, round(count() / count(DISTINCT person_id), 1) FROM events WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1) AND person_id IN (SELECT DISTINCT person_id FROM events WHERE timestamp >= now() - interval 28 day) AND person_id NOT IN (SELECT DISTINCT person_id FROM events WHERE event = 'account_deleted') AND event IN ('feed_viewed', 'post_generate_started', 'post_generated', 'post_downloaded', 'post_shared', 'post_schedule_started', 'social_account_connected') AND timestamp >= now() - interval 90 day GROUP BY event`),
-        // PMF — churned users (identified): avg events per user per feature
-        hogqlRows(host, projectId, key, `SELECT event, round(count() / count(DISTINCT person_id), 1) FROM events WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1) AND person_id IN (SELECT DISTINCT person_id FROM events WHERE event = 'account_deleted') AND event IN ('feed_viewed', 'post_generate_started', 'post_generated', 'post_downloaded', 'post_shared', 'post_schedule_started', 'social_account_connected') AND timestamp >= now() - interval 90 day GROUP BY event`),
-        // Total unique identified users ever
-        hogqlRows(host, projectId, key, `SELECT count(DISTINCT properties.$email) FROM persons WHERE is_identified = 1 AND isNotNull(properties.$email)`),
+        // Daily active users — 30 days
+        hogqlRows(host, projectId, key, `SELECT toDate(timestamp) AS day, count(DISTINCT ${f.eventDistinctCol}) FROM events WHERE ${f.eventPersonWherePrefix}timestamp >= now() - interval 30 day GROUP BY day ORDER BY day ASC`),
+        // PMF — retained users (active last 28d, never deleted): avg events per user per feature
+        hogqlRows(host, projectId, key, `SELECT event, round(count() / count(DISTINCT person_id), 1) FROM events WHERE person_id IN (${f.personSubquery}) AND person_id IN (SELECT DISTINCT person_id FROM events WHERE timestamp >= now() - interval 28 day) AND person_id NOT IN (SELECT DISTINCT person_id FROM events WHERE event = 'account_deleted') AND event IN ('feed_viewed', 'post_generate_started', 'post_generated', 'post_downloaded', 'post_shared', 'post_schedule_started', 'social_account_connected') AND timestamp >= now() - interval 90 day GROUP BY event`),
+        // PMF — churned users: avg events per user per feature
+        hogqlRows(host, projectId, key, `SELECT event, round(count() / count(DISTINCT person_id), 1) FROM events WHERE person_id IN (${f.personSubquery}) AND person_id IN (SELECT DISTINCT person_id FROM events WHERE event = 'account_deleted') AND event IN ('feed_viewed', 'post_generate_started', 'post_generated', 'post_downloaded', 'post_shared', 'post_schedule_started', 'social_account_connected') AND timestamp >= now() - interval 90 day GROUP BY event`),
+        // Total unique users ever
+        hogqlRows(host, projectId, key, f.personsCountQuery),
       ])
 
       let retention: { day: string; rate: number }[] | null = null
@@ -514,7 +516,7 @@ export async function GET(request: NextRequest) {
   }
 
   const snapshot = {
-    _v: 9,
+    _v: 10,
     ...posthogData,
     gsc: gscData,
     ga4: ga4Data,

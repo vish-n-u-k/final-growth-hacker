@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { IntegrationDefinition } from '@/lib/integrations/registry'
@@ -128,10 +128,15 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
           {tab === 'brand' && <BrandSection brand={brand} />}
           {tab === 'playbook' && <PlaybookSection playbook={playbook} />}
           {tab === 'integrations' && (
-            <IntegrationsSection
-              registry={integrationRegistry}
-              connected={connectedIntegrations}
-            />
+            <>
+              <IntegrationsSection
+                registry={integrationRegistry}
+                connected={connectedIntegrations}
+              />
+              {connectedIntegrations['posthog']?.status === 'connected' && (
+                <PostHogSettingsSection connected={connectedIntegrations['posthog']} />
+              )}
+            </>
           )}
           {tab === 'account' && <AccountSection userEmail={userEmail} />}
         </div>
@@ -883,6 +888,107 @@ function IntegrationCard({
       )}
       </div>
       )}
+    </div>
+  )
+}
+
+// ── PostHog Settings Section ──────────────────────────────────────────────────
+
+function PostHogSettingsSection({ connected }: { connected: ConnectedIntegration }) {
+  const meta = connected.metadata ?? {}
+  const [filterEnabled, setFilterEnabled] = useState(meta['unique_filter_enabled'] === 'true')
+  const [filterProp, setFilterProp] = useState(meta['unique_filter_property'] ?? '$email')
+  const [properties, setProperties] = useState<{ name: string; label: string }[]>([])
+  const [loadingProps, setLoadingProps] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    setLoadingProps(true)
+    fetch('/api/posthog/properties')
+      .then(r => r.json())
+      .then((d: { properties?: { name: string; label: string }[] }) => {
+        if (d.properties?.length) setProperties(d.properties)
+      })
+      .catch(() => {})
+      .finally(() => setLoadingProps(false))
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError('')
+    const res = await fetch('/api/posthog/settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ unique_filter_enabled: filterEnabled, unique_filter_property: filterProp }),
+    })
+    if (res.ok) {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } else {
+      setError('Failed to save')
+    }
+    setSaving(false)
+  }
+
+  return (
+    <div className="st-section" style={{ marginTop: 24 }}>
+      <div className="st-section-hd">
+        <h2 className="st-section-title">User Count Settings</h2>
+        <p className="st-section-desc">Configure how GrowJin counts unique users from PostHog.</p>
+      </div>
+      <div className="st-card">
+        <div className="st-form">
+          <div className="st-field" style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
+            <label className="st-label" style={{ marginBottom: 0 }}>Count unique users only</label>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={filterEnabled}
+              onClick={() => setFilterEnabled(v => !v)}
+              style={{
+                width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', flexShrink: 0,
+                background: filterEnabled ? 'var(--green)' : 'var(--line)',
+                position: 'relative', transition: 'background 0.2s',
+              }}
+            >
+              <span style={{
+                position: 'absolute', top: 3, left: filterEnabled ? 23 : 3,
+                width: 18, height: 18, borderRadius: '50%', background: '#fff',
+                transition: 'left 0.2s',
+              }} />
+            </button>
+          </div>
+
+          {filterEnabled && (
+            <div className="st-field" style={{ marginTop: 16 }}>
+              <label className="st-label">Deduplicate by</label>
+              {loadingProps ? (
+                <div style={{ height: 38, borderRadius: 8, background: 'var(--line)', opacity: 0.5 }} />
+              ) : (
+                <select
+                  className="st-input"
+                  value={filterProp}
+                  onChange={e => setFilterProp(e.target.value)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  {properties.map(p => (
+                    <option key={p.name} value={p.name}>{p.label}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
+          {error && <p className="st-error">{error}</p>}
+          <div className="st-form-submit" style={{ marginTop: 16 }}>
+            <button type="button" onClick={handleSave} disabled={saving} className="st-btn-primary">
+              {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save settings'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
