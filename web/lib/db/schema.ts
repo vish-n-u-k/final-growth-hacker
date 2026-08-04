@@ -353,6 +353,9 @@ export const trackedKeywords = pgTable(
     suggestedAt: timestamp('suggested_at', { withTimezone: true }).notNull().defaultNow(),
     trackingStartedAt: timestamp('tracking_started_at', { withTimezone: true }),
     implementedAt: timestamp('implemented_at', { withTimezone: true }),
+    startPosition: real('start_position'), // GSC position captured at the moment tracking started
+    isTargeted: boolean('is_targeted').notNull().default(false),
+    targetedAt: timestamp('targeted_at', { withTimezone: true }),
   },
   (table) => ({
     uniq: unique('tracked_keywords_unique').on(table.brandId, table.keyword),

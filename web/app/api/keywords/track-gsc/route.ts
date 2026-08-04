@@ -12,9 +12,10 @@ export async function POST(req: NextRequest) {
   const [brand] = await db.select({ id: brands.id }).from(brands).where(eq(brands.userId, user.id)).limit(1)
   if (!brand) return NextResponse.json({ error: 'Brand not found' }, { status: 404 })
 
-  const body = await req.json() as { keyword: string }
+  const body = await req.json() as { keyword: string; position?: number }
   const keyword = body.keyword?.trim()
   if (!keyword) return NextResponse.json({ error: 'keyword is required' }, { status: 400 })
+  const startPosition = typeof body.position === 'number' ? body.position : null
 
   const now = new Date()
   const [row] = await db
@@ -26,6 +27,7 @@ export async function POST(req: NextRequest) {
       source: 'gsc_import',
       aiReason: 'Imported from Google Search Console — keyword your site is already ranking for.',
       trackingStartedAt: now,
+      startPosition,
     })
     .onConflictDoUpdate({
       target: [trackedKeywords.brandId, trackedKeywords.keyword],
@@ -33,6 +35,7 @@ export async function POST(req: NextRequest) {
         status: 'tracking',
         source: 'gsc_import',
         trackingStartedAt: now,
+        startPosition,
       },
     })
     .returning({ id: trackedKeywords.id })

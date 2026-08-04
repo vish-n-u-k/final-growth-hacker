@@ -29,6 +29,8 @@ export type TrackedWithGsc = {
   source: string | null
   aiReason: string | null
   aiIntent: string | null
+  isTargeted: boolean
+  targetedAt: string | null
   trackingStartedAt: string | null
   implementedAt: string | null
   currentPosition: number | null
@@ -68,6 +70,18 @@ export async function GET() {
     ))
     .limit(1)
   const hasGsc = !!gscRow
+
+  // Check Google Ads connection
+  const [adsRow] = await db
+    .select({ id: brandIntegrations.id })
+    .from(brandIntegrations)
+    .where(and(
+      eq(brandIntegrations.brandId, brand.id),
+      eq(brandIntegrations.provider, 'google_ads'),
+      eq(brandIntegrations.status, 'connected'),
+    ))
+    .limit(1)
+  const hasGoogleAds = !!adsRow
 
   // GSC 7d summary from cached analytics snapshot
   const snapshot = brand.analyticsSnapshot as Record<string, Record<string, number> | null> | null
@@ -138,20 +152,11 @@ export async function GET() {
   function computeGscData(t: typeof tracked[0]) {
     // Current position: best fuzzy match in the latest batch
     const currentMatch = findBestFuzzyMatch(t.keyword, latestBatch)
-    if (!currentMatch) {
-      return { currentPosition: null, startPosition: null, positionDelta: null, impressions: null, clicks: null }
-    }
+    // startPosition is stored on the row at the moment tracking started — survives snapshot refreshes
+    const startPosition = t.startPosition ?? null
 
-    // Start position: best fuzzy match in the first snapshot batch after tracking started
-    let startPosition: number | null = null
-    if (t.trackingStartedAt) {
-      const afterTracking = allSnapshots.filter(s => s.fetchedAt >= t.trackingStartedAt!)
-      if (afterTracking.length > 0) {
-        const firstBatchTime = afterTracking[0].fetchedAt.toISOString()
-        const firstBatch = afterTracking.filter(s => s.fetchedAt.toISOString() === firstBatchTime)
-        const startMatch = findBestFuzzyMatch(t.keyword, firstBatch)
-        startPosition = startMatch?.position ?? null
-      }
+    if (!currentMatch) {
+      return { currentPosition: null, startPosition, positionDelta: null, impressions: null, clicks: null }
     }
 
     return {
@@ -182,6 +187,8 @@ export async function GET() {
       source: t.source,
       aiReason: t.aiReason,
       aiIntent: t.aiIntent,
+      isTargeted: t.isTargeted ?? false,
+      targetedAt: t.targetedAt?.toISOString() ?? null,
       trackingStartedAt: t.trackingStartedAt?.toISOString() ?? null,
       implementedAt: t.implementedAt?.toISOString() ?? null,
       ...computeGscData(t),
@@ -196,6 +203,8 @@ export async function GET() {
       source: t.source,
       aiReason: t.aiReason,
       aiIntent: t.aiIntent,
+      isTargeted: t.isTargeted ?? false,
+      targetedAt: t.targetedAt?.toISOString() ?? null,
       trackingStartedAt: t.trackingStartedAt?.toISOString() ?? null,
       implementedAt: t.implementedAt?.toISOString() ?? null,
       ...computeGscData(t),
@@ -203,6 +212,7 @@ export async function GET() {
 
   return NextResponse.json({
     hasGsc,
+    hasGoogleAds,
     lastFetchedAt,
     gscSummary,
     gscKeywords,

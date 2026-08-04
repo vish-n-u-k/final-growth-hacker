@@ -124,9 +124,22 @@ async function checkMetaTags(
   const domainParts = hostname.replace('www.', '').split('.')
   const brand = domainParts[0] ?? ''
 
-  // Derive likely primary keyword from H1 (first 4 words, stripped)
+  // Derive primary keyword from H1 — skip generic stop words and marketing verbs,
+  // take first 3 meaningful content words so we don't surface "turn", "get", "build" etc.
+  const STOP_WORDS = new Set([
+    'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from',
+    'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
+    'will', 'would', 'could', 'should', 'may', 'might', 'can', 'shall',
+    'your', 'our', 'their', 'its', 'this', 'that', 'these', 'those', 'we', 'you', 'it', 'into',
+    // Generic marketing verbs that are never the primary keyword
+    'turn', 'get', 'make', 'build', 'grow', 'scale', 'boost', 'drive', 'unlock', 'discover',
+    'transform', 'revolutionize', 'empower', 'elevate', 'supercharge', 'accelerate', 'maximize',
+    'optimize', 'create', 'start', 'join', 'launch', 'explore', 'achieve', 'take', 'how', 'why',
+    'let', 'see', 'try', 'use', 'run', 'help', 'give', 'need', 'want', 'love', 'meet', 'find',
+  ])
   const h1Text = $('h1').first().text().trim().toLowerCase()
-  const primaryKeyword = h1Text.split(/\s+/).slice(0, 4).join(' ')
+  const h1Words = h1Text.split(/\s+/).filter((w) => w.length > 2 && !STOP_WORDS.has(w))
+  const primaryKeyword = h1Words.slice(0, 3).join(' ')
 
   // ── Title ──
   const title = $('title').first().text().trim()
@@ -153,9 +166,9 @@ async function checkMetaTags(
 
     // title.keyword
     if (primaryKeyword && title.toLowerCase().includes(primaryKeyword.split(' ')[0])) {
-      findings.push(f('title.keyword', 'good', `Primary keyword ("${primaryKeyword.split(' ')[0]}") appears in title.`))
+      findings.push(f('title.keyword', 'good', `Primary keyword ("${primaryKeyword}") appears in title.`))
     } else if (primaryKeyword) {
-      findings.push(f('title.keyword', 'ok', `Primary keyword ("${primaryKeyword.split(' ')[0]}") not detected in title tag.`,
+      findings.push(f('title.keyword', 'ok', `Primary keyword ("${primaryKeyword}") not detected in title tag.`,
         'Naturally include your primary keyword near the start of the title.'))
     } else {
       findings.push(f('title.keyword', 'info', 'Could not determine primary keyword — check manually that title includes your target term.'))

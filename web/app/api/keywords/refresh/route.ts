@@ -53,6 +53,10 @@ export async function POST(_req: NextRequest) {
   }
 
   const fetchedAt = new Date()
+
+  // Delete previous snapshots before inserting fresh ones — prevents unbounded growth
+  await db.delete(keywordSnapshots).where(eq(keywordSnapshots.brandId, brand.id))
+
   await db.insert(keywordSnapshots).values(
     rows.map((r) => ({
       brandId: brand.id,

@@ -28,7 +28,12 @@ export async function POST(request: NextRequest) {
     const value = fields[fieldDef.key]
     if (!value?.trim()) continue
     if (fieldDef.isMetadata) {
-      metadataFields[fieldDef.key] = value.trim()
+      // Sanitize private keys: strip surrounding quotes + normalize \n sequences
+      let sanitized = value.trim()
+      if (fieldDef.key === 'private_key') {
+        sanitized = sanitized.replace(/^["']|["']$/g, '').replace(/\\n/g, '\n').replace(/\r\n/g, '\n').trim()
+      }
+      metadataFields[fieldDef.key] = sanitized
     } else if (fieldDef.key === 'api_key') {
       apiKey = value.trim()
     } else if (fieldDef.key === 'access_token') {

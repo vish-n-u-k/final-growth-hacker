@@ -157,6 +157,25 @@ export async function fetchSerpApiPAA(query: string, apiKey: string): Promise<st
 
 // ── Google Search Console — Service Account auth ──────────────────────────────
 
+function parseGscPrivateKey(raw: string) {
+  // Strip surrounding quotes if the user pasted the raw JSON string value (e.g. "-----BEGIN...")
+  const stripped = raw.replace(/^["']|["']$/g, '')
+  // Normalize line endings: replace literal \n sequences with real newlines
+  const normalized = stripped.replace(/\\n/g, '\n').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+
+  const candidates = [normalized, raw.trim()]
+  for (const candidate of candidates) {
+    try {
+      return createPrivateKey(candidate)
+    } catch {
+      // try next
+    }
+  }
+  throw new Error(
+    'Could not parse the private key — paste the complete key including the -----BEGIN PRIVATE KEY----- and -----END PRIVATE KEY----- lines.',
+  )
+}
+
 async function getGscAccessToken(clientEmail: string, privateKey: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
   const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
@@ -170,9 +189,7 @@ async function getGscAccessToken(clientEmail: string, privateKey: string): Promi
   const signingInput = `${header}.${payload}`
   const sign = createSign('RSA-SHA256')
   sign.update(signingInput)
-  // private_key may have literal \n from JSON — replace with real newlines
-  // createPrivateKey handles both PKCS#8 (BEGIN PRIVATE KEY) and PKCS#1 (BEGIN RSA PRIVATE KEY)
-  const keyObj = createPrivateKey(privateKey.replace(/\\n/g, '\n'))
+  const keyObj = parseGscPrivateKey(privateKey)
   const signature = sign.sign(keyObj, 'base64url')
   const jwt = `${signingInput}.${signature}`
 

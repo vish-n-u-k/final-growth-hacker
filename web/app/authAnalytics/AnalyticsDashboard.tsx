@@ -1352,7 +1352,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 </div>
               </div>
             ) : (
-              <RoadToGoalTrack current={data?.mau ?? 0} milestones={[0, 10, 50, 100, 500]} />
+              <RoadToGoalTrack current={data?.totalUsers ?? 0} milestones={[0, 10, 50, 100, 500]} />
             )}
 
             {/* MRR box */}

@@ -131,9 +131,74 @@ function GscConnectForm({ onConnected }: { onConnected: () => void }) {
   )
 }
 
+function GoogleAdsConnectForm({ onConnected }: { onConnected: () => void }) {
+  const [fields, setFields] = useState({ developer_token: '', client_id: '', client_secret: '', refresh_token: '', customer_id: '' })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  async function handleConnect(e: React.FormEvent) {
+    e.preventDefault()
+    const required = ['developer_token', 'client_id', 'client_secret', 'refresh_token', 'customer_id'] as const
+    if (required.some(k => !fields[k].trim())) { setErr('All fields are required.'); return }
+    setSaving(true); setErr(null)
+    try {
+      const res = await fetch('/api/settings/integrations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: 'google_ads', fields }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Failed to save')
+      onConnected()
+    } catch (e) { setErr(e instanceof Error ? e.message : 'Unknown error') }
+    finally { setSaving(false) }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--line)',
+    background: 'rgba(255,255,255,0.03)', color: 'var(--text)', fontSize: 13,
+    fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+  }
+  const labelStyle: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 6 }
+
+  return (
+    <div style={{ borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card)', padding: '28px 32px', maxWidth: 560 }}>
+      <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: '0 0 6px' }}>Connect Google Ads</h2>
+      <p style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 24, lineHeight: 1.55 }}>
+        Pulls keyword ideas from the Keyword Planner with real search volumes and competition data.
+      </p>
+      <form onSubmit={handleConnect} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {([
+          { key: 'developer_token', label: 'Developer Token', ph: 'ABcDeFgHiJkLmNo', type: 'password' },
+          { key: 'client_id', label: 'OAuth Client ID', ph: '123456789-abc.apps.googleusercontent.com', type: 'text' },
+          { key: 'client_secret', label: 'OAuth Client Secret', ph: 'GOCSPX-xxxxxxxxxxxxxxx', type: 'password' },
+          { key: 'refresh_token', label: 'Refresh Token', ph: '1//0gxxxxxxxxxxxxxxxxxxxxxxxx', type: 'password' },
+          { key: 'customer_id', label: 'Customer ID (digits only)', ph: '1234567890', type: 'text' },
+        ] as const).map(f => (
+          <div key={f.key}>
+            <label style={labelStyle}>{f.label}</label>
+            <input type={f.type} value={fields[f.key]} onChange={e => setFields(prev => ({ ...prev, [f.key]: e.target.value }))}
+              placeholder={f.ph} style={inputStyle}
+              onFocus={e => (e.currentTarget.style.borderColor = 'var(--green)')}
+              onBlur={e => (e.currentTarget.style.borderColor = 'var(--line)')} />
+          </div>
+        ))}
+        {err && <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', color: '#f87171', fontSize: 13 }}>{err}</div>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button type="submit" disabled={saving} style={{ padding: '9px 22px', borderRadius: 8, border: 'none', background: 'var(--green)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: 'inherit' }}>
+            {saving ? 'Connecting…' : 'Connect Google Ads'}
+          </button>
+          <a href="/settings?tab=integrations" style={{ fontSize: 12.5, color: 'var(--text-dim)', textDecoration: 'none' }}>Manage in Settings →</a>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 export default function KeywordTracker({ brandName, seoAnalyzed }: { brandName: string; seoAnalyzed: boolean }) {
   const router = useRouter()
   const [hasGsc, setHasGsc] = useState(true)
+  const [hasGoogleAds, setHasGoogleAds] = useState(false)
   const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null)
   const [gscSummary, setGscSummary] = useState<{ clicks7d: number; impressions7d: number } | null>(null)
   const [gscKeywords, setGscKeywords] = useState<GscKeywordRow[]>([])
@@ -148,6 +213,7 @@ export default function KeywordTracker({ brandName, seoAnalyzed }: { brandName: 
   const [error, setError] = useState<string | null>(null)
   const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const [trackingGscKw, setTrackingGscKw] = useState<Set<string>>(new Set())
+  const [togglingTarget, setTogglingTarget] = useState<Set<string>>(new Set())
 
   const fetchData = useCallback(async () => {
     try {
@@ -155,6 +221,7 @@ export default function KeywordTracker({ brandName, seoAnalyzed }: { brandName: 
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Failed to fetch')
       setHasGsc(json.hasGsc)
+      setHasGoogleAds(json.hasGoogleAds ?? false)
       setLastFetchedAt(json.lastFetchedAt)
       setGscSummary(json.gscSummary ?? null)
       setGscKeywords(json.gscKeywords ?? [])
@@ -170,14 +237,14 @@ export default function KeywordTracker({ brandName, seoAnalyzed }: { brandName: 
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  async function handleTrackGsc(keyword: string) {
+  async function handleTrackGsc(keyword: string, position: number) {
     setTrackingGscKw(prev => new Set(prev).add(keyword))
     setError(null)
     try {
       const res = await fetch('/api/keywords/track-gsc', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyword }),
+        body: JSON.stringify({ keyword, position }),
       })
       if (!res.ok) throw new Error('Failed to track keyword')
       await fetchData()
@@ -221,6 +288,21 @@ export default function KeywordTracker({ brandName, seoAnalyzed }: { brandName: 
       await fetchData()
     } catch (e) { setError(e instanceof Error ? e.message : 'Unknown error') }
     finally { setRefreshing(false) }
+  }
+
+  async function handleToggleTarget(id: string, current: boolean) {
+    setTogglingTarget(prev => new Set(prev).add(id))
+    setError(null)
+    try {
+      const res = await fetch(`/api/keywords/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isTargeted: !current }),
+      })
+      if (!res.ok) throw new Error('Update failed')
+      await fetchData()
+    } catch (e) { setError(e instanceof Error ? e.message : 'Unknown error') }
+    finally { setTogglingTarget(prev => { const n = new Set(prev); n.delete(id); return n }) }
   }
 
   async function handleStatus(id: string, status: string) {
@@ -282,6 +364,27 @@ export default function KeywordTracker({ brandName, seoAnalyzed }: { brandName: 
             Track ranking changes for <strong style={{ color: 'var(--text)' }}>{brandName}</strong>
           </p>
         </div>
+
+        {/* ── Targeting strip ───────────────────────────────────────────────── */}
+        {allTracked.some(k => k.isTargeted) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', flexShrink: 0 }}>Targeting</span>
+            {allTracked.filter(k => k.isTargeted).map(k => (
+              <span key={k.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 20, background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.25)', color: 'var(--green-bright)', fontSize: 12, fontWeight: 600 }}>
+                {k.keyword}
+                {k.targetedAt && <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-dim)' }}>since {timeAgo(k.targetedAt)}</span>}
+                <button
+                  onClick={() => handleToggleTarget(k.id, true)}
+                  disabled={togglingTarget.has(k.id)}
+                  aria-label={`Remove target: ${k.keyword}`}
+                  style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', color: 'var(--green-bright)', cursor: togglingTarget.has(k.id) ? 'not-allowed' : 'pointer', padding: 0, opacity: togglingTarget.has(k.id) ? 0.5 : 0.7, lineHeight: 1 }}
+                >
+                  {togglingTarget.has(k.id) ? <SpinnerIcon /> : <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/></svg>}
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
 
         {!hasGsc && <GscConnectForm onConnected={() => { setHasGsc(true); fetchData() }} />}
         {error && (
@@ -364,7 +467,7 @@ export default function KeywordTracker({ brandName, seoAnalyzed }: { brandName: 
                                 </span>
                               ) : (
                                 <button
-                                  onClick={() => handleTrackGsc(kw.keyword)}
+                                  onClick={() => handleTrackGsc(kw.keyword, kw.position)}
                                   disabled={isTracking}
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -374,7 +477,7 @@ export default function KeywordTracker({ brandName, seoAnalyzed }: { brandName: 
                                     opacity: isTracking ? 0.6 : 1, fontFamily: 'inherit',
                                   }}
                                 >
-                                  {isTracking ? <><SpinnerIcon /> Tracking…</> : 'Track'}
+                                  {isTracking ? <><SpinnerIcon /> Adding…</> : 'Use this keyword'}
                                 </button>
                               )}
                             </td>
@@ -498,14 +601,43 @@ export default function KeywordTracker({ brandName, seoAnalyzed }: { brandName: 
                           {kw.clicks !== null ? kw.clicks.toLocaleString() : '—'}
                         </td>
                         <td style={{ ...tdStyle, textAlign: 'right' }}>
-                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                              <button
+                                onClick={() => handleToggleTarget(kw.id, kw.isTargeted)}
+                                disabled={togglingTarget.has(kw.id)}
+                                title={kw.isTargeted ? 'Stop targeting' : 'Set as target'}
+                                style={{
+                                  position: 'relative', display: 'inline-flex', alignItems: 'center',
+                                  width: 34, height: 18, borderRadius: 9,
+                                  background: kw.isTargeted ? 'var(--green)' : 'rgba(255,255,255,0.1)',
+                                  border: 'none', cursor: togglingTarget.has(kw.id) ? 'not-allowed' : 'pointer',
+                                  opacity: togglingTarget.has(kw.id) ? 0.5 : 1, padding: 0, flexShrink: 0,
+                                  transition: 'background 0.15s',
+                                }}
+                              >
+                                {togglingTarget.has(kw.id)
+                                  ? <span style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)' }}><SpinnerIcon /></span>
+                                  : <span style={{
+                                      position: 'absolute', top: 2, left: kw.isTargeted ? 18 : 2,
+                                      width: 14, height: 14, borderRadius: '50%',
+                                      background: '#fff', transition: 'left 0.15s',
+                                    }} />
+                                }
+                              </button>
+                              {kw.isTargeted && kw.targetedAt && (
+                                <span style={{ fontSize: 10, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+                                  since {timeAgo(kw.targetedAt)}
+                                </span>
+                              )}
+                            </div>
                             {kw.status === 'tracking' && (
                               <button onClick={() => handleStatus(kw.id, 'implemented')} style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid var(--green)', background: 'transparent', color: 'var(--green-bright)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
                                 Mark Done
                               </button>
                             )}
-                            <button onClick={() => handleStatus(kw.id, 'dismissed')} style={{ padding: '4px 8px', borderRadius: 5, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
-                              Stop
+                            <button onClick={() => handleStatus(kw.id, 'dismissed')} style={{ padding: '4px 8px', borderRadius: 5, border: '1px solid rgba(248,113,113,0.3)', background: 'transparent', color: '#f87171', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                              Remove
                             </button>
                           </div>
                         </td>
@@ -521,32 +653,38 @@ export default function KeywordTracker({ brandName, seoAnalyzed }: { brandName: 
           </div>
         )}
 
-        {/* ── AI Suggestions ─────────────────────────────────────────────────── */}
+        {/* ── Google Ads Keyword Ideas ────────────────────────────────────────── */}
         <div style={{ borderRadius: 12, border: '1px solid var(--line)', overflow: 'hidden' }}>
           <div
             style={{ padding: '14px 20px', background: 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', borderBottom: suggestionsOpen ? '1px solid var(--line)' : 'none' }}
             onClick={() => setSuggestionsOpen(o => !o)}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>AI Keyword Suggestions</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Google Ads Keyword Ideas</span>
               {suggestions.length > 0 && (
                 <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: 'rgba(47,191,113,0.12)', color: 'var(--green-bright)', fontWeight: 600 }}>{suggestions.length}</span>
               )}
-              <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>gap keywords to target next</span>
+              <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>real search volumes from Keyword Planner</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button onClick={e => { e.stopPropagation(); handleSuggest() }} disabled={suggesting} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--green)', background: 'transparent', color: 'var(--green-bright)', fontSize: 12, fontWeight: 600, cursor: suggesting ? 'not-allowed' : 'pointer', opacity: suggesting ? 0.7 : 1, fontFamily: 'inherit' }}>
-                {suggesting ? <><SpinnerIcon /> Generating…</> : 'Suggest Keywords'}
-              </button>
+              {hasGoogleAds && (
+                <button onClick={e => { e.stopPropagation(); handleSuggest() }} disabled={suggesting} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--green)', background: 'transparent', color: 'var(--green-bright)', fontSize: 12, fontWeight: 600, cursor: suggesting ? 'not-allowed' : 'pointer', opacity: suggesting ? 0.7 : 1, fontFamily: 'inherit' }}>
+                  {suggesting ? <><SpinnerIcon /> Fetching…</> : 'Fetch Keyword Ideas'}
+                </button>
+              )}
               <span style={{ fontSize: 14, color: 'var(--text-dim)', userSelect: 'none', minWidth: 14, textAlign: 'center' }}>{suggestionsOpen ? '−' : '+'}</span>
             </div>
           </div>
           {suggestionsOpen && (
             <div>
-              {suggestions.length === 0 ? (
+              {!hasGoogleAds ? (
+                <div style={{ padding: '24px 20px' }}>
+                  <GoogleAdsConnectForm onConnected={() => { setHasGoogleAds(true); fetchData() }} />
+                </div>
+              ) : suggestions.length === 0 ? (
                 <div style={{ padding: '36px 20px', textAlign: 'center' }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>No suggestions yet</p>
-                  <p style={{ fontSize: 13, color: 'var(--text-dim)' }}>Click &quot;Suggest Keywords&quot; to get AI-recommended gap keywords.</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>No keyword ideas yet</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-dim)' }}>Click &quot;Fetch Keyword Ideas&quot; to pull suggestions from Google Ads Keyword Planner.</p>
                 </div>
               ) : (
                 suggestions.map((s, i) => (
@@ -555,8 +693,8 @@ export default function KeywordTracker({ brandName, seoAnalyzed }: { brandName: 
                     <IntentBadge intent={s.aiIntent} />
                     <span style={{ fontSize: 13, color: 'var(--text-dim)', flex: '2 1 220px', lineHeight: 1.4 }}>{s.aiReason}</span>
                     <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                      <button onClick={() => handleStatus(s.id, 'tracking')} style={{ padding: '5px 14px', borderRadius: 6, border: '1px solid var(--green)', background: 'transparent', color: 'var(--green-bright)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Track</button>
-                      <button onClick={() => handleStatus(s.id, 'dismissed')} style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Dismiss</button>
+                      <button onClick={() => handleStatus(s.id, 'tracking')} style={{ padding: '5px 14px', borderRadius: 6, border: '1px solid var(--green)', background: 'rgba(47,191,113,0.08)', color: 'var(--green-bright)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Use this keyword</button>
+                      <button onClick={() => handleStatus(s.id, 'dismissed')} style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Skip</button>
                     </div>
                   </div>
                 ))
