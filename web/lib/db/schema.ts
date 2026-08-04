@@ -362,6 +362,20 @@ export const trackedKeywords = pgTable(
   }),
 )
 
+// ── User Notes ────────────────────────────────────────────────────────────────
+
+export const userNotes = pgTable('user_notes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull(),
+  title: text('title').notNull().default(''),
+  content: text('content').notNull().default(''),
+  tags: text('tags').array().notNull().default([]),
+  pinned: boolean('pinned').notNull().default(false),
+  moduleType: text('module_type'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
 export const features = pgTable(
   'features',
   {

@@ -15,6 +15,7 @@ import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/
 import { PLAYBOOK_SECTIONS } from '@/lib/playbook/fields'
 import { CONFLICT_GROUPS, SLUG_TOPIC } from '@/lib/modules/conflict-map'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
+import NotesDrawer from '@/components/NotesDrawer'
 
 function renderMdStep(step: string): React.ReactNode {
   const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
@@ -257,6 +258,7 @@ function LevelRing({ score }: { score: number }) {
 }
 
 export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, githubConnected, connectedIntegrations, socialLinks, conflictLinks = [] }: Props) {
+  const [notesOpen, setNotesOpen] = useState(false)
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.itemStates]))
   )
@@ -1808,6 +1810,21 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           <div className="md-header-actions">
             <ThemeToggle />
             <button
+              onClick={() => setNotesOpen(true)}
+              title="Notes"
+              style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: 'pointer', color: 'var(--text-dim)', flexShrink: 0, transition: 'color 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-dim)')}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+            </button>
+            <button
               onClick={() => router.push('/settings')}
               title="Settings"
               style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: 'pointer', color: 'var(--text-dim)', flexShrink: 0, transition: 'color 0.15s' }}
@@ -2884,6 +2901,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           />
         )
       })()}
+      <NotesDrawer open={notesOpen} onClose={() => setNotesOpen(false)} />
     </>
   )
 }
