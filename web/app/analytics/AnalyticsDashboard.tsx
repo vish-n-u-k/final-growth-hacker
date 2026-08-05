@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell,
 } from 'recharts'
@@ -72,6 +73,25 @@ interface DashboardData {
   gsc: GscData
   ga4: Ga4Data
 }
+
+interface TrafficStats { activeUsers: number; newUsers: number; returningUsers: number }
+interface TrafficData {
+  connected: boolean
+  stats: TrafficStats
+  trend: { date: string; activeUsers: number; newUsers: number }[]
+  newVsRet: { type: string; activeUsers: number }[]
+  channels: { channel: string; sourceMedium: string; sessions: number; pct: number }[]
+  landingPages: { page: string; sessions: number; pct: number }[]
+}
+
+const RANGE_TO_PERIOD: Record<string, string> = { '24h': '1d', '7d': '7d', '30d': '30d' }
+const PERIOD_DESC: Record<string, string> = { '24h': 'today', '7d': 'last 7 days', '30d': 'last 30 days' }
+const CHANNEL_COLORS_MAP: Record<string, string> = {
+  'Organic Search': '#4ade80', 'Direct': '#60a5fa', 'Referral': '#a78bfa',
+  'Organic Social': '#f472b6', 'Paid Search': '#fb923c', 'Email': '#e7c873',
+  'Organic Video': '#34d399', 'Unassigned': '#6b7280',
+}
+function chColor(ch: string) { return CHANNEL_COLORS_MAP[ch] ?? '#8aa897' }
 
 /* ── Fallback data (shown while loading or when PostHog not connected) ── */
 const FALLBACK_RETENTION = [
@@ -445,13 +465,17 @@ interface Props {
 }
 
 export default function AnalyticsDashboard({ brand, modules }: Props) {
-  const [range, setRange] = useState('24h')
+  const router = useRouter()
+  const [view, setView] = useState<'users' | 'website'>('users')
+  const [range, setRange] = useState('7d')
   const [expandedModule, setExpandedModule] = useState<string | null>(null)
   const [redirectTarget, setRedirectTarget] = useState<string | null>(null)
   const [data, setData] = useState<DashboardData | null>(null)
   const [phLoading, setPhLoading] = useState(true)
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [trafficData, setTrafficData] = useState<TrafficData | null>(null)
+  const [trafficLoading, setTrafficLoading] = useState(true)
 
   // Fetch analytics data
   useEffect(() => {
@@ -462,6 +486,17 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
       .catch(() => setData(null))
       .finally(() => setPhLoading(false))
   }, [brand.id])
+
+  // Fetch traffic data — refetches on every range change
+  useEffect(() => {
+    const period = RANGE_TO_PERIOD[range] ?? '7d'
+    setTrafficLoading(true)
+    fetch(`/api/analytics/ga4-traffic?brandId=${brand.id}&period=${period}`)
+      .then(r => r.json())
+      .then((d: TrafficData) => setTrafficData(d))
+      .catch(() => setTrafficData(null))
+      .finally(() => setTrafficLoading(false))
+  }, [brand.id, range])
 
   // Generate summary once analytics fetch is done (success or failure)
   // phLoading going false is our signal that data is settled
@@ -551,6 +586,22 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* View toggle */}
+            <div style={{ display: 'flex', padding: '3px', border: '1px solid var(--line)', borderRadius: 99, background: 'var(--bg-soft)' }}>
+              {(['users', 'website'] as const).map(v => (
+                <button key={v} onClick={() => setView(v)} style={{
+                  fontSize: 12, fontWeight: 600, padding: '5px 16px', borderRadius: 99,
+                  border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                  background: view === v ? 'var(--text)' : 'transparent',
+                  color: view === v ? 'var(--bg)' : 'var(--text-dim)',
+                  textTransform: 'capitalize',
+                }}>
+                  {v === 'users' ? 'Users' : 'Website'}
+                </button>
+              ))}
+            </div>
+            {/* Range picker — only relevant for Website view */}
+            {view === 'website' && (
             <div style={{ display: 'flex', padding: '3px', border: '1px solid var(--line)', borderRadius: 99, background: 'var(--bg-soft)' }}>
               {['24h', '7d', '30d'].map((r) => (
                 <button key={r} onClick={() => setRange(r)} style={{
@@ -563,6 +614,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 </button>
               ))}
             </div>
+            )}
             <button
               onClick={() => { setPhLoading(true); fetch(`/api/analytics/auth-dashboard?brandId=${brand.id}`).then(r => r.json()).then((d: DashboardData) => setData(d)).finally(() => setPhLoading(false)) }}
               style={{
@@ -577,6 +629,9 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
         </div>
 
         {/* Summary + Todo — hidden for now */}
+
+        {/* ── Users view ── */}
+        {view === 'users' && (<>
 
         {/* Last 24 hours */}
         <section style={{ marginBottom: 36 }}>
@@ -767,6 +822,11 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           )
         })()}
 
+        </>)}
+
+        {/* ── Website view ── */}
+        {view === 'website' && (<>
+
         {/* ── GSC Section ── */}
         <section style={{ marginBottom: 36 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -873,127 +933,172 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 Google Analytics 4
               </h2>
             </div>
-            {!ga4?.connected && <ComingSoonBadge />}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {!ga4?.connected && <ComingSoonBadge />}
+              {ga4?.connected && (
+                <button
+                  onClick={() => router.push('/analytics/traffic')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: '1px solid var(--line)', color: 'var(--text-dim)', borderRadius: 8, padding: '4px 10px', fontSize: 11.5, cursor: 'pointer' }}
+                >
+                  <ArrowRight size={11} />
+                  View traffic details
+                </button>
+              )}
+            </div>
           </div>
-          <div style={{ position: 'relative', opacity: ga4?.connected && !ga4?.error ? 1 : 0.55 }}>
-            {/* KPI row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
-              {[
-                { label: 'Sessions',        value: ga4?.sessions7d,       suffix: '' },
-                { label: 'Active users',    value: ga4?.activeUsers7d,    suffix: '' },
-                { label: 'New users',       value: ga4?.newUsers7d,       suffix: '' },
-                { label: 'Pageviews',       value: ga4?.pageviews7d,      suffix: '' },
-                { label: 'Engagement rate', value: ga4?.engagementRate7d, suffix: '%' },
-              ].map(k => (
-                <div key={k.label} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 16px' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 8 }}>{k.label}</div>
-                  <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.5px', color: 'var(--text)', lineHeight: 1, filter: !ga4?.connected ? 'blur(5px)' : 'none' }}>
-                    {k.value != null ? `${fmt(k.value)}${k.suffix}` : '—'}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 4 }}>7 days</div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
-              {/* Daily trend chart */}
-              <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>New users</h3>
-                <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>Daily new users — last 30 days</p>
-                <div style={{ height: 160, filter: !ga4?.connected ? 'blur(4px)' : 'none' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={ga4?.connected && ga4.dailyTrend.length ? ga4.dailyTrend : Array.from({ length: 10 }, (_, i) => ({ date: `d${i}`, newUsers: Math.round(Math.random() * 30 + 5) }))} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="ga4Fill" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%"   stopColor="var(--gold)" stopOpacity={0.25} />
-                          <stop offset="100%" stopColor="var(--gold)" stopOpacity={0}    />
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="date" tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                      <YAxis tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} width={24} />
-                      <Tooltip contentStyle={{ background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 8, fontSize: 11 }} itemStyle={{ color: 'var(--gold)' }} />
-                      <Area type="monotone" dataKey="newUsers" stroke="var(--gold)" strokeWidth={2} fill="url(#ga4Fill)" dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Traffic sources */}
-              <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Traffic sources</h3>
-                <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>Sessions by channel — 7 days</p>
-                {(() => {
-                  const sources = ga4?.connected && ga4.trafficSources.length ? ga4.trafficSources : [
-                    { channel: 'Organic Search', sessions: 420 },
-                    { channel: 'Direct', sessions: 280 },
-                    { channel: 'Referral', sessions: 140 },
-                    { channel: 'Social', sessions: 90 },
-                  ]
-                  const maxSessions = Math.max(...sources.map(s => s.sessions), 1)
-                  const CHANNEL_COLORS: Record<string, string> = { 'Organic Search': 'var(--green)', 'Direct': 'var(--green-bright)', 'Referral': 'var(--gold)', 'Social': '#5eead4', 'Email': '#a78bfa', 'Paid Search': '#f87171' }
-                  return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, filter: !ga4?.connected ? 'blur(4px)' : 'none' }}>
-                      {sources.map(s => (
-                        <div key={s.channel}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>{s.channel}</span>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{fmt(s.sessions)}</span>
-                          </div>
-                          <div style={{ height: 5, borderRadius: 99, background: 'var(--line)' }}>
-                            <div style={{ height: 5, borderRadius: 99, width: `${Math.round(s.sessions / maxSessions * 100)}%`, background: CHANNEL_COLORS[s.channel] ?? 'var(--text-dim)' }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })()}
-              </div>
-            </div>
-
-            {/* Top landing pages */}
-            <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Top landing pages</h3>
-              <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Entry pages by sessions — 7 days</p>
-              <div style={{ filter: !ga4?.connected ? 'blur(4px)' : 'none' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '6px 20px', fontSize: 11, fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid var(--line)' }}>
-                  <span>Page</span><span>Sessions</span><span>New users</span><span>Engagement</span>
-                </div>
-                {(ga4?.connected && ga4.topPages.length ? ga4.topPages : [
-                  { page: '/home', sessions: 340, newUsers: 180, engagementRate: 72 },
-                  { page: '/pricing', sessions: 210, newUsers: 95, engagementRate: 68 },
-                  { page: '/blog/example-post', sessions: 130, newUsers: 110, engagementRate: 81 },
-                ]).map((p, i) => (
-                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '6px 20px', padding: '7px 0', borderBottom: '1px solid var(--line)', alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.page}</span>
-                    <span style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'right' }}>{fmt(p.sessions)}</span>
-                    <span style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'right' }}>{fmt(p.newUsers)}</span>
-                    <span style={{ fontSize: 12, textAlign: 'right', color: p.engagementRate >= 60 ? 'var(--green-bright)' : p.engagementRate >= 40 ? 'var(--gold)' : '#f87171' }}>{p.engagementRate}%</span>
+          {trafficData?.connected ? (
+            <div style={{ opacity: trafficLoading ? 0.55 : 1, transition: 'opacity 0.2s' }}>
+              {/* ── 3 stat cards ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
+                {[
+                  { label: 'Active users',    value: trafficData.stats?.activeUsers    ?? 0, color: 'var(--text)' },
+                  { label: 'New users',       value: trafficData.stats?.newUsers       ?? 0, color: '#4ade80' },
+                  { label: 'Returning users', value: trafficData.stats?.returningUsers ?? 0, color: 'var(--gold)' },
+                ].map(s => (
+                  <div key={s.label} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 8 }}>{s.label}</div>
+                    <div style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-0.8px', color: s.color, lineHeight: 1 }}>{fmt(s.value)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 6 }}>{PERIOD_DESC[range]}</div>
                   </div>
                 ))}
               </div>
-            </div>
 
-            {/* Not connected / error overlay */}
-            {(!ga4?.connected || ga4?.error) && (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 14 }}>
-                <div style={{ textAlign: 'center', padding: '20px 28px', background: 'var(--card)', border: `1px solid ${ga4?.error ? '#f8717140' : 'var(--line)'}`, borderRadius: 14 }}>
-                  <BarChart2 size={22} style={{ color: ga4?.error ? '#f87171' : 'var(--text-faint)', marginBottom: 10 }} />
-                  {ga4?.error ? (
-                    <>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: '#f87171', marginBottom: 4 }}>GA4 auth failed</p>
-                      <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Check your service account key in Settings → Integrations</p>
-                    </>
-                  ) : (
-                    <>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Connect Google Analytics 4</p>
-                      <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Go to Settings → Integrations → GA4 API</p>
-                    </>
-                  )}
+              {/* ── New vs returning bar ── */}
+              {(() => {
+                const newRow = trafficData.newVsRet?.find(r => r.type === 'new')
+                const retRow = trafficData.newVsRet?.find(r => r.type === 'returning')
+                const total  = (newRow?.activeUsers ?? 0) + (retRow?.activeUsers ?? 0) || 1
+                const newPct = Math.round(((newRow?.activeUsers ?? 0) / total) * 100)
+                return (
+                  <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', margin: 0 }}>New vs returning · {PERIOD_DESC[range]}</h3>
+                      <div style={{ display: 'flex', gap: 16 }}>
+                        <span style={{ fontSize: 12, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#4ade80', display: 'inline-block' }} /> New {newPct}%
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--gold)', display: 'inline-block' }} /> Returning {100 - newPct}%
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ height: 6, borderRadius: 99, background: 'var(--line)', overflow: 'hidden', display: 'flex', marginBottom: 14 }}>
+                      <div style={{ width: `${newPct}%`, height: '100%', background: '#4ade80', transition: 'width .4s ease' }} />
+                      <div style={{ flex: 1, height: '100%', background: 'var(--gold)' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 32 }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 3 }}>New users</div>
+                        <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>{fmt(newRow?.activeUsers ?? 0)}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 3 }}>Returning users</div>
+                        <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>{fmt(retRow?.activeUsers ?? 0)}</div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* ── Trend + Channels side by side ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+                {/* Trend chart */}
+                {trafficData.trend?.length > 1 ? (
+                  <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                    <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Daily users</h3>
+                    <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>{PERIOD_DESC[range]}</p>
+                    <div style={{ height: 150 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={trafficData.trend} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="an-trf-au" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="var(--green)" stopOpacity={0.25} />
+                              <stop offset="100%" stopColor="var(--green)" stopOpacity={0} />
+                            </linearGradient>
+                            <linearGradient id="an-trf-nu" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="var(--gold)" stopOpacity={0.25} />
+                              <stop offset="100%" stopColor="var(--gold)" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <XAxis dataKey="date" tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" tickFormatter={(v: string) => v.slice(5)} />
+                          <YAxis tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} width={24} />
+                          <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, fontSize: 11 }} />
+                          <Area type="monotone" dataKey="activeUsers" name="Active" stroke="var(--green)" strokeWidth={2} fill="url(#an-trf-au)" dot={false} />
+                          <Area type="monotone" dataKey="newUsers" name="New" stroke="var(--gold)" strokeWidth={2} fill="url(#an-trf-nu)" dot={false} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>Trend chart needs multiple days of data</span>
+                  </div>
+                )}
+
+                {/* Traffic channels */}
+                <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>How they found you</h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>{PERIOD_DESC[range]}</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                    {(trafficData.channels ?? []).slice(0, 6).map((c, i) => (
+                      <div key={i}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: '50%', background: chColor(c.channel), flexShrink: 0, display: 'inline-block' }} />
+                            {c.channel}
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: chColor(c.channel) }}>{c.pct}%</span>
+                        </div>
+                        <div style={{ height: 4, borderRadius: 99, background: 'var(--line)' }}>
+                          <div style={{ height: 4, borderRadius: 99, width: `${c.pct}%`, background: chColor(c.channel), transition: 'width .4s ease' }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
+
+              {/* ── Entry pages ── */}
+              {(trafficData.landingPages ?? []).length > 0 && (
+                <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Entry pages</h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Pages that bring visitors in · {PERIOD_DESC[range]}</p>
+                  {trafficData.landingPages.slice(0, 8).map((p, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < Math.min(trafficData.landingPages.length, 8) - 1 ? '1px solid var(--line)' : 'none' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 16, fontFamily: 'monospace' }}>{p.page || '/'}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                        <div style={{ width: 60, height: 4, borderRadius: 99, background: 'var(--line)', overflow: 'hidden' }}>
+                          <div style={{ width: `${p.pct}%`, height: '100%', background: 'var(--green)', transition: 'width .4s ease' }} />
+                        </div>
+                        <span style={{ fontSize: 12, color: 'var(--text-dim)', minWidth: 60, textAlign: 'right' }}>{fmt(p.sessions)} sessions</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', minWidth: 30, textAlign: 'right' }}>{p.pct}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ background: 'var(--card)', border: `1px solid ${ga4?.error ? '#f8717140' : 'var(--line)'}`, borderRadius: 14, padding: '28px 24px', textAlign: 'center' }}>
+              <BarChart2 size={22} style={{ color: ga4?.error ? '#f87171' : 'var(--text-faint)', marginBottom: 10 }} />
+              {ga4?.error ? (
+                <>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#f87171', marginBottom: 4 }}>GA4 auth failed</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Check your service account key in Settings → Integrations</p>
+                </>
+              ) : trafficLoading ? (
+                <p style={{ fontSize: 13, color: 'var(--text-faint)' }}>Loading…</p>
+              ) : (
+                <>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Connect Google Analytics 4</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Go to Settings → Integrations → GA4 API</p>
+                </>
+              )}
+            </div>
+          )}
         </section>
+
+        </>)}
 
         {/* Module health — hidden for now */}
 

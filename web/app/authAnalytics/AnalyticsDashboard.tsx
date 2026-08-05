@@ -1098,6 +1098,7 @@ interface Props {
 export default function AnalyticsDashboard({ brand, modules }: Props) {
   const router = useRouter()
   const [backLoading, setBackLoading] = useState(false)
+  const [view, setView] = useState<'users' | 'website'>('users')
   const [range, setRange] = useState('24h')
   const [expandedModule, setExpandedModule] = useState<string | null>(null)
   const [redirectTarget, setRedirectTarget] = useState<string | null>(null)
@@ -1603,6 +1604,22 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'flex-start' : 'flex-end', gap: 5 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {/* View toggle */}
+              <div style={{ display: 'flex', padding: '3px', border: `1px solid ${MOCK.border}`, borderRadius: 99, background: MOCK.card }}>
+                {(['users', 'website'] as const).map(v => (
+                  <button key={v} onClick={() => setView(v)} style={{
+                    fontSize: 13.5, fontWeight: 600, padding: '5px 16px', borderRadius: 99,
+                    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+                    background: view === v ? MOCK.badgeDark : 'transparent',
+                    color: view === v ? '#ffffff' : MOCK.muted,
+                    textTransform: 'capitalize',
+                  }}>
+                    {v === 'users' ? 'Users' : 'Website'}
+                  </button>
+                ))}
+              </div>
+              {/* Range picker — controls PostHog activity, only relevant on Users view */}
+              {view === 'users' && (
               <div style={{ display: 'flex', padding: '3px', border: `1px solid ${MOCK.border}`, borderRadius: 99, background: MOCK.card }}>
                 {['24h', '7d', '30d'].map((r) => (
                   <button key={r} onClick={() => setRange(r)} style={{
@@ -1615,6 +1632,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                   </button>
                 ))}
               </div>
+              )}
               <button
                 onClick={() => {
                   setPhLoading(true)
@@ -1641,6 +1659,9 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
         </div>
 
         {/* Summary + Todo — hidden for now */}
+
+        {/* ── Users view ── */}
+        {view === 'users' && (<>
 
         {/* Road to 500 banner */}
         <div style={{
@@ -1998,6 +2019,11 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           )
         })()}
 
+        </>)}
+
+        {/* ── Website view ── */}
+        {view === 'website' && (<>
+
         {/* ── GSC Section ── */}
         <section style={{ marginBottom: 36 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -2227,6 +2253,8 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             )}
           </div>
         </section>
+
+        </>)}
 
         {/* Module health — hidden for now */}
 

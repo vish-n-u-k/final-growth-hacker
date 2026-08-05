@@ -3823,6 +3823,7 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
 .an-skeleton-short { width: 65%; }
 .an-skeleton-metric { height: 22px; }
 
+
 /* ── Overview Dashboard (/analytics) ov-* ──────────────────────────────────── */
 
 @keyframes ov-spin { to { transform: rotate(360deg); } }
