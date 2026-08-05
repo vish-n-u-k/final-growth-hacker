@@ -31,7 +31,7 @@ interface InsightsData {
   trend: { date: string; activeUsers: number; newUsers: number; sessions: number }[]
   newVsReturning: { type: string; users: number; engagedSessions: number }[]
   channels: { channel: string; sessions: number; users: number; engagedSessions: number; conversions: number; pct: number }[]
-  referrals: { source: string; sessions: number; users: number; engagedSessions: number }[]
+  referrals: { source: string; sessions: number; users: number; engagedSessions: number; conversions: number }[]
   landingPages: { page: string; sessions: number; newUsers: number; avgEngagementTime: number; conversions: number; pct: number }[]
   pagePerformance: { page: string; views: number; users: number; avgEngagementTime: number; conversions: number }[]
   geography: { country: string; users: number; sessions: number; engagedSessions: number; conversions: number }[]
