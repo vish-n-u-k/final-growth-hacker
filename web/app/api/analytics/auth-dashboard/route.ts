@@ -252,6 +252,10 @@ export async function GET(request: NextRequest) {
     .limit(1)
   if (!brand) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  // Card overrides — always fresh from DB (never cached)
+  type CardOverride = { label?: string; events?: string[] }
+  const cardOverrides = (brand.analyticsCardOverrides as Record<string, CardOverride> | null) ?? {}
+
   // Return cached snapshot if available, not forced, and contains new fields
   const snap = brand.analyticsSnapshot as Record<string, unknown> | null
   const snapIsFresh = snap && snap['_v'] === 11 && 'proUsers' in snap
@@ -259,6 +263,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ...snap,
       snapshotAt: brand.analyticsSnapshotAt.toISOString(),
+      cardOverrides,
     })
   }
 
@@ -329,6 +334,18 @@ export async function GET(request: NextRequest) {
     if (projectId) {
       const key = phInt.apiKey
       const f = buildPostHogFilter(meta)
+
+      // Build override-aware query strings for Type B cards
+      const deletedEvents = cardOverrides['deleted']?.events?.length
+        ? cardOverrides['deleted'].events
+        : ['account_deleted', 'user_deleted', 'delete_account']
+      const deletedIn = deletedEvents.map(e => `'${e.replace(/'/g, "\\'")}'`).join(', ')
+
+      const proEvents = cardOverrides['pro']?.events?.length ? cardOverrides['pro'].events : null
+      const proHogQuery = proEvents
+        ? `SELECT count() FROM events WHERE event IN (${proEvents.map(e => `'${e.replace(/'/g, "\\'")}'`).join(', ')})`
+        : `SELECT count() FROM persons WHERE properties.plan = 'pro'`
+
       const [
         signupsRows, signinsRows, activeUsersRows, deletedRows,
         retentionRaw, funnelRaw,
@@ -345,8 +362,8 @@ export async function GET(request: NextRequest) {
         hogqlRows(host, projectId, key, `SELECT countIf(timestamp >= now() - interval 1 day), countIf(timestamp >= now() - interval 7 day), countIf(timestamp >= now() - interval 30 day), countIf(timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day), countIf(timestamp >= now() - interval 14 day AND timestamp < now() - interval 7 day), countIf(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day) FROM events WHERE event = '$identify' ${f.personSubqueryAndClause}`),
         // Active users: 3 current windows + 3 prior period windows in one query
         hogqlRows(host, projectId, key, `SELECT count(DISTINCT if(timestamp >= now() - interval 1 day, ${f.eventDistinctCol}, null)), count(DISTINCT if(timestamp >= now() - interval 7 day, ${f.eventDistinctCol}, null)), count(DISTINCT if(timestamp >= now() - interval 30 day, ${f.eventDistinctCol}, null)), count(DISTINCT if(timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day, ${f.eventDistinctCol}, null)), count(DISTINCT if(timestamp >= now() - interval 14 day AND timestamp < now() - interval 7 day, ${f.eventDistinctCol}, null)), count(DISTINCT if(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day, ${f.eventDistinctCol}, null)) FROM events WHERE ${f.eventPersonWherePrefix}timestamp >= now() - interval 60 day`),
-        // Deleted accounts: 3 current windows + 3 prior period windows in one query
-        hogqlRows(host, projectId, key, `SELECT countIf(timestamp >= now() - interval 1 day), countIf(timestamp >= now() - interval 7 day), countIf(timestamp >= now() - interval 30 day), countIf(timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day), countIf(timestamp >= now() - interval 14 day AND timestamp < now() - interval 7 day), countIf(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day) FROM events WHERE event IN ('account_deleted', 'user_deleted', 'delete_account') ${f.personSubqueryAndClause}`),
+        // Deleted accounts: 3 current windows + 3 prior period windows (events configurable via cardOverrides)
+        hogqlRows(host, projectId, key, `SELECT countIf(timestamp >= now() - interval 1 day), countIf(timestamp >= now() - interval 7 day), countIf(timestamp >= now() - interval 30 day), countIf(timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day), countIf(timestamp >= now() - interval 14 day AND timestamp < now() - interval 7 day), countIf(timestamp >= now() - interval 60 day AND timestamp < now() - interval 30 day) FROM events WHERE event IN (${deletedIn}) ${f.personSubqueryAndClause}`),
         phQuery(host, projectId, key, {
           kind: 'RetentionQuery',
           retentionFilter: { retention_type: 'retention_first_time', target_entity: { id: '$pageview', type: 'events' }, returning_entity: { id: '$pageview', type: 'events' }, total_intervals: 7, period: 'Day' },
@@ -397,8 +414,8 @@ export async function GET(request: NextRequest) {
         hogqlRows(host, projectId, key, `SELECT event, round(count() / count(DISTINCT person_id), 1) FROM events WHERE person_id IN (${f.personSubquery}) AND person_id IN (SELECT DISTINCT person_id FROM events WHERE event = 'account_deleted') AND event IN ('feed_viewed', 'post_generate_started', 'post_generated', 'post_downloaded', 'post_shared', 'post_schedule_started', 'social_account_connected') AND timestamp >= now() - interval 90 day GROUP BY event`),
         // Total unique users ever
         hogqlRows(host, projectId, key, f.personsCountQuery),
-        // Pro users (persons with plan = 'pro' property)
-        hogql(host, projectId, key, `SELECT count() FROM persons WHERE properties.plan = 'pro'`),
+        // Pro users — person property or custom event (configurable via cardOverrides)
+        hogql(host, projectId, key, proHogQuery),
       ])
 
       let retention: { day: string; rate: number }[] | null = null
@@ -535,5 +552,5 @@ export async function GET(request: NextRequest) {
     .set({ analyticsSnapshot: snapshot, analyticsSnapshotAt: snapshotAt })
     .where(eq(brands.id, brandId))
 
-  return NextResponse.json({ ...snapshot, snapshotAt: snapshotAt.toISOString() })
+  return NextResponse.json({ ...snapshot, snapshotAt: snapshotAt.toISOString(), cardOverrides })
 }

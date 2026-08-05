@@ -71,7 +71,8 @@
       "Bash(find \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" -path \"*/modules/seo*\" -type f 2>/dev/null | head -20)",
       "Bash(find \"C:/Users/vishn/Desktop/Final Growth Hacker/web\" -name \"*settings*\" -o -name \"*integration*\" 2>/dev/null | head -20)",
       "Bash(grep -r \"PostHog\\\\|posthog\" \"C:/Users/vishn/Desktop/Final Growth Hacker/web\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" 2>/dev/null | head -30)",
-      "Bash(cd \"/c/Users/vishn/Desktop/Final Growth Hacker/web\" && npx tsc --noEmit 2>&1 | head -60)"
+      "Bash(cd \"/c/Users/vishn/Desktop/Final Growth Hacker/web\" && npx tsc --noEmit 2>&1 | head -60)",
+      "Bash(cd \"/c/Users/vishn/Desktop/Final Growth Hacker/web\" && npx tsc --noEmit 2>&1 | head -40)"
     ]
   }
 }

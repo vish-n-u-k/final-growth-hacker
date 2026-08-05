@@ -9,7 +9,7 @@ import {
   ArrowLeft, RefreshCw, UserPlus, LogIn, Crown, UserMinus,
   Trash2, MessageSquare, Star, TrendingDown, TrendingUp,
   Zap, ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle, Copy,
-  Plus, X as XIcon,
+  Plus, X as XIcon, Pencil,
 } from 'lucide-react'
 
 /* ── Types ────────────────────────────────────────────── */
@@ -82,6 +82,7 @@ interface DashboardData {
   gsc: GscData
   ga4: Ga4Data
   snapshotAt?: string | null
+  cardOverrides?: Record<string, { label?: string; events?: string[] }>
 }
 
 interface UserRow {
@@ -1120,6 +1121,9 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   const [newMetricTone, setNewMetricTone] = useState('green')
   const [newMetricType, setNewMetricType] = useState('count')
   const [savingMetric, setSavingMetric] = useState(false)
+  const [editBuiltinCard, setEditBuiltinCard] = useState<{ key: string; label: string; events: string } | null>(null)
+  const [savingBuiltinEdit, setSavingBuiltinEdit] = useState(false)
+  const [editingCustomId, setEditingCustomId] = useState<string | null>(null)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 768px)')
     setIsMobile(mq.matches)
@@ -1152,7 +1156,58 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
       .catch(() => {})
   }
 
+  const openEditBuiltin = (key: string, defaultLabel: string) => {
+    const ov = data?.cardOverrides?.[key]
+    setEditBuiltinCard({
+      key,
+      label: ov?.label ?? defaultLabel,
+      events: (ov?.events ?? []).join(', '),
+    })
+  }
+
+  const saveBuiltinEdit = async () => {
+    if (!editBuiltinCard || savingBuiltinEdit) return
+    setSavingBuiltinEdit(true)
+    const events = editBuiltinCard.events.split(',').map(e => e.trim()).filter(Boolean)
+    try {
+      const res = await fetch('/api/analytics/built-in-metrics', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brandId: brand.id, key: editBuiltinCard.key, label: editBuiltinCard.label, events }),
+      })
+      if (res.ok) {
+        setData(prev => prev ? {
+          ...prev,
+          cardOverrides: { ...prev.cardOverrides, [editBuiltinCard.key]: { label: editBuiltinCard.label, events } },
+        } : prev)
+        setEditBuiltinCard(null)
+        showToast('Saved — refresh analytics to apply new events')
+      }
+    } finally {
+      setSavingBuiltinEdit(false)
+    }
+  }
+
+  const openEditCustom = (m: CustomMetricData) => {
+    setEditingCustomId(m.id)
+    setNewMetricEvent(m.eventName)
+    setNewMetricLabel(m.label)
+    setNewMetricTone(m.tone)
+    setNewMetricType(m.metricType)
+    setEventSearch(m.eventName)
+    setShowAddMetric(true)
+    if (phEvents.length === 0) {
+      setEventsLoading(true)
+      fetch(`/api/analytics/posthog-events?brandId=${brand.id}`)
+        .then(r => r.json())
+        .then((d: { events: { event: string; cnt: number }[] }) => setPhEvents(d.events ?? []))
+        .catch(() => {})
+        .finally(() => setEventsLoading(false))
+    }
+  }
+
   const openAddMetric = () => {
+    setEditingCustomId(null)
     setShowAddMetric(true)
     setNewMetricEvent('')
     setNewMetricLabel('')
@@ -1173,21 +1228,18 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
     if (!newMetricEvent || !newMetricLabel || savingMetric) return
     setSavingMetric(true)
     try {
-      const res = await fetch('/api/analytics/custom-metrics', {
-        method: 'POST',
+      const url    = editingCustomId ? `/api/analytics/custom-metrics/${editingCustomId}` : '/api/analytics/custom-metrics'
+      const method = editingCustomId ? 'PATCH' : 'POST'
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          brandId: brand.id,
-          eventName: newMetricEvent,
-          label: newMetricLabel,
-          tone: newMetricTone,
-          metricType: newMetricType,
-        }),
+        body: JSON.stringify({ brandId: brand.id, eventName: newMetricEvent, label: newMetricLabel, tone: newMetricTone, metricType: newMetricType }),
       })
       if (res.ok) {
         setShowAddMetric(false)
+        setEditingCustomId(null)
         loadCustomMetrics()
-        showToast('Metric added')
+        showToast(editingCustomId ? 'Metric updated' : 'Metric added')
       }
     } finally {
       setSavingMetric(false)
@@ -1259,17 +1311,18 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   const deletedPrior     = range === '7d' ? (data?.deletedPrev7d ?? 0)      : range === '30d' ? (data?.deletedPrev30d ?? 0)      : (data?.deletedPrev24h ?? 0)
 
   // Build activity tiles — real PostHog data + Stripe (coming soon)
+  const cardOv = data?.cardOverrides ?? {}
   const activityTiles: {
     key: string; label: string; value: string | number; delta: number
     source: string; icon: React.ElementType; tone: string
     loading?: boolean; comingSoon?: boolean; invertGood?: boolean; period?: string
-    onViewDetails?: () => void
+    onViewDetails?: () => void; onEdit?: () => void
   }[] = [
     { key: 'signups',  label: 'New signups',      value: signupsVal,      delta: signupsVal - signupsPrior,         source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signups') : undefined },
     { key: 'signins',  label: 'Sign-ins',          value: signinsVal,      delta: signinsVal - signinsPrior,         source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signins') : undefined },
     { key: 'au',       label: activeUsersLabel,    value: activeUsersVal,  delta: activeUsersVal - activeUsersPrior, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('dau') : undefined },
-    { key: 'deleted',  label: 'Deleted account',   value: deletedVal,      delta: deletedVal - deletedPrior,         source: 'PostHog',  icon: Trash2,        tone: 'red',     loading: phLoading, period: rangePeriod, invertGood: true, onViewDetails: data?.posthogConnected ? () => openDetail('deleted') : undefined },
-    { key: 'pro',      label: 'Became PRO',        value: data?.proUsers ?? 0, delta: 0, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading },
+    { key: 'deleted',  label: cardOv['deleted']?.label ?? 'Deleted account', value: deletedVal, delta: deletedVal - deletedPrior, source: 'PostHog', icon: Trash2, tone: 'red', loading: phLoading, period: rangePeriod, invertGood: true, onViewDetails: data?.posthogConnected ? () => openDetail('deleted') : undefined, onEdit: data?.posthogConnected ? () => openEditBuiltin('deleted', 'Deleted account') : undefined },
+    { key: 'pro',      label: cardOv['pro']?.label ?? 'Became PRO',        value: data?.proUsers ?? 0, delta: 0, source: 'PostHog', icon: Crown, tone: 'amber', loading: phLoading, onEdit: data?.posthogConnected ? () => openEditBuiltin('pro', 'Became PRO') : undefined },
     { key: 'unsub',    label: 'Unsubscribed',      value: 0, delta: 0, source: 'Stripe',   icon: UserMinus,     tone: 'red',     comingSoon: true, invertGood: true },
     { key: 'contact',  label: 'Support contacted', value: 0, delta: 0, source: 'Internal', icon: MessageSquare, tone: 'amber', comingSoon: true },
     { key: 'reviews',  label: 'Reviews left',      value: 0, delta: 0, source: 'Internal', icon: Star,          tone: 'amber',   comingSoon: true },
@@ -1314,7 +1367,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
       {/* ── Add Metric Modal ──────────────────────────────────────── */}
       {showAddMetric && (
         <div
-          onClick={e => { if (e.target === e.currentTarget) setShowAddMetric(false) }}
+          onClick={e => { if (e.target === e.currentTarget) { setShowAddMetric(false); setEditingCustomId(null) } }}
           style={{
             position: 'fixed', inset: 0, background: 'rgba(30,35,31,0.55)',
             zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
@@ -1324,10 +1377,10 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
               <div>
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: MOCK.text, margin: 0 }}>Add custom metric</h3>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: MOCK.text, margin: 0 }}>{editingCustomId ? 'Edit metric' : 'Add custom metric'}</h3>
                 <p style={{ fontSize: 13, color: MOCK.muted, margin: '4px 0 0' }}>Pick any PostHog event and give it a name</p>
               </div>
-              <button onClick={() => setShowAddMetric(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: MOCK.muted, padding: 4, display: 'flex' }}>
+              <button onClick={() => { setShowAddMetric(false); setEditingCustomId(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: MOCK.muted, padding: 4, display: 'flex' }}>
                 <XIcon size={18} />
               </button>
             </div>
@@ -1435,7 +1488,75 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                 fontSize: 14, fontWeight: 700, opacity: savingMetric ? 0.7 : 1,
               }}
             >
-              {savingMetric ? 'Saving...' : 'Add metric'}
+              {savingMetric ? 'Saving...' : editingCustomId ? 'Save changes' : 'Add metric'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Built-in Card Modal ─────────────────────────── */}
+      {editBuiltinCard && (
+        <div
+          onClick={e => { if (e.target === e.currentTarget) setEditBuiltinCard(null) }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(30,35,31,0.55)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        >
+          <div style={{ background: MOCK.card, borderRadius: 18, width: '100%', maxWidth: 460, padding: 28, boxShadow: '0 24px 64px rgba(0,0,0,0.22)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, color: MOCK.text, margin: 0 }}>Edit card</h3>
+                <p style={{ fontSize: 13, color: MOCK.muted, margin: '4px 0 0' }}>
+                  {editBuiltinCard.key === 'deleted' ? 'Deleted account' : 'Became PRO'} card
+                </p>
+              </div>
+              <button onClick={() => setEditBuiltinCard(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: MOCK.muted, padding: 4, display: 'flex' }}>
+                <XIcon size={18} />
+              </button>
+            </div>
+
+            {/* Label */}
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ fontSize: 11.5, fontWeight: 700, color: MOCK.muted, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 8 }}>
+                Display name
+              </label>
+              <input
+                value={editBuiltinCard.label}
+                onChange={e => setEditBuiltinCard(prev => prev ? { ...prev, label: e.target.value } : prev)}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `1px solid ${MOCK.border}`, fontSize: 14, color: MOCK.text, background: MOCK.bg, outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+
+            {/* Events */}
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ fontSize: 11.5, fontWeight: 700, color: MOCK.muted, textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 8 }}>
+                {editBuiltinCard.key === 'pro' ? 'Event name (optional)' : 'Event names (comma-separated)'}
+              </label>
+              <input
+                value={editBuiltinCard.events}
+                onChange={e => setEditBuiltinCard(prev => prev ? { ...prev, events: e.target.value } : prev)}
+                placeholder={editBuiltinCard.key === 'deleted'
+                  ? 'e.g. account_deleted, user_deleted'
+                  : 'e.g. subscription_created'}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: `1px solid ${MOCK.border}`, fontSize: 14, color: MOCK.text, background: MOCK.bg, outline: 'none', boxSizing: 'border-box' }}
+              />
+              <p style={{ fontSize: 12, color: MOCK.muted, marginTop: 6 }}>
+                {editBuiltinCard.key === 'deleted'
+                  ? 'Default: account_deleted, user_deleted, delete_account'
+                  : 'Leave blank to count persons where plan = \'pro\'. Set an event to count upgrade event fires instead.'}
+              </p>
+            </div>
+
+            <button
+              onClick={() => void saveBuiltinEdit()}
+              disabled={!editBuiltinCard.label || savingBuiltinEdit}
+              style={{
+                width: '100%', padding: '12px', borderRadius: 10, border: 'none',
+                cursor: !editBuiltinCard.label || savingBuiltinEdit ? 'not-allowed' : 'pointer',
+                background: !editBuiltinCard.label ? MOCK.border : MOCK.green,
+                color: !editBuiltinCard.label ? MOCK.muted : '#fff',
+                fontSize: 14, fontWeight: 700, opacity: savingBuiltinEdit ? 0.7 : 1,
+              }}
+            >
+              {savingBuiltinEdit ? 'Saving...' : 'Save changes'}
             </button>
           </div>
         </div>
@@ -1618,18 +1739,45 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
             {activityTiles.map((item) => (
-              <StatCard
-                key={item.key}
-                icon={item.icon} iconTone={item.tone}
-                label={item.label} value={item.value}
-                source={item.source} deltaValue={item.delta}
-                invertGood={item.invertGood}
-                loading={item.loading}
-                comingSoon={item.comingSoon}
-                period={item.period}
-                onViewDetails={item.onViewDetails}
-                isMobile={isMobile}
-              />
+              item.onEdit ? (
+                <div key={item.key} style={{ position: 'relative' }}>
+                  <StatCard
+                    icon={item.icon} iconTone={item.tone}
+                    label={item.label} value={item.value}
+                    source={item.source} deltaValue={item.delta}
+                    invertGood={item.invertGood}
+                    loading={item.loading}
+                    period={item.period}
+                    onViewDetails={item.onViewDetails}
+                    isMobile={isMobile}
+                  />
+                  <button
+                    onClick={item.onEdit}
+                    title="Edit card"
+                    style={{
+                      position: 'absolute', top: 10, right: 10,
+                      background: MOCK.card, border: `1px solid ${MOCK.border}`,
+                      borderRadius: 6, padding: '3px', cursor: 'pointer',
+                      color: MOCK.muted, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1,
+                    }}
+                  >
+                    <Pencil size={11} />
+                  </button>
+                </div>
+              ) : (
+                <StatCard
+                  key={item.key}
+                  icon={item.icon} iconTone={item.tone}
+                  label={item.label} value={item.value}
+                  source={item.source} deltaValue={item.delta}
+                  invertGood={item.invertGood}
+                  loading={item.loading}
+                  comingSoon={item.comingSoon}
+                  period={item.period}
+                  onViewDetails={item.onViewDetails}
+                  isMobile={isMobile}
+                />
+              )
             ))}
             {/* Custom metric cards */}
             {customMetrics.map(m => (
@@ -1644,19 +1792,22 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                   period={rangePeriod}
                   isMobile={isMobile}
                 />
-                <button
-                  onClick={() => void deleteMetric(m.id)}
-                  title="Remove metric"
-                  style={{
-                    position: 'absolute', top: 10, right: 10,
-                    background: MOCK.card, border: `1px solid ${MOCK.border}`,
-                    borderRadius: 6, padding: '3px', cursor: 'pointer',
-                    color: MOCK.muted, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    lineHeight: 1,
-                  }}
-                >
-                  <XIcon size={11} />
-                </button>
+                <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 4 }}>
+                  <button
+                    onClick={() => openEditCustom(m)}
+                    title="Edit metric"
+                    style={{ background: MOCK.card, border: `1px solid ${MOCK.border}`, borderRadius: 6, padding: '3px', cursor: 'pointer', color: MOCK.muted, display: 'flex', alignItems: 'center', lineHeight: 1 }}
+                  >
+                    <Pencil size={11} />
+                  </button>
+                  <button
+                    onClick={() => void deleteMetric(m.id)}
+                    title="Remove metric"
+                    style={{ background: MOCK.card, border: `1px solid ${MOCK.border}`, borderRadius: 6, padding: '3px', cursor: 'pointer', color: MOCK.muted, display: 'flex', alignItems: 'center', lineHeight: 1 }}
+                  >
+                    <XIcon size={11} />
+                  </button>
+                </div>
               </div>
             ))}
             {/* Add metric placeholder card */}

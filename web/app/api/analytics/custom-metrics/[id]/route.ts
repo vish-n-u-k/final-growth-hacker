@@ -6,6 +6,40 @@ import { eq, and } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id } = await params
+  const body = await request.json() as { brandId?: string; eventName?: string; label?: string; tone?: string; metricType?: string }
+  const { brandId, eventName, label, tone, metricType } = body
+
+  if (!brandId) return NextResponse.json({ error: 'brandId required' }, { status: 400 })
+
+  const [brand] = await db
+    .select()
+    .from(brands)
+    .where(and(eq(brands.id, brandId), eq(brands.userId, user.id)))
+    .limit(1)
+  if (!brand) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  await db
+    .update(customMetrics)
+    .set({
+      ...(eventName  !== undefined && { eventName }),
+      ...(label      !== undefined && { label }),
+      ...(tone       !== undefined && { tone }),
+      ...(metricType !== undefined && { metricType }),
+    })
+    .where(and(eq(customMetrics.id, id), eq(customMetrics.brandId, brandId)))
+
+  return NextResponse.json({ ok: true })
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
