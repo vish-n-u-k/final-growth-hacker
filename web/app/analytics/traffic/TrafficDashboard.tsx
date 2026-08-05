@@ -134,6 +134,7 @@ function InfoTooltip({ text }: { text: string }) {
           padding: '8px 11px', fontSize: 11.5, lineHeight: 1.6, color: '#374151',
           whiteSpace: 'pre-line', width: 215, zIndex: 100, pointerEvents: 'none',
           boxShadow: '0 4px 20px rgba(0,0,0,0.13)',
+          textTransform: 'none', letterSpacing: 'normal', fontWeight: 400,
         }}>
           {text}
         </span>
