@@ -6,10 +6,13 @@ export async function resolveBrandFromToken(
   request: Request,
 ): Promise<{ brandId: string } | { error: string; status: number }> {
   const authHeader = request.headers.get('Authorization') ?? ''
-  if (!authHeader.startsWith('Bearer ')) {
-    return { error: 'Unauthorized', status: 401 }
+  let token = ''
+  if (authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice(7).trim()
+  } else {
+    const url = new URL(request.url)
+    token = url.searchParams.get('token') ?? ''
   }
-  const token = authHeader.slice(7).trim()
   if (!token) return { error: 'Unauthorized', status: 401 }
 
   const [row] = await db
