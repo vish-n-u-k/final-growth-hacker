@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { brandIntegrations } from '@/lib/db/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, or } from 'drizzle-orm'
 
 export async function resolveBrandFromToken(
   request: Request,
@@ -15,12 +15,16 @@ export async function resolveBrandFromToken(
   }
   if (!token) return { error: 'Unauthorized', status: 401 }
 
+  // Match against either the API key (CLI) or the OAuth access token (Claude.ai web)
   const [row] = await db
     .select({ brandId: brandIntegrations.brandId })
     .from(brandIntegrations)
     .where(
       and(
-        eq(brandIntegrations.apiKey, token),
+        or(
+          eq(brandIntegrations.apiKey, token),
+          eq(brandIntegrations.accessToken, token),
+        ),
         eq(brandIntegrations.provider, 'mcp'),
         eq(brandIntegrations.status, 'connected'),
       ),

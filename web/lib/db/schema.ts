@@ -135,6 +135,21 @@ export const brandIntegrations = pgTable(
   }),
 )
 
+// ── MCP OAuth Codes ───────────────────────────────────────────────────────────
+
+export const mcpOAuthCodes = pgTable('mcp_oauth_codes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: text('code').notNull().unique(),
+  brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull(),
+  redirectUri: text('redirect_uri').notNull(),
+  codeChallenge: text('code_challenge'),
+  codeChallengeMethod: text('code_challenge_method').default('S256'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
+
 // ── Brain Agent ───────────────────────────────────────────────────────────────
 
 export const brainContext = pgTable('brain_context', {

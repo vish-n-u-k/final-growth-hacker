@@ -31,8 +31,12 @@ export async function middleware(request: NextRequest) {
 
   const isAuthPage = pathname === '/login' || pathname === '/signup' || pathname === '/auth/callback'
   const isMcpEndpoint = pathname.startsWith('/api/mcp')
+  const isOAuthPublic =
+    pathname.startsWith('/api/oauth/') ||
+    pathname.startsWith('/.well-known/') ||
+    pathname === '/oauth/authorize'
 
-  if (!user && !isAuthPage && !isMcpEndpoint) {
+  if (!user && !isAuthPage && !isMcpEndpoint && !isOAuthPublic) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
