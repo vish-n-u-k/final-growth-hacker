@@ -35,6 +35,9 @@ export default async function Settings() {
     }
   }
 
+  const mcpRow = integrations.find((r) => r.provider === 'mcp')
+  const mcpKeyPrefix = mcpRow?.apiKey ? mcpRow.apiKey.slice(0, 8) : null
+
   return (
     <SettingsPage
       brand={{
@@ -50,6 +53,7 @@ export default async function Settings() {
       userEmail={user.email ?? ''}
       integrationRegistry={INTEGRATION_REGISTRY}
       connectedIntegrations={connectedMap}
+      mcpKeyPrefix={mcpKeyPrefix}
     />
   )
 }

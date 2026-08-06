@@ -21,11 +21,12 @@ interface Props {
   userEmail: string
   integrationRegistry: IntegrationDefinition[]
   connectedIntegrations: Record<string, ConnectedIntegration>
+  mcpKeyPrefix: string | null
 }
 
-type Tab = 'brand' | 'playbook' | 'integrations' | 'account'
+type Tab = 'brand' | 'playbook' | 'integrations' | 'claude-code' | 'account'
 
-export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations }: Props) {
+export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations, mcpKeyPrefix }: Props) {
   const [tab, setTab] = useState<Tab>('brand')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const router = useRouter()
@@ -110,6 +111,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
             { key: 'brand', label: 'Brand', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
             { key: 'playbook', label: 'Sales Playbook', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
             { key: 'integrations', label: 'Integrations', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+            { key: 'claude-code', label: 'Claude Code', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M8 12l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
             { key: 'account', label: 'Account', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
           ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(({ key, label, icon }) => (
             <button
@@ -138,6 +140,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
               )}
             </>
           )}
+          {tab === 'claude-code' && <ClaudeCodeSection initialKeyPrefix={mcpKeyPrefix} />}
           {tab === 'account' && <AccountSection userEmail={userEmail} />}
         </div>
       </div>
@@ -987,6 +990,153 @@ function PostHogSettingsSection({ connected }: { connected: ConnectedIntegration
               {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save settings'}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Claude Code Section ───────────────────────────────────────────────────────
+
+const MCP_TOOLS = [
+  { name: 'get_growth_overview', desc: 'All modules + overall growth score' },
+  { name: 'get_module_detail', desc: 'Checklist items and AI findings for a specific module' },
+  { name: 'analyze_module', desc: 'Trigger a full re-analysis and await results' },
+  { name: 'toggle_item', desc: 'Mark a checklist item as done or undone' },
+  { name: 'get_brand_info', desc: 'Brand profile: name, website, industry, USP, playbook summary' },
+]
+
+function ClaudeCodeSection({ initialKeyPrefix }: { initialKeyPrefix: string | null }) {
+  const [keyPrefix, setKeyPrefix] = useState<string | null>(initialKeyPrefix)
+  const [fullKey, setFullKey] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState(false)
+
+  const generateKey = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/mcp/token', { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json()
+        setFullKey(data.apiKey)
+        setKeyPrefix(data.apiKey.slice(0, 8))
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const configSnippet = fullKey
+    ? JSON.stringify(
+        {
+          mcpServers: {
+            growjin: {
+              type: 'http',
+              url: 'https://app.growjin.com/api/mcp',
+              headers: { Authorization: `Bearer ${fullKey}` },
+            },
+          },
+        },
+        null,
+        2,
+      )
+    : null
+
+  const handleCopy = async () => {
+    if (!configSnippet) return
+    await navigator.clipboard.writeText(configSnippet)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="st-section">
+      <div className="st-section-hd">
+        <h2 className="st-section-title">Claude Code Integration</h2>
+        <p className="st-section-desc">
+          Connect GrowJin to Claude Code so you can query your growth data, trigger analyses, and update checklists directly from your terminal — no browser required.
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* Key management */}
+        <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>API Key</div>
+          {keyPrefix ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <code style={{ fontSize: 13, background: 'var(--bg)', padding: '5px 10px', borderRadius: 6, color: 'var(--text-dim)', letterSpacing: '0.05em' }}>
+                {keyPrefix}••••••••••••••••••••••••••••••••
+              </code>
+              <button
+                onClick={generateKey}
+                disabled={loading}
+                style={{ fontSize: 12, color: 'var(--text-dim)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
+              >
+                {loading ? 'Regenerating…' : 'Regenerate'}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={generateKey}
+              disabled={loading}
+              className="md-btn-reanalyze"
+              style={{ alignSelf: 'flex-start' }}
+            >
+              {loading ? 'Generating…' : 'Generate API key'}
+            </button>
+          )}
+        </div>
+
+        {/* Config snippet — only shown after key is generated in this session */}
+        {fullKey && configSnippet && (
+          <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Add to ~/.claude.json</div>
+              <button
+                onClick={handleCopy}
+                style={{ fontSize: 12, color: copied ? 'var(--green)' : 'var(--text-dim)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
+              >
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+            <pre style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--text)', background: 'var(--bg)', padding: '12px 14px', borderRadius: 8, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+              {configSnippet}
+            </pre>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-dim)' }}>
+              Paste this into your <code>~/.claude.json</code> file, then restart Claude Code. The key is only shown once — copy it now.
+            </p>
+          </div>
+        )}
+
+        {/* If key exists but wasn't just generated, show a note to regenerate to see the snippet */}
+        {keyPrefix && !fullKey && (
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--text-dim)' }}>
+            A key is already configured. Click Regenerate to create a new key and view the config snippet.
+          </p>
+        )}
+
+        {/* Available tools */}
+        <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden' }}>
+          <button
+            onClick={() => setToolsOpen((v) => !v)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text)', fontSize: 13, fontWeight: 600 }}
+          >
+            Available tools ({MCP_TOOLS.length})
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ transform: toolsOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
+              <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          {toolsOpen && (
+            <div style={{ borderTop: '1px solid var(--line)', padding: '12px 20px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {MCP_TOOLS.map((tool) => (
+                <div key={tool.name} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <code style={{ fontSize: 11, color: 'var(--green)', background: 'var(--bg)', padding: '2px 7px', borderRadius: 4, flexShrink: 0, marginTop: 1 }}>{tool.name}</code>
+                  <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{tool.desc}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

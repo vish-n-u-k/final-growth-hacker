@@ -72,7 +72,15 @@
       "Bash(find \"C:/Users/vishn/Desktop/Final Growth Hacker/web\" -name \"*settings*\" -o -name \"*integration*\" 2>/dev/null | head -20)",
       "Bash(grep -r \"PostHog\\\\|posthog\" \"C:/Users/vishn/Desktop/Final Growth Hacker/web\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" 2>/dev/null | head -30)",
       "Bash(cd \"/c/Users/vishn/Desktop/Final Growth Hacker/web\" && npx tsc --noEmit 2>&1 | head -60)",
-      "Bash(cd \"/c/Users/vishn/Desktop/Final Growth Hacker/web\" && npx tsc --noEmit 2>&1 | head -40)"
+      "Bash(cd \"/c/Users/vishn/Desktop/Final Growth Hacker/web\" && npx tsc --noEmit 2>&1 | head -40)",
+      "Bash(while read:*)",
+      "Bash(do echo:*)",
+      "Read(//c/Users/vishn/Desktop/Final Growth Hacker/**)",
+      "Bash(done)",
+      "Bash(node -e \"\nconst fs = require\\('fs'\\);\nconst path = 'C:/Users/vishn/.claude.json';\nconst config = JSON.parse\\(fs.readFileSync\\(path, 'utf8'\\)\\);\nconfig.mcpServers = {\n  growjin: {\n    type: 'http',\n    url: 'https://final-growth-hacker.vercel.app/api/mcp',\n    headers: { Authorization: 'Bearer 357fd723ad994ca3031e04b349733f1fcb160b81' }\n  }\n};\nfs.writeFileSync\\(path, JSON.stringify\\(config, null, 2\\)\\);\nconsole.log\\('done'\\);\n\")",
+      "Bash(node -e \"\nconst fs = require\\('fs'\\);\nconst config = JSON.parse\\(fs.readFileSync\\('C:/Users/vishn/.claude.json', 'utf8'\\)\\);\nconsole.log\\(JSON.stringify\\(config.mcpServers, null, 2\\)\\);\n\")",
+      "Bash(node -e \"\nconst fs = require\\('fs'\\);\nconst path = 'C:/Users/vishn/.claude.json';\nconst config = JSON.parse\\(fs.readFileSync\\(path, 'utf8'\\)\\);\nconfig.mcpServers.growjin.url = 'http://localhost:3000/api/mcp';\nfs.writeFileSync\\(path, JSON.stringify\\(config, null, 2\\)\\);\nconsole.log\\('done'\\);\n\")",
+      "mcp__growjin__get_growth_overview"
     ]
   }
 }
