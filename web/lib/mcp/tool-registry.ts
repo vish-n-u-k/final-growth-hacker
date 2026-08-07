@@ -92,4 +92,73 @@ export const TOOLS: MCPTool[] = [
       },
     },
   },
+  {
+    name: 'get_ga_analytics',
+    description:
+      'Returns live Google Analytics (GA4) data — sessions, users, traffic channels, top landing pages, and top pages. If GA4 is not connected, returns a message explaining how to connect it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        period: {
+          type: 'string',
+          description: 'Date range: "7d", "30d", or "90d". Defaults to "30d".',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_gsc_data',
+    description:
+      'Returns live Google Search Console data — top search queries with clicks, impressions, CTR, and position, plus top-performing pages. If GSC is not connected, returns a message explaining how to connect it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        days: {
+          type: 'string',
+          description: 'Number of days to look back: "7", "28", or "90". Defaults to "28".',
+        },
+        limit: {
+          type: 'string',
+          description: 'Max number of queries/pages to return. Defaults to "20".',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_posthog_analytics',
+    description:
+      'Returns live PostHog product analytics — DAU, WAU, MAU, and top custom events. Filters out internal PostHog events (prefixed with $). If PostHog is not connected, returns a message explaining how to connect it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        days: {
+          type: 'string',
+          description: 'Number of days to look back for top events. Defaults to "30".',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_competitors',
+    description:
+      'Returns all known competitors for this brand — URL, name, type (direct/indirect/aspirational), market position, and primary strength. Also returns AI findings from the Competitor Analysis and Competitor Audit modules about what competitors are doing better. If no competitors exist yet, returns a message to run the Competitor Analysis module first.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'get_ga_conversions',
+    description:
+      'Returns GA4 conversion data broken down three ways: by page (which pages drive conversions + conversion rate), by event name (which conversion events fire most), and by traffic channel (which channels convert best). If GA4 is not connected, returns a message explaining how to connect it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        period: {
+          type: 'string',
+          description: 'Date range: "7d", "30d", or "90d". Defaults to "30d".',
+        },
+      },
+    },
+  },
 ]

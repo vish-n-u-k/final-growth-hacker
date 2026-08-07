@@ -6,6 +6,11 @@ import { analyzeModule } from '@/lib/mcp/tools/analyze_module'
 import { toggleItem } from '@/lib/mcp/tools/toggle_item'
 import { getBrandInfo } from '@/lib/mcp/tools/get_brand_info'
 import { getPendingItems } from '@/lib/mcp/tools/get_pending_items'
+import { getGaAnalytics } from '@/lib/mcp/tools/get_ga_analytics'
+import { getGscData } from '@/lib/mcp/tools/get_gsc_data'
+import { getPosthogAnalytics } from '@/lib/mcp/tools/get_posthog_analytics'
+import { getCompetitors } from '@/lib/mcp/tools/get_competitors'
+import { getGaConversions } from '@/lib/mcp/tools/get_ga_conversions'
 
 export const maxDuration = 300
 
@@ -59,6 +64,25 @@ async function dispatch(
 
     case 'get_pending_items':
       return getPendingItems(brandId, args['module_type'] ? String(args['module_type']) : undefined)
+
+    case 'get_ga_analytics':
+      return getGaAnalytics(brandId, args['period'] ? String(args['period']) : '30d')
+
+    case 'get_gsc_data':
+      return getGscData(
+        brandId,
+        args['days'] ? parseInt(String(args['days']), 10) : 28,
+        args['limit'] ? parseInt(String(args['limit']), 10) : 20,
+      )
+
+    case 'get_posthog_analytics':
+      return getPosthogAnalytics(brandId, args['days'] ? parseInt(String(args['days']), 10) : 30)
+
+    case 'get_competitors':
+      return getCompetitors(brandId)
+
+    case 'get_ga_conversions':
+      return getGaConversions(brandId, args['period'] ? String(args['period']) : '30d')
 
     default:
       throw new Error(`Unknown tool: ${name}`)
