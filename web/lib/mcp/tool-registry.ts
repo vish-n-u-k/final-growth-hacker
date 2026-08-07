@@ -95,7 +95,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_ga_analytics',
     description:
-      'Returns live Google Analytics (GA4) data — sessions, users, traffic channels, top landing pages, and top pages. If GA4 is not connected, returns a message explaining how to connect it.',
+      'Use this for WEBSITE traffic and marketing analytics questions — e.g. "how much traffic do I get?", "where are my visitors coming from?", "which pages get the most sessions?". Returns GA4 data: sessions, active users, new users, traffic channels (organic/paid/direct/social), top landing pages, and top pages by views. Do NOT use this for app user counts or product usage — use get_posthog_analytics for that. If GA4 is not connected, returns a message explaining how to connect it.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -109,7 +109,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_gsc_data',
     description:
-      'Returns live Google Search Console data — top search queries with clicks, impressions, CTR, and position, plus top-performing pages. If GSC is not connected, returns a message explaining how to connect it.',
+      'Use this for SEARCH ENGINE and SEO questions — e.g. "what keywords am I ranking for?", "what is my average position?", "which queries have high impressions but low CTR?", "what pages get the most clicks from Google?". Returns Google Search Console data: top queries with clicks, impressions, CTR, and position, plus top pages by search clicks. Do NOT use this for website traffic or app usage — use get_ga_analytics or get_posthog_analytics for those. If GSC is not connected, returns a message explaining how to connect it.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -127,7 +127,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_posthog_analytics',
     description:
-      'Returns live PostHog product analytics — DAU, WAU, MAU, and top custom events. Filters out internal PostHog events (prefixed with $). If PostHog is not connected, returns a message explaining how to connect it.',
+      'Use this for APP and PRODUCT questions — e.g. "how many users do I have?", "what is my DAU/MAU?", "what features are people using?", "how many signups today?", "what events are firing most?". Returns PostHog data: DAU (daily active users), WAU (weekly), MAU (monthly), and top custom product events. Filters out internal PostHog system events (prefixed with $). This tracks real app users and in-app behaviour — NOT website visitors. Do NOT use this for website traffic or search rankings. If PostHog is not connected, returns a message explaining how to connect it.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -150,7 +150,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_ga_conversions',
     description:
-      'Returns GA4 conversion data broken down three ways: by page (which pages drive conversions + conversion rate), by event name (which conversion events fire most), and by traffic channel (which channels convert best). If GA4 is not connected, returns a message explaining how to connect it.',
+      'Use this for WEBSITE conversion questions — e.g. "which pages convert best?", "what channel drives the most conversions?", "what is my conversion rate?". Returns GA4 conversion data broken down by page (conversions + rate), by event name, and by traffic channel. For in-app conversion funnels or feature adoption, use get_posthog_analytics instead. If GA4 is not connected, returns a message explaining how to connect it.',
     inputSchema: {
       type: 'object',
       properties: {
