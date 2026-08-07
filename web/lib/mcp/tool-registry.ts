@@ -139,6 +139,24 @@ export const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: 'get_posthog_users',
+    description:
+      'Returns a list of user emails who were active in the app within the specified number of days — e.g. "who are my daily active users?", "show me emails of users active today", "who signed up this week?". Returns email + last seen timestamp, sorted most recent first. Capped at 200 users. Use days=1 for daily users, days=7 for weekly, etc. Requires PostHog to be capturing user email as a person property.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        days: {
+          type: 'string',
+          description: 'How far back to look in days. "1" = today, "7" = last 7 days. Defaults to "1".',
+        },
+        limit: {
+          type: 'string',
+          description: 'Max number of users to return. Defaults to "100", max 200.',
+        },
+      },
+    },
+  },
+  {
     name: 'get_posthog_segments',
     description:
       'Use this for user growth and retention questions — e.g. "am I growing?", "how many new users did I get this week?", "what is my churn?", "how does this week compare to last week?", "how many power users do I have?". Returns: new users this week vs last week, week-over-week growth %, churned users (inactive 14+ days), power users (active 5+ days in last 7), total active last 30 days, growth trend label, and churn risk %. If PostHog is not connected, returns a message explaining how to connect it.',
