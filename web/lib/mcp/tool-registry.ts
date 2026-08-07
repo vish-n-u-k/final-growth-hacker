@@ -77,4 +77,19 @@ export const TOOLS: MCPTool[] = [
       properties: {},
     },
   },
+  {
+    name: 'get_pending_items',
+    description:
+      'Returns all incomplete checklist items — not yet verified by AI and not manually checked. Sorted by priority (critical first). If module_type is provided, scoped to that module only. If omitted, returns pending items across all non-locked modules.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        module_type: {
+          type: 'string',
+          description:
+            'Optional. The module type slug, e.g. "seo", "foundation", "brand-audit". Omit to get pending items across all modules.',
+        },
+      },
+    },
+  },
 ]

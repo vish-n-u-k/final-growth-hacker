@@ -5,6 +5,7 @@ import { getModuleDetail } from '@/lib/mcp/tools/get_module_detail'
 import { analyzeModule } from '@/lib/mcp/tools/analyze_module'
 import { toggleItem } from '@/lib/mcp/tools/toggle_item'
 import { getBrandInfo } from '@/lib/mcp/tools/get_brand_info'
+import { getPendingItems } from '@/lib/mcp/tools/get_pending_items'
 
 export const maxDuration = 300
 
@@ -55,6 +56,9 @@ async function dispatch(
 
     case 'get_brand_info':
       return getBrandInfo(brandId)
+
+    case 'get_pending_items':
+      return getPendingItems(brandId, args['module_type'] ? String(args['module_type']) : undefined)
 
     default:
       throw new Error(`Unknown tool: ${name}`)

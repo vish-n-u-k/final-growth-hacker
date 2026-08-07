@@ -111,7 +111,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
             { key: 'brand', label: 'Brand', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
             { key: 'playbook', label: 'Sales Playbook', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
             { key: 'integrations', label: 'Integrations', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
-            { key: 'claude-code', label: 'Claude Code', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M8 12l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+            { key: 'claude-code', label: 'Connect Claude', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M8 12l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
             { key: 'account', label: 'Account', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
           ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(({ key, label, icon }) => (
             <button
@@ -996,7 +996,7 @@ function PostHogSettingsSection({ connected }: { connected: ConnectedIntegration
   )
 }
 
-// ── Claude Code Section ───────────────────────────────────────────────────────
+// ── Claude Integration Section ────────────────────────────────────────────────
 
 const MCP_TOOLS = [
   { name: 'get_growth_overview', desc: 'All modules + overall growth score' },
@@ -1004,13 +1004,17 @@ const MCP_TOOLS = [
   { name: 'analyze_module', desc: 'Trigger a full re-analysis and await results' },
   { name: 'toggle_item', desc: 'Mark a checklist item as done or undone' },
   { name: 'get_brand_info', desc: 'Brand profile: name, website, industry, USP, playbook summary' },
+  { name: 'get_pending_items', desc: 'All incomplete items sorted by priority — optionally scoped to a module' },
 ]
+
+const MCP_URL = 'https://app.growjin.com/api/mcp'
 
 function ClaudeCodeSection({ initialKeyPrefix }: { initialKeyPrefix: string | null }) {
   const [keyPrefix, setKeyPrefix] = useState<string | null>(initialKeyPrefix)
   const [fullKey, setFullKey] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copiedUrl, setCopiedUrl] = useState(false)
+  const [copiedSnippet, setCopiedSnippet] = useState(false)
   const [toolsOpen, setToolsOpen] = useState(false)
 
   const generateKey = async () => {
@@ -1033,7 +1037,7 @@ function ClaudeCodeSection({ initialKeyPrefix }: { initialKeyPrefix: string | nu
           mcpServers: {
             growjin: {
               type: 'http',
-              url: 'https://app.growjin.com/api/mcp',
+              url: MCP_URL,
               headers: { Authorization: `Bearer ${fullKey}` },
             },
           },
@@ -1043,80 +1047,127 @@ function ClaudeCodeSection({ initialKeyPrefix }: { initialKeyPrefix: string | nu
       )
     : null
 
-  const handleCopy = async () => {
-    if (!configSnippet) return
-    await navigator.clipboard.writeText(configSnippet)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--card)',
+    border: '1px solid var(--line)',
+    borderRadius: 10,
+    padding: '18px 20px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 14,
   }
+
+  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, color: 'var(--text)' }
+  const dimStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-dim)', margin: 0, lineHeight: 1.6 }
+
+  const stepBadge = (n: number) => (
+    <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--green)', color: '#0a1410', fontSize: 11, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{n}</span>
+  )
 
   return (
     <div className="st-section">
       <div className="st-section-hd">
-        <h2 className="st-section-title">Claude Code Integration</h2>
+        <h2 className="st-section-title">Connect Claude</h2>
         <p className="st-section-desc">
-          Connect GrowJin to Claude Code so you can query your growth data, trigger analyses, and update checklists directly from your terminal — no browser required.
+          Ask Claude questions about your growth data, trigger module analyses, and update checklists — directly from Claude.ai or Claude Code.
         </p>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {/* Key management */}
-        <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>API Key</div>
-          {keyPrefix ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <code style={{ fontSize: 13, background: 'var(--bg)', padding: '5px 10px', borderRadius: 6, color: 'var(--text-dim)', letterSpacing: '0.05em' }}>
-                {keyPrefix}••••••••••••••••••••••••••••••••
-              </code>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+        {/* ── Claude.ai Web ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={labelStyle}>Claude.ai (Web)</div>
+            <span style={{ fontSize: 11, background: 'rgba(47,191,113,0.15)', color: 'var(--green)', padding: '2px 8px', borderRadius: 20, fontWeight: 600 }}>Recommended</span>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {[
+                { step: 1, text: <>Go to <strong style={{ color: 'var(--text)' }}>claude.ai</strong> → Settings → Connectors → Add</> },
+                { step: 2, text: <>Set <strong style={{ color: 'var(--text)' }}>Name</strong> to <code style={{ fontSize: 12, background: 'var(--bg)', padding: '1px 6px', borderRadius: 4 }}>GrowJin</code></> },
+                { step: 3, text: <>Paste the URL below into the <strong style={{ color: 'var(--text)' }}>Remote MCP server URL</strong> field</> },
+                { step: 4, text: <>Click <strong style={{ color: 'var(--text)' }}>Add</strong> — you&apos;ll be redirected to log in and it connects automatically</> },
+              ].map(({ step, text }) => (
+                <div key={step} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  {stepBadge(step)}
+                  <span style={{ ...dimStyle, paddingTop: 2 }}>{text}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg)', borderRadius: 8, padding: '10px 14px', border: '1px solid var(--line)' }}>
+              <code style={{ flex: 1, fontSize: 12, color: 'var(--text)', wordBreak: 'break-all' }}>{MCP_URL}</code>
               <button
-                onClick={generateKey}
-                disabled={loading}
-                style={{ fontSize: 12, color: 'var(--text-dim)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
+                onClick={async () => {
+                  await navigator.clipboard.writeText(MCP_URL)
+                  setCopiedUrl(true)
+                  setTimeout(() => setCopiedUrl(false), 2000)
+                }}
+                style={{ fontSize: 12, color: copiedUrl ? 'var(--green)' : 'var(--text-dim)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', flexShrink: 0 }}
               >
-                {loading ? 'Regenerating…' : 'Regenerate'}
+                {copiedUrl ? 'Copied' : 'Copy'}
               </button>
             </div>
-          ) : (
-            <button
-              onClick={generateKey}
-              disabled={loading}
-              className="md-btn-reanalyze"
-              style={{ alignSelf: 'flex-start' }}
-            >
-              {loading ? 'Generating…' : 'Generate API key'}
-            </button>
+          </div>
+        </div>
+
+        {/* ── Claude Code CLI ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={labelStyle}>Claude Code (CLI)</div>
+
+          <div style={cardStyle}>
+            <p style={dimStyle}>Generate an API key and add it to your <code style={{ fontSize: 12 }}>~/.claude.json</code> to use GrowJin tools from the terminal.</p>
+
+            {keyPrefix ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <code style={{ fontSize: 13, background: 'var(--bg)', padding: '5px 10px', borderRadius: 6, color: 'var(--text-dim)', letterSpacing: '0.05em' }}>
+                  {keyPrefix}••••••••••••••••••••••••••••••••
+                </code>
+                <button
+                  onClick={generateKey}
+                  disabled={loading}
+                  style={{ fontSize: 12, color: 'var(--text-dim)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
+                >
+                  {loading ? 'Regenerating…' : 'Regenerate'}
+                </button>
+              </div>
+            ) : (
+              <button onClick={generateKey} disabled={loading} className="md-btn-reanalyze" style={{ alignSelf: 'flex-start' }}>
+                {loading ? 'Generating…' : 'Generate API key'}
+              </button>
+            )}
+
+            {keyPrefix && !fullKey && (
+              <p style={dimStyle}>A key is already configured. Click Regenerate to create a new key and view the config snippet.</p>
+            )}
+          </div>
+
+          {fullKey && configSnippet && (
+            <div style={cardStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={labelStyle}>Add to ~/.claude.json</div>
+                <button
+                  onClick={async () => {
+                    await navigator.clipboard.writeText(configSnippet)
+                    setCopiedSnippet(true)
+                    setTimeout(() => setCopiedSnippet(false), 2000)
+                  }}
+                  style={{ fontSize: 12, color: copiedSnippet ? 'var(--green)' : 'var(--text-dim)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
+                >
+                  {copiedSnippet ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+              <pre style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--text)', background: 'var(--bg)', padding: '12px 14px', borderRadius: 8, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {configSnippet}
+              </pre>
+              <p style={dimStyle}>The key is only shown once — copy it now, then restart Claude Code.</p>
+            </div>
           )}
         </div>
 
-        {/* Config snippet — only shown after key is generated in this session */}
-        {fullKey && configSnippet && (
-          <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Add to ~/.claude.json</div>
-              <button
-                onClick={handleCopy}
-                style={{ fontSize: 12, color: copied ? 'var(--green)' : 'var(--text-dim)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
-              >
-                {copied ? 'Copied' : 'Copy'}
-              </button>
-            </div>
-            <pre style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'var(--text)', background: 'var(--bg)', padding: '12px 14px', borderRadius: 8, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-              {configSnippet}
-            </pre>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-dim)' }}>
-              Paste this into your <code>~/.claude.json</code> file, then restart Claude Code. The key is only shown once — copy it now.
-            </p>
-          </div>
-        )}
-
-        {/* If key exists but wasn't just generated, show a note to regenerate to see the snippet */}
-        {keyPrefix && !fullKey && (
-          <p style={{ margin: 0, fontSize: 12, color: 'var(--text-dim)' }}>
-            A key is already configured. Click Regenerate to create a new key and view the config snippet.
-          </p>
-        )}
-
-        {/* Available tools */}
+        {/* ── Available tools ── */}
         <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden' }}>
           <button
             onClick={() => setToolsOpen((v) => !v)}
@@ -1138,6 +1189,7 @@ function ClaudeCodeSection({ initialKeyPrefix }: { initialKeyPrefix: string | nu
             </div>
           )}
         </div>
+
       </div>
     </div>
   )
