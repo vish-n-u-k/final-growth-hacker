@@ -43,7 +43,11 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && isAuthPage) {
+    const next = request.nextUrl.searchParams.get('next')
     const url = request.nextUrl.clone()
+    if (next && next.startsWith('/')) {
+      return NextResponse.redirect(new URL(next, request.url))
+    }
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }

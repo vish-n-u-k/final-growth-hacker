@@ -13,6 +13,9 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  const next = searchParams.get('next')
+  const redirectTo = next && next.startsWith('/') ? next : '/dashboard'
+
   if (code) {
     const supabase = await createClient()
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
@@ -23,8 +26,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    return NextResponse.redirect(new URL(redirectTo, origin))
   }
 
-  return NextResponse.redirect(new URL('/dashboard', origin))
+  return NextResponse.redirect(new URL(redirectTo, origin))
 }
