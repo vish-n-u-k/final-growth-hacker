@@ -139,6 +139,24 @@ export const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: 'get_posthog_segments',
+    description:
+      'Use this for user growth and retention questions — e.g. "am I growing?", "how many new users did I get this week?", "what is my churn?", "how does this week compare to last week?", "how many power users do I have?". Returns: new users this week vs last week, week-over-week growth %, churned users (inactive 14+ days), power users (active 5+ days in last 7), total active last 30 days, growth trend label, and churn risk %. If PostHog is not connected, returns a message explaining how to connect it.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'get_keyword_trends',
+    description:
+      'Use this for SEO progress and keyword ranking questions — e.g. "are my keywords improving?", "which keywords moved up?", "what is my biggest ranking win?", "which keywords dropped?". Returns all tracked and implemented keywords with: current position, start position, position delta (positive = improved), trend label (improving/declining/stable), impressions, clicks, and a summary of wins vs drops. If no keywords are tracked yet, returns a message to set them up in the Keywords section.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
     name: 'get_competitors',
     description:
       'Returns all known competitors for this brand — URL, name, type (direct/indirect/aspirational), market position, and primary strength. Also returns AI findings from the Competitor Analysis and Competitor Audit modules about what competitors are doing better. If no competitors exist yet, returns a message to run the Competitor Analysis module first.',

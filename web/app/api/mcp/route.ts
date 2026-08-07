@@ -11,6 +11,8 @@ import { getGscData } from '@/lib/mcp/tools/get_gsc_data'
 import { getPosthogAnalytics } from '@/lib/mcp/tools/get_posthog_analytics'
 import { getCompetitors } from '@/lib/mcp/tools/get_competitors'
 import { getGaConversions } from '@/lib/mcp/tools/get_ga_conversions'
+import { getPosthogSegments } from '@/lib/mcp/tools/get_posthog_segments'
+import { getKeywordTrends } from '@/lib/mcp/tools/get_keyword_trends'
 
 export const maxDuration = 300
 
@@ -77,6 +79,12 @@ async function dispatch(
 
     case 'get_posthog_analytics':
       return getPosthogAnalytics(brandId, args['days'] ? parseInt(String(args['days']), 10) : 30)
+
+    case 'get_posthog_segments':
+      return getPosthogSegments(brandId)
+
+    case 'get_keyword_trends':
+      return getKeywordTrends(brandId)
 
     case 'get_competitors':
       return getCompetitors(brandId)
