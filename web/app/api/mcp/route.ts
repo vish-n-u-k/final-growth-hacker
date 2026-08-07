@@ -13,6 +13,7 @@ import { getCompetitors } from '@/lib/mcp/tools/get_competitors'
 import { getGaConversions } from '@/lib/mcp/tools/get_ga_conversions'
 import { getPosthogSegments } from '@/lib/mcp/tools/get_posthog_segments'
 import { getKeywordTrends } from '@/lib/mcp/tools/get_keyword_trends'
+import { getPosthogUsers } from '@/lib/mcp/tools/get_posthog_users'
 
 export const maxDuration = 300
 
@@ -79,6 +80,13 @@ async function dispatch(
 
     case 'get_posthog_analytics':
       return getPosthogAnalytics(brandId, args['days'] ? parseInt(String(args['days']), 10) : 30)
+
+    case 'get_posthog_users':
+      return getPosthogUsers(
+        brandId,
+        args['days'] ? parseInt(String(args['days']), 10) : 1,
+        args['limit'] ? parseInt(String(args['limit']), 10) : 100,
+      )
 
     case 'get_posthog_segments':
       return getPosthogSegments(brandId)
