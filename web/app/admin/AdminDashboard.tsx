@@ -30,6 +30,13 @@ function timeAgo(iso: Date | null): string {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
+interface SendResult {
+  brandName: string
+  to: string
+  sent: boolean
+  skipped?: string
+}
+
 export default function AdminDashboard({ requests: initial, gmailAddress, gmailParam }: Props) {
   const [tab, setTab] = useState<'queue' | 'users'>('queue')
   const [requests, setRequests] = useState(initial)
@@ -38,6 +45,25 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
   const [users, setUsers] = useState<UserRow[]>([])
   const [usersLoading, setUsersLoading] = useState(false)
   const [usersError, setUsersError] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sendResult, setSendResult] = useState<{ sent: number; total: number; results: SendResult[] } | null>(null)
+  const [sendError, setSendError] = useState('')
+
+  async function handleSendDailyEmail() {
+    setSending(true)
+    setSendResult(null)
+    setSendError('')
+    try {
+      const res = await fetch('/api/admin/send-daily-email', { method: 'POST' })
+      const data = await res.json() as { ok?: boolean; sent?: number; total?: number; results?: SendResult[]; error?: string }
+      if (!res.ok || data.error) { setSendError(data.error ?? 'Failed to send'); return }
+      setSendResult({ sent: data.sent ?? 0, total: data.total ?? 0, results: data.results ?? [] })
+    } catch {
+      setSendError('Network error')
+    } finally {
+      setSending(false)
+    }
+  }
 
   useEffect(() => {
     if (tab !== 'users' || users.length > 0) return
@@ -269,6 +295,52 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
 
       {tab === 'users' && (
         <section>
+          {/* Send daily email */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24, padding: '14px 18px', background: 'var(--card, #122620)', border: '1px solid var(--line, #1e3830)', borderRadius: 10 }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--text, #e8f3ec)' }}>Send daily summary email</p>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-dim, #8aa897)' }}>
+                Sends yesterday's data to all users who have opted in with both GA4 + PostHog connected.
+              </p>
+            </div>
+            <button
+              onClick={handleSendDailyEmail}
+              disabled={sending}
+              style={{
+                background: 'var(--green, #2fbf71)', color: '#000', border: 'none',
+                borderRadius: 8, padding: '8px 18px', fontSize: 13, fontWeight: 600,
+                cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.6 : 1,
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+            >
+              {sending ? 'Sending…' : 'Send now'}
+            </button>
+          </div>
+
+          {sendError && (
+            <p style={{ fontSize: 13, color: '#f87171', marginBottom: 16 }}>{sendError}</p>
+          )}
+
+          {sendResult && (
+            <div style={{ marginBottom: 24, padding: '12px 18px', background: 'var(--card, #122620)', border: '1px solid var(--line, #1e3830)', borderRadius: 10 }}>
+              <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--green, #2fbf71)' }}>
+                Sent to {sendResult.sent} of {sendResult.total} opted-in users
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {sendResult.results.map((r, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12 }}>
+                    <span style={{ color: r.sent ? 'var(--green, #2fbf71)' : '#f87171', fontWeight: 600 }}>
+                      {r.sent ? '✓' : '✗'}
+                    </span>
+                    <span style={{ color: 'var(--text, #e8f3ec)' }}>{r.brandName}</span>
+                    <span style={{ color: 'var(--text-dim, #8aa897)' }}>{r.to}</span>
+                    {r.skipped && <span style={{ color: 'var(--text-dim, #8aa897)', fontStyle: 'italic' }}>({r.skipped})</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {usersLoading && (
             <p style={{ color: 'var(--text-dim, #8aa897)', fontSize: 14 }}>Loading users…</p>
           )}

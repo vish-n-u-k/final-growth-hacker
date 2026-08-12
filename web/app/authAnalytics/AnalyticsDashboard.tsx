@@ -1093,9 +1093,10 @@ function RoadToGoalTrack({ current, milestones }: { current: number; milestones:
 interface Props {
   brand: { id: string; name: string; websiteUrl: string; createdAt: string | null }
   modules: ModuleHealth[]
+  dailyEmailEnabled: boolean
 }
 
-export default function AnalyticsDashboard({ brand, modules }: Props) {
+export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: initialDailyEmail }: Props) {
   const router = useRouter()
   const [backLoading, setBackLoading] = useState(false)
   const [view, setView] = useState<'users' | 'website'>('users')
@@ -1122,6 +1123,21 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   const [newMetricTone, setNewMetricTone] = useState('green')
   const [newMetricType, setNewMetricType] = useState('count')
   const [savingMetric, setSavingMetric] = useState(false)
+  const [dailyEmail, setDailyEmail] = useState(initialDailyEmail)
+  const [emailToggling, setEmailToggling] = useState(false)
+
+  async function toggleDailyEmail() {
+    setEmailToggling(true)
+    try {
+      const res = await fetch('/api/analytics/daily-email-pref', { method: 'POST' })
+      if (res.ok) {
+        const { dailyEmailEnabled } = await res.json() as { dailyEmailEnabled: boolean }
+        setDailyEmail(dailyEmailEnabled)
+      }
+    } finally {
+      setEmailToggling(false)
+    }
+  }
   const [editBuiltinCard, setEditBuiltinCard] = useState<{ key: string; label: string; events: string } | null>(null)
   const [savingBuiltinEdit, setSavingBuiltinEdit] = useState(false)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null)
@@ -1649,6 +1665,29 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
               >
                 <RefreshCw size={14} style={{ animation: phLoading ? 'spin 1s linear infinite' : 'none' }} />
               </button>
+              {/* Daily email toggle — only when both PostHog + GA4 connected */}
+              {data?.posthogConnected && ga4?.connected && (
+                <button
+                  onClick={toggleDailyEmail}
+                  disabled={emailToggling}
+                  title={dailyEmail ? 'Daily email is on — click to turn off' : 'Get a daily summary email at 8am IST'}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    fontSize: 13, fontWeight: 600,
+                    padding: '7px 14px', borderRadius: 99,
+                    border: `1px solid ${MOCK.border}`,
+                    background: dailyEmail ? MOCK.green : MOCK.card,
+                    color: dailyEmail ? '#06140c' : MOCK.muted,
+                    cursor: emailToggling ? 'default' : 'pointer',
+                    opacity: emailToggling ? 0.6 : 1,
+                    transition: 'all 0.15s',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <Zap size={12} />
+                  {dailyEmail ? 'Daily email on' : 'Daily email'}
+                </button>
+              )}
             </div>
             {snapshotAt && !phLoading && (
               <span style={{ fontSize: 11.5, color: MOCK.muted2 }}>

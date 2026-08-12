@@ -645,11 +645,12 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             >
               <RefreshCw size={12} style={{ animation: phLoading ? 'spin 1s linear infinite' : 'none' }} /> Refresh
             </button>
-            {/* Daily email toggle */}
+            {/* Daily email toggle — only when both PostHog + GA4 connected */}
+            {data?.posthogConnected && data?.ga4?.connected && (
             <button
               onClick={toggleDailyEmail}
               disabled={emailToggling}
-              title={dailyEmail ? 'Daily email is on — click to turn off' : 'Turn on daily email digest'}
+              title={dailyEmail ? 'Daily email is on — click to turn off' : 'Get a daily summary email at 8am IST'}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
                 padding: '7px 14px', borderRadius: 99, border: '1px solid var(--line)',
@@ -663,6 +664,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               <Zap size={12} />
               {dailyEmail ? 'Daily email on' : 'Daily email'}
             </button>
+            )}
           </div>
         </div>
 

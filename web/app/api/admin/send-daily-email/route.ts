@@ -1,31 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { createSign } from 'crypto'
 import { getValidAdminGmailToken, getAdminGmailAddress } from '@/lib/gmail/admin-token'
 
-export const dynamic  = 'force-dynamic'
+export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-// ── Auth guard ─────────────────────────────────────────────────────────────────
-
-function isAuthorized(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return true // dev: allow if not set
-  const auth = req.headers.get('authorization')
-  return auth === `Bearer ${secret}`
+function isAdmin(email: string | undefined): boolean {
+  const adminEmails = (process.env.ADMIN_EMAILS ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  return adminEmails.includes(email ?? '')
 }
 
-// ── JWT helper ─────────────────────────────────────────────────────────────────
+// ── JWT + GA4 ─────────────────────────────────────────────────────────────────
 
 function b64url(s: string) { return Buffer.from(s).toString('base64url') }
 
-async function googleToken(email: string, key: string, scope: string): Promise<string | null> {
+async function googleToken(email: string, key: string): Promise<string | null> {
   try {
     const now = Math.floor(Date.now() / 1000)
     const h = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
-    const p = b64url(JSON.stringify({ iss: email, scope, aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }))
+    const p = b64url(JSON.stringify({ iss: email, scope: 'https://www.googleapis.com/auth/analytics.readonly', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 }))
     const input = `${h}.${p}`
     const sign = createSign('RSA-SHA256')
     sign.update(input)
@@ -40,8 +37,6 @@ async function googleToken(email: string, key: string, scope: string): Promise<s
     return ((await res.json()) as { access_token?: string }).access_token ?? null
   } catch { return null }
 }
-
-// ── GA4 ───────────────────────────────────────────────────────────────────────
 
 type Ga4Row = { dimensionValues?: { value: string }[]; metricValues: { value: string }[] }
 
@@ -61,43 +56,25 @@ async function ga4Report(token: string, pid: string, body: object): Promise<Ga4R
 function gn(row: Ga4Row | undefined, i: number) { return row ? parseInt(row.metricValues[i]?.value ?? '0', 10) : 0 }
 function gf(row: Ga4Row | undefined, i: number) { return row ? parseFloat(row.metricValues[i]?.value ?? '0') : 0 }
 
-const CHANNEL_DISPLAY: Record<string, string> = {
+const CH: Record<string, string> = {
   'Direct': 'Direct', 'Organic Search': 'Organic search', 'Organic Social': 'Social',
   'Paid Search': 'Paid search', 'Paid Social': 'Paid social', 'Email': 'Email',
   'Referral': 'Referral', 'Organic Video': 'Video', 'Unassigned': 'Other', '(Other)': 'Other',
 }
 
-interface Ga4Summary {
-  visits: number; visitsPrior: number
-  channels: { name: string; sessions: number }[]
-  topPage: { page: string; sessions: number; engagementRate: number } | null
-}
-
-async function fetchGA4(clientEmail: string, privateKey: string, propertyId: string): Promise<Ga4Summary | null> {
-  const token = await googleToken(clientEmail, privateKey, 'https://www.googleapis.com/auth/analytics.readonly')
+async function fetchGA4(clientEmail: string, privateKey: string, propertyId: string) {
+  const token = await googleToken(clientEmail, privateKey)
   if (!token) return null
   const pid = propertyId.replace(/^properties\//, '')
-
   const [yRows, pRows, chRows, pgRows] = await Promise.all([
     ga4Report(token, pid, { dateRanges: [{ startDate: 'yesterday', endDate: 'yesterday' }], metrics: [{ name: 'sessions' }] }),
-    ga4Report(token, pid, { dateRanges: [{ startDate: '2daysAgo', endDate: '2daysAgo' }],   metrics: [{ name: 'sessions' }] }),
-    ga4Report(token, pid, {
-      dateRanges: [{ startDate: 'yesterday', endDate: 'yesterday' }],
-      dimensions: [{ name: 'sessionDefaultChannelGroup' }],
-      metrics: [{ name: 'sessions' }],
-      orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 8,
-    }),
-    ga4Report(token, pid, {
-      dateRanges: [{ startDate: 'yesterday', endDate: 'yesterday' }],
-      dimensions: [{ name: 'landingPage' }],
-      metrics: [{ name: 'sessions' }, { name: 'engagementRate' }],
-      orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 1,
-    }),
+    ga4Report(token, pid, { dateRanges: [{ startDate: '2daysAgo', endDate: '2daysAgo' }], metrics: [{ name: 'sessions' }] }),
+    ga4Report(token, pid, { dateRanges: [{ startDate: 'yesterday', endDate: 'yesterday' }], dimensions: [{ name: 'sessionDefaultChannelGroup' }], metrics: [{ name: 'sessions' }], orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 8 }),
+    ga4Report(token, pid, { dateRanges: [{ startDate: 'yesterday', endDate: 'yesterday' }], dimensions: [{ name: 'landingPage' }], metrics: [{ name: 'sessions' }, { name: 'engagementRate' }], orderBys: [{ metric: { metricName: 'sessions' }, desc: true }], limit: 1 }),
   ])
-
   return {
     visits: gn(yRows[0], 0), visitsPrior: gn(pRows[0], 0),
-    channels: chRows.map(r => ({ name: CHANNEL_DISPLAY[r.dimensionValues?.[0]?.value ?? ''] ?? (r.dimensionValues?.[0]?.value ?? 'Other'), sessions: gn(r, 0) })),
+    channels: chRows.map(r => ({ name: CH[r.dimensionValues?.[0]?.value ?? ''] ?? (r.dimensionValues?.[0]?.value ?? 'Other'), sessions: gn(r, 0) })),
     topPage: pgRows[0] ? { page: pgRows[0].dimensionValues?.[0]?.value ?? '/', sessions: gn(pgRows[0], 0), engagementRate: Math.round(gf(pgRows[0], 1) * 100) } : null,
   }
 }
@@ -121,21 +98,10 @@ function num(rows: unknown[][] | null): number {
   const v = rows?.[0]?.[0]; if (v == null) return 0; const n = Number(v); return isNaN(n) ? 0 : n
 }
 
-interface PhSummary {
-  signups: number; signupsPrior: number
-  signins: number; signinsPrior: number
-  becamePro: number; becameProPrior: number
-  unsubscribed: number
-  dau: number; dauPrior: number
-  dauTrend: { date: string; dau: number }[]
-}
-
-async function fetchPostHog(host: string, pid: string, key: string): Promise<PhSummary> {
+async function fetchPostHog(host: string, pid: string, key: string) {
   const PRO    = `'subscription_upgraded','became_pro','upgrade','plan_upgraded','checkout_completed'`
   const CANCEL = `'subscription_cancelled','unsubscribed','cancel_subscription','account_deleted','user_deleted'`
-  const y = `toDate(now()) - 1`
-  const db2 = `toDate(now()) - 2`
-
+  const y = `toDate(now()) - 1`; const db2 = `toDate(now()) - 2`
   const [sn, sp, in_, ip, pn, pp, cn, dn, dp, tr] = await Promise.all([
     hogql(host, pid, key, `SELECT count() FROM persons WHERE toDate(created_at) = ${y}`),
     hogql(host, pid, key, `SELECT count() FROM persons WHERE toDate(created_at) = ${db2}`),
@@ -148,52 +114,42 @@ async function fetchPostHog(host: string, pid: string, key: string): Promise<PhS
     hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE toDate(timestamp) = ${db2}`),
     hogql(host, pid, key, `SELECT toDate(timestamp) as day, count(DISTINCT person_id) as dau FROM events WHERE toDate(timestamp) >= toDate(now()) - 8 AND toDate(timestamp) < toDate(now()) GROUP BY day ORDER BY day ASC`),
   ])
-
   return {
-    signups: num(sn), signupsPrior: num(sp),
-    signins: num(in_), signinsPrior: num(ip),
-    becamePro: num(pn), becameProPrior: num(pp),
-    unsubscribed: num(cn),
+    signups: num(sn), signupsPrior: num(sp), signins: num(in_), signinsPrior: num(ip),
+    becamePro: num(pn), becameProPrior: num(pp), unsubscribed: num(cn),
     dau: num(dn), dauPrior: num(dp),
     dauTrend: (tr ?? []).map(r => ({ date: String(r[0] ?? ''), dau: Number(r[1] ?? 0) })),
   }
 }
 
-// ── Flag computation (matches daily-summary route rules) ─────────────────────
+// ── Flags ─────────────────────────────────────────────────────────────────────
 
-function computeFlags(ga4: Ga4Summary | null, ph: PhSummary | null): string[] {
+function computeFlags(ga4: Awaited<ReturnType<typeof fetchGA4>>, ph: Awaited<ReturnType<typeof fetchPostHog>> | null): string[] {
   const candidates: { severity: number; msg: string }[] = []
   const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-
   if (ph) {
-    if (ph.unsubscribed > 0) {
-      candidates.push({ severity: 3, msg: `${ph.unsubscribed} user${ph.unsubscribed > 1 ? 's' : ''} unsubscribed yesterday — worth reviewing offboarding feedback.` })
-    }
-    if (ph.signups === 0 && ph.signupsPrior === 0) {
-      candidates.push({ severity: 2, msg: 'No new signups in the past two days — check if the signup flow or top-of-funnel traffic has dropped.' })
-    }
+    if (ph.unsubscribed > 0) candidates.push({ severity: 3, msg: `${ph.unsubscribed} user${ph.unsubscribed > 1 ? 's' : ''} unsubscribed yesterday — worth reviewing offboarding feedback.` })
+    if (ph.signups === 0 && ph.signupsPrior === 0) candidates.push({ severity: 2, msg: 'No new signups in the past two days — check if the signup flow or top-of-funnel traffic has dropped.' })
     if (ph.dauPrior > 0) {
       const delta = Math.round(((ph.dau - ph.dauPrior) / ph.dauPrior) * 100)
       if (delta <= -25) {
-        const priorDays = ph.dauTrend.slice(0, -1)
-        const peak = priorDays.length ? priorDays.reduce((m, d) => d.dau > m.dau ? d : m, priorDays[0]) : null
+        const prior = ph.dauTrend.slice(0, -1)
+        const peak = prior.length ? prior.reduce((m, d) => d.dau > m.dau ? d : m, prior[0]) : null
         const msg = (peak && peak.dau > ph.dau + 2)
           ? (() => { const d = new Date(peak.date); return `DAU dropped sharply after the ${mo[d.getUTCMonth()]} ${d.getUTCDate()} peak — worth checking what drove that spike and why it didn't hold.` })()
-          : `DAU dropped ${Math.abs(delta)}% vs the prior day — worth investigating what changed.`
+          : `DAU dropped ${Math.abs(delta)}% vs the prior day.`
         candidates.push({ severity: 2, msg })
       }
     }
   }
   if (ga4 && ga4.visitsPrior > 0) {
     const delta = Math.round(((ga4.visits - ga4.visitsPrior) / ga4.visitsPrior) * 100)
-    if (delta <= -25) {
-      candidates.push({ severity: 1, msg: `Website traffic dropped ${Math.abs(delta)}% vs the prior day — check if any campaigns paused or a source dried up.` })
-    }
+    if (delta <= -25) candidates.push({ severity: 1, msg: `Website traffic dropped ${Math.abs(delta)}% vs the prior day.` })
   }
   return candidates.sort((a, b) => b.severity - a.severity).slice(0, 2).map(f => f.msg)
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Email builder ─────────────────────────────────────────────────────────────
 
 function deltaBadge(current: number, prior: number): string {
   if (prior === 0) return `<span style="display:inline-block;font-size:11px;font-weight:600;color:#6b7280;background:#f3f4f6;border-radius:99px;padding:2px 8px;">—</span>`
@@ -207,9 +163,7 @@ function fmt(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
 
-// ── Email HTML builder (table-based, inline hex — Outlook safe) ───────────────
-
-function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: PhSummary | null): string {
+function buildHtml(brandName: string, date: string, ga4: Awaited<ReturnType<typeof fetchGA4>>, ph: Awaited<ReturnType<typeof fetchPostHog>> | null): string {
   const flags = computeFlags(ga4, ph)
   const dashUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com'}/authAnalytics`
 
@@ -320,7 +274,6 @@ function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: 
     </td></tr>
   </table>`).join('')
 
-  // ── Section divider ──────────────────────────────────────────────────────────
   const divider = `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:24px 0;"><tr><td style="border-top:1px solid #e5e7eb;font-size:0;">&nbsp;</td></tr></table>`
 
   return `<!DOCTYPE html>
@@ -387,25 +340,9 @@ function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: 
 
 // ── Gmail send ────────────────────────────────────────────────────────────────
 
-async function sendViaGmail(
-  accessToken: string, from: string, to: string, subject: string, html: string,
-): Promise<boolean> {
-  const message = [
-    `From: GrowJin <${from}>`,
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/html; charset=utf-8',
-    '',
-    html,
-  ].join('\r\n')
-
-  const encoded = Buffer.from(message)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '')
-
+async function sendViaGmail(accessToken: string, from: string, to: string, subject: string, html: string): Promise<boolean> {
+  const message = [`From: GrowJin <${from}>`, `To: ${to}`, `Subject: ${subject}`, 'MIME-Version: 1.0', 'Content-Type: text/html; charset=utf-8', '', html].join('\r\n')
+  const encoded = Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -416,12 +353,13 @@ async function sendViaGmail(
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
-export async function GET(req: NextRequest) {
-  if (!isAuthorized(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function POST() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user || !isAdmin(user.email)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Get admin Gmail token — same account used across the app
   let accessToken: string
   let fromEmail: string | null
   try {
@@ -432,29 +370,31 @@ export async function GET(req: NextRequest) {
   }
   if (!fromEmail) return NextResponse.json({ error: 'Admin Gmail address not found' }, { status: 500 })
 
-  // Only brands opted in AND with a notification email stored
-  const allBrands = await db.select().from(brands).where(eq(brands.dailyEmailEnabled, true))
-  const results: { brandName: string; to: string; sent: boolean; error?: string }[] = []
-
-  // Date label (yesterday UTC)
   const d = new Date()
   d.setUTCDate(d.getUTCDate() - 1)
   const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const dateLabel = `${mo[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`
 
+  // All brands with daily_email_enabled + notificationEmail
+  const allBrands = await db.select().from(brands).where(eq(brands.dailyEmailEnabled, true))
+  const results: { brandName: string; to: string; sent: boolean; skipped?: string }[] = []
+
   for (const brand of allBrands) {
-    const toEmail = brand.notificationEmail
-    if (!toEmail) continue // no email stored — user never properly opted in
+    if (!brand.notificationEmail) {
+      results.push({ brandName: brand.name, to: '—', sent: false, skipped: 'no email stored' })
+      continue
+    }
 
     const integrations = await db.select().from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.status, 'connected')))
-
     const intMap = new Map(integrations.map(i => [i.provider, i]))
     const ga4Int = intMap.get('ga4_api')
     const phInt  = intMap.get('posthog')
 
-    // Skip if neither integration is connected
-    if (!ga4Int && !phInt) continue
+    if (!ga4Int && !phInt) {
+      results.push({ brandName: brand.name, to: brand.notificationEmail, sent: false, skipped: 'no integrations' })
+      continue
+    }
 
     const ga4Meta = (ga4Int?.metadata as Record<string, string> | null) ?? {}
     const phMeta  = (phInt?.metadata  as Record<string, string> | null) ?? {}
@@ -464,24 +404,14 @@ export async function GET(req: NextRequest) {
         ? fetchGA4(ga4Meta.client_email, ga4Meta.private_key, ga4Meta.property_id)
         : Promise.resolve(null),
       (phInt?.apiKey && phMeta.project_id)
-        ? fetchPostHog(
-            (phMeta.posthog_host ?? 'https://us.posthog.com').replace(/\/$/, ''),
-            phMeta.project_id,
-            phInt.apiKey,
-          )
+        ? fetchPostHog((phMeta.posthog_host ?? 'https://us.posthog.com').replace(/\/$/, ''), phMeta.project_id, phInt.apiKey)
         : Promise.resolve(null),
     ])
 
     const html = buildHtml(brand.name, dateLabel, ga4Data, phData)
-    const subject = `${brand.name} daily summary - ${dateLabel}`
-
-    try {
-      const sent = await sendViaGmail(accessToken, fromEmail, toEmail, subject, html)
-      results.push({ brandName: brand.name, to: toEmail, sent })
-    } catch (e) {
-      results.push({ brandName: brand.name, to: toEmail, sent: false, error: String(e) })
-    }
+    const sent = await sendViaGmail(accessToken, fromEmail, brand.notificationEmail, `${brand.name} daily summary - ${dateLabel}`, html)
+    results.push({ brandName: brand.name, to: brand.notificationEmail, sent })
   }
 
-  return NextResponse.json({ ok: true, results })
+  return NextResponse.json({ ok: true, sent: results.filter(r => r.sent).length, total: results.length, results })
 }
