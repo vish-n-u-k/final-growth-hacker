@@ -80,6 +80,7 @@ export default async function AuthAnalyticsPage() {
     <AnalyticsDashboard
       brand={{ id: brand.id, name: brand.name }}
       modules={moduleHealth}
+      dailyEmailEnabled={brand.dailyEmailEnabled ?? false}
     />
   )
 }

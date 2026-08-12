@@ -10,6 +10,7 @@ import {
   Trash2, MessageSquare, Star, TrendingDown, TrendingUp,
   Zap, ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle,
 } from 'lucide-react'
+import DailySummaryCard from './daily/DailySummaryCard'
 
 /* ── Types ────────────────────────────────────────────── */
 export interface ModuleHealth {
@@ -82,6 +83,9 @@ interface TrafficData {
   newVsRet: { type: string; activeUsers: number }[]
   channels: { channel: string; sourceMedium: string; sessions: number; pct: number }[]
   landingPages: { page: string; sessions: number; pct: number }[]
+  devices: { device: string; sessions: number; pct: number }[]
+  countries: { country: string; sessions: number; pct: number }[]
+  browsers: { browser: string; sessions: number; pct: number }[]
 }
 
 const RANGE_TO_PERIOD: Record<string, string> = { '24h': '1d', '7d': '7d', '30d': '30d' }
@@ -462,9 +466,10 @@ function renderSummary(text: string): React.ReactNode[] {
 interface Props {
   brand: { id: string; name: string }
   modules: ModuleHealth[]
+  dailyEmailEnabled: boolean
 }
 
-export default function AnalyticsDashboard({ brand, modules }: Props) {
+export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: initialDailyEmail }: Props) {
   const router = useRouter()
   const [view, setView] = useState<'users' | 'website'>('users')
   const [range, setRange] = useState('7d')
@@ -476,6 +481,21 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [trafficData, setTrafficData] = useState<TrafficData | null>(null)
   const [trafficLoading, setTrafficLoading] = useState(true)
+  const [dailyEmail, setDailyEmail] = useState(initialDailyEmail)
+  const [emailToggling, setEmailToggling] = useState(false)
+
+  async function toggleDailyEmail() {
+    setEmailToggling(true)
+    try {
+      const res = await fetch('/api/analytics/daily-email-pref', { method: 'POST' })
+      if (res.ok) {
+        const { dailyEmailEnabled } = await res.json() as { dailyEmailEnabled: boolean }
+        setDailyEmail(dailyEmailEnabled)
+      }
+    } finally {
+      setEmailToggling(false)
+    }
+  }
 
   // Fetch analytics data
   useEffect(() => {
@@ -625,6 +645,24 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
             >
               <RefreshCw size={12} style={{ animation: phLoading ? 'spin 1s linear infinite' : 'none' }} /> Refresh
             </button>
+            {/* Daily email toggle */}
+            <button
+              onClick={toggleDailyEmail}
+              disabled={emailToggling}
+              title={dailyEmail ? 'Daily email is on — click to turn off' : 'Turn on daily email digest'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
+                padding: '7px 14px', borderRadius: 99, border: '1px solid var(--line)',
+                background: dailyEmail ? 'var(--green)' : 'transparent',
+                color: dailyEmail ? '#06140c' : 'var(--text-dim)',
+                cursor: emailToggling ? 'default' : 'pointer',
+                opacity: emailToggling ? 0.6 : 1,
+                transition: 'all 0.15s',
+              }}
+            >
+              <Zap size={12} />
+              {dailyEmail ? 'Daily email on' : 'Daily email'}
+            </button>
           </div>
         </div>
 
@@ -632,6 +670,14 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
 
         {/* ── Users view ── */}
         {view === 'users' && (<>
+
+        {/* Daily Summary */}
+        <section style={{ marginBottom: 28 }}>
+          <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
+            Yesterday
+          </h2>
+          <DailySummaryCard />
+        </section>
 
         {/* Last 24 hours */}
         <section style={{ marginBottom: 36 }}>
@@ -1060,7 +1106,7 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
 
               {/* ── Entry pages ── */}
               {(trafficData.landingPages ?? []).length > 0 && (
-                <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Entry pages</h3>
                   <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Pages that bring visitors in · {PERIOD_DESC[range]}</p>
                   {trafficData.landingPages.slice(0, 8).map((p, i) => (
@@ -1075,6 +1121,73 @@ export default function AnalyticsDashboard({ brand, modules }: Props) {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {/* ── Devices / Countries / Browsers ── */}
+              {((trafficData.devices ?? []).length > 0 || (trafficData.countries ?? []).length > 0 || (trafficData.browsers ?? []).length > 0) && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+
+                  {/* Devices */}
+                  {(trafficData.devices ?? []).length > 0 && (
+                    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Devices</h3>
+                      <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>{PERIOD_DESC[range]}</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {trafficData.devices.map((d, i) => (
+                          <div key={i}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                              <span style={{ fontSize: 13, color: 'var(--text)', textTransform: 'capitalize' }}>{d.device}</span>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim)' }}>{d.pct}%</span>
+                            </div>
+                            <div style={{ height: 5, borderRadius: 99, background: 'var(--line)' }}>
+                              <div style={{ height: 5, borderRadius: 99, width: `${d.pct}%`, background: i === 0 ? '#4ade80' : i === 1 ? '#e7c873' : '#a78bfa', transition: 'width .4s ease' }} />
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 3 }}>{fmt(d.sessions)} sessions</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Countries */}
+                  {(trafficData.countries ?? []).length > 0 && (
+                    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Top countries</h3>
+                      <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>{PERIOD_DESC[range]}</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                        {trafficData.countries.slice(0, 8).map((c, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.country}</span>
+                            <div style={{ width: 56, height: 4, borderRadius: 99, background: 'var(--line)', flexShrink: 0, overflow: 'hidden' }}>
+                              <div style={{ height: 4, borderRadius: 99, width: `${c.pct}%`, background: '#5eead4', transition: 'width .4s ease' }} />
+                            </div>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', flexShrink: 0, minWidth: 28, textAlign: 'right' }}>{c.pct}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Browsers */}
+                  {(trafficData.browsers ?? []).length > 0 && (
+                    <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+                      <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Browsers</h3>
+                      <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>{PERIOD_DESC[range]}</p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                        {trafficData.browsers.map((b, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.browser}</span>
+                            <div style={{ width: 56, height: 4, borderRadius: 99, background: 'var(--line)', flexShrink: 0, overflow: 'hidden' }}>
+                              <div style={{ height: 4, borderRadius: 99, width: `${b.pct}%`, background: '#fb923c', transition: 'width .4s ease' }} />
+                            </div>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', flexShrink: 0, minWidth: 28, textAlign: 'right' }}>{b.pct}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               )}
             </div>

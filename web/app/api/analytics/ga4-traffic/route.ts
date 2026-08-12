@@ -90,8 +90,8 @@ export async function GET(request: NextRequest) {
   const metrics = [{ name: 'activeUsers' }, { name: 'newUsers' }]
   const sessionMetrics = [{ name: 'sessions' }]
 
-  // 5 calls — under GA4's 10 concurrent limit
-  const [statsRows, trendRows, newVsRetRows, channelRows, landingRows] = await Promise.all([
+  // 8 calls — under GA4's 10 concurrent limit
+  const [statsRows, trendRows, newVsRetRows, channelRows, landingRows, deviceRows, countryRows, browserRows] = await Promise.all([
     report(token, pid, { dateRanges: [dateRange], metrics }),
     report(token, pid, {
       dateRanges: [dateRange],
@@ -117,6 +117,26 @@ export async function GET(request: NextRequest) {
       metrics: sessionMetrics,
       orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
       limit: 10,
+    }),
+    report(token, pid, {
+      dateRanges: [dateRange],
+      dimensions: [{ name: 'deviceCategory' }],
+      metrics: sessionMetrics,
+      orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+    }),
+    report(token, pid, {
+      dateRanges: [dateRange],
+      dimensions: [{ name: 'country' }],
+      metrics: sessionMetrics,
+      orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+      limit: 10,
+    }),
+    report(token, pid, {
+      dateRanges: [dateRange],
+      dimensions: [{ name: 'browser' }],
+      metrics: sessionMetrics,
+      orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+      limit: 8,
     }),
   ])
 
@@ -146,6 +166,27 @@ export async function GET(request: NextRequest) {
     pct: Math.round((n(r, 0) / totalLandingSessions) * 100),
   }))
 
+  const totalDeviceSessions = deviceRows.reduce((s, r) => s + n(r, 0), 0) || 1
+  const devices = deviceRows.map(r => ({
+    device: r.dimensionValues?.[0]?.value ?? 'unknown',
+    sessions: n(r, 0),
+    pct: Math.round((n(r, 0) / totalDeviceSessions) * 100),
+  }))
+
+  const totalCountrySessions = countryRows.reduce((s, r) => s + n(r, 0), 0) || 1
+  const countries = countryRows.map(r => ({
+    country: r.dimensionValues?.[0]?.value ?? 'Unknown',
+    sessions: n(r, 0),
+    pct: Math.round((n(r, 0) / totalCountrySessions) * 100),
+  }))
+
+  const totalBrowserSessions = browserRows.reduce((s, r) => s + n(r, 0), 0) || 1
+  const browsers = browserRows.map(r => ({
+    browser: r.dimensionValues?.[0]?.value ?? 'Unknown',
+    sessions: n(r, 0),
+    pct: Math.round((n(r, 0) / totalBrowserSessions) * 100),
+  }))
+
   return NextResponse.json({
     connected: true,
     brandName: brand.name,
@@ -155,5 +196,8 @@ export async function GET(request: NextRequest) {
     newVsRet,
     channels,
     landingPages,
+    devices,
+    countries,
+    browsers,
   })
 }
