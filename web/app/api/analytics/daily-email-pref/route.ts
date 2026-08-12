@@ -17,7 +17,11 @@ export async function POST() {
   const next = !brand.dailyEmailEnabled
 
   await db.update(brands)
-    .set({ dailyEmailEnabled: next })
+    .set({
+      dailyEmailEnabled: next,
+      // Store their email when opting in so the cron knows where to send
+      ...(next && user.email ? { notificationEmail: user.email } : {}),
+    })
     .where(eq(brands.id, brand.id))
 
   return NextResponse.json({ dailyEmailEnabled: next })
