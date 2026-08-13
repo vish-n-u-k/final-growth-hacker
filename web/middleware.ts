@@ -35,8 +35,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/api/oauth/') ||
     pathname.startsWith('/.well-known/') ||
     pathname === '/oauth/authorize'
+  const isCronEndpoint = pathname.startsWith('/api/cron/')
 
-  if (!user && !isAuthPage && !isMcpEndpoint && !isOAuthPublic) {
+  if (!user && !isAuthPage && !isMcpEndpoint && !isOAuthPublic && !isCronEndpoint) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
