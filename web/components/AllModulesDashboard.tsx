@@ -1314,14 +1314,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         className={`md-item sm-item${!done && !skipped && item.weight === 3 ? ' md-item-critical' : ''}${done ? ' md-item-done' : ''}${skipped ? ' md-item-skipped' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
         onClick={(e) => {
           if (!hasDetail) return
-          if (!isExpanded && !done && !skipped) {
-            const conflicts = getConflictsForItem(modId, item.slug, item.id)
-            if (conflicts?.length) {
-              e.stopPropagation()
-              setConflictModal({ modId, slug: item.slug, itemId: item.id, isDynamic: true, itemLabel: item.label, conflicts })
-              return
-            }
-          }
           toggleExpand(modId, item.slug, e)
         }}
         style={{ cursor: hasDetail ? 'pointer' : 'default' }}
@@ -1551,14 +1543,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         className={`md-item sm-item${!done && !skipped && item.weight === 3 ? ' md-item-critical' : ''}${done ? ' md-item-done' : ''}${skipped ? ' md-item-skipped' : ''}${needsAttention ? ' md-item-flagged' : ''}${isExpanded ? ' sm-item-expanded' : ''}`}
         onClick={(e) => {
           if (!hasDetail) return
-          if (!isExpanded && !done && !skipped) {
-            const conflicts = getConflictsForItem(modId, item.slug, s?.id)
-            if (conflicts?.length) {
-              e.stopPropagation()
-              setConflictModal({ modId, slug: item.slug, itemId: s?.id ?? '', isDynamic: false, itemLabel: item.label, conflicts })
-              return
-            }
-          }
           toggleExpand(modId, item.slug, e)
         }}
         style={{ cursor: hasDetail ? 'pointer' : 'default' }}
@@ -1989,7 +1973,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <div className="overview-dis-header">
                 <span className="overview-dis-badge">
                   <span className="overview-dis-badge-dot" />
-                  Not connected
+                  PostHog not connected
                 </span>
               </div>
               {/* Body */}
