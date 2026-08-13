@@ -82,7 +82,7 @@ function StatusRow({ item }: { item: StatusBoardItem }) {
 }
 
 // Locked card body
-function LockedCard({ title, sub }: { title: string; sub: string }) {
+function LockedCard({ title, sub, href = '/settings?tab=integrations' }: { title: string; sub: string; href?: string }) {
   const router = useRouter()
   return (
     <div className="ov-locked-body">
@@ -95,7 +95,7 @@ function LockedCard({ title, sub }: { title: string; sub: string }) {
           <div className="ov-locked-sub">{sub}</div>
         </div>
       </div>
-      <button className="ov-connect-btn" onClick={() => router.push('/settings')}>Connect →</button>
+      <button className="ov-connect-btn" onClick={() => router.push(href)}>Connect →</button>
     </div>
   )
 }

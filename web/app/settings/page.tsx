@@ -6,7 +6,12 @@ import { eq } from 'drizzle-orm'
 import SettingsPage from '@/components/SettingsPage'
 import { INTEGRATION_REGISTRY } from '@/lib/integrations/registry'
 
-export default async function Settings() {
+const VALID_TABS = ['brand', 'playbook', 'integrations', 'claude-code', 'account'] as const
+type Tab = typeof VALID_TABS[number]
+
+export default async function Settings({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
+  const params = await searchParams
+  const initialTab = VALID_TABS.includes(params.tab as Tab) ? (params.tab as Tab) : undefined
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -54,6 +59,7 @@ export default async function Settings() {
       integrationRegistry={INTEGRATION_REGISTRY}
       connectedIntegrations={connectedMap}
       mcpKeyPrefix={mcpKeyPrefix}
+      initialTab={initialTab}
     />
   )
 }
