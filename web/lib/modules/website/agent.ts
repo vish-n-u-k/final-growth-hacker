@@ -121,12 +121,17 @@ export async function analyzeWebsite(
   // Merge enrichment back in
   return baseResults.map(({ isFail: _, ...r }) => {
     const enriched = enrichmentMap.get(r.slug)
+    let action = (enriched?.action || r.action) ?? ''
+    if (enriched?.exportType === 'needs_choice' && enriched.choiceOptions?.length) {
+      const currentMatch = r.detail.match(/[""''](.+?)[""'']/)?.[1]
+      const currentLine = currentMatch ? `Current: "${currentMatch}"\n\n` : ''
+      action = `${currentLine}Suggestions:\n${enriched.choiceOptions.map((o, i) => `(${i + 1}) ${o}`).join('\n')}`
+    }
     return {
       ...r,
       highlight: enriched?.highlight ?? '',
       narrative: enriched?.narrative ?? '',
-      // Claude's action overrides rule-engine action for failed items (more specific)
-      action: (enriched?.action || r.action) ?? '',
+      action,
       exportType: enriched?.exportType,
       choiceOptions: enriched?.choiceOptions,
     }

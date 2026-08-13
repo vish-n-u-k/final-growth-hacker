@@ -507,8 +507,15 @@ export async function analyzeSeo(
 
   const ruleResults: ModuleAnalysisResult[] = baseResults.map(({ isFail: _, ...r }) => {
     const enrichment = narrativeMap.get(r.slug)
+    let action = r.action
+    if (enrichment?.exportType === 'needs_choice' && enrichment.choiceOptions?.length) {
+      const currentMatch = r.detail.match(/[""''](.+?)[""'']/)?.[1]
+      const currentLine = currentMatch ? `Current: "${currentMatch}"\n\n` : ''
+      action = `${currentLine}Suggestions:\n${enrichment.choiceOptions.map((o, i) => `(${i + 1}) ${o}`).join('\n')}`
+    }
     return {
       ...r,
+      action,
       highlight: enrichment?.highlight ?? '',
       narrative: enrichment?.narrative ?? '',
       exportType: enrichment?.exportType,
