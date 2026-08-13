@@ -2002,7 +2002,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     </div>
                   </div>
                   <div className="overview-dis-actions">
-                    <button className="overview-dis-btn-primary" onClick={() => router.push('/settings')}>
+                    <button className="overview-dis-btn-primary" onClick={() => router.push('/settings?tab=integrations')}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
                       Connect PostHog
                     </button>
@@ -3102,14 +3102,14 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
     <div style={{ padding: '24px 28px', borderTop: '1px solid var(--line)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
         <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>Content Scheduler</span>
-        {!connected && <a href="/settings" style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '5px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
+        {!connected && <a href="/settings?tab=integrations" style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '5px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
       </div>
       <p style={{ fontSize: '14px', color: 'var(--text-faint)', marginBottom: '20px', lineHeight: 1.55 }}>
         Generates a full content series for Instagram, LinkedIn, and X — AI plans the posts, Frekto renders and auto-schedules them.
       </p>
 
       {!connected ? (
-        <a href="/settings" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}>
+        <a href="/settings?tab=integrations" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}>
           Go to Settings → Integrations
         </a>
       ) : (
@@ -3445,13 +3445,13 @@ function SmartScheduler({ moduleId, brandId, connected }: { moduleId: string; br
     <div style={{ padding: '20px 28px', borderTop: '1px solid var(--line)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
         <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>Smart Scheduler</span>
-        {!connected && <a href="/settings" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
+        {!connected && <a href="/settings?tab=integrations" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
       </div>
       <p style={{ fontSize: '12px', color: 'var(--text-faint)', marginBottom: '16px', lineHeight: 1.5 }}>
         Analyzes your brand and audit findings to suggest what to post, where, and when — then generates and schedules content via Frekto.
       </p>
       {!connected ? (
-        <a href="/settings" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>Go to Settings → Integrations</a>
+        <a href="/settings?tab=integrations" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>Go to Settings → Integrations</a>
       ) : (
         <>
           <button onClick={handleGenerate} disabled={generating} style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '8px 20px', borderRadius: '7px', fontSize: '12.5px', fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer', border: 'none', background: generating ? 'rgba(47,191,113,0.25)' : 'var(--green)', color: generating ? 'var(--text-dim)' : '#ffffff', marginBottom: '16px' }}>
@@ -3641,7 +3641,7 @@ function FrektoPostingSection({ moduleId, brandName, connected }: { moduleId: st
             Connected
           </span>
         ) : (
-          <a href="/settings" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>
+          <a href="/settings?tab=integrations" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>
             Connect Frekto in Settings
           </a>
         )}

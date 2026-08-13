@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { IntegrationDefinition } from '@/lib/integrations/registry'
@@ -22,12 +22,13 @@ interface Props {
   integrationRegistry: IntegrationDefinition[]
   connectedIntegrations: Record<string, ConnectedIntegration>
   mcpKeyPrefix: string | null
+  initialTab?: Tab
 }
 
 type Tab = 'brand' | 'playbook' | 'integrations' | 'claude-code' | 'account'
 
-export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations, mcpKeyPrefix }: Props) {
-  const [tab, setTab] = useState<Tab>('brand')
+export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations, mcpKeyPrefix, initialTab }: Props) {
+  const [tab, setTab] = useState<Tab>(initialTab ?? 'brand')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const router = useRouter()
 

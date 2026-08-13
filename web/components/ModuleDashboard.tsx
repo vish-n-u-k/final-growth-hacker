@@ -1697,7 +1697,7 @@ function FrektoContentStudio({
           </span>
         ) : (
           <a
-            href="/settings"
+            href="/settings?tab=integrations"
             style={{
               fontSize: '11px', padding: '2px 8px', borderRadius: '4px',
               background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)',
@@ -1716,7 +1716,7 @@ function FrektoContentStudio({
 
       {!connected && (
         <a
-          href="/settings"
+          href="/settings?tab=integrations"
           style={{
             display: 'inline-flex', alignItems: 'center', gap: '6px',
             padding: '7px 16px', borderRadius: '7px',
@@ -2071,7 +2071,7 @@ function SmartScheduler({
           Smart Scheduler
         </span>
         {!connected && (
-          <a href="/settings" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>
+          <a href="/settings?tab=integrations" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>
             Connect Frekto to schedule
           </a>
         )}
@@ -2081,7 +2081,7 @@ function SmartScheduler({
       </p>
 
       {!connected ? (
-        <a href="/settings" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>
+        <a href="/settings?tab=integrations" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>
           Go to Settings → Integrations
         </a>
       ) : (
