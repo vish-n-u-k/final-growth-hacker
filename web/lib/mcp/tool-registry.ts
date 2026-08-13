@@ -21,7 +21,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_module_detail',
     description:
-      'Returns all checklist items for a specific module, grouped by category. Each item includes AI findings (detail, narrative, action) and completion status.',
+      'Use this when a user asks for specific recommendations or advice about their website or marketing — e.g. "what should my H1 say?", "what should I write for my meta description?", "what CTA should I use?", "how should I structure my homepage?", "what should my page title be?", "give me a suggestion for my about page". Returns all checklist items for a module, grouped by category. Each item includes AI-generated findings (aiDetail), a plain-English explanation (aiNarrative), and a specific recommended action or copy suggestion (aiAction). Use module_type="seo" for on-page SEO questions (H1, meta description, title tags, headings, URLs), module_type="foundation" for core brand/website questions, module_type="social-media" for social content questions.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -80,7 +80,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_pending_items',
     description:
-      'Returns all incomplete checklist items — not yet verified by AI and not manually checked. Sorted by priority (critical first). If module_type is provided, scoped to that module only. If omitted, returns pending items across all non-locked modules.',
+      'Use this when a user asks what to work on, fix, or prioritise next — e.g. "what should I do next?", "what is broken on my site?", "what are my biggest issues?", "what should I fix first?", "what is holding back my SEO?". Returns all incomplete checklist items — not yet verified by AI and not manually checked — sorted by priority (critical first). Each item includes a label, weight, and AI action suggestion. If module_type is provided, scoped to that module only. If omitted, returns pending items across all non-locked modules.',
     inputSchema: {
       type: 'object',
       properties: {

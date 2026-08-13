@@ -683,7 +683,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
               className="gap-2 w-30 border-[var(--green)] px-5 h-10 text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)] text-sm font-semibold"
             >
               {reanalyzing ? (
-                <><span className="md-spin px-4" />Re-analysing…</>
+                <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>Re-analysing…</>
               ) : (
                 <>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className='px-4'>
@@ -906,7 +906,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
               className="mt-3 gap-1.5 bg-[var(--green)] text-white hover:bg-[var(--green-bright)] font-semibold"
             >
               {reanalyzing ? (
-                <><span className="md-spin" style={{ borderTopColor: '#ffffff', borderColor: 'rgba(255,255,255,0.3)' }} />Analysing…</>
+                <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>Analysing…</>
               ) : (
                 <>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
@@ -967,7 +967,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                 >
                   {reanalyzing ? (
                     <>
-                      <span className="md-spin" style={{ borderTopColor: '#ffffff', borderColor: 'rgba(255,255,255,0.3)', width: 12, height: 12 }} />
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
                       Running…
                     </>
                   ) : (
@@ -1123,6 +1123,33 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                             <p className="sm-action-text">{item.aiAction}</p>
                                           </div>
                                         )}
+                                        {/* PostHog setup guide download */}
+                                        {item.slug === 'posthog-installed' && !item.aiVerified && (
+                                          <a
+                                            href="/downloads/posthog-setup.md"
+                                            download="posthog-setup.md"
+                                            onClick={(e) => e.stopPropagation()}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: '6px',
+                                              marginTop: '10px',
+                                              padding: '6px 14px',
+                                              borderRadius: '6px',
+                                              border: '1px solid var(--green)',
+                                              color: 'var(--green-bright)',
+                                              fontSize: '12px',
+                                              fontWeight: 500,
+                                              textDecoration: 'none',
+                                              background: 'transparent',
+                                            }}
+                                          >
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                            </svg>
+                                            Download Claude Code setup guide
+                                          </a>
+                                        )}
                                         {/* Calendar CSV download — only for the 30-day content calendar item */}
                                         {item.slug === 'content-calendar-30-day' && !!item.aiData && (
                                           <a
@@ -1185,7 +1212,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                                 onClick={(e) => { e.stopPropagation(); handleGenerateDraft(item.id, item.slug) }}
                                               >
                                                 {generatingDraft.has(item.slug) ? (
-                                                  <><span className="md-spin" />Generating draft…</>
+                                                  <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>Generating draft…</>
                                                 ) : (
                                                   '✦ Generate AI draft'
                                                 )}
@@ -1317,7 +1344,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                           style={{ cursor: skipped ? 'default' : 'pointer' }}
                                         >
                                           {isVerifying ? (
-                                            <span className="md-spin" style={{ width: '10px', height: '10px' }} />
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0}}><circle cx="12" cy="12" r="9" stroke="var(--green-bright)" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="var(--green-bright)" strokeWidth="3" strokeLinecap="round"/></svg>
                                           ) : (aiV || userC) ? (
                                             <svg viewBox="0 0 24 24" fill="none">
                                               <path d="M5 13l4 4L19 7" stroke={aiV ? '#06140c' : 'var(--lime)'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
@@ -1385,6 +1412,32 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                                   <span className="sm-action-label">Action</span>
                                                   <p className="sm-action-text">{s.aiAction}</p>
                                                 </div>
+                                              )}
+                                              {item.slug === 'posthog-installed' && !s?.aiVerified && (
+                                                <a
+                                                  href="/downloads/posthog-setup.md"
+                                                  download="posthog-setup.md"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                  style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    marginTop: '10px',
+                                                    padding: '6px 14px',
+                                                    borderRadius: '6px',
+                                                    border: '1px solid var(--green)',
+                                                    color: 'var(--green-bright)',
+                                                    fontSize: '12px',
+                                                    fontWeight: 500,
+                                                    textDecoration: 'none',
+                                                    background: 'transparent',
+                                                  }}
+                                                >
+                                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                                  </svg>
+                                                  Download Claude Code setup guide
+                                                </a>
                                               )}
                                             </div>
                                           )}
@@ -1780,7 +1833,7 @@ function FrektoContentStudio({
           >
             {generating ? (
               <>
-                <span className="md-spin" style={{ borderTopColor: 'var(--green)', borderColor: 'rgba(47,191,113,0.2)' }} />
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
                 Generating… (15–90s)
               </>
             ) : (
@@ -2046,7 +2099,7 @@ function SmartScheduler({
             }}
           >
             {generating ? (
-              <><span className="md-spin" style={{ borderTopColor: 'var(--green)', borderColor: 'rgba(47,191,113,0.2)' }} />Analyzing brand…</>
+              <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>Analyzing brand…</>
             ) : (
               <>{hasGenerated ? 'Regenerate ideas' : 'Generate post ideas'}</>
             )}
@@ -2189,7 +2242,7 @@ function SmartScheduler({
                         >
                           {status?.scheduling ? (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                              <span className="md-spin" style={{ borderTopColor: color, borderColor: color + '33', width: '10px', height: '10px' }} />
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke={color} strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke={color} strokeWidth="3" strokeLinecap="round"/></svg>
                               Scheduling…
                             </span>
                           ) : 'Schedule via Frekto'}

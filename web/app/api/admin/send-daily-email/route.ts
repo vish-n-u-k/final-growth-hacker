@@ -298,7 +298,7 @@ function buildHtml(brandName: string, date: string, ga4: Awaited<ReturnType<type
         </tr>
       </table>
       <p style="margin:10px 0 0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
-        ${brandName} &mdash; yesterday&rsquo;s summary
+        ${brandName} &mdash; latest summary
       </p>
     </td></tr>
 

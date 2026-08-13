@@ -776,10 +776,11 @@ html.light .hero-social-icon--connected { color: #5b6560; }
   100% { transform: translateX(250%); }
 }
 .md-spin {
-  width: 13px; height: 13px; border-radius: 50%;
-  border: 2px solid var(--line); border-top-color: var(--green-bright);
-  animation: md-spin .7s linear infinite; flex-shrink: 0;
+  display: inline-block; width: 13px; height: 13px; border-radius: 50%;
+  border: 2px solid rgba(47,191,113,0.35); border-top-color: var(--green-bright);
+  animation: md-spin .7s linear infinite; flex-shrink: 0; vertical-align: middle;
 }
+html.light .md-spin { border-color: rgba(23,154,80,0.3); border-top-color: var(--green); }
 
 /* Overview */
 .md-overview {
@@ -2351,8 +2352,8 @@ html.light .level-export-btn:hover { background: #e0e0e0; }
 .btn-analysing .level-reanalyze-label {
   position: relative; z-index: 1;
 }
-.level-reanalyze-btn .md-spin { border-top-color: var(--green); border-color: rgba(23,154,80,0.25); border-width: 2px; }
-html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); border-color: rgba(23,154,80,0.25); border-width: 2px; }
+.level-reanalyze-btn .md-spin { border-top-color: var(--green); border-color: rgba(47,191,113,0.45); border-width: 2px; }
+html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); border-color: rgba(23,154,80,0.4); border-width: 2px; }
 
 /* ── Mobile Responsive ───────────────────────────────────────────────────── */
 

@@ -168,8 +168,8 @@ export function runFoundationRuleEngine(
     : f('posthog-installed', false,
         'No PostHog analytics detected in the page scripts.',
         'PostHog not installed',
-        'Without product analytics **you cannot see how users interact with your product** — funnels and drop-off points are invisible.',
-        "Go to posthog.com, create a free project, and add the JS snippet to your site's <head>.")
+        'Without product analytics **you cannot see how users interact with your product** — funnels, drop-off points, and conversion rates are completely invisible.',
+        "Go to posthog.com → create a free project → grab your phc_... API key. Then open `md_files/posthog-setup.md` in your project and paste its contents to Claude Code — it will install PostHog and wire up every important event (auth, onboarding, analysis, item checks, exports, AI features, score milestones) in one pass.")
   )
 
   // ── privacy-policy ───────────────────────────────────────────────────────────
