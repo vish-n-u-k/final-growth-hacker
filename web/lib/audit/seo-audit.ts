@@ -1198,15 +1198,15 @@ export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAudi
 
   // Fetch robots.txt, sitemap status, and run URL discovery in parallel
   const origin = new URL(finalUrl).origin
-  const [robotsRes, sitemapRes, discoveryResult] = await Promise.allSettled([
-    fetch(`${origin}/robots.txt`, { signal: AbortSignal.timeout(5_000) }),
-    fetch(`${origin}/sitemap.xml`, { signal: AbortSignal.timeout(5_000) }),
+  const [robotsTxtResult, sitemapStatusResult, discoveryResult] = await Promise.allSettled([
+    fetch(`${origin}/robots.txt`, { signal: AbortSignal.timeout(5_000) })
+      .then(r => r.ok ? r.text() : null),
+    fetch(`${origin}/sitemap.xml`, { signal: AbortSignal.timeout(5_000) })
+      .then(r => r.status),
     discoverAllUrls(finalUrl, html, { maxUrls: 300, maxCrawlDepth: 2 }),
   ])
-  const robotsTxt = robotsRes.status === 'fulfilled' && robotsRes.value.ok
-    ? await robotsRes.value.text()
-    : null
-  const sitemapStatus = sitemapRes.status === 'fulfilled' ? sitemapRes.value.status : 0
+  const robotsTxt = robotsTxtResult.status === 'fulfilled' ? robotsTxtResult.value : null
+  const sitemapStatus = sitemapStatusResult.status === 'fulfilled' ? sitemapStatusResult.value ?? 0 : 0
   const discoveredUrls = discoveryResult.status === 'fulfilled' ? discoveryResult.value : undefined
 
   // Optional Lighthouse

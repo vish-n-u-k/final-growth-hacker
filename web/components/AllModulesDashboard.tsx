@@ -1685,6 +1685,32 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       </li>
                     ))}
                   </ol>
+                  {item.slug === 'posthog-installed' && (
+                    <a
+                      href="/downloads/posthog-setup.md"
+                      download="posthog-setup.md"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        marginTop: '14px',
+                        padding: '7px 16px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--green)',
+                        color: 'var(--green-bright)',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        background: 'transparent',
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Download Claude Code setup guide
+                    </a>
+                  )}
                 </div>
               )}
               {/* Skip section — at bottom of expanded body */}
@@ -2138,7 +2164,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', opacity: bsBusy ? 0.6 : 1,
                       }}
                     >
-                      {bsBusy ? <><span className="md-spin" style={{ width: '10px', height: '10px', borderWidth: '1.5px' }} />{ensuringBs ? 'Setting up…' : 'Analysing…'}</> : 'Re-analyse'}
+                      {bsBusy ? <><svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>{ensuringBs ? 'Setting up…' : 'Analysing…'}</> : 'Re-analyse'}
                     </button>
                     <button
                       onClick={() => setStageModalOpen(false)}
@@ -2341,7 +2367,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         style={requested ? { opacity: 1, color: 'var(--gold)', borderColor: 'var(--gold)', cursor: 'default' } : undefined}
                       >
                         {reanalyzing ? (
-                          <><span className="md-spin" style={{ width: '11px', height: '11px', borderWidth: '2px' }} /><span className="level-reanalyze-label">Requesting…</span></>
+                          <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg><span className="level-reanalyze-label">Requesting…</span></>
                         ) : requested ? (
                           <>
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
@@ -2439,7 +2465,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                             : { background: 'var(--green)', color: '#ffffff' }}
                         >
                           {reanalyzing ? (
-                            <><span className="md-spin" style={{ borderTopColor: requested ? 'var(--gold)' : '#ffffff', borderColor: requested ? 'rgba(231,200,115,0.2)' : 'rgba(255,255,255,0.3)' }} />Requesting…</>
+                            <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>Requesting…</>
                           ) : requested ? (
                             <>
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
@@ -2503,7 +2529,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                               style={{ fontSize: 12, padding: '6px 14px' }}
                             >
                               {reanalyzing ? (
-                                <><span className="md-spin" style={{ width: 10, height: 10, borderWidth: '1.5px' }} />Running…</>
+                                <><svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>Running…</>
                               ) : 'Save & Re-analyse'}
                             </button>
                           </div>
