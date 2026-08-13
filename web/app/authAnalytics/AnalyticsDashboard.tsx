@@ -224,12 +224,48 @@ function ComingSoonBadge() {
   )
 }
 
+function InfoTooltip({ text }: { text: string }) {
+  const [visible, setVisible] = useState(false)
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', flexShrink: 0 }}>
+      <button
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onClick={(e) => { e.stopPropagation(); setVisible(v => !v) }}
+        style={{
+          width: 16, height: 16, borderRadius: '50%',
+          background: 'transparent', border: `1px solid ${MOCK.border}`,
+          color: MOCK.muted2, fontSize: 10, fontWeight: 700,
+          cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          padding: 0, lineHeight: 1,
+        }}
+      >
+        i
+      </button>
+      {visible && (
+        <div style={{
+          position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%',
+          transform: 'translateX(-50%)',
+          background: '#ffffff', border: '1px solid #d1d5db',
+          borderRadius: 10, padding: '10px 14px',
+          fontSize: 12.5, color: '#111827', lineHeight: 1.6,
+          width: 230, zIndex: 200, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+          pointerEvents: 'none',
+          whiteSpace: 'normal', textAlign: 'left',
+        }}>
+          {text}
+        </div>
+      )}
+    </span>
+  )
+}
+
 function StatCard({
-  icon: Icon, iconTone, label, value, source, deltaValue, invertGood, loading, comingSoon, period, onViewDetails, isMobile,
+  icon: Icon, iconTone, label, value, source, deltaValue, invertGood, loading, comingSoon, period, onViewDetails, isMobile, info,
 }: {
   icon: React.ElementType; iconTone: string; label: string; value: string | number
   source: string; deltaValue: number; invertGood?: boolean; loading?: boolean; comingSoon?: boolean; period?: string
-  onViewDetails?: () => void; isMobile?: boolean
+  onViewDetails?: () => void; isMobile?: boolean; info?: string
 }) {
   const iconColor = toneColor(iconTone)
   const iconBg = toneBg(iconTone)
@@ -265,7 +301,10 @@ function StatCard({
             {comingSoon ? '—' : typeof value === 'number' ? fmt(value) : value}
           </div>
         )}
-        <div style={{ fontSize: 15, fontWeight: 600, marginTop: 4, color: MOCK.text }}>{label}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: MOCK.text }}>{label}</span>
+          {info && <InfoTooltip text={info} />}
+        </div>
       </div>
       {comingSoon
         ? <span style={{ fontSize: 12.5, color: MOCK.muted }}>Connect Stripe to unlock</span>
@@ -290,9 +329,9 @@ function StatCard({
   )
 }
 
-function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon, isMobile }: {
+function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon, isMobile, info }: {
   label: string; value: string; sub: string; source: string
-  delta: number; bad?: boolean; loading?: boolean; comingSoon?: boolean; isMobile?: boolean
+  delta: number; bad?: boolean; loading?: boolean; comingSoon?: boolean; isMobile?: boolean; info?: string
 }) {
   return (
     <div style={{
@@ -305,7 +344,10 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon, i
         <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: MOCK.green }}>
           {label}
         </span>
-        {comingSoon ? <ComingSoonBadge /> : <SourcePill>{source}</SourcePill>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {comingSoon ? <ComingSoonBadge /> : <SourcePill>{source}</SourcePill>}
+          {info && <InfoTooltip text={info} />}
+        </div>
       </div>
       {loading && !comingSoon ? (
         <div className="an-skeleton" style={{ width: 64, height: 30, borderRadius: 8 }} />
@@ -336,15 +378,18 @@ function RetentionCurve({ data, loading, onViewDetails }: { data: { day: string;
     <div style={{ background: MOCK.card, border: `1px solid ${MOCK.border}`, boxShadow: MOCK.shadow, borderRadius: 14, padding: '26px 26px 8px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 12px', marginBottom: 4 }}>
         <div>
-          <h3 style={{ fontSize: 19, fontWeight: 700, color: MOCK.text, fontFamily: 'var(--font-display, Fraunces, serif)' }}>
-            Retention curve
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h3 style={{ fontSize: 19, fontWeight: 700, color: MOCK.text, fontFamily: 'var(--font-display, Fraunces, serif)', margin: 0 }}>
+              Retention curve
+            </h3>
+            <InfoTooltip text="Shows what % of users who signed up are still active after day 1, day 7, day 14, etc. A healthy product keeps this curve as high and flat as possible." />
+          </div>
           <p style={{ fontSize: 13.5, color: MOCK.muted, marginTop: 3 }}>
             Share of signed-up users still active N days after signup.
             {loading && <span style={{ color: MOCK.muted2, marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
           <SourcePill>PostHog</SourcePill>
           {!loading && onViewDetails && (
             <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
@@ -384,15 +429,18 @@ function FunnelCard({ data, loading, onViewDetails }: { data: { stage: string; v
     <div style={{ background: MOCK.card, border: `1px solid ${MOCK.border}`, boxShadow: MOCK.shadow, borderRadius: 14, padding: '26px 26px 8px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 12px', marginBottom: 4 }}>
         <div>
-          <h3 style={{ fontSize: 19, fontWeight: 700, color: MOCK.text, fontFamily: 'var(--font-display, Fraunces, serif)' }}>
-            Conversion funnel
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h3 style={{ fontSize: 19, fontWeight: 700, color: MOCK.text, fontFamily: 'var(--font-display, Fraunces, serif)', margin: 0 }}>
+              Conversion funnel
+            </h3>
+            <InfoTooltip text="Tracks how many users complete each step from first visit to paying customer. The drop between each step shows where you're losing people." />
+          </div>
           <p style={{ fontSize: 13.5, color: MOCK.muted, marginTop: 3 }}>
             Where users fall off between arriving and paying.
             {loading && <span style={{ color: MOCK.muted2, marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
           <SourcePill>PostHog</SourcePill>
           {!loading && onViewDetails && (
             <button onClick={onViewDetails} style={{ fontSize: 12.5, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: MOCK.green, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
@@ -440,15 +488,18 @@ function ActivationFunnelCard({ data, loading, onViewDetails }: { data: { stage:
     <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 12px', marginBottom: 4 }}>
         <div>
-          <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)' }}>
-            Activation funnel
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display, Fraunces, serif)', margin: 0 }}>
+              Activation funnel
+            </h3>
+            <InfoTooltip text="Tracks new users through your onboarding steps. A big drop at any stage means that step is too confusing or asks too much — fix that step first." />
+          </div>
           <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 3 }}>
             Signup → brand setup → first post → social → publish · last 90 days
             {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
           </p>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
           <SourcePill>PostHog</SourcePill>
           {!loading && onViewDetails && (
             <button onClick={onViewDetails} style={{ fontSize: 12, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', color: 'var(--green-bright)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
@@ -1329,20 +1380,31 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
 
   // Build activity tiles — real PostHog data + Stripe (coming soon)
   const cardOv = data?.cardOverrides ?? {}
+  const CARD_INFO: Record<string, string> = {
+    signups:  'People who created a new account in this period. A rising number means your marketing or word-of-mouth is working.',
+    signins:  'Existing users who logged back in. Shows how many people are actively returning to your product.',
+    au:       'Unique users who did anything in your app during this period. Think of it as the heartbeat of your product.',
+    deleted:  'Users who deleted their account. Even 1 is worth investigating — look for patterns in timing or user type.',
+    pro:      'Users who upgraded to a paid plan. This is your core revenue signal — track it closely every day.',
+    unsub:    'Paid users who cancelled their subscription. A spike here usually means something went wrong with the product or onboarding.',
+    contact:  'Users who reached out for help. High numbers can signal confusing UX or a missing feature.',
+    reviews:  'Users who left a review on app stores or review sites. Reviews drive trust and help new users decide to sign up.',
+  }
+
   const activityTiles: {
     key: string; label: string; value: string | number; delta: number
     source: string; icon: React.ElementType; tone: string
     loading?: boolean; comingSoon?: boolean; invertGood?: boolean; period?: string
-    onViewDetails?: () => void; onEdit?: () => void
+    onViewDetails?: () => void; onEdit?: () => void; info?: string
   }[] = [
-    { key: 'signups',  label: 'New signups',      value: signupsVal,      delta: signupsVal - signupsPrior,         source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signups') : undefined },
-    { key: 'signins',  label: 'Sign-ins',          value: signinsVal,      delta: signinsVal - signinsPrior,         source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signins') : undefined },
-    { key: 'au',       label: activeUsersLabel,    value: activeUsersVal,  delta: activeUsersVal - activeUsersPrior, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('dau') : undefined },
-    { key: 'deleted',  label: cardOv['deleted']?.label ?? 'Deleted account', value: deletedVal, delta: deletedVal - deletedPrior, source: 'PostHog', icon: Trash2, tone: 'red', loading: phLoading, period: rangePeriod, invertGood: true, onViewDetails: data?.posthogConnected ? () => openDetail('deleted') : undefined, onEdit: data?.posthogConnected ? () => openEditBuiltin('deleted', 'Deleted account') : undefined },
-    { key: 'pro',      label: cardOv['pro']?.label ?? 'Became PRO',        value: data?.proUsers ?? 0, delta: 0, source: 'PostHog', icon: Crown, tone: 'amber', loading: phLoading, onEdit: data?.posthogConnected ? () => openEditBuiltin('pro', 'Became PRO') : undefined },
-    { key: 'unsub',    label: 'Unsubscribed',      value: 0, delta: 0, source: 'Stripe',   icon: UserMinus,     tone: 'red',     comingSoon: true, invertGood: true },
-    { key: 'contact',  label: 'Support contacted', value: 0, delta: 0, source: 'Internal', icon: MessageSquare, tone: 'amber', comingSoon: true },
-    { key: 'reviews',  label: 'Reviews left',      value: 0, delta: 0, source: 'Internal', icon: Star,          tone: 'amber',   comingSoon: true },
+    { key: 'signups',  label: 'New signups',      value: signupsVal,      delta: signupsVal - signupsPrior,         source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signups') : undefined, info: CARD_INFO.signups },
+    { key: 'signins',  label: 'Sign-ins',          value: signinsVal,      delta: signinsVal - signinsPrior,         source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signins') : undefined, info: CARD_INFO.signins },
+    { key: 'au',       label: activeUsersLabel,    value: activeUsersVal,  delta: activeUsersVal - activeUsersPrior, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('dau') : undefined, info: 'Users who performed at least one event in the selected time period. DAU/MAU ratio (stickiness) above 20% is a sign of a healthy, habit-forming product.' },
+    { key: 'deleted',  label: cardOv['deleted']?.label ?? 'Deleted account', value: deletedVal, delta: deletedVal - deletedPrior, source: 'PostHog', icon: Trash2, tone: 'red', loading: phLoading, period: rangePeriod, invertGood: true, onViewDetails: data?.posthogConnected ? () => openDetail('deleted') : undefined, onEdit: data?.posthogConnected ? () => openEditBuiltin('deleted', 'Deleted account') : undefined, info: CARD_INFO.deleted },
+    { key: 'pro',      label: cardOv['pro']?.label ?? 'Became PRO',        value: data?.proUsers ?? 0, delta: 0, source: 'PostHog', icon: Crown, tone: 'amber', loading: phLoading, onEdit: data?.posthogConnected ? () => openEditBuiltin('pro', 'Became PRO') : undefined, info: CARD_INFO.pro },
+    { key: 'unsub',    label: 'Unsubscribed',      value: 0, delta: 0, source: 'Stripe',   icon: UserMinus,     tone: 'red',     comingSoon: true, invertGood: true, info: CARD_INFO.unsub },
+    { key: 'contact',  label: 'Support contacted', value: 0, delta: 0, source: 'Internal', icon: MessageSquare, tone: 'amber', comingSoon: true, info: CARD_INFO.contact },
+    { key: 'reviews',  label: 'Reviews left',      value: 0, delta: 0, source: 'Internal', icon: Star,          tone: 'amber',   comingSoon: true, info: CARD_INFO.reviews },
   ]
 
   const avgScore = modules.filter(m => !m.locked).length > 0
@@ -1677,7 +1739,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                     padding: '7px 14px', borderRadius: 99,
                     border: `1px solid ${MOCK.border}`,
                     background: dailyEmail ? MOCK.green : MOCK.card,
-                    color: dailyEmail ? '#06140c' : MOCK.muted,
+                    color: dailyEmail ? '#ffffff' : MOCK.muted,
                     cursor: emailToggling ? 'default' : 'pointer',
                     opacity: emailToggling ? 0.6 : 1,
                     transition: 'all 0.15s',
@@ -1810,6 +1872,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                     period={item.period}
                     onViewDetails={item.onViewDetails}
                     isMobile={isMobile}
+                    info={item.info}
                   />
                   <button
                     onClick={item.onEdit}
@@ -1836,6 +1899,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                   period={item.period}
                   onViewDetails={item.onViewDetails}
                   isMobile={isMobile}
+                  info={item.info}
                 />
               )
             ))}
@@ -1894,10 +1958,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             Growth &amp; retention
           </h2>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
-            <KpiCard label="MRR" value="$0" sub="Monthly recurring revenue" source="Stripe" delta={0} comingSoon isMobile={isMobile} />
-            <KpiCard label="ARR" value="$0" sub="Annualised run rate" source="Stripe" delta={0} comingSoon isMobile={isMobile} />
-            <KpiCard label="Churn rate" value="0%" sub="Paid cancellations, 30d" source="Stripe" delta={0} bad comingSoon isMobile={isMobile} />
-            <KpiCard label="Onboarding drop-off" value="0%" sub="Users who don't return after signup" source="Stripe" delta={0} bad comingSoon isMobile={isMobile} />
+            <KpiCard label="MRR" value="$0" sub="Monthly recurring revenue" source="Stripe" delta={0} comingSoon isMobile={isMobile} info="Monthly Recurring Revenue — the total you earn every month from paying subscribers. The north star metric for SaaS growth." />
+            <KpiCard label="ARR" value="$0" sub="Annualised run rate" source="Stripe" delta={0} comingSoon isMobile={isMobile} info="Annual Recurring Revenue — your MRR multiplied by 12. Useful for investor conversations and year-ahead planning." />
+            <KpiCard label="Churn rate" value="0%" sub="Paid cancellations, 30d" source="Stripe" delta={0} bad comingSoon isMobile={isMobile} info="The percentage of paying customers who cancelled this month. Below 2% is healthy for most SaaS products. Lower is better." />
+            <KpiCard label="Onboarding drop-off" value="0%" sub="Users who don't return after signup" source="Stripe" delta={0} bad comingSoon isMobile={isMobile} info="Users who signed up but never came back after day 1. High drop-off usually means your first-run experience needs work." />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <RetentionCurve data={retentionData} loading={phLoading} onViewDetails={data?.posthogConnected ? () => openDetail('retention') : undefined} />
@@ -2078,13 +2142,16 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             {/* KPI row */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
               {[
-                { label: 'Organic clicks', value: gsc?.clicks7d,      suffix: '',  sub: '7 days' },
-                { label: 'Impressions',    value: gsc?.impressions7d,  suffix: '',  sub: '7 days' },
-                { label: 'Avg CTR',        value: gsc?.avgCtr7d,       suffix: '%', sub: '7 days' },
-                { label: 'Avg position',   value: gsc?.avgPosition7d,  suffix: '',  sub: '7 days' },
+                { label: 'Organic clicks', value: gsc?.clicks7d,      suffix: '',  sub: '7 days', info: 'Visitors who found you on Google and actually clicked through to your site. More clicks = more free traffic from search.' },
+                { label: 'Impressions',    value: gsc?.impressions7d,  suffix: '',  sub: '7 days', info: 'How many times your site appeared in Google search results. High impressions but low clicks means your title or description needs work.' },
+                { label: 'Avg CTR',        value: gsc?.avgCtr7d,       suffix: '%', sub: '7 days', info: 'Click-through rate — what % of people who saw you in Google results actually clicked. Above 3% is good for most sites.' },
+                { label: 'Avg position',   value: gsc?.avgPosition7d,  suffix: '',  sub: '7 days', info: 'Your average ranking in Google results. Position 1 is the top spot. Lower number = higher rank = more visibility.' },
               ].map(k => (
                 <div key={k.label} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 8 }}>{k.label}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)' }}>{k.label}</div>
+                    <InfoTooltip text={k.info} />
+                  </div>
                   <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.5px', color: 'var(--text)', lineHeight: 1, filter: !gsc?.connected ? 'blur(5px)' : 'none' }}>
                     {k.value != null ? `${fmt(k.value)}${k.suffix}` : '—'}
                   </div>
@@ -2175,14 +2242,17 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             {/* KPI row */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
               {[
-                { label: 'Sessions',        value: ga4?.sessions7d,       suffix: '' },
-                { label: 'Active users',    value: ga4?.activeUsers7d,    suffix: '' },
-                { label: 'New users',       value: ga4?.newUsers7d,       suffix: '' },
-                { label: 'Pageviews',       value: ga4?.pageviews7d,      suffix: '' },
-                { label: 'Engagement rate', value: ga4?.engagementRate7d, suffix: '%' },
+                { label: 'Sessions',        value: ga4?.sessions7d,       suffix: '', info: 'A session is one visit to your site. One person can have multiple sessions in a day if they leave and come back.' },
+                { label: 'Active users',    value: ga4?.activeUsers7d,    suffix: '', info: 'People who visited and did something meaningful — viewed a page, clicked a button — in the last 7 days.' },
+                { label: 'New users',       value: ga4?.newUsers7d,       suffix: '', info: 'First-time visitors who have never been to your site before. Growing new users means your reach is expanding.' },
+                { label: 'Pageviews',       value: ga4?.pageviews7d,      suffix: '', info: 'Total pages viewed across all visits. High pageviews relative to sessions means people are exploring multiple pages.' },
+                { label: 'Engagement rate', value: ga4?.engagementRate7d, suffix: '%', info: 'Share of sessions where the visitor stayed 10+ seconds or interacted with the page. Above 60% is healthy.' },
               ].map(k => (
                 <div key={k.label} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 16px' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 8 }}>{k.label}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)' }}>{k.label}</div>
+                    <InfoTooltip text={k.info} />
+                  </div>
                   <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.5px', color: 'var(--text)', lineHeight: 1, filter: !ga4?.connected ? 'blur(5px)' : 'none' }}>
                     {k.value != null ? `${fmt(k.value)}${k.suffix}` : '—'}
                   </div>
@@ -2194,7 +2264,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14, marginBottom: 14 }}>
               {/* Daily trend chart */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>New users</h3>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', margin: 0 }}>New users</h3>
+                  <InfoTooltip text="First-time visitors per day over the last 30 days. A rising trend means your reach is growing. Spikes often come from a viral post, launch, or ad campaign." />
+                </div>
                 <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>Daily new users — last 30 days</p>
                 <div style={{ height: 160, filter: !ga4?.connected ? 'blur(4px)' : 'none' }}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -2216,7 +2289,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
 
               {/* Traffic sources */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Traffic sources</h3>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', margin: 0 }}>Traffic sources</h3>
+                  <InfoTooltip text="Where your visitors are coming from. Organic Search = Google. Direct = typed your URL or bookmarked. Referral = another site linked to you. Social = social media." />
+                </div>
                 <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>Sessions by channel — 7 days</p>
                 {(() => {
                   const sources = ga4?.connected && ga4.trafficSources.length ? ga4.trafficSources : [
@@ -2248,7 +2324,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
 
             {/* Top landing pages */}
             <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Top landing pages</h3>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', margin: 0 }}>Top landing pages</h3>
+                <InfoTooltip text="The first page visitors land on when they arrive at your site. A strong landing page keeps people engaged; a weak one sends them away immediately." />
+              </div>
               <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Entry pages by sessions — 7 days</p>
               <div style={{ filter: !ga4?.connected ? 'blur(4px)' : 'none', overflowX: 'auto' }}>
                 <div style={{ minWidth: isMobile ? 380 : 'unset' }}>
