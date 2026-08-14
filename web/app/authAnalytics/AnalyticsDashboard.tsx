@@ -9,7 +9,8 @@ import {
   ArrowLeft, RefreshCw, UserPlus, LogIn, Crown, UserMinus,
   Trash2, MessageSquare, Star, TrendingDown, TrendingUp,
   Zap, ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle, Copy,
-  Plus, X as XIcon, Pencil,
+  Plus, X, X as XIcon, Pencil,
+  AlertTriangle, Check,
 } from 'lucide-react'
 
 /* ── Types ────────────────────────────────────────────── */
@@ -1142,6 +1143,77 @@ function RoadToGoalTrack({ current, milestones }: { current: number; milestones:
   )
 }
 
+function PostHogBenefitsModal({ onClose, onConnect }: { onClose: () => void; onConnect: () => void }) {
+  const benefits = [
+    { title: 'Live progress on your Road to 500', desc: 'your real user count fills in the milestone tracker automatically, no manual updates.' },
+    { title: 'Real-time activity', desc: 'new signups, sign-ins, and daily active users tracked as they happen.' },
+    { title: 'A 30-day retention curve', desc: 'see what share of users are still active on day 1, 3, 7, 14, and 30.' },
+    { title: 'Conversion & activation funnels', desc: 'find exactly where users drop off between signup and your key action.' },
+    { title: 'PMF signals', desc: 'which features your retained users rely on most, compared to users who churned.' },
+    { title: 'Full traffic breakdown', desc: 'acquisition channels, top pages, devices, and countries.' },
+  ]
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(30,35,31,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: MOCK.card, borderRadius: 20, maxWidth: 460, width: '100%', boxShadow: '0 20px 60px rgba(30,35,31,0.25)', overflow: 'hidden' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '24px 24px 16px', borderBottom: `1px solid ${MOCK.border}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: '#F3F1EA', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: MOCK.green }}>
+              <BarChart2 size={18} />
+            </div>
+            <div>
+              <div style={{ fontSize: 16.5, fontWeight: 700, color: MOCK.text }}>What connecting PostHog unlocks</div>
+              <div style={{ fontSize: 12, color: MOCK.muted2, marginTop: 2 }}>On this User Analytics page</div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{ width: 28, height: 28, borderRadius: '50%', background: '#F3F1EA', color: MOCK.muted, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+        <div style={{ padding: '18px 24px 8px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {benefits.map((b) => (
+            <div key={b.title} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <div style={{ width: 22, height: 22, borderRadius: 7, background: MOCK.greenSoft, color: MOCK.green, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+                <Check size={12} strokeWidth={3} />
+              </div>
+              <div style={{ fontSize: 13, color: '#3A4038', lineHeight: 1.5 }}>
+                <b style={{ color: MOCK.text }}>{b.title}</b> — {b.desc}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: '18px 24px 24px' }}>
+          <div style={{ fontSize: 11.5, color: MOCK.muted2, textAlign: 'center', marginBottom: 12 }}>
+            Free up to 1M events/month · takes under 10 minutes to set up
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={onClose}
+              style={{ flex: 1, background: MOCK.card, border: `1px solid ${MOCK.border}`, color: MOCK.muted, fontSize: 13, fontWeight: 600, padding: '11px 0', borderRadius: 10, cursor: 'pointer' }}
+            >
+              Maybe later
+            </button>
+            <button
+              onClick={onConnect}
+              style={{ flex: 2, background: MOCK.green, color: '#ffffff', fontSize: 13, fontWeight: 700, padding: '11px 0', borderRadius: 10, border: 'none', cursor: 'pointer' }}
+            >
+              Connect PostHog
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Main component ───────────────────────────────────── */
 interface Props {
   brand: { id: string; name: string; websiteUrl: string; createdAt: string | null }
@@ -1156,6 +1228,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   const [range, setRange] = useState('24h')
   const [expandedModule, setExpandedModule] = useState<string | null>(null)
   const [redirectTarget, setRedirectTarget] = useState<string | null>(null)
+  const [showPostHogModal, setShowPostHogModal] = useState(false)
   const [data, setData] = useState<DashboardData | null>(null)
   const [phLoading, setPhLoading] = useState(true)
   const [snapshotAt, setSnapshotAt] = useState<string | null>(null)
@@ -1667,6 +1740,13 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
         </div>
       )}
 
+      {showPostHogModal && (
+        <PostHogBenefitsModal
+          onClose={() => setShowPostHogModal(false)}
+          onConnect={() => router.push('/settings')}
+        />
+      )}
+
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 16px' : '32px 28px' }}>
 
         {/* Header */}
@@ -1779,6 +1859,37 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
 
         {/* ── Users view ── */}
         {view === 'users' && (<>
+
+        {/* PostHog not connected notice */}
+        {!data?.posthogConnected && !phLoading && (
+          <div style={{
+            display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 16,
+            background: MOCK.amberBg, border: '1px solid #E8D5A0', borderRadius: 14,
+            padding: isMobile ? '16px' : '16px 20px', marginBottom: 24, flexWrap: 'wrap',
+          }}>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: '#F5E3AE', display: 'flex', alignItems: 'center', justifyContent: 'center', color: MOCK.amberText, flexShrink: 0 }}>
+              <AlertTriangle size={18} />
+            </div>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: '#7A5B1E' }}>PostHog isn&rsquo;t connected — you&rsquo;re viewing an empty preview</div>
+              <div style={{ fontSize: 12.5, color: MOCK.amberText, marginTop: 2 }}>Everything below is a preview of this page&rsquo;s layout. Connect PostHog to replace it with your real user data.</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+              <button
+                onClick={() => setShowPostHogModal(true)}
+                style={{ background: 'none', border: 'none', color: '#7A5B1E', fontSize: 12.5, fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                See what you&rsquo;ll unlock
+              </button>
+              <button
+                onClick={() => router.push('/settings')}
+                style={{ background: MOCK.green, color: '#ffffff', fontSize: 12.5, fontWeight: 700, padding: '9px 18px', borderRadius: 99, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                Connect PostHog
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Road to 500 banner */}
         <div style={{
