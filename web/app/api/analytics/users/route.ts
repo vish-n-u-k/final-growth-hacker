@@ -37,7 +37,8 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const brandId = request.nextUrl.searchParams.get('brandId')
-  const type = request.nextUrl.searchParams.get('type') as 'signups' | 'signins' | 'dau' | 'deleted' | null
+  const type = request.nextUrl.searchParams.get('type') as 'signups' | 'signins' | 'dau' | 'deleted' | 'custom' | null
+  const eventName = request.nextUrl.searchParams.get('eventName')
   const range = request.nextUrl.searchParams.get('range') ?? '24h'
 
   if (!brandId || !type) return NextResponse.json({ error: 'brandId and type required' }, { status: 400 })
@@ -163,6 +164,35 @@ export async function GET(request: NextRequest) {
         AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)
         AND timestamp >= now() - interval ${interval}
       ORDER BY timestamp DESC
+      LIMIT 100
+    `)
+    users = (rows ?? []).map(r => ({
+      name: r[0] ? String(r[0]) : null,
+      email: String(r[1] ?? ''),
+      userId: String(r[2] ?? ''),
+      timestamp: String(r[3] ?? ''),
+      source: r[4] ? String(r[4]) : null,
+      location: r[5] ? String(r[5]) : null,
+      plan: r[6] ? String(r[6]) : 'Free',
+    }))
+  }
+
+  if (type === 'custom' && eventName) {
+    const rows = await hogqlRows(host, projectId, phInt.apiKey, `
+      SELECT
+        any(person.properties.$name),
+        any(person.properties.$email),
+        person_id,
+        toString(max(timestamp)),
+        any(properties.$channel_type),
+        any(properties.$geoip_country_name),
+        any(person.properties.plan)
+      FROM events
+      WHERE event = '${eventName.replace(/'/g, "\\'")}'
+        AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)
+        AND timestamp >= now() - interval ${interval}
+      GROUP BY person_id
+      ORDER BY max(timestamp) DESC
       LIMIT 100
     `)
     users = (rows ?? []).map(r => ({

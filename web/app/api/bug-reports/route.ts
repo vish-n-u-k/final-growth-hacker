@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
   const {
     remarks,
     severity = 'bug',
+    tags = [],
     page_url,
     page_title,
     user_id,
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
     pageTitle: page_title ?? null,
     remarks,
     severity,
+    tags: Array.isArray(tags) && tags.length ? tags : null,
     deviceInfo: device_info ?? null,
     screenshotKey,
     extraScreenshotKeys: extraKeys.length ? extraKeys : null,

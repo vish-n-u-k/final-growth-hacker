@@ -681,21 +681,23 @@ function DetailMobileRow({ label, value }: { label: string; value: React.ReactNo
 }
 
 function DetailView({
-  type, users, loading, onBack, snapshotData, isMobile, onCopy,
+  type, users, loading, onBack, snapshotData, isMobile, onCopy, customMetricLabel,
 }: {
-  type: 'signups' | 'signins' | 'dau' | 'deleted' | 'retention' | 'funnel' | 'activation-funnel' | 'wau' | 'pmf'
+  type: 'signups' | 'signins' | 'dau' | 'deleted' | 'retention' | 'funnel' | 'activation-funnel' | 'wau' | 'pmf' | 'custom'
   users: UserRow[]
   loading: boolean
   onBack: () => void
   snapshotData: DashboardData | null
   isMobile: boolean
   onCopy: (text: string, msg: string) => void
+  customMetricLabel?: string
 }) {
   const TITLE: Record<string, string> = {
     signups: 'New signups', signins: 'Sign-ins',
     dau: 'Active users', deleted: 'Deleted accounts', retention: 'Retention cohorts',
     funnel: 'Conversion funnel', 'activation-funnel': 'Activation funnel',
     wau: 'Daily active users', pmf: 'PMF signals',
+    custom: customMetricLabel ?? 'Event users',
   }
 
   function fmtTs(ts: string): string {
@@ -719,7 +721,7 @@ function DetailView({
           <h1 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.4px', color: MOCK.text, fontFamily: 'var(--font-display, Fraunces, serif)', margin: 0 }}>
             {TITLE[type]}
           </h1>
-          {(type === 'signups' || type === 'signins' || type === 'dau' || type === 'deleted') && (
+          {(type === 'signups' || type === 'signins' || type === 'dau' || type === 'deleted' || type === 'custom') && (
             <p style={{ fontSize: 13.5, fontWeight: 600, color: MOCK.green, marginTop: 4 }}>
               {loading ? 'Loading...' : `${users.length} result${users.length === 1 ? '' : 's'}`}
             </p>
@@ -727,7 +729,7 @@ function DetailView({
         </div>
       </div>
 
-      {type !== 'signups' && type !== 'signins' && type !== 'dau' && type !== 'deleted' ? (
+      {type !== 'signups' && type !== 'signins' && type !== 'dau' && type !== 'deleted' && type !== 'custom' ? (
         <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16, padding: '22px 24px' }}>
           <div style={{ overflowX: 'auto' }}>
             {type === 'retention' && (() => {
@@ -1160,9 +1162,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const [detailView, setDetailView] = useState<'signups'|'signins'|'dau'|'deleted'|'retention'|'funnel'|'activation-funnel'|'wau'|'pmf'|null>(null)
+  const [detailView, setDetailView] = useState<'signups'|'signins'|'dau'|'deleted'|'retention'|'funnel'|'activation-funnel'|'wau'|'pmf'|'custom'|null>(null)
   const [detailUsers, setDetailUsers] = useState<UserRow[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
+  const [detailCustomMetric, setDetailCustomMetric] = useState<CustomMetricData | null>(null)
   const [toastMsg, setToastMsg] = useState<string|null>(null)
   const [customMetrics, setCustomMetrics] = useState<CustomMetricData[]>([])
   const [showAddMetric, setShowAddMetric] = useState(false)
@@ -1206,6 +1209,18 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
     setDetailLoading(true)
     setDetailUsers([])
     fetch(`/api/analytics/users?brandId=${brand.id}&type=${type}&range=${range}`)
+      .then(r => r.json())
+      .then((d: { users: UserRow[] }) => setDetailUsers(d.users ?? []))
+      .catch(() => setDetailUsers([]))
+      .finally(() => setDetailLoading(false))
+  }
+
+  const openDetailCustom = (m: CustomMetricData) => {
+    setDetailCustomMetric(m)
+    setDetailView('custom')
+    setDetailLoading(true)
+    setDetailUsers([])
+    fetch(`/api/analytics/users?brandId=${brand.id}&type=custom&eventName=${encodeURIComponent(m.eventName)}&range=${range}`)
       .then(r => r.json())
       .then((d: { users: UserRow[] }) => setDetailUsers(d.users ?? []))
       .catch(() => setDetailUsers([]))
@@ -1427,6 +1442,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
           snapshotData={data}
           isMobile={isMobile}
           onCopy={(text, msg) => { void navigator.clipboard.writeText(text); showToast(msg) }}
+          customMetricLabel={detailCustomMetric?.label}
         />
       </div>
     )
@@ -1915,6 +1931,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                   deltaValue={0}
                   period={rangePeriod}
                   isMobile={isMobile}
+                  onViewDetails={() => openDetailCustom(m)}
                 />
                 <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 4 }}>
                   <button

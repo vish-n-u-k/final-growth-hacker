@@ -6,6 +6,9 @@
 (function () {
   'use strict';
 
+  // Skip on auth pages
+  if (/^\/(login|signup)(\/|$)/.test(window.location.pathname)) return;
+
   const API = '/api/bug-reports';
   const dpr = window.devicePixelRatio || 1;
 
@@ -17,6 +20,7 @@
   let _baseImg = null;
   let _h2cReady = false;
   let _h2cLoading = false;
+  let _tags = []; // user-defined tags
 
   // ── html2canvas lazy load ──────────────────────────────────────────────────
 
@@ -119,7 +123,10 @@
       document.body.appendChild(sheet);
     }
 
+    _tags = [];
     sheet.querySelector('#_fbRemarks').value = '';
+    sheet.querySelector('#_fbTagInput').value = '';
+    sheet.querySelector('#_fbTagList').innerHTML = '';
     sheet.querySelector('#_fbStatus').textContent = '';
     sheet.querySelector('#_fbSubmit').disabled = false;
     sheet.querySelectorAll('.fb-sev').forEach(function (b, i) {
@@ -198,10 +205,21 @@
       '    </div>',
       '  </div>',
       '  <textarea id="_fbRemarks" placeholder="Describe the issue&#8230;" rows="3"></textarea>',
-      '  <div style="display:flex;gap:6px">',
+      '  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">',
+      '    <span style="font:11px system-ui,sans-serif;color:#8aa897;text-transform:uppercase;letter-spacing:.04em">Type:</span>',
       '    <button class="fb-sev" data-sev="bug">Bug</button>',
       '    <button class="fb-sev" data-sev="suggestion">Suggestion</button>',
       '    <button class="fb-sev" data-sev="question">Question</button>',
+      '  </div>',
+      '  <div>',
+      '    <div id="_fbTagList" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px"></div>',
+      '    <div style="display:flex;gap:6px">',
+      '      <input id="_fbTagInput" type="text" placeholder="Add tag&#8230; (press Enter)" ',
+      '        style="flex:1;background:#0a1410;border:1px solid #1e3a30;border-radius:6px;color:#e8f3ec;',
+      '        font:13px system-ui,sans-serif;padding:6px 10px;outline:none">',
+      '      <button id="_fbTagAdd" style="background:#1e3a30;border:none;border-radius:6px;color:#2fbf71;',
+      '        font:13px system-ui,sans-serif;padding:6px 12px;cursor:pointer">+ Add</button>',
+      '    </div>',
       '  </div>',
       '  <button id="_fbSubmit">Submit</button>',
       '  <div id="_fbStatus" style="font:13px system-ui,sans-serif;color:#8aa897;text-align:center;min-height:16px"></div>',
@@ -235,10 +253,48 @@
       if (item) _readFile(item.getAsFile(), sheet);
     });
 
+    // Tag input
+    var tagInput = sheet.querySelector('#_fbTagInput');
+    var tagAdd   = sheet.querySelector('#_fbTagAdd');
+
+    function _addTag() {
+      var val = tagInput.value.trim().toLowerCase().replace(/\s+/g, '-');
+      if (!val || _tags.includes(val)) { tagInput.value = ''; return; }
+      _tags.push(val);
+      _renderTags(sheet);
+      tagInput.value = '';
+    }
+
+    tagInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); _addTag(); }
+    });
+    tagAdd.addEventListener('click', _addTag);
+
     _initDrawing(sheet);
     sheet.querySelector('#_fbSubmit').addEventListener('click', function () { _submit(sheet); });
 
     return sheet;
+  }
+
+  // ── Tags ──────────────────────────────────────────────────────────────────
+
+  function _renderTags(sheet) {
+    var list = sheet.querySelector('#_fbTagList');
+    list.innerHTML = '';
+    _tags.forEach(function (tag) {
+      var pill = document.createElement('span');
+      pill.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:#1e3a30;color:#2fbf71;border:1px solid #2a5040;border-radius:20px;padding:2px 10px;font:12px system-ui,sans-serif';
+      pill.textContent = tag;
+      var rm = document.createElement('button');
+      rm.textContent = '\xD7';
+      rm.style.cssText = 'background:none;border:none;color:#2fbf71;cursor:pointer;padding:0;font-size:14px;line-height:1;margin-left:2px';
+      rm.addEventListener('click', function () {
+        _tags = _tags.filter(function (t) { return t !== tag; });
+        _renderTags(sheet);
+      });
+      pill.appendChild(rm);
+      list.appendChild(pill);
+    });
   }
 
   // ── Image management ───────────────────────────────────────────────────────
@@ -397,6 +453,7 @@
         body: JSON.stringify({
           remarks: remarks,
           severity: severity,
+          tags: _tags.slice(),
           page_url: location.href,
           page_title: document.title,
           user_id: user.id || null,

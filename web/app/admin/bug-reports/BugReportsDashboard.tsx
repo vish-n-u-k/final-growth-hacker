@@ -18,6 +18,7 @@ interface Report {
   pageTitle: string | null
   remarks: string
   severity: string
+  tags: string[] | null
   deviceInfo: DeviceInfo | null
   screenshotKey: string | null
   extraScreenshotKeys: string[] | null
@@ -27,10 +28,10 @@ interface Report {
   extra_screenshot_urls: string[]
 }
 
-const SEV_BADGE: Record<string, { label: string; color: string }> = {
-  bug:        { label: 'Bug',        color: '#ef4444' },
-  suggestion: { label: 'Suggestion', color: '#eab308' },
-  question:   { label: 'Question',   color: '#3b82f6' },
+const SEV: Record<string, { label: string; color: string }> = {
+  bug:        { label: 'Bug',        color: '#dc2626' },
+  suggestion: { label: 'Suggestion', color: '#d97706' },
+  question:   { label: 'Question',   color: '#2563eb' },
 }
 
 function timeAgo(iso: string): string {
@@ -59,13 +60,12 @@ export default function BugReportsDashboard() {
 
   useEffect(() => { load() }, [load])
 
-  // Keyboard nav for lightbox
   useEffect(() => {
     if (!lightbox) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setLightbox(null)
       if (e.key === 'ArrowRight') setLightbox(l => l && l.idx < l.urls.length - 1 ? { ...l, idx: l.idx + 1 } : l)
-      if (e.key === 'ArrowLeft') setLightbox(l => l && l.idx > 0 ? { ...l, idx: l.idx - 1 } : l)
+      if (e.key === 'ArrowLeft')  setLightbox(l => l && l.idx > 0 ? { ...l, idx: l.idx - 1 } : l)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -86,10 +86,7 @@ export default function BugReportsDashboard() {
     setReports(prev => prev.filter(r => r.id !== id))
   }
 
-  const filtered = reports.filter(r =>
-    tab === 'all' ? true : r.status === tab
-  )
-
+  const filtered = reports.filter(r => tab === 'all' || r.status === tab)
   const counts = {
     open:   reports.filter(r => r.status === 'open').length,
     closed: reports.filter(r => r.status === 'closed').length,
@@ -97,32 +94,33 @@ export default function BugReportsDashboard() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg, #0a1410)', color: 'var(--text, #e8f3ec)', fontFamily: 'system-ui, sans-serif', padding: '24px' }}>
+    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '40px 24px', fontFamily: 'var(--font-body, system-ui, sans-serif)', color: 'var(--text)' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: '#e8f3ec' }}>Bug Reports</h1>
-          <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#8aa897' }}>{counts.open} open</p>
+          <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, color: 'var(--text)' }}>Bug Reports</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-dim)' }}>{counts.open} open · {counts.all} total</p>
         </div>
-        <a href="/admin" style={{ fontSize: '13px', color: '#8aa897', textDecoration: 'none' }}>← Admin</a>
+        <a href="/admin" style={{ fontSize: 13, color: 'var(--text-dim)', textDecoration: 'none' }}>← Admin</a>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid var(--line)', paddingBottom: 0 }}>
         {(['open', 'closed', 'all'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             style={{
-              padding: '6px 14px',
-              borderRadius: '20px',
-              border: '1px solid',
-              borderColor: tab === t ? '#2fbf71' : '#1e3a30',
-              background: tab === t ? '#2fbf71' : '#122620',
-              color: tab === t ? '#0a1410' : '#8aa897',
+              background: 'none',
+              border: 'none',
+              borderBottom: tab === t ? '2px solid var(--green)' : '2px solid transparent',
+              color: tab === t ? 'var(--text)' : 'var(--text-dim)',
+              fontFamily: 'inherit',
+              fontSize: 13,
               fontWeight: tab === t ? 600 : 400,
-              fontSize: '13px',
+              padding: '8px 16px',
               cursor: 'pointer',
+              marginBottom: -1,
               textTransform: 'capitalize',
             }}
           >
@@ -131,82 +129,136 @@ export default function BugReportsDashboard() {
         ))}
       </div>
 
-      {/* Cards */}
+      {/* Content */}
       {loading ? (
-        <p style={{ color: '#8aa897' }}>Loading...</p>
+        <p style={{ color: 'var(--text-dim)', fontSize: 14 }}>Loading...</p>
       ) : filtered.length === 0 ? (
-        <p style={{ color: '#8aa897' }}>No {tab === 'all' ? '' : tab} reports.</p>
+        <p style={{ color: 'var(--text-dim)', fontSize: 14 }}>No {tab === 'all' ? '' : tab} reports.</p>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 16 }}>
           {filtered.map(r => {
-            const sev = SEV_BADGE[r.severity] ?? { label: r.severity, color: '#8aa897' }
+            const sev = SEV[r.severity] ?? { label: r.severity, color: 'var(--text-dim)' }
             const allImgs = [r.screenshot_url, ...r.extra_screenshot_urls].filter(Boolean) as string[]
 
             return (
               <div
                 key={r.id}
                 style={{
-                  background: '#122620',
-                  border: '1px solid #1e3a30',
-                  borderRadius: '10px',
-                  padding: '16px',
+                  background: 'var(--card)',
+                  border: '1px solid var(--line)',
+                  borderRadius: 10,
+                  overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '10px',
                 }}
               >
-                {/* Severity + time */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ background: sev.color + '22', color: sev.color, border: `1px solid ${sev.color}55`, borderRadius: '12px', padding: '2px 10px', fontSize: '12px', fontWeight: 600 }}>
+                {/* Card header */}
+                <div style={{ padding: '14px 16px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    color: sev.color,
+                  }}>
                     {sev.label}
                   </span>
-                  <span style={{ fontSize: '12px', color: '#8aa897' }}>{timeAgo(r.createdAt)}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>{timeAgo(r.createdAt)}</span>
                 </div>
 
                 {/* Remarks */}
-                <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.5, color: '#e8f3ec' }}>{r.remarks}</p>
+                <p style={{ margin: '0 16px 10px', fontSize: 14, lineHeight: 1.6, color: 'var(--text)', wordBreak: 'break-word' }}>
+                  {r.remarks}
+                </p>
+
+                {/* Tags */}
+                {r.tags && r.tags.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, padding: '0 16px 12px' }}>
+                    {r.tags.map(tag => (
+                      <span key={tag} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: 'var(--bg-soft)', border: '1px solid var(--line)', color: 'var(--text-dim)' }}>
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
 
                 {/* Screenshots */}
                 {allImgs.length > 0 && (
-                  <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px' }}>
+                  <div style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '0 16px 12px' }}>
                     {allImgs.map((url, i) => (
                       <img
                         key={i}
                         src={url}
                         alt={`Screenshot ${i + 1}`}
                         onClick={() => setLightbox({ urls: allImgs, idx: i })}
-                        style={{ height: '72px', width: 'auto', borderRadius: '6px', cursor: 'zoom-in', flexShrink: 0, border: '1px solid #1e3a30' }}
+                        style={{
+                          height: 80,
+                          width: 'auto',
+                          maxWidth: 160,
+                          borderRadius: 6,
+                          cursor: 'zoom-in',
+                          flexShrink: 0,
+                          border: '1px solid var(--line)',
+                          objectFit: 'cover',
+                        }}
                       />
                     ))}
                   </div>
                 )}
 
                 {/* Meta */}
-                <div style={{ fontSize: '12px', color: '#8aa897', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <div style={{ padding: '10px 16px', borderTop: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: 3 }}>
                   {(r.userName || r.userEmail) && (
-                    <span>{r.userName ?? ''}{r.userName && r.userEmail ? ' — ' : ''}{r.userEmail ?? ''}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
+                      {[r.userName, r.userEmail].filter(Boolean).join(' · ')}
+                    </span>
                   )}
                   {r.pageUrl && (
-                    <a href={r.pageUrl} target="_blank" rel="noreferrer" style={{ color: '#2fbf71', wordBreak: 'break-all' }}>
+                    <a
+                      href={r.pageUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ fontSize: 12, color: 'var(--green)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                    >
                       {r.pageTitle || r.pageUrl}
                     </a>
                   )}
                   {r.deviceInfo && (
-                    <span>{r.deviceInfo.viewport} · {r.deviceInfo.screen} · {r.deviceInfo.dpr}x</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>
+                      {r.deviceInfo.viewport} · {r.deviceInfo.screen} · {r.deviceInfo.dpr}x
+                    </span>
                   )}
                 </div>
 
                 {/* Actions */}
-                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                <div style={{ display: 'flex', borderTop: '1px solid var(--line)' }}>
                   <button
                     onClick={() => setStatus(r.id, r.status === 'open' ? 'closed' : 'open')}
-                    style={{ flex: 1, padding: '6px', borderRadius: '6px', border: '1px solid #1e3a30', background: '#0a1410', color: '#e8f3ec', fontSize: '12px', cursor: 'pointer' }}
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderRight: '1px solid var(--line)',
+                      color: 'var(--text-dim)',
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
                   >
                     {r.status === 'open' ? 'Mark Closed' : 'Reopen'}
                   </button>
                   <button
                     onClick={() => deleteReport(r.id)}
-                    style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #3f1515', background: '#200a0a', color: '#ef4444', fontSize: '12px', cursor: 'pointer' }}
+                    style={{
+                      padding: '10px 20px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#dc2626',
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
                   >
                     Delete
                   </button>
@@ -221,35 +273,33 @@ export default function BugReportsDashboard() {
       {lightbox && (
         <div
           onClick={() => setLightbox(null)}
-          style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.9)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
         >
-          <button
-            onClick={e => { e.stopPropagation(); setLightbox(l => l && l.idx > 0 ? { ...l, idx: l.idx - 1 } : l) }}
-            style={{ position: 'absolute', left: '16px', background: 'rgba(255,255,255,.1)', border: 'none', color: '#fff', fontSize: '24px', width: '44px', height: '44px', borderRadius: '50%', cursor: 'pointer' }}
-          >
-            &#8249;
-          </button>
           <img
             src={lightbox.urls[lightbox.idx]}
             alt="Screenshot"
             onClick={e => e.stopPropagation()}
-            style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: '8px', objectFit: 'contain' }}
+            style={{ maxWidth: '90vw', maxHeight: '88vh', borderRadius: 8, objectFit: 'contain', boxShadow: '0 0 60px rgba(0,0,0,.5)' }}
           />
-          <button
-            onClick={e => { e.stopPropagation(); setLightbox(l => l && l.idx < l.urls.length - 1 ? { ...l, idx: l.idx + 1 } : l) }}
-            style={{ position: 'absolute', right: '16px', background: 'rgba(255,255,255,.1)', border: 'none', color: '#fff', fontSize: '24px', width: '44px', height: '44px', borderRadius: '50%', cursor: 'pointer' }}
-          >
-            &#8250;
-          </button>
-          <span style={{ position: 'absolute', bottom: '16px', color: '#fff', fontSize: '13px' }}>
-            {lightbox.idx + 1} / {lightbox.urls.length}
-          </span>
+          {lightbox.urls.length > 1 && (
+            <>
+              <button
+                onClick={e => { e.stopPropagation(); setLightbox(l => l && l.idx > 0 ? { ...l, idx: l.idx - 1 } : l) }}
+                style={{ position: 'absolute', left: 16, background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', fontSize: 24, width: 44, height: 44, borderRadius: '50%', cursor: 'pointer' }}
+              >‹</button>
+              <button
+                onClick={e => { e.stopPropagation(); setLightbox(l => l && l.idx < l.urls.length - 1 ? { ...l, idx: l.idx + 1 } : l) }}
+                style={{ position: 'absolute', right: 16, background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', fontSize: 24, width: 44, height: 44, borderRadius: '50%', cursor: 'pointer' }}
+              >›</button>
+              <span style={{ position: 'absolute', bottom: 20, background: 'rgba(0,0,0,.5)', color: '#fff', fontSize: 12, padding: '4px 12px', borderRadius: 20 }}>
+                {lightbox.idx + 1} / {lightbox.urls.length}
+              </span>
+            </>
+          )}
           <button
             onClick={() => setLightbox(null)}
-            style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', color: '#fff', fontSize: '24px', cursor: 'pointer' }}
-          >
-            &#x2715;
-          </button>
+            style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,.15)', border: 'none', color: '#fff', fontSize: 18, width: 36, height: 36, borderRadius: '50%', cursor: 'pointer' }}
+          >✕</button>
         </div>
       )}
     </div>

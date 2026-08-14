@@ -437,6 +437,7 @@ export const bugReports = pgTable('bug_reports', {
   deviceInfo: jsonb('device_info'),                     // { ua, screen, viewport, dpr }
   screenshotKey: text('screenshot_key'),                // Supabase Storage key
   extraScreenshotKeys: text('extra_screenshot_keys').array(), // additional image keys
+  tags: text('tags').array(),                           // user-defined tags
   status: text('status').notNull().default('open'),     // 'open' | 'closed'
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
