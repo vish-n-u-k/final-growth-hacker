@@ -2551,15 +2551,15 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                                 ))}
                               </div>
                             ) : (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
                                 {PLAYBOOK_SECTIONS.map((section) => (
                                   <div key={section.id}>
-                                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>{section.label}</div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14, paddingBottom: 8, borderBottom: '1px solid var(--line)' }}>{section.label}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
                                       {section.fields.map((field) => (
                                         <div key={field.key}>
-                                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-dim)', marginBottom: 6 }}>{field.label}</div>
-                                          <div style={{ fontSize: 16, color: 'var(--text)', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>
+                                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{field.label}</div>
+                                          <div style={{ fontSize: 15, color: 'var(--text-dim)', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>
                                             {playbookData[field.key] || <span style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>Not generated</span>}
                                           </div>
                                         </div>
