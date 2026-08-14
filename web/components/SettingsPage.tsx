@@ -902,6 +902,7 @@ function PostHogSettingsSection({ connected }: { connected: ConnectedIntegration
   const meta = connected.metadata ?? {}
   const [filterEnabled, setFilterEnabled] = useState(meta['unique_filter_enabled'] === 'true')
   const [filterProp, setFilterProp] = useState(meta['unique_filter_property'] ?? '$email')
+  const [displayNameField, setDisplayNameField] = useState(meta['display_name_field'] ?? '$email')
   const [properties, setProperties] = useState<{ name: string; label: string }[]>([])
   const [loadingProps, setLoadingProps] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -925,7 +926,7 @@ function PostHogSettingsSection({ connected }: { connected: ConnectedIntegration
     const res = await fetch('/api/posthog/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ unique_filter_enabled: filterEnabled, unique_filter_property: filterProp }),
+      body: JSON.stringify({ unique_filter_enabled: filterEnabled, unique_filter_property: filterProp, display_name_field: displayNameField }),
     })
     if (res.ok) {
       setSaved(true)

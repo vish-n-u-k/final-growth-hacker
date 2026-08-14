@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull } from '@/lib/modules/types'
-import ExportPrepModal, { type ExportPrepItem } from '@/components/ExportPrepModal'
+import ExportPrepModal from '@/components/ExportPrepModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -404,8 +404,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const [competitorPanelOpen, setCompetitorPanelOpen] = useState(false)
   const [exportPrepOpen, setExportPrepOpen] = useState(false)
   const [exportPrepModuleId, setExportPrepModuleId] = useState<string | null>(null)
-  const [exportClassificationsMap, setExportClassificationsMap] = useState<Record<string, Record<string, { exportType: 'auto' | 'needs_choice' | 'skip'; choiceOptions?: string[] }>>>({})
-  const [exportClassifyingMap, setExportClassifyingMap] = useState<Record<string, boolean>>({})
   const [exportingMap, setExportingMap] = useState<Record<string, boolean>>({})
   const [resolvedBsModId, setResolvedBsModId] = useState<string | null>(
     () => allModulesData.find((m) => m.type === 'business-stage')?.id ?? null,
@@ -907,64 +905,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     return null
   }
 
-  const getExportPrepItems = (modData: ModuleData): ExportPrepItem[] => {
-    const classifications = exportClassificationsMap[modData.id] ?? {}
-    const states = statesMap[modData.id] ?? {}
-    const dynItems = dynItemsMap[modData.id] ?? []
-    const autoItems: ExportPrepItem[] = []
-    const needsChoiceItems: ExportPrepItem[] = []
-    if (modData.definition.dynamic) {
-      dynItems.filter(i => !i.aiVerified && !i.userChecked && !i.userSkipped).forEach(item => {
-        const et = classifications[item.slug]?.exportType
-        if (et === 'auto') {
-          autoItems.push({ id: item.id, label: item.label, exportType: 'auto', choiceOptions: null, userChoice: null, aiDetail: item.aiDetail, aiAction: item.aiAction, weight: item.weight })
-        } else if (et === 'needs_choice') {
-          const c = classifications[item.slug]
-          needsChoiceItems.push({ id: item.id, label: item.label, exportType: 'needs_choice', choiceOptions: c.choiceOptions ?? null, userChoice: item.userChoice, aiDetail: item.aiDetail, aiAction: item.aiAction, weight: item.weight })
-        }
-      })
-    } else {
-      const allDefItems = (modData.definition.categories as ModuleCategoryDefinition[]).flatMap(c => c.subCategories.flatMap(s => s.items))
-      allDefItems.forEach(defItem => {
-        const s = states[defItem.slug]
-        if (s?.aiVerified || s?.userChecked || s?.userSkipped) return
-        const et = classifications[defItem.slug]?.exportType
-        if (et === 'auto') {
-          autoItems.push({ id: s?.id ?? '', label: defItem.label, exportType: 'auto', choiceOptions: null, userChoice: null, aiDetail: s?.aiDetail ?? null, aiAction: s?.aiAction ?? null, weight: defItem.weight })
-        } else if (et === 'needs_choice') {
-          const c = classifications[defItem.slug]
-          needsChoiceItems.push({ id: s?.id ?? '', label: defItem.label, exportType: 'needs_choice', choiceOptions: c.choiceOptions ?? null, userChoice: s?.userChoice ?? null, aiDetail: s?.aiDetail ?? null, aiAction: s?.aiAction ?? null, weight: defItem.weight })
-        }
-      })
-    }
-    return [...autoItems, ...needsChoiceItems]
-  }
-
-  const saveChoice = async (itemId: string, choice: string) => {
-    await fetch('/api/items/save-choice', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemId, choice }),
-    })
-    // Update local state for both static and dynamic items
-    for (const [modId, states] of Object.entries(statesMap)) {
-      const entry = Object.entries(states).find(([, s]) => s.id === itemId)
-      if (entry) {
-        const [slug] = entry
-        setStatesMap(prev => ({ ...prev, [modId]: { ...prev[modId], [slug]: { ...prev[modId][slug], userChoice: choice } } }))
-        return
-      }
-    }
-    for (const [modId, items] of Object.entries(dynItemsMap)) {
-      if (items.some(i => i.id === itemId)) {
-        setDynItemsMap(prev => ({ ...prev, [modId]: prev[modId].map(i => i.id === itemId ? { ...i, userChoice: choice } : i) }))
-        return
-      }
-    }
-  }
-
   const buildClaudeCodePrompt = (modData: ModuleData, skippedIds: Set<string> = new Set(), overrideClassifications?: Record<string, { exportType: 'auto' | 'needs_choice' | 'skip' }>): string => {
-    const classifications = overrideClassifications ?? exportClassificationsMap[modData.id] ?? {}
+    const classifications = overrideClassifications ?? {}
     const states = statesMap[modData.id] ?? {}
     const dynItems = dynItemsMap[modData.id] ?? []
     const brandUrl = brand.websiteUrl ?? 'your website'
@@ -1182,10 +1124,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     return lines.join('\n')
   }
 
-  const handleTopExport = async (modData: ModuleData, states: Record<string, DBItemState>, dynItems: DBItemFull[]) => {
+  const performDownload = async (modData: ModuleData) => {
     setExportingMap(prev => ({ ...prev, [modData.id]: true }))
+    const states = statesMap[modData.id] ?? {}
+    const dynItems = dynItemsMap[modData.id] ?? []
 
-    // Build list of failing items to classify
+    // Build failing items list for classification
     let failingItems: { slug: string; label: string; aiDetail: string | null; aiAction: string | null }[] = []
     if (modData.definition.dynamic) {
       failingItems = dynItems
@@ -1198,7 +1142,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         .map(defItem => { const s = states[defItem.slug]!; return { slug: defItem.slug, label: defItem.label, aiDetail: s.aiDetail, aiAction: s.aiAction } })
     }
 
-    // Classify via AI
     const classifications: Record<string, { exportType: 'auto' | 'needs_choice' | 'skip'; choiceOptions?: string[] }> = {}
     if (failingItems.length > 0) {
       try {
@@ -1211,7 +1154,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           const { classifications: result } = await classRes.json() as { classifications: { slug: string; exportType: 'auto' | 'needs_choice' | 'skip'; choiceOptions?: string[] }[] }
           for (const c of result) classifications[c.slug] = { exportType: c.exportType, choiceOptions: c.choiceOptions }
         }
-      } catch { /* non-fatal — generate without classification */ }
+      } catch { /* non-fatal */ }
     }
 
     const prompt = buildClaudeCodePrompt(modData, new Set(), classifications)
@@ -1223,6 +1166,16 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     a.click()
     URL.revokeObjectURL(url)
     setExportingMap(prev => ({ ...prev, [modData.id]: false }))
+  }
+
+  const handleTopExport = (modData: ModuleData) => {
+    const mcpConnected = typeof window !== 'undefined' && localStorage.getItem('growjin_mcp_connected') === 'true'
+    if (mcpConnected) {
+      performDownload(modData)
+      return
+    }
+    setExportPrepModuleId(modData.id)
+    setExportPrepOpen(true)
   }
 
   // ── Cross-module conflict awareness ──────────────────────────────────────────
@@ -1305,7 +1258,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const needsAttention = !aiV && !userC && !skipped
     const itemKey = `${modId}:${item.slug}`
     const isExpanded = expandedItems.has(itemKey)
-    const hasDetail = !skipped && !!(item.aiHighlight || item.aiNarrative || item.aiAction)
+    const hasDetail = !skipped && !!(item.aiDetail || item.aiHighlight || item.aiNarrative || item.aiAction)
     const isSkipPrompting = skipPrompting.has(itemKey)
 
     return (
@@ -1395,6 +1348,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           )}
           {isExpanded && hasDetail && (
             <div className="sm-expanded-body" onClick={(e) => e.stopPropagation()}>
+              {item.aiDetail && (
+                <div className="sm-current-box">
+                  <span className="sm-current-label">Current state</span>
+                  <p className="sm-current-text">{parseBold(item.aiDetail)}</p>
+                </div>
+              )}
               {item.aiNarrative && <p className="sm-narrative">{parseBold(item.aiNarrative)}</p>}
               {item.aiAction && (
                 <div className="sm-action-box">
@@ -1533,7 +1492,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const needsAttention = s && !aiV && !userC && !skipped
     const itemKey = `${modId}:${item.slug}`
     const isExpanded = expandedItems.has(itemKey)
-    const hasDetail = !skipped && !!(s?.aiHighlight || s?.aiNarrative || s?.aiAction || item.fixGuide?.length)
+    const hasDetail = !skipped && !!(s?.aiDetail || s?.aiHighlight || s?.aiNarrative || s?.aiAction || item.fixGuide?.length)
     const isVerifying = verifyingItems.has(itemKey)
     const isSkipPrompting = skipPrompting.has(itemKey)
 
@@ -1626,6 +1585,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           )}
           {isExpanded && hasDetail && (
             <div className="sm-expanded-body" onClick={(e) => e.stopPropagation()}>
+              {s?.aiDetail && (
+                <div className="sm-current-box">
+                  <span className="sm-current-label">Current state</span>
+                  <p className="sm-current-text">{parseBold(s.aiDetail)}</p>
+                </div>
+              )}
               {s?.aiNarrative && <p className="sm-narrative">{parseBold(s.aiNarrative)}</p>}
               {s?.aiAction && (
                 <div className="sm-action-box">
@@ -2325,18 +2290,15 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       {!!effectiveLastAnalyzedAt && modData.type !== 'community-finder' && (
                         <span className="md-info-wrap" style={{ display: 'inline-flex' }}>
                           <button
-                            onClick={(e) => { e.stopPropagation(); if (liveScore < 100) handleTopExport(modData, states, dynItems) }}
-                            disabled={exportingMap[modData.id] || liveScore >= 100}
+                            onClick={(e) => { e.stopPropagation(); if (liveScore < 100) handleTopExport(modData) }}
+                            disabled={liveScore >= 100}
                             className="level-export-btn"
                             style={liveScore >= 100 ? { opacity: 0.4, cursor: 'not-allowed', pointerEvents: 'none' } : undefined}
                           >
-                            {exportingMap[modData.id] ? (
-                              <><span className="md-spin" style={{ width: '10px', height: '10px', borderWidth: '1.5px' }} /><span className="level-export-label">Preparing…</span></>
-                            ) : (
-                              <><svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg><span className="level-export-label">Export</span></>
-                            )}
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            <span className="level-export-label">Export</span>
                           </button>
                           {liveScore >= 100 && (
                             <span className="md-tooltip" style={{ width: 180, zIndex: 1000, bottom: 'auto', top: 'calc(100% + 6px)' }}>All items complete — nothing left to export</span>
@@ -2887,26 +2849,17 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       {exportPrepOpen && exportPrepModuleId && (() => {
         const modData = allModulesData.find(m => m.id === exportPrepModuleId)
         if (!modData) return null
-        const items = getExportPrepItems(modData)
         return (
           <ExportPrepModal
-            brandName={brand.name}
             moduleName={modData.name}
-            items={items}
-            classifying={exportClassifyingMap[exportPrepModuleId] ?? false}
-            onChoiceSave={saveChoice}
-            onDone={(_localChoices, skippedIds) => {
+            onDownload={async () => {
+              await performDownload(modData)
               setExportPrepOpen(false)
-              const prompt = buildClaudeCodePrompt(modData, skippedIds)
-              const blob = new Blob([prompt], { type: 'text/markdown' })
-              const url = URL.createObjectURL(blob)
-              const a = document.createElement('a')
-              a.href = url
-              a.download = `${brand.name}-${modData.name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-')}-Report-Growjin.md`
-              a.click()
-              URL.revokeObjectURL(url)
             }}
             onSkip={() => setExportPrepOpen(false)}
+            onMarkConnected={() => {
+              if (typeof window !== 'undefined') localStorage.setItem('growjin_mcp_connected', 'true')
+            }}
           />
         )
       })()}

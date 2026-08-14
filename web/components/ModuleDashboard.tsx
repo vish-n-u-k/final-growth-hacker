@@ -1040,7 +1040,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                               const done = aiV || userC
                               const needsAttention = !aiV && !userC && !skipped
                               const isExpanded = expandedItems.has(item.slug)
-                              const hasDetail = !skipped && !!(item.aiNarrative || item.aiAction)
+                              const hasDetail = !skipped && !!(item.aiDetail || item.aiNarrative || item.aiAction)
                               const isSkipPrompting = skipPrompting.has(item.slug)
 
                               return (
@@ -1116,6 +1116,12 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                     )}
                                     {isExpanded && hasDetail && (
                                       <div className="sm-expanded-body">
+                                        {item.aiDetail && (
+                                          <div className="sm-current-box">
+                                            <span className="sm-current-label">Current state</span>
+                                            <p className="sm-current-text">{item.aiDetail}</p>
+                                          </div>
+                                        )}
                                         {item.aiNarrative && <p className="sm-narrative">{item.aiNarrative}</p>}
                                         {item.aiAction && (
                                           <div className="sm-action-box">
@@ -1327,7 +1333,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                     const done = aiV || userC
                                     const needsAttention = s && !aiV && !userC && !skipped
                                     const isExpanded = expandedItems.has(item.slug)
-                                    const hasDetail = !skipped && !!(s?.aiNarrative || s?.aiAction)
+                                    const hasDetail = !skipped && !!(s?.aiDetail || s?.aiNarrative || s?.aiAction)
                                     const isVerifying = verifyingItems.has(item.slug)
                                     const isSkipPrompting = skipPrompting.has(item.slug)
 
@@ -1406,6 +1412,12 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                           )}
                                           {isExpanded && hasDetail && (
                                             <div className="sm-expanded-body">
+                                              {s?.aiDetail && (
+                                                <div className="sm-current-box">
+                                                  <span className="sm-current-label">Current state</span>
+                                                  <p className="sm-current-text">{s.aiDetail}</p>
+                                                </div>
+                                              )}
                                               {s?.aiNarrative && <p className="sm-narrative">{s.aiNarrative}</p>}
                                               {s?.aiAction && (
                                                 <div className="sm-action-box">

@@ -67,21 +67,41 @@ export async function GET(request: NextRequest) {
   const intervalMap: Record<string, string> = { '24h': '1 day', '7d': '7 day', '30d': '30 day' }
   const interval = intervalMap[range] ?? '1 day'
 
+  const colName     = request.nextUrl.searchParams.get('colName')     ?? meta['display_name_field'] ?? '$email'
+  const colEmail    = request.nextUrl.searchParams.get('colEmail')    ?? '$email'
+  const colSource   = request.nextUrl.searchParams.get('colSource')   ?? '$channel_type'
+  const colLocation = request.nextUrl.searchParams.get('colLocation') ?? '$geoip_country_name'
+  const colPlan     = request.nextUrl.searchParams.get('colPlan')     ?? 'plan'
+
+  // Helpers: build HogQL expressions per column
+  const personProp  = (f: string) => f === 'distinct_id' ? 'distinct_id' : `person.properties.${f}`
+  const evtOrPerson = (f: string) => `coalesce(properties.${f}, person.properties.${f})`
+  const pProp       = (f: string) => f === 'distinct_id' ? 'toString(id)' : `properties.${f}`
+
+  const eventsNameExpr    = colName === 'distinct_id' ? 'distinct_id' : `coalesce(${personProp(colName)}, distinct_id)`
+  const eventsEmailExpr   = personProp(colEmail)
+  const eventsSourceExpr  = evtOrPerson(colSource)
+  const eventsLocExpr     = evtOrPerson(colLocation)
+  const eventsPlanExpr    = personProp(colPlan)
+
+  const personsNameExpr   = pProp(colName)
+  const personsEmailExpr  = pProp(colEmail)
+  const personsPlanExpr   = pProp(colPlan)
+
   let users: UserRow[] = []
 
   if (type === 'signups') {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
       SELECT
-        properties.$name,
-        properties.$email,
+        ${personsNameExpr},
+        ${personsEmailExpr},
         id,
         toString(created_at),
         NULL,
         NULL,
-        properties.plan
+        ${personsPlanExpr}
       FROM persons
       WHERE is_identified = 1
-        AND isNotNull(properties.$email)
         AND created_at >= now() - interval ${interval}
       ORDER BY created_at DESC
       LIMIT 100
@@ -98,13 +118,13 @@ export async function GET(request: NextRequest) {
   } else if (type === 'signins') {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
       SELECT
-        person.properties.$name,
-        person.properties.$email,
+        ${eventsNameExpr},
+        ${eventsEmailExpr},
         person_id,
         toString(timestamp),
-        properties.$channel_type,
-        properties.$geoip_country_name,
-        person.properties.plan
+        ${eventsSourceExpr},
+        ${eventsLocExpr},
+        ${eventsPlanExpr}
       FROM events
       WHERE event = '$identify'
         AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)
@@ -124,13 +144,13 @@ export async function GET(request: NextRequest) {
   } else if (type === 'dau') {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
       SELECT
-        any(person.properties.$name),
-        any(person.properties.$email),
+        any(${eventsNameExpr}),
+        any(${eventsEmailExpr}),
         person_id,
         toString(max(timestamp)),
-        any(properties.$channel_type),
-        any(properties.$geoip_country_name),
-        any(person.properties.plan),
+        any(${eventsSourceExpr}),
+        any(${eventsLocExpr}),
+        any(${eventsPlanExpr}),
         count() as sessions
       FROM events
       WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1)
@@ -152,13 +172,13 @@ export async function GET(request: NextRequest) {
   } else if (type === 'deleted') {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
       SELECT
-        person.properties.$name,
-        person.properties.$email,
+        ${eventsNameExpr},
+        ${eventsEmailExpr},
         person_id,
         toString(timestamp),
-        properties.$channel_type,
-        properties.$geoip_country_name,
-        person.properties.plan
+        ${eventsSourceExpr},
+        ${eventsLocExpr},
+        ${eventsPlanExpr}
       FROM events
       WHERE event IN ('account_deleted', 'user_deleted', 'delete_account')
         AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)
@@ -180,13 +200,13 @@ export async function GET(request: NextRequest) {
   if (type === 'custom' && eventName) {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
       SELECT
-        any(person.properties.$name),
-        any(person.properties.$email),
+        any(${eventsNameExpr}),
+        any(${eventsEmailExpr}),
         person_id,
         toString(max(timestamp)),
-        any(properties.$channel_type),
-        any(properties.$geoip_country_name),
-        any(person.properties.plan)
+        any(${eventsSourceExpr}),
+        any(${eventsLocExpr}),
+        any(${eventsPlanExpr})
       FROM events
       WHERE event = '${eventName.replace(/'/g, "\\'")}'
         AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)

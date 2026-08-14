@@ -1,82 +1,27 @@
 'use client'
 
-import { useState } from 'react'
-
-export interface ExportPrepItem {
-  id: string
-  label: string
-  exportType: string
-  choiceOptions: string[] | null
-  userChoice: string | null
-  aiDetail: string | null
-  aiAction: string | null
-  weight: number
-}
+import React, { useState } from 'react'
 
 interface Props {
-  brandName: string
   moduleName: string
-  items: ExportPrepItem[]
-  classifying?: boolean
-  onChoiceSave: (itemId: string, choice: string) => Promise<void>
-  onDone: (localChoices: Record<string, string>, skippedIds: Set<string>) => void
+  onDownload: () => Promise<void>
   onSkip: () => void
+  onMarkConnected: () => void
 }
 
-function weightLabel(w: number) {
-  return w === 3 ? 'Critical' : w === 2 ? 'Important' : 'Minor'
-}
+const MCP_URL = 'https://app.growjin.com/api/mcp'
 
-function weightColor(w: number) {
-  return w === 3 ? '#ff8c42' : w === 2 ? '#e7c873' : 'var(--text-dim)'
-}
+export default function ExportPrepModal({ moduleName, onDownload, onSkip, onMarkConnected }: Props) {
+  const [mcpOpen, setMcpOpen] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const [copiedUrl, setCopiedUrl] = useState(false)
 
-export default function ExportPrepModal({ brandName, moduleName, items, classifying, onChoiceSave, onDone, onSkip }: Props) {
-  const [localChoices, setLocalChoices] = useState<Record<string, string>>(() =>
-    Object.fromEntries(items.filter(i => i.userChoice).map(i => [i.id, i.userChoice!]))
-  )
-  const [customInputs, setCustomInputs] = useState<Record<string, string>>({})
-  const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set())
-  const [saving, setSaving] = useState(false)
-
-  const autoItems = items.filter(i => i.exportType === 'auto')
-  const needsChoiceItems = items.filter(i => i.exportType === 'needs_choice')
-
-  const toggleSkip = (itemId: string) => {
-    setSkippedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(itemId)) next.delete(itemId)
-      else next.add(itemId)
-      return next
-    })
-  }
-
-  const handleGenerate = async () => {
-    setSaving(true)
+  const handleDownload = async () => {
+    setDownloading(true)
     try {
-      const toSave = Object.entries(localChoices).filter(([id, v]) => v && !skippedIds.has(id))
-      await Promise.all(toSave.map(([itemId, choice]) => onChoiceSave(itemId, choice)))
-      onDone(localChoices, skippedIds)
+      await onDownload()
     } finally {
-      setSaving(false)
-    }
-  }
-
-  const selectChip = (itemId: string, opt: string) => {
-    setLocalChoices(prev => ({ ...prev, [itemId]: opt }))
-    setCustomInputs(prev => ({ ...prev, [itemId]: '' }))
-  }
-
-  const handleCustomInput = (itemId: string, val: string) => {
-    setCustomInputs(prev => ({ ...prev, [itemId]: val }))
-    if (val) {
-      setLocalChoices(prev => ({ ...prev, [itemId]: val }))
-    } else {
-      setLocalChoices(prev => {
-        const next = { ...prev }
-        delete next[itemId]
-        return next
-      })
+      setDownloading(false)
     }
   }
 
@@ -85,273 +30,136 @@ export default function ExportPrepModal({ brandName, moduleName, items, classify
       style={{
         position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '20px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
       }}
     >
       <div
         style={{
           background: 'var(--card)', border: '1px solid var(--line)',
-          borderRadius: '16px', width: '100%', maxWidth: '580px',
-          maxHeight: '88vh', display: 'flex', flexDirection: 'column',
+          borderRadius: 16, width: '100%', maxWidth: '460px',
           boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
         }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{ padding: '24px 24px 20px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 8 }}>
-            <div style={{ fontSize: 19, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display)', lineHeight: 1.2 }}>
+        <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display)', lineHeight: 1.2 }}>
               Export — {moduleName}
             </div>
-            <button
-              onClick={onSkip}
-              style={{
-                background: 'transparent', border: 'none', color: 'var(--text-dim)',
-                cursor: 'pointer', padding: '2px 4px', lineHeight: 1, fontSize: 18, flexShrink: 0,
-              }}
-              title="Close"
-            >
-              ×
-            </button>
+            <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 5, lineHeight: 1.5 }}>
+              Choose how you want to action these items
+            </div>
           </div>
-          <div style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6 }}>
-            {classifying
-              ? 'Analyzing which items need your input…'
-              : (autoItems.length > 0 || needsChoiceItems.length > 0)
-              ? `Review what Claude Code will change for ${brandName}. Opt out of anything you don't want touched, then answer any questions before generating.`
-              : `Your Claude Code prompt is ready. Click Generate to copy it.`}
-          </div>
-          <div style={{ height: '1px', background: 'var(--line)', marginTop: 20 }} />
-        </div>
-
-        {/* Body */}
-        <div style={{ overflowY: 'auto', padding: '4px 24px 20px', flex: 1 }}>
-          {/* Classifying spinner */}
-          {classifying && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '20px 0', color: 'var(--text-dim)', fontSize: 13 }}>
-              <span style={{
-                display: 'inline-block', width: 14, height: 14, flexShrink: 0,
-                border: '2px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--green)',
-                borderRadius: '50%', animation: 'spin 0.7s linear infinite',
-              }} />
-              Figuring out what needs your input…
-            </div>
-          )}
-
-          {/* Section: auto */}
-          {!classifying && autoItems.length > 0 && (
-            <div>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14, marginTop: 16 }}>
-                Auto-implemented by Claude Code
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.55, margin: '0 0 12px' }}>
-                These will be implemented automatically — no questions asked. Skip any you don't want changed.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {autoItems.map(item => {
-                  const isSkipped = skippedIds.has(item.id)
-                  return (
-                    <div
-                      key={item.id}
-                      style={{
-                        background: isSkipped ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.025)',
-                        border: `1px solid ${isSkipped ? 'rgba(255,255,255,0.04)' : 'var(--line)'}`,
-                        borderRadius: 10, padding: '12px 14px',
-                        opacity: isSkipped ? 0.45 : 1, transition: 'opacity 0.15s',
-                        display: 'flex', alignItems: 'flex-start', gap: 10,
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: item.aiDetail ? 5 : 0 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', textDecoration: isSkipped ? 'line-through' : 'none' }}>{item.label}</span>
-                          <span style={{
-                            fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
-                            background: `${weightColor(item.weight)}18`,
-                            color: weightColor(item.weight),
-                            border: `1px solid ${weightColor(item.weight)}40`,
-                            textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0,
-                          }}>
-                            {weightLabel(item.weight)}
-                          </span>
-                        </div>
-                        {item.aiDetail && !isSkipped && (
-                          <p style={{ fontSize: 12, color: 'var(--text-dim)', margin: 0, lineHeight: 1.5 }}>
-                            {item.aiDetail}
-                          </p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => toggleSkip(item.id)}
-                        style={{
-                          background: 'transparent',
-                          border: `1px solid ${isSkipped ? 'var(--green)' : 'var(--line)'}`,
-                          borderRadius: 5,
-                          color: isSkipped ? 'var(--green)' : 'var(--text-dim)',
-                          cursor: 'pointer', fontSize: 11, padding: '2px 8px',
-                          fontFamily: 'inherit', flexShrink: 0,
-                        }}
-                      >
-                        {isSkipped ? 'Include' : 'Skip'}
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Section: needs_choice */}
-          {!classifying && needsChoiceItems.length > 0 && (
-            <div style={{ marginTop: autoItems.length > 0 ? 20 : 0 }}>
-              {autoItems.length > 0 && <div style={{ height: 1, background: 'var(--line)', marginBottom: 20 }} />}
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 14 }}>
-                Choose values
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {needsChoiceItems.map(item => {
-                  const selected = localChoices[item.id]
-                  const customVal = customInputs[item.id] ?? ''
-                  const isCustomSelected = selected && (!item.choiceOptions || !item.choiceOptions.includes(selected))
-                  const isSkipped = skippedIds.has(item.id)
-                  return (
-                    <div
-                      key={item.id}
-                      style={{
-                        background: isSkipped ? 'rgba(255,255,255,0.01)' : 'rgba(255,255,255,0.025)',
-                        border: `1px solid ${isSkipped ? 'rgba(255,255,255,0.04)' : 'var(--line)'}`,
-                        borderRadius: 10, padding: '14px 15px',
-                        opacity: isSkipped ? 0.45 : 1, transition: 'opacity 0.15s',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: item.aiDetail ? 6 : 10 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', flex: 1, textDecoration: isSkipped ? 'line-through' : 'none' }}>{item.label}</span>
-                        <span style={{
-                          fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
-                          background: `${weightColor(item.weight)}18`,
-                          color: weightColor(item.weight),
-                          border: `1px solid ${weightColor(item.weight)}40`,
-                          textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0,
-                        }}>
-                          {weightLabel(item.weight)}
-                        </span>
-                        <button
-                          onClick={() => toggleSkip(item.id)}
-                          style={{
-                            background: 'transparent', border: '1px solid var(--line)', borderRadius: 5,
-                            color: isSkipped ? 'var(--green)' : 'var(--text-dim)', cursor: 'pointer',
-                            fontSize: 11, padding: '2px 8px', fontFamily: 'inherit', flexShrink: 0,
-                          }}
-                        >
-                          {isSkipped ? 'Undo' : 'Skip'}
-                        </button>
-                      </div>
-                      {item.aiDetail && !isSkipped && (
-                        <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10, lineHeight: 1.55, margin: '0 0 10px' }}>
-                          {item.aiDetail}
-                        </p>
-                      )}
-                      {/* Option chips */}
-                      {!isSkipped && item.choiceOptions && item.choiceOptions.length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 8 }}>
-                          {item.choiceOptions.map((opt, i) => {
-                            const isSelected = selected === opt && !isCustomSelected
-                            return (
-                              <button
-                                key={i}
-                                onClick={() => selectChip(item.id, opt)}
-                                style={{
-                                  textAlign: 'left', padding: '8px 11px', borderRadius: 7, cursor: 'pointer',
-                                  fontSize: 12.5, lineHeight: 1.5, transition: 'all 0.1s',
-                                  border: isSelected ? '1px solid var(--green)' : '1px solid var(--line)',
-                                  background: isSelected ? 'rgba(47,191,113,0.1)' : 'rgba(255,255,255,0.02)',
-                                  color: isSelected ? 'var(--green-bright)' : 'var(--text)',
-                                  fontFamily: 'inherit',
-                                }}
-                              >
-                                {opt}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      )}
-                      {/* Custom input */}
-                      {!isSkipped && <input
-                        type="text"
-                        placeholder={item.choiceOptions?.length ? 'Or type your own…' : 'Enter your value…'}
-                        value={customVal}
-                        onChange={e => handleCustomInput(item.id, e.target.value)}
-                        style={{
-                          width: '100%', boxSizing: 'border-box',
-                          background: isCustomSelected ? 'rgba(47,191,113,0.06)' : 'var(--bg)',
-                          border: isCustomSelected ? '1px solid var(--green)' : '1px solid var(--line)',
-                          borderRadius: 7, padding: '7px 10px', fontSize: 12.5,
-                          color: 'var(--text)', fontFamily: 'inherit', outline: 'none',
-                          transition: 'border-color 0.1s',
-                        }}
-                      />}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {!classifying && autoItems.length === 0 && needsChoiceItems.length === 0 && (
-            <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.65, marginTop: 16 }}>
-              Your Claude Code prompt is ready. Click Generate to copy it.
-            </p>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div style={{
-          padding: '14px 24px 20px', flexShrink: 0,
-          borderTop: '1px solid var(--line)',
-          display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10,
-        }}>
           <button
             onClick={onSkip}
-            style={{
-              fontSize: 13, color: 'var(--text-dim)', background: 'transparent',
-              border: '1px solid var(--line)', borderRadius: 8, padding: '8px 16px',
-              cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color 0.12s, color 0.12s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--text-dim)'; e.currentTarget.style.color = 'var(--text)' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.color = 'var(--text-dim)' }}
-          >
-            Skip for now
-          </button>
-          <button
-            onClick={handleGenerate}
-            disabled={saving || classifying}
-            style={{
-              fontSize: 13, fontWeight: 600, color: '#ffffff',
-              background: (saving || classifying) ? 'rgba(47,191,113,0.6)' : 'var(--green)',
-              border: 'none', borderRadius: 8, padding: '8px 18px',
-              cursor: (saving || classifying) ? 'default' : 'pointer', fontFamily: 'inherit',
-              display: 'flex', alignItems: 'center', gap: 7, opacity: (saving || classifying) ? 0.8 : 1,
-            }}
-          >
-            {saving ? (
-              <>
-                <span style={{
-                  display: 'inline-block', width: 12, height: 12,
-                  border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#ffffff',
-                  borderRadius: '50%', animation: 'spin 0.7s linear infinite',
-                }} />
-                Saving…
-              </>
-            ) : (
-              <>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M8 17l4 4 4-4M12 12v9M16 7h2a2 2 0 0 1 0 4h-2M8 11H6a2 2 0 0 1 0-4h2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M8 7a4 4 0 0 1 8 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: '2px 4px', flexShrink: 0 }}
+          >×</button>
+        </div>
+
+        {/* Options */}
+        <div style={{ padding: '16px 20px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+          {/* Option 1: Solve with Claude MCP */}
+          <div style={{ border: `1px solid ${mcpOpen ? 'rgba(47,191,113,0.4)' : 'var(--line)'}`, borderRadius: 10, overflow: 'hidden', transition: 'border-color 0.15s' }}>
+            <button
+              onClick={() => setMcpOpen(v => !v)}
+              style={{
+                width: '100%', padding: '14px 16px', background: mcpOpen ? 'rgba(47,191,113,0.06)' : 'rgba(255,255,255,0.02)',
+                border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14,
+                fontFamily: 'inherit', transition: 'background 0.15s',
+              }}
+            >
+              <div style={{ width: 38, height: 38, borderRadius: 9, background: 'rgba(47,191,113,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                  <rect x="3" y="3" width="18" height="18" rx="2" stroke="var(--green)" strokeWidth="2"/>
+                  <path d="M8 12l3 3 5-5" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                Generate Claude Code Export
-              </>
+              </div>
+              <div style={{ flex: 1, textAlign: 'left' }}>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>Solve with Claude MCP</div>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>Connect Claude to your GrowJin data — ask questions live, no file needed</div>
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ transform: mcpOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }}>
+                <path d="M6 9l6 6 6-6" stroke="var(--text-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+
+            {mcpOpen && (
+              <div style={{ borderTop: '1px solid rgba(47,191,113,0.15)', padding: '16px', background: 'rgba(47,191,113,0.03)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Connect via Claude.ai Connectors
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                  {([
+                    <>Go to <a href="https://claude.ai" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green)', textDecoration: 'none' }}>claude.ai</a> → Settings → Connectors → Add</>,
+                    <>Set Name to <code style={{ fontSize: 11, background: 'var(--bg)', padding: '1px 5px', borderRadius: 3, color: 'var(--text)' }}>GrowJin</code> and paste the URL below into the server URL field</>,
+                    <>Click Add — you&apos;ll be redirected to log in and it connects automatically</>,
+                  ] as React.ReactNode[]).map((text, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+                      <span style={{ width: 19, height: 19, borderRadius: '50%', background: 'var(--green)', color: '#0a1410', fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>{i + 1}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.55 }}>{text}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg)', borderRadius: 7, padding: '9px 12px', border: '1px solid var(--line)' }}>
+                  <code style={{ flex: 1, fontSize: 11, color: 'var(--text)', wordBreak: 'break-all' }}>{MCP_URL}</code>
+                  <button
+                    onClick={async () => { await navigator.clipboard.writeText(MCP_URL); setCopiedUrl(true); setTimeout(() => setCopiedUrl(false), 2000) }}
+                    style={{ fontSize: 11, color: copiedUrl ? 'var(--green)' : 'var(--text-dim)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 5, padding: '3px 9px', cursor: 'pointer', flexShrink: 0, fontFamily: 'inherit' }}
+                  >{copiedUrl ? 'Copied' : 'Copy'}</button>
+                </div>
+
+                <button
+                  onClick={() => { onMarkConnected(); onSkip() }}
+                  style={{
+                    alignSelf: 'flex-start', fontSize: 12, fontWeight: 600,
+                    color: 'var(--green-bright)', background: 'rgba(47,191,113,0.1)',
+                    border: '1px solid rgba(47,191,113,0.3)', borderRadius: 7,
+                    padding: '7px 14px', cursor: 'pointer', fontFamily: 'inherit',
+                  }}
+                >
+                  Already connected with MCP server
+                </button>
+              </div>
             )}
+          </div>
+
+          {/* Option 2: Download .md */}
+          <button
+            onClick={handleDownload}
+            disabled={downloading}
+            style={{
+              width: '100%', padding: '14px 16px', background: 'rgba(255,255,255,0.02)',
+              border: '1px solid var(--line)', borderRadius: 10,
+              cursor: downloading ? 'default' : 'pointer', display: 'flex', alignItems: 'center',
+              gap: 14, fontFamily: 'inherit', opacity: downloading ? 0.85 : 1,
+              transition: 'border-color 0.15s',
+            }}
+            onMouseEnter={e => { if (!downloading) e.currentTarget.style.borderColor = 'var(--text-dim)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)' }}
+          >
+            <div style={{ width: 38, height: 38, borderRadius: 9, background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {downloading ? (
+                <span style={{ display: 'inline-block', width: 15, height: 15, border: '2px solid rgba(255,255,255,0.15)', borderTopColor: 'var(--text-dim)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+              ) : (
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="var(--text-dim)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>
+                {downloading ? 'Preparing your file…' : 'Download .md file'}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
+                {downloading ? 'Running analysis — this takes a few seconds' : 'Full action plan as a Markdown file'}
+              </div>
+            </div>
           </button>
+
         </div>
       </div>
     </div>

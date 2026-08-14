@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell,
@@ -681,8 +681,90 @@ function DetailMobileRow({ label, value }: { label: string; value: React.ReactNo
   )
 }
 
+function ColumnPicker({ label, value, properties, onChange }: {
+  label: string
+  value: string
+  properties: { name: string }[]
+  onChange: (field: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const dropRef = useRef<HTMLDivElement>(null)
+
+  const handleOpen = () => {
+    if (btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + 6, left: r.left })
+    }
+    setOpen(v => !v)
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (
+        dropRef.current && !dropRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const allOptions = [{ name: 'distinct_id' }, ...properties]
+
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <span>{label}</span>
+      <button
+        ref={btnRef}
+        onClick={handleOpen}
+        title={`Currently: ${value}`}
+        style={{
+          background: 'none', border: `1px solid ${MOCK.border}`, borderRadius: 4,
+          padding: '1px 3px', cursor: 'pointer', color: MOCK.muted2,
+          display: 'inline-flex', alignItems: 'center', lineHeight: 1,
+        }}
+      >
+        <ChevronDown size={9} />
+      </button>
+      {open && (
+        <div ref={dropRef} style={{
+          position: 'fixed', top: pos.top, left: pos.left, zIndex: 9999,
+          background: MOCK.card, border: `1px solid ${MOCK.border}`,
+          borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+          minWidth: 170, padding: 4,
+        }}>
+          <div style={{ padding: '4px 10px 6px', fontSize: 10, color: MOCK.muted2, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+            Field
+          </div>
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {allOptions.map(p => (
+              <button
+                key={p.name}
+                onClick={() => { onChange(p.name); setOpen(false) }}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '6px 10px', fontSize: 12.5, fontWeight: p.name === value ? 700 : 400,
+                  background: p.name === value ? MOCK.greenSoft : 'none',
+                  color: p.name === value ? MOCK.green : MOCK.text,
+                  border: 'none', borderRadius: 6, cursor: 'pointer',
+                  textTransform: 'none', letterSpacing: 0,
+                }}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DetailView({
-  type, users, loading, onBack, snapshotData, isMobile, onCopy, customMetricLabel,
+  type, users, loading, onBack, snapshotData, isMobile, onCopy, customMetricLabel, colFields, onColFieldChange,
 }: {
   type: 'signups' | 'signins' | 'dau' | 'deleted' | 'retention' | 'funnel' | 'activation-funnel' | 'wau' | 'pmf' | 'custom'
   users: UserRow[]
@@ -692,7 +774,18 @@ function DetailView({
   isMobile: boolean
   onCopy: (text: string, msg: string) => void
   customMetricLabel?: string
+  colFields?: Record<string, string>
+  onColFieldChange?: (col: string, field: string) => void
 }) {
+  const [properties, setProperties] = useState<{ name: string; label: string }[]>([])
+  useEffect(() => {
+    fetch('/api/posthog/properties')
+      .then(r => r.json())
+      .then((d: { properties?: { name: string; label: string }[] }) => {
+        if (d.properties?.length) setProperties(d.properties)
+      })
+      .catch(() => {})
+  }, [])
   const TITLE: Record<string, string> = {
     signups: 'New signups', signins: 'Sign-ins',
     dau: 'Active users', deleted: 'Deleted accounts', retention: 'Retention cohorts',
@@ -900,8 +993,25 @@ function DetailView({
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
                   <thead>
                     <tr style={{ borderBottom: `1px solid ${MOCK.border}` }}>
-                      {['User', 'User ID', 'Email', 'Timestamp', 'Source', 'Location', 'Plan'].map(h => (
-                        <th key={h} style={{ textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: MOCK.muted, background: '#FBF9F4', padding: '12px 16px', whiteSpace: 'nowrap' }}>{h}</th>
+                      {([
+                        { key: 'name', label: 'User' },
+                        { key: null, label: 'User ID' },
+                        { key: 'email', label: 'Email' },
+                        { key: null, label: 'Timestamp' },
+                        { key: 'source', label: 'Source' },
+                        { key: 'location', label: 'Location' },
+                        { key: 'plan', label: 'Plan' },
+                      ] as { key: string | null; label: string }[]).map(({ key, label }) => (
+                        <th key={label} style={{ textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: MOCK.muted, background: '#FBF9F4', padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                          {key && onColFieldChange && properties.length > 0 ? (
+                            <ColumnPicker
+                              label={label}
+                              value={colFields?.[key] ?? ''}
+                              properties={properties}
+                              onChange={field => onColFieldChange(key, field)}
+                            />
+                          ) : label}
+                        </th>
                       ))}
                     </tr>
                   </thead>
@@ -1239,6 +1349,9 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   const [detailUsers, setDetailUsers] = useState<UserRow[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailCustomMetric, setDetailCustomMetric] = useState<CustomMetricData | null>(null)
+  const [colFields, setColFields] = useState({ name: '$email', email: '$email', source: '$channel_type', location: '$geoip_country_name', plan: 'plan' })
+  const [detailType, setDetailType] = useState<string | null>(null)
+  const [detailEventName, setDetailEventName] = useState<string | null>(null)
   const [toastMsg, setToastMsg] = useState<string|null>(null)
   const [customMetrics, setCustomMetrics] = useState<CustomMetricData[]>([])
   const [showAddMetric, setShowAddMetric] = useState(false)
@@ -1276,28 +1389,43 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
     return () => mq.removeEventListener('change', handler)
   }, [])
 
-  const openDetail = (type: 'signups'|'signins'|'dau'|'deleted'|'retention'|'funnel'|'activation-funnel'|'wau'|'pmf') => {
-    setDetailView(type)
-    if (type !== 'signups' && type !== 'signins' && type !== 'dau' && type !== 'deleted') return
+  const fetchDetailUsers = (type: string, fields: typeof colFields, eventName?: string) => {
     setDetailLoading(true)
     setDetailUsers([])
-    fetch(`/api/analytics/users?brandId=${brand.id}&type=${type}&range=${range}`)
+    const params = new URLSearchParams({
+      brandId: brand.id, type, range,
+      colName: fields.name, colEmail: fields.email,
+      colSource: fields.source, colLocation: fields.location, colPlan: fields.plan,
+    })
+    if (eventName) params.set('eventName', eventName)
+    fetch(`/api/analytics/users?${params.toString()}`)
       .then(r => r.json())
       .then((d: { users: UserRow[] }) => setDetailUsers(d.users ?? []))
       .catch(() => setDetailUsers([]))
       .finally(() => setDetailLoading(false))
   }
 
+  const openDetail = (type: 'signups'|'signins'|'dau'|'deleted'|'retention'|'funnel'|'activation-funnel'|'wau'|'pmf') => {
+    setDetailView(type)
+    setDetailType(type)
+    setDetailEventName(null)
+    if (type !== 'signups' && type !== 'signins' && type !== 'dau' && type !== 'deleted') return
+    fetchDetailUsers(type, colFields)
+  }
+
   const openDetailCustom = (m: CustomMetricData) => {
     setDetailCustomMetric(m)
     setDetailView('custom')
-    setDetailLoading(true)
-    setDetailUsers([])
-    fetch(`/api/analytics/users?brandId=${brand.id}&type=custom&eventName=${encodeURIComponent(m.eventName)}&range=${range}`)
-      .then(r => r.json())
-      .then((d: { users: UserRow[] }) => setDetailUsers(d.users ?? []))
-      .catch(() => setDetailUsers([]))
-      .finally(() => setDetailLoading(false))
+    setDetailType('custom')
+    setDetailEventName(m.eventName)
+    fetchDetailUsers('custom', colFields, m.eventName)
+  }
+
+  const handleColFieldChange = (col: string, field: string) => {
+    const next = { ...colFields, [col]: field }
+    setColFields(next)
+    if (!detailType) return
+    fetchDetailUsers(detailType, next, detailEventName ?? undefined)
   }
 
   const showToast = (msg: string) => {
@@ -1516,6 +1644,8 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
           isMobile={isMobile}
           onCopy={(text, msg) => { void navigator.clipboard.writeText(text); showToast(msg) }}
           customMetricLabel={detailCustomMetric?.label}
+          colFields={colFields}
+          onColFieldChange={handleColFieldChange}
         />
       </div>
     )
