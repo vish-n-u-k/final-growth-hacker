@@ -1,0 +1,427 @@
+/* fb-widget.js — GrowJin in-app bug reporting widget
+ * Trigger: 2-second long press anywhere (not on buttons/inputs)
+ * Manual:  window._fbTriggerManual()
+ * User ctx: window._fbGetUser = () => ({ id, name, email })
+ */
+(function () {
+  'use strict';
+
+  const API = '/api/bug-reports';
+  const dpr = window.devicePixelRatio || 1;
+
+  let _pressTimer = null;
+  let _pressStartX = 0;
+  let _pressStartY = 0;
+  let _images = []; // [{ dataUrl, paths[] }]
+  let _activeIdx = 0;
+  let _baseImg = null;
+  let _h2cReady = false;
+  let _h2cLoading = false;
+
+  // ── html2canvas lazy load ──────────────────────────────────────────────────
+
+  function _lazyLoadH2C() {
+    if (_h2cReady || _h2cLoading) return;
+    _h2cLoading = true;
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload = function () { _h2cReady = true; _h2cLoading = false; };
+    document.head.appendChild(s);
+  }
+
+  function _isInteractive(el) {
+    return !!el.closest('a, button, input, textarea, select, label, [onclick], [role="button"]');
+  }
+
+  // ── Long press ─────────────────────────────────────────────────────────────
+
+  document.addEventListener('pointerdown', function (e) {
+    if (_isInteractive(e.target)) return;
+    if (e.button && e.button !== 0) return;
+    _pressStartX = e.clientX;
+    _pressStartY = e.clientY;
+    _lazyLoadH2C();
+    _pressTimer = setTimeout(_takeScreenshotAndOpen, 2000);
+    document.body.classList.add('fb-pressing');
+  }, { passive: true });
+
+  document.addEventListener('pointermove', function (e) {
+    if (!_pressTimer) return;
+    if (Math.hypot(e.clientX - _pressStartX, e.clientY - _pressStartY) > 10) _cancelPress();
+  }, { passive: true });
+
+  document.addEventListener('pointerup', _cancelPress, { passive: true });
+  document.addEventListener('pointercancel', _cancelPress, { passive: true });
+  document.addEventListener('contextmenu', _cancelPress);
+
+  function _cancelPress() {
+    clearTimeout(_pressTimer);
+    _pressTimer = null;
+    document.body.classList.remove('fb-pressing');
+  }
+
+  // ── Screenshot ─────────────────────────────────────────────────────────────
+
+  async function _takeScreenshotAndOpen() {
+    _cancelPress();
+    var dataUrl = null;
+
+    if (_h2cReady && typeof html2canvas !== 'undefined') {
+      var dominantCanvas = Array.from(document.querySelectorAll('canvas')).find(function (c) {
+        var r = c.getBoundingClientRect();
+        return r.width > window.innerWidth * 0.3 && r.height > window.innerHeight * 0.3;
+      });
+
+      if (dominantCanvas) {
+        var out = document.createElement('canvas');
+        out.width = window.innerWidth * dpr;
+        out.height = window.innerHeight * dpr;
+        var ctx = out.getContext('2d');
+        var h2cOpts = {
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          windowWidth: document.documentElement.scrollWidth,
+          windowHeight: document.documentElement.scrollHeight,
+        };
+
+        var shot = await html2canvas(document.body, Object.assign({}, h2cOpts, {
+          ignoreElements: function (el) { return el.tagName === 'CANVAS' || el.id === '_fbSheet'; },
+        }));
+        ctx.drawImage(shot, 0, 0, out.width, out.height);
+        var rect = dominantCanvas.getBoundingClientRect();
+        ctx.drawImage(dominantCanvas, rect.left * dpr, rect.top * dpr, rect.width * dpr, rect.height * dpr);
+        dataUrl = out.toDataURL('image/jpeg', 0.85);
+      } else {
+        var shot2 = await html2canvas(document.body, {
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          ignoreElements: function (el) { return el.id === '_fbSheet'; },
+        });
+        dataUrl = shot2.toDataURL('image/jpeg', 0.85);
+      }
+    }
+
+    _openSheet(dataUrl);
+  }
+
+  // ── Sheet ──────────────────────────────────────────────────────────────────
+
+  function _openSheet(screenshotDataUrl) {
+    _images = screenshotDataUrl ? [{ dataUrl: screenshotDataUrl, paths: [] }] : [];
+    _activeIdx = 0;
+    _baseImg = null;
+
+    var sheet = document.getElementById('_fbSheet');
+    if (!sheet) {
+      sheet = _buildSheet();
+      document.body.appendChild(sheet);
+    }
+
+    sheet.querySelector('#_fbRemarks').value = '';
+    sheet.querySelector('#_fbStatus').textContent = '';
+    sheet.querySelector('#_fbSubmit').disabled = false;
+    sheet.querySelectorAll('.fb-sev').forEach(function (b, i) {
+      _setSevStyle(b, i === 0);
+    });
+
+    _renderThumbs(sheet);
+    _renderCanvas(sheet);
+    sheet.style.display = 'flex';
+  }
+
+  function _closeSheet() {
+    var sheet = document.getElementById('_fbSheet');
+    if (sheet) sheet.style.display = 'none';
+  }
+
+  function _setSevStyle(btn, active) {
+    btn.classList.toggle('active', active);
+    if (active) {
+      btn.style.background = '#2fbf71';
+      btn.style.borderColor = '#2fbf71';
+      btn.style.color = '#0a1410';
+      btn.style.fontWeight = '600';
+    } else {
+      btn.style.background = '#0a1410';
+      btn.style.borderColor = '#1e3a30';
+      btn.style.color = '#8aa897';
+      btn.style.fontWeight = 'normal';
+    }
+  }
+
+  function _buildSheet() {
+    var sheet = document.createElement('div');
+    sheet.id = '_fbSheet';
+    sheet.style.cssText = [
+      'display:none',
+      'position:fixed',
+      'inset:0',
+      'z-index:2147483647',
+      'align-items:flex-end',
+      'justify-content:center',
+      'background:rgba(0,0,0,.55)',
+    ].join(';');
+
+    sheet.innerHTML = [
+      '<style>',
+      'body.fb-pressing{user-select:none!important;-webkit-user-select:none!important}',
+      '#_fbPanel{width:min(640px,100vw);max-height:85vh;overflow-y:auto;',
+      'background:#122620;border-radius:12px 12px 0 0;padding:16px;',
+      'box-shadow:0 -4px 24px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:12px}',
+      '#_fbCanvas{width:100%;border-radius:8px;background:#0a1410;cursor:crosshair;touch-action:none}',
+      '.fb-thumb{width:52px;height:40px;object-fit:cover;border-radius:4px;',
+      'border:2px solid transparent;cursor:pointer;flex-shrink:0}',
+      '.fb-thumb.active{border-color:#2fbf71}',
+      '#_fbRemarks{width:100%;box-sizing:border-box;background:#0a1410;border:1px solid #1e3a30;',
+      'border-radius:6px;color:#e8f3ec;font:14px system-ui,sans-serif;padding:8px;resize:vertical;min-height:100px}',
+      '#_fbSubmit{background:#2fbf71;color:#0a1410;border:none;border-radius:6px;',
+      'padding:10px 20px;font:600 14px system-ui,sans-serif;cursor:pointer;width:100%}',
+      '#_fbSubmit:disabled{opacity:.5;cursor:not-allowed}',
+      '.fb-sev{border-radius:20px;padding:4px 12px;cursor:pointer;font:12px system-ui,sans-serif;border-style:solid;border-width:1px}',
+      '</style>',
+      '<div id="_fbPanel">',
+      '  <div style="display:flex;justify-content:space-between;align-items:center">',
+      '    <span style="font:600 15px system-ui,sans-serif;color:#e8f3ec">Report a Bug</span>',
+      '    <button id="_fbClose" style="background:none;border:none;color:#8aa897;font-size:20px;cursor:pointer;line-height:1">&#x2715;</button>',
+      '  </div>',
+      '  <div style="display:flex;flex-direction:column;gap:8px">',
+      '    <canvas id="_fbCanvas" style="display:none"></canvas>',
+      '    <div style="display:flex;align-items:center;gap:8px;overflow-x:auto;padding:2px 0">',
+      '      <div id="_fbThumbs" style="display:flex;gap:6px"></div>',
+      '      <label style="font:12px system-ui,sans-serif;color:#8aa897;background:#0a1410;',
+      '        border:1px dashed #2fbf71;border-radius:4px;padding:4px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0">',
+      '        + Add image',
+      '        <input type="file" id="_fbFile" accept="image/*" style="display:none">',
+      '      </label>',
+      '    </div>',
+      '  </div>',
+      '  <textarea id="_fbRemarks" placeholder="Describe the issue&#8230;" rows="3"></textarea>',
+      '  <div style="display:flex;gap:6px">',
+      '    <button class="fb-sev" data-sev="bug">Bug</button>',
+      '    <button class="fb-sev" data-sev="suggestion">Suggestion</button>',
+      '    <button class="fb-sev" data-sev="question">Question</button>',
+      '  </div>',
+      '  <button id="_fbSubmit">Submit</button>',
+      '  <div id="_fbStatus" style="font:13px system-ui,sans-serif;color:#8aa897;text-align:center;min-height:16px"></div>',
+      '</div>',
+    ].join('');
+
+    // Close on backdrop click
+    sheet.addEventListener('click', function (e) { if (e.target === sheet) _closeSheet(); });
+    sheet.querySelector('#_fbClose').addEventListener('click', _closeSheet);
+
+    // Severity buttons
+    sheet.querySelectorAll('.fb-sev').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        sheet.querySelectorAll('.fb-sev').forEach(function (b) { _setSevStyle(b, false); });
+        _setSevStyle(btn, true);
+      });
+    });
+
+    // File input
+    sheet.querySelector('#_fbFile').addEventListener('change', function (e) {
+      var file = e.target.files[0];
+      if (file) _readFile(file, sheet);
+      e.target.value = '';
+    });
+
+    // Paste support
+    document.addEventListener('paste', function (e) {
+      if (sheet.style.display === 'none') return;
+      var item = Array.from(e.clipboardData ? e.clipboardData.items : [])
+        .find(function (i) { return i.type.startsWith('image/'); });
+      if (item) _readFile(item.getAsFile(), sheet);
+    });
+
+    _initDrawing(sheet);
+    sheet.querySelector('#_fbSubmit').addEventListener('click', function () { _submit(sheet); });
+
+    return sheet;
+  }
+
+  // ── Image management ───────────────────────────────────────────────────────
+
+  function _readFile(file, sheet) {
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      _images.push({ dataUrl: e.target.result, paths: [] });
+      _activeIdx = _images.length - 1;
+      _renderThumbs(sheet);
+      _renderCanvas(sheet);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function _renderThumbs(sheet) {
+    var thumbs = sheet.querySelector('#_fbThumbs');
+    thumbs.innerHTML = '';
+    _images.forEach(function (img, i) {
+      var el = document.createElement('img');
+      el.src = img.dataUrl;
+      el.className = 'fb-thumb' + (i === _activeIdx ? ' active' : '');
+      el.setAttribute('title', 'Image ' + (i + 1));
+      el.addEventListener('click', function () {
+        _activeIdx = i;
+        _renderThumbs(sheet);
+        _renderCanvas(sheet);
+      });
+      thumbs.appendChild(el);
+    });
+  }
+
+  function _renderCanvas(sheet) {
+    var canvasEl = sheet.querySelector('#_fbCanvas');
+    if (_images.length === 0) { canvasEl.style.display = 'none'; return; }
+    canvasEl.style.display = 'block';
+    var imgSrc = _images[_activeIdx].dataUrl;
+    var img = new Image();
+    img.onload = function () {
+      canvasEl.width = img.naturalWidth;
+      canvasEl.height = img.naturalHeight;
+      _baseImg = img;
+      var ctx = canvasEl.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      _drawPaths(ctx, _images[_activeIdx].paths);
+    };
+    img.src = imgSrc;
+  }
+
+  // ── Drawing ────────────────────────────────────────────────────────────────
+
+  function _drawPaths(ctx, paths) {
+    paths.forEach(function (path) {
+      if (path.length < 2) return;
+      ctx.beginPath();
+      ctx.strokeStyle = '#ff4444';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      path.forEach(function (pt, i) { i === 0 ? ctx.moveTo(pt[0], pt[1]) : ctx.lineTo(pt[0], pt[1]); });
+      ctx.stroke();
+    });
+  }
+
+  function _initDrawing(sheet) {
+    var canvasEl = sheet.querySelector('#_fbCanvas');
+    var drawing = false;
+    var currentPath = [];
+
+    function pos(e) {
+      var rect = canvasEl.getBoundingClientRect();
+      var sx = canvasEl.width / rect.width;
+      var sy = canvasEl.height / rect.height;
+      var src = e.touches ? e.touches[0] : e;
+      return [(src.clientX - rect.left) * sx, (src.clientY - rect.top) * sy];
+    }
+
+    canvasEl.addEventListener('pointerdown', function (e) {
+      if (e.button && e.button !== 0) return;
+      drawing = true;
+      currentPath = [pos(e)];
+      canvasEl.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    canvasEl.addEventListener('pointermove', function (e) {
+      if (!drawing || !_baseImg) return;
+      currentPath.push(pos(e));
+      var ctx = canvasEl.getContext('2d');
+      ctx.drawImage(_baseImg, 0, 0);
+      _drawPaths(ctx, _images[_activeIdx].paths);
+      if (currentPath.length > 1) {
+        ctx.beginPath();
+        ctx.strokeStyle = '#ff4444';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        currentPath.forEach(function (pt, i) { i === 0 ? ctx.moveTo(pt[0], pt[1]) : ctx.lineTo(pt[0], pt[1]); });
+        ctx.stroke();
+      }
+      e.preventDefault();
+    });
+
+    canvasEl.addEventListener('pointerup', function (e) {
+      if (!drawing) return;
+      drawing = false;
+      if (currentPath.length > 1) _images[_activeIdx].paths.push(currentPath.slice());
+      currentPath = [];
+      e.preventDefault();
+    });
+  }
+
+  // ── Submit ─────────────────────────────────────────────────────────────────
+
+  function _renderAnnotated(imgObj) {
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement('canvas');
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        var ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        _drawPaths(ctx, imgObj.paths);
+        resolve(c.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = imgObj.dataUrl;
+    });
+  }
+
+  async function _submit(sheet) {
+    var remarks = sheet.querySelector('#_fbRemarks').value.trim();
+    if (!remarks) {
+      sheet.querySelector('#_fbStatus').textContent = 'Please describe the issue.';
+      return;
+    }
+
+    var sevEl = sheet.querySelector('.fb-sev.active');
+    var severity = sevEl ? sevEl.dataset.sev : 'bug';
+    var btn = sheet.querySelector('#_fbSubmit');
+    var statusEl = sheet.querySelector('#_fbStatus');
+
+    btn.disabled = true;
+    statusEl.textContent = 'Submitting\u2026';
+
+    var annotated = await Promise.all(_images.map(_renderAnnotated));
+    var screenshot = annotated[0] || null;
+    var extra_images = annotated.slice(1);
+
+    var user = (typeof window._fbGetUser === 'function') ? (window._fbGetUser() || {}) : {};
+
+    try {
+      var res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          remarks: remarks,
+          severity: severity,
+          page_url: location.href,
+          page_title: document.title,
+          user_id: user.id || null,
+          user_name: user.name || null,
+          user_email: user.email || null,
+          device_info: {
+            ua: navigator.userAgent,
+            screen: screen.width + '\xD7' + screen.height,
+            viewport: innerWidth + '\xD7' + innerHeight,
+            dpr: devicePixelRatio,
+          },
+          screenshot: screenshot,
+          extra_images: extra_images,
+        }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      statusEl.textContent = 'Submitted. Thank you.';
+      setTimeout(_closeSheet, 1200);
+    } catch (err) {
+      statusEl.textContent = 'Failed to submit. Please try again.';
+      btn.disabled = false;
+    }
+  }
+
+  // ── Manual trigger ─────────────────────────────────────────────────────────
+  window._fbTriggerManual = function () { _openSheet(null); };
+
+})();

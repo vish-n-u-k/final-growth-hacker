@@ -422,3 +422,21 @@ export const customMetrics = pgTable('custom_metrics', {
   order: integer('order').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
+
+// ── Bug Reports (in-app bug reporting widget) ──────────────────────────────────
+
+export const bugReports = pgTable('bug_reports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: text('user_id'),
+  userName: text('user_name'),
+  userEmail: text('user_email'),
+  pageUrl: text('page_url'),
+  pageTitle: text('page_title'),
+  remarks: text('remarks').notNull(),
+  severity: text('severity').notNull().default('bug'),  // 'bug' | 'suggestion' | 'question'
+  deviceInfo: jsonb('device_info'),                     // { ua, screen, viewport, dpr }
+  screenshotKey: text('screenshot_key'),                // Supabase Storage key
+  extraScreenshotKeys: text('extra_screenshot_keys').array(), // additional image keys
+  status: text('status').notNull().default('open'),     // 'open' | 'closed'
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})

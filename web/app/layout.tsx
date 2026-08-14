@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Fraunces, Outfit, Geist } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
 import { cn } from "@/lib/utils";
 
@@ -35,7 +36,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <Script src="/fb-widget.js" strategy="lazyOnload" />
+      </body>
     </html>
   )
 }
