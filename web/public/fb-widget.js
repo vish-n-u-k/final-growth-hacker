@@ -1,76 +1,110 @@
 /* fb-widget.js — GrowJin in-app bug reporting widget
- * Trigger: 2-second long press anywhere (not on buttons/inputs)
- * Manual:  window._fbTriggerManual()
+ * Triggers: 2s long press OR Ctrl+Shift+B
+ * Manual:   window._fbTriggerManual()
  * User ctx: window._fbGetUser = () => ({ id, name, email })
  */
 (function () {
   'use strict';
 
-  // Skip on auth pages
   if (/^\/(login|signup)(\/|$)/.test(window.location.pathname)) return;
 
-  const API = '/api/bug-reports';
-  const dpr = window.devicePixelRatio || 1;
+  var API = '/api/bug-reports';
+  var dpr = window.devicePixelRatio || 1;
 
-  let _pressTimer = null;
-  let _pressStartX = 0;
-  let _pressStartY = 0;
-  let _images = []; // [{ dataUrl, paths[] }]
-  let _activeIdx = 0;
-  let _baseImg = null;
-  let _h2cReady = false;
-  let _h2cLoading = false;
-  let _tags = []; // user-defined tags
+  var _images   = [];
+  var _activeIdx = 0;
+  var _baseImg   = null;
+  var _tags      = [];
+  var _h2cReady  = false;
+  var _h2cLoading = false;
 
-  // ── html2canvas lazy load ──────────────────────────────────────────────────
+  // ── html2canvas ────────────────────────────────────────────────────────────
 
-  function _lazyLoadH2C() {
-    if (_h2cReady || _h2cLoading) return;
+  function _loadH2C(cb) {
+    if (_h2cReady) { if (cb) cb(); return; }
+    if (_h2cLoading) { var t = setInterval(function () { if (_h2cReady) { clearInterval(t); if (cb) cb(); } }, 100); return; }
     _h2cLoading = true;
     var s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    s.onload = function () { _h2cReady = true; _h2cLoading = false; };
+    s.onload = function () { _h2cReady = true; _h2cLoading = false; if (cb) cb(); };
     document.head.appendChild(s);
   }
 
-  function _isInteractive(el) {
-    return !!el.closest('a, button, input, textarea, select, label, [onclick], [role="button"]');
+  // Pre-load after idle
+  if (typeof requestIdleCallback !== 'undefined') {
+    requestIdleCallback(function () { _loadH2C(); });
+  } else {
+    setTimeout(function () { _loadH2C(); }, 2000);
   }
 
-  // ── Long press ─────────────────────────────────────────────────────────────
+  // ── Long press (mousedown) ─────────────────────────────────────────────────
 
-  document.addEventListener('pointerdown', function (e) {
-    if (_isInteractive(e.target)) return;
-    if (e.button && e.button !== 0) return;
-    _pressStartX = e.clientX;
-    _pressStartY = e.clientY;
-    _lazyLoadH2C();
-    _pressTimer = setTimeout(_takeScreenshotAndOpen, 2000);
-    document.body.classList.add('fb-pressing');
-  }, { passive: true });
+  var _pressTimer = null;
+  var _pressX = 0;
+  var _pressY = 0;
+  var HOLD_MS = 2000;
+  var MOVE_PX = 12;
 
-  document.addEventListener('pointermove', function (e) {
+  var _INTERACTIVE = 'a,button,input,textarea,select,label,[role="button"],[role="tab"],[role="menuitem"]';
+
+  function _onMousedown(e) {
+    if (e.button !== 0) return;
+    if (e.target.closest(_INTERACTIVE)) return;
+    // Don't start if inside the sheet
+    if (e.target.closest('#_fbSheet')) return;
+    _pressX = e.clientX;
+    _pressY = e.clientY;
+    _pressTimer = setTimeout(function () { _trigger(); }, HOLD_MS);
+  }
+
+  function _onMousemove(e) {
     if (!_pressTimer) return;
-    if (Math.hypot(e.clientX - _pressStartX, e.clientY - _pressStartY) > 10) _cancelPress();
-  }, { passive: true });
-
-  document.addEventListener('pointerup', _cancelPress, { passive: true });
-  document.addEventListener('pointercancel', _cancelPress, { passive: true });
-  document.addEventListener('contextmenu', _cancelPress);
+    if (Math.hypot(e.clientX - _pressX, e.clientY - _pressY) > MOVE_PX) _cancelPress();
+  }
 
   function _cancelPress() {
     clearTimeout(_pressTimer);
     _pressTimer = null;
-    document.body.classList.remove('fb-pressing');
   }
 
-  // ── Screenshot ─────────────────────────────────────────────────────────────
+  document.addEventListener('mousedown',  _onMousedown, true);
+  document.addEventListener('mousemove',  _onMousemove, true);
+  document.addEventListener('mouseup',    _cancelPress, true);
+  document.addEventListener('mouseleave', _cancelPress, true);
+  document.addEventListener('contextmenu', _cancelPress, true);
 
-  async function _takeScreenshotAndOpen() {
+  // ── Ctrl+Shift+B ──────────────────────────────────────────────────────────
+
+  document.addEventListener('keydown', function (e) {
+    if (e.ctrlKey && e.shiftKey && e.key === 'B') {
+      e.preventDefault();
+      _trigger();
+    }
+  }, true);
+
+  // ── Screenshot + open ──────────────────────────────────────────────────────
+
+  function _trigger() {
     _cancelPress();
-    var dataUrl = null;
+    // Open sheet immediately so user sees something
+    _openSheet(null, true); // true = capturing state
+    // Load h2c and capture in background
+    _loadH2C(function () { _captureIntoOpenSheet(); });
+  }
 
-    if (_h2cReady && typeof html2canvas !== 'undefined') {
+  async function _captureIntoOpenSheet() {
+    var sheet = document.getElementById('_fbSheet');
+    if (!sheet || sheet.style.display === 'none') return;
+
+    var dataUrl = null;
+    try {
+      var opts = {
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        ignoreElements: function (el) { return el.id === '_fbSheet'; },
+      };
+
       var dominantCanvas = Array.from(document.querySelectorAll('canvas')).find(function (c) {
         var r = c.getBoundingClientRect();
         return r.width > window.innerWidth * 0.3 && r.height > window.innerHeight * 0.3;
@@ -78,18 +112,10 @@
 
       if (dominantCanvas) {
         var out = document.createElement('canvas');
-        out.width = window.innerWidth * dpr;
+        out.width  = window.innerWidth  * dpr;
         out.height = window.innerHeight * dpr;
         var ctx = out.getContext('2d');
-        var h2cOpts = {
-          useCORS: true,
-          allowTaint: true,
-          logging: false,
-          windowWidth: document.documentElement.scrollWidth,
-          windowHeight: document.documentElement.scrollHeight,
-        };
-
-        var shot = await html2canvas(document.body, Object.assign({}, h2cOpts, {
+        var shot = await html2canvas(document.body, Object.assign({}, opts, {
           ignoreElements: function (el) { return el.tagName === 'CANVAS' || el.id === '_fbSheet'; },
         }));
         ctx.drawImage(shot, 0, 0, out.width, out.height);
@@ -97,41 +123,42 @@
         ctx.drawImage(dominantCanvas, rect.left * dpr, rect.top * dpr, rect.width * dpr, rect.height * dpr);
         dataUrl = out.toDataURL('image/jpeg', 0.85);
       } else {
-        var shot2 = await html2canvas(document.body, {
-          useCORS: true,
-          allowTaint: true,
-          logging: false,
-          ignoreElements: function (el) { return el.id === '_fbSheet'; },
-        });
+        var shot2 = await html2canvas(document.body, opts);
         dataUrl = shot2.toDataURL('image/jpeg', 0.85);
       }
+    } catch (err) {
+      console.warn('[fb-widget] screenshot error:', err);
     }
 
-    _openSheet(dataUrl);
+    if (!dataUrl) return;
+    // Inject screenshot into already-open sheet
+    _images = [{ dataUrl: dataUrl, paths: [] }];
+    _activeIdx = 0;
+    _baseImg = null;
+    var s = document.getElementById('_fbSheet');
+    if (s && s.style.display !== 'none') {
+      _renderThumbs(s);
+      _renderCanvas(s);
+    }
   }
 
   // ── Sheet ──────────────────────────────────────────────────────────────────
 
   function _openSheet(screenshotDataUrl) {
-    _images = screenshotDataUrl ? [{ dataUrl: screenshotDataUrl, paths: [] }] : [];
+    _images    = screenshotDataUrl ? [{ dataUrl: screenshotDataUrl, paths: [] }] : [];
     _activeIdx = 0;
-    _baseImg = null;
+    _baseImg   = null;
+    _tags      = [];
 
     var sheet = document.getElementById('_fbSheet');
-    if (!sheet) {
-      sheet = _buildSheet();
-      document.body.appendChild(sheet);
-    }
+    if (!sheet) { sheet = _buildSheet(); document.body.appendChild(sheet); }
 
-    _tags = [];
-    sheet.querySelector('#_fbRemarks').value = '';
-    sheet.querySelector('#_fbTagInput').value = '';
+    sheet.querySelector('#_fbRemarks').value    = '';
+    sheet.querySelector('#_fbTagInput').value   = '';
     sheet.querySelector('#_fbTagList').innerHTML = '';
     sheet.querySelector('#_fbStatus').textContent = '';
-    sheet.querySelector('#_fbSubmit').disabled = false;
-    sheet.querySelectorAll('.fb-sev').forEach(function (b, i) {
-      _setSevStyle(b, i === 0);
-    });
+    sheet.querySelector('#_fbSubmit').disabled  = false;
+    sheet.querySelectorAll('.fb-sev').forEach(function (b, i) { _sevStyle(b, i === 0); });
 
     _renderThumbs(sheet);
     _renderCanvas(sheet);
@@ -139,144 +166,121 @@
   }
 
   function _closeSheet() {
-    var sheet = document.getElementById('_fbSheet');
-    if (sheet) sheet.style.display = 'none';
+    var s = document.getElementById('_fbSheet');
+    if (s) s.style.display = 'none';
   }
 
-  function _setSevStyle(btn, active) {
+  function _sevStyle(btn, active) {
     btn.classList.toggle('active', active);
-    if (active) {
-      btn.style.background = '#2fbf71';
-      btn.style.borderColor = '#2fbf71';
-      btn.style.color = '#0a1410';
-      btn.style.fontWeight = '600';
-    } else {
-      btn.style.background = '#0a1410';
-      btn.style.borderColor = '#1e3a30';
-      btn.style.color = '#8aa897';
-      btn.style.fontWeight = 'normal';
-    }
+    btn.style.background  = active ? '#2fbf71' : '#0a1410';
+    btn.style.borderColor = active ? '#2fbf71' : '#1e3a30';
+    btn.style.color       = active ? '#0a1410' : '#8aa897';
+    btn.style.fontWeight  = active ? '600'     : '400';
   }
 
   function _buildSheet() {
-    var sheet = document.createElement('div');
-    sheet.id = '_fbSheet';
-    sheet.style.cssText = [
-      'display:none',
-      'position:fixed',
-      'inset:0',
-      'z-index:2147483647',
-      'align-items:flex-end',
-      'justify-content:center',
-      'background:rgba(0,0,0,.55)',
-    ].join(';');
+    var el = document.createElement('div');
+    el.id = '_fbSheet';
+    el.style.cssText = 'display:none;position:fixed;inset:0;z-index:2147483647;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.55)';
 
-    sheet.innerHTML = [
+    el.innerHTML = [
       '<style>',
-      'body.fb-pressing{user-select:none!important;-webkit-user-select:none!important}',
       '#_fbPanel{width:min(640px,100vw);max-height:85vh;overflow-y:auto;',
       'background:#122620;border-radius:12px 12px 0 0;padding:16px;',
-      'box-shadow:0 -4px 24px rgba(0,0,0,.4);display:flex;flex-direction:column;gap:12px}',
-      '#_fbCanvas{width:100%;border-radius:8px;background:#0a1410;cursor:crosshair;touch-action:none}',
+      'box-shadow:0 -4px 32px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:12px}',
+      '#_fbCanvas{width:100%;border-radius:8px;background:#0a1410;cursor:crosshair;touch-action:none;display:none}',
       '.fb-thumb{width:52px;height:40px;object-fit:cover;border-radius:4px;',
       'border:2px solid transparent;cursor:pointer;flex-shrink:0}',
       '.fb-thumb.active{border-color:#2fbf71}',
       '#_fbRemarks{width:100%;box-sizing:border-box;background:#0a1410;border:1px solid #1e3a30;',
       'border-radius:6px;color:#e8f3ec;font:14px system-ui,sans-serif;padding:8px;resize:vertical;min-height:100px}',
+      '.fb-sev{border-radius:20px;padding:4px 12px;cursor:pointer;',
+      'font:12px system-ui,sans-serif;border-style:solid;border-width:1px}',
       '#_fbSubmit{background:#2fbf71;color:#0a1410;border:none;border-radius:6px;',
-      'padding:10px 20px;font:600 14px system-ui,sans-serif;cursor:pointer;width:100%}',
+      'padding:10px;font:600 14px system-ui,sans-serif;cursor:pointer;width:100%}',
       '#_fbSubmit:disabled{opacity:.5;cursor:not-allowed}',
-      '.fb-sev{border-radius:20px;padding:4px 12px;cursor:pointer;font:12px system-ui,sans-serif;border-style:solid;border-width:1px}',
       '</style>',
       '<div id="_fbPanel">',
-      '  <div style="display:flex;justify-content:space-between;align-items:center">',
-      '    <span style="font:600 15px system-ui,sans-serif;color:#e8f3ec">Report a Bug</span>',
-      '    <button id="_fbClose" style="background:none;border:none;color:#8aa897;font-size:20px;cursor:pointer;line-height:1">&#x2715;</button>',
-      '  </div>',
-      '  <div style="display:flex;flex-direction:column;gap:8px">',
-      '    <canvas id="_fbCanvas" style="display:none"></canvas>',
-      '    <div style="display:flex;align-items:center;gap:8px;overflow-x:auto;padding:2px 0">',
-      '      <div id="_fbThumbs" style="display:flex;gap:6px"></div>',
-      '      <label style="font:12px system-ui,sans-serif;color:#8aa897;background:#0a1410;',
-      '        border:1px dashed #2fbf71;border-radius:4px;padding:4px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0">',
-      '        + Add image',
-      '        <input type="file" id="_fbFile" accept="image/*" style="display:none">',
-      '      </label>',
-      '    </div>',
-      '  </div>',
-      '  <textarea id="_fbRemarks" placeholder="Describe the issue&#8230;" rows="3"></textarea>',
-      '  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">',
-      '    <span style="font:11px system-ui,sans-serif;color:#8aa897;text-transform:uppercase;letter-spacing:.04em">Type:</span>',
-      '    <button class="fb-sev" data-sev="bug">Bug</button>',
-      '    <button class="fb-sev" data-sev="suggestion">Suggestion</button>',
-      '    <button class="fb-sev" data-sev="question">Question</button>',
-      '  </div>',
-      '  <div>',
-      '    <div id="_fbTagList" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px"></div>',
-      '    <div style="display:flex;gap:6px">',
-      '      <input id="_fbTagInput" type="text" placeholder="Add tag&#8230; (press Enter)" ',
-      '        style="flex:1;background:#0a1410;border:1px solid #1e3a30;border-radius:6px;color:#e8f3ec;',
-      '        font:13px system-ui,sans-serif;padding:6px 10px;outline:none">',
-      '      <button id="_fbTagAdd" style="background:#1e3a30;border:none;border-radius:6px;color:#2fbf71;',
-      '        font:13px system-ui,sans-serif;padding:6px 12px;cursor:pointer">+ Add</button>',
-      '    </div>',
-      '  </div>',
-      '  <button id="_fbSubmit">Submit</button>',
-      '  <div id="_fbStatus" style="font:13px system-ui,sans-serif;color:#8aa897;text-align:center;min-height:16px"></div>',
+      '<div style="display:flex;justify-content:space-between;align-items:center">',
+      '<span style="font:600 15px system-ui,sans-serif;color:#e8f3ec">Report a Bug</span>',
+      '<span style="font:12px system-ui,sans-serif;color:#4d7a66">Hold 2s or Ctrl+Shift+B</span>',
+      '<button id="_fbClose" style="background:none;border:none;color:#8aa897;font-size:20px;cursor:pointer;line-height:1">&#x2715;</button>',
+      '</div>',
+      '<div style="display:flex;flex-direction:column;gap:8px">',
+      '<canvas id="_fbCanvas"></canvas>',
+      '<div style="display:flex;align-items:center;gap:8px;overflow-x:auto;padding:2px 0">',
+      '<div id="_fbThumbs" style="display:flex;gap:6px"></div>',
+      '<label style="font:12px system-ui,sans-serif;color:#8aa897;background:#0a1410;',
+      'border:1px dashed #2fbf71;border-radius:4px;padding:4px 10px;cursor:pointer;white-space:nowrap;flex-shrink:0">',
+      '+ Add image<input type="file" id="_fbFile" accept="image/*" style="display:none">',
+      '</label>',
+      '</div>',
+      '</div>',
+      '<textarea id="_fbRemarks" placeholder="Describe the issue\u2026" rows="3"></textarea>',
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">',
+      '<span style="font:11px system-ui,sans-serif;color:#4d7a66;text-transform:uppercase;letter-spacing:.04em">Type</span>',
+      '<button class="fb-sev" data-sev="bug">Bug</button>',
+      '<button class="fb-sev" data-sev="suggestion">Suggestion</button>',
+      '<button class="fb-sev" data-sev="question">Question</button>',
+      '</div>',
+      '<div>',
+      '<div id="_fbTagList" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px"></div>',
+      '<div style="display:flex;gap:6px">',
+      '<input id="_fbTagInput" type="text" placeholder="Add tag\u2026 (Enter to add)"',
+      ' style="flex:1;background:#0a1410;border:1px solid #1e3a30;border-radius:6px;',
+      'color:#e8f3ec;font:13px system-ui,sans-serif;padding:6px 10px;outline:none">',
+      '<button id="_fbTagAdd" style="background:#1e3a30;border:none;border-radius:6px;',
+      'color:#2fbf71;font:13px system-ui,sans-serif;padding:6px 12px;cursor:pointer">+ Add</button>',
+      '</div>',
+      '</div>',
+      '<button id="_fbSubmit">Submit</button>',
+      '<div id="_fbStatus" style="font:13px system-ui,sans-serif;color:#8aa897;text-align:center;min-height:16px"></div>',
       '</div>',
     ].join('');
 
-    // Close on backdrop click
-    sheet.addEventListener('click', function (e) { if (e.target === sheet) _closeSheet(); });
-    sheet.querySelector('#_fbClose').addEventListener('click', _closeSheet);
+    el.addEventListener('click', function (e) { if (e.target === el) _closeSheet(); });
+    el.querySelector('#_fbClose').addEventListener('click', _closeSheet);
 
-    // Severity buttons
-    sheet.querySelectorAll('.fb-sev').forEach(function (btn) {
+    el.querySelectorAll('.fb-sev').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        sheet.querySelectorAll('.fb-sev').forEach(function (b) { _setSevStyle(b, false); });
-        _setSevStyle(btn, true);
+        el.querySelectorAll('.fb-sev').forEach(function (b) { _sevStyle(b, false); });
+        _sevStyle(btn, true);
       });
     });
 
-    // File input
-    sheet.querySelector('#_fbFile').addEventListener('change', function (e) {
-      var file = e.target.files[0];
-      if (file) _readFile(file, sheet);
+    el.querySelector('#_fbFile').addEventListener('change', function (e) {
+      if (e.target.files[0]) _readFile(e.target.files[0], el);
       e.target.value = '';
     });
 
-    // Paste support
     document.addEventListener('paste', function (e) {
-      if (sheet.style.display === 'none') return;
-      var item = Array.from(e.clipboardData ? e.clipboardData.items : [])
+      if (el.style.display === 'none') return;
+      var item = Array.from((e.clipboardData || { items: [] }).items)
         .find(function (i) { return i.type.startsWith('image/'); });
-      if (item) _readFile(item.getAsFile(), sheet);
+      if (item) _readFile(item.getAsFile(), el);
     });
 
-    // Tag input
-    var tagInput = sheet.querySelector('#_fbTagInput');
-    var tagAdd   = sheet.querySelector('#_fbTagAdd');
-
-    function _addTag() {
-      var val = tagInput.value.trim().toLowerCase().replace(/\s+/g, '-');
-      if (!val || _tags.includes(val)) { tagInput.value = ''; return; }
-      _tags.push(val);
-      _renderTags(sheet);
-      tagInput.value = '';
-    }
-
+    var tagInput = el.querySelector('#_fbTagInput');
     tagInput.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); _addTag(); }
+      if (e.key === 'Enter') { e.preventDefault(); _addTag(tagInput, el); }
     });
-    tagAdd.addEventListener('click', _addTag);
+    el.querySelector('#_fbTagAdd').addEventListener('click', function () { _addTag(tagInput, el); });
 
-    _initDrawing(sheet);
-    sheet.querySelector('#_fbSubmit').addEventListener('click', function () { _submit(sheet); });
+    _initDrawing(el);
+    el.querySelector('#_fbSubmit').addEventListener('click', function () { _submit(el); });
 
-    return sheet;
+    return el;
   }
 
-  // ── Tags ──────────────────────────────────────────────────────────────────
+  // ── Tags ───────────────────────────────────────────────────────────────────
+
+  function _addTag(input, sheet) {
+    var val = input.value.trim().toLowerCase().replace(/\s+/g, '-');
+    if (!val || _tags.indexOf(val) !== -1) { input.value = ''; return; }
+    _tags.push(val);
+    _renderTags(sheet);
+    input.value = '';
+  }
 
   function _renderTags(sheet) {
     var list = sheet.querySelector('#_fbTagList');
@@ -284,7 +288,7 @@
     _tags.forEach(function (tag) {
       var pill = document.createElement('span');
       pill.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:#1e3a30;color:#2fbf71;border:1px solid #2a5040;border-radius:20px;padding:2px 10px;font:12px system-ui,sans-serif';
-      pill.textContent = tag;
+      pill.appendChild(document.createTextNode(tag));
       var rm = document.createElement('button');
       rm.textContent = '\xD7';
       rm.style.cssText = 'background:none;border:none;color:#2fbf71;cursor:pointer;padding:0;font-size:14px;line-height:1;margin-left:2px';
@@ -297,7 +301,7 @@
     });
   }
 
-  // ── Image management ───────────────────────────────────────────────────────
+  // ── Images ─────────────────────────────────────────────────────────────────
 
   function _readFile(file, sheet) {
     var reader = new FileReader();
@@ -317,7 +321,6 @@
       var el = document.createElement('img');
       el.src = img.dataUrl;
       el.className = 'fb-thumb' + (i === _activeIdx ? ' active' : '');
-      el.setAttribute('title', 'Image ' + (i + 1));
       el.addEventListener('click', function () {
         _activeIdx = i;
         _renderThumbs(sheet);
@@ -328,20 +331,18 @@
   }
 
   function _renderCanvas(sheet) {
-    var canvasEl = sheet.querySelector('#_fbCanvas');
-    if (_images.length === 0) { canvasEl.style.display = 'none'; return; }
-    canvasEl.style.display = 'block';
-    var imgSrc = _images[_activeIdx].dataUrl;
+    var c = sheet.querySelector('#_fbCanvas');
+    if (_images.length === 0) { c.style.display = 'none'; return; }
+    c.style.display = 'block';
     var img = new Image();
     img.onload = function () {
-      canvasEl.width = img.naturalWidth;
-      canvasEl.height = img.naturalHeight;
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
       _baseImg = img;
-      var ctx = canvasEl.getContext('2d');
+      var ctx = c.getContext('2d');
       ctx.drawImage(img, 0, 0);
       _drawPaths(ctx, _images[_activeIdx].paths);
     };
-    img.src = imgSrc;
+    img.src = _images[_activeIdx].dataUrl;
   }
 
   // ── Drawing ────────────────────────────────────────────────────────────────
@@ -350,60 +351,46 @@
     paths.forEach(function (path) {
       if (path.length < 2) return;
       ctx.beginPath();
-      ctx.strokeStyle = '#ff4444';
-      ctx.lineWidth = 3;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 3;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       path.forEach(function (pt, i) { i === 0 ? ctx.moveTo(pt[0], pt[1]) : ctx.lineTo(pt[0], pt[1]); });
       ctx.stroke();
     });
   }
 
   function _initDrawing(sheet) {
-    var canvasEl = sheet.querySelector('#_fbCanvas');
-    var drawing = false;
-    var currentPath = [];
+    var c = sheet.querySelector('#_fbCanvas');
+    var drawing = false, cur = [];
 
     function pos(e) {
-      var rect = canvasEl.getBoundingClientRect();
-      var sx = canvasEl.width / rect.width;
-      var sy = canvasEl.height / rect.height;
-      var src = e.touches ? e.touches[0] : e;
-      return [(src.clientX - rect.left) * sx, (src.clientY - rect.top) * sy];
+      var r = c.getBoundingClientRect();
+      return [(e.clientX - r.left) * (c.width / r.width), (e.clientY - r.top) * (c.height / r.height)];
     }
 
-    canvasEl.addEventListener('pointerdown', function (e) {
+    c.addEventListener('pointerdown', function (e) {
       if (e.button && e.button !== 0) return;
-      drawing = true;
-      currentPath = [pos(e)];
-      canvasEl.setPointerCapture(e.pointerId);
-      e.preventDefault();
+      drawing = true; cur = [pos(e)];
+      c.setPointerCapture(e.pointerId); e.preventDefault();
     });
-
-    canvasEl.addEventListener('pointermove', function (e) {
+    c.addEventListener('pointermove', function (e) {
       if (!drawing || !_baseImg) return;
-      currentPath.push(pos(e));
-      var ctx = canvasEl.getContext('2d');
+      cur.push(pos(e));
+      var ctx = c.getContext('2d');
       ctx.drawImage(_baseImg, 0, 0);
       _drawPaths(ctx, _images[_activeIdx].paths);
-      if (currentPath.length > 1) {
-        ctx.beginPath();
-        ctx.strokeStyle = '#ff4444';
-        ctx.lineWidth = 3;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        currentPath.forEach(function (pt, i) { i === 0 ? ctx.moveTo(pt[0], pt[1]) : ctx.lineTo(pt[0], pt[1]); });
+      if (cur.length > 1) {
+        ctx.beginPath(); ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 3;
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        cur.forEach(function (pt, i) { i === 0 ? ctx.moveTo(pt[0], pt[1]) : ctx.lineTo(pt[0], pt[1]); });
         ctx.stroke();
       }
       e.preventDefault();
     });
-
-    canvasEl.addEventListener('pointerup', function (e) {
+    c.addEventListener('pointerup', function (e) {
       if (!drawing) return;
       drawing = false;
-      if (currentPath.length > 1) _images[_activeIdx].paths.push(currentPath.slice());
-      currentPath = [];
-      e.preventDefault();
+      if (cur.length > 1) _images[_activeIdx].paths.push(cur.slice());
+      cur = []; e.preventDefault();
     });
   }
 
@@ -414,8 +401,7 @@
       var img = new Image();
       img.onload = function () {
         var c = document.createElement('canvas');
-        c.width = img.naturalWidth;
-        c.height = img.naturalHeight;
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
         var ctx = c.getContext('2d');
         ctx.drawImage(img, 0, 0);
         _drawPaths(ctx, imgObj.paths);
@@ -427,23 +413,15 @@
 
   async function _submit(sheet) {
     var remarks = sheet.querySelector('#_fbRemarks').value.trim();
-    if (!remarks) {
-      sheet.querySelector('#_fbStatus').textContent = 'Please describe the issue.';
-      return;
-    }
+    if (!remarks) { sheet.querySelector('#_fbStatus').textContent = 'Please describe the issue.'; return; }
 
     var sevEl = sheet.querySelector('.fb-sev.active');
-    var severity = sevEl ? sevEl.dataset.sev : 'bug';
     var btn = sheet.querySelector('#_fbSubmit');
     var statusEl = sheet.querySelector('#_fbStatus');
-
     btn.disabled = true;
     statusEl.textContent = 'Submitting\u2026';
 
     var annotated = await Promise.all(_images.map(_renderAnnotated));
-    var screenshot = annotated[0] || null;
-    var extra_images = annotated.slice(1);
-
     var user = (typeof window._fbGetUser === 'function') ? (window._fbGetUser() || {}) : {};
 
     try {
@@ -452,7 +430,7 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           remarks: remarks,
-          severity: severity,
+          severity: sevEl ? sevEl.dataset.sev : 'bug',
           tags: _tags.slice(),
           page_url: location.href,
           page_title: document.title,
@@ -465,20 +443,20 @@
             viewport: innerWidth + '\xD7' + innerHeight,
             dpr: devicePixelRatio,
           },
-          screenshot: screenshot,
-          extra_images: extra_images,
+          screenshot: annotated[0] || null,
+          extra_images: annotated.slice(1),
         }),
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       statusEl.textContent = 'Submitted. Thank you.';
       setTimeout(_closeSheet, 1200);
-    } catch (err) {
+    } catch (e) {
       statusEl.textContent = 'Failed to submit. Please try again.';
       btn.disabled = false;
     }
   }
 
-  // ── Manual trigger ─────────────────────────────────────────────────────────
-  window._fbTriggerManual = function () { _openSheet(null); };
+  // ── Public API ─────────────────────────────────────────────────────────────
+  window._fbTriggerManual = function () { _trigger(); };
 
 })();
