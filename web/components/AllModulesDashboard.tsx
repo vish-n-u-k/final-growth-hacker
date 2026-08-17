@@ -420,12 +420,34 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       } catch {}
       return
     }
-    // PostHog connected — always use live API count, localStorage is irrelevant
+    // Seed from cache immediately so we never flash 0 while loading
+    const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+    let skipFetch = false
+    try {
+      const cached = localStorage.getItem('gh_posthog_count_cache')
+      const cachedTs = localStorage.getItem('gh_posthog_count_cache_ts')
+      if (cached) {
+        setUserCount(parseInt(cached, 10))
+        if (cachedTs && Date.now() - parseInt(cachedTs, 10) < CACHE_TTL) {
+          skipFetch = true
+        }
+      }
+    } catch {}
+
+    if (skipFetch) return
+
     setPosthogLoading(true)
     fetch('/api/posthog/user-count')
       .then((r) => r.json())
       .then((d: { count?: number; dataStartDate?: string | null }) => {
-        if (d.count != null) setUserCount(d.count)
+        // Only trust a non-zero live count — if PostHog returns 0 keep the cache
+        if (d.count) {
+          setUserCount(d.count)
+          try {
+            localStorage.setItem('gh_posthog_count_cache', String(d.count))
+            localStorage.setItem('gh_posthog_count_cache_ts', String(Date.now()))
+          } catch {}
+        }
         if (d.dataStartDate) setPosthogDataStartDate(d.dataStartDate)
       })
       .catch(() => {})

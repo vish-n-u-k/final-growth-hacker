@@ -103,6 +103,68 @@
         allowTaint: true,
         logging: false,
         ignoreElements: function (el) { return el.id === '_fbSheet'; },
+        onclone: function (clonedDoc) {
+          function stripColor(s) {
+            return s.replace(/([:,\s(])color\([^)]*\)/g, '$1transparent');
+          }
+
+          // 1. Collect ALL CSS custom properties from the real document into :root
+          //    of the clone. Two sources:
+          //    a) documentElement computed style — picks up :root vars from stylesheets
+          //    b) inline style attrs on every element — picks up vars like --brand
+          //       that are injected on wrapper divs and never appear on :root
+          var vars = {};
+
+          var rootComputed = getComputedStyle(document.documentElement);
+          for (var i = 0; i < rootComputed.length; i++) {
+            var rp = rootComputed[i];
+            if (rp.charAt(0) === '-' && rp.charAt(1) === '-') {
+              var rv = rootComputed.getPropertyValue(rp).trim();
+              if (rv && rv.indexOf('color(') === -1) vars[rp] = rv;
+            }
+          }
+
+          // Walk every element's inline style for custom properties
+          document.querySelectorAll('[style]').forEach(function (el) {
+            var s = el.style;
+            for (var j = 0; j < s.length; j++) {
+              var ep = s[j];
+              if (ep.charAt(0) === '-' && ep.charAt(1) === '-') {
+                var ev = s.getPropertyValue(ep).trim();
+                if (ev && ev.indexOf('color(') === -1) vars[ep] = ev;
+              }
+            }
+          });
+
+          var cssText = ':root{';
+          for (var prop in vars) cssText += prop + ':' + vars[prop] + ';';
+          cssText += '}';
+          var varStyle = clonedDoc.createElement('style');
+          varStyle.textContent = cssText;
+          clonedDoc.head.appendChild(varStyle);
+
+          // 2. Proxy getComputedStyle in the iframe so html2canvas never sees
+          //    color() values (returned by P3 displays for any hex color)
+          var iframeWin = clonedDoc.defaultView;
+          if (iframeWin) {
+            var origGCS = iframeWin.getComputedStyle.bind(iframeWin);
+            iframeWin.getComputedStyle = function (el, pseudo) {
+              var style = origGCS(el, pseudo);
+              return new Proxy(style, {
+                get: function (target, prop) {
+                  var val = Reflect.get(target, prop);
+                  if (typeof val === 'function') {
+                    return function () {
+                      var r = val.apply(target, arguments);
+                      return typeof r === 'string' && r.indexOf('color(') !== -1 ? stripColor(r) : r;
+                    };
+                  }
+                  return typeof val === 'string' && val.indexOf('color(') !== -1 ? stripColor(val) : val;
+                },
+              });
+            };
+          }
+        },
       };
 
       var dominantCanvas = Array.from(document.querySelectorAll('canvas')).find(function (c) {
@@ -130,12 +192,22 @@
       console.warn('[fb-widget] screenshot error:', err);
     }
 
-    if (!dataUrl) return;
+    var s = document.getElementById('_fbSheet');
+    var loadEl = s && s.querySelector('#_fbCaptureLoad');
+    if (loadEl) loadEl.style.display = 'none';
+
+    if (!dataUrl) {
+      if (s && s.style.display !== 'none') {
+        var statusEl = s.querySelector('#_fbStatus');
+        if (statusEl) statusEl.textContent = 'Screenshot unavailable \u2014 attach an image manually if needed.';
+      }
+      return;
+    }
+
     // Inject screenshot into already-open sheet
     _images = [{ dataUrl: dataUrl, paths: [] }];
     _activeIdx = 0;
     _baseImg = null;
-    var s = document.getElementById('_fbSheet');
     if (s && s.style.display !== 'none') {
       _renderThumbs(s);
       _renderCanvas(s);
@@ -144,7 +216,7 @@
 
   // ── Sheet ──────────────────────────────────────────────────────────────────
 
-  function _openSheet(screenshotDataUrl) {
+  function _openSheet(screenshotDataUrl, capturing) {
     _images    = screenshotDataUrl ? [{ dataUrl: screenshotDataUrl, paths: [] }] : [];
     _activeIdx = 0;
     _baseImg   = null;
@@ -162,6 +234,20 @@
 
     _renderThumbs(sheet);
     _renderCanvas(sheet);
+
+    if (capturing) {
+      var loadEl = sheet.querySelector('#_fbCaptureLoad');
+      if (!loadEl) {
+        loadEl = document.createElement('div');
+        loadEl.id = '_fbCaptureLoad';
+        loadEl.style.cssText = 'width:100%;padding:20px 0;display:flex;align-items:center;justify-content:center;color:#4d7a66;font:13px system-ui,sans-serif;background:#0a1410;border-radius:8px';
+        loadEl.textContent = 'Capturing screenshot\u2026';
+        var capCanvas = sheet.querySelector('#_fbCanvas');
+        capCanvas.parentNode.insertBefore(loadEl, capCanvas);
+      }
+      loadEl.style.display = 'flex';
+    }
+
     sheet.style.display = 'flex';
   }
 

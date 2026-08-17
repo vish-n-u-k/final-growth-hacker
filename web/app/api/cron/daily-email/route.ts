@@ -133,19 +133,17 @@ interface PhSummary {
 async function fetchPostHog(host: string, pid: string, key: string): Promise<PhSummary> {
   const PRO    = `'subscription_upgraded','became_pro','upgrade','plan_upgraded','checkout_completed'`
   const CANCEL = `'subscription_cancelled','unsubscribed','cancel_subscription','account_deleted','user_deleted'`
-  const y = `toDate(now()) - 1`
-  const db2 = `toDate(now()) - 2`
 
   const [sn, sp, in_, ip, pn, pp, cn, dn, dp, tr] = await Promise.all([
-    hogql(host, pid, key, `SELECT count() FROM persons WHERE toDate(created_at) = ${y}`),
-    hogql(host, pid, key, `SELECT count() FROM persons WHERE toDate(created_at) = ${db2}`),
-    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE event = '$identify' AND toDate(timestamp) = ${y}`),
-    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE event = '$identify' AND toDate(timestamp) = ${db2}`),
-    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE event IN (${PRO}) AND toDate(timestamp) = ${y}`),
-    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE event IN (${PRO}) AND toDate(timestamp) = ${db2}`),
-    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE event IN (${CANCEL}) AND toDate(timestamp) = ${y}`),
-    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE toDate(timestamp) = ${y}`),
-    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE toDate(timestamp) = ${db2}`),
+    hogql(host, pid, key, `SELECT count() FROM persons WHERE created_at >= now() - interval 1 day`),
+    hogql(host, pid, key, `SELECT count() FROM persons WHERE created_at >= now() - interval 2 day AND created_at < now() - interval 1 day`),
+    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE event = '$identify' AND timestamp >= now() - interval 1 day`),
+    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE event = '$identify' AND timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day`),
+    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE event IN (${PRO}) AND timestamp >= now() - interval 1 day`),
+    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE event IN (${PRO}) AND timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day`),
+    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE event IN (${CANCEL}) AND timestamp >= now() - interval 1 day`),
+    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp >= now() - interval 1 day`),
+    hogql(host, pid, key, `SELECT count(DISTINCT person_id) FROM events WHERE timestamp >= now() - interval 2 day AND timestamp < now() - interval 1 day`),
     hogql(host, pid, key, `SELECT toDate(timestamp) as day, count(DISTINCT person_id) as dau FROM events WHERE toDate(timestamp) >= toDate(now()) - 8 AND toDate(timestamp) < toDate(now()) GROUP BY day ORDER BY day ASC`),
   ])
 
@@ -436,11 +434,10 @@ export async function GET(req: NextRequest) {
   const allBrands = await db.select().from(brands).where(eq(brands.dailyEmailEnabled, true))
   const results: { brandName: string; to: string; sent: boolean; error?: string }[] = []
 
-  // Date label (yesterday UTC)
+  // Date label (today UTC — rolling 24h window ending now)
   const d = new Date()
-  d.setUTCDate(d.getUTCDate() - 1)
   const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const dateLabel = `${mo[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`
+  const dateLabel = `${mo[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()} · last 24h`
 
   for (const brand of allBrands) {
     const toEmail = brand.notificationEmail
@@ -473,7 +470,7 @@ export async function GET(req: NextRequest) {
     ])
 
     const html = buildHtml(brand.name, dateLabel, ga4Data, phData)
-    const subject = `${brand.name} daily summary - ${dateLabel}`
+    const subject = `${brand.name} daily digest · last 24h`
 
     try {
       const sent = await sendViaGmail(accessToken, fromEmail, toEmail, subject, html)

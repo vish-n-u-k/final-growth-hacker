@@ -256,10 +256,12 @@ export async function GET(request: NextRequest) {
   type CardOverride = { label?: string; events?: string[] }
   const cardOverrides = (brand.analyticsCardOverrides as Record<string, CardOverride> | null) ?? {}
 
-  // Return cached snapshot if available, not forced, and contains new fields
+  // Return cached snapshot if available, not forced, schema matches, and < 5 minutes old
+  const SNAPSHOT_TTL_MS = 5 * 60 * 1000
   const snap = brand.analyticsSnapshot as Record<string, unknown> | null
   const snapIsFresh = snap && snap['_v'] === 11 && 'proUsers' in snap
-  if (!force && snapIsFresh && brand.analyticsSnapshotAt) {
+  const snapAge = brand.analyticsSnapshotAt ? Date.now() - brand.analyticsSnapshotAt.getTime() : Infinity
+  if (!force && snapIsFresh && brand.analyticsSnapshotAt && snapAge < SNAPSHOT_TTL_MS) {
     return NextResponse.json({
       ...snap,
       snapshotAt: brand.analyticsSnapshotAt.toISOString(),
@@ -496,7 +498,10 @@ export async function GET(request: NextRequest) {
       const [signins24h, signins7d, signins30d, signinsPrev24h, signinsPrev7d, signinsPrev30d] = (signinsRows?.[0] ?? [0,0,0,0,0,0]).map(Number)
       const [dau, activeUsers7d, mau, dauPrev, activeUsersPrev7d, mauPrev]                    = (activeUsersRows?.[0] ?? [0,0,0,0,0,0]).map(Number)
       const [deletedAccounts24h, deleted7d, deleted30d, deletedPrev24h, deletedPrev7d, deletedPrev30d] = (deletedRows?.[0] ?? [0,0,0,0,0,0]).map(Number)
-      const totalUsers = Number(totalUsersRows?.[0]?.[0] ?? 0)
+      const liveTotal = Number(totalUsersRows?.[0]?.[0] ?? 0)
+      // If PostHog returns 0 (transient failure) keep the last known non-zero value from the snapshot
+      const cachedTotal = snap && typeof snap['totalUsers'] === 'number' ? (snap['totalUsers'] as number) : 0
+      const totalUsers = liveTotal > 0 ? liveTotal : (cachedTotal > 0 ? cachedTotal : 0)
       const proUsers = proUsersCount
 
       posthogData = {
