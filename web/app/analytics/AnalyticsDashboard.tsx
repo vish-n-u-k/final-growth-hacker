@@ -636,6 +636,16 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             </div>
             )}
             <button
+              onClick={() => router.push('/analytics/authNew')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600,
+                padding: '7px 14px', borderRadius: 99, border: '1px solid var(--green)40',
+                background: 'var(--green)10', color: 'var(--green)', cursor: 'pointer',
+              }}
+            >
+              <ArrowRight size={12} /> Acquisition &amp; Journeys
+            </button>
+            <button
               onClick={() => { setPhLoading(true); fetch(`/api/analytics/auth-dashboard?brandId=${brand.id}`).then(r => r.json()).then((d: DashboardData) => setData(d)).finally(() => setPhLoading(false)) }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,

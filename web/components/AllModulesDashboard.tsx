@@ -2252,7 +2252,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <div className={`level ${stateClass}${isDone ? ' done' : ''}${isOpen ? ' open' : ''}`}>
 
                 {/* Level head */}
-                <div className="level-head" onClick={() => !isLocked && toggleModule(modData.id)}>
+                <div className="level-head" onClick={() => toggleModule(modData.id)}>
                   <div
                     className="level-badge"
                     style={!isLocked && modData.type !== 'gmail-outreach' ? {
@@ -2359,17 +2359,26 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     </div>
                   )}
 
-                  {!isLocked && (
-                    <svg className="chev" width="16" height="16" viewBox="0 0 24 24" fill="none">
-                      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  )}
+                  <svg className="chev" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
                 </div>
 
                 {/* Level body */}
-                {!isLocked && (
-                  <div className="level-body" style={{ maxHeight: isOpen ? '9999px' : undefined }}>
-
+                <div className="level-body" style={{ maxHeight: isOpen ? '9999px' : undefined }}>
+                  {isLocked ? (
+                    <div className="md-cats" style={{ pointerEvents: 'none', opacity: 0.6 }}>
+                      {def.categories.map((cat) => (
+                        <div key={cat.slug} className="md-cat">
+                          <div className="md-cat-hd" style={{ cursor: 'default' }}>
+                            <div className="md-cat-hd-left">
+                              <span className="md-cat-hd-name">{cat.label}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (<>
 
                     {/* Requirements setup */}
                     {!def.comingSoon && needsSetup && (
@@ -2853,8 +2862,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         connected={!!connectedIntegrations['frekto']}
                       />
                     )}
-                  </div>
-                )}
+                  </>)}
+                </div>
               </div>
             </div>
             )

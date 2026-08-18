@@ -780,10 +780,9 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
             return (
               <button
                 key={m.id}
-                disabled={locked}
                 title={locked ? 'Complete the previous module at 80%+ to unlock' : undefined}
                 className={`md-sidebar-item${m.id === mod.id ? ' md-sidebar-item-active' : ''}${locked ? ' md-sidebar-item-locked' : ''}`}
-                onClick={() => !locked && router.push(`/dashboard/${m.id}`)}
+                onClick={() => router.push(`/dashboard/${m.id}`)}
               >
                 <div className="md-sidebar-item-top">
                   <span className="md-sidebar-item-name">

@@ -256,12 +256,10 @@ export async function GET(request: NextRequest) {
   type CardOverride = { label?: string; events?: string[] }
   const cardOverrides = (brand.analyticsCardOverrides as Record<string, CardOverride> | null) ?? {}
 
-  // Return cached snapshot if available, not forced, schema matches, and < 5 minutes old
-  const SNAPSHOT_TTL_MS = 5 * 60 * 1000
+  // Return cached snapshot if available, not forced, and contains new fields
   const snap = brand.analyticsSnapshot as Record<string, unknown> | null
   const snapIsFresh = snap && snap['_v'] === 11 && 'proUsers' in snap
-  const snapAge = brand.analyticsSnapshotAt ? Date.now() - brand.analyticsSnapshotAt.getTime() : Infinity
-  if (!force && snapIsFresh && brand.analyticsSnapshotAt && snapAge < SNAPSHOT_TTL_MS) {
+  if (!force && snapIsFresh && brand.analyticsSnapshotAt) {
     return NextResponse.json({
       ...snap,
       snapshotAt: brand.analyticsSnapshotAt.toISOString(),
