@@ -197,4 +197,58 @@ export const TOOLS: MCPTool[] = [
       },
     },
   },
+  {
+    name: 'get_posthog_power_users',
+    description:
+      'Use this when asked who the most engaged or most active users are — e.g. "who are my power users?", "who uses the app every day?", "show me my most active users". Returns emails of users who were active on 5 or more distinct days in the last 7 days, along with their active day count and last seen timestamp.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'string',
+          description: 'Max number of users to return. Defaults to "100", max 200.',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_posthog_churned_users',
+    description:
+      'Use this when asked who has stopped using the app — e.g. "who churned?", "who has gone quiet?", "show me inactive users", "who haven\'t I seen in 2 weeks?". Returns emails of users whose last activity was before the inactiveDays threshold, sorted by most recently churned first.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        inactive_days: {
+          type: 'string',
+          description: 'Number of days of inactivity to define churn. Defaults to "14".',
+        },
+        limit: {
+          type: 'string',
+          description: 'Max number of users to return. Defaults to "100", max 200.',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_posthog_pro_users',
+    description:
+      'Use this when asked about paid, pro, or plan-based users — e.g. "who are my pro users?", "show me paid users", "how many users are on the pro plan?", "who upgraded?". Looks up users by a PostHog person property (default: plan=pro). You can specify a different property name and value to match any plan tier.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        plan_property: {
+          type: 'string',
+          description: 'The PostHog person property name to filter on. Defaults to "plan".',
+        },
+        plan_value: {
+          type: 'string',
+          description: 'The value to match. Defaults to "pro". Use "free", "enterprise", etc. for other tiers.',
+        },
+        limit: {
+          type: 'string',
+          description: 'Max number of users to return. Defaults to "100", max 200.',
+        },
+      },
+    },
+  },
 ]

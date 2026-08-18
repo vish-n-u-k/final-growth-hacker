@@ -14,6 +14,9 @@ import { getGaConversions } from '@/lib/mcp/tools/get_ga_conversions'
 import { getPosthogSegments } from '@/lib/mcp/tools/get_posthog_segments'
 import { getKeywordTrends } from '@/lib/mcp/tools/get_keyword_trends'
 import { getPosthogUsers } from '@/lib/mcp/tools/get_posthog_users'
+import { getPosthogPowerUsers } from '@/lib/mcp/tools/get_posthog_power_users'
+import { getPosthogChurnedUsers } from '@/lib/mcp/tools/get_posthog_churned_users'
+import { getPosthogProUsers } from '@/lib/mcp/tools/get_posthog_pro_users'
 
 export const maxDuration = 300
 
@@ -99,6 +102,27 @@ async function dispatch(
 
     case 'get_ga_conversions':
       return getGaConversions(brandId, args['period'] ? String(args['period']) : '30d')
+
+    case 'get_posthog_power_users':
+      return getPosthogPowerUsers(
+        brandId,
+        args['limit'] ? parseInt(String(args['limit']), 10) : 100,
+      )
+
+    case 'get_posthog_churned_users':
+      return getPosthogChurnedUsers(
+        brandId,
+        args['inactive_days'] ? parseInt(String(args['inactive_days']), 10) : 14,
+        args['limit'] ? parseInt(String(args['limit']), 10) : 100,
+      )
+
+    case 'get_posthog_pro_users':
+      return getPosthogProUsers(
+        brandId,
+        args['plan_property'] ? String(args['plan_property']) : 'plan',
+        args['plan_value'] ? String(args['plan_value']) : 'pro',
+        args['limit'] ? parseInt(String(args['limit']), 10) : 100,
+      )
 
     default:
       throw new Error(`Unknown tool: ${name}`)
