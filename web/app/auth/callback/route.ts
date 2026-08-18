@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
@@ -13,8 +14,12 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const next = searchParams.get('next')
-  const redirectTo = next && next.startsWith('/') ? next : '/dashboard'
+  // Prefer query param (email/password flow), fall back to cookie (Google OAuth flow)
+  const cookieStore = await cookies()
+  const cookieNext = cookieStore.get('auth_next')?.value
+  const nextParam = searchParams.get('next')
+  const rawNext = nextParam ?? (cookieNext ? decodeURIComponent(cookieNext) : null)
+  const redirectTo = rawNext && rawNext.startsWith('/') ? rawNext : '/dashboard'
 
   if (code) {
     const supabase = await createClient()
@@ -26,8 +31,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.redirect(new URL(redirectTo, origin))
+    const response = NextResponse.redirect(new URL(redirectTo, origin))
+    // Clear the auth_next cookie now that it has been consumed
+    if (cookieNext) response.cookies.delete('auth_next')
+    return response
   }
 
-  return NextResponse.redirect(new URL(redirectTo, origin))
+  const response = NextResponse.redirect(new URL(redirectTo, origin))
+  if (cookieNext) response.cookies.delete('auth_next')
+  return response
 }

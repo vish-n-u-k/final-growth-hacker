@@ -37,14 +37,18 @@ function LoginForm() {
     setLoading(true)
     setError('')
 
-    const supabase = createClient()
-    const callbackUrl = new URL(`${window.location.origin}/auth/callback`)
-    if (next && next.startsWith('/')) callbackUrl.searchParams.set('next', next)
+    // Store the post-auth destination in a cookie so the redirectTo URL stays
+    // clean (no query params). Supabase allowlist matching can fail when the
+    // redirectTo URL has a long query string (e.g. during the MCP OAuth flow).
+    if (next && next.startsWith('/')) {
+      document.cookie = `auth_next=${encodeURIComponent(next)}; path=/; max-age=600; SameSite=Lax`
+    }
 
+    const supabase = createClient()
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: callbackUrl.toString(),
+        redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
 
