@@ -73,6 +73,7 @@ interface ApiResponse {
   gsc: {
     connected: boolean
     topQueries: GscQuery[]
+    topPages: { page: string; clicks: number; impressions: number }[]
     impressions30d: number | null
     clicks30d: number | null
     avgCtr30d: number | null
@@ -207,210 +208,223 @@ function StorySummary({ funnel, gscConnected, ga4Connected, phConnected }: {
   )
 }
 
-// ── Signup detail panel ──────────────────────────────────────────────────────
+// ── Funnel detail panels ──────────────────────────────────────────────────────
 
 function MiniBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   const pct = Math.max(4, Math.round((value / Math.max(max, 1)) * 100))
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <div style={{ width: 110, fontSize: 12, color: 'var(--text)', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
+      <div style={{ width: 130, fontSize: 12, color: 'var(--text)', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</div>
       <div style={{ flex: 1, height: 7, background: 'var(--line)', borderRadius: 99, overflow: 'hidden' }}>
         <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 99, transition: 'width 0.4s' }} />
       </div>
-      <div style={{ fontSize: 12, fontWeight: 700, color, minWidth: 28, textAlign: 'right' }}>{value}</div>
+      <div style={{ fontSize: 12, fontWeight: 700, color, minWidth: 36, textAlign: 'right' }}>{fmt(value)}</div>
     </div>
   )
 }
 
-function SignupDetailPanel({ users, signupsBySource, signupsByDevice, signupsByCountry }: {
+function DetailPanel({ tabs, children }: { tabs: { key: string; label: string }[]; children: (active: string) => React.ReactNode }) {
+  const [active, setActive] = useState(tabs[0]?.key ?? '')
+  return (
+    <div style={{ marginTop: 14, border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--line)', background: 'var(--bg)' }}>
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setActive(t.key)} style={{
+            flex: 1, padding: '9px 0', fontSize: 12, fontWeight: 600,
+            border: 'none', cursor: 'pointer', background: 'transparent',
+            color: active === t.key ? 'var(--text)' : 'var(--text-faint)',
+            borderBottom: active === t.key ? '2px solid var(--green)' : '2px solid transparent',
+            transition: 'all 0.15s',
+          }}>{t.label}</button>
+        ))}
+      </div>
+      <div style={{ padding: '14px 16px' }}>{children(active)}</div>
+    </div>
+  )
+}
+
+// Mini user list (shared by signups + active panels)
+function MiniUserList({ users, emptyMsg }: { users: JourneyUser[]; emptyMsg: string }) {
+  if (!users.length) return <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>{emptyMsg}</p>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto', scrollbarWidth: 'none' }}>
+      {users.map(u => {
+        const color = sourceColor(u.source)
+        const st    = STATUS_STYLE[u.status]
+        return (
+          <div key={u.userId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--line)' }}>
+            <div style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0, background: '#2fbf7118', border: '1px solid #2fbf7135', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#2fbf71' }}>
+              {(u.name || u.email || '?').slice(0, 2).toUpperCase()}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {u.name || u.email || `User ${u.userId.slice(0, 8)}`}
+              </div>
+              {u.email && u.name && (
+                <div style={{ fontSize: 10, color: 'var(--text-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</div>
+              )}
+            </div>
+            <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 99, background: `${color}15`, color, border: `1px solid ${color}25`, flexShrink: 0, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {u.source}
+            </span>
+            {u.country && u.country !== 'null' && (
+              <span style={{ fontSize: 10, color: 'var(--text-faint)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}>
+                <Globe size={10} />{u.country}
+              </span>
+            )}
+            <span style={{ fontSize: 10, fontWeight: 700, color: st.color, flexShrink: 0 }}>{st.label}</span>
+            <span style={{ fontSize: 10, color: 'var(--text-faint)', flexShrink: 0 }}>{u.signedUpRel}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// Step 0 — Impressions panel
+function ImpressionsPanel({ topQueries }: { topQueries: GscQuery[] }) {
+  const sorted = [...topQueries].sort((a, b) => b.impressions - a.impressions)
+  const max = Math.max(...sorted.map(q => q.impressions), 1)
+  return (
+    <DetailPanel tabs={[{ key: 'queries', label: 'Top queries by impressions' }]}>
+      {() => sorted.length === 0
+        ? <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>No query data yet.</p>
+        : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {sorted.map(q => <MiniBar key={q.query} label={q.query} value={q.impressions} max={max} color="#60a5fa" />)}
+          </div>}
+    </DetailPanel>
+  )
+}
+
+// Step 1 — Clicks panel
+function ClicksPanel({ topQueries, topPages }: { topQueries: GscQuery[]; topPages: { page: string; clicks: number; impressions: number }[] }) {
+  const maxQ = Math.max(...topQueries.map(q => q.clicks), 1)
+  const maxP = Math.max(...topPages.map(p => p.clicks), 1)
+  return (
+    <DetailPanel tabs={[{ key: 'queries', label: 'Top queries' }, { key: 'pages', label: 'Top pages' }]}>
+      {active => active === 'queries'
+        ? topQueries.length === 0
+          ? <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>No query data.</p>
+          : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {topQueries.map(q => (
+                <div key={q.query}>
+                  <MiniBar label={q.query} value={q.clicks} max={maxQ} color="#818cf8" />
+                  <div style={{ fontSize: 10, color: 'var(--text-faint)', marginLeft: 140, marginTop: 2 }}>
+                    {fmt(q.impressions)} impressions · position #{q.position}
+                  </div>
+                </div>
+              ))}
+            </div>
+        : topPages.length === 0
+          ? <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>No page data.</p>
+          : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {topPages.map(p => <MiniBar key={p.page} label={p.page} value={p.clicks} max={maxP} color="#818cf8" />)}
+            </div>
+      }
+    </DetailPanel>
+  )
+}
+
+// Step 2 — Sessions panel
+function SessionsPanel({ channelMatrix, landingPages }: { channelMatrix: ChannelRow[]; landingPages: LandingPage[] }) {
+  const maxC = Math.max(...channelMatrix.map(c => c.ga4Sessions), 1)
+  const maxP = Math.max(...landingPages.map(p => p.ga4Sessions), 1)
+  return (
+    <DetailPanel tabs={[{ key: 'channels', label: 'By channel' }, { key: 'pages', label: 'Top pages' }]}>
+      {active => active === 'channels'
+        ? channelMatrix.length === 0
+          ? <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>No channel data.</p>
+          : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {channelMatrix.filter(c => c.ga4Sessions > 0).map((c, i) => (
+                <div key={c.channel}>
+                  <MiniBar label={c.channel} value={c.ga4Sessions} max={maxC} color={['#a78bfa','#60a5fa','#4ade80','#e7c873','#f87171','#5eead4'][i % 6]} />
+                  {c.phSignups > 0 && (
+                    <div style={{ fontSize: 10, color: 'var(--text-faint)', marginLeft: 140, marginTop: 2 }}>
+                      {c.phSignups} signed up from this channel
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+        : landingPages.length === 0
+          ? <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>No page data.</p>
+          : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {landingPages.filter(p => p.ga4Sessions > 0).map(p => <MiniBar key={p.path} label={p.path} value={p.ga4Sessions} max={maxP} color="#a78bfa" />)}
+            </div>
+      }
+    </DetailPanel>
+  )
+}
+
+// Step 3 — Signups panel
+function SignupsPanel({ users, signupsBySource, signupsByDevice, signupsByCountry }: {
   users: JourneyUser[]
   signupsBySource: SignupSource[]
   signupsByDevice: { device: string; signups: number }[]
   signupsByCountry: { country: string; signups: number }[]
 }) {
-  const [tab, setTab] = useState<'who' | 'source' | 'device' | 'country'>('who')
-
-  // Filter to signups in the last 30 days
   const recentSignups = useMemo(() => {
     const cutoff = Date.now() - 30 * 86_400_000
-    return users
-      .filter(u => new Date(u.signedUpAt).getTime() >= cutoff)
-      .slice(0, 50)
+    return users.filter(u => new Date(u.signedUpAt).getTime() >= cutoff).slice(0, 50)
   }, [users])
-
-  const tabs: { key: typeof tab; label: string }[] = [
-    { key: 'who',     label: 'Who signed up' },
-    { key: 'source',  label: 'Where from'    },
-    { key: 'device',  label: 'Device'        },
-    { key: 'country', label: 'Country'       },
-  ]
 
   const maxSource  = Math.max(...signupsBySource.map(s => s.signups), 1)
   const maxDevice  = Math.max(...signupsByDevice.map(d => d.signups), 1)
   const maxCountry = Math.max(...signupsByCountry.map(c => c.signups), 1)
-
-  const DEVICE_COLORS: Record<string, string> = {
-    Mobile: '#a78bfa', Desktop: '#4ade80', Tablet: '#e7c873', Unknown: 'var(--text-faint)',
-  }
+  const DEVICE_COLORS: Record<string, string> = { Mobile: '#a78bfa', Desktop: '#4ade80', Tablet: '#e7c873', Unknown: 'var(--text-faint)' }
+  const COUNTRY_COLORS = ['#4ade80','#60a5fa','#a78bfa','#e7c873','#f87171','#5eead4','#fb923c','#e1306c','#94a3b8','#6495ed']
 
   return (
-    <div style={{ marginTop: 16, border: '1px solid var(--line)', borderRadius: 14, overflow: 'hidden' }}>
-      {/* Tab bar */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--line)', background: 'var(--bg)' }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{
-            flex: 1, padding: '10px 0', fontSize: 12, fontWeight: 600,
-            border: 'none', cursor: 'pointer', background: 'transparent',
-            color: tab === t.key ? 'var(--text)' : 'var(--text-faint)',
-            borderBottom: tab === t.key ? '2px solid var(--green)' : '2px solid transparent',
-            transition: 'all 0.15s',
-          }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+    <DetailPanel tabs={[{ key: 'who', label: 'Who' }, { key: 'source', label: 'Source' }, { key: 'device', label: 'Device' }, { key: 'country', label: 'Country' }]}>
+      {active => {
+        if (active === 'who') return <MiniUserList users={recentSignups} emptyMsg="No signups in the last 30 days." />
+        if (active === 'source') return signupsBySource.length === 0
+          ? <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>No source data.</p>
+          : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {signupsBySource.slice(0, 8).map(s => <MiniBar key={s.source} label={s.source} value={s.signups} max={maxSource} color={sourceColor(s.source)} />)}
+            </div>
+        if (active === 'device') return signupsByDevice.length === 0
+          ? <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>No device data.</p>
+          : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {signupsByDevice.map(d => <MiniBar key={d.device} label={d.device} value={d.signups} max={maxDevice} color={DEVICE_COLORS[d.device] ?? '#a78bfa'} />)}
+            </div>
+        // country
+        return signupsByCountry.length === 0
+          ? <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>No country data.</p>
+          : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {signupsByCountry.map((c, i) => <MiniBar key={c.country} label={c.country} value={c.signups} max={maxCountry} color={COUNTRY_COLORS[i % 10]} />)}
+            </div>
+      }}
+    </DetailPanel>
+  )
+}
 
-      {/* Tab content */}
-      <div style={{ padding: '16px 18px' }}>
-
-        {/* WHO */}
-        {tab === 'who' && (
-          recentSignups.length === 0
-            ? <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>No signups in the last 30 days.</p>
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 340, overflowY: 'auto', scrollbarWidth: 'none' }}>
-                {recentSignups.map(u => {
-                  const color = sourceColor(u.source)
-                  const st    = STATUS_STYLE[u.status]
-                  return (
-                    <div key={u.userId} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--line)' }}>
-                      {/* Avatar */}
-                      <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, background: '#2fbf7118', border: '1px solid #2fbf7135', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#2fbf71' }}>
-                        {(u.name || u.email || '?').slice(0, 2).toUpperCase()}
-                      </div>
-                      {/* Identity */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {u.name || u.email || `User ${u.userId.slice(0, 8)}`}
-                        </div>
-                        {u.email && u.name && (
-                          <div style={{ fontSize: 10, color: 'var(--text-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</div>
-                        )}
-                      </div>
-                      {/* Source */}
-                      <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 99, background: `${color}15`, color, border: `1px solid ${color}25`, flexShrink: 0, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {u.source}
-                      </span>
-                      {/* Country */}
-                      {u.country && u.country !== 'null' && (
-                        <span style={{ fontSize: 10, color: 'var(--text-faint)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}>
-                          <Globe size={10} />{u.country}
-                        </span>
-                      )}
-                      {/* Status */}
-                      <span style={{ fontSize: 10, fontWeight: 700, color: st.color, flexShrink: 0 }}>{st.label}</span>
-                      {/* Signed up */}
-                      <span style={{ fontSize: 10, color: 'var(--text-faint)', flexShrink: 0 }}>{u.signedUpRel}</span>
-                    </div>
-                  )
-                })}
-              </div>
-        )}
-
-        {/* WHERE FROM */}
-        {tab === 'source' && (
-          signupsBySource.length === 0
-            ? <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>No source data.</p>
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {signupsBySource.slice(0, 8).map(s => (
-                  <MiniBar key={s.source} label={s.source} value={s.signups} max={maxSource} color={sourceColor(s.source)} />
-                ))}
-              </div>
-        )}
-
-        {/* DEVICE */}
-        {tab === 'device' && (
-          signupsByDevice.length === 0
-            ? <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>No device data.</p>
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {signupsByDevice.map(d => (
-                  <MiniBar key={d.device} label={d.device} value={d.signups} max={maxDevice} color={DEVICE_COLORS[d.device] ?? '#a78bfa'} />
-                ))}
-                <p style={{ fontSize: 11, color: 'var(--text-faint)', margin: '6px 0 0' }}>
-                  Based on the device type recorded when each user first signed up.
-                </p>
-              </div>
-        )}
-
-        {/* COUNTRY */}
-        {tab === 'country' && (
-          signupsByCountry.length === 0
-            ? <p style={{ fontSize: 12, color: 'var(--text-faint)', margin: 0 }}>No country data.</p>
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {signupsByCountry.map((c, i) => (
-                  <MiniBar key={c.country} label={c.country} value={c.signups} max={maxCountry}
-                    color={['#4ade80','#60a5fa','#a78bfa','#e7c873','#f87171','#5eead4','#fb923c','#e1306c','#94a3b8','#6495ed'][i % 10]} />
-                ))}
-              </div>
-        )}
-
-      </div>
-    </div>
+// Step 4 — Active users panel
+function ActivePanel({ users }: { users: JourneyUser[] }) {
+  const activeUsers = useMemo(() => users.filter(u => u.status === 'active'), [users])
+  return (
+    <DetailPanel tabs={[{ key: 'list', label: 'Active users this week' }]}>
+      {() => <MiniUserList users={activeUsers} emptyMsg="No active users found in the last 7 days." />}
+    </DetailPanel>
   )
 }
 
 // ── 2. Funnel steps ───────────────────────────────────────────────────────────
 
-function FunnelSteps({ funnel, gscConnected, ga4Connected, phConnected, signupDetail }: {
+function FunnelSteps({ funnel, gscConnected, ga4Connected, phConnected, data }: {
   funnel: Funnel; gscConnected: boolean; ga4Connected: boolean; phConnected: boolean
-  signupDetail: { users: JourneyUser[]; signupsBySource: SignupSource[]; signupsByDevice: { device: string; signups: number }[]; signupsByCountry: { country: string; signups: number }[] }
+  data: ApiResponse
 }) {
-  const [signupsOpen, setSignupsOpen] = useState(false)
+  const [openStep, setOpenStep] = useState<number | null>(null)
+
+  const toggle = (i: number, ok: boolean) => { if (ok) setOpenStep(s => s === i ? null : i) }
 
   const steps = [
-    {
-      label: 'People who saw you on Google',
-      value: funnel.impressions,
-      sub:   'Google Search impressions (last 30 days)',
-      color: '#60a5fa',
-      icon:  <Search size={16} />,
-      ok:    gscConnected,
-    },
-    {
-      label: 'People who clicked to your site',
-      value: funnel.clicks,
-      sub:   funnel.clickThroughRate ? `${funnel.clickThroughRate}% of people who saw you actually clicked` : 'Clicks from Google search results',
-      color: '#818cf8',
-      icon:  <MousePointerClick size={16} />,
-      ok:    gscConnected,
-    },
-    {
-      label: 'Website sessions',
-      value: funnel.sessions,
-      sub:   'Total visits on your site in the last 30 days',
-      color: '#a78bfa',
-      icon:  <BarChart2 size={16} />,
-      ok:    ga4Connected,
-    },
-    {
-      label: 'New signups',
-      value: funnel.signups,
-      sub:   funnel.sessionToSignupRate
-        ? `${funnel.sessionToSignupRate}% of visits turned into signups`
-        : 'People who created an account in the last 30 days',
-      color: '#4ade80',
-      icon:  <Users size={16} />,
-      ok:    phConnected,
-    },
-    {
-      label: 'Still active this week',
-      value: funnel.activeUsers,
-      sub:   funnel.signupToActiveRate
-        ? `${funnel.signupToActiveRate}% of new signups came back within 7 days`
-        : 'Signed-up users seen in the last 7 days',
-      color: '#e7c873',
-      icon:  <TrendingUp size={16} />,
-      ok:    phConnected,
-    },
+    { label: 'People who saw you on Google',    value: funnel.impressions, sub: 'Google Search impressions (last 30 days)',                                                                            color: '#60a5fa', icon: <Search size={16} />,           ok: gscConnected },
+    { label: 'People who clicked to your site', value: funnel.clicks,      sub: funnel.clickThroughRate ? `${funnel.clickThroughRate}% of people who saw you actually clicked` : 'Google Search clicks', color: '#818cf8', icon: <MousePointerClick size={16} />, ok: gscConnected },
+    { label: 'Website sessions',                value: funnel.sessions,    sub: 'Total visits on your site in the last 30 days',                                                                      color: '#a78bfa', icon: <BarChart2 size={16} />,         ok: ga4Connected },
+    { label: 'New signups',                     value: funnel.signups,     sub: funnel.sessionToSignupRate ? `${funnel.sessionToSignupRate}% of visits turned into signups` : 'People who created an account (last 30 days)', color: '#4ade80', icon: <Users size={16} />, ok: phConnected },
+    { label: 'Still active this week',          value: funnel.activeUsers, sub: funnel.signupToActiveRate ? `${funnel.signupToActiveRate}% of signups came back within 7 days` : 'Signed-up users seen in the last 7 days',   color: '#e7c873', icon: <TrendingUp size={16} />, ok: phConnected },
   ]
 
   const maxVal = Math.max(...steps.map(s => s.value ?? 0), 1)
@@ -418,57 +432,48 @@ function FunnelSteps({ funnel, gscConnected, ga4Connected, phConnected, signupDe
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {steps.map((step, i) => {
-        const barWidth   = step.value != null && step.ok ? Math.max(4, Math.round((step.value / maxVal) * 100)) : 0
-        const isSignups  = step.label === 'New signups'
-        const isOpen     = isSignups && signupsOpen
+        const barWidth = step.value != null && step.ok ? Math.max(4, Math.round((step.value / maxVal) * 100)) : 0
+        const isOpen   = openStep === i
 
         return (
           <div key={i}>
             <div
-              onClick={isSignups && phConnected ? () => setSignupsOpen(o => !o) : undefined}
+              onClick={() => toggle(i, step.ok)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 14,
-                cursor: isSignups && phConnected ? 'pointer' : 'default',
-                padding: isSignups ? '6px 10px' : '0',
-                borderRadius: 10,
-                background: isOpen ? 'var(--green)08' : 'transparent',
-                border: isSignups && phConnected ? `1px solid ${isOpen ? 'var(--green)40' : 'transparent'}` : '1px solid transparent',
+                cursor: step.ok ? 'pointer' : 'default',
+                padding: '6px 10px', borderRadius: 10,
+                background: isOpen ? `${step.color}08` : 'transparent',
+                border: step.ok ? `1px solid ${isOpen ? step.color + '40' : 'transparent'}` : '1px solid transparent',
                 transition: 'all 0.15s',
               }}
             >
-              {/* Icon + label */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 260 }}>
                 <span style={{ color: step.ok ? step.color : 'var(--text-faint)', display: 'flex', flexShrink: 0 }}>{step.icon}</span>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 600, color: step.ok ? 'var(--text)' : 'var(--text-faint)' }}>{step.label}</span>
-                    {isSignups && phConnected && (
-                      isOpen
-                        ? <ChevronUp size={13} style={{ color: 'var(--green)' }} />
-                        : <ChevronDown size={13} style={{ color: 'var(--green)' }} />
-                    )}
+                    {step.ok && (isOpen
+                      ? <ChevronUp size={13} style={{ color: step.color }} />
+                      : <ChevronDown size={13} style={{ color: step.color }} />)}
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-faint)', marginTop: 1 }}>{step.ok ? step.sub : 'Not connected'}</div>
                 </div>
               </div>
-              {/* Bar */}
               <div style={{ flex: 1, height: 8, background: 'var(--bg)', borderRadius: 99, overflow: 'hidden' }}>
                 <div style={{ width: `${barWidth}%`, height: '100%', background: step.color, borderRadius: 99, transition: 'width 0.5s ease', opacity: step.ok ? 1 : 0.2 }} />
               </div>
-              {/* Value */}
               <div style={{ fontSize: 16, fontWeight: 700, color: step.ok ? step.color : 'var(--text-faint)', minWidth: 52, textAlign: 'right' }}>
                 {step.ok ? fmt(step.value) : '—'}
               </div>
             </div>
 
-            {/* Expandable signup detail panel */}
-            {isSignups && signupsOpen && phConnected && (
-              <SignupDetailPanel
-                users={signupDetail.users}
-                signupsBySource={signupDetail.signupsBySource}
-                signupsByDevice={signupDetail.signupsByDevice}
-                signupsByCountry={signupDetail.signupsByCountry}
-              />
+            {isOpen && step.ok && (
+              i === 0 ? <ImpressionsPanel topQueries={data.gsc.topQueries} /> :
+              i === 1 ? <ClicksPanel topQueries={data.gsc.topQueries} topPages={data.gsc.topPages ?? []} /> :
+              i === 2 ? <SessionsPanel channelMatrix={data.channelMatrix} landingPages={data.enrichedLandingPages} /> :
+              i === 3 ? <SignupsPanel users={data.posthog.users} signupsBySource={data.posthog.signupsBySource} signupsByDevice={data.posthog.signupsByDevice} signupsByCountry={data.posthog.signupsByCountry} /> :
+                        <ActivePanel users={data.posthog.users} />
             )}
           </div>
         )
@@ -799,12 +804,7 @@ export default function AuthNewDashboard({ brand }: { brand: { id: string; name:
                 gscConnected={gscOk}
                 ga4Connected={ga4Ok}
                 phConnected={phOk}
-                signupDetail={{
-                  users:            data.posthog.users,
-                  signupsBySource:  data.posthog.signupsBySource,
-                  signupsByDevice:  data.posthog.signupsByDevice,
-                  signupsByCountry: data.posthog.signupsByCountry,
-                }}
+                data={data}
               />
             </Card>
 

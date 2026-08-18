@@ -63,6 +63,73 @@ function checkForApiError(data: unknown): string | null {
   return d.error.message
 }
 
+// ── Demo / mock data ───────────────────────────────────────────────────────────
+
+function getMockMetaAdsData(brandName: string): MetaAdsFetchResult {
+  const campaigns: MetaCampaign[] = [
+    { id: '1001', name: 'Brand Awareness — Q3', objective: 'REACH',        status: 'ACTIVE',  dailyBudgetUsd: 30 },
+    { id: '1002', name: 'Traffic — Blog Posts',  objective: 'TRAFFIC',     status: 'ACTIVE',  dailyBudgetUsd: 20 },
+    { id: '1003', name: 'Lead Gen — Free Trial', objective: 'LEAD_GENERATION', status: 'ACTIVE', dailyBudgetUsd: 50 },
+    { id: '1004', name: 'Retargeting — Buyers',  objective: 'CONVERSIONS', status: 'PAUSED',  dailyBudgetUsd: 40 },
+    { id: '1005', name: 'Video Views — Product', objective: 'VIDEO_VIEWS', status: 'PAUSED',  dailyBudgetUsd: 25 },
+  ]
+
+  const insights: MetaCampaignInsight[] = [
+    {
+      campaignId: '1001', campaignName: 'Brand Awareness — Q3',
+      spend: 198.40, impressions: 54200, clicks: 324, ctr: 0.60, cpc: 0.61, cpm: 3.66,
+      frequency: 4.8, reach: 11292, totalActions: 12,
+    },
+    {
+      campaignId: '1002', campaignName: 'Traffic — Blog Posts',
+      spend: 134.20, impressions: 28700, clicks: 512, ctr: 1.78, cpc: 0.26, cpm: 4.68,
+      frequency: 1.9, reach: 15100, totalActions: 38,
+    },
+    {
+      campaignId: '1003', campaignName: 'Lead Gen — Free Trial',
+      spend: 342.80, impressions: 19400, clicks: 186, ctr: 0.96, cpc: 1.84, cpm: 17.67,
+      frequency: 2.3, reach: 8435, totalActions: 4,
+    },
+    {
+      campaignId: '1004', campaignName: 'Retargeting — Buyers',
+      spend: 0,   impressions: 0,     clicks: 0,   ctr: 0,    cpc: 0,    cpm: 0,
+      frequency: 0,    reach: 0,      totalActions: 0,
+    },
+    {
+      campaignId: '1005', campaignName: 'Video Views — Product',
+      spend: 0,   impressions: 0,     clicks: 0,   ctr: 0,    cpc: 0,    cpm: 0,
+      frequency: 0,    reach: 0,      totalActions: 0,
+    },
+  ]
+
+  const activeInsights = insights.filter((i) => i.spend > 0)
+  const totalSpend       = activeInsights.reduce((s, i) => s + i.spend, 0)
+  const totalImpressions = activeInsights.reduce((s, i) => s + i.impressions, 0)
+  const totalClicks      = activeInsights.reduce((s, i) => s + i.clicks, 0)
+  const totalReach       = activeInsights.reduce((s, i) => s + i.reach, 0)
+  const totalActions     = activeInsights.reduce((s, i) => s + i.totalActions, 0)
+
+  const avgCtr       = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0
+  const avgCpc       = totalClicks > 0 ? totalSpend / totalClicks : 0
+  const avgCpm       = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0
+  const avgFrequency = activeInsights.reduce((s, i) => s + i.frequency, 0) / (activeInsights.length || 1)
+
+  return {
+    brandName,
+    campaigns,
+    insights,
+    totalSpend,
+    totalImpressions,
+    totalClicks,
+    totalReach,
+    totalActions,
+    avgCtr:       Math.round(avgCtr * 100) / 100,
+    avgCpc:       Math.round(avgCpc * 100) / 100,
+    avgCpm:       Math.round(avgCpm * 100) / 100,
+    avgFrequency: Math.round(avgFrequency * 100) / 100,
+  }
+}
+
 // ── Main fetcher ───────────────────────────────────────────────────────────────
 
 export async function fetchMetaAdsData(
@@ -74,6 +141,11 @@ export async function fetchMetaAdsData(
 
   if (!accessToken || !rawAccountId) {
     throw new Error('Meta Ads credentials not provided. Please add your Access Token and Ad Account ID.')
+  }
+
+  // Demo mode — use mock data without hitting the Meta API
+  if (accessToken === 'demo') {
+    return getMockMetaAdsData(brandName)
   }
 
   // Normalise account ID — strip act_ prefix, it gets added in URL construction

@@ -113,5 +113,26 @@ Generate exactly 2 findings:
 
 Use only what the data showed — do not invent findings from outside the provided data.`,
     },
+    {
+      slug: 'next-campaign',
+      label: 'Next Campaign Blueprint',
+      order: 6,
+      prompt: `Based on everything you have seen — campaign objectives in use, performance gaps, audience fatigue, conversion rates, and budget allocation — design the single best next campaign this account should run.
+
+Structure your output as exactly 4 findings:
+
+1. slug: "next-campaign-objective" — What objective should the next campaign use and why? Choose from: REACH, TRAFFIC, CONVERSIONS, LEAD_GENERATION, VIDEO_VIEWS, APP_INSTALLS. Justify based on gaps identified (e.g. if no LEAD_GENERATION campaigns exist but conversion data is weak, recommend it). verified: false, weight 2.
+
+2. slug: "next-campaign-audience" — Who should this campaign target? Recommend a specific audience strategy: cold (interest-based or lookalike), warm (website visitors / engagers), or hot (retargeting past buyers / leads). Base the recommendation on the frequency and reach data seen — if existing audiences are fatigued, push cold. verified: false, weight 2.
+
+3. slug: "next-campaign-creative" — What creative format and message angle should the ad use? Recommend: image, video, carousel, or collection. Suggest a specific message angle (e.g. social proof, problem-agitate-solve, limited offer, testimonial) based on what objectives and campaign names suggest the brand sells. Keep it plain English — no jargon. verified: false, weight 1.
+
+4. slug: "next-campaign-budget" — What daily budget should this campaign start with, and for how long? Base this on: the average daily budget of active campaigns, total 7-day spend divided by active campaign count, and the performance tier of the account. Give a specific dollar figure and a test duration (e.g. "$25/day for 14 days"). verified: false, weight 1.
+
+Rules:
+- Do NOT repeat findings from other categories. This is forward-looking only.
+- Every recommendation must reference at least one specific data point from the account (spend figure, campaign name, objective gap, frequency number).
+- Plain English throughout — a business owner reading this should immediately know what to do next.`,
+    },
   ],
 }

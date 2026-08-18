@@ -2685,7 +2685,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                           note={def.comingSoonNote ?? 'This module is in active development and will be available in an upcoming update.'}
                         />
                       ) : def.dynamic
-                        ? [...def.categories].sort((a, b) => {
+                        ? <>
+                          {[...def.categories].filter(cat => cat.slug !== 'next-campaign').sort((a, b) => {
                             const aCs = !!(a as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? 1 : 0
                             const bCs = !!(b as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? 1 : 0
                             return aCs - bCs
@@ -2751,7 +2752,27 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                               </div>
                             )
                             }
-                          })
+                          })}
+                          {modData.type === 'meta-ads' && (
+                            <a
+                              href="/dashboard/meta-ads/blueprint"
+                              className="ncb-cta-row"
+                            >
+                              <span className="ncb-cta-icon">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                </svg>
+                              </span>
+                              <span className="ncb-cta-text">
+                                <span className="ncb-cta-label">Next Campaign Blueprint</span>
+                                <span className="ncb-cta-sub">AI-generated plan for your next Meta ad campaign</span>
+                              </span>
+                              <svg className="ncb-cta-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                              </svg>
+                            </a>
+                          )}
+                        </>
                         : (def.categories as ModuleCategoryDefinition[]).map((cat) => {
                             const stats = getCatStats(cat, states)
                             const isOpenCat = openCats.has(cat.slug)

@@ -73,11 +73,11 @@ ${campaignSection}
 ${categoryInstructions}
 
 === Output requirements ===
-Analyse all campaign data above. Generate findings for ALL 5 categories listed.
+Analyse all campaign data above. Generate findings for ALL 6 categories listed.
 
 Return ONLY a valid JSON array. No markdown fences, no text outside the array. Each element:
 {
-  "category": string — exactly one of: "campaign-performance", "budget-efficiency", "audience-reach", "conversion-performance", "meta-score",
+  "category": string — exactly one of: "campaign-performance", "budget-efficiency", "audience-reach", "conversion-performance", "meta-score", "next-campaign",
   "slug": string — kebab-case, pattern: {category-slug}-{short-descriptor},
   "label": string — plain English, no ad jargon; cite actual campaign names; describe what is happening in simple terms,
   "weight": 1 | 2 | 3,
@@ -118,6 +118,7 @@ export async function analyzeMetaAds(
     'audience-reach',
     'conversion-performance',
     'meta-score',
+    'next-campaign',
   ])
 
   return results
