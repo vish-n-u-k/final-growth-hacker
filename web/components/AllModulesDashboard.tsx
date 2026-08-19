@@ -1657,7 +1657,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       </li>
                     ))}
                   </ol>
-                  {item.slug === 'color-contrast' && <ContrastChecker />}
+                  {item.slug === 'color-contrast' && <ContrastChecker websiteUrl={brand.websiteUrl} />}
                   {item.slug === 'posthog-installed' && (
                     <a
                       href="/downloads/posthog-setup.md"

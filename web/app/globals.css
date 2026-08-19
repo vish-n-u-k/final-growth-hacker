@@ -1407,10 +1407,42 @@ html.light .md-spin { border-color: rgba(23,154,80,0.3); border-top-color: var(-
   border-radius: 8px; overflow: hidden; margin-top: 12px;
 }
 .cc-checker-hd {
+  display: flex; align-items: center; justify-content: space-between;
   padding: 8px 14px; font-size: 11.5px; font-weight: 600;
   color: var(--text-dim); background: var(--accent); border-bottom: 1px solid var(--line);
 }
+.cc-rescan {
+  font-size: 11px; font-weight: 600; color: var(--green-bright);
+  background: none; border: none; cursor: pointer; padding: 0;
+}
+.cc-rescan:disabled { color: var(--text-faint); cursor: default; }
 .cc-checker-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+.cc-scan-section { display: flex; flex-direction: column; gap: 10px; }
+.cc-scan-status { font-size: 12.5px; color: var(--text-dim); margin: 0; line-height: 1.5; }
+.cc-scan-status.cc-scan-error { color: #e05c5c; }
+.cc-scan-status.cc-scan-ok { color: var(--green-bright); }
+.cc-violations { display: flex; flex-direction: column; gap: 8px; }
+.cc-violation {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+}
+.cc-violation-swatches { display: flex; flex-shrink: 0; }
+.cc-violation-dot {
+  width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line);
+  margin-left: -6px;
+}
+.cc-violation-dot:first-child { margin-left: 0; }
+.cc-violation-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cc-violation-ratio { font-size: 12.5px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cc-violation-snippet {
+  font-size: 10.5px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; display: block;
+}
+.cc-manual { border-top: 1px solid var(--line); padding-top: 12px; }
+.cc-manual-summary {
+  font-size: 12px; font-weight: 600; color: var(--text-dim); cursor: pointer; user-select: none;
+}
+.cc-manual-body { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
 .cc-swatch-row { display: flex; gap: 20px; flex-wrap: wrap; }
 .cc-swatch { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .cc-swatch input[type="color"] {
