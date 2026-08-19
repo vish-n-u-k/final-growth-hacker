@@ -95,6 +95,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               fixGuide: [
                 'Set a base body font size of at least 16px in your CSS (e.g. html { font-size: 16px; })',
                 'Avoid any text below 12px anywhere on the page, especially in footers, captions, and mobile nav menus',
+                'Use the checker below to find the exact elements and font sizes that are too small on your live page',
                 'Check the page on an actual mobile viewport (or Chrome DevTools device mode) — text that looks fine on desktop can be too small on mobile',
               ],
             },
