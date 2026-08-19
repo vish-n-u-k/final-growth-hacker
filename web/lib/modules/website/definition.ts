@@ -70,7 +70,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               weight: 2,
               fixGuide: [
                 'This score summarises every accessibility check Lighthouse ran on the page — fix the individual findings below (contrast, font size, tap targets, accessible names) and the score will rise automatically',
-                'Re-run this audit after making changes to see the updated score',
+                'The checker below re-checks your live page automatically, so you can see the updated score right after you make a change — no need to manually re-run the audit',
               ],
             },
             {

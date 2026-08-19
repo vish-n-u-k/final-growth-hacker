@@ -1467,6 +1467,9 @@ html.light .md-spin { border-color: rgba(23,154,80,0.3); border-top-color: var(-
 .cc-badge.cc-pass { color: var(--green-bright); background: var(--accent); border-color: var(--green); }
 .cc-badge.cc-fail { color: #e05c5c; background: rgba(224,92,92,0.08); border-color: rgba(224,92,92,0.4); }
 .cc-error { font-size: 12px; color: var(--text-faint); margin: 0; }
+.as-score-row { display: flex; align-items: baseline; gap: 4px; }
+.as-score-num { font-size: 32px; font-weight: 800; color: var(--text); line-height: 1; }
+.as-score-label { font-size: 13px; color: var(--text-faint); }
 
 /* Inline integration form inside checklist item */
 .sm-inline-form {

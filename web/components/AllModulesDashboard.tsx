@@ -17,6 +17,7 @@ import { CONFLICT_GROUPS, SLUG_TOPIC } from '@/lib/modules/conflict-map'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 import NotesDrawer from '@/components/NotesDrawer'
 import ContrastChecker from '@/components/ContrastChecker'
+import AccessibilityScoreChecker from '@/components/AccessibilityScoreChecker'
 
 function renderMdStep(step: string): React.ReactNode {
   const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
@@ -1658,6 +1659,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     ))}
                   </ol>
                   {item.slug === 'color-contrast' && <ContrastChecker websiteUrl={brand.websiteUrl} />}
+                  {item.slug === 'accessibility-score' && <AccessibilityScoreChecker websiteUrl={brand.websiteUrl} />}
                   {item.slug === 'posthog-installed' && (
                     <a
                       href="/downloads/posthog-setup.md"
