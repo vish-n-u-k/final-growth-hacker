@@ -148,6 +148,7 @@ async function runLighthouse(url: string): Promise<Record<string, number> | null
 export interface A11yData {
   accessibilityScore: number
   colorContrastPass: boolean | null
+  colorContrastFailCount: number | null
   fontSizePass: boolean | null
   tapTargetsPass: boolean | null
   accessibleNamesPass: boolean | null
@@ -169,7 +170,7 @@ async function fetchPsiAccessibility(url: string): Promise<A11yData | null> {
     const json = await res.json() as Record<string, unknown>
     const lhr = json.lighthouseResult as Record<string, unknown> | undefined
     const cats = lhr?.categories as Record<string, { score: number | null }> | undefined
-    const audits = lhr?.audits as Record<string, { score: number | null }> | undefined
+    const audits = lhr?.audits as Record<string, { score: number | null; details?: { items?: unknown[] } }> | undefined
 
     const auditPass = (id: string): boolean | null => {
       const a = audits?.[id]
@@ -183,9 +184,13 @@ async function fetchPsiAccessibility(url: string): Promise<A11yData | null> {
       ? null
       : (buttonName ?? true) && (linkName ?? true)
 
+    const colorContrastItems = audits?.['color-contrast']?.details?.items
+    const colorContrastFailCount = Array.isArray(colorContrastItems) ? colorContrastItems.length : null
+
     return {
       accessibilityScore: Math.round((cats?.accessibility?.score ?? 0) * 100),
       colorContrastPass: auditPass('color-contrast'),
+      colorContrastFailCount,
       fontSizePass: auditPass('font-size'),
       tapTargetsPass: auditPass('tap-targets'),
       accessibleNamesPass,
@@ -244,7 +249,7 @@ function auditUX($: cheerio.CheerioAPI, a11yData: A11yData | null): Finding[] {
 
   // Accessibility (from Google PageSpeed Insights, optional)
   if (a11yData) {
-    const { accessibilityScore, colorContrastPass, fontSizePass, tapTargetsPass, accessibleNamesPass } = a11yData
+    const { accessibilityScore, colorContrastPass, colorContrastFailCount, fontSizePass, tapTargetsPass, accessibleNamesPass } = a11yData
 
     if (accessibilityScore >= 90) {
       findings.push(f('accessibility-score', 'good', `Accessibility score is ${accessibilityScore}/100.`))
@@ -259,8 +264,11 @@ function auditUX($: cheerio.CheerioAPI, a11yData: A11yData | null): Finding[] {
     }
 
     if (colorContrastPass === false) {
+      const countText = colorContrastFailCount && colorContrastFailCount > 0
+        ? `${colorContrastFailCount} element${colorContrastFailCount === 1 ? '' : 's'} on this page`
+        : 'Some text'
       findings.push(f('color-contrast', 'bad',
-        'Some text does not have sufficient contrast against its background — fails WCAG AA.',
+        `${countText} do${colorContrastFailCount === 1 ? 'es' : ''} not have sufficient contrast against its background — fails WCAG AA.`,
         'Ensure body text has at least a 4.5:1 contrast ratio (3:1 for large text/18px+ bold) against its background.'))
     } else if (colorContrastPass === true) {
       findings.push(f('color-contrast', 'good', 'Text meets WCAG AA color contrast requirements.'))

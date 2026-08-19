@@ -82,7 +82,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               fixGuide: [
                 'Find the low-contrast text — usually light gray text on a white/light background, or light text on a light-colored button',
                 'Body text needs at least a 4.5:1 contrast ratio against its background; large text (18px+, or 14px+ bold) needs at least 3:1',
-                'Use a contrast checker such as webaim.org/resources/contrastchecker to test your exact colors before and after',
+                'Use the contrast checker below to test your exact text and background colors before and after',
                 'Darken the text color or lighten the background until the ratio passes — small adjustments are usually enough',
               ],
             },

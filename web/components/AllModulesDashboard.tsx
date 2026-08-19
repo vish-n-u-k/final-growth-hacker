@@ -16,6 +16,7 @@ import { PLAYBOOK_SECTIONS } from '@/lib/playbook/fields'
 import { CONFLICT_GROUPS, SLUG_TOPIC } from '@/lib/modules/conflict-map'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 import NotesDrawer from '@/components/NotesDrawer'
+import ContrastChecker from '@/components/ContrastChecker'
 
 function renderMdStep(step: string): React.ReactNode {
   const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
@@ -1656,6 +1657,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       </li>
                     ))}
                   </ol>
+                  {item.slug === 'color-contrast' && <ContrastChecker />}
                   {item.slug === 'posthog-installed' && (
                     <a
                       href="/downloads/posthog-setup.md"
