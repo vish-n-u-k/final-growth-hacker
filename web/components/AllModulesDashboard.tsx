@@ -1804,6 +1804,14 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             GrowJin
           </div>
           <div className="md-header-actions">
+            <a
+              href="/today"
+              style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-dim)', textDecoration: 'none', padding: '6px 12px', borderRadius: 8, border: '1px solid transparent', transition: 'background 0.15s, border-color 0.15s, color 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-soft)'; e.currentTarget.style.color = 'var(--text)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-dim)' }}
+            >
+              Today
+            </a>
             <ThemeToggle />
             <button
               onClick={() => setNotesOpen(true)}

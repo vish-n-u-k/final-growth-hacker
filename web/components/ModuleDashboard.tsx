@@ -664,6 +664,14 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
             GrowJin
           </div>
           <div className="md-header-actions">
+            <a
+              href="/today"
+              style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-dim)', textDecoration: 'none', padding: '6px 12px', borderRadius: 8, border: '1px solid transparent', transition: 'background 0.15s, color 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent)'; e.currentTarget.style.color = 'var(--text)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-dim)' }}
+            >
+              Today
+            </a>
             <Button
               variant="outline"
               onClick={overall.pct >= 100 ? undefined : downloadFullModuleMd}

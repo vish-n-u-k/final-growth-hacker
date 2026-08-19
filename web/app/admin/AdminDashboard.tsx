@@ -5,6 +5,19 @@ import type { analysisRequests } from '@/lib/db/schema'
 
 type Request = typeof analysisRequests.$inferSelect
 
+interface NoteRow {
+  id: string
+  userId: string
+  userEmail: string
+  title: string
+  content: string
+  tags: string[]
+  pinned: boolean
+  moduleType: string | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
 interface UserRow {
   brandId: string
   userId: string
@@ -38,7 +51,7 @@ interface SendResult {
 }
 
 export default function AdminDashboard({ requests: initial, gmailAddress, gmailParam }: Props) {
-  const [tab, setTab] = useState<'queue' | 'users'>('queue')
+  const [tab, setTab] = useState<'queue' | 'users' | 'notes'>('queue')
   const [requests, setRequests] = useState(initial)
   const [running, setRunning] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -48,6 +61,11 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<{ sent: number; total: number; results: SendResult[] } | null>(null)
   const [sendError, setSendError] = useState('')
+  const [notes, setNotes] = useState<NoteRow[]>([])
+  const [notesLoading, setNotesLoading] = useState(false)
+  const [notesError, setNotesError] = useState('')
+  const [notesSearch, setNotesSearch] = useState('')
+  const [expandedNote, setExpandedNote] = useState<string | null>(null)
 
   async function handleSendDailyEmail() {
     setSending(true)
@@ -77,6 +95,19 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
       .catch(() => setUsersError('Failed to load users.'))
       .finally(() => setUsersLoading(false))
   }, [tab, users.length])
+
+  useEffect(() => {
+    if (tab !== 'notes' || notes.length > 0) return
+    setNotesLoading(true)
+    fetch('/api/admin/notes')
+      .then(r => r.json())
+      .then((data: { notes?: NoteRow[]; error?: string }) => {
+        if (data.error) setNotesError(data.error)
+        else setNotes(data.notes ?? [])
+      })
+      .catch(() => setNotesError('Failed to load notes.'))
+      .finally(() => setNotesLoading(false))
+  }, [tab, notes.length])
 
   const handleRun = async (req: Request) => {
     setRunning(prev => ({ ...prev, [req.id]: true }))
@@ -121,7 +152,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
 
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid var(--line, #1e3830)', paddingBottom: 0 }}>
-        {(['queue', 'users'] as const).map(t => (
+        {(['queue', 'users', 'notes'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -139,7 +170,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
               textTransform: 'capitalize',
             }}
           >
-            {t === 'queue' ? `Analysis Queue (${pending.length} pending)` : 'Users'}
+            {t === 'queue' ? `Analysis Queue (${pending.length} pending)` : t === 'users' ? 'Users' : 'Notes'}
           </button>
         ))}
       </div>
@@ -291,6 +322,93 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
             </section>
           )}
         </>
+      )}
+
+      {tab === 'notes' && (
+        <section>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+            <input
+              value={notesSearch}
+              onChange={e => setNotesSearch(e.target.value)}
+              placeholder="Search notes…"
+              style={{ flex: 1, padding: '7px 12px', background: 'var(--card, #122620)', border: '1px solid var(--line, #1e3830)', borderRadius: 7, color: 'var(--text, #e8f3ec)', fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
+            />
+            <span style={{ fontSize: 13, color: 'var(--text-dim, #8aa897)', whiteSpace: 'nowrap' }}>
+              {notes.length} total
+            </span>
+          </div>
+
+          {notesLoading && <p style={{ color: 'var(--text-dim, #8aa897)', fontSize: 14 }}>Loading notes…</p>}
+          {notesError && <p style={{ color: '#f87171', fontSize: 14 }}>{notesError}</p>}
+          {!notesLoading && !notesError && notes.length === 0 && (
+            <p style={{ color: 'var(--text-dim, #8aa897)', fontSize: 14 }}>No notes found.</p>
+          )}
+
+          {!notesLoading && notes.length > 0 && (() => {
+            const q = notesSearch.toLowerCase()
+            const filtered = notes.filter(n =>
+              !q ||
+              n.title.toLowerCase().includes(q) ||
+              n.content.toLowerCase().includes(q) ||
+              n.userEmail.toLowerCase().includes(q) ||
+              (n.moduleType ?? '').toLowerCase().includes(q) ||
+              n.tags.some(t => t.toLowerCase().includes(q))
+            )
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {filtered.length === 0 && (
+                  <p style={{ color: 'var(--text-dim, #8aa897)', fontSize: 14 }}>No notes match.</p>
+                )}
+                {filtered.map(note => (
+                  <div
+                    key={note.id}
+                    style={{ background: 'var(--card, #122620)', border: '1px solid var(--line, #1e3830)', borderRadius: 10, padding: '12px 16px' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          {note.pinned && (
+                            <span style={{ fontSize: 11, color: 'var(--gold, #7a5a08)', fontWeight: 600 }}>Pinned</span>
+                          )}
+                          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text, #e8f3ec)' }}>
+                            {note.title || <span style={{ fontStyle: 'italic', color: 'var(--text-dim, #8aa897)' }}>Untitled</span>}
+                          </span>
+                          {note.moduleType && (
+                            <span style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(47,191,113,0.12)', border: '1px solid rgba(47,191,113,0.25)', borderRadius: 10, color: 'var(--green, #2fbf71)' }}>
+                              {note.moduleType}
+                            </span>
+                          )}
+                          {note.tags.map(t => (
+                            <span key={t} style={{ fontSize: 11, padding: '2px 7px', background: 'rgba(47,191,113,0.08)', border: '1px solid rgba(47,191,113,0.15)', borderRadius: 10, color: 'var(--text-dim, #8aa897)' }}>
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                        <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-dim, #8aa897)' }}>
+                          {note.userEmail} · {note.createdAt ? timeAgo(new Date(note.createdAt)) : '—'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setExpandedNote(expandedNote === note.id ? null : note.id)}
+                        style={{ background: 'none', border: '1px solid var(--line, #1e3830)', borderRadius: 6, color: 'var(--text-dim, #8aa897)', fontSize: 12, padding: '4px 10px', cursor: 'pointer', flexShrink: 0 }}
+                      >
+                        {expandedNote === note.id ? 'Hide' : 'View'}
+                      </button>
+                    </div>
+                    {expandedNote === note.id && note.content && (
+                      <div style={{ marginTop: 12, padding: '10px 12px', background: 'var(--bg-soft, #f0f6f2)', borderRadius: 7, fontSize: 13, color: 'var(--text, #e8f3ec)', lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                        {note.content}
+                      </div>
+                    )}
+                    {expandedNote === note.id && !note.content && (
+                      <p style={{ marginTop: 8, fontSize: 13, color: 'var(--text-faint, #7aaa8a)', fontStyle: 'italic' }}>No content.</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+        </section>
       )}
 
       {tab === 'users' && (

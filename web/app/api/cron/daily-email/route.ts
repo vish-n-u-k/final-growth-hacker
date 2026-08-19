@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { brands, brandIntegrations } from '@/lib/db/schema'
+import { brands, brandIntegrations, moduleItems, modules } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { createSign } from 'crypto'
 import { getValidAdminGmailToken, getAdminGmailAddress } from '@/lib/gmail/admin-token'
+import { detectSignals, type ActionCard } from '@/lib/daily/signals'
 
 export const dynamic  = 'force-dynamic'
 export const maxDuration = 60
@@ -207,7 +208,7 @@ function fmt(n: number): string {
 
 // ── Email HTML builder (table-based, inline hex — Outlook safe) ───────────────
 
-function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: PhSummary | null): string {
+function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: PhSummary | null, actionCards: ActionCard[] = []): string {
   const flags = computeFlags(ga4, ph)
   const dashUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com'}/authAnalytics`
 
@@ -361,6 +362,8 @@ function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: 
 
       ${ph || ga4?.topPage ? engagementBlock : ''}
 
+      ${actionCards.length > 0 ? divider + buildActionsSection(actionCards, process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com') : ''}
+
     </td></tr>
 
     <!-- Footer -->
@@ -381,6 +384,41 @@ function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: 
 </table>
 </body>
 </html>`
+}
+
+// ── Today's Actions section ───────────────────────────────────────────────────
+
+function buildActionsSection(cards: ActionCard[], appUrl: string): string {
+  if (cards.length === 0) return ''
+
+  const TYPE_LABEL: Record<string, string> = {
+    outreach: 'OUTREACH', social: 'SOCIAL', seo: 'SEO', content: 'CONTENT', 'module-item': 'ACTION',
+  }
+  const TYPE_COLOR: Record<string, string> = {
+    outreach: '#d97706', social: '#7c3aed', seo: '#16a34a', content: '#0284c7', 'module-item': '#dc2626',
+  }
+
+  const cardRows = cards.slice(0, 2).map(card => {
+    const label = TYPE_LABEL[card.type] ?? 'ACTION'
+    const color = TYPE_COLOR[card.type] ?? '#16a34a'
+    return `
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 10px;">
+    <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-left:3px solid ${color};border-radius:10px;padding:14px 16px;">
+      <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${color};">${label}</p>
+      <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#111827;">${card.headline}</p>
+      <p style="margin:0 0 10px;font-size:13px;color:#6b7280;line-height:1.5;">${card.reason}</p>
+      <table role="presentation" cellpadding="0" cellspacing="0">
+        <tr><td style="background:#16a34a;border-radius:6px;padding:0;">
+          <a href="${appUrl}/today" style="display:inline-block;font-size:13px;font-weight:600;color:#ffffff;text-decoration:none;padding:8px 16px;">View in app &#8594;</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>`
+  }).join('')
+
+  return `
+  <p style="margin:0 0 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#9ca3af;">Today&rsquo;s Actions</p>
+  ${cardRows}`
 }
 
 // ── Gmail send ────────────────────────────────────────────────────────────────
@@ -469,7 +507,30 @@ export async function GET(req: NextRequest) {
         : Promise.resolve(null),
     ])
 
-    const html = buildHtml(brand.name, dateLabel, ga4Data, phData)
+    // Fetch critical unchecked items for Today's Actions section
+    let actionCards: ActionCard[] = []
+    try {
+      const brandModules = await db.select({ id: modules.id, type: modules.type })
+        .from(modules)
+        .where(eq(modules.brandId, brand.id))
+      const brandModuleIds = brandModules.map(m => m.id)
+      if (brandModuleIds.length > 0) {
+        const critItems = await db.select({ id: moduleItems.id, slug: moduleItems.slug, label: moduleItems.label, moduleId: moduleItems.moduleId })
+          .from(moduleItems)
+          .where(and(eq(moduleItems.weight, 3), eq(moduleItems.aiVerified, false), eq(moduleItems.userChecked, false)))
+          .limit(10)
+        const moduleTypeMap = new Map(brandModules.map(m => [m.id, m.type]))
+        const unchecked = critItems
+          .filter(i => brandModuleIds.includes(i.moduleId))
+          .map(i => ({ id: i.id, slug: i.slug, label: i.label, moduleId: i.moduleId, moduleType: moduleTypeMap.get(i.moduleId) ?? 'module' }))
+
+        const ga4Signal = ga4Data ? { visits: ga4Data.visits, visitsPrior: ga4Data.visitsPrior } : null
+        const phSignal = phData ? { dau: phData.dau, dauPrior: phData.dauPrior, dauTrend: phData.dauTrend } : null
+        actionCards = detectSignals({ ga4: ga4Signal, ph: phSignal, uncheckedCriticalItems: unchecked }, 2)
+      }
+    } catch { /* non-fatal */ }
+
+    const html = buildHtml(brand.name, dateLabel, ga4Data, phData, actionCards)
     const subject = `${brand.name} daily digest · last 24h`
 
     try {

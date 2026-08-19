@@ -23,6 +23,10 @@ export const brands = pgTable('brands', {
   analyticsCardOverrides: jsonb('analytics_card_overrides'), // per-card label/event overrides for built-in Type B cards
   dailyEmailEnabled: boolean('daily_email_enabled').default(false),
   notificationEmail: text('notification_email'), // email to send daily digest to (set when user opts in)
+  dailyStreak: integer('daily_streak').default(0),
+  lastActionDate: text('last_action_date'), // YYYY-MM-DD — last day user clicked a Today CTA
+  dailySignalsCache: jsonb('daily_signals_cache'), // cached ActionCard[] from signal engine
+  signalsCachedAt: timestamp('signals_cached_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 

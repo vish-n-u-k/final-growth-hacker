@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { IntegrationDefinition } from '@/lib/integrations/registry'
 import { INTEGRATION_GROUPS } from '@/lib/integrations/registry'
@@ -30,7 +30,33 @@ type Tab = 'brand' | 'playbook' | 'integrations' | 'claude-code' | 'account'
 export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations, mcpKeyPrefix, initialTab }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab ?? 'brand')
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [oauthToast, setOauthToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Show toast after OAuth redirect
+  useEffect(() => {
+    const connected = searchParams.get('oauth_connected')
+    const label = searchParams.get('label')
+    const error = searchParams.get('oauth_error')
+    if (connected) {
+      setTab('integrations')
+      setOauthToast({ type: 'success', msg: `Connected ${label ?? connected} successfully` })
+      // Clean up URL
+      const url = new URL(window.location.href)
+      url.searchParams.delete('oauth_connected')
+      url.searchParams.delete('label')
+      window.history.replaceState({}, '', url.toString())
+      setTimeout(() => setOauthToast(null), 5000)
+    } else if (error) {
+      setOauthToast({ type: 'error', msg: `Connection failed: ${error}` })
+      const url = new URL(window.location.href)
+      url.searchParams.delete('oauth_error')
+      window.history.replaceState({}, '', url.toString())
+      setTimeout(() => setOauthToast(null), 6000)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleTabClick = (key: Tab) => {
     setTab(key)
@@ -46,6 +72,18 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
 
   return (
     <>
+      {/* OAuth toast */}
+      {oauthToast && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 9999,
+          background: oauthToast.type === 'success' ? 'var(--green)' : '#dc2626',
+          color: '#fff', borderRadius: 10, padding: '12px 20px',
+          fontSize: 14, fontWeight: 500, boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+          maxWidth: 360, lineHeight: 1.4,
+        }}>
+          {oauthToast.msg}
+        </div>
+      )}
       <header>
         <div className="md-header-inner">
           <div className="logo" style={{ cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
@@ -613,6 +651,8 @@ function IntegrationsSection({
     )
   })
 
+  const oauthProviders = ['meta_oauth', 'linkedin_oauth', 'pinterest_oauth']
+
   const grouped = filtered
     .filter((def) => !def.customUI)
     .reduce<Record<string, IntegrationDefinition[]>>((acc, def) => {
@@ -621,6 +661,9 @@ function IntegrationsSection({
       acc[g].push(def)
       return acc
     }, {})
+
+  // OAuth providers (customUI=true) need to be tracked separately for the social group
+  const oauthDefs = registry.filter((def) => oauthProviders.includes(def.provider))
 
   const groupOrder = ['developer', 'analytics', 'social']
 
@@ -670,6 +713,14 @@ function IntegrationsSection({
             </button>
             {isOpen && (
               <div className="st-int-group-body">
+                {groupKey === 'social' && oauthDefs.length > 0 && (
+                  <div className="st-oauth-section">
+                    <p className="st-oauth-section-label">One-click OAuth</p>
+                    {oauthDefs.map((def) => (
+                      <OAuthCard key={def.provider} def={def} connected={connected[def.provider] ?? null} />
+                    ))}
+                  </div>
+                )}
                 {groupKey === 'social' && (
                   <SocialProfilesCard connected={connected['social_profiles'] ?? null} />
                 )}
@@ -729,6 +780,120 @@ function ProviderIcon({ provider }: { provider: string }) {
         </svg>
       )}
     </span>
+  )
+}
+
+// ── OAuth Card ────────────────────────────────────────────────────────────────
+
+const OAUTH_PLATFORM_META: Record<string, { color: string; label: string; icon: React.ReactNode }> = {
+  meta_oauth: {
+    color: '#1877f2',
+    label: 'Connect with Meta',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2.04c-5.5 0-10 4.49-10 10.02 0 5 3.66 9.15 8.44 9.9v-7H7.9v-2.9h2.54V9.85c0-2.51 1.49-3.89 3.78-3.89 1.09 0 2.23.19 2.23.19v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.45 2.9h-2.33v7a10 10 0 0 0 8.44-9.9c0-5.53-4.5-10.02-10-10.02Z"/>
+      </svg>
+    ),
+  },
+  linkedin_oauth: {
+    color: '#0a66c2',
+    label: 'Connect with LinkedIn',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2z"/>
+        <circle cx="4" cy="4" r="2"/>
+      </svg>
+    ),
+  },
+  pinterest_oauth: {
+    color: '#e60023',
+    label: 'Connect with Pinterest',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 0C5.373 0 0 5.373 0 12c0 5.084 3.163 9.426 7.627 11.174-.105-.949-.2-2.405.042-3.441.218-.937 1.407-5.965 1.407-5.965s-.359-.719-.359-1.782c0-1.668.967-2.914 2.171-2.914 1.023 0 1.518.769 1.518 1.69 0 1.029-.655 2.568-.994 3.995-.283 1.194.599 2.169 1.777 2.169 2.133 0 3.772-2.249 3.772-5.495 0-2.873-2.064-4.882-5.012-4.882-3.414 0-5.418 2.561-5.418 5.207 0 1.031.397 2.138.893 2.738a.36.36 0 0 1 .083.345l-.333 1.36c-.053.22-.174.267-.402.161-1.499-.698-2.436-2.889-2.436-4.649 0-3.785 2.75-7.262 7.929-7.262 4.163 0 7.398 2.967 7.398 6.931 0 4.136-2.607 7.464-6.227 7.464-1.216 0-2.359-.632-2.75-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0z"/>
+      </svg>
+    ),
+  },
+}
+
+function OAuthCard({
+  def,
+  connected,
+}: {
+  def: IntegrationDefinition
+  connected: ConnectedIntegration | null
+}) {
+  const [disconnecting, setDisconnecting] = useState(false)
+  const router = useRouter()
+  const isConnected = connected?.status === 'connected'
+  const meta = OAUTH_PLATFORM_META[def.provider]
+  if (!meta) return null
+
+  const handleDisconnect = async () => {
+    if (!confirm(`Disconnect ${def.name}? Live data will stop updating.`)) return
+    setDisconnecting(true)
+    await fetch('/api/settings/integrations', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: def.provider }),
+    })
+    router.refresh()
+    setDisconnecting(false)
+  }
+
+  // Pull display info from metadata
+  const m = connected?.metadata ?? {}
+  const displayLines: string[] = []
+  if (def.provider === 'meta_oauth') {
+    if (m.instagram_username) displayLines.push(`Instagram @${m.instagram_username}`)
+    if (m.instagram_followers) displayLines.push(`${Number(m.instagram_followers).toLocaleString()} followers`)
+    if (m.page_name) displayLines.push(`Facebook: ${m.page_name}`)
+  } else if (def.provider === 'linkedin_oauth') {
+    if (m.org_name) displayLines.push(m.org_name)
+    if (m.org_followers) displayLines.push(`${Number(m.org_followers).toLocaleString()} followers`)
+    if (m.profile_name) displayLines.push(`Admin: ${m.profile_name}`)
+  } else if (def.provider === 'pinterest_oauth') {
+    if (m.username) displayLines.push(`@${m.username}`)
+    if (m.followers) displayLines.push(`${Number(m.followers).toLocaleString()} followers`)
+    if (m.pins) displayLines.push(`${m.pins} pins`)
+  }
+
+  return (
+    <div className="st-oauth-card">
+      <div className="st-oauth-card-left">
+        <div className="st-oauth-icon" style={{ color: meta.color }}>{meta.icon}</div>
+        <div>
+          <div className="st-oauth-name">{def.name}</div>
+          <div className="st-oauth-desc">{def.description}</div>
+          {isConnected && displayLines.length > 0 && (
+            <div className="st-oauth-info">
+              {displayLines.map((l, i) => <span key={i} className="st-oauth-chip">{l}</span>)}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className="st-oauth-card-right">
+        {isConnected ? (
+          <>
+            <span className="st-oauth-badge-connected">Connected</span>
+            <button className="st-btn-danger" onClick={handleDisconnect} disabled={disconnecting} style={{ fontSize: 12, padding: '5px 12px' }}>
+              {disconnecting ? 'Removing...' : 'Disconnect'}
+            </button>
+          </>
+        ) : (
+          <a
+            href={`/api/connect/${def.provider}`}
+            className="st-oauth-connect-btn"
+            style={{ background: meta.color }}
+          >
+            <span style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: 7 }}>
+              {meta.icon}
+              {meta.label}
+            </span>
+          </a>
+        )}
+      </div>
+    </div>
   )
 }
 

@@ -429,6 +429,35 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     ],
   },
 
+  // ── Social OAuth (one-click connect via VidyBack app credentials) ────────────
+  {
+    provider: 'meta_oauth',
+    name: 'Meta (Instagram + Facebook)',
+    description: 'Connect your Instagram Business and Facebook Page in one click. Pulls follower count, post reach, impressions, and engagement via the Graph API.',
+    type: 'oauth',
+    group: 'social',
+    fields: [],
+    customUI: true,
+  },
+  {
+    provider: 'linkedin_oauth',
+    name: 'LinkedIn',
+    description: 'Connect your LinkedIn Company Page to pull follower count, post impressions, and engagement data.',
+    type: 'oauth',
+    group: 'social',
+    fields: [],
+    customUI: true,
+  },
+  {
+    provider: 'pinterest_oauth',
+    name: 'Pinterest',
+    description: 'Connect your Pinterest account to pull follower count, pin count, and board data.',
+    type: 'oauth',
+    group: 'social',
+    fields: [],
+    customUI: true,
+  },
+
   // ── Social Media ────────────────────────────────────────────────────────────
   {
     provider: 'social_profiles',
