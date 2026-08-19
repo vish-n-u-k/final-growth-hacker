@@ -57,6 +57,73 @@ export const WEBSITE_MODULE: ModuleDefinition = {
             },
           ],
         },
+        {
+          slug: 'accessibility-checks',
+          label: 'Accessibility & WCAG',
+          order: 2,
+          items: [
+            {
+              slug: 'accessibility-score',
+              label: 'Accessibility score',
+              prompt: 'Checked by rule engine (Google Lighthouse accessibility audit).',
+              order: 1,
+              weight: 2,
+              fixGuide: [
+                'This score summarises every accessibility check Lighthouse ran on the page — fix the individual findings below (contrast, font size, tap targets, accessible names) and the score will rise automatically',
+                'Re-run this audit after making changes to see the updated score',
+              ],
+            },
+            {
+              slug: 'color-contrast',
+              label: 'Color contrast',
+              prompt: 'Checked by rule engine (Google Lighthouse accessibility audit, WCAG 1.4.3).',
+              order: 2,
+              weight: 3,
+              fixGuide: [
+                'Find the low-contrast text — usually light gray text on a white/light background, or light text on a light-colored button',
+                'Body text needs at least a 4.5:1 contrast ratio against its background; large text (18px+, or 14px+ bold) needs at least 3:1',
+                'Use a contrast checker such as webaim.org/resources/contrastchecker to test your exact colors before and after',
+                'Darken the text color or lighten the background until the ratio passes — small adjustments are usually enough',
+              ],
+            },
+            {
+              slug: 'font-size',
+              label: 'Legible font sizes',
+              prompt: 'Checked by rule engine (Google Lighthouse SEO/mobile-friendliness audit).',
+              order: 3,
+              weight: 2,
+              fixGuide: [
+                'Set a base body font size of at least 16px in your CSS (e.g. html { font-size: 16px; })',
+                'Avoid any text below 12px anywhere on the page, especially in footers, captions, and mobile nav menus',
+                'Check the page on an actual mobile viewport (or Chrome DevTools device mode) — text that looks fine on desktop can be too small on mobile',
+              ],
+            },
+            {
+              slug: 'tap-targets',
+              label: 'Tap target sizing',
+              prompt: 'Checked by rule engine (Google Lighthouse audit, WCAG 2.5.5).',
+              order: 4,
+              weight: 2,
+              fixGuide: [
+                'Make every clickable button, link, and icon at least 48x48px on mobile — add padding if the visible icon/text is smaller',
+                'Leave at least 8px of spacing between adjacent tap targets (e.g. social icons, nav items) so users don\'t mis-tap',
+                'Pay special attention to mobile nav menus, footer links, and icon-only buttons — these are the most common offenders',
+              ],
+            },
+            {
+              slug: 'accessible-names',
+              label: 'Buttons & links have accessible names',
+              prompt: 'Checked by rule engine (Google Lighthouse accessibility audit, WCAG 4.1.2).',
+              order: 5,
+              weight: 3,
+              fixGuide: [
+                'Icon-only buttons (hamburger menu, search, close, social icons) need an aria-label describing what they do, e.g. <button aria-label="Open menu">',
+                'Links that only contain an image need alt text on the image, or an aria-label on the link itself',
+                'Never leave a button or link with no visible text and no aria-label — screen reader users will hear nothing useful',
+              ],
+            },
+          ],
+        },
       ],
     },
 

@@ -143,9 +143,61 @@ async function runLighthouse(url: string): Promise<Record<string, number> | null
   }
 }
 
+// ── Accessibility (Google PageSpeed Insights) ─────────────────────────────────
+
+export interface A11yData {
+  accessibilityScore: number
+  colorContrastPass: boolean | null
+  fontSizePass: boolean | null
+  tapTargetsPass: boolean | null
+  accessibleNamesPass: boolean | null
+}
+
+async function fetchPsiAccessibility(url: string): Promise<A11yData | null> {
+  try {
+    const key = process.env.GOOGLE_PSI_API_KEY
+    const params = new URLSearchParams({ url, strategy: 'mobile' })
+    params.append('category', 'accessibility')
+    params.append('category', 'seo')
+    if (key) params.set('key', key)
+    const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params.toString()}`
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 8000)
+    const res = await fetch(endpoint, { signal: controller.signal })
+    clearTimeout(timer)
+    if (!res.ok) return null
+    const json = await res.json() as Record<string, unknown>
+    const lhr = json.lighthouseResult as Record<string, unknown> | undefined
+    const cats = lhr?.categories as Record<string, { score: number | null }> | undefined
+    const audits = lhr?.audits as Record<string, { score: number | null }> | undefined
+
+    const auditPass = (id: string): boolean | null => {
+      const a = audits?.[id]
+      if (!a || a.score === null || a.score === undefined) return null
+      return a.score === 1
+    }
+
+    const buttonName = auditPass('button-name')
+    const linkName = auditPass('link-name')
+    const accessibleNamesPass = buttonName === null && linkName === null
+      ? null
+      : (buttonName ?? true) && (linkName ?? true)
+
+    return {
+      accessibilityScore: Math.round((cats?.accessibility?.score ?? 0) * 100),
+      colorContrastPass: auditPass('color-contrast'),
+      fontSizePass: auditPass('font-size'),
+      tapTargetsPass: auditPass('tap-targets'),
+      accessibleNamesPass,
+    }
+  } catch {
+    return null
+  }
+}
+
 // ── 1. UX & UI ────────────────────────────────────────────────────────────────
 
-function auditUX($: cheerio.CheerioAPI): Finding[] {
+function auditUX($: cheerio.CheerioAPI, a11yData: A11yData | null): Finding[] {
   const findings: Finding[] = []
 
   // has-title
@@ -188,6 +240,55 @@ function auditUX($: cheerio.CheerioAPI): Finding[] {
       '<meta name="viewport" content="width=device-width, initial-scale=1">'))
   } else {
     findings.push(f('viewport-meta', 'good', 'Viewport meta tag is correctly configured.'))
+  }
+
+  // Accessibility (from Google PageSpeed Insights, optional)
+  if (a11yData) {
+    const { accessibilityScore, colorContrastPass, fontSizePass, tapTargetsPass, accessibleNamesPass } = a11yData
+
+    if (accessibilityScore >= 90) {
+      findings.push(f('accessibility-score', 'good', `Accessibility score is ${accessibilityScore}/100.`))
+    } else if (accessibilityScore >= 50) {
+      findings.push(f('accessibility-score', 'ok',
+        `Accessibility score is ${accessibilityScore}/100 — several issues affect users with disabilities.`,
+        'Review the color contrast, font size, tap target, and accessible name findings below and fix the highest-impact ones first.'))
+    } else {
+      findings.push(f('accessibility-score', 'bad',
+        `Accessibility score is ${accessibilityScore}/100 — significant barriers for users with disabilities.`,
+        'Prioritise fixing color contrast, accessible names, and tap target sizing.'))
+    }
+
+    if (colorContrastPass === false) {
+      findings.push(f('color-contrast', 'bad',
+        'Some text does not have sufficient contrast against its background — fails WCAG AA.',
+        'Ensure body text has at least a 4.5:1 contrast ratio (3:1 for large text/18px+ bold) against its background.'))
+    } else if (colorContrastPass === true) {
+      findings.push(f('color-contrast', 'good', 'Text meets WCAG AA color contrast requirements.'))
+    }
+
+    if (fontSizePass === false) {
+      findings.push(f('font-size', 'bad',
+        'Some text is too small to read comfortably, especially on mobile.',
+        'Use a base font size of at least 16px for body text.'))
+    } else if (fontSizePass === true) {
+      findings.push(f('font-size', 'good', 'Font sizes are legible across the page.'))
+    }
+
+    if (tapTargetsPass === false) {
+      findings.push(f('tap-targets', 'bad',
+        'Some buttons or links are too small or too close together to tap reliably on mobile.',
+        'Make tap targets at least 48x48px with adequate spacing between neighbouring targets.'))
+    } else if (tapTargetsPass === true) {
+      findings.push(f('tap-targets', 'good', 'Tap targets are appropriately sized for mobile use.'))
+    }
+
+    if (accessibleNamesPass === false) {
+      findings.push(f('accessible-names', 'bad',
+        'Some buttons or links have no accessible name, so screen reader users cannot tell what they do.',
+        'Add descriptive text, aria-label, or aria-labelledby to every button and link.'))
+    } else if (accessibleNamesPass === true) {
+      findings.push(f('accessible-names', 'good', 'All buttons and links have accessible names for screen readers.'))
+    }
   }
 
   return findings
@@ -791,10 +892,13 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
   const lighthouseData = hasLighthouse ? await runLighthouse(finalUrl) : null
 
   // Run all 8 category audits
-  const [trustFindings] = await Promise.all([auditTrust(finalUrl, headers, $)])
+  const [trustFindings, a11yData] = await Promise.all([
+    auditTrust(finalUrl, headers, $),
+    fetchPsiAccessibility(finalUrl),
+  ])
 
   const sections: AuditSection[] = [
-    { name: 'UX & UI Analysis',      key: 'ux',     findings: auditUX($),                                        score: 0 },
+    { name: 'UX & UI Analysis',      key: 'ux',     findings: auditUX($, a11yData),                               score: 0 },
     { name: 'Navigation & Structure', key: 'nav',    findings: auditNav($, finalUrl),                             score: 0 },
     { name: 'Page Speed',             key: 'speed',  findings: auditSpeed(headers, responseTimeMs, bodySize, $, lighthouseData), score: 0 },
     { name: 'Mobile Friendliness',    key: 'mobile', findings: auditMobile($),                                    score: 0 },
