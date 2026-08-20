@@ -21,6 +21,7 @@ import AccessibilityScoreChecker from '@/components/AccessibilityScoreChecker'
 import FontSizeChecker from '@/components/FontSizeChecker'
 import TapTargetsChecker from '@/components/TapTargetsChecker'
 import AccessibleNamesChecker from '@/components/AccessibleNamesChecker'
+import WebVitalsChecker from '@/components/WebVitalsChecker'
 
 function renderMdStep(step: string): React.ReactNode {
   const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
@@ -1666,6 +1667,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   {item.slug === 'font-size' && <FontSizeChecker websiteUrl={brand.websiteUrl} />}
                   {item.slug === 'tap-targets' && <TapTargetsChecker websiteUrl={brand.websiteUrl} />}
                   {item.slug === 'accessible-names' && <AccessibleNamesChecker websiteUrl={brand.websiteUrl} />}
+                  {item.slug === 'core-web-vitals' && <WebVitalsChecker websiteUrl={brand.websiteUrl} />}
                   {item.slug === 'posthog-installed' && (
                     <a
                       href="/downloads/posthog-setup.md"
@@ -2820,6 +2822,17 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                                   <div className="md-cat-body">
                                     {cat.subCategories.map((sub, si) => {
                                       const subDone = sub.items.filter(i => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).length
+                                      if (sub.comingSoon) {
+                                        return (
+                                          <div key={sub.slug} className={`md-sub${si > 0 ? ' md-sub-border' : ''}`}>
+                                            <div className="md-sub-hd">
+                                              <span className="md-sub-name">{sub.label}</span>
+                                              <span className="pill soon">Coming Soon</span>
+                                            </div>
+                                            <ComingSoon title={sub.label} note={sub.comingSoonNote} />
+                                          </div>
+                                        )
+                                      }
                                       return (
                                         <div key={sub.slug} className={`md-sub${si > 0 ? ' md-sub-border' : ''}`}>
                                           <div className="md-sub-hd">

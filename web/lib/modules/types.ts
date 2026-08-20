@@ -35,6 +35,8 @@ export interface ModuleSubCategoryDefinition {
   order: number
   description?: string   // optional info notice shown at the top of the sub-category
   requires?: string[]    // integration provider slugs needed for full functionality (e.g. ['gsc_api', 'serpapi'])
+  comingSoon?: boolean     // true = show a Coming Soon block instead of items (items should be [])
+  comingSoonNote?: string  // description shown inside the Coming Soon block
   items: ModuleItemDefinition[]
 }
 
@@ -157,7 +159,7 @@ export interface DBItemFull {
 export function getAllItems(mod: ModuleDefinition): ModuleItemDefinition[] {
   if (mod.dynamic) return []
   return (mod.categories as ModuleCategoryDefinition[]).flatMap((cat) =>
-    cat.subCategories.flatMap((sub) => sub.items),
+    cat.subCategories.filter((sub) => !sub.comingSoon).flatMap((sub) => sub.items),
   )
 }
 
