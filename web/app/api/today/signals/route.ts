@@ -7,7 +7,7 @@ import {
 } from '@/lib/db/schema'
 import { eq, and, desc, gte, inArray } from 'drizzle-orm'
 import { createSign } from 'crypto'
-import { detectSignals, type ActionCard, type SignalInput } from '@/lib/daily/signals'
+import { detectSignals, detectImpacts, type ActionCard, type SignalInput } from '@/lib/daily/signals'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -144,12 +144,17 @@ export async function GET() {
       .from(modules)
       .where(eq(modules.brandId, brand.id)),
 
-    // Last 10 frekto posts (to find most recent 'done' one)
-    db.select({ platform: frektoScheduledPosts.platform, status: frektoScheduledPosts.status, scheduledAt: frektoScheduledPosts.scheduledAt })
+    // Last 15 frekto posts
+    db.select({
+      platform: frektoScheduledPosts.platform,
+      topic: frektoScheduledPosts.topic,
+      status: frektoScheduledPosts.status,
+      scheduledAt: frektoScheduledPosts.scheduledAt,
+    })
       .from(frektoScheduledPosts)
       .where(eq(frektoScheduledPosts.brandId, brand.id))
       .orderBy(desc(frektoScheduledPosts.scheduledAt))
-      .limit(10),
+      .limit(15),
 
     // Keyword snapshots last 7 days
     db.select({ position: keywordSnapshots.position, fetchedAt: keywordSnapshots.fetchedAt })
@@ -229,6 +234,14 @@ export async function GET() {
     hasAnyPosts: frektoRows.length > 0,
   }
 
+  // Recent posts for the social feed UI (done + scheduled, last 10)
+  const recentPosts = frektoRows.slice(0, 10).map(r => ({
+    platform: r.platform,
+    topic: r.topic,
+    status: r.status,
+    scheduledAt: r.scheduledAt,
+  }))
+
   // Keyword signal — compare last 3 days vs days 4-7
   let kwSignal: SignalInput['keywords'] = null
   if (kwRows.length >= 2) {
@@ -260,16 +273,19 @@ export async function GET() {
   }
 
   const cards = detectSignals(input)
+  const impacts = detectImpacts(input)
 
   // Cache in DB
   await db.update(brands)
-    .set({ dailySignalsCache: cards, signalsCachedAt: new Date() })
+    .set({ dailySignalsCache: { cards, impacts }, signalsCachedAt: new Date() })
     .where(eq(brands.id, brand.id))
 
   const streak = computeStreak(brand.dailyStreak ?? 0, brand.lastActionDate ?? null)
 
   return NextResponse.json({
     cards,
+    impacts,
+    recentPosts,
     streak,
     allGood: cards.length === 0,
     cachedAt: new Date().toISOString(),

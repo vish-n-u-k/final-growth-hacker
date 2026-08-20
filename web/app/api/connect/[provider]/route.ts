@@ -14,8 +14,8 @@ function callbackUrl(provider: string) {
   return `${APP_URL}/api/connect/${provider}/callback`
 }
 
-function buildState(brandId: string) {
-  return Buffer.from(JSON.stringify({ brandId, ts: Date.now() })).toString('base64url')
+function buildState(brandId: string, returnTo?: string) {
+  return Buffer.from(JSON.stringify({ brandId, ts: Date.now(), returnTo: returnTo ?? null })).toString('base64url')
 }
 
 export async function GET(
@@ -23,6 +23,7 @@ export async function GET(
   { params }: { params: Promise<{ provider: string }> },
 ) {
   const { provider } = await params
+  const returnTo = req.nextUrl.searchParams.get('return_to') ?? undefined
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -31,7 +32,7 @@ export async function GET(
   const [brand] = await db.select({ id: brands.id }).from(brands).where(eq(brands.userId, user.id)).limit(1)
   if (!brand) return NextResponse.redirect(`${APP_URL}/onboarding`)
 
-  const state = buildState(brand.id)
+  const state = buildState(brand.id, returnTo)
   const cb = encodeURIComponent(callbackUrl(provider))
 
   let authUrl: string
@@ -46,6 +47,19 @@ export async function GET(
         'pages_read_engagement',
         'instagram_manage_insights',
         'business_management',
+      ].join(',')
+      authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${cb}&scope=${scopes}&state=${state}&response_type=code`
+      break
+    }
+
+    case 'instagram_oauth': {
+      const appId = process.env.META_APP_ID
+      if (!appId) return NextResponse.json({ error: 'META_APP_ID not configured' }, { status: 500 })
+      const scopes = [
+        'instagram_basic',
+        'instagram_manage_insights',
+        'pages_show_list',
+        'pages_read_engagement',
       ].join(',')
       authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${cb}&scope=${scopes}&state=${state}&response_type=code`
       break

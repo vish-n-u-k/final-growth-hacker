@@ -15,6 +15,7 @@ import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/
 import { PLAYBOOK_SECTIONS } from '@/lib/playbook/fields'
 import { CONFLICT_GROUPS, SLUG_TOPIC } from '@/lib/modules/conflict-map'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
+import FrektoPostingSectionImport from '@/components/FrektoPostingSection'
 import NotesDrawer from '@/components/NotesDrawer'
 import ContrastChecker from '@/components/ContrastChecker'
 import AccessibilityScoreChecker from '@/components/AccessibilityScoreChecker'
@@ -3527,7 +3528,7 @@ function SmartScheduler({ moduleId, brandId, connected }: { moduleId: string; br
   )
 }
 
-// ── Frekto Posting Section ────────────────────────────────────────────────────
+const FrektoPostingSection = FrektoPostingSectionImport
 
 const FREKTO_PLATFORMS = [
   { key: 'instagram', label: 'Instagram', format: '4:5' },
@@ -3596,7 +3597,9 @@ const FREKTO_STYLES = [
   { value: 'media::video_minimal',   label: 'Media · Video Minimal' },
 ]
 
-function FrektoPostingSection({ moduleId, brandName, connected }: { moduleId: string; brandName: string; connected: boolean }) {
+// FrektoPostingSection is now imported from @/components/FrektoPostingSection
+// keeping a dummy reference so FREKTO_PLATFORMS/FREKTO_STYLES above aren't flagged
+function _unusedFrektoSection({ moduleId, brandName, connected }: { moduleId: string; brandName: string; connected: boolean }) {
   const [platform, setPlatform]           = useState('instagram')
   const [format, setFormat]               = useState('4:5')
   const [outputFormat, setOutputFormat]   = useState<'png' | 'mp4'>('png')

@@ -13,7 +13,7 @@ function callbackUrl(provider: string) {
   return `${APP_URL}/api/connect/${provider}/callback`
 }
 
-function parseState(state: string): { brandId: string } | null {
+function parseState(state: string): { brandId: string; returnTo?: string | null } | null {
   try {
     return JSON.parse(Buffer.from(state, 'base64url').toString())
   } catch { return null }
@@ -110,6 +110,73 @@ async function handleMeta(code: string, brandId: string): Promise<string> {
   })
 
   return ig?.username ? `@${ig.username}` : (firstPage?.name ?? 'Meta account')
+}
+
+// ── Instagram (standalone — same Meta app, focused on IG only) ───────────────
+
+async function handleInstagram(code: string, brandId: string): Promise<string> {
+  const appId = process.env.META_APP_ID!
+  const appSecret = process.env.META_APP_SECRET!
+  const cb = callbackUrl('instagram_oauth')
+
+  // Exchange code for short-lived token
+  const tokenRes = await fetch(
+    `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(cb)}&client_secret=${appSecret}&code=${code}`,
+  )
+  if (!tokenRes.ok) throw new Error('Instagram token exchange failed')
+  const { access_token: shortToken } = await tokenRes.json() as { access_token: string }
+
+  // Exchange for long-lived token
+  const llRes = await fetch(
+    `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortToken}`,
+  )
+  const llData = await llRes.json() as { access_token: string; expires_in?: number }
+  const longToken = llData.access_token
+  const expiresAt = new Date(Date.now() + (llData.expires_in ?? 5184000) * 1000)
+
+  // Find Instagram Business account via pages
+  const pagesRes = await fetch(
+    `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,followers_count,media_count,biography,website}&access_token=${longToken}`,
+  )
+  const pagesData = await pagesRes.json() as {
+    data?: Array<{
+      id: string; name: string; access_token: string
+      instagram_business_account?: { id: string; username?: string; followers_count?: number; media_count?: number; biography?: string; website?: string }
+    }>
+  }
+
+  type IgAccount = { id: string; username?: string; followers_count?: number; media_count?: number; biography?: string; website?: string }
+  // Find the first page that has an Instagram business account
+  let ig: IgAccount | undefined = undefined
+  let pageToken = ''
+  for (const page of pagesData.data ?? []) {
+    if (page.instagram_business_account) {
+      ig = page.instagram_business_account
+      pageToken = page.access_token
+      break
+    }
+  }
+
+  if (!ig) throw new Error('No Instagram Business account found. Make sure your Instagram account is a Business or Creator account linked to your Facebook Page.')
+
+  const metadata: Record<string, string> = {
+    instagram_id: ig.id,
+    page_access_token: pageToken,
+  }
+  if (ig.username)       metadata.instagram_username  = ig.username
+  if (ig.followers_count != null) metadata.instagram_followers = String(ig.followers_count)
+  if (ig.media_count != null)     metadata.instagram_posts     = String(ig.media_count)
+  if (ig.biography)      metadata.instagram_bio       = ig.biography
+  if (ig.website)        metadata.instagram_website   = ig.website
+
+  await upsertIntegration(brandId, 'instagram_oauth', {
+    accessToken: longToken,
+    tokenExpiresAt: expiresAt,
+    scopes: ['instagram_basic', 'instagram_manage_insights', 'pages_show_list'],
+    metadata,
+  })
+
+  return ig.username ? `@${ig.username}` : 'Instagram account'
 }
 
 // ── LinkedIn ──────────────────────────────────────────────────────────────────
@@ -274,6 +341,12 @@ export async function GET(
     return NextResponse.redirect(`${settingsUrl}&oauth_error=invalid_state`)
   }
 
+  // Where to send the user after OAuth completes (defaults to settings)
+  const returnBase = parsed.returnTo
+    ? `${APP_URL}${parsed.returnTo}`
+    : settingsUrl
+  const sep = returnBase.includes('?') ? '&' : '?'
+
   // Verify brand belongs to the currently logged-in user
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -291,16 +364,17 @@ export async function GET(
   try {
     let label: string
     switch (provider) {
-      case 'meta_oauth':      label = await handleMeta(code, brand.id); break
-      case 'linkedin_oauth':  label = await handleLinkedIn(code, brand.id); break
-      case 'pinterest_oauth': label = await handlePinterest(code, brand.id); break
+      case 'meta_oauth':       label = await handleMeta(code, brand.id); break
+      case 'instagram_oauth':  label = await handleInstagram(code, brand.id); break
+      case 'linkedin_oauth':   label = await handleLinkedIn(code, brand.id); break
+      case 'pinterest_oauth':  label = await handlePinterest(code, brand.id); break
       default:
         return NextResponse.redirect(`${settingsUrl}&oauth_error=unknown_provider`)
     }
 
-    return NextResponse.redirect(`${settingsUrl}&oauth_connected=${encodeURIComponent(provider)}&label=${encodeURIComponent(label)}`)
+    return NextResponse.redirect(`${returnBase}${sep}oauth_connected=${encodeURIComponent(provider)}&label=${encodeURIComponent(label)}`)
   } catch (e) {
     console.error(`[oauth-callback][${provider}]`, e)
-    return NextResponse.redirect(`${settingsUrl}&oauth_error=${encodeURIComponent(String(e))}`)
+    return NextResponse.redirect(`${returnBase}${sep}oauth_error=${encodeURIComponent(String(e))}`)
   }
 }

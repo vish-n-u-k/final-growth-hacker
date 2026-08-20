@@ -52,6 +52,45 @@ export interface SignalInput {
   }[]
 }
 
+export interface ImpactCard {
+  id: string
+  type: 'keyword-gain' | 'social-traffic' | 'traffic-growth'
+  headline: string
+  detail: string
+  platform?: string
+}
+
+export function detectImpacts(input: SignalInput): ImpactCard[] {
+  const impacts: ImpactCard[] = []
+
+  if (input.ga4) {
+    const { visits, visitsPrior } = input.ga4
+    if (visitsPrior > 0 && visits > visitsPrior * 1.2) {
+      const pct = Math.round(((visits - visitsPrior) / visitsPrior) * 100)
+      impacts.push({
+        id: 'traffic-growth',
+        type: 'traffic-growth',
+        headline: `Traffic up ${pct}% vs yesterday`,
+        detail: `${visits} sessions yesterday vs ${visitsPrior} the day before.`,
+      })
+    }
+  }
+
+  if (input.keywords) {
+    const { recentAvgPosition, olderAvgPosition } = input.keywords
+    if (olderAvgPosition > 0 && recentAvgPosition < olderAvgPosition - 2) {
+      impacts.push({
+        id: 'keyword-gain',
+        type: 'keyword-gain',
+        headline: `Keyword positions improved by ${(olderAvgPosition - recentAvgPosition).toFixed(1)} spots`,
+        detail: `Average position moved from ${olderAvgPosition.toFixed(1)} to ${recentAvgPosition.toFixed(1)}.`,
+      })
+    }
+  }
+
+  return impacts
+}
+
 export function detectSignals(input: SignalInput, maxCards = 3): ActionCard[] {
   const candidates: ActionCard[] = []
 
@@ -77,7 +116,7 @@ export function detectSignals(input: SignalInput, maxCards = 3): ActionCard[] {
         priority: 1,
         headline: 'Send outreach emails to prospects',
         reason,
-        cta: 'Open Gmail Hub',
+        cta: 'Send emails to prospects',
         ctaUrl: '/gmail-hub',
       })
     }
@@ -118,7 +157,7 @@ export function detectSignals(input: SignalInput, maxCards = 3): ActionCard[] {
         priority: 3,
         headline: `Post on ${platformLabel} today`,
         reason: daysSince === 999 ? 'No posts sent yet' : `No posts in ${daysSince} day${daysSince === 1 ? '' : 's'}`,
-        cta: 'Open Engagement Hub',
+        cta: 'Generate a post now',
         ctaUrl: '/engagement-hub',
         data: { platform, daysSince },
       })
