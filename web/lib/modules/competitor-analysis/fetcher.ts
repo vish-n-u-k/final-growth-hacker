@@ -146,22 +146,29 @@ function detectPixels(rawHtml: string): Record<string, boolean> {
 async function fetchPsi(url: string): Promise<PsiScore | null> {
   try {
     const key = process.env.GOOGLE_PSI_API_KEY
-    const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile${key ? `&key=${key}` : ''}`
+    const params = new URLSearchParams({ url, strategy: 'mobile', category: 'performance' })
+    if (key) params.set('key', key)
+    const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params.toString()}`
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 8000)
+    const timer = setTimeout(() => controller.abort(), 25000)
     const res = await fetch(endpoint, { signal: controller.signal })
     clearTimeout(timer)
-    if (!res.ok) return null
+    if (!res.ok) {
+      console.error(`[competitor-analysis] fetchPsi request failed for ${url}: ${res.status} ${res.statusText} (key present: ${!!key})`, await res.text().catch(() => ''))
+      return null
+    }
     const json = await res.json() as Record<string, unknown>
-    const cats = json.categories as Record<string, { score: number }> | undefined
-    const audits = json.audits as Record<string, { numericValue?: number }> | undefined
+    const lhr = json.lighthouseResult as Record<string, unknown> | undefined
+    const cats = lhr?.categories as Record<string, { score: number | null }> | undefined
+    const audits = lhr?.audits as Record<string, { numericValue?: number }> | undefined
     return {
       performance: Math.round((cats?.performance?.score ?? 0) * 100),
       lcp: Math.round(audits?.['largest-contentful-paint']?.numericValue ?? 0),
       cls: audits?.['cumulative-layout-shift']?.numericValue ?? 0,
       tbt: Math.round(audits?.['total-blocking-time']?.numericValue ?? 0),
     }
-  } catch {
+  } catch (err) {
+    console.error(`[competitor-analysis] fetchPsi failed for ${url}:`, err)
     return null
   }
 }
