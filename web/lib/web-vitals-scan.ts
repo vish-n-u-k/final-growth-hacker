@@ -6,9 +6,9 @@ export interface WebVitalsScanResult {
   renderBlockingCount: number | null
 }
 
-export async function scanWebVitals(url: string, apiKey?: string): Promise<WebVitalsScanResult | null> {
+export async function scanWebVitals(url: string): Promise<WebVitalsScanResult | null> {
   try {
-    const key = apiKey || process.env.GOOGLE_PSI_API_KEY
+    const key = process.env.GOOGLE_PSI_API_KEY
     const params = new URLSearchParams({ url, strategy: 'mobile' })
     params.append('category', 'performance')
     if (key) params.set('key', key)

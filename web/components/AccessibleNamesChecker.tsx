@@ -16,7 +16,7 @@ function ViolationCard({ v }: { v: AccessibleNameViolation }) {
   )
 }
 
-export default function AccessibleNamesChecker({ websiteUrl, brandId }: { websiteUrl?: string; brandId?: string }) {
+export default function AccessibleNamesChecker({ websiteUrl }: { websiteUrl?: string }) {
   const [loading, setLoading] = useState(!!websiteUrl)
   const [scan, setScan] = useState<AccessibleNamesScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -28,7 +28,7 @@ export default function AccessibleNamesChecker({ websiteUrl, brandId }: { websit
     fetch('/api/tools/accessible-names', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ websiteUrl, brandId }),
+      body: JSON.stringify({ websiteUrl }),
     })
       .then(async (res) => {
         if (!res.ok) {

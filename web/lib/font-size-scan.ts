@@ -10,9 +10,9 @@ export interface FontSizeScanResult {
   violations: FontSizeViolation[]
 }
 
-export async function scanFontSize(url: string, apiKey?: string): Promise<FontSizeScanResult | null> {
+export async function scanFontSize(url: string): Promise<FontSizeScanResult | null> {
   try {
-    const key = apiKey || process.env.GOOGLE_PSI_API_KEY
+    const key = process.env.GOOGLE_PSI_API_KEY
     const params = new URLSearchParams({ url, strategy: 'mobile' })
     params.append('category', 'accessibility')
     if (key) params.set('key', key)

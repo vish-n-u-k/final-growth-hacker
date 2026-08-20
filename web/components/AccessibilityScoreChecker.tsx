@@ -10,7 +10,7 @@ const CHECKS: { key: keyof Omit<AccessibilityScoreResult, 'score'>; label: strin
   { key: 'accessibleNamesPass', label: 'Accessible names' },
 ]
 
-export default function AccessibilityScoreChecker({ websiteUrl, brandId }: { websiteUrl?: string; brandId?: string }) {
+export default function AccessibilityScoreChecker({ websiteUrl }: { websiteUrl?: string }) {
   const [loading, setLoading] = useState(!!websiteUrl)
   const [result, setResult] = useState<AccessibilityScoreResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -22,7 +22,7 @@ export default function AccessibilityScoreChecker({ websiteUrl, brandId }: { web
     fetch('/api/tools/accessibility-score', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ websiteUrl, brandId }),
+      body: JSON.stringify({ websiteUrl }),
     })
       .then(async (res) => {
         if (!res.ok) {

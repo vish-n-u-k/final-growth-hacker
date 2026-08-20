@@ -6,9 +6,9 @@ export interface AccessibilityScoreResult {
   accessibleNamesPass: boolean | null
 }
 
-export async function scanAccessibilityScore(url: string, apiKey?: string): Promise<AccessibilityScoreResult | null> {
+export async function scanAccessibilityScore(url: string): Promise<AccessibilityScoreResult | null> {
   try {
-    const key = apiKey || process.env.GOOGLE_PSI_API_KEY
+    const key = process.env.GOOGLE_PSI_API_KEY
     const params = new URLSearchParams({ url, strategy: 'mobile' })
     params.append('category', 'accessibility')
     if (key) params.set('key', key)

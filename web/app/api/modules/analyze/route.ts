@@ -3,7 +3,6 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleCategories, moduleItems, modulePageAudit, brandIntegrations } from '@/lib/db/schema'
 import { getCompetitorUrlsString, storeCompetitors } from '@/lib/modules/competitor-registry'
-import { getBrandPsiApiKey } from '@/lib/integrations/psi-key'
 import { eq, and } from 'drizzle-orm'
 import { MODULE_MAP } from '@/lib/modules/registry'
 import { fetchFoundationData, getFaviconColor } from '@/lib/modules/foundation/fetcher'
@@ -102,8 +101,7 @@ async function runAnalysis(
       return results
     }
     case 'website': {
-      const psiApiKey = await getBrandPsiApiKey(requirements['brand_id'])
-      const data = await fetchWebsiteData({ ...requirements, ...(psiApiKey ? { psi_api_key: psiApiKey } : {}) })
+      const data = await fetchWebsiteData(requirements)
       if ('error' in data) throw new Error(data.error)
       const url = requirements['website_url'] ?? ''
       return analyzeWebsite(data, url, requirements['brand_name'])
@@ -135,8 +133,7 @@ async function runAnalysis(
       return analyzeCompetitorAudit(data, brainCtx)
     }
     case 'competitor-analysis': {
-      const psiApiKey = await getBrandPsiApiKey(requirements['brand_id'])
-      const data = await fetchCompetitorAnalysisData({ ...requirements, ...(psiApiKey ? { psi_api_key: psiApiKey } : {}) }, requirements['website_url'])
+      const data = await fetchCompetitorAnalysisData(requirements, requirements['website_url'])
       return analyzeCompetitorAnalysis(data, brainCtx)
     }
     case 'social-media': {
