@@ -1,10 +1,8 @@
 /**
  * Website Audit Engine
  *
- * Analyzes a URL across 9 sections: mostly rule-based checks (cheerio + native
- * fetch, no browser rendering) plus one batched Claude call for judgment calls
- * that need real content understanding (copy scannability, jargon, nav label
- * clarity, alt-text quality, progressive disclosure, 404 page quality).
+ * Analyzes a URL across 8 categories using rule-based checks.
+ * No API keys required. Uses native fetch (Node 18+) + cheerio.
  *
  * Usage:
  *   import { runAudit } from '@/lib/audit/audit'
@@ -15,7 +13,6 @@ import * as cheerio from 'cheerio'
 import { connect as tlsConnect } from 'tls'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
-import { callAI } from '@/lib/ai/client'
 
 const execFileAsync = promisify(execFile)
 
@@ -302,41 +299,6 @@ function auditUX($: cheerio.CheerioAPI, a11yData: A11yData | null): Finding[] {
     }
   }
 
-  // heading-hierarchy — h1 -> h6 with no skipped levels
-  const headingLevels = $('h1, h2, h3, h4, h5, h6')
-    .toArray()
-    .map((el) => parseInt(el.tagName.slice(1), 10))
-  let skippedLevel: { from: number; to: number } | null = null
-  for (let i = 1; i < headingLevels.length; i++) {
-    if (headingLevels[i] - headingLevels[i - 1] > 1) {
-      skippedLevel = { from: headingLevels[i - 1], to: headingLevels[i] }
-      break
-    }
-  }
-  if (headingLevels.length === 0) {
-    findings.push(f('heading-hierarchy', 'info', 'No headings found on the page to evaluate hierarchy.'))
-  } else if (skippedLevel) {
-    findings.push(f('heading-hierarchy', 'bad',
-      `Heading levels skip from h${skippedLevel.from} to h${skippedLevel.to} — screen reader users lose the document outline.`,
-      'Use heading levels in order (h1, then h2, then h3...) without skipping a level.'))
-  } else {
-    findings.push(f('heading-hierarchy', 'good', 'Headings are in a logical, unskipped order.'))
-  }
-
-  // skip-to-content
-  const hasSkipLink = $('a[href^="#"]').toArray().some((el) => {
-    const text = $(el).text().trim().toLowerCase()
-    return text.includes('skip to') || text.includes('skip navigation') || text.includes('skip content')
-  })
-  if (hasSkipLink) {
-    findings.push(f('skip-to-content', 'good', 'Skip-to-content link found.'))
-  } else {
-    findings.push(f('skip-to-content', 'ok',
-      'No "skip to content" link found — keyboard users must tab through the entire nav on every page.',
-      'Add a visually-hidden skip link as the first focusable element on the page.',
-      '<a href="#main" class="skip-link">Skip to main content</a>'))
-  }
-
   return findings
 }
 
@@ -408,80 +370,7 @@ function auditNav($: cheerio.CheerioAPI, pageUrl: string): Finding[] {
     findings.push(f('external-link-safety', 'good', 'External links are safely attributed.'))
   }
 
-  // breadcrumbs
-  const hasBreadcrumbs =
-    $('[aria-label="breadcrumb" i]').length > 0 ||
-    $('.breadcrumb, .breadcrumbs').length > 0 ||
-    $('script[type="application/ld+json"]').toArray().some((el) => ($(el).html() ?? '').includes('BreadcrumbList'))
-  if (hasBreadcrumbs) {
-    findings.push(f('breadcrumbs', 'good', 'Breadcrumb navigation found.'))
-  } else {
-    findings.push(f('breadcrumbs', 'info',
-      'No breadcrumb navigation found — most useful on sites with pages more than 2 levels deep.',
-      'Add a breadcrumb trail (with BreadcrumbList structured data) to deep pages.'))
-  }
-
-  // search-presence
-  const hasSearch =
-    $('input[type="search"]').length > 0 ||
-    $('input[name*="search" i], input[placeholder*="search" i], input[aria-label*="search" i]').length > 0 ||
-    $('[role="search"]').length > 0
-  if (hasSearch) {
-    findings.push(f('search-presence', 'good', 'Site search found.'))
-  } else {
-    findings.push(f('search-presence', 'info',
-      'No site search found — most valuable for content-heavy sites (blogs, docs, large catalogs).'))
-  }
-
   return findings
-}
-
-// dead-links — fetch a sample of same-domain internal links and check their HTTP status
-async function auditDeadLinks(pageUrl: string, $: cheerio.CheerioAPI): Promise<Finding[]> {
-  const hostname = new URL(pageUrl).hostname
-  const hrefs = new Set<string>()
-  $('a[href]').each((_, el) => {
-    const href = ($(el).attr('href') ?? '').trim()
-    if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) return
-    try {
-      const abs = new URL(href, pageUrl)
-      if (abs.hostname === hostname) hrefs.add(abs.href)
-    } catch {
-      // ignore malformed hrefs
-    }
-  })
-
-  const sample = [...hrefs].slice(0, 12)
-  if (sample.length === 0) return [f('dead-links', 'info', 'No internal links found on this page to check.')]
-
-  const results = await Promise.allSettled(
-    sample.map(async (link) => {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 6000)
-      try {
-        let res = await fetch(link, { method: 'HEAD', redirect: 'follow', signal: controller.signal, headers: { 'User-Agent': UA } })
-        if (res.status === 405 || res.status === 501) {
-          res = await fetch(link, { method: 'GET', redirect: 'follow', signal: controller.signal, headers: { 'User-Agent': UA } })
-        }
-        return { link, status: res.status }
-      } finally {
-        clearTimeout(timer)
-      }
-    }),
-  )
-
-  const checked = results.filter((r) => r.status === 'fulfilled') as PromiseFulfilledResult<{ link: string; status: number }>[]
-  const broken = checked.filter((r) => r.value.status >= 400)
-
-  if (checked.length === 0) {
-    return [f('dead-links', 'info', `Could not verify link status (checked ${sample.length} internal link(s)).`)]
-  }
-  if (broken.length > 0) {
-    return [f('dead-links', 'bad',
-      `${broken.length} of ${checked.length} checked internal link(s) return an error status: ${broken.map((r) => `${new URL(r.value.link).pathname} (${r.value.status})`).slice(0, 5).join(', ')}.`,
-      'Fix or remove links pointing to pages that no longer exist.')]
-  }
-  return [f('dead-links', 'good', `Checked ${checked.length} internal link(s) — all resolved successfully.`)]
 }
 
 // ── 3. Page Speed ─────────────────────────────────────────────────────────────
@@ -556,114 +445,6 @@ function auditSpeed(
     } else {
       findings.push(f('lcp-score', 'good', `LCP is ${(lcp / 1000).toFixed(1)}s (good). Performance score: ${performance}/100. FCP: ${(fcp / 1000).toFixed(1)}s, TBT: ${tbt}ms, CLS: ${cls.toFixed(3)}.`))
     }
-  }
-
-  // image-format-optimization
-  const modernFormatRe = /\.(webp|avif)(\?|#|$)/i
-  const legacyFormatRe = /\.(jpe?g|png)(\?|#|$)/i
-  let legacyImages = 0
-  let totalRasterImages = 0
-  imgs.each((_, el) => {
-    const src = $(el).attr('src') ?? $(el).attr('data-src') ?? ''
-    if (modernFormatRe.test(src)) { totalRasterImages++; return }
-    if (legacyFormatRe.test(src)) { totalRasterImages++; legacyImages++ }
-  })
-  if (totalRasterImages === 0) {
-    findings.push(f('image-format-optimization', 'info', 'No JPG/PNG/WebP/AVIF images found on the page.'))
-  } else if (legacyImages > 0) {
-    findings.push(f('image-format-optimization', legacyImages >= 3 ? 'bad' : 'ok',
-      `${legacyImages} of ${totalRasterImages} image(s) use JPG/PNG instead of a modern format — WebP/AVIF are typically 25–50% smaller.`,
-      'Convert JPG/PNG images to WebP (with a JPG/PNG fallback if you need older browser support).'))
-  } else {
-    findings.push(f('image-format-optimization', 'good', `All ${totalRasterImages} raster image(s) already use a modern format (WebP/AVIF).`))
-  }
-
-  // lazy-loading-images — images beyond the first 3 (approx. below-the-fold) should be lazy-loaded
-  const belowFoldImgs = imgs.toArray().slice(3)
-  const notLazy = belowFoldImgs.filter((el) => $(el).attr('loading') !== 'lazy')
-  if (belowFoldImgs.length === 0) {
-    findings.push(f('lazy-loading-images', 'info', 'Not enough images on the page to evaluate lazy loading.'))
-  } else if (notLazy.length > 0) {
-    findings.push(f('lazy-loading-images', 'ok',
-      `${notLazy.length} of ${belowFoldImgs.length} below-the-fold image(s) do not use loading="lazy".`,
-      'Add loading="lazy" to images that are not visible in the initial viewport.',
-      '<img src="photo.jpg" alt="Description" loading="lazy">'))
-  } else {
-    findings.push(f('lazy-loading-images', 'good', `All ${belowFoldImgs.length} below-the-fold image(s) use lazy loading.`))
-  }
-
-  return findings
-}
-
-// ── CSS text (inline <style> + up to 3 external stylesheets) ──────────────────
-// Used for checks that need to read actual CSS rules (hover/focus states, safe-area insets).
-
-async function fetchStylesheetText($: cheerio.CheerioAPI, pageUrl: string): Promise<string> {
-  let combined = ''
-  $('style').each((_, el) => { combined += ($(el).html() ?? '') + '\n' })
-
-  const hrefs = $('link[rel="stylesheet"]')
-    .toArray()
-    .map((el) => $(el).attr('href') ?? '')
-    .filter(Boolean)
-    .slice(0, 3)
-
-  const fetched = await Promise.allSettled(
-    hrefs.map(async (href) => {
-      const abs = new URL(href, pageUrl).href
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 5000)
-      try {
-        const res = await fetch(abs, { signal: controller.signal, headers: { 'User-Agent': UA } })
-        if (!res.ok) return ''
-        const text = await res.text()
-        return text.slice(0, 300_000)
-      } finally {
-        clearTimeout(timer)
-      }
-    }),
-  )
-  for (const r of fetched) {
-    if (r.status === 'fulfilled') combined += r.value + '\n'
-  }
-  return combined
-}
-
-// hover-only-interactions + safe-area-notch — parsed from combined CSS text
-function auditStyles(cssText: string): Finding[] {
-  const findings: Finding[] = []
-
-  if (!cssText.trim()) {
-    findings.push(f('hover-only-interactions', 'info', 'Could not read any CSS to check for hover-only interactions.'))
-    findings.push(f('safe-area-notch', 'info', 'Could not read any CSS to check for safe-area handling.'))
-    return findings
-  }
-
-  // hover-only-interactions — a :hover rule whose base selector has no matching :focus rule
-  const hoverSelectors = [...cssText.matchAll(/([^{}]+):hover\s*\{/g)].map((m) => m[1].trim().split(',').pop()?.trim() ?? '')
-  const focusableSelectors = new Set(
-    [...cssText.matchAll(/([^{}]+):focus(-visible|-within)?\s*\{/g)].map((m) => m[1].trim().split(',').pop()?.trim() ?? ''),
-  )
-  const hoverOnly = [...new Set(hoverSelectors)].filter((sel) => sel && !focusableSelectors.has(sel))
-  if (hoverSelectors.length === 0) {
-    findings.push(f('hover-only-interactions', 'info', 'No :hover rules found in the scanned CSS.'))
-  } else if (hoverOnly.length > 0) {
-    findings.push(f('hover-only-interactions', 'ok',
-      `${hoverOnly.length} selector(s) have a :hover style with no matching :focus style, e.g. "${hoverOnly[0]}" — this interaction breaks on touch/keyboard.`,
-      'Add a matching :focus (or :focus-visible) rule alongside every meaningful :hover rule.'))
-  } else {
-    findings.push(f('hover-only-interactions', 'good', 'Hover styles have matching focus styles (scanned CSS only).'))
-  }
-
-  // safe-area-notch
-  const hasSafeArea = /env\(\s*safe-area-inset-/i.test(cssText)
-  if (hasSafeArea) {
-    findings.push(f('safe-area-notch', 'good', 'CSS uses env(safe-area-inset-*) to handle notches/rounded corners on mobile.'))
-  } else {
-    findings.push(f('safe-area-notch', 'info',
-      'No env(safe-area-inset-*) usage found — only relevant if you have fixed-position headers/footers on mobile web.',
-      'For fixed-position elements, add padding using env(safe-area-inset-*) so content isn\'t hidden behind notches/home indicators.',
-      'padding-bottom: env(safe-area-inset-bottom);'))
   }
 
   return findings
@@ -887,7 +668,6 @@ function auditForms($: cheerio.CheerioAPI): Finding[] {
     findings.push(f('form-not-too-long', 'info', 'No forms found on the page.'))
     findings.push(f('submit-button', 'info', 'No forms found on the page.'))
     findings.push(f('placeholder-not-label', 'info', 'No forms found on the page.'))
-    findings.push(f('required-field-indication', 'info', 'No forms found on the page.'))
     return findings
   }
 
@@ -896,8 +676,6 @@ function auditForms($: cheerio.CheerioAPI): Finding[] {
   let maxFieldCount = 0
   let formsWithoutSubmit = 0
   let placeholderOnlyInputs = 0
-  let requiredInputs = 0
-  let requiredWithoutIndicator = 0
 
   forms.each((_, form) => {
     const inputs = $(form).find(
@@ -915,19 +693,10 @@ function auditForms($: cheerio.CheerioAPI): Finding[] {
       const id = $(input).attr('id')
       const ariaLabel = $(input).attr('aria-label')
       const ariaLabelledBy = $(input).attr('aria-labelledby')
-      const label = id ? $(`label[for="${id}"]`) : $()
-      const hasLabel = label.length > 0
+      const hasLabel = id ? $(`label[for="${id}"]`).length > 0 : false
       if (!hasLabel && !ariaLabel && !ariaLabelledBy) {
         unlabeledInputs++
         if ($(input).attr('placeholder')) placeholderOnlyInputs++
-      }
-
-      const isRequired = $(input).attr('required') !== undefined || $(input).attr('aria-required') === 'true'
-      if (isRequired) {
-        requiredInputs++
-        const labelText = hasLabel ? label.text() : ''
-        const hasIndicator = labelText.includes('*') || /\brequired\b/i.test(labelText) || (ariaLabel ?? '').toLowerCase().includes('required')
-        if (!hasIndicator) requiredWithoutIndicator++
       }
     })
   })
@@ -971,18 +740,6 @@ function auditForms($: cheerio.CheerioAPI): Finding[] {
       'Add a visible <label> above each input. Placeholder can remain as a hint.'))
   } else {
     findings.push(f('placeholder-not-label', 'good', 'No inputs rely on placeholder as a label substitute.'))
-  }
-
-  // required-field-indication
-  if (requiredInputs === 0) {
-    findings.push(f('required-field-indication', 'info', 'No fields are marked required="true" on this page.'))
-  } else if (requiredWithoutIndicator > 0) {
-    findings.push(f('required-field-indication', 'ok',
-      `${requiredWithoutIndicator} of ${requiredInputs} required field(s) have no visible "*" or "required" text near the label.`,
-      'Add a visible indicator (e.g. an asterisk) next to every required field\'s label.',
-      '<label for="email">Email address *</label>'))
-  } else {
-    findings.push(f('required-field-indication', 'good', `All ${requiredInputs} required field(s) are visibly marked.`))
   }
 
   return findings
@@ -1100,86 +857,6 @@ function auditTech($: cheerio.CheerioAPI, robotsStatus: number, sitemapStatus: n
   return findings
 }
 
-// ── AI Content Judgment (single batched Claude call) ───────────────────────────
-// Covers checks that need real judgment on actual page copy/structure, not raw
-// pattern matching: copy scannability, jargon vs. plain language, nav label
-// clarity, alt-text descriptiveness, progressive disclosure on long forms, and
-// 404 page quality. One call, one page — keeps LLM cost predictable.
-
-async function fetch404Sample(origin: string): Promise<{ status: number; text: string } | null> {
-  try {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 8000)
-    const path = `/this-page-should-not-exist-${Date.now().toString(36)}`
-    const res = await fetch(`${origin}${path}`, { signal: controller.signal, headers: { 'User-Agent': UA }, redirect: 'follow' })
-    clearTimeout(timer)
-    const html = await res.text()
-    const page$ = cheerio.load(html)
-    const text = page$('body').text().replace(/\s+/g, ' ').trim().slice(0, 800)
-    return { status: res.status, text }
-  } catch {
-    return null
-  }
-}
-
-async function auditContentJudgment($: cheerio.CheerioAPI, pageUrl: string): Promise<Finding[]> {
-  const origin = new URL(pageUrl).origin
-
-  const headings = $('h1, h2, h3').toArray().map((el) => $(el).text().trim()).filter(Boolean).slice(0, 15)
-  const bodyText = $('body').text().replace(/\s+/g, ' ').trim().slice(0, 2000)
-  const navLinks = $('nav a, [role="navigation"] a').toArray().map((el) => $(el).text().trim()).filter(Boolean).slice(0, 20)
-  const altTexts = $('img').toArray()
-    .map((el) => ({ alt: ($(el).attr('alt') ?? '').trim(), src: ($(el).attr('src') ?? '').split('/').pop() ?? '' }))
-    .filter((i) => i.alt)
-    .slice(0, 15)
-  const maxFieldCount = Math.max(0, ...$('form').toArray().map((form) =>
-    $(form).find('input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]), textarea, select').length,
-  ), 0)
-  const hasStepMarkup = $('form').toArray().some((form) => /step\s*\d|progress/i.test($(form).html() ?? ''))
-
-  const notFound = await fetch404Sample(origin)
-
-  let raw: string
-  try {
-    raw = await callAI({
-      system: 'You are a senior UX auditor. Judge only what is given — do not assume anything not shown. Be specific and reference the actual content provided.',
-      prompt: `Evaluate this website's content and return a JSON array of findings. Website: ${pageUrl}
-
-HEADINGS (h1-h3): ${JSON.stringify(headings)}
-BODY TEXT SAMPLE: ${JSON.stringify(bodyText)}
-NAV LINK LABELS: ${JSON.stringify(navLinks)}
-IMAGE ALT TEXTS (with filename): ${JSON.stringify(altTexts)}
-LONGEST FORM FIELD COUNT: ${maxFieldCount}${hasStepMarkup ? ' (form contains step/progress markup)' : ''}
-404 PAGE CHECK: ${notFound ? `HTTP ${notFound.status}, body text sample: ${JSON.stringify(notFound.text)}` : 'could not fetch a 404 page'}
-
-For each of the 6 checks below, return one object with: "slug", "level" (one of "good"/"ok"/"bad"/"info"), "text" (1 sentence describing what you found, specific to this site), and "fix" (1 actionable sentence, omit if level is "good").
-
-1. slug "copy-scannability": Is the body text broken into scannable chunks (short paragraphs, clear headings) or one dense wall of text? Use "info" if there is not enough text to judge.
-2. slug "jargon-language": Is the headline/body copy written in plain, audience-appropriate language, or full of unexplained jargon/buzzwords?
-3. slug "nav-label-clarity": Are the nav link labels clear and specific, or vague/internal jargon (e.g. "Solutions", "Platform" with no context)? Use "info" if no nav links were provided.
-4. slug "alt-text-quality": Based on the sample alt texts vs. their filenames, are alt texts descriptive, or generic/keyword-stuffed/same-as-filename? Use "info" if no alt texts were provided.
-5. slug "progressive-disclosure": If the longest form has more than 6 fields, is there evidence of a multi-step/progressive pattern (step/progress markup)? If the form has 6 or fewer fields, return level "good" noting it is short enough not to need this.
-6. slug "404-page-quality": Based on the 404 check, is there a helpful, on-brand 404 page (explains the error, offers navigation back), or a generic/broken one? Use "info" if the check could not be completed.
-
-Return ONLY a valid JSON array, no markdown fences, no text outside the array.`,
-      maxTokens: 1500,
-      model: 'claude-haiku-4-5-20251001',
-    })
-  } catch {
-    return []
-  }
-
-  const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
-  try {
-    const rows = JSON.parse(clean) as { slug: string; level: FindingLevel; text: string; fix?: string }[]
-    return rows
-      .filter((r) => r.slug && r.text && (r.level === 'good' || r.level === 'ok' || r.level === 'bad' || r.level === 'info'))
-      .map((r) => f(r.slug, r.level, r.text, r.fix))
-  } catch {
-    return []
-  }
-}
-
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 export async function runAudit(url: string): Promise<AuditResult | AuditError> {
@@ -1222,26 +899,21 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
   const hasLighthouse = await lighthouseAvailable()
   const lighthouseData = hasLighthouse ? await runLighthouse(finalUrl) : null
 
-  // Run all category audits (deterministic + AI judgment) in parallel where independent
-  const [trustFindings, a11yData, deadLinkFindings, cssText, aiContentFindings] = await Promise.all([
+  // Run all 8 category audits
+  const [trustFindings, a11yData] = await Promise.all([
     auditTrust(finalUrl, headers, $),
     fetchPsiAccessibility(finalUrl),
-    auditDeadLinks(finalUrl, $),
-    fetchStylesheetText($, finalUrl),
-    auditContentJudgment($, finalUrl),
   ])
-  const styleFindings = auditStyles(cssText)
 
   const sections: AuditSection[] = [
     { name: 'UX & UI Analysis',      key: 'ux',     findings: auditUX($, a11yData),                               score: 0 },
-    { name: 'Navigation & Structure', key: 'nav',    findings: [...auditNav($, finalUrl), ...deadLinkFindings],   score: 0 },
+    { name: 'Navigation & Structure', key: 'nav',    findings: auditNav($, finalUrl),                             score: 0 },
     { name: 'Page Speed',             key: 'speed',  findings: auditSpeed(headers, responseTimeMs, bodySize, $, lighthouseData), score: 0 },
-    { name: 'Mobile Friendliness',    key: 'mobile', findings: [...auditMobile($), ...styleFindings],             score: 0 },
+    { name: 'Mobile Friendliness',    key: 'mobile', findings: auditMobile($),                                    score: 0 },
     { name: 'Trust Signals',          key: 'trust',  findings: trustFindings,                                     score: 0 },
     { name: 'Conversion (CRO)',       key: 'cro',    findings: auditCRO($, html),                                 score: 0 },
     { name: 'Forms & CTAs',           key: 'forms',  findings: auditForms($),                                     score: 0 },
     { name: 'Technical Health',       key: 'tech',   findings: auditTech($, robotsStatus, sitemapStatus),         score: 0 },
-    { name: 'Content & Clarity (AI)', key: 'ai-content', findings: aiContentFindings,                             score: 0 },
   ]
 
   for (const section of sections) {
