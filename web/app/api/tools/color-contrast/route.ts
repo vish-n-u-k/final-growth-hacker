@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { scanColorContrast, type ColorContrastScanResult } from '@/lib/color-contrast-scan'
 
-export const maxDuration = 60
+export const maxDuration = 30
 
 export async function POST(request: NextRequest) {
   const { websiteUrl } = await request.json() as { websiteUrl: string }
