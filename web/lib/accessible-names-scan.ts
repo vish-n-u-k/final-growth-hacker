@@ -26,10 +26,7 @@ export async function scanAccessibleNames(url: string): Promise<AccessibleNamesS
     const timer = setTimeout(() => controller.abort(), 45000)
     const res = await fetch(endpoint, { signal: controller.signal })
     clearTimeout(timer)
-    if (!res.ok) {
-      console.error(`[accessible-names-scan] PSI request failed: ${res.status} ${res.statusText} (key present: ${!!key})`, await res.text().catch(() => ''))
-      return null
-    }
+    if (!res.ok) return null
 
     const json = await res.json() as Record<string, unknown>
     const lhr = json.lighthouseResult as Record<string, unknown> | undefined
@@ -55,8 +52,7 @@ export async function scanAccessibleNames(url: string): Promise<AccessibleNamesS
       score: scoreRaw === null || scoreRaw === undefined ? null : Math.round(scoreRaw * 100),
       violations,
     }
-  } catch (err) {
-    console.error('[accessible-names-scan] scan failed:', err)
+  } catch {
     return null
   }
 }

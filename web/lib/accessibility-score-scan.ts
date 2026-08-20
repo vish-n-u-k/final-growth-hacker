@@ -17,10 +17,7 @@ export async function scanAccessibilityScore(url: string): Promise<Accessibility
     const timer = setTimeout(() => controller.abort(), 45000)
     const res = await fetch(endpoint, { signal: controller.signal })
     clearTimeout(timer)
-    if (!res.ok) {
-      console.error(`[accessibility-score-scan] PSI request failed: ${res.status} ${res.statusText} (key present: ${!!key})`, await res.text().catch(() => ''))
-      return null
-    }
+    if (!res.ok) return null
     const json = await res.json() as Record<string, unknown>
     const lhr = json.lighthouseResult as Record<string, unknown> | undefined
     const cats = lhr?.categories as Record<string, { score: number | null }> | undefined
@@ -45,8 +42,7 @@ export async function scanAccessibilityScore(url: string): Promise<Accessibility
       tapTargetsPass: auditPass('tap-targets'),
       accessibleNamesPass,
     }
-  } catch (err) {
-    console.error('[accessibility-score-scan] scan failed:', err)
+  } catch {
     return null
   }
 }

@@ -21,10 +21,7 @@ export async function scanFontSize(url: string): Promise<FontSizeScanResult | nu
     const timer = setTimeout(() => controller.abort(), 45000)
     const res = await fetch(endpoint, { signal: controller.signal })
     clearTimeout(timer)
-    if (!res.ok) {
-      console.error(`[font-size-scan] PSI request failed: ${res.status} ${res.statusText} (key present: ${!!key})`, await res.text().catch(() => ''))
-      return null
-    }
+    if (!res.ok) return null
     const json = await res.json() as Record<string, unknown>
     const lhr = json.lighthouseResult as Record<string, unknown> | undefined
     const cats = lhr?.categories as Record<string, { score: number | null }> | undefined
@@ -57,8 +54,7 @@ export async function scanFontSize(url: string): Promise<FontSizeScanResult | nu
         : null,
       violations,
     }
-  } catch (err) {
-    console.error('[font-size-scan] scan failed:', err)
+  } catch {
     return null
   }
 }

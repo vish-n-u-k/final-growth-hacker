@@ -155,13 +155,10 @@ async function fetchPsiAccessibility(url: string): Promise<A11yData | null> {
     if (key) params.set('key', key)
     const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params.toString()}`
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 20000)
+    const timer = setTimeout(() => controller.abort(), 8000)
     const res = await fetch(endpoint, { signal: controller.signal })
     clearTimeout(timer)
-    if (!res.ok) {
-      console.error(`[audit] fetchPsiAccessibility PSI request failed: ${res.status} ${res.statusText} (key present: ${!!key})`, await res.text().catch(() => ''))
-      return null
-    }
+    if (!res.ok) return null
     const json = await res.json() as Record<string, unknown>
     const lhr = json.lighthouseResult as Record<string, unknown> | undefined
     const cats = lhr?.categories as Record<string, { score: number | null }> | undefined
@@ -190,8 +187,7 @@ async function fetchPsiAccessibility(url: string): Promise<A11yData | null> {
       tapTargetsPass: auditPass('tap-targets'),
       accessibleNamesPass,
     }
-  } catch (err) {
-    console.error('[audit] fetchPsiAccessibility failed:', err)
+  } catch {
     return null
   }
 }
