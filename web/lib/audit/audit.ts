@@ -1165,8 +1165,7 @@ Return ONLY a valid JSON array, no markdown fences, no text outside the array.`,
       maxTokens: 1500,
       model: 'claude-haiku-4-5-20251001',
     })
-  } catch (err) {
-    console.error('[audit] auditContentJudgment callAI failed:', err)
+  } catch {
     return []
   }
 
@@ -1176,8 +1175,7 @@ Return ONLY a valid JSON array, no markdown fences, no text outside the array.`,
     return rows
       .filter((r) => r.slug && r.text && (r.level === 'good' || r.level === 'ok' || r.level === 'bad' || r.level === 'info'))
       .map((r) => f(r.slug, r.level, r.text, r.fix))
-  } catch (err) {
-    console.error('[audit] auditContentJudgment JSON parse failed:', err, '\nraw response:', raw)
+  } catch {
     return []
   }
 }
@@ -1224,29 +1222,14 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
   const hasLighthouse = await lighthouseAvailable()
   const lighthouseData = hasLighthouse ? await runLighthouse(finalUrl) : null
 
-  // Run all category audits (deterministic + AI judgment) in parallel where independent.
-  // Promise.allSettled — one check throwing (e.g. a flaky external fetch or a malformed
-  // AI response) must not take down the entire audit and leave every other item unanalyzed.
-  const [trustResult, a11yResult, deadLinkResult, cssResult, aiContentResult] = await Promise.allSettled([
+  // Run all category audits (deterministic + AI judgment) in parallel where independent
+  const [trustFindings, a11yData, deadLinkFindings, cssText, aiContentFindings] = await Promise.all([
     auditTrust(finalUrl, headers, $),
     fetchPsiAccessibility(finalUrl),
     auditDeadLinks(finalUrl, $),
     fetchStylesheetText($, finalUrl),
     auditContentJudgment($, finalUrl),
   ])
-
-  const trustFindings = trustResult.status === 'fulfilled' ? trustResult.value : []
-  const a11yData = a11yResult.status === 'fulfilled' ? a11yResult.value : null
-  const deadLinkFindings = deadLinkResult.status === 'fulfilled' ? deadLinkResult.value : []
-  const cssText = cssResult.status === 'fulfilled' ? cssResult.value : ''
-  const aiContentFindings = aiContentResult.status === 'fulfilled' ? aiContentResult.value : []
-
-  if (trustResult.status === 'rejected') console.error('[audit] auditTrust failed:', trustResult.reason)
-  if (a11yResult.status === 'rejected') console.error('[audit] fetchPsiAccessibility failed:', a11yResult.reason)
-  if (deadLinkResult.status === 'rejected') console.error('[audit] auditDeadLinks failed:', deadLinkResult.reason)
-  if (cssResult.status === 'rejected') console.error('[audit] fetchStylesheetText failed:', cssResult.reason)
-  if (aiContentResult.status === 'rejected') console.error('[audit] auditContentJudgment failed:', aiContentResult.reason)
-
   const styleFindings = auditStyles(cssText)
 
   const sections: AuditSection[] = [
