@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { scanFontSize, type FontSizeScanResult } from '@/lib/font-size-scan'
 
-export const maxDuration = 30
+export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   const { websiteUrl } = await request.json() as { websiteUrl: string }

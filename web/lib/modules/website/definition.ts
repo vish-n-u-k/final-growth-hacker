@@ -109,6 +109,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
                 'Make every clickable button, link, and icon at least 48x48px on mobile — add padding if the visible icon/text is smaller',
                 'Leave at least 8px of spacing between adjacent tap targets (e.g. social icons, nav items) so users don\'t mis-tap',
                 'Pay special attention to mobile nav menus, footer links, and icon-only buttons — these are the most common offenders',
+                'Use the checker below to find the exact undersized or overlapping tap targets on your live page',
               ],
             },
             {
@@ -121,6 +122,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
                 'Icon-only buttons (hamburger menu, search, close, social icons) need an aria-label describing what they do, e.g. <button aria-label="Open menu">',
                 'Links that only contain an image need alt text on the image, or an aria-label on the link itself',
                 'Never leave a button or link with no visible text and no aria-label — screen reader users will hear nothing useful',
+                'Use the checker below to find the exact buttons and links missing an accessible name on your live page',
               ],
             },
           ],

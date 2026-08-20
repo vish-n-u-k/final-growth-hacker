@@ -39,7 +39,7 @@ export async function scanColorContrast(url: string): Promise<ColorContrastScanR
     const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params.toString()}`
 
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 25000)
+    const timer = setTimeout(() => controller.abort(), 45000)
     const res = await fetch(endpoint, { signal: controller.signal })
     clearTimeout(timer)
     if (!res.ok) return null

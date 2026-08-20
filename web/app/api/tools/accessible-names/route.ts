@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { scanColorContrast, type ColorContrastScanResult } from '@/lib/color-contrast-scan'
+import { scanAccessibleNames, type AccessibleNamesScanResult } from '@/lib/accessible-names-scan'
 
 export const maxDuration = 60
 
@@ -8,11 +8,11 @@ export async function POST(request: NextRequest) {
   if (!websiteUrl) return NextResponse.json({ error: 'Missing URL' }, { status: 400 })
 
   const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
-  const result = await scanColorContrast(url)
+  const result = await scanAccessibleNames(url)
 
   if (!result) {
     return NextResponse.json({ error: 'Could not analyze this page right now — try again in a moment.' }, { status: 502 })
   }
 
-  return NextResponse.json(result satisfies ColorContrastScanResult)
+  return NextResponse.json(result satisfies AccessibleNamesScanResult)
 }
