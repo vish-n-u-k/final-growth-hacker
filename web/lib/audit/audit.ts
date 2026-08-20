@@ -21,11 +21,15 @@ const execFileAsync = promisify(execFile)
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-import type { FindingLevel, Finding } from './finding'
-import { f } from './finding'
-import { runBrowserAudit } from './browser-audit'
+export type FindingLevel = 'good' | 'ok' | 'bad' | 'info'
 
-export type { FindingLevel, Finding }
+export interface Finding {
+  key: string
+  level: FindingLevel
+  text: string
+  fix?: string
+  code?: string
+}
 
 export interface AuditSection {
   name: string
@@ -50,6 +54,13 @@ export interface AuditError {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function f(key: string, level: FindingLevel, text: string, fix?: string, code?: string): Finding {
+  const out: Finding = { key, level, text }
+  if (fix) out.fix = fix
+  if (code) out.code = code
+  return out
+}
 
 function calcScore(findings: Finding[]): number {
   let score = 100
@@ -1216,13 +1227,12 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
   // Run all category audits (deterministic + AI judgment) in parallel where independent.
   // Promise.allSettled — one check throwing (e.g. a flaky external fetch or a malformed
   // AI response) must not take down the entire audit and leave every other item unanalyzed.
-  const [trustResult, a11yResult, deadLinkResult, cssResult, aiContentResult, browserResult] = await Promise.allSettled([
+  const [trustResult, a11yResult, deadLinkResult, cssResult, aiContentResult] = await Promise.allSettled([
     auditTrust(finalUrl, headers, $),
     fetchPsiAccessibility(finalUrl),
     auditDeadLinks(finalUrl, $),
     fetchStylesheetText($, finalUrl),
     auditContentJudgment($, finalUrl),
-    runBrowserAudit(finalUrl),
   ])
 
   const trustFindings = trustResult.status === 'fulfilled' ? trustResult.value : []
@@ -1230,39 +1240,25 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
   const deadLinkFindings = deadLinkResult.status === 'fulfilled' ? deadLinkResult.value : []
   const cssText = cssResult.status === 'fulfilled' ? cssResult.value : ''
   const aiContentFindings = aiContentResult.status === 'fulfilled' ? aiContentResult.value : []
-  const browserFindings = browserResult.status === 'fulfilled' ? browserResult.value : []
 
   if (trustResult.status === 'rejected') console.error('[audit] auditTrust failed:', trustResult.reason)
   if (a11yResult.status === 'rejected') console.error('[audit] fetchPsiAccessibility failed:', a11yResult.reason)
   if (deadLinkResult.status === 'rejected') console.error('[audit] auditDeadLinks failed:', deadLinkResult.reason)
   if (cssResult.status === 'rejected') console.error('[audit] fetchStylesheetText failed:', cssResult.reason)
   if (aiContentResult.status === 'rejected') console.error('[audit] auditContentJudgment failed:', aiContentResult.reason)
-  if (browserResult.status === 'rejected') console.error('[audit] runBrowserAudit failed:', browserResult.reason)
 
   const styleFindings = auditStyles(cssText)
 
-  // Browser-audit findings are keyed by slug and get sorted into their real
-  // sections purely for AuditSection bookkeeping (buildFindingMap in agent.ts
-  // flattens all sections by key regardless, so grouping here is cosmetic).
-  const browserByKey = new Map(browserFindings.map((finding) => [finding.key, finding]))
-  const takeBrowser = (...keys: string[]): Finding[] => keys.map((k) => browserByKey.get(k)).filter((x): x is Finding => !!x)
-
   const sections: AuditSection[] = [
-    { name: 'UX & UI Analysis',      key: 'ux',     findings: [...auditUX($, a11yData), ...takeBrowser('keyboard-nav-order', 'focus-visible-states')], score: 0 },
-    { name: 'Navigation & Structure', key: 'nav',    findings: [...auditNav($, finalUrl), ...deadLinkFindings, ...takeBrowser('mobile-nav-interaction', 'mobile-nav-visual-quality')], score: 0 },
+    { name: 'UX & UI Analysis',      key: 'ux',     findings: auditUX($, a11yData),                               score: 0 },
+    { name: 'Navigation & Structure', key: 'nav',    findings: [...auditNav($, finalUrl), ...deadLinkFindings],   score: 0 },
     { name: 'Page Speed',             key: 'speed',  findings: auditSpeed(headers, responseTimeMs, bodySize, $, lighthouseData), score: 0 },
-    { name: 'Mobile Friendliness',    key: 'mobile', findings: [...auditMobile($), ...styleFindings, ...takeBrowser('cursor-affordance', 'horizontal-scroll-mobile', 'breakpoint-coverage')], score: 0 },
-    { name: 'Trust Signals',          key: 'trust',  findings: [...trustFindings, ...takeBrowser('trust-badges-placement', 'brand-consistency')], score: 0 },
+    { name: 'Mobile Friendliness',    key: 'mobile', findings: [...auditMobile($), ...styleFindings],             score: 0 },
+    { name: 'Trust Signals',          key: 'trust',  findings: trustFindings,                                     score: 0 },
     { name: 'Conversion (CRO)',       key: 'cro',    findings: auditCRO($, html),                                 score: 0 },
-    { name: 'Forms & CTAs',           key: 'forms',  findings: [...auditForms($), ...takeBrowser('form-submit-error-handling', 'loading-disabled-submit-state')], score: 0 },
+    { name: 'Forms & CTAs',           key: 'forms',  findings: auditForms($),                                     score: 0 },
     { name: 'Technical Health',       key: 'tech',   findings: auditTech($, robotsStatus, sitemapStatus),         score: 0 },
-    { name: 'Content & Clarity (AI)', key: 'ai-content', findings: [...aiContentFindings, ...takeBrowser('empty-state-quality')], score: 0 },
-    {
-      name: 'Visual Hierarchy & Clarity (AI)',
-      key: 'visual-hierarchy',
-      findings: takeBrowser('hero-cta-prominence', 'competing-ctas', 'icon-consistency', 'whitespace-rhythm', 'text-legibility-busy-bg', 'color-not-only-indicator'),
-      score: 0,
-    },
+    { name: 'Content & Clarity (AI)', key: 'ai-content', findings: aiContentFindings,                             score: 0 },
   ]
 
   for (const section of sections) {
