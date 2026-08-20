@@ -252,3 +252,81 @@ export async function callAI({ system, prompt, maxTokens, model = 'claude-sonnet
 
   return response
 }
+
+// ── Vision calls (screenshot review) ────────────────────────────────────────
+// Only the direct Anthropic SDK path supports image content blocks today.
+// CLI/Gemini providers return null so callers can degrade gracefully — this
+// is the only provider branch that supports vision input in this app.
+
+export interface VisionImage {
+  label: string
+  base64: string
+  mediaType: 'image/jpeg' | 'image/png'
+}
+
+interface CallAIVisionOptions {
+  system: string
+  prompt: string
+  images: VisionImage[]
+  maxTokens: number
+  model?: string
+}
+
+export async function callAIVision({ system, prompt, images, maxTokens, model = 'claude-sonnet-4-6' }: CallAIVisionOptions): Promise<string | null> {
+  if (useClaudeCLI || useGemini) {
+    console.warn('[AI:vision] skipped — vision calls are only supported via the direct Anthropic SDK provider in this app')
+    return null
+  }
+  if (images.length === 0) return null
+
+  try {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    const content: Array<
+      | { type: 'text'; text: string }
+      | { type: 'image'; source: { type: 'base64'; media_type: 'image/jpeg' | 'image/png'; data: string } }
+    > = []
+    for (const img of images) {
+      content.push({ type: 'text', text: `--- ${img.label} ---` })
+      content.push({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.base64 } })
+    }
+    content.push({ type: 'text', text: prompt })
+
+    console.log('\n' + '═'.repeat(80))
+    console.log(`[AI:vision] model=${model} maxTokens=${maxTokens} images=${images.map((i) => i.label).join(', ')}`)
+
+    const message = await client.messages.create({
+      model,
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content }],
+    })
+    const response = message.content[0].type === 'text' ? message.content[0].text : null
+
+    const u = message.usage
+    const isHaiku = model.includes('haiku')
+    const inRate = isHaiku ? 0.80 : 3.00
+    const outRate = isHaiku ? 4.00 : 15.00
+    const cost = (u.input_tokens / 1_000_000) * inRate + (u.output_tokens / 1_000_000) * outRate
+    console.log(`[AI:vision] input_tokens=${u.input_tokens} output_tokens=${u.output_tokens} cost=$${cost.toFixed(6)}`)
+    console.log('═'.repeat(80) + '\n')
+
+    const _ctx = aiContextStore.getStore()
+    if (_ctx) {
+      db.insert(aiUsageLogs).values({
+        brandId: _ctx.brandId,
+        moduleType: _ctx.moduleType,
+        websiteUrl: _ctx.websiteUrl,
+        model,
+        provider: 'sdk-vision',
+        inputTokens: u.input_tokens,
+        outputTokens: u.output_tokens,
+        costUsd: cost.toFixed(8),
+      }).catch((e) => console.error('[USAGE] DB insert failed:', e))
+    }
+
+    return response
+  } catch (err) {
+    console.error('[AI:vision] call failed:', err)
+    return null
+  }
+}
