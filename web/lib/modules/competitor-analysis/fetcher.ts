@@ -143,9 +143,9 @@ function detectPixels(rawHtml: string): Record<string, boolean> {
   return result
 }
 
-async function fetchPsi(url: string): Promise<PsiScore | null> {
+async function fetchPsi(url: string, apiKey?: string): Promise<PsiScore | null> {
   try {
-    const key = process.env.GOOGLE_PSI_API_KEY
+    const key = apiKey || process.env.GOOGLE_PSI_API_KEY
     const params = new URLSearchParams({ url, strategy: 'mobile', category: 'performance' })
     if (key) params.set('key', key)
     const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params.toString()}`
@@ -200,6 +200,7 @@ export async function fetchCompetitorAnalysisData(
 
   // PSI capped at user + top 2 competitors to stay well within 90s maxDuration
   const psiUrls = [userUrl, ...rawUrls.slice(0, 2)]
+  const psiApiKey = requirements['psi_api_key'] || undefined
 
   // All network tasks in parallel: HTML fetches, PSI, and URL discovery
   const [[userRaw, ...competitorRaws], psiScores, [userDiscovery, ...competitorDiscoveries]] = await Promise.all([
@@ -207,7 +208,7 @@ export async function fetchCompetitorAnalysisData(
       safeFetch(userUrl, 15000),
       ...rawUrls.map(u => safeFetch(u, 10000)),
     ]),
-    Promise.all(psiUrls.map(u => fetchPsi(u))),
+    Promise.all(psiUrls.map(u => fetchPsi(u, psiApiKey))),
     Promise.all([
       discoverAllUrls(userUrl, undefined, { maxUrls: 150, enrichMeta: 20 }),
       ...rawUrls.map(u => discoverAllUrls(u, undefined, { maxUrls: 150, enrichMeta: 10 })),

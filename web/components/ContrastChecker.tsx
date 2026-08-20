@@ -25,7 +25,7 @@ function ViolationCard({ v }: { v: ColorContrastViolation }) {
   )
 }
 
-export default function ContrastChecker({ websiteUrl }: { websiteUrl?: string }) {
+export default function ContrastChecker({ websiteUrl, brandId }: { websiteUrl?: string; brandId?: string }) {
   const [loading, setLoading] = useState(!!websiteUrl)
   const [scan, setScan] = useState<ColorContrastScanResult | null>(null)
   const [scanError, setScanError] = useState<string | null>(null)
@@ -41,7 +41,7 @@ export default function ContrastChecker({ websiteUrl }: { websiteUrl?: string })
     fetch('/api/tools/color-contrast', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ websiteUrl }),
+      body: JSON.stringify({ websiteUrl, brandId }),
     })
       .then(async (res) => {
         if (!res.ok) {

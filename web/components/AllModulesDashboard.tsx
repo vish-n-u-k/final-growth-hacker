@@ -1662,12 +1662,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       </li>
                     ))}
                   </ol>
-                  {item.slug === 'color-contrast' && <ContrastChecker websiteUrl={brand.websiteUrl} />}
-                  {item.slug === 'accessibility-score' && <AccessibilityScoreChecker websiteUrl={brand.websiteUrl} />}
-                  {item.slug === 'font-size' && <FontSizeChecker websiteUrl={brand.websiteUrl} />}
-                  {item.slug === 'tap-targets' && <TapTargetsChecker websiteUrl={brand.websiteUrl} />}
-                  {item.slug === 'accessible-names' && <AccessibleNamesChecker websiteUrl={brand.websiteUrl} />}
-                  {item.slug === 'core-web-vitals' && <WebVitalsChecker websiteUrl={brand.websiteUrl} />}
+                  {item.slug === 'color-contrast' && <ContrastChecker websiteUrl={brand.websiteUrl} brandId={brand.id} />}
+                  {item.slug === 'accessibility-score' && <AccessibilityScoreChecker websiteUrl={brand.websiteUrl} brandId={brand.id} />}
+                  {item.slug === 'font-size' && <FontSizeChecker websiteUrl={brand.websiteUrl} brandId={brand.id} />}
+                  {item.slug === 'tap-targets' && <TapTargetsChecker websiteUrl={brand.websiteUrl} brandId={brand.id} />}
+                  {item.slug === 'accessible-names' && <AccessibleNamesChecker websiteUrl={brand.websiteUrl} brandId={brand.id} />}
+                  {item.slug === 'core-web-vitals' && <WebVitalsChecker websiteUrl={brand.websiteUrl} brandId={brand.id} />}
                   {item.slug === 'posthog-installed' && (
                     <a
                       href="/downloads/posthog-setup.md"

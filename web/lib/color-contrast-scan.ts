@@ -30,9 +30,9 @@ interface PsiNode {
   snippet?: string
 }
 
-export async function scanColorContrast(url: string): Promise<ColorContrastScanResult | null> {
+export async function scanColorContrast(url: string, apiKey?: string): Promise<ColorContrastScanResult | null> {
   try {
-    const key = process.env.GOOGLE_PSI_API_KEY
+    const key = apiKey || process.env.GOOGLE_PSI_API_KEY
     const params = new URLSearchParams({ url, strategy: 'mobile' })
     params.append('category', 'accessibility')
     if (key) params.set('key', key)

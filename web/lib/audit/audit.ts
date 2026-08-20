@@ -146,9 +146,9 @@ export interface A11yData {
   accessibleNamesPass: boolean | null
 }
 
-async function fetchPsiAccessibility(url: string): Promise<A11yData | null> {
+async function fetchPsiAccessibility(url: string, apiKey?: string): Promise<A11yData | null> {
   try {
-    const key = process.env.GOOGLE_PSI_API_KEY
+    const key = apiKey || process.env.GOOGLE_PSI_API_KEY
     const params = new URLSearchParams({ url, strategy: 'mobile' })
     params.append('category', 'accessibility')
     params.append('category', 'seo')
@@ -1177,7 +1177,7 @@ Return ONLY a valid JSON array, no markdown fences, no text outside the array.`,
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
-export async function runAudit(url: string): Promise<AuditResult | AuditError> {
+export async function runAudit(url: string, psiApiKey?: string): Promise<AuditResult | AuditError> {
   const normalizedUrl = normalizeUrl(url)
 
   // Fetch main page
@@ -1222,7 +1222,7 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
   // AI response) must not take down the entire audit and leave every other item unanalyzed.
   const [trustResult, a11yResult, deadLinkResult, cssResult, aiContentResult, browserResult] = await Promise.allSettled([
     auditTrust(finalUrl, headers, $),
-    fetchPsiAccessibility(finalUrl),
+    fetchPsiAccessibility(finalUrl, psiApiKey),
     auditDeadLinks(finalUrl, $),
     fetchStylesheetText($, finalUrl),
     auditContentJudgment($, finalUrl),

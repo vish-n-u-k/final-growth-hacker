@@ -19,7 +19,7 @@ function ViolationCard({ v }: { v: TapTargetViolation }) {
   )
 }
 
-export default function TapTargetsChecker({ websiteUrl }: { websiteUrl?: string }) {
+export default function TapTargetsChecker({ websiteUrl, brandId }: { websiteUrl?: string; brandId?: string }) {
   const [loading, setLoading] = useState(!!websiteUrl)
   const [scan, setScan] = useState<TapTargetsScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -31,7 +31,7 @@ export default function TapTargetsChecker({ websiteUrl }: { websiteUrl?: string 
     fetch('/api/tools/tap-targets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ websiteUrl }),
+      body: JSON.stringify({ websiteUrl, brandId }),
     })
       .then(async (res) => {
         if (!res.ok) {

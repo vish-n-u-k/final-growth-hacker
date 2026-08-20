@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { scanFontSize, type FontSizeScanResult } from '@/lib/font-size-scan'
+import { getBrandPsiApiKey } from '@/lib/integrations/psi-key'
 
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
-  const { websiteUrl } = await request.json() as { websiteUrl: string }
+  const { websiteUrl, brandId } = await request.json() as { websiteUrl: string; brandId?: string }
   if (!websiteUrl) return NextResponse.json({ error: 'Missing URL' }, { status: 400 })
 
   const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
-  const result = await scanFontSize(url)
+  const apiKey = await getBrandPsiApiKey(brandId)
+  const result = await scanFontSize(url, apiKey)
 
   if (!result) {
     return NextResponse.json({ error: 'Could not analyze this page right now — try again in a moment.' }, { status: 502 })

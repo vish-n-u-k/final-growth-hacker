@@ -8,5 +8,5 @@ export async function fetchWebsiteData(
 ): Promise<AuditResult | AuditError> {
   const rawUrl = requirements['website_url'] ?? ''
   const url = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`
-  return runAudit(url)
+  return runAudit(url, requirements['psi_api_key'] || undefined)
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { WebVitalsScanResult } from '@/lib/web-vitals-scan'
 
-export default function WebVitalsChecker({ websiteUrl }: { websiteUrl?: string }) {
+export default function WebVitalsChecker({ websiteUrl, brandId }: { websiteUrl?: string; brandId?: string }) {
   const [loading, setLoading] = useState(!!websiteUrl)
   const [result, setResult] = useState<WebVitalsScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -15,7 +15,7 @@ export default function WebVitalsChecker({ websiteUrl }: { websiteUrl?: string }
     fetch('/api/tools/web-vitals', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ websiteUrl }),
+      body: JSON.stringify({ websiteUrl, brandId }),
     })
       .then(async (res) => {
         if (!res.ok) {

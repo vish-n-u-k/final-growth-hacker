@@ -14,9 +14,9 @@ interface PsiNode {
   snippet?: string
 }
 
-export async function scanAccessibleNames(url: string): Promise<AccessibleNamesScanResult | null> {
+export async function scanAccessibleNames(url: string, apiKey?: string): Promise<AccessibleNamesScanResult | null> {
   try {
-    const key = process.env.GOOGLE_PSI_API_KEY
+    const key = apiKey || process.env.GOOGLE_PSI_API_KEY
     const params = new URLSearchParams({ url, strategy: 'mobile' })
     params.append('category', 'accessibility')
     if (key) params.set('key', key)

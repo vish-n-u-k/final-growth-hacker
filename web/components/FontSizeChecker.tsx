@@ -21,7 +21,7 @@ function ViolationCard({ v }: { v: FontSizeViolation }) {
   )
 }
 
-export default function FontSizeChecker({ websiteUrl }: { websiteUrl?: string }) {
+export default function FontSizeChecker({ websiteUrl, brandId }: { websiteUrl?: string; brandId?: string }) {
   const [loading, setLoading] = useState(!!websiteUrl)
   const [scan, setScan] = useState<FontSizeScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +33,7 @@ export default function FontSizeChecker({ websiteUrl }: { websiteUrl?: string })
     fetch('/api/tools/font-size', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ websiteUrl }),
+      body: JSON.stringify({ websiteUrl, brandId }),
     })
       .then(async (res) => {
         if (!res.ok) {
