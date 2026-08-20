@@ -18,7 +18,10 @@ export async function scanWebVitals(url: string): Promise<WebVitalsScanResult | 
     const timer = setTimeout(() => controller.abort(), 45000)
     const res = await fetch(endpoint, { signal: controller.signal })
     clearTimeout(timer)
-    if (!res.ok) return null
+    if (!res.ok) {
+      console.error(`[web-vitals-scan] PSI request failed: ${res.status} ${res.statusText} (key present: ${!!key})`, await res.text().catch(() => ''))
+      return null
+    }
 
     const json = await res.json() as Record<string, unknown>
     const lhr = json.lighthouseResult as Record<string, unknown> | undefined
@@ -38,7 +41,8 @@ export async function scanWebVitals(url: string): Promise<WebVitalsScanResult | 
       clsScore: audits?.['cumulative-layout-shift']?.numericValue ?? null,
       renderBlockingCount: Array.isArray(renderBlockingItems) ? renderBlockingItems.length : null,
     }
-  } catch {
+  } catch (err) {
+    console.error('[web-vitals-scan] scan failed:', err)
     return null
   }
 }
