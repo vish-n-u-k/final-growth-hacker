@@ -21,6 +21,7 @@ export const brands = pgTable('brands', {
   analyticsSnapshot: jsonb('analytics_snapshot'),         // cached /api/analytics/auth-dashboard response
   analyticsSnapshotAt: timestamp('analytics_snapshot_at', { withTimezone: true }), // when cache was last saved
   analyticsCardOverrides: jsonb('analytics_card_overrides'), // per-card label/event overrides for built-in Type B cards
+  analyticsColFields: jsonb('analytics_col_fields'),         // saved column→PostHog property mappings for view details table
   dailyEmailEnabled: boolean('daily_email_enabled').default(false),
   notificationEmail: text('notification_email'), // email to send daily digest to (set when user opts in)
   dailyStreak: integer('daily_streak').default(0),

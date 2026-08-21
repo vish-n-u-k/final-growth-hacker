@@ -76,11 +76,15 @@ export default async function AuthAnalyticsPage() {
       }]
     })
 
+  const DEFAULT_COL_FIELDS = { name: '$email', email: '$email', source: '$channel_type', location: '$geoip_country_name', plan: 'plan' }
+  const savedColFields = (brand.analyticsColFields as Record<string, string> | null) ?? DEFAULT_COL_FIELDS
+
   return (
     <AnalyticsDashboard
       brand={{ id: brand.id, name: brand.name, websiteUrl: brand.websiteUrl, createdAt: brand.createdAt?.toISOString() ?? null }}
       modules={moduleHealth}
       dailyEmailEnabled={brand.dailyEmailEnabled ?? false}
+      savedColFields={savedColFields}
     />
   )
 }

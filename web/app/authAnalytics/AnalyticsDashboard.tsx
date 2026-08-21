@@ -1329,9 +1329,10 @@ interface Props {
   brand: { id: string; name: string; websiteUrl: string; createdAt: string | null }
   modules: ModuleHealth[]
   dailyEmailEnabled: boolean
+  savedColFields?: Record<string, string>
 }
 
-export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: initialDailyEmail }: Props) {
+export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: initialDailyEmail, savedColFields }: Props) {
   const router = useRouter()
   const [backLoading, setBackLoading] = useState(false)
   const [view, setView] = useState<'users' | 'website'>('users')
@@ -1349,7 +1350,8 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   const [detailUsers, setDetailUsers] = useState<UserRow[]>([])
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailCustomMetric, setDetailCustomMetric] = useState<CustomMetricData | null>(null)
-  const [colFields, setColFields] = useState({ name: '$email', email: '$email', source: '$channel_type', location: '$geoip_country_name', plan: 'plan' })
+  const DEFAULT_COL_FIELDS = { name: '$email', email: '$email', source: '$channel_type', location: '$geoip_country_name', plan: 'plan' }
+  const [colFields, setColFields] = useState(savedColFields ?? DEFAULT_COL_FIELDS)
   const [detailType, setDetailType] = useState<string | null>(null)
   const [detailEventName, setDetailEventName] = useState<string | null>(null)
   const [toastMsg, setToastMsg] = useState<string|null>(null)
@@ -1424,6 +1426,11 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   const handleColFieldChange = (col: string, field: string) => {
     const next = { ...colFields, [col]: field }
     setColFields(next)
+    void fetch('/api/analytics/col-fields', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brandId: brand.id, colFields: next }),
+    })
     if (!detailType) return
     fetchDetailUsers(detailType, next, detailEventName ?? undefined)
   }
