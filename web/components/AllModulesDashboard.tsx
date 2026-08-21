@@ -1813,10 +1813,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           <div className="md-header-actions">
             <a
               href="/today"
-              style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-dim)', textDecoration: 'none', padding: '6px 12px', borderRadius: 8, border: '1px solid transparent', transition: 'background 0.15s, border-color 0.15s, color 0.15s' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-soft)'; e.currentTarget.style.color = 'var(--text)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-dim)' }}
+              style={{ fontSize: 13, fontWeight: 600, color: '#fff', textDecoration: 'none', padding: '6px 14px', borderRadius: 8, background: 'var(--green)', display: 'inline-flex', alignItems: 'center', gap: 6, transition: 'opacity 0.15s' }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
             >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
               Today
             </a>
             <ThemeToggle />
