@@ -115,17 +115,22 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  console.log('[signals] user authed, fetching brand')
   const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
   if (!brand) return NextResponse.json({ error: 'No brand' }, { status: 404 })
+  console.log('[signals] brand found, checking cache')
 
   // Return cached signals if < 4 hours old
   if (brand.signalsCachedAt && brand.dailySignalsCache) {
     const age = Date.now() - new Date(brand.signalsCachedAt).getTime()
     if (age < 4 * 60 * 60 * 1000) {
       const streak = computeStreak(brand.dailyStreak ?? 0, brand.lastActionDate ?? null)
-      const cards = brand.dailySignalsCache as ActionCard[]
+      const cached = brand.dailySignalsCache as { cards?: ActionCard[]; impacts?: unknown[] } | ActionCard[]
+      const cards = Array.isArray(cached) ? cached : (cached.cards ?? [])
+      const impacts = Array.isArray(cached) ? [] : (cached.impacts ?? [])
       return NextResponse.json({
         cards,
+        impacts,
         streak,
         allGood: cards.length === 0,
         cachedAt: brand.signalsCachedAt,
@@ -135,6 +140,8 @@ export async function GET() {
 
   // Fetch integrations + DB data in parallel
   const sevenDaysAgo = new Date(Date.now() - 7 * 864e5)
+  const t0 = Date.now()
+  console.log('[signals] starting parallel DB fetch')
 
   const [integrations, allModules, frektoRows, kwRows, critItems, auditPages] = await Promise.all([
     db.select().from(brandIntegrations)
@@ -185,6 +192,7 @@ export async function GET() {
       .limit(50),
   ])
 
+  console.log(`[signals] DB fetch done in ${Date.now() - t0}ms`)
   const intMap = new Map(integrations.map(i => [i.provider, i]))
   const ga4Int = intMap.get('ga4_api')
   const phInt  = intMap.get('posthog')
@@ -196,18 +204,24 @@ export async function GET() {
   const unlockedModules = allModules.filter(m => m.status !== 'locked')
 
   // Fetch live GA4 + PostHog in parallel
+  const t1 = Date.now()
+  const hasGa4 = !!(ga4Int && ga4Meta.client_email && ga4Meta.private_key && ga4Meta.property_id)
+  const hasPH  = !!(phInt?.apiKey && phMeta.project_id)
+  console.log(`[signals] fetching GA4=${hasGa4} PostHog=${hasPH}`)
+
   const [ga4Data, phData] = await Promise.all([
-    (ga4Int && ga4Meta.client_email && ga4Meta.private_key && ga4Meta.property_id)
+    hasGa4
       ? fetchGA4Signals(ga4Meta.client_email, ga4Meta.private_key, ga4Meta.property_id)
       : Promise.resolve(null),
-    (phInt?.apiKey && phMeta.project_id)
+    hasPH
       ? fetchPHSignals(
           (phMeta.posthog_host ?? 'https://us.posthog.com').replace(/\/$/, ''),
           phMeta.project_id,
-          phInt.apiKey,
+          phInt!.apiKey!,
         )
       : Promise.resolve(null),
   ])
+  console.log(`[signals] GA4=${JSON.stringify(ga4Data)} PH_dau=${phData?.dau ?? 'null'} (${Date.now() - t1}ms)`)
 
   // Resolve module IDs for critical items
   const moduleTypeMap = new Map(unlockedModules.map(m => [m.id, m.type]))
@@ -274,6 +288,7 @@ export async function GET() {
 
   const cards = detectSignals(input)
   const impacts = detectImpacts(input)
+  console.log(`[signals] cards=${cards.map(c => c.id).join(',')} total=${Date.now() - t0}ms`)
 
   // Cache in DB
   await db.update(brands)

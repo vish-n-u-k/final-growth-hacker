@@ -487,9 +487,9 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
         setStreak(d.streak ?? 0)
         setAllGood(d.allGood ?? false)
         setCachedAt(d.cachedAt ?? '')
-        setReady(true)
       }
     } catch { /* silent */ }
+    setReady(true)
     setRefreshing(false)
   }, [])
 

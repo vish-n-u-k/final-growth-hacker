@@ -97,7 +97,8 @@ export default async function TodayPage() {
   if (brand.signalsCachedAt && brand.dailySignalsCache) {
     const age = Date.now() - new Date(brand.signalsCachedAt).getTime()
     if (age < 4 * 60 * 60 * 1000) {
-      cards = brand.dailySignalsCache as ActionCard[]
+      const cached = brand.dailySignalsCache as { cards?: ActionCard[]; impacts?: unknown[] } | ActionCard[]
+      cards = Array.isArray(cached) ? cached : (cached.cards ?? [])
       allGood = cards.length === 0
       cachedAt = new Date(brand.signalsCachedAt).toISOString()
     }
