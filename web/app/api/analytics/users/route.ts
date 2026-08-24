@@ -15,6 +15,9 @@ interface UserRow {
   location: string | null
   plan: string | null
   sessions?: number
+  referringDomain: string | null
+  landingUrl: string | null
+  utmSource: string | null
 }
 
 async function hogqlRows(host: string, projectId: string, apiKey: string, query: string): Promise<unknown[][] | null> {
@@ -99,7 +102,10 @@ export async function GET(request: NextRequest) {
         toString(created_at),
         NULL,
         NULL,
-        ${personsPlanExpr}
+        ${personsPlanExpr},
+        properties.$initial_referring_domain,
+        properties.$initial_current_url,
+        properties.$initial_utm_source
       FROM persons
       WHERE is_identified = 1
         AND created_at >= now() - interval ${interval}
@@ -114,6 +120,9 @@ export async function GET(request: NextRequest) {
       source: null,
       location: null,
       plan: r[6] ? String(r[6]) : 'Free',
+      referringDomain: r[7] ? String(r[7]) : null,
+      landingUrl: r[8] ? String(r[8]) : null,
+      utmSource: r[9] ? String(r[9]) : null,
     }))
   } else if (type === 'signins') {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
@@ -124,7 +133,10 @@ export async function GET(request: NextRequest) {
         toString(timestamp),
         ${eventsSourceExpr},
         ${eventsLocExpr},
-        ${eventsPlanExpr}
+        ${eventsPlanExpr},
+        person.properties.$initial_referring_domain,
+        person.properties.$initial_current_url,
+        person.properties.$initial_utm_source
       FROM events
       WHERE event = '$identify'
         AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)
@@ -140,6 +152,9 @@ export async function GET(request: NextRequest) {
       source: r[4] ? String(r[4]) : null,
       location: r[5] ? String(r[5]) : null,
       plan: r[6] ? String(r[6]) : 'Free',
+      referringDomain: r[7] ? String(r[7]) : null,
+      landingUrl: r[8] ? String(r[8]) : null,
+      utmSource: r[9] ? String(r[9]) : null,
     }))
   } else if (type === 'dau') {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
@@ -151,7 +166,10 @@ export async function GET(request: NextRequest) {
         any(${eventsSourceExpr}),
         any(${eventsLocExpr}),
         any(${eventsPlanExpr}),
-        count() as sessions
+        count() as sessions,
+        any(person.properties.$initial_referring_domain),
+        any(person.properties.$initial_current_url),
+        any(person.properties.$initial_utm_source)
       FROM events
       WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1)
         AND timestamp >= now() - interval ${interval}
@@ -168,6 +186,9 @@ export async function GET(request: NextRequest) {
       location: r[5] ? String(r[5]) : null,
       plan: r[6] ? String(r[6]) : 'Free',
       sessions: Number(r[7] ?? 0),
+      referringDomain: r[8] ? String(r[8]) : null,
+      landingUrl: r[9] ? String(r[9]) : null,
+      utmSource: r[10] ? String(r[10]) : null,
     }))
   } else if (type === 'deleted') {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
@@ -178,7 +199,10 @@ export async function GET(request: NextRequest) {
         toString(timestamp),
         ${eventsSourceExpr},
         ${eventsLocExpr},
-        ${eventsPlanExpr}
+        ${eventsPlanExpr},
+        person.properties.$initial_referring_domain,
+        person.properties.$initial_current_url,
+        person.properties.$initial_utm_source
       FROM events
       WHERE event IN ('account_deleted', 'user_deleted', 'delete_account')
         AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)
@@ -194,6 +218,9 @@ export async function GET(request: NextRequest) {
       source: r[4] ? String(r[4]) : null,
       location: r[5] ? String(r[5]) : null,
       plan: r[6] ? String(r[6]) : 'Free',
+      referringDomain: r[7] ? String(r[7]) : null,
+      landingUrl: r[8] ? String(r[8]) : null,
+      utmSource: r[9] ? String(r[9]) : null,
     }))
   }
 
@@ -206,7 +233,10 @@ export async function GET(request: NextRequest) {
         toString(max(timestamp)),
         any(${eventsSourceExpr}),
         any(${eventsLocExpr}),
-        any(${eventsPlanExpr})
+        any(${eventsPlanExpr}),
+        any(person.properties.$initial_referring_domain),
+        any(person.properties.$initial_current_url),
+        any(person.properties.$initial_utm_source)
       FROM events
       WHERE event = '${eventName.replace(/'/g, "\\'")}'
         AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)
@@ -223,6 +253,9 @@ export async function GET(request: NextRequest) {
       source: r[4] ? String(r[4]) : null,
       location: r[5] ? String(r[5]) : null,
       plan: r[6] ? String(r[6]) : 'Free',
+      referringDomain: r[7] ? String(r[7]) : null,
+      landingUrl: r[8] ? String(r[8]) : null,
+      utmSource: r[9] ? String(r[9]) : null,
     }))
   }
 

@@ -95,6 +95,9 @@ interface UserRow {
   location: string | null
   plan: string | null
   sessions?: number
+  referringDomain: string | null
+  landingUrl: string | null
+  utmSource: string | null
 }
 
 interface CustomMetricData {
@@ -986,6 +989,29 @@ function DetailView({
                       ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: '#F0EEE6', color: MOCK.muted }}>{u.plan}</span>
                       : <span style={{ fontSize: 12, color: MOCK.muted2 }}>—</span>
                   } />
+                  {(u.referringDomain || u.utmSource) && (
+                    <DetailMobileRow label="Referred from" value={
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        {u.referringDomain && (
+                          <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: MOCK.greenSoft, color: MOCK.green }}>
+                            {u.referringDomain === '$direct' ? 'Direct' : u.referringDomain}
+                          </span>
+                        )}
+                        {u.utmSource && (
+                          <span style={{ display: 'inline-block', padding: '4px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: '#EEF6ED', color: MOCK.green }}>
+                            utm: {u.utmSource}
+                          </span>
+                        )}
+                      </span>
+                    } />
+                  )}
+                  {u.landingUrl && (
+                    <DetailMobileRow label="Landing page" value={
+                      <span style={{ fontSize: 13, color: MOCK.text }}>
+                        {(() => { try { return new URL(u.landingUrl!).pathname } catch { return u.landingUrl } })()}
+                      </span>
+                    } />
+                  )}
                 </div>
               ))
             ) : (
@@ -1001,6 +1027,8 @@ function DetailView({
                         { key: 'source', label: 'Source' },
                         { key: 'location', label: 'Location' },
                         { key: 'plan', label: 'Plan' },
+                        { key: null, label: 'Referred from' },
+                        { key: null, label: 'Landing page' },
                       ] as { key: string | null; label: string }[]).map(({ key, label }) => (
                         <th key={label} style={{ textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: MOCK.muted, background: '#FBF9F4', padding: '12px 16px', whiteSpace: 'nowrap' }}>
                           {key && onColFieldChange && properties.length > 0 ? (
@@ -1045,6 +1073,23 @@ function DetailView({
                           {u.plan
                             ? <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: '#F0EEE6', color: MOCK.muted }}>{u.plan}</span>
                             : <span style={{ fontSize: 12, color: MOCK.muted2 }}>—</span>}
+                        </td>
+                        <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                          {u.referringDomain ? (
+                            <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: MOCK.greenSoft, color: MOCK.green }}>
+                              {u.referringDomain === '$direct' ? 'Direct' : u.referringDomain}
+                            </span>
+                          ) : <span style={{ fontSize: 12, color: MOCK.muted2 }}>—</span>}
+                          {u.utmSource && (
+                            <span style={{ display: 'inline-block', marginLeft: 6, padding: '4px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: '#EEF6ED', color: MOCK.green }}>
+                              utm: {u.utmSource}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px 16px', fontSize: 12, color: MOCK.text, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {u.landingUrl ? (() => {
+                            try { return new URL(u.landingUrl).pathname } catch { return u.landingUrl }
+                          })() : <span style={{ color: MOCK.muted2 }}>—</span>}
                         </td>
                       </tr>
                     ))}
