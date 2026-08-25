@@ -59,7 +59,9 @@ export async function GET(
         'instagram_business_basic',
         'instagram_business_manage_insights',
       ].join(',')
-      authUrl = `https://api.instagram.com/oauth/authorize?client_id=${igAppId}&redirect_uri=${cb}&scope=${scopes}&response_type=code&state=${state}`
+      // New Instagram Login product (replaces deprecated Basic Display API).
+      // Uses www.instagram.com/oauth/authorize with the Instagram App ID — no Facebook Page required.
+      authUrl = `https://www.instagram.com/oauth/authorize?client_id=${igAppId}&redirect_uri=${cb}&scope=${scopes}&response_type=code&state=${state}`
       break
     }
 

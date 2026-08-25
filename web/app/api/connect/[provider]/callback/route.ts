@@ -119,7 +119,7 @@ async function handleInstagram(code: string, brandId: string): Promise<string> {
   const igAppSecret = process.env.INSTAGRAM_CLIENT_SECRET!
   const cb = callbackUrl('instagram_oauth')
 
-  // 1. Exchange code for short-lived token via Instagram's own endpoint
+  // 1. Exchange code for short-lived token via Instagram's token endpoint
   const tokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -135,8 +135,7 @@ async function handleInstagram(code: string, brandId: string): Promise<string> {
     const err = await tokenRes.text()
     throw new Error(`Instagram token exchange failed: ${err}`)
   }
-  const tokenData = await tokenRes.json() as { access_token: string; user_id: number }
-  const shortToken = tokenData.access_token
+  const { access_token: shortToken } = await tokenRes.json() as { access_token: string }
 
   // 2. Exchange for long-lived token (~60 days)
   const llRes = await fetch(
