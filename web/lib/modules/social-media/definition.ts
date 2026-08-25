@@ -234,9 +234,35 @@ Weight:
 Generate exactly 5 findings in priority order (most impactful first). Every finding must name the specific content type, platform, and expected outcome. Tie everything to the brand's actual industry and target audience — no generic advice.`,
     },
     {
+      slug: 'post-suggestions',
+      label: 'Post Suggestions',
+      order: 6,
+      prompt: `Generate one ready-to-use post suggestion for each platform where the brand has ANY presence (Tier 1, 2, or 3). Skip platforms marked as "Not detected anywhere".
+
+Use the content-strategy and growth-playbook findings already generated above as the foundation — each suggestion must map to one of those pillars.
+
+For each active platform, generate one item:
+- label: the specific post topic and format in plain English, e.g. "3 signs your website is costing you sales [Carousel]" or "Day in the life of our team [Reel]"
+- detail: platform name · format · which content pillar this maps to (one line, plain English)
+- narrative: one sentence explaining exactly why this post will resonate with the brand's target audience on this platform
+- action: a ready-to-use caption hook — the opening line only (first 1–2 sentences that stop the scroll). Make it specific to the brand's industry and audience. No generic openers.
+- verified: false (these are suggestions, not checks)
+- weight: 2
+
+Format rules per platform:
+- Instagram: lead with Reel or Carousel (not static image unless the topic is purely visual)
+- LinkedIn: text-first post or document carousel — no Reels
+- Twitter/X: thread opener or single punchy statement
+- Facebook: video or event-style post — avoid link-only posts
+- YouTube: video title framed as a search query the audience would actually type
+- TikTok: raw/authentic hook — first line must create immediate curiosity or relatability
+
+Generate exactly one item per active platform. If only 2 platforms are active, generate 2 items. Never generate a suggestion for a platform with tier "none".`,
+    },
+    {
       slug: 'community-finder',
       label: 'Community Finder',
-      order: 6,
+      order: 7,
       prompt: '',
       comingSoon: true,
       comingSoonNote: 'Discover Facebook Groups, LinkedIn communities, and Reddit subreddits where your target audience is active. Requires Facebook Groups API access currently in restricted review — coming soon.',

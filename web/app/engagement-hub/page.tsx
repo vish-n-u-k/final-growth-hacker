@@ -7,7 +7,8 @@ import EngagementHub from '@/components/EngagementHub'
 
 export default async function EngagementHubPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user
   if (!user) redirect('/login')
 
   const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)

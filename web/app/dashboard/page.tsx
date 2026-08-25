@@ -10,12 +10,20 @@ import type { DBItemFull } from '@/lib/modules/types'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user
   if (!user) redirect('/login')
 
-  const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
+  // Run brand lookup and pending analysis requests in parallel — both only need user.id
+  const [[brand], pendingRequestsRaw] = await Promise.all([
+    db.select().from(brands).where(eq(brands.userId, user.id)).limit(1),
+    db.select({ moduleId: analysisRequests.moduleId })
+      .from(analysisRequests)
+      .where(and(eq(analysisRequests.userId, user.id), eq(analysisRequests.status, 'pending')))
+      .catch(() => [] as { moduleId: string }[]),
+  ])
+  const pendingModuleIds = pendingRequestsRaw.map(r => r.moduleId)
+
   if (!brand) redirect('/onboarding')
 
   let allModulesRaw = await db
@@ -56,34 +64,21 @@ export default async function DashboardPage() {
     db.select().from(modulePageAudit).where(inArray(modulePageAudit.moduleId, moduleIds)),
   ])
 
-  // Load cross-module conflict links (item_links table may not exist yet — safe to ignore)
+  // Load conflict links — needs allItemIds so runs after main batch, but both directions in parallel
   const allItemIds = allItemsRaw.map(i => i.id)
   let conflictLinks: { itemIdA: string; itemIdB: string }[] = []
   if (allItemIds.length > 0) {
-    try {
-      const [linksA, linksB] = await Promise.all([
-        db.select({ itemIdA: itemLinks.itemIdA, itemIdB: itemLinks.itemIdB })
-          .from(itemLinks)
-          .where(and(inArray(itemLinks.itemIdA, allItemIds), eq(itemLinks.relationshipType, 'same_issue'))),
-        db.select({ itemIdA: itemLinks.itemIdA, itemIdB: itemLinks.itemIdB })
-          .from(itemLinks)
-          .where(and(inArray(itemLinks.itemIdB, allItemIds), eq(itemLinks.relationshipType, 'same_issue'))),
-      ])
-      conflictLinks = [...linksA, ...linksB]
-    } catch {
-      // item_links table not yet created — safe to ignore
-    }
-  }
-
-  let pendingModuleIds: string[] = []
-  try {
-    const pendingRequestsRaw = await db
-      .select({ moduleId: analysisRequests.moduleId })
-      .from(analysisRequests)
-      .where(and(eq(analysisRequests.userId, user.id), eq(analysisRequests.status, 'pending')))
-    pendingModuleIds = pendingRequestsRaw.map(r => r.moduleId)
-  } catch {
-    // analysis_requests table not yet created — safe to ignore
+    const [linksA, linksB] = await Promise.all([
+      db.select({ itemIdA: itemLinks.itemIdA, itemIdB: itemLinks.itemIdB })
+        .from(itemLinks)
+        .where(and(inArray(itemLinks.itemIdA, allItemIds), eq(itemLinks.relationshipType, 'same_issue')))
+        .catch(() => [] as { itemIdA: string; itemIdB: string }[]),
+      db.select({ itemIdA: itemLinks.itemIdA, itemIdB: itemLinks.itemIdB })
+        .from(itemLinks)
+        .where(and(inArray(itemLinks.itemIdB, allItemIds), eq(itemLinks.relationshipType, 'same_issue')))
+        .catch(() => [] as { itemIdA: string; itemIdB: string }[]),
+    ])
+    conflictLinks = [...linksA, ...linksB]
   }
 
   const githubConnected = allIntegrations.some(i => i.provider === 'github' && i.status === 'connected')

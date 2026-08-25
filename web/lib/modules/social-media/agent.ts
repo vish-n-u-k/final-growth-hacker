@@ -149,11 +149,11 @@ ${notFoundSection}
 ${categoryInstructions}
 
 === Output requirements ===
-Generate findings for ALL 5 categories. Return ONLY a valid JSON array — no markdown fences, no text outside the array.
+Generate findings for ALL 6 categories. Return ONLY a valid JSON array — no markdown fences, no text outside the array.
 
 Each element:
 {
-  "category": string — exactly one of: "website-detection", "profile-analysis", "metrics-analysis", "content-strategy", "growth-playbook",
+  "category": string — exactly one of: "website-detection", "profile-analysis", "metrics-analysis", "content-strategy", "growth-playbook", "post-suggestions",
   "slug": string — kebab-case, pattern: {category-slug}-{short-descriptor},
   "label": string — plain English, no jargon; cite actual platform names or handles,
   "weight": 1 | 2 | 3,
@@ -177,7 +177,7 @@ export async function analyzeSocialMedia(
   const raw = await callAI({
     system: SOCIAL_MEDIA_MODULE.systemPrompt,
     prompt,
-    maxTokens: 8000,
+    maxTokens: 10000,
     model: 'claude-haiku-4-5-20251001',
   })
 
@@ -188,7 +188,7 @@ export async function analyzeSocialMedia(
     throw new Error(`Social media agent returned invalid JSON: ${err instanceof Error ? err.message : raw.slice(0, 300)}`)
   }
 
-  const allowed = new Set(['website-detection', 'profile-analysis', 'metrics-analysis', 'content-strategy', 'growth-playbook'])
+  const allowed = new Set(['website-detection', 'profile-analysis', 'metrics-analysis', 'content-strategy', 'growth-playbook', 'post-suggestions'])
 
   return results
     .filter(
