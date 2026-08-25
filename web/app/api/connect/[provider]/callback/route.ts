@@ -112,71 +112,69 @@ async function handleMeta(code: string, brandId: string): Promise<string> {
   return ig?.username ? `@${ig.username}` : (firstPage?.name ?? 'Meta account')
 }
 
-// ── Instagram (standalone — same Meta app, focused on IG only) ───────────────
+// ── Instagram (standalone — Instagram app, no Facebook Page required) ─────────
 
 async function handleInstagram(code: string, brandId: string): Promise<string> {
-  const appId = process.env.META_APP_ID!
-  const appSecret = process.env.META_APP_SECRET!
+  const igAppId = process.env.INSTAGRAM_CLIENT_ID!
+  const igAppSecret = process.env.INSTAGRAM_CLIENT_SECRET!
   const cb = callbackUrl('instagram_oauth')
 
-  // Exchange code for short-lived token
-  const tokenRes = await fetch(
-    `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(cb)}&client_secret=${appSecret}&code=${code}`,
-  )
-  if (!tokenRes.ok) throw new Error('Instagram token exchange failed')
-  const { access_token: shortToken } = await tokenRes.json() as { access_token: string }
+  // 1. Exchange code for short-lived token via Instagram's own endpoint
+  const tokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: igAppId,
+      client_secret: igAppSecret,
+      grant_type: 'authorization_code',
+      redirect_uri: cb,
+      code,
+    }),
+  })
+  if (!tokenRes.ok) {
+    const err = await tokenRes.text()
+    throw new Error(`Instagram token exchange failed: ${err}`)
+  }
+  const tokenData = await tokenRes.json() as { access_token: string; user_id: number }
+  const shortToken = tokenData.access_token
 
-  // Exchange for long-lived token
+  // 2. Exchange for long-lived token (~60 days)
   const llRes = await fetch(
-    `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortToken}`,
+    `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_id=${igAppId}&client_secret=${igAppSecret}&access_token=${shortToken}`,
   )
+  if (!llRes.ok) throw new Error('Instagram long-lived token exchange failed')
   const llData = await llRes.json() as { access_token: string; expires_in?: number }
   const longToken = llData.access_token
   const expiresAt = new Date(Date.now() + (llData.expires_in ?? 5184000) * 1000)
 
-  // Find Instagram Business account via pages
-  const pagesRes = await fetch(
-    `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,followers_count,media_count,biography,website}&access_token=${longToken}`,
+  // 3. Get profile info
+  const profileRes = await fetch(
+    `https://graph.instagram.com/me?fields=id,username,followers_count,media_count,biography,website&access_token=${longToken}`,
   )
-  const pagesData = await pagesRes.json() as {
-    data?: Array<{
-      id: string; name: string; access_token: string
-      instagram_business_account?: { id: string; username?: string; followers_count?: number; media_count?: number; biography?: string; website?: string }
-    }>
+  const profile = await profileRes.json() as {
+    id: string
+    username?: string
+    followers_count?: number
+    media_count?: number
+    biography?: string
+    website?: string
   }
 
-  type IgAccount = { id: string; username?: string; followers_count?: number; media_count?: number; biography?: string; website?: string }
-  // Find the first page that has an Instagram business account
-  let ig: IgAccount | undefined = undefined
-  let pageToken = ''
-  for (const page of pagesData.data ?? []) {
-    if (page.instagram_business_account) {
-      ig = page.instagram_business_account
-      pageToken = page.access_token
-      break
-    }
-  }
-
-  if (!ig) throw new Error('No Instagram Business account found. Make sure your Instagram account is a Business or Creator account linked to your Facebook Page.')
-
-  const metadata: Record<string, string> = {
-    instagram_id: ig.id,
-    page_access_token: pageToken,
-  }
-  if (ig.username)       metadata.instagram_username  = ig.username
-  if (ig.followers_count != null) metadata.instagram_followers = String(ig.followers_count)
-  if (ig.media_count != null)     metadata.instagram_posts     = String(ig.media_count)
-  if (ig.biography)      metadata.instagram_bio       = ig.biography
-  if (ig.website)        metadata.instagram_website   = ig.website
+  const metadata: Record<string, string> = { instagram_id: profile.id }
+  if (profile.username)              metadata.instagram_username  = profile.username
+  if (profile.followers_count != null) metadata.instagram_followers = String(profile.followers_count)
+  if (profile.media_count != null)   metadata.instagram_posts     = String(profile.media_count)
+  if (profile.biography)             metadata.instagram_bio       = profile.biography
+  if (profile.website)               metadata.instagram_website   = profile.website
 
   await upsertIntegration(brandId, 'instagram_oauth', {
     accessToken: longToken,
     tokenExpiresAt: expiresAt,
-    scopes: ['instagram_basic', 'instagram_manage_insights', 'pages_show_list'],
+    scopes: ['instagram_business_basic', 'instagram_business_manage_insights'],
     metadata,
   })
 
-  return ig.username ? `@${ig.username}` : 'Instagram account'
+  return profile.username ? `@${profile.username}` : 'Instagram account'
 }
 
 // ── LinkedIn ──────────────────────────────────────────────────────────────────

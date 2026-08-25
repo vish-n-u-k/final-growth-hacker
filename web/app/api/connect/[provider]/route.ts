@@ -53,15 +53,13 @@ export async function GET(
     }
 
     case 'instagram_oauth': {
-      const appId = process.env.META_APP_ID
-      if (!appId) return NextResponse.json({ error: 'META_APP_ID not configured' }, { status: 500 })
+      const igAppId = process.env.INSTAGRAM_CLIENT_ID
+      if (!igAppId) return NextResponse.json({ error: 'INSTAGRAM_CLIENT_ID not configured' }, { status: 500 })
       const scopes = [
-        'instagram_basic',
-        'instagram_manage_insights',
-        'pages_show_list',
-        'pages_read_engagement',
+        'instagram_business_basic',
+        'instagram_business_manage_insights',
       ].join(',')
-      authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${cb}&scope=${scopes}&state=${state}&response_type=code`
+      authUrl = `https://api.instagram.com/oauth/authorize?client_id=${igAppId}&redirect_uri=${cb}&scope=${scopes}&response_type=code&state=${state}`
       break
     }
 

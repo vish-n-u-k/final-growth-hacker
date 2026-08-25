@@ -81,7 +81,8 @@
       "Bash(node -e \"\nconst fs = require\\('fs'\\);\nconst config = JSON.parse\\(fs.readFileSync\\('C:/Users/vishn/.claude.json', 'utf8'\\)\\);\nconsole.log\\(JSON.stringify\\(config.mcpServers, null, 2\\)\\);\n\")",
       "Bash(node -e \"\nconst fs = require\\('fs'\\);\nconst path = 'C:/Users/vishn/.claude.json';\nconst config = JSON.parse\\(fs.readFileSync\\(path, 'utf8'\\)\\);\nconfig.mcpServers.growjin.url = 'http://localhost:3000/api/mcp';\nfs.writeFileSync\\(path, JSON.stringify\\(config, null, 2\\)\\);\nconsole.log\\('done'\\);\n\")",
       "mcp__growjin__get_growth_overview",
-      "Bash(find \"/c/Users/vishn/Desktop/Final Growth Hacker/web\" -type f \\\\\\( -name \"*.tsx\" -o -name \"*.ts\" -o -name \"*.jsx\" -o -name \"*.js\" \\\\\\) 2>/dev/null | grep -i analytics)"
+      "Bash(find \"/c/Users/vishn/Desktop/Final Growth Hacker/web\" -type f \\\\\\( -name \"*.tsx\" -o -name \"*.ts\" -o -name \"*.jsx\" -o -name \"*.js\" \\\\\\) 2>/dev/null | grep -i analytics)",
+      "Bash(cd /c/Users/vishn/Downloads && mkdir -p skill-extract && unzip -o \"content-pillar-builder \\(1\\).skill\" -d skill-extract/content-pillar-builder && unzip -o \"pillar-post-ideator \\(1\\).skill\" -d skill-extract/pillar-post-ideator)"
     ]
   }
 }

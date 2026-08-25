@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands, modules, moduleItems, frektoScheduledPosts, competitors, modulePageAudit, brandIntegrations } from '@/lib/db/schema'
-import { eq, and, desc } from 'drizzle-orm'
+import { brands, modules, moduleItems, moduleCategories, frektoScheduledPosts, competitors, modulePageAudit, brandIntegrations } from '@/lib/db/schema'
+import { eq, and, desc, inArray } from 'drizzle-orm'
 import { callAI } from '@/lib/ai/client'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 import { fetchGscTopQueries } from '@/lib/modules/seo/keyword-fetchers'
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   if (!brand || brand.userId !== user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Fetch all enrichment data in parallel
-  const [items, allScheduled, topCompetitors, repurposePages, gscInt, posthogInt] = await Promise.all([
+  const [items, allScheduled, topCompetitors, repurposePages, gscInt, posthogInt, socialStrategyItems] = await Promise.all([
     // Failing audit items
     db.select({ label: moduleItems.label, aiDetail: moduleItems.aiDetail })
       .from(moduleItems)
@@ -102,6 +102,27 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .then(rows => rows[0] ?? null)
       .catch(() => null),
+
+    // Social media audit — content-strategy + growth-playbook findings
+    db.select({ id: modules.id })
+      .from(modules)
+      .where(and(eq(modules.brandId, brand.id), eq(modules.type, 'social-media'), eq(modules.status, 'complete')))
+      .limit(1)
+      .then(async ([socialMod]) => {
+        if (!socialMod) return []
+        const cats = await db.select({ id: moduleCategories.id })
+          .from(moduleCategories)
+          .where(and(
+            eq(moduleCategories.moduleId, socialMod.id),
+            inArray(moduleCategories.slug, ['content-strategy', 'growth-playbook']),
+          ))
+        if (cats.length === 0) return []
+        return db.select({ label: moduleItems.label, aiDetail: moduleItems.aiDetail, aiAction: moduleItems.aiAction })
+          .from(moduleItems)
+          .where(inArray(moduleItems.categoryId, cats.map(c => c.id)))
+          .limit(20)
+      })
+      .catch(() => []),
   ])
 
   // Fetch PostHog user count if connected
@@ -172,10 +193,14 @@ export async function POST(request: NextRequest) {
   const playbookStr = brand.playbook ? `\nBrand playbook summary: ${JSON.stringify(brand.playbook).slice(0, 400)}` : ''
   const userCountStr = appUserCount !== null ? `\nCurrent app user count: ${appUserCount.toLocaleString()} users` : ''
 
+  const socialStrategySection = socialStrategyItems.length > 0
+    ? `\nContent strategy & growth playbook from Social Media Audit (use these as the foundation for topic selection — each post should map to one of these pillars):\n${socialStrategyItems.map(i => `- ${i.label}${i.aiDetail ? `: ${i.aiDetail}` : ''}${i.aiAction ? ` → ${i.aiAction}` : ''}`).join('\n')}`
+    : ''
+
   const prompt = `Brand: ${brand.name}
 Website: ${brand.websiteUrl}
 Industry: ${brand.industry ?? 'infer from website'}
-Target audience: ${brand.targetAudience ?? 'infer from brand context'}${brand.usp ? `\nUSP: ${brand.usp}` : ''}${brand.brandVoice ? `\nBrand voice: ${brand.brandVoice}` : ''}${brand.keywords ? `\nCore keywords: ${brand.keywords}` : ''}${userCountStr}${playbookStr}${competitorsSection}${repurposeSection}${gscSection}
+Target audience: ${brand.targetAudience ?? 'infer from brand context'}${brand.usp ? `\nUSP: ${brand.usp}` : ''}${brand.brandVoice ? `\nBrand voice: ${brand.brandVoice}` : ''}${brand.keywords ? `\nCore keywords: ${brand.keywords}` : ''}${userCountStr}${playbookStr}${competitorsSection}${repurposeSection}${gscSection}${socialStrategySection}
 
 Current audit findings (areas to improve):
 ${findingsList}
@@ -188,10 +213,10 @@ ${suggestedTimesStr}
 
 Generate ONE post suggestion per platform. For each:
 1. shouldPost true/false — is this platform worth the brand's time given their industry and audience?
-2. If shouldPost true: a specific, compelling topic tied to the brand's actual industry and audience. Prioritize repurpose pages if listed. Weave in a GSC page-2 keyword if relevant and natural.
+2. If shouldPost true: a specific, compelling topic tied to the brand's actual industry and audience. If content strategy pillars are listed above, the topic MUST map to one of those pillars — name which pillar it maps to in the reason. Prioritize repurpose pages if listed. Weave in a GSC page-2 keyword if relevant and natural.
 3. postType "image" or "video" — video for TikTok/YouTube/Reels, image for LinkedIn/Facebook
 4. scheduledAt — use the suggested time above
-5. reason — one sentence. If a competitor strength is relevant, explain how this post counters it. If brand voice is defined, the topic should reflect it.
+5. reason — one sentence. State which content pillar this maps to (if pillars exist). If a competitor strength is relevant, explain how this post counters it. If brand voice is defined, the topic should reflect it.
 
 Return a JSON array of exactly 6 objects in this order: instagram, linkedin, twitter, facebook, youtube, tiktok
 
