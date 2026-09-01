@@ -82,7 +82,14 @@
       "Bash(node -e \"\nconst fs = require\\('fs'\\);\nconst path = 'C:/Users/vishn/.claude.json';\nconst config = JSON.parse\\(fs.readFileSync\\(path, 'utf8'\\)\\);\nconfig.mcpServers.growjin.url = 'http://localhost:3000/api/mcp';\nfs.writeFileSync\\(path, JSON.stringify\\(config, null, 2\\)\\);\nconsole.log\\('done'\\);\n\")",
       "mcp__growjin__get_growth_overview",
       "Bash(find \"/c/Users/vishn/Desktop/Final Growth Hacker/web\" -type f \\\\\\( -name \"*.tsx\" -o -name \"*.ts\" -o -name \"*.jsx\" -o -name \"*.js\" \\\\\\) 2>/dev/null | grep -i analytics)",
-      "Bash(cd /c/Users/vishn/Downloads && mkdir -p skill-extract && unzip -o \"content-pillar-builder \\(1\\).skill\" -d skill-extract/content-pillar-builder && unzip -o \"pillar-post-ideator \\(1\\).skill\" -d skill-extract/pillar-post-ideator)"
+      "Bash(cd /c/Users/vishn/Downloads && mkdir -p skill-extract && unzip -o \"content-pillar-builder \\(1\\).skill\" -d skill-extract/content-pillar-builder && unzip -o \"pillar-post-ideator \\(1\\).skill\" -d skill-extract/pillar-post-ideator)",
+      "Bash(cd \"C:/Users/vishn/Desktop/Final Growth Hacker/web\" && npx tsc --noEmit 2>&1 | head -40)",
+      "Bash(cd \"C:/Users/vishn/Desktop/Final Growth Hacker/web\" && npx tsc --noEmit 2>&1 | head -50)",
+      "Bash(cd \"C:/Users/vishn/Desktop/Final Growth Hacker/web\" && npx tsc --noEmit 2>&1)",
+      "Bash(wc -c \"C:/Users/vishn/Desktop/Final Growth Hacker/web/new.txt\" && xxd \"C:/Users/vishn/Desktop/Final Growth Hacker/web/new.txt\" | head -5)",
+      "Bash(python3 -c \"\nwith open\\('C:/Users/vishn/Desktop/Final Growth Hacker/web/new.txt', 'rb'\\) as f:\n    content = f.read\\(\\).decode\\('utf-8', errors='replace'\\)\nprint\\(content\\)\n\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); console.log\\(fs.readFileSync\\('C:/Users/vishn/Desktop/Final Growth Hacker/web/new.txt','utf8'\\)\\)\")",
+      "WebFetch(domain:vidyback.com)"
     ]
   }
 }

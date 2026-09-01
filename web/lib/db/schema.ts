@@ -164,6 +164,7 @@ export const brainContext = pgTable('brain_context', {
   brandId: uuid('brand_id').notNull().unique().references(() => brands.id, { onDelete: 'cascade' }),
   summary: text('summary'),                 // running narrative of brand health
   facts: jsonb('facts'),                    // { foundation: {...}, seo: {...} } — accumulated per module
+  limitations: text('limitations'),         // what we do NOT offer — used to disqualify false-positive leads
   userResolved: jsonb('user_resolved'),     // string[] — slugs user self-reported as fixed
   priorityQueue: jsonb('priority_queue'),
   lastUpdated: timestamp('last_updated', { withTimezone: true }).defaultNow(),

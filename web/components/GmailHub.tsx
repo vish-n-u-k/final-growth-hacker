@@ -594,6 +594,7 @@ export default function GmailHub({
               {gmailAddress ?? 'Gmail connected'}
             </div>
             <span className="gh-sync-time">Synced 3 min ago</span>
+            <Link href="/lead-finder" className="gh-hbtn gh-hbtn-outline">Find Leads</Link>
             <button className="gh-hbtn gh-hbtn-outline">Refresh</button>
             <button
               className="gh-hbtn gh-hbtn-ghost"

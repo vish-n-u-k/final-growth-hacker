@@ -1,5 +1,5 @@
 /* fb-widget.js — GrowJin in-app bug reporting widget
- * Triggers: 2s long press OR Ctrl+Shift+B
+ * Triggers: Ctrl+Shift+B
  * Manual:   window._fbTriggerManual()
  * User ctx: window._fbGetUser = () => ({ id, name, email })
  */
@@ -37,42 +37,6 @@
     setTimeout(function () { _loadH2C(); }, 2000);
   }
 
-  // ── Long press (mousedown) ─────────────────────────────────────────────────
-
-  var _pressTimer = null;
-  var _pressX = 0;
-  var _pressY = 0;
-  var HOLD_MS = 2000;
-  var MOVE_PX = 12;
-
-  var _INTERACTIVE = 'a,button,input,textarea,select,label,[role="button"],[role="tab"],[role="menuitem"]';
-
-  function _onMousedown(e) {
-    if (e.button !== 0) return;
-    if (e.target.closest(_INTERACTIVE)) return;
-    // Don't start if inside the sheet
-    if (e.target.closest('#_fbSheet')) return;
-    _pressX = e.clientX;
-    _pressY = e.clientY;
-    _pressTimer = setTimeout(function () { _trigger(); }, HOLD_MS);
-  }
-
-  function _onMousemove(e) {
-    if (!_pressTimer) return;
-    if (Math.hypot(e.clientX - _pressX, e.clientY - _pressY) > MOVE_PX) _cancelPress();
-  }
-
-  function _cancelPress() {
-    clearTimeout(_pressTimer);
-    _pressTimer = null;
-  }
-
-  document.addEventListener('mousedown',  _onMousedown, true);
-  document.addEventListener('mousemove',  _onMousemove, true);
-  document.addEventListener('mouseup',    _cancelPress, true);
-  document.addEventListener('mouseleave', _cancelPress, true);
-  document.addEventListener('contextmenu', _cancelPress, true);
-
   // ── Ctrl+Shift+B ──────────────────────────────────────────────────────────
 
   document.addEventListener('keydown', function (e) {
@@ -85,7 +49,6 @@
   // ── Screenshot + open ──────────────────────────────────────────────────────
 
   function _trigger() {
-    _cancelPress();
     // Open sheet immediately so user sees something
     _openSheet(null, true); // true = capturing state
     // Load h2c and capture in background
@@ -289,7 +252,7 @@
       '<div id="_fbPanel">',
       '<div style="display:flex;justify-content:space-between;align-items:center">',
       '<span style="font:600 15px system-ui,sans-serif;color:#e8f3ec">Report a Bug</span>',
-      '<span style="font:12px system-ui,sans-serif;color:#4d7a66">Hold 2s or Ctrl+Shift+B</span>',
+      '<span style="font:12px system-ui,sans-serif;color:#4d7a66">Ctrl+Shift+B</span>',
       '<button id="_fbClose" style="background:none;border:none;color:#8aa897;font-size:20px;cursor:pointer;line-height:1">&#x2715;</button>',
       '</div>',
       '<div style="display:flex;flex-direction:column;gap:8px">',

@@ -115,12 +115,13 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { prospectName, prospectCompany, prospectTitle } =
+  const { prospectName, prospectCompany, prospectTitle, prospectContext } =
     await req.json() as {
       prospectName: string
       prospectEmail: string
       prospectCompany: string
       prospectTitle: string
+      prospectContext?: string
     }
 
   const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
@@ -145,7 +146,7 @@ ${brandContext}
 PROSPECT:
 Name: ${prospectName}
 Company: ${prospectCompany}
-Title: ${prospectTitle}
+Title: ${prospectTitle}${prospectContext ? `\nContext: ${prospectContext}` : ''}
 
 Rules:
 - Always write the email — never refuse, never evaluate ICP fit
