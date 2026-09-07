@@ -1,7 +1,6 @@
 import type { ModuleDefinition } from '../types'
 
 export const META_ADS_MODULE: ModuleDefinition = {
-  relevantFor: ['saas', 'event', 'ecommerce', 'agency', 'local'],
   type: 'meta-ads',
   name: 'Meta Ads Audit',
   tagline: 'maximize returns on your ad spend',

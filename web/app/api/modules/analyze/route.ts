@@ -293,26 +293,14 @@ Key One-Liners: ${pb.keyOneLiners}`
     }
   }
 
-  // Ensure website_url, brand_id, brand_name, and website_type are always available in requirements
+  // Ensure website_url, brand_id, and brand_name are always available in requirements
   const baseRequirements = (mod.requirements as Record<string, string> | null) ?? {}
   let requirements: Record<string, string> = {
     ...baseRequirements,
     brand_id: brand.id,
     brand_name: brand.name,
-    website_type: brand.websiteType ?? 'saas',
     ...(brand.websiteUrl && !baseRequirements['website_url'] ? { website_url: brand.websiteUrl } : {}),
   }
-
-  // Prepend website-type context to brainCtx so all agents tailor output to this site type
-  const WEBSITE_TYPE_LABELS: Record<string, string> = {
-    saas: 'SaaS / Software', event: 'Event / Conference', ecommerce: 'E-commerce / Retail',
-    agency: 'Agency / Consulting', blog: 'Blog / Media / Content', local: 'Local Business / Services',
-    nonprofit: 'Non-profit / NGO', portfolio: 'Portfolio / Personal Brand',
-  }
-  const wt = requirements['website_type']
-  const wtLabel = WEBSITE_TYPE_LABELS[wt] ?? wt
-  const websiteTypeNote = `=== Website Type: ${wtLabel} ===\nTailor all analysis, recommendations, and action items to this type of website.\n\n`
-  brainCtx = websiteTypeNote + (brainCtx ?? '')
 
   // Auto-populate competitor URLs from registry if not provided and module uses competitors
   if (

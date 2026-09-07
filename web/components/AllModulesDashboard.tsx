@@ -462,7 +462,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
   // Compute lock state dynamically: a module is locked if its previous module (by order) scored < 80%.
   // Foundation (order 0) is always unlocked. This works for all users regardless of DB status.
-  const sortedByOrder = [...allModulesData].filter(m => m.status !== 'not-applicable').sort((a, b) => {
+  const sortedByOrder = [...allModulesData].sort((a, b) => {
     const aCs = a.definition?.comingSoon ? 1 : 0
     const bCs = b.definition?.comingSoon ? 1 : 0
     if (aCs !== bCs) return aCs - bCs

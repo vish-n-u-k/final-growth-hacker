@@ -1,7 +1,6 @@
 import type { ModuleDefinition } from '../types'
 
 export const COMPETITOR_ANALYSIS_MODULE: ModuleDefinition = {
-  relevantFor: ['saas', 'ecommerce', 'agency', 'blog', 'local'],
   type: 'competitor-analysis',
   name: 'Competitor Analysis',
   tagline: 'find gaps your competitors leave open',

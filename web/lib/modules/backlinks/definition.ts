@@ -1,7 +1,6 @@
 import type { ModuleDefinition } from '../types'
 
 export const BACKLINKS_MODULE: ModuleDefinition = {
-  relevantFor: ['saas', 'ecommerce', 'agency', 'blog', 'local'],
   type: 'backlinks',
   name: 'Backlinks & Link Building',
   tagline: 'build authority through quality backlinks',

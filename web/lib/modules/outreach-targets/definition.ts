@@ -1,7 +1,6 @@
 import type { ModuleDefinition } from '../types'
 
 export const OUTREACH_TARGETS_MODULE: ModuleDefinition = {
-  relevantFor: ['saas', 'ecommerce', 'agency', 'blog', 'local'],
   type: 'outreach-targets',
   name: 'Outreach Targets',
   tagline: 'get featured on your competitors\' platforms',

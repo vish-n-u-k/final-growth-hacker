@@ -4713,66 +4713,27 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
   display: flex;
   flex-direction: row;
   align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 10px;
+  background: var(--bg-soft);
+  border-left: 3px solid var(--green);
+  padding: 9px 14px;
+  border-radius: 0 8px 8px 0;
+  margin-bottom: 12px;
   font-size: 13px;
   color: var(--text-dim);
-  line-height: 1.6;
+  line-height: 1.55;
 }
 .lf-fit-reason-label {
   display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--green);
   flex-shrink: 0;
-  padding: 3px 10px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--green);
-  letter-spacing: 0.01em;
-  margin-top: 1px;
+  padding-top: 2px;
+  min-width: 44px;
 }
-
-/* Review snippet */
-.lf-review-block {
-  margin-top: 10px;
-  padding: 10px 14px;
-  background: var(--bg-soft);
-  border-radius: 8px;
-  border: 1px solid var(--line);
-}
-.lf-review-snippet {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-dim);
-  line-height: 1.6;
-  font-style: italic;
-}
-.lf-review-meta {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 8px;
-}
-.lf-review-toggle {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--green);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.lf-review-toggle:hover { color: var(--text-dim); }
-.lf-review-link {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-faint);
-  text-decoration: none;
-}
-.lf-review-link:hover { color: var(--green); text-decoration: underline; }
 
 /* Stars label */
 .lf-review-date { color: var(--text-faint); font-size: 12px; }
@@ -4944,23 +4905,16 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
   font-weight: 400;
 }
 
-/* Pain point keyword chips */
-.lf-pain-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 16px;
-}
-.lf-pain-chip {
-  display: inline-block;
-  padding: 3px 10px;
-  background: var(--bg-soft);
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 500;
+.lf-review {
+  font-size: 13px;
   color: var(--text-dim);
-  letter-spacing: 0.01em;
+  line-height: 1.65;
+  font-style: italic;
+  margin-bottom: 16px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* Actions row */

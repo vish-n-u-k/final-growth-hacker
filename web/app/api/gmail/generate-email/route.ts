@@ -151,8 +151,6 @@ Title: ${prospectTitle}${prospectContext ? `\nContext: ${prospectContext}` : ''}
 Rules:
 - Always write the email — never refuse, never evaluate ICP fit
 - Conversational, direct — real person voice, no corporate filler
-- NEVER mention competitor reviews, never say "I saw your review", never reference where you found them — write as if this is a natural first-touch cold outreach to someone who matches your ideal customer
-- Address their pain points naturally as if you know the problems businesses like theirs face — not because you've been tracking them
 - hero: one punchy headline specific to this prospect's pain point (max 10 words)
 - intro: 1–2 sentences with a sharp angle on how ${brand.name} helps this specific prospect. Natural, no fluff.
 - boldPhrase: pick 2–4 words from intro that are the key value phrase — must exist verbatim in intro

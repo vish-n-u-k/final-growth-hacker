@@ -11,10 +11,8 @@ interface ScrapedLead {
   reviewText: string
   rating: number
   reviewDate: string | null
-  reviewUrl: string | null
   fitScore: number
   fitReason: string
-  painPoints: string[]
   platform: string
 }
 
@@ -30,6 +28,7 @@ type PageStatus = 'idle' | 'loading' | 'done' | 'error'
 export default function LeadFinder({
   brandName,
   gmailConnected,
+  savedLimitations,
 }: {
   brandName: string
   gmailConnected: boolean
@@ -42,7 +41,6 @@ export default function LeadFinder({
   const [errorMsg, setErrorMsg] = useState('')
   const [emailStates, setEmailStates] = useState<Record<string, EmailState>>({})
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [reviewExpanded, setReviewExpanded] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
 
   async function scrape() {
@@ -82,7 +80,7 @@ export default function LeadFinder({
           prospectEmail: lead.email ?? '',
           prospectCompany: lead.company,
           prospectTitle: 'Business Owner',
-          prospectContext: `This prospect's known pain points: ${(lead.painPoints ?? []).join(', ')}. Write the email as a natural first-touch cold outreach that happens to address these pain areas. Do NOT mention any review, do NOT reference a competitor by name, do NOT say anything that implies you have been watching them. Just sound like you genuinely think they would benefit from ${brandName} based on the kind of problems businesses like theirs typically face.`,
+          prospectContext: `This merchant left a review for a competitor saying: "${lead.reviewText.slice(0, 300)}" — write the email to show how ${brandName} directly solves this problem. Reason they are a good fit: ${lead.fitReason}`,
         }),
       })
       const data = await res.json() as { subject?: string; body?: string; error?: string }
@@ -313,50 +311,12 @@ export default function LeadFinder({
 
                     {/* Why they're a good lead */}
                     <div className="lf-fit-reason">
-                      <span className="lf-fit-reason-label">Why</span>
+                      <span className="lf-fit-reason-label">Why ↗</span>
                       <span>{lead.fitReason}</span>
                     </div>
 
-                    {/* Review snippet */}
-                    <div className="lf-review-block">
-                      <p className="lf-review-snippet">
-                        &ldquo;{reviewExpanded === lead.id
-                          ? lead.reviewText
-                          : lead.reviewText.length > 120
-                            ? lead.reviewText.slice(0, 120) + '…'
-                            : lead.reviewText
-                        }&rdquo;
-                      </p>
-                      <div className="lf-review-meta">
-                        {lead.reviewText.length > 120 && (
-                          <button
-                            className="lf-review-toggle"
-                            onClick={() => setReviewExpanded(prev => prev === lead.id ? null : lead.id)}
-                          >
-                            {reviewExpanded === lead.id ? 'Show less' : 'Show full review'}
-                          </button>
-                        )}
-                        {lead.reviewUrl && (
-                          <a
-                            href={lead.reviewUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="lf-review-link"
-                          >
-                            View on {lead.platform === 'trustpilot' ? 'Trustpilot' : 'Shopify'} ↗
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Pain point keywords */}
-                    {lead.painPoints && lead.painPoints.length > 0 && (
-                      <div className="lf-pain-chips">
-                        {lead.painPoints.map((pt, idx) => (
-                          <span key={idx} className="lf-pain-chip">{pt}</span>
-                        ))}
-                      </div>
-                    )}
+                    {/* Their actual review */}
+                    <p className="lf-review">"{lead.reviewText}"</p>
 
                     {/* Actions */}
                     <div className="lf-actions">

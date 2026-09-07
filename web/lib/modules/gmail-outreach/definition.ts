@@ -1,7 +1,6 @@
 import type { ModuleDefinition } from '../types'
 
 export const GMAIL_OUTREACH_MODULE: ModuleDefinition = {
-  relevantFor: ['saas', 'ecommerce', 'agency', 'blog', 'local'],
   type: 'gmail-outreach',
   name: 'Gmail Outreach',
   tagline: 'land meetings via personalised cold email',

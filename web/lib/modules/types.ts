@@ -85,7 +85,6 @@ export interface ModuleDefinition {
   description: string
   order: number
   unlockThreshold: number
-  relevantFor?: string[]  // website type slugs this module applies to; omit = all types
   dynamic?: boolean   // true = Claude generates items; false/undefined = items hardcoded
   comingSoon?: boolean     // true = entire module shows Coming Soon state
   comingSoonNote?: string  // optional description shown in the module-level Coming Soon block
