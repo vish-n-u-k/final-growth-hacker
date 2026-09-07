@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['postgres', 'pg', 'cheerio', 'nodemailer'],
+  /* config options here */
 };
 
 export default nextConfig;
