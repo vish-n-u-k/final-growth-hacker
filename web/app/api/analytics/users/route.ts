@@ -18,6 +18,8 @@ interface UserRow {
   referringDomain: string | null
   landingUrl: string | null
   utmSource: string | null
+  topEvents?: string[]
+  device: string | null
 }
 
 async function hogqlRows(host: string, projectId: string, apiKey: string, query: string): Promise<unknown[][] | null> {
@@ -32,6 +34,43 @@ async function hogqlRows(host: string, projectId: string, apiKey: string, query:
     const data = await res.json() as { results?: unknown[][] }
     return data.results ?? null
   } catch { return null }
+}
+
+async function fetchTopEventsForPersons(
+  host: string,
+  projectId: string,
+  apiKey: string,
+  personIds: string[],
+  interval: string,
+): Promise<Map<string, string[]>> {
+  if (!personIds.length) return new Map()
+  // Deduplicate and cap to avoid oversized IN clauses
+  const uniqueIds = [...new Set(personIds)].slice(0, 100)
+  const idList = uniqueIds.map(id => `'${id.replace(/'/g, "\\'")}'`).join(', ')
+  try {
+    const res = await fetch(`${host}/api/projects/${projectId}/query`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: { kind: 'HogQLQuery', query: `
+        SELECT person_id, groupUniqArray(5)(event)
+        FROM events
+        WHERE person_id IN (${idList})
+          AND timestamp >= now() - interval ${interval}
+        GROUP BY person_id
+      ` } }),
+      signal: AbortSignal.timeout(6000),
+    })
+    if (!res.ok) return new Map()
+    const data = await res.json() as { results?: unknown[][] }
+    const map = new Map<string, string[]>()
+    for (const r of data.results ?? []) {
+      const pid = String(r[0] ?? '')
+      map.set(pid, Array.isArray(r[1]) ? (r[1] as unknown[]).map(String) : [])
+    }
+    return map
+  } catch {
+    return new Map()
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -105,14 +144,15 @@ export async function GET(request: NextRequest) {
         ${personsPlanExpr},
         properties.$initial_referring_domain,
         properties.$initial_current_url,
-        properties.$initial_utm_source
+        properties.$initial_utm_source,
+        properties.$initial_device_type
       FROM persons
       WHERE is_identified = 1
         AND created_at >= now() - interval ${interval}
       ORDER BY created_at DESC
       LIMIT 100
     `)
-    users = (rows ?? []).map(r => ({
+    const mapped = (rows ?? []).map(r => ({
       name: r[0] ? String(r[0]) : null,
       email: String(r[1] ?? ''),
       userId: String(r[2] ?? ''),
@@ -123,7 +163,10 @@ export async function GET(request: NextRequest) {
       referringDomain: r[7] ? String(r[7]) : null,
       landingUrl: r[8] ? String(r[8]) : null,
       utmSource: r[9] ? String(r[9]) : null,
+      device: r[10] ? String(r[10]) : null,
     }))
+    const topEventsMap = await fetchTopEventsForPersons(host, projectId, phInt.apiKey, mapped.map(u => u.userId), interval)
+    users = mapped.map(u => ({ ...u, topEvents: topEventsMap.get(u.userId) ?? [] }))
   } else if (type === 'signins') {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
       SELECT
@@ -136,7 +179,8 @@ export async function GET(request: NextRequest) {
         ${eventsPlanExpr},
         person.properties.$initial_referring_domain,
         person.properties.$initial_current_url,
-        person.properties.$initial_utm_source
+        person.properties.$initial_utm_source,
+        properties.$device_type
       FROM events
       WHERE event = '$identify'
         AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)
@@ -144,7 +188,7 @@ export async function GET(request: NextRequest) {
       ORDER BY timestamp DESC
       LIMIT 100
     `)
-    users = (rows ?? []).map(r => ({
+    const mapped = (rows ?? []).map(r => ({
       name: r[0] ? String(r[0]) : null,
       email: String(r[1] ?? ''),
       userId: String(r[2] ?? ''),
@@ -155,7 +199,10 @@ export async function GET(request: NextRequest) {
       referringDomain: r[7] ? String(r[7]) : null,
       landingUrl: r[8] ? String(r[8]) : null,
       utmSource: r[9] ? String(r[9]) : null,
+      device: r[10] ? String(r[10]) : null,
     }))
+    const topEventsMap = await fetchTopEventsForPersons(host, projectId, phInt.apiKey, mapped.map(u => u.userId), interval)
+    users = mapped.map(u => ({ ...u, topEvents: topEventsMap.get(u.userId) ?? [] }))
   } else if (type === 'dau') {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
       SELECT
@@ -169,7 +216,9 @@ export async function GET(request: NextRequest) {
         count() as sessions,
         any(person.properties.$initial_referring_domain),
         any(person.properties.$initial_current_url),
-        any(person.properties.$initial_utm_source)
+        any(person.properties.$initial_utm_source),
+        groupUniqArray(5)(event) as top_events,
+        any(properties.$device_type)
       FROM events
       WHERE person_id IN (SELECT id FROM persons WHERE is_identified = 1)
         AND timestamp >= now() - interval ${interval}
@@ -189,6 +238,8 @@ export async function GET(request: NextRequest) {
       referringDomain: r[8] ? String(r[8]) : null,
       landingUrl: r[9] ? String(r[9]) : null,
       utmSource: r[10] ? String(r[10]) : null,
+      topEvents: Array.isArray(r[11]) ? (r[11] as unknown[]).map(String) : [],
+      device: r[12] ? String(r[12]) : null,
     }))
   } else if (type === 'deleted') {
     const rows = await hogqlRows(host, projectId, phInt.apiKey, `
@@ -202,7 +253,8 @@ export async function GET(request: NextRequest) {
         ${eventsPlanExpr},
         person.properties.$initial_referring_domain,
         person.properties.$initial_current_url,
-        person.properties.$initial_utm_source
+        person.properties.$initial_utm_source,
+        properties.$device_type
       FROM events
       WHERE event IN ('account_deleted', 'user_deleted', 'delete_account')
         AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)
@@ -210,7 +262,7 @@ export async function GET(request: NextRequest) {
       ORDER BY timestamp DESC
       LIMIT 100
     `)
-    users = (rows ?? []).map(r => ({
+    const mapped = (rows ?? []).map(r => ({
       name: r[0] ? String(r[0]) : null,
       email: String(r[1] ?? ''),
       userId: String(r[2] ?? ''),
@@ -221,7 +273,10 @@ export async function GET(request: NextRequest) {
       referringDomain: r[7] ? String(r[7]) : null,
       landingUrl: r[8] ? String(r[8]) : null,
       utmSource: r[9] ? String(r[9]) : null,
+      device: r[10] ? String(r[10]) : null,
     }))
+    const topEventsMap = await fetchTopEventsForPersons(host, projectId, phInt.apiKey, mapped.map(u => u.userId), interval)
+    users = mapped.map(u => ({ ...u, topEvents: topEventsMap.get(u.userId) ?? [] }))
   }
 
   if (type === 'custom' && eventName) {
@@ -236,7 +291,9 @@ export async function GET(request: NextRequest) {
         any(${eventsPlanExpr}),
         any(person.properties.$initial_referring_domain),
         any(person.properties.$initial_current_url),
-        any(person.properties.$initial_utm_source)
+        any(person.properties.$initial_utm_source),
+        groupUniqArray(5)(event) as top_events,
+        any(properties.$device_type)
       FROM events
       WHERE event = '${eventName.replace(/'/g, "\\'")}'
         AND person_id IN (SELECT id FROM persons WHERE is_identified = 1)
@@ -256,6 +313,8 @@ export async function GET(request: NextRequest) {
       referringDomain: r[7] ? String(r[7]) : null,
       landingUrl: r[8] ? String(r[8]) : null,
       utmSource: r[9] ? String(r[9]) : null,
+      topEvents: Array.isArray(r[10]) ? (r[10] as unknown[]).map(String) : [],
+      device: r[11] ? String(r[11]) : null,
     }))
   }
 

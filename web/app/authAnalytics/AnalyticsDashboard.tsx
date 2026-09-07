@@ -98,6 +98,8 @@ interface UserRow {
   referringDomain: string | null
   landingUrl: string | null
   utmSource: string | null
+  topEvents?: string[]
+  device: string | null
 }
 
 interface CustomMetricData {
@@ -181,6 +183,20 @@ function fmtDuration(secs: number): string {
 function pctChange(current: number, prior: number): number | null {
   if (prior === 0) return null
   return Math.round(((current - prior) / prior) * 100)
+}
+
+function referrerStyle(domain: string | null): { bg: string; color: string; label: string } {
+  if (!domain || domain === '$direct') return { bg: '#F0EEE6', color: MOCK.muted, label: 'Direct' }
+  const d = domain.toLowerCase()
+  if (/google|bing|duckduckgo|yahoo|baidu|yandex|ecosia/.test(d)) return { bg: '#EEF2FF', color: '#4F46E5', label: domain }
+  if (/facebook|instagram|twitter|x\.com|linkedin|tiktok|pinterest|reddit|youtube|snapchat|threads/.test(d)) return { bg: '#FDF2F8', color: '#9D174D', label: domain }
+  if (/producthunt|hackernews|ycombinator|indiehackers|devto|medium/.test(d)) return { bg: '#FFF7ED', color: '#C2410C', label: domain }
+  return { bg: MOCK.greenSoft, color: MOCK.green, label: domain }
+}
+
+function eventPillStyle(event: string): { bg: string; color: string } {
+  if (event.startsWith('$')) return { bg: '#F0EEE6', color: MOCK.muted }
+  return { bg: MOCK.greenSoft, color: MOCK.green }
 }
 
 /* ── Sub-components ───────────────────────────────────── */
@@ -720,10 +736,11 @@ function ColumnPicker({ label, value, properties, onChange }: {
   return (
     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
       <span>{label}</span>
+      <InfoTooltip text="Click ▼ to map this column to any PostHog person or event property. Changes apply instantly and are saved per-brand." />
       <button
         ref={btnRef}
         onClick={handleOpen}
-        title={`Currently: ${value}`}
+        title={`Currently mapped to: ${value || 'not set'}`}
         style={{
           background: 'none', border: `1px solid ${MOCK.border}`, borderRadius: 4,
           padding: '1px 3px', cursor: 'pointer', color: MOCK.muted2,
@@ -768,6 +785,7 @@ function ColumnPicker({ label, value, properties, onChange }: {
 
 function DetailView({
   type, users, loading, onBack, snapshotData, isMobile, onCopy, customMetricLabel, colFields, onColFieldChange,
+  sessionSummaries, onFetchSummary,
 }: {
   type: 'signups' | 'signins' | 'dau' | 'deleted' | 'retention' | 'funnel' | 'activation-funnel' | 'wau' | 'pmf' | 'custom'
   users: UserRow[]
@@ -779,6 +797,8 @@ function DetailView({
   customMetricLabel?: string
   colFields?: Record<string, string>
   onColFieldChange?: (col: string, field: string) => void
+  sessionSummaries: Record<string, { status: 'idle' | 'loading' | 'done'; text: string | null; hasRecording?: boolean }>
+  onFetchSummary: (userId: string) => void
 }) {
   const [properties, setProperties] = useState<{ name: string; label: string }[]>([])
   useEffect(() => {
@@ -806,7 +826,7 @@ function DetailView({
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 16px' : '32px 28px' }}>
+    <div style={{ maxWidth: 1440, margin: '0 auto', padding: isMobile ? '20px 16px' : '32px 36px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 24 }}>
         <button
           onClick={onBack}
@@ -932,7 +952,13 @@ function DetailView({
             alignItems: isMobile ? 'stretch' : 'center',
             justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10,
           }}>
-            <span style={{ fontSize: 13, color: MOCK.muted2 }}>Click the copy icon next to any email to copy individually</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, color: MOCK.muted2 }}>Click the copy icon next to any email to copy individually</span>
+              <span style={{ fontSize: 12, color: MOCK.muted2, background: '#F3F1EA', border: `1px solid ${MOCK.border}`, borderRadius: 99, padding: '2px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: MOCK.green }}>i</span>
+                Column headers with ▼ are remappable — click to pick any PostHog property
+              </span>
+            </div>
             <button
               onClick={() => {
                 const emails = users.map(u => u.email).filter(Boolean).join(', ')
@@ -992,11 +1018,14 @@ function DetailView({
                   {(u.referringDomain || u.utmSource) && (
                     <DetailMobileRow label="Referred from" value={
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        {u.referringDomain && (
-                          <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: MOCK.greenSoft, color: MOCK.green }}>
-                            {u.referringDomain === '$direct' ? 'Direct' : u.referringDomain}
-                          </span>
-                        )}
+                        {u.referringDomain && (() => {
+                          const rs = referrerStyle(u.referringDomain)
+                          return (
+                            <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: rs.bg, color: rs.color }}>
+                              {rs.label}
+                            </span>
+                          )
+                        })()}
                         {u.utmSource && (
                           <span style={{ display: 'inline-block', padding: '4px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: '#EEF6ED', color: MOCK.green }}>
                             utm: {u.utmSource}
@@ -1010,6 +1039,11 @@ function DetailView({
                       <span style={{ fontSize: 13, color: MOCK.text }}>
                         {(() => { try { return new URL(u.landingUrl!).pathname } catch { return u.landingUrl } })()}
                       </span>
+                    } />
+                  )}
+                  {u.device && (
+                    <DetailMobileRow label="Device" value={
+                      <span style={{ fontSize: 13, color: MOCK.text }}>{u.device}</span>
                     } />
                   )}
                 </div>
@@ -1029,6 +1063,7 @@ function DetailView({
                         { key: 'plan', label: 'Plan' },
                         { key: null, label: 'Referred from' },
                         { key: null, label: 'Landing page' },
+                        { key: null, label: 'Device' },
                       ] as { key: string | null; label: string }[]).map(({ key, label }) => (
                         <th key={label} style={{ textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: MOCK.muted, background: '#FBF9F4', padding: '12px 16px', whiteSpace: 'nowrap' }}>
                           {key && onColFieldChange && properties.length > 0 ? (
@@ -1075,11 +1110,14 @@ function DetailView({
                             : <span style={{ fontSize: 12, color: MOCK.muted2 }}>—</span>}
                         </td>
                         <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
-                          {u.referringDomain ? (
-                            <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: MOCK.greenSoft, color: MOCK.green }}>
-                              {u.referringDomain === '$direct' ? 'Direct' : u.referringDomain}
-                            </span>
-                          ) : <span style={{ fontSize: 12, color: MOCK.muted2 }}>—</span>}
+                          {(() => {
+                            const rs = referrerStyle(u.referringDomain)
+                            return u.referringDomain ? (
+                              <span style={{ display: 'inline-block', padding: '4px 10px', borderRadius: 99, fontSize: 11.5, fontWeight: 600, background: rs.bg, color: rs.color }}>
+                                {rs.label}
+                              </span>
+                            ) : <span style={{ fontSize: 12, color: MOCK.muted2 }}>—</span>
+                          })()}
                           {u.utmSource && (
                             <span style={{ display: 'inline-block', marginLeft: 6, padding: '4px 8px', borderRadius: 99, fontSize: 11, fontWeight: 600, background: '#EEF6ED', color: MOCK.green }}>
                               utm: {u.utmSource}
@@ -1090,6 +1128,9 @@ function DetailView({
                           {u.landingUrl ? (() => {
                             try { return new URL(u.landingUrl).pathname } catch { return u.landingUrl }
                           })() : <span style={{ color: MOCK.muted2 }}>—</span>}
+                        </td>
+                        <td style={{ padding: '12px 16px', fontSize: 12, color: MOCK.text, whiteSpace: 'nowrap' }}>
+                          {u.device ?? <span style={{ color: MOCK.muted2 }}>—</span>}
                         </td>
                       </tr>
                     ))}
@@ -1402,6 +1443,20 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   const [toastMsg, setToastMsg] = useState<string|null>(null)
   const [customMetrics, setCustomMetrics] = useState<CustomMetricData[]>([])
   const [showAddMetric, setShowAddMetric] = useState(false)
+  const [sessionSummaries, setSessionSummaries] = useState<Record<string, { status: 'idle' | 'loading' | 'done'; text: string | null; hasRecording?: boolean }>>({})
+
+  const fetchSessionSummary = (userId: string) => {
+    if (!userId || sessionSummaries[userId]?.status === 'loading' || sessionSummaries[userId]?.status === 'done') return
+    setSessionSummaries(prev => ({ ...prev, [userId]: { status: 'loading', text: null } }))
+    fetch(`/api/analytics/session-summary?brandId=${brand.id}&personId=${encodeURIComponent(userId)}`)
+      .then(r => r.json())
+      .then((d: { summary?: string | null; hasRecording?: boolean }) => {
+        setSessionSummaries(prev => ({ ...prev, [userId]: { status: 'done', text: d.summary ?? null, hasRecording: d.hasRecording } }))
+      })
+      .catch(() => {
+        setSessionSummaries(prev => ({ ...prev, [userId]: { status: 'done', text: null } }))
+      })
+  }
   const [phEvents, setPhEvents] = useState<{ event: string; cnt: number }[]>([])
   const [eventsLoading, setEventsLoading] = useState(false)
   const [eventSearch, setEventSearch] = useState('')
@@ -1439,6 +1494,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   const fetchDetailUsers = (type: string, fields: typeof colFields, eventName?: string) => {
     setDetailLoading(true)
     setDetailUsers([])
+    setSessionSummaries({})
     const params = new URLSearchParams({
       brandId: brand.id, type, range,
       colName: fields.name, colEmail: fields.email,
@@ -1669,7 +1725,6 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
     { key: 'signins',  label: 'Sign-ins',          value: signinsVal,      delta: signinsVal - signinsPrior,         source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('signins') : undefined },
     { key: 'au',       label: activeUsersLabel,    value: activeUsersVal,  delta: activeUsersVal - activeUsersPrior, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading, period: rangePeriod, onViewDetails: data?.posthogConnected ? () => openDetail('dau') : undefined },
     { key: 'deleted',  label: cardOv['deleted']?.label ?? 'Deleted account', value: deletedVal, delta: deletedVal - deletedPrior, source: 'PostHog', icon: Trash2, tone: 'red', loading: phLoading, period: rangePeriod, invertGood: true, onViewDetails: data?.posthogConnected ? () => openDetail('deleted') : undefined, onEdit: data?.posthogConnected ? () => openEditBuiltin('deleted', 'Deleted account') : undefined },
-    { key: 'pro',      label: cardOv['pro']?.label ?? 'Became PRO',        value: data?.proUsers ?? 0, delta: 0, source: 'PostHog', icon: Crown, tone: 'amber', loading: phLoading, onEdit: data?.posthogConnected ? () => openEditBuiltin('pro', 'Became PRO') : undefined },
     { key: 'unsub',    label: 'Unsubscribed',      value: 0, delta: 0, source: 'Stripe',   icon: UserMinus,     tone: 'red',     comingSoon: true, invertGood: true },
     { key: 'contact',  label: 'Support contacted', value: 0, delta: 0, source: 'Internal', icon: MessageSquare, tone: 'amber', comingSoon: true },
     { key: 'reviews',  label: 'Reviews left',      value: 0, delta: 0, source: 'Internal', icon: Star,          tone: 'amber',   comingSoon: true },
@@ -1698,6 +1753,8 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
           customMetricLabel={detailCustomMetric?.label}
           colFields={colFields}
           onColFieldChange={handleColFieldChange}
+          sessionSummaries={sessionSummaries}
+          onFetchSummary={fetchSessionSummary}
         />
       </div>
     )
@@ -1929,7 +1986,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
         />
       )}
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 16px' : '32px 28px' }}>
+      <div style={{ maxWidth: 1440, margin: '0 auto', padding: isMobile ? '20px 16px' : '32px 36px' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', marginBottom: 28, flexWrap: 'wrap', gap: 12 }}>
@@ -2169,7 +2226,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             )}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
-            {activityTiles.map((item) => (
+            {activityTiles.filter(item => !item.comingSoon).map((item) => (
               item.onEdit ? (
                 <div key={item.key} style={{ position: 'relative' }}>
                   <StatCard
@@ -2243,6 +2300,18 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                   </button>
                 </div>
               </div>
+            ))}
+            {/* Coming soon cards */}
+            {activityTiles.filter(item => item.comingSoon).map((item) => (
+              <StatCard
+                key={item.key}
+                icon={item.icon} iconTone={item.tone}
+                label={item.label} value={item.value}
+                source={item.source} deltaValue={item.delta}
+                invertGood={item.invertGood}
+                comingSoon={item.comingSoon}
+                isMobile={isMobile}
+              />
             ))}
             {/* Add metric placeholder card */}
             {data?.posthogConnected && (

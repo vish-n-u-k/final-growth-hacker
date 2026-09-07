@@ -1,6 +1,7 @@
 import type { ModuleDefinition } from '../types'
 
 export const USER_ANALYTICS_MODULE: ModuleDefinition = {
+  relevantFor: ['saas', 'ecommerce', 'agency', 'blog', 'local'],
   type: 'user-analytics',
   name: 'User Analytics',
   tagline: 'see where users drop off and why',

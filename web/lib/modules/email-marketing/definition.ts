@@ -1,6 +1,7 @@
 import type { ModuleDefinition } from '../types'
 
 export const EMAIL_MARKETING_MODULE: ModuleDefinition = {
+  relevantFor: ['saas', 'event', 'ecommerce', 'agency', 'blog'],
   type: 'email-marketing',
   name: 'Email Marketing',
   tagline: 'build and optimise your email engine',

@@ -83,6 +83,7 @@ export default function OnboardingPage() {
   const [targetAudience, setTargetAudience] = useState('')
   const [usp, setUsp] = useState('')
   const [brandVoice, setBrandVoice] = useState('')
+  const [websiteType, setWebsiteType] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [prefilling, setPrefilling] = useState(false)
@@ -142,6 +143,7 @@ export default function OnboardingPage() {
           if (data.targetAudience) setTargetAudience(data.targetAudience)
           if (data.usp) setUsp(data.usp)
           if (data.brandVoice) setBrandVoice(data.brandVoice)
+          if (data.websiteType) setWebsiteType(data.websiteType)
         }
       })
       .catch(() => {})
@@ -163,6 +165,7 @@ export default function OnboardingPage() {
         targetAudience: skip ? '' : targetAudience,
         usp: skip ? '' : usp,
         brandVoice: skip ? '' : brandVoice,
+        websiteType: websiteType || 'saas',
       }),
     })
     const onboardData = await onboardRes.json()
@@ -292,6 +295,23 @@ export default function OnboardingPage() {
                       onInput={autoResize}
                       className="ob-textarea"
                     />
+                    {websiteType && (() => {
+                      const TYPE_LABELS: Record<string, string> = {
+                        saas: 'SaaS / Software', event: 'Event / Conference',
+                        ecommerce: 'E-commerce / Retail', agency: 'Agency / Consulting',
+                        blog: 'Blog / Media / Content', local: 'Local Business / Services',
+                        nonprofit: 'Non-profit / NGO', portfolio: 'Portfolio / Personal Brand',
+                      }
+                      return (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', color: 'var(--green)', marginTop: '4px' }}>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                            <path d="M12 8h.01M12 12v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
+                          Detected: {TYPE_LABELS[websiteType] ?? websiteType}
+                        </span>
+                      )
+                    })()}
                   </label>
                   <label style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <span className="ob-field-label">Brand Keywords</span>

@@ -64,10 +64,21 @@ Return ONLY a valid JSON object with exactly these keys:
 - "usp": the main unique selling proposition or value proposition — under 150 chars
 - "brandVoice": the tone and style of the brand (e.g. "Professional and friendly", "Bold and direct") — under 80 chars
 - "keywords": 3-5 key topics/areas the brand focuses on, comma-separated (e.g. "AI, automation, social media") — under 100 chars
+- "websiteType": one of exactly these slugs: "saas" | "event" | "ecommerce" | "agency" | "blog" | "local" | "nonprofit" | "portfolio" — pick the single best fit; default "saas" if unclear
+
+Website type guide:
+- saas: software product, SaaS platform, app, tool (e.g. Notion, Linear, Stripe)
+- event: conference, summit, hackathon, event series (e.g. India Mining Week, TechCrunch Disrupt)
+- ecommerce: online store, retail, physical products (e.g. Shopify stores, DTC brands)
+- agency: service firm, consulting, design/marketing/dev agency
+- blog: blog, newsletter, media site, news, content publisher
+- local: restaurant, clinic, gym, local service business
+- nonprofit: NGO, charity, community organisation, foundation
+- portfolio: personal brand, freelancer, creator, individual consultant
 
 Rules:
 - Base answers on the extracted text where possible
-- If a field is unclear or undetectable, return an empty string "" for that field
+- If a field is unclear or undetectable, return an empty string "" for that field (except websiteType — always pick the closest match)
 - keywords should reflect the core products/services and market positioning
 - Return ONLY valid JSON. No markdown fences, no extra text.`
 
@@ -95,6 +106,10 @@ export async function POST(request: NextRequest) {
     const cleaned = raw.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '')
     const parsed = JSON.parse(cleaned) as Record<string, string>
 
+    const VALID_TYPES = ['saas', 'event', 'ecommerce', 'agency', 'blog', 'local', 'nonprofit', 'portfolio']
+    const rawType = parsed.websiteType?.toLowerCase() ?? ''
+    const websiteType = VALID_TYPES.includes(rawType) ? rawType : 'saas'
+
     return NextResponse.json({
       brandName: parsed.brandName ?? '',
       industry: parsed.industry ?? '',
@@ -102,9 +117,10 @@ export async function POST(request: NextRequest) {
       targetAudience: parsed.targetAudience ?? '',
       usp: parsed.usp ?? '',
       brandVoice: parsed.brandVoice ?? '',
+      websiteType,
     })
   } catch (err) {
     console.error('prefill AI error:', err)
-    return NextResponse.json({ brandName: '', industry: '', keywords: '', targetAudience: '', usp: '', brandVoice: '' })
+    return NextResponse.json({ brandName: '', industry: '', keywords: '', targetAudience: '', usp: '', brandVoice: '', websiteType: 'saas' })
   }
 }

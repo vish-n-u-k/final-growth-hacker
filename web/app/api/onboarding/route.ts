@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ moduleId: foundation?.id })
     }
 
-    const { brandName, websiteUrl, keywords, industry, targetAudience, usp, brandVoice } = await request.json()
+    const { brandName, websiteUrl, keywords, industry, targetAudience, usp, brandVoice, websiteType } = await request.json()
     if (!brandName?.trim() || !websiteUrl?.trim()) {
       return NextResponse.json({ error: 'Brand name and website URL are required' }, { status: 400 })
     }
@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
         targetAudience: targetAudience?.trim() || null,
         usp: usp?.trim() || null,
         brandVoice: brandVoice?.trim() || null,
+        websiteType: websiteType?.trim() || null,
       })
       .returning()
 
@@ -95,6 +96,17 @@ export async function POST(request: NextRequest) {
         if (val) requirements[req.key] = val
       }
 
+      // Determine status: not-applicable if relevantFor defined and website type not in list
+      const effectiveType = brand.websiteType ?? 'saas'
+      const isNotApplicable =
+        Array.isArray(def.relevantFor) &&
+        def.relevantFor.length > 0 &&
+        !def.relevantFor.includes(effectiveType)
+
+      const moduleStatus = isNotApplicable
+        ? 'not-applicable'
+        : (def.order === 0 || def.unlockThreshold === 0) ? 'pending' : 'locked'
+
       const [mod] = await db
         .insert(modules)
         .values({
@@ -102,7 +114,7 @@ export async function POST(request: NextRequest) {
           type: def.type,
           name: def.name,
           order: def.order,
-          status: (def.order === 0 || def.unlockThreshold === 0) ? 'pending' : 'locked',
+          status: moduleStatus,
           requirements,
         })
         .returning()

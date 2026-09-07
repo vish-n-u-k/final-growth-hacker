@@ -17,6 +17,7 @@ interface RawReview {
   reviewText: string
   rating: number
   reviewDate: string | null   // ISO date string e.g. "2024-03-15"
+  reviewUrl: string | null
 }
 
 export interface ScrapedLead {
@@ -27,8 +28,10 @@ export interface ScrapedLead {
   reviewText: string
   rating: number
   reviewDate: string | null
+  reviewUrl: string | null
   fitScore: number
   fitReason: string
+  painPoints: string[]
   platform: string
 }
 
@@ -81,7 +84,7 @@ function extractReviewsFromHtml(html: string): RawReview[] {
 
     const reviewDate = $el.find('time[datetime]').first().attr('datetime')?.slice(0, 10) ?? null
 
-    reviews.push({ company, reviewText: reviewText.slice(0, 400), rating, reviewDate })
+    reviews.push({ company, reviewText: reviewText.slice(0, 400), rating, reviewDate, reviewUrl: null })
   })
 
   return reviews
@@ -111,12 +114,13 @@ interface ScoredResult {
   i: number
   score: number
   reason: string
+  painPoints?: string[]
 }
 
 async function evaluateFit(
   reviews: RawReview[],
   brandContext: string,
-): Promise<Array<RawReview & { fitScore: number; fitReason: string }>> {
+): Promise<Array<RawReview & { fitScore: number; fitReason: string; painPoints: string[] }>> {
   if (!reviews.length) return []
 
   const reviewList = reviews
@@ -143,7 +147,9 @@ COMPETITOR REVIEWS:
 ${reviewList}
 
 Return ONLY a raw JSON array — no markdown, no code fences:
-[{"i":0,"score":8,"reason":"One sentence citing the specific capability that matches their complaint, or why it does not match"}]`
+[{"i":0,"score":8,"reason":"One plain-English sentence (no jargon) that a non-technical person can instantly understand — explain simply what problem they have and why our product helps","painPoints":["short keyword 1","short keyword 2","short keyword 3"]}]
+
+painPoints: 3–5 short phrases (2–4 words each) that capture the merchant's specific complaints — e.g. "slow sync", "missing integrations", "confusing setup", "poor support response". These are keyword chips shown to the user at a glance.`
 
   const raw = await callAI({
     system: 'You are a sales qualification expert. Evaluate leads based on product-market fit. Return only a raw JSON array.',
@@ -166,6 +172,7 @@ Return ONLY a raw JSON array — no markdown, no code fences:
         ...reviews[s.i],
         fitScore: s.score,
         fitReason: s.reason ?? '',
+        painPoints: s.painPoints ?? [],
       }))
   } catch {
     return []
@@ -265,8 +272,10 @@ async function scrapeTrustpilot(inputUrl: string): Promise<RawReview[]> {
       )
 
       const reviewDate = $el.find('time[datetime]').first().attr('datetime')?.slice(0, 10) ?? null
+      const reviewId = $el.attr('data-review-id') ?? null
+      const reviewUrl = reviewId ? `https://www.trustpilot.com/reviews/${reviewId}` : null
 
-      reviews.push({ company: reviewer, reviewText: reviewText.slice(0, 400), rating, reviewDate })
+      reviews.push({ company: reviewer, reviewText: reviewText.slice(0, 400), rating, reviewDate, reviewUrl })
     })
   }
 
@@ -326,8 +335,10 @@ export async function POST(req: NextRequest) {
     reviewText: r.reviewText,
     rating: r.rating,
     reviewDate: r.reviewDate,
+    reviewUrl: r.reviewUrl ?? null,
     fitScore: r.fitScore,
     fitReason: r.fitReason,
+    painPoints: r.painPoints,
     platform: body.platform!,
   }))
 

@@ -1,6 +1,7 @@
 import type { ModuleDefinition } from '../types'
 
 export const GEO_COMPETITOR_GAP_MODULE: ModuleDefinition = {
+  relevantFor: ['saas', 'ecommerce', 'agency', 'blog', 'local'],
   type: 'geo-competitor-gap',
   name: 'GEO Competitor Gap',
   tagline: 'close AI visibility gaps vs competitors',
