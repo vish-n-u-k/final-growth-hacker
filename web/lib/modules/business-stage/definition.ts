@@ -1,6 +1,7 @@
 import type { ModuleDefinition } from '../types'
 
 export const BUSINESS_STAGE_MODULE: ModuleDefinition = {
+  relevantFor: ['saas', 'ecommerce', 'agency', 'blog'],
   type: 'business-stage',
   name: 'Business Stage Analysis',
   tagline: 'identify your stage and next priority',

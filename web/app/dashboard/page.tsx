@@ -38,16 +38,21 @@ export default async function DashboardPage() {
   const seededTypes = new Set(allModulesRaw.map(m => m.type))
   const missingDefs = MODULE_REGISTRY.filter(def => !seededTypes.has(def.type) && !def.comingSoon)
   if (missingDefs.length > 0) {
-    await Promise.all(missingDefs.map(def =>
-      db.insert(modules).values({
+    const effectiveType = brand.websiteType ?? 'saas'
+    await Promise.all(missingDefs.map(def => {
+      const isNotApplicable =
+        Array.isArray(def.relevantFor) &&
+        def.relevantFor.length > 0 &&
+        !def.relevantFor.includes(effectiveType)
+      return db.insert(modules).values({
         brandId: brand.id,
         type: def.type,
         name: def.name,
         order: def.order,
-        status: def.unlockThreshold === 0 ? 'pending' : 'locked',
+        status: isNotApplicable ? 'not-applicable' : (def.unlockThreshold === 0 ? 'pending' : 'locked'),
         requirements: brand.websiteUrl ? { website_url: brand.websiteUrl } : {},
       }).onConflictDoNothing()
-    ))
+    }))
     allModulesRaw = await db
       .select()
       .from(modules)

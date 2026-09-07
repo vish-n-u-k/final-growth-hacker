@@ -12,6 +12,7 @@ export const brands = pgTable('brands', {
   websiteUrl: text('website_url').notNull(),
   keywords: text('keywords'), // comma-separated brand keywords/tags
   industry: text('industry'),
+  websiteType: text('website_type'), // 'saas'|'event'|'ecommerce'|'agency'|'blog'|'local'|'nonprofit'|'portfolio'
   targetAudience: text('target_audience'),
   usp: text('usp'),
   brandVoice: text('brand_voice'),
