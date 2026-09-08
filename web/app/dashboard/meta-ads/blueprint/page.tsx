@@ -8,8 +8,7 @@ import type { DBItemFull } from '@/lib/modules/types'
 
 export default async function BlueprintPage() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  const user = session?.user
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
@@ -59,6 +58,8 @@ export default async function BlueprintPage() {
 
   return (
     <NextCampaignBlueprintPage
+      moduleId={metaMod.id}
+      moduleStatus={metaMod.status}
       brandName={brand.name}
       lastAnalyzedAt={metaMod.lastAnalyzedAt?.toISOString() ?? null}
       items={items}

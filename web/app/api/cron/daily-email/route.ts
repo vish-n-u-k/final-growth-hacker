@@ -364,16 +364,25 @@ function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: 
 
       ${actionCards.length > 0 ? divider + buildActionsSection(actionCards, process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com') : ''}
 
+      ${divider}
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+        <tr><td align="center">
+          <table role="presentation" cellpadding="0" cellspacing="0">
+            <tr><td style="background:#16a34a;border-radius:8px;">
+              <a href="${dashUrl}" style="display:inline-block;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;padding:14px 32px;letter-spacing:-0.2px;">View Full Dashboard &#8594;</a>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+
     </td></tr>
 
     <!-- Footer -->
     <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:16px 32px;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
         <tr>
-          <td style="font-size:12px;color:#6b7280;">
-            <a href="${dashUrl}" style="color:#16a34a;text-decoration:none;font-weight:600;">View full dashboard &#8594;</a>
-          </td>
-          <td style="text-align:right;font-size:11px;color:#9ca3af;">GrowJin &middot; Daily digest</td>
+          <td style="font-size:11px;color:#9ca3af;">GrowJin &middot; Daily digest</td>
+          <td style="text-align:right;font-size:11px;color:#9ca3af;"><a href="${dashUrl}" style="color:#9ca3af;text-decoration:none;">Open dashboard</a></td>
         </tr>
       </table>
     </td></tr>
@@ -416,9 +425,7 @@ function buildActionsSection(cards: ActionCard[], appUrl: string): string {
   </table>`
   }).join('')
 
-  return `
-  <p style="margin:0 0 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#9ca3af;">Today&rsquo;s Actions</p>
-  ${cardRows}`
+  return cardRows
 }
 
 // ── Gmail send ────────────────────────────────────────────────────────────────

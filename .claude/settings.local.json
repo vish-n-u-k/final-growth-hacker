@@ -89,7 +89,10 @@
       "Bash(wc -c \"C:/Users/vishn/Desktop/Final Growth Hacker/web/new.txt\" && xxd \"C:/Users/vishn/Desktop/Final Growth Hacker/web/new.txt\" | head -5)",
       "Bash(python3 -c \"\nwith open\\('C:/Users/vishn/Desktop/Final Growth Hacker/web/new.txt', 'rb'\\) as f:\n    content = f.read\\(\\).decode\\('utf-8', errors='replace'\\)\nprint\\(content\\)\n\")",
       "Bash(node -e \"const fs=require\\('fs'\\); console.log\\(fs.readFileSync\\('C:/Users/vishn/Desktop/Final Growth Hacker/web/new.txt','utf8'\\)\\)\")",
-      "WebFetch(domain:vidyback.com)"
+      "WebFetch(domain:vidyback.com)",
+      "Bash(ls \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\\\\\" | grep -E \"instrument|middleware\")",
+      "Bash(cd \"/c/Users/vishn/Desktop/Final Growth Hacker/web\" && npx next build 2>&1 | grep -E \"__dirname|error|Error|middleware|MIDDLEWARE\" | head -30)",
+      "Bash(cd \"/c/Users/vishn/Desktop/Final Growth Hacker/web\" && npx next build 2>&1 | tail -30)"
     ]
   }
 }
