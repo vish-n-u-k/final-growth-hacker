@@ -9,7 +9,9 @@ export const META_ADS_MODULE: ModuleDefinition = {
   order: 11,
   unlockThreshold: 80,
   dynamic: true,
-  requirements: [],
+  requirements: [
+    { key: 'page_id', label: 'Facebook Page ID', type: 'text', placeholder: '123456789012345', required: false },
+  ],
   systemPrompt: `You are a senior paid media strategist embedded in a growth audit tool. Your tone is direct, data-driven, and consultant-like.
 
 You receive pre-processed data: real campaign performance metrics fetched from the Meta Marketing API (spend, impressions, clicks, CTR, CPC, CPM, frequency, reach, total conversions, campaign objectives, daily budgets, status).
@@ -120,20 +122,55 @@ Use only what the data showed — do not invent findings from outside the provid
       order: 6,
       prompt: `Based on everything you have seen — campaign objectives in use, performance gaps, audience fatigue, conversion rates, and budget allocation — design the single best next campaign this account should run.
 
-Structure your output as exactly 4 findings:
+Output EXACTLY ONE item with:
+- "category": "next-campaign"
+- "slug": "next-campaign-brief"
+- "label": "Next Campaign Blueprint"
+- "weight": 2
+- "verified": false
+- "fixable": false
+- "detail": one plain-English sentence summarising the recommended campaign (cite one specific data point)
+- "narrative": one sentence explaining why this campaign addresses the biggest gap
+- "action": the first concrete step to set this campaign up in Meta Ads Manager
+- "aiData": a structured JSON object with this exact shape:
+{
+  "campaignName": "string — descriptive name for the campaign",
+  "objective": "CONVERSIONS" | "TRAFFIC" | "LEAD_GENERATION" | "AWARENESS",
+  "dailyBudgetUsd": number (e.g. 50),
+  "audience": {
+    "ageMin": number,
+    "ageMax": number,
+    "genders": [1, 2],
+    "interests": ["keyword1", "keyword2"],
+    "countries": ["US"]
+  },
+  "adCopy": {
+    "headline": "string (max 40 chars)",
+    "body": "string (max 125 chars)",
+    "cta": "LEARN_MORE" | "SHOP_NOW" | "SIGN_UP" | "GET_QUOTE"
+  },
+  "creative": {
+    "topic": "concise Frekto prompt describing the ad visual in plain English",
+    "format": "1:1" | "4:5" | "9:16",
+    "adType": "single" | "carousel",
+    "slides": ["topic for slide 1", "topic for slide 2"]
+  }
+}
 
-1. slug: "next-campaign-objective" — What objective should the next campaign use and why? Choose from: REACH, TRAFFIC, CONVERSIONS, LEAD_GENERATION, VIDEO_VIEWS, APP_INSTALLS. Justify based on gaps identified (e.g. if no LEAD_GENERATION campaigns exist but conversion data is weak, recommend it). verified: false, weight 2.
+Rules for aiData:
+- objective: choose based on the biggest gap (no LEAD_GENERATION campaigns → recommend LEAD_GENERATION; high frequency everywhere → recommend AWARENESS to cold)
+- dailyBudgetUsd: base on average daily budget of active campaigns ÷ 2 (conservative test budget), minimum $10
+- audience.interests: 2–4 specific interest keywords relevant to what the brand sells
+- adCopy.headline: must be 40 chars or fewer; adCopy.body: 125 chars or fewer
+- creative.format: choose 4:5 for feed, 9:16 for Stories/Reels, 1:1 for square feed
+- creative.adType: use "carousel" if the brand sells multiple products or has multiple value props; otherwise "single"
+- creative.slides: only populate if adType is "carousel" (2–5 items); otherwise empty array
+- Every field in aiData must have a real value — no placeholders, no nulls
 
-2. slug: "next-campaign-audience" — Who should this campaign target? Recommend a specific audience strategy: cold (interest-based or lookalike), warm (website visitors / engagers), or hot (retargeting past buyers / leads). Base the recommendation on the frequency and reach data seen — if existing audiences are fatigued, push cold. verified: false, weight 2.
-
-3. slug: "next-campaign-creative" — What creative format and message angle should the ad use? Recommend: image, video, carousel, or collection. Suggest a specific message angle (e.g. social proof, problem-agitate-solve, limited offer, testimonial) based on what objectives and campaign names suggest the brand sells. Keep it plain English — no jargon. verified: false, weight 1.
-
-4. slug: "next-campaign-budget" — What daily budget should this campaign start with, and for how long? Base this on: the average daily budget of active campaigns, total 7-day spend divided by active campaign count, and the performance tier of the account. Give a specific dollar figure and a test duration (e.g. "$25/day for 14 days"). verified: false, weight 1.
-
-Rules:
+Rules for text fields:
 - Do NOT repeat findings from other categories. This is forward-looking only.
-- Every recommendation must reference at least one specific data point from the account (spend figure, campaign name, objective gap, frequency number).
-- Plain English throughout — a business owner reading this should immediately know what to do next.`,
+- Every recommendation must reference at least one specific data point from the account.
+- Plain English throughout.`,
     },
   ],
 }

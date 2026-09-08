@@ -647,6 +647,7 @@ Key One-Liners: ${pb.keyOneLiners}`
           aiHighlight: (r as DynamicModuleAnalysisResult).highlight ?? null,
           aiNarrative: r.narrative,
           aiAction: r.action,
+          aiData: (r as DynamicModuleAnalysisResult).aiData ?? null,
           aiVerified: r.verified,
           aiVerifiedAt: r.verified ? new Date() : null,
           userChecked: wasChecked,

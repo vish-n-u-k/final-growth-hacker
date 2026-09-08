@@ -123,6 +123,7 @@ export interface DynamicModuleAnalysisResult {
   fixType?: FixType     // controls which fix path is used
   exportType?: 'auto' | 'needs_choice' | 'external'
   choiceOptions?: string[]  // 2-3 ready-to-use values for needs_choice items
+  aiData?: Record<string, unknown>  // structured payload (e.g. CampaignBrief for next-campaign-brief)
 }
 
 // ── Full item row passed to dashboard for dynamic modules ─────────────────────
