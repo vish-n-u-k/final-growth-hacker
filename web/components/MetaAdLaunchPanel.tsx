@@ -74,6 +74,8 @@ export default function MetaAdLaunchPanel({ moduleId, item, demo = false }: Prop
   const [images, setImages] = useState<{ url: string; index: number }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [adsManagerUrl, setAdsManagerUrl] = useState<string | null>(null)
+  const [campaignId, setCampaignId] = useState<string | null>(null)
+  const [adId, setAdId] = useState<string | null>(null)
 
   async function handleGenerateCreative() {
     setState('generating')
@@ -114,6 +116,8 @@ export default function MetaAdLaunchPanel({ moduleId, item, demo = false }: Prop
         return
       }
       setAdsManagerUrl(data.adsManagerUrl ?? null)
+      setCampaignId(data.campaignId ?? null)
+      setAdId(data.adId ?? null)
       setState('launched')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Network error')
@@ -183,7 +187,7 @@ export default function MetaAdLaunchPanel({ moduleId, item, demo = false }: Prop
 
       {/* Creative section */}
       <div className="meta-launch-section">
-        {(state === 'idle' || state === 'error') && (
+        {(state === 'idle' || (state === 'error' && images.length === 0)) && (
           <button className="meta-launch-btn meta-launch-btn-creative" onClick={handleGenerateCreative}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
               <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -202,7 +206,7 @@ export default function MetaAdLaunchPanel({ moduleId, item, demo = false }: Prop
           </div>
         )}
 
-        {(state === 'creative-ready' || state === 'launching' || state === 'launched') && images.length > 0 && (
+        {(state === 'creative-ready' || state === 'launching' || state === 'launched' || state === 'error') && images.length > 0 && (
           <div className="meta-launch-previews">
             {images.map((img) => (
               <CreativePreview key={img.index} url={img.url} index={img.index} />
@@ -210,7 +214,7 @@ export default function MetaAdLaunchPanel({ moduleId, item, demo = false }: Prop
           </div>
         )}
 
-        {state === 'creative-ready' && (
+        {(state === 'creative-ready' || (state === 'error' && images.length > 0)) && (
           demo ? (
             <a href="/settings" className="meta-launch-btn meta-launch-btn-launch meta-launch-btn-demo">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -239,14 +243,20 @@ export default function MetaAdLaunchPanel({ moduleId, item, demo = false }: Prop
         )}
 
         {state === 'launched' && adsManagerUrl && (
-          <div className="meta-launch-success">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-              <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Campaign created as PAUSED.{' '}
-            <a href={adsManagerUrl} target="_blank" rel="noopener noreferrer" className="meta-launch-ads-link">
-              Open in Ads Manager
-            </a>
+          <div className="meta-launch-success-block">
+            <div className="meta-launch-success">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Campaign created as PAUSED.{' '}
+              <a href={adsManagerUrl} target="_blank" rel="noopener noreferrer" className="meta-launch-ads-link">
+                Open in Ads Manager
+              </a>
+            </div>
+            <div className="meta-launch-ids">
+              {campaignId && <span>Campaign ID: <code>{campaignId}</code></span>}
+              {adId && <span>Ad ID: <code>{adId}</code></span>}
+            </div>
           </div>
         )}
 

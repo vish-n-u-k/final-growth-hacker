@@ -430,6 +430,14 @@ export const customMetrics = pgTable('custom_metrics', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 
+// ── Email Tokens (auth tokens for daily email "View Dashboard" links) ─────────
+
+export const emailTokens = pgTable('email_tokens', {
+  token:     text('token').primaryKey(),
+  userId:    uuid('user_id').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})
+
 // ── Bug Reports (in-app bug reporting widget) ──────────────────────────────────
 
 export const bugReports = pgTable('bug_reports', {
