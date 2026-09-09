@@ -50,6 +50,9 @@ export interface SignalInput {
     url: string
     verdict: string
   }[]
+  seoStale?: { moduleId: string; daysSince: number } | null
+  geoStale?: { moduleId: string; daysSince: number } | null
+  blogSuggestion?: { moduleId: string; score: number; analyzed: boolean } | null
 }
 
 export interface ImpactCard {
@@ -181,6 +184,21 @@ export function detectSignals(input: SignalInput, maxCards = 3): ActionCard[] {
     }
   }
 
+  // ── Rule 4.5: SEO module stale (> 14 days since last analysis) ───────────
+  if (input.seoStale) {
+    const { moduleId, daysSince } = input.seoStale
+    candidates.push({
+      id: 'seo-stale',
+      type: 'seo',
+      priority: 4.5,
+      headline: `Re-analyze your SEO — last checked ${daysSince} day${daysSince === 1 ? '' : 's'} ago`,
+      reason: `SEO factors change as competitors update pages and Google refreshes its index. Running a fresh analysis ensures your recommendations are current.`,
+      cta: 'Re-analyze SEO',
+      ctaUrl: `/dashboard/${moduleId}`,
+      sourceModule: moduleId,
+    })
+  }
+
   // ── Rule 5: Content gaps (Remove/Refresh audit verdicts) ──────────────────
   if (input.pageAuditItems && input.pageAuditItems.length > 0) {
     const page = input.pageAuditItems[0]
@@ -192,6 +210,25 @@ export function detectSignals(input: SignalInput, maxCards = 3): ActionCard[] {
       reason: `Page marked for ${page.verdict.toLowerCase()} in content audit`,
       cta: 'View Content Audit',
       ctaUrl: '/dashboard',
+    })
+  }
+
+  // ── Rule 5.5: Blog / content section missing ──────────────────────────────
+  if (input.blogSuggestion) {
+    const { moduleId, score, analyzed } = input.blogSuggestion
+    candidates.push({
+      id: 'blog-missing',
+      type: 'content',
+      priority: 5.5,
+      headline: analyzed
+        ? `Add a blog or resources section (content score: ${score}%)`
+        : 'Run the Content Audit to check your blog coverage',
+      reason: analyzed
+        ? `Your content score is low — sites without a blog or resource section miss a major source of organic traffic and domain authority.`
+        : `The Content Audit checks whether your site has a blog, sufficient page depth, and the right content types. Run it to find gaps.`,
+      cta: analyzed ? 'Open Content Audit' : 'Run Content Audit',
+      ctaUrl: `/dashboard/${moduleId}`,
+      sourceModule: moduleId,
     })
   }
 
@@ -207,6 +244,21 @@ export function detectSignals(input: SignalInput, maxCards = 3): ActionCard[] {
       cta: 'Go to module',
       ctaUrl: `/dashboard/${item.moduleId}`,
       sourceModule: item.moduleId,
+    })
+  }
+
+  // ── Rule 6.5: GEO module stale (> 14 days since last analysis) ───────────
+  if (input.geoStale) {
+    const { moduleId, daysSince } = input.geoStale
+    candidates.push({
+      id: 'geo-stale',
+      type: 'module-item',
+      priority: 6.5,
+      headline: `Re-analyze GEO — last checked ${daysSince} day${daysSince === 1 ? '' : 's'} ago`,
+      reason: `AI search visibility changes as new LLMs update their training data and discovery signals. Re-running ensures your GEO score reflects the current state.`,
+      cta: 'Re-analyze GEO',
+      ctaUrl: `/dashboard/${moduleId}`,
+      sourceModule: moduleId,
     })
   }
 
