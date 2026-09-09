@@ -117,9 +117,31 @@ Generate exactly 2 findings:
 Use only what the data showed — do not invent findings from outside the provided data.`,
     },
     {
+      slug: 'tracking-setup',
+      label: 'Tracking & Pixel Health',
+      order: 6,
+      prompt: `Evaluate whether the Meta Pixel and Conversions API (CAPI) are properly set up for this account.
+
+Assess:
+- Is a pixel installed on the account? If not, this is critical — conversion campaigns are flying blind.
+- When did the pixel last fire? If more than 7 days ago (or never), it is stale and likely broken or missing from key pages.
+- Is the Meta Pixel base code (fbevents.js) actually present in the website HTML? A pixel can exist in the ad account but not be placed on the website. If it is missing from the HTML, conversions cannot be tracked at all.
+- Is the Facebook JS SDK (sdk.js / FB.init) present? This is used for social login, sharing, and app-level events — note whether it is present but separate from the pixel.
+- Is the Conversions API (CAPI) configured? CAPI sends server-side events directly to Meta, acting as a backup when browser-based pixel events are blocked by ad blockers or iOS privacy changes. Without it, conversion data is significantly under-reported.
+- Are there CONVERSIONS or LEAD_GENERATION objective campaigns running without reliable tracking? If so, Meta cannot optimise for the right people and ad spend is being wasted.
+
+Generate 2–4 findings:
+- One finding on pixel status (installed / stale / missing)
+- One finding on CAPI status (configured / not configured / unknown)
+- If CONVERSIONS or LEAD_GENERATION campaigns are active and CAPI is missing, flag this as weight 3 — it directly hurts campaign optimisation
+- If pixel is stale, weight 2; if CAPI is simply absent but pixel is healthy, weight 2; if both are healthy, weight 1 for general best-practice note
+
+Action steps must be specific: where in Events Manager to verify the pixel, how to enable CAPI (via partner integration or direct API), and how to check event match quality scores.`,
+    },
+    {
       slug: 'next-campaign',
       label: 'Next Campaign Blueprint',
-      order: 6,
+      order: 7,
       prompt: `Based on everything you have seen — campaign objectives in use, performance gaps, audience fatigue, conversion rates, and budget allocation — design the single best next campaign this account should run.
 
 Output EXACTLY ONE item with:

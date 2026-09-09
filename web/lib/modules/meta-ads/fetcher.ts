@@ -24,6 +24,18 @@ export interface MetaCampaignInsight {
   totalActions: number
 }
 
+export interface MetaTrackingStatus {
+  hasPixel: boolean
+  pixelCount: number
+  primaryPixelId: string | null
+  primaryPixelName: string | null
+  lastFiredTime: string | null
+  pixelStale: boolean
+  hasCapi: boolean | null  // null = could not determine
+  pixelInHtml: boolean | null  // null = website URL not available or fetch failed
+  sdkInHtml: boolean | null    // Meta SDK for apps (fbq or Meta App Events)
+}
+
 export interface MetaAdsFetchResult {
   brandName: string
   campaigns: MetaCampaign[]
@@ -37,6 +49,7 @@ export interface MetaAdsFetchResult {
   avgCpc: number
   avgCpm: number
   avgFrequency: number
+  tracking: MetaTrackingStatus
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -61,6 +74,30 @@ function checkForApiError(data: unknown): string | null {
     return `Insufficient permissions: ${d.error.message}. Ensure the token has ads_read permission.`
   }
   return d.error.message
+}
+
+// ── Website pixel check ────────────────────────────────────────────────────────
+
+async function checkWebsiteForPixel(websiteUrl: string): Promise<{ pixelInHtml: boolean; sdkInHtml: boolean } | null> {
+  if (!websiteUrl) return null
+  try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 10000)
+    const res = await fetch(websiteUrl, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowJin/1.0)' },
+    })
+    clearTimeout(timer)
+    if (!res.ok) return null
+    const html = await res.text()
+    // Meta Pixel: fbevents.js script or fbq( calls
+    const pixelInHtml = /connect\.facebook\.net.*fbevents\.js|fbq\s*\(/.test(html)
+    // Meta SDK for apps / business SDK
+    const sdkInHtml = /connect\.facebook\.net.*sdk\.js|FB\.init\s*\(/.test(html)
+    return { pixelInHtml, sdkInHtml }
+  } catch {
+    return null
+  }
 }
 
 // ── Demo / mock data ───────────────────────────────────────────────────────────
@@ -127,6 +164,17 @@ function getMockMetaAdsData(brandName: string): MetaAdsFetchResult {
     avgCpc:       Math.round(avgCpc * 100) / 100,
     avgCpm:       Math.round(avgCpm * 100) / 100,
     avgFrequency: Math.round(avgFrequency * 100) / 100,
+    tracking: {
+      hasPixel: true,
+      pixelCount: 1,
+      primaryPixelId: 'px_demo_001',
+      primaryPixelName: 'Main Website Pixel',
+      lastFiredTime: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      pixelStale: false,
+      hasCapi: false,
+      pixelInHtml: true,
+      sdkInHtml: false,
+    },
   }
 }
 
@@ -236,6 +284,41 @@ export async function fetchMetaAdsData(
     }
   })
 
+  // Fetch pixels + check website HTML in parallel
+  const pixelsUrl = `${META_BASE}/act_${accountId}/adspixels?fields=id,name,last_fired_time,is_unavailable&access_token=${encodeURIComponent(accessToken)}`
+  const websiteUrl = requirements['website_url'] ?? ''
+  const [pixelsRaw, htmlCheck] = await Promise.all([
+    safeFetch(pixelsUrl),
+    checkWebsiteForPixel(websiteUrl),
+  ])
+  const pixelData = (pixelsRaw as { data?: { id: string; name: string; last_fired_time?: string; is_unavailable?: boolean }[] } | null)?.data ?? []
+
+  const primaryPixel = pixelData[0] ?? null
+  const lastFiredTime = primaryPixel?.last_fired_time ?? null
+  const pixelStale = !lastFiredTime || (Date.now() - new Date(lastFiredTime).getTime()) > 7 * 24 * 60 * 60 * 1000
+
+  // Check CAPI status via da_checks for the primary pixel
+  let hasCapi: boolean | null = null
+  if (primaryPixel) {
+    const checksUrl = `${META_BASE}/${primaryPixel.id}/da_checks?checks=SERVER_API_CONFIGURED&access_token=${encodeURIComponent(accessToken)}`
+    const checksRaw = await safeFetch(checksUrl)
+    const checksData = (checksRaw as { data?: { check_name: string; status: string }[] } | null)?.data ?? []
+    const capiCheck = checksData.find((c) => c.check_name === 'SERVER_API_CONFIGURED')
+    if (capiCheck) hasCapi = capiCheck.status === 'PASS'
+  }
+
+  const tracking: MetaTrackingStatus = {
+    hasPixel: pixelData.length > 0,
+    pixelCount: pixelData.length,
+    primaryPixelId: primaryPixel?.id ?? null,
+    primaryPixelName: primaryPixel?.name ?? null,
+    lastFiredTime,
+    pixelStale,
+    hasCapi,
+    pixelInHtml: htmlCheck?.pixelInHtml ?? null,
+    sdkInHtml: htmlCheck?.sdkInHtml ?? null,
+  }
+
   // Account-level aggregates
   const totalSpend = insights.reduce((s, i) => s + i.spend, 0)
   const totalImpressions = insights.reduce((s, i) => s + i.impressions, 0)
@@ -264,5 +347,6 @@ export async function fetchMetaAdsData(
     avgCpc: Math.round(avgCpc * 100) / 100,
     avgCpm: Math.round(avgCpm * 100) / 100,
     avgFrequency: Math.round(avgFrequency * 100) / 100,
+    tracking,
   }
 }

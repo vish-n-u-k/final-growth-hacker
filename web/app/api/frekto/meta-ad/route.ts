@@ -84,39 +84,14 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const { topic, format, adType, slides } = brief.creative
-  const isCarousel = adType === 'carousel' && slides && slides.length > 0
+  const { topic, format } = brief.creative
+  const safeTopic = topic.slice(0, 300)
 
-  if (isCarousel) {
-    // Generate each slide in parallel (cap at 5)
-    const slideTopics = slides.slice(0, 5)
-    const jobResults = await Promise.all(
-      slideTopics.map((slideTopic) => submitJob(slideTopic, format, frektoInt.apiKey!)),
-    )
+  const jobResult = await submitJob(safeTopic, format, frektoInt.apiKey)
+  if ('error' in jobResult) return NextResponse.json({ error: jobResult.error }, { status: 502 })
 
-    const errors = jobResults.filter((r): r is { error: string } => 'error' in r)
-    if (errors.length > 0) {
-      return NextResponse.json({ error: errors[0].error }, { status: 502 })
-    }
+  const pollResult = await pollJob(jobResult.jobId, frektoInt.apiKey)
+  if ('error' in pollResult) return NextResponse.json({ error: pollResult.error }, { status: 502 })
 
-    const jobIds = (jobResults as { jobId: string }[]).map((r) => r.jobId)
-    const pollResults = await Promise.all(jobIds.map((id) => pollJob(id, frektoInt.apiKey!)))
-
-    const pollErrors = pollResults.filter((r): r is { error: string } => 'error' in r)
-    if (pollErrors.length > 0) {
-      return NextResponse.json({ error: pollErrors[0].error }, { status: 502 })
-    }
-
-    const images = (pollResults as { outputUrl: string }[]).map((r, index) => ({ url: r.outputUrl, index }))
-    return NextResponse.json({ images })
-  } else {
-    // Single image
-    const jobResult = await submitJob(topic, format, frektoInt.apiKey)
-    if ('error' in jobResult) return NextResponse.json({ error: jobResult.error }, { status: 502 })
-
-    const pollResult = await pollJob(jobResult.jobId, frektoInt.apiKey)
-    if ('error' in pollResult) return NextResponse.json({ error: pollResult.error }, { status: 502 })
-
-    return NextResponse.json({ images: [{ url: pollResult.outputUrl, index: 0 }] })
-  }
+  return NextResponse.json({ images: [{ url: pollResult.outputUrl, index: 0 }] })
 }
