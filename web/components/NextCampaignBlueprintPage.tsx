@@ -107,6 +107,7 @@ export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, bran
         setAnalysing(false)
         return
       }
+      setAnalysing(false)
       router.refresh()
     } catch (e) {
       setAnalyseError(e instanceof Error ? e.message : 'Network error')

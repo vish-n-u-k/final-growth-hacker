@@ -147,7 +147,7 @@ export async function GET() {
     db.select().from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.status, 'connected'))),
 
-    db.select({ id: modules.id, type: modules.type, score: modules.score, status: modules.status })
+    db.select({ id: modules.id, type: modules.type, score: modules.score, status: modules.status, lastAnalyzedAt: modules.lastAnalyzedAt })
       .from(modules)
       .where(eq(modules.brandId, brand.id)),
 
@@ -226,6 +226,36 @@ export async function GET() {
   // Resolve module IDs for critical items
   const moduleTypeMap = new Map(unlockedModules.map(m => [m.id, m.type]))
   const seoModule = unlockedModules.find(m => m.type === 'seo') ?? null
+  const geoModule = unlockedModules.find(m => m.type === 'geo') ?? null
+  const contentAuditModule = unlockedModules.find(m => m.type === 'content-audit') ?? null
+
+  const daysSince = (d: Date | null | undefined) =>
+    d ? Math.floor((Date.now() - new Date(d).getTime()) / 864e5) : null
+
+  const STALE_DAYS = 14
+
+  const seoStale = (() => {
+    if (!seoModule) return null
+    const days = daysSince(seoModule.lastAnalyzedAt)
+    return days !== null && days > STALE_DAYS ? { moduleId: seoModule.id, daysSince: days } : null
+  })()
+
+  const geoStale = (() => {
+    if (!geoModule) return null
+    const days = daysSince(geoModule.lastAnalyzedAt)
+    return days !== null && days > STALE_DAYS ? { moduleId: geoModule.id, daysSince: days } : null
+  })()
+
+  const blogSuggestion = (() => {
+    if (!contentAuditModule) return null
+    const analyzed = contentAuditModule.lastAnalyzedAt != null
+    const score = contentAuditModule.score ?? 0
+    // Show signal if: not yet analyzed, or analyzed with low score (< 60)
+    if (!analyzed || score < 60) {
+      return { moduleId: contentAuditModule.id, score, analyzed }
+    }
+    return null
+  })()
 
   // Filter critical items to those in this brand's unlocked modules
   const brandModuleIds = new Set(unlockedModules.map(m => m.id))
@@ -284,6 +314,9 @@ export async function GET() {
     seoModule: seoModule ? { id: seoModule.id, score: seoModule.score ?? 0 } : null,
     uncheckedCriticalItems: uncheckedCritical,
     pageAuditItems: brandAuditPages.map(p => ({ title: p.title, url: p.url, verdict: p.verdict })),
+    seoStale,
+    geoStale,
+    blogSuggestion,
   }
 
   const cards = detectSignals(input)
