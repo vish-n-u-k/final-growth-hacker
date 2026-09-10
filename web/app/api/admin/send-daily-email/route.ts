@@ -1,19 +1,10 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands, brandIntegrations, emailTokens } from '@/lib/db/schema'
+import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
-import { createSign, randomBytes } from 'crypto'
+import { createSign } from 'crypto'
 import { getValidAdminGmailToken, getAdminGmailAddress } from '@/lib/gmail/admin-token'
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com'
-
-async function generateEmailToken(userId: string): Promise<string> {
-  const token = randomBytes(32).toString('hex')
-  const expiresAt = new Date(Date.now() + 5 * 60 * 60 * 1000) // 5 hours
-  await db.insert(emailTokens).values({ token, userId, expiresAt })
-  return token
-}
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -172,8 +163,9 @@ function fmt(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
 
-function buildHtml(brandName: string, date: string, ga4: Awaited<ReturnType<typeof fetchGA4>>, ph: Awaited<ReturnType<typeof fetchPostHog>> | null, dashUrl: string): string {
+function buildHtml(brandName: string, date: string, ga4: Awaited<ReturnType<typeof fetchGA4>>, ph: Awaited<ReturnType<typeof fetchPostHog>> | null): string {
   const flags = computeFlags(ga4, ph)
+  const dashUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com'}/authAnalytics`
 
   // ── Traffic section ──────────────────────────────────────────────────────────
   const maxSessions = Math.max(...(ga4?.channels ?? []).map(c => c.sessions), 1)
@@ -324,25 +316,16 @@ function buildHtml(brandName: string, date: string, ga4: Awaited<ReturnType<type
 
       ${ph || ga4?.topPage ? engagementBlock : ''}
 
-      ${divider}
-      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
-        <tr><td align="center">
-          <table role="presentation" cellpadding="0" cellspacing="0">
-            <tr><td style="background:#16a34a;border-radius:8px;">
-              <a href="${dashUrl}" style="display:inline-block;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;padding:14px 32px;letter-spacing:-0.2px;">View Full Dashboard &#8594;</a>
-            </td></tr>
-          </table>
-        </td></tr>
-      </table>
-
     </td></tr>
 
     <!-- Footer -->
     <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;padding:16px 32px;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
         <tr>
-          <td style="font-size:11px;color:#9ca3af;">GrowJin &middot; Daily digest</td>
-          <td style="text-align:right;font-size:11px;color:#9ca3af;"><a href="${dashUrl}" style="color:#9ca3af;text-decoration:none;">Open dashboard</a></td>
+          <td style="font-size:12px;color:#6b7280;">
+            <a href="${dashUrl}" style="color:#16a34a;text-decoration:none;font-weight:600;">View full dashboard &#8594;</a>
+          </td>
+          <td style="text-align:right;font-size:11px;color:#9ca3af;">GrowJin &middot; Daily digest</td>
         </tr>
       </table>
     </td></tr>
@@ -425,9 +408,7 @@ export async function POST() {
         : Promise.resolve(null),
     ])
 
-    const token = await generateEmailToken(brand.userId)
-    const dashUrl = `${APP_URL}/api/auth/email-token?t=${token}`
-    const html = buildHtml(brand.name, dateLabel, ga4Data, phData, dashUrl)
+    const html = buildHtml(brand.name, dateLabel, ga4Data, phData)
     const sent = await sendViaGmail(accessToken, fromEmail, brand.notificationEmail, `${brand.name} daily summary - ${dateLabel}`, html)
     results.push({ brandName: brand.name, to: brand.notificationEmail, sent })
   }

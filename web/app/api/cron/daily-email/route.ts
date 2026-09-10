@@ -1,25 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { brands, brandIntegrations, moduleItems, modules, emailTokens } from '@/lib/db/schema'
-import { eq, and, lt } from 'drizzle-orm'
-import { createSign, randomBytes } from 'crypto'
+import { brands, brandIntegrations, moduleItems, modules } from '@/lib/db/schema'
+import { eq, and } from 'drizzle-orm'
+import { createSign } from 'crypto'
 import { getValidAdminGmailToken, getAdminGmailAddress } from '@/lib/gmail/admin-token'
 import { detectSignals, type ActionCard } from '@/lib/daily/signals'
-
-// ── Email token helpers ────────────────────────────────────────────────────────
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com'
-
-async function generateEmailToken(userId: string): Promise<string> {
-  const token = randomBytes(32).toString('hex')
-  const expiresAt = new Date(Date.now() + 5 * 60 * 60 * 1000) // 5 hours
-  await db.insert(emailTokens).values({ token, userId, expiresAt })
-  return token
-}
-
-function tokenUrl(token: string): string {
-  return `${APP_URL}/api/auth/email-token?t=${token}`
-}
 
 export const dynamic  = 'force-dynamic'
 export const maxDuration = 60
@@ -223,8 +208,9 @@ function fmt(n: number): string {
 
 // ── Email HTML builder (table-based, inline hex — Outlook safe) ───────────────
 
-function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: PhSummary | null, dashUrl: string, actionCards: ActionCard[] = []): string {
+function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: PhSummary | null, actionCards: ActionCard[] = []): string {
   const flags = computeFlags(ga4, ph)
+  const dashUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com'}/authAnalytics`
 
   // ── Traffic section ──────────────────────────────────────────────────────────
   const maxSessions = Math.max(...(ga4?.channels ?? []).map(c => c.sessions), 1)
@@ -376,7 +362,7 @@ function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: 
 
       ${ph || ga4?.topPage ? engagementBlock : ''}
 
-      ${actionCards.length > 0 ? divider + buildActionsSection(actionCards, dashUrl) : ''}
+      ${actionCards.length > 0 ? divider + buildActionsSection(actionCards, process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com') : ''}
 
       ${divider}
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
@@ -489,9 +475,6 @@ export async function GET(req: NextRequest) {
   }
   if (!fromEmail) return NextResponse.json({ error: 'Admin Gmail address not found' }, { status: 500 })
 
-  // Purge expired tokens
-  await db.delete(emailTokens).where(lt(emailTokens.expiresAt, new Date())).catch(() => {})
-
   // Only brands opted in AND with a notification email stored
   const allBrands = await db.select().from(brands).where(eq(brands.dailyEmailEnabled, true))
   const results: { brandName: string; to: string; sent: boolean; error?: string }[] = []
@@ -554,9 +537,7 @@ export async function GET(req: NextRequest) {
       }
     } catch { /* non-fatal */ }
 
-    const token = await generateEmailToken(brand.userId)
-    const dashUrl = tokenUrl(token)
-    const html = buildHtml(brand.name, dateLabel, ga4Data, phData, dashUrl, actionCards)
+    const html = buildHtml(brand.name, dateLabel, ga4Data, phData, actionCards)
     const subject = `${brand.name} daily digest · last 24h`
 
     try {
