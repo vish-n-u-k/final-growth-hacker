@@ -3,9 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import {
   brands, brandIntegrations, modules, moduleItems,
-  frektoScheduledPosts, keywordSnapshots, modulePageAudit,
+  frektoScheduledPosts, keywordSnapshots, modulePageAudit, brandBlogs,
 } from '@/lib/db/schema'
-import { eq, and, desc, gte, inArray } from 'drizzle-orm'
+import { eq, and, desc, gte, inArray, ne } from 'drizzle-orm'
 import { createSign } from 'crypto'
 import { detectSignals, detectImpacts, type ActionCard, type SignalInput } from '@/lib/daily/signals'
 
@@ -143,7 +143,7 @@ export async function GET() {
   const t0 = Date.now()
   console.log('[signals] starting parallel DB fetch')
 
-  const [integrations, allModules, frektoRows, kwRows, critItems, auditPages] = await Promise.all([
+  const [integrations, allModules, frektoRows, kwRows, critItems, auditPages, [latestBlog]] = await Promise.all([
     db.select().from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.status, 'connected'))),
 
@@ -190,6 +190,13 @@ export async function GET() {
       .from(modulePageAudit)
       .where(inArray(modulePageAudit.verdict, ['Remove', 'Refresh']))
       .limit(50),
+
+    // Latest non-replaced blog for weekly cadence signal
+    db.select({ createdAt: brandBlogs.createdAt })
+      .from(brandBlogs)
+      .where(and(eq(brandBlogs.brandId, brand.id), ne(brandBlogs.status, 'replaced')))
+      .orderBy(desc(brandBlogs.createdAt))
+      .limit(1),
   ])
 
   console.log(`[signals] DB fetch done in ${Date.now() - t0}ms`)
@@ -306,6 +313,12 @@ export async function GET() {
     .filter(p => brandModuleIds.has(p.moduleId))
     .slice(0, 5)
 
+  const lastBlogAt = latestBlog?.createdAt ?? null
+  const daysSinceBlog = lastBlogAt
+    ? Math.floor((Date.now() - new Date(lastBlogAt).getTime()) / 864e5)
+    : null
+  const blogWeeklyDue = daysSinceBlog === null || daysSinceBlog >= 7
+
   const input: SignalInput = {
     ga4: ga4Data,
     ph: phData,
@@ -317,6 +330,7 @@ export async function GET() {
     seoStale,
     geoStale,
     blogSuggestion,
+    blogWeekly: { lastBlogAt: lastBlogAt ? new Date(lastBlogAt) : null, weeklyDue: blogWeeklyDue },
   }
 
   const cards = detectSignals(input)
