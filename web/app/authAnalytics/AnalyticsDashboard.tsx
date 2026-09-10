@@ -26,10 +26,10 @@ export interface ModuleHealth {
 interface GscData {
   connected: boolean
   error?: boolean
-  clicks7d: number | null
-  impressions7d: number | null
-  avgCtr7d: number | null
-  avgPosition7d: number | null
+  clicks: number | null
+  impressions: number | null
+  avgCtr: number | null
+  avgPosition: number | null
   topQueries: { query: string; clicks: number; impressions: number; position: number }[]
   topPages: { page: string; clicks: number; impressions: number }[]
   clickTrend: { date: string; clicks: number }[]
@@ -38,11 +38,11 @@ interface GscData {
 interface Ga4Data {
   connected: boolean
   error?: boolean
-  sessions7d: number | null
-  activeUsers7d: number | null
-  newUsers7d: number | null
-  pageviews7d: number | null
-  engagementRate7d: number | null
+  sessions: number | null
+  activeUsers: number | null
+  newUsers: number | null
+  pageviews: number | null
+  engagementRate: number | null
   trafficSources: { channel: string; sessions: number }[]
   topPages: { page: string; sessions: number; newUsers: number; engagementRate: number }[]
   dailyTrend: { date: string; newUsers: number; sessions: number }[]
@@ -124,6 +124,10 @@ const FALLBACK_FUNNEL = [
   { stage: 'Activated (ran audit)', value: 61   },
   { stage: 'Became PRO',            value: 4    },
 ]
+
+/* ── Stable placeholder chart data (no Math.random — prevents flicker on re-render) ── */
+const MOCK_GSC_CLICK_TREND = [24,31,45,38,52,61,48,70,65,80].map((clicks, i) => ({ date: `W${i + 1}`, clicks }))
+const MOCK_GA4_DAILY_TREND = [8,12,9,15,11,18,14,20,17,22].map((v, i) => ({ date: `D${i + 1}`, newUsers: v, sessions: Math.round(v * 1.4) }))
 
 /* ── Helpers ──────────────────────────────────────────── */
 function formatTimeAgo(isoString: string): string {
@@ -240,6 +244,18 @@ function ComingSoonBadge() {
       color: MOCK.amberText, background: MOCK.amberBg,
     }}>
       Coming soon
+    </span>
+  )
+}
+
+function NotConnectedBadge() {
+  return (
+    <span style={{
+      fontSize: 10.5, fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase',
+      padding: '5px 10px', borderRadius: 99, whiteSpace: 'nowrap', flexShrink: 0,
+      color: MOCK.muted, background: '#F0EEE6',
+    }}>
+      Not connected
     </span>
   )
 }
@@ -1467,6 +1483,9 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   const [savingMetric, setSavingMetric] = useState(false)
   const [dailyEmail, setDailyEmail] = useState(initialDailyEmail)
   const [emailToggling, setEmailToggling] = useState(false)
+  const [ga4ChartMetric, setGa4ChartMetric] = useState<'newUsers' | 'sessions'>('newUsers')
+  const [websiteData, setWebsiteData] = useState<{ gsc: GscData | null; ga4: Ga4Data | null } | null>(null)
+  const [websiteLoading, setWebsiteLoading] = useState(false)
 
   async function toggleDailyEmail() {
     setEmailToggling(true)
@@ -1682,10 +1701,21 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   // Load custom metric cards (always fresh — not cached in snapshot)
   useEffect(() => { loadCustomMetrics() }, [brand.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fetch website data (GSC + GA4) whenever Website tab is active or range changes
+  useEffect(() => {
+    if (view !== 'website') return
+    setWebsiteLoading(true)
+    fetch(`/api/analytics/website?brandId=${brand.id}&range=${range}`)
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then((d: { gsc: GscData | null; ga4: Ga4Data | null }) => setWebsiteData(d))
+      .catch(() => setWebsiteData(null))
+      .finally(() => setWebsiteLoading(false))
+  }, [view, range, brand.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const retentionData = data?.retention ?? FALLBACK_RETENTION
   const funnelData    = data?.funnel    ?? FALLBACK_FUNNEL
-  const gsc = data?.gsc
-  const ga4 = data?.ga4
+  const gsc = websiteData?.gsc ?? null
+  const ga4 = websiteData?.ga4 ?? null
 
   // Range-derived values
   const rangeLabel      = range === '7d' ? 'Last 7 days' : range === '30d' ? 'Last 30 days' : 'Last 24 hours'
@@ -2011,7 +2041,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 User Analytics
               </h1>
               <p style={{ fontSize: 13.5, fontWeight: 600, color: MOCK.green, marginTop: 4 }}>
-                {brand.name} · {[data?.posthogConnected && 'PostHog', gsc?.connected && 'GSC', ga4?.connected && 'GA4'].filter(Boolean).join(' · ') || 'No integrations connected'}
+                {brand.name} · {[data?.posthogConnected && 'PostHog', data?.gsc?.connected && 'GSC', data?.ga4?.connected && 'GA4'].filter(Boolean).join(' · ') || 'No integrations connected'}
               </p>
             </div>
           </div>
@@ -2031,8 +2061,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                   </button>
                 ))}
               </div>
-              {/* Range picker — controls PostHog activity, only relevant on Users view */}
-              {view === 'users' && (
+              {/* Range picker — controls PostHog on Users view, GSC/GA4 on Website view */}
               <div style={{ display: 'flex', padding: '3px', border: `1px solid ${MOCK.border}`, borderRadius: 99, background: MOCK.card }}>
                 {['24h', '7d', '30d'].map((r) => (
                   <button key={r} onClick={() => setRange(r)} style={{
@@ -2045,7 +2074,6 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                   </button>
                 ))}
               </div>
-              )}
               <button
                 onClick={() => {
                   setPhLoading(true)
@@ -2515,38 +2543,46 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 Search Console
               </h2>
             </div>
-            {!gsc?.connected && <ComingSoonBadge />}
+            {!gsc?.connected && <NotConnectedBadge />}
           </div>
           <div style={{ position: 'relative', opacity: gsc?.connected && !gsc?.error ? 1 : 0.55 }}>
+            {websiteLoading ? (
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: 12 }}>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} style={{ background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 14, height: 90 }} />
+                ))}
+              </div>
+            ) : (<>
+
             {/* KPI row */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
-              {[
-                { label: 'Organic clicks', value: gsc?.clicks7d,      suffix: '',  sub: '7 days', info: 'Visitors who found you on Google and actually clicked through to your site. More clicks = more free traffic from search.' },
-                { label: 'Impressions',    value: gsc?.impressions7d,  suffix: '',  sub: '7 days', info: 'How many times your site appeared in Google search results. High impressions but low clicks means your title or description needs work.' },
-                { label: 'Avg CTR',        value: gsc?.avgCtr7d,       suffix: '%', sub: '7 days', info: 'Click-through rate — what % of people who saw you in Google results actually clicked. Above 3% is good for most sites.' },
-                { label: 'Avg position',   value: gsc?.avgPosition7d,  suffix: '',  sub: '7 days', info: 'Your average ranking in Google results. Position 1 is the top spot. Lower number = higher rank = more visibility.' },
-              ].map(k => (
+              {([
+                { label: 'Organic clicks', value: gsc?.clicks,      suffix: '',  dec: null, info: 'Visitors who found you on Google and actually clicked through to your site. More clicks = more free traffic from search.' },
+                { label: 'Impressions',    value: gsc?.impressions,  suffix: '',  dec: null, info: 'How many times your site appeared in Google search results. High impressions but low clicks means your title or description needs work.' },
+                { label: 'Avg CTR',        value: gsc?.avgCtr,       suffix: '%', dec: 1,    info: 'Click-through rate — what % of people who saw you in Google results actually clicked. Above 3% is good for most sites.' },
+                { label: 'Avg position',   value: gsc?.avgPosition,  suffix: '',  dec: 1,    info: 'Your average ranking in Google results. Position 1 is the top spot. Lower number = higher rank = more visibility.' },
+              ] as { label: string; value: number | null | undefined; suffix: string; dec: number | null; info: string }[]).map(k => (
                 <div key={k.label} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)' }}>{k.label}</div>
                     <InfoTooltip text={k.info} />
                   </div>
                   <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.5px', color: 'var(--text)', lineHeight: 1, filter: !gsc?.connected ? 'blur(5px)' : 'none' }}>
-                    {k.value != null ? `${fmt(k.value)}${k.suffix}` : '—'}
+                    {k.value != null ? `${k.dec != null ? k.value.toFixed(k.dec) : fmt(k.value)}${k.suffix}` : '—'}
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 4 }}>{k.sub}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 4 }}>{rangeLabel}</div>
                 </div>
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14, marginBottom: 14 }}>
               {/* Click trend chart */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Click trend</h3>
                 <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>Organic clicks — last 30 days</p>
                 <div style={{ height: 160, filter: !gsc?.connected ? 'blur(4px)' : 'none' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={gsc?.connected && gsc.clickTrend.length ? gsc.clickTrend : Array.from({ length: 10 }, (_, i) => ({ date: `d${i}`, clicks: Math.round(Math.random() * 80 + 20) }))} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                    <AreaChart data={gsc?.connected && gsc.clickTrend.length ? gsc.clickTrend : MOCK_GSC_CLICK_TREND} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="gscFill" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%"   stopColor="var(--green)" stopOpacity={0.25} />
@@ -2562,36 +2598,64 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 </div>
               </div>
 
-              {/* Top queries */}
+              {/* Top queries — now shows impressions + position */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Top queries</h3>
-                <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Driving the most organic clicks</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, filter: !gsc?.connected ? 'blur(4px)' : 'none' }}>
+                <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 10 }}>Driving the most organic clicks</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '4px 12px', fontSize: 11, fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.05em', textTransform: 'uppercase', paddingBottom: 6, borderBottom: '1px solid var(--line)', marginBottom: 8 }}>
+                  <span>Query</span><span>Clicks</span><span>Impr</span><span>Pos</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, filter: !gsc?.connected ? 'blur(4px)' : 'none' }}>
                   {(gsc?.connected && gsc.topQueries.length ? gsc.topQueries : [
-                    { query: 'example query one', clicks: 120, impressions: 1400, position: 3.2 },
-                    { query: 'example query two', clicks: 84, impressions: 920, position: 5.1 },
-                    { query: 'example query three', clicks: 61, impressions: 740, position: 7.8 },
+                    { query: 'example query one',   clicks: 120, impressions: 1400, position: 3.2 },
+                    { query: 'example query two',   clicks: 84,  impressions: 920,  position: 5.1 },
+                    { query: 'example query three', clicks: 61,  impressions: 740,  position: 7.8 },
                   ]).map((q, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 12 }}>{q.query}</span>
-                      <div style={{ display: 'flex', gap: 16, flexShrink: 0 }}>
-                        <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{fmt(q.clicks)} clicks</span>
-                        <span style={{ fontSize: 11, color: 'var(--text-faint)', minWidth: 30, textAlign: 'right' }}>#{q.position}</span>
-                      </div>
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '4px 12px', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.query}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-dim)',   textAlign: 'right' }}>{fmt(q.clicks)}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-faint)', textAlign: 'right' }}>{fmt(q.impressions)}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-faint)', textAlign: 'right' }}>{q.position.toFixed(1)}</span>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
 
+            {/* GSC top pages */}
+            <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
+              <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Top pages</h3>
+              <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Pages driving the most organic traffic from search</p>
+              <div style={{ filter: !gsc?.connected ? 'blur(4px)' : 'none', overflowX: 'auto' }}>
+                <div style={{ minWidth: isMobile ? 320 : 'unset' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '6px 24px', fontSize: 11, fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid var(--line)' }}>
+                    <span>Page</span><span>Clicks</span><span>Impressions</span>
+                  </div>
+                  {(gsc?.connected && gsc.topPages.length ? gsc.topPages : [
+                    { page: '/home',              clicks: 340, impressions: 2800 },
+                    { page: '/pricing',           clicks: 210, impressions: 1900 },
+                    { page: '/blog/example-post', clicks: 130, impressions: 980  },
+                  ]).map((p, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '6px 24px', padding: '7px 0', borderBottom: '1px solid var(--line)', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.page}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-dim)',   textAlign: 'right' }}>{fmt(p.clicks)}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-faint)', textAlign: 'right' }}>{fmt(p.impressions)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            </>)}
+
             {/* Not connected / error overlay */}
             {(!gsc?.connected || gsc?.error) && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 14 }}>
-                <div style={{ textAlign: 'center', padding: '20px 28px', background: 'var(--card)', border: `1px solid ${gsc?.error ? '#f8717140' : 'var(--line)'}`, borderRadius: 14 }}>
-                  <Search size={22} style={{ color: gsc?.error ? '#f87171' : 'var(--text-faint)', marginBottom: 10 }} />
+                <div style={{ textAlign: 'center', padding: '20px 28px', background: 'var(--card)', border: `1px solid ${gsc?.error ? `${MOCK.red}40` : 'var(--line)'}`, borderRadius: 14 }}>
+                  <Search size={22} style={{ color: gsc?.error ? MOCK.red : 'var(--text-faint)', marginBottom: 10 }} />
                   {gsc?.error ? (
                     <>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: '#f87171', marginBottom: 4 }}>GSC auth failed</p>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: MOCK.red, marginBottom: 4 }}>GSC auth failed</p>
                       <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Check your service account key in Settings → Integrations</p>
                     </>
                   ) : (
@@ -2615,17 +2679,25 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 Google Analytics 4
               </h2>
             </div>
-            {!ga4?.connected && <ComingSoonBadge />}
+            {!ga4?.connected && <NotConnectedBadge />}
           </div>
           <div style={{ position: 'relative', opacity: ga4?.connected && !ga4?.error ? 1 : 0.55 }}>
-            {/* KPI row */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+            {websiteLoading ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} style={{ background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 14, height: 90 }} />
+                ))}
+              </div>
+            ) : (<>
+
+            {/* KPI row — auto-fill so cards don't get crushed on mid-width screens */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12, marginBottom: 14 }}>
               {[
-                { label: 'Sessions',        value: ga4?.sessions7d,       suffix: '', info: 'A session is one visit to your site. One person can have multiple sessions in a day if they leave and come back.' },
-                { label: 'Active users',    value: ga4?.activeUsers7d,    suffix: '', info: 'People who visited and did something meaningful — viewed a page, clicked a button — in the last 7 days.' },
-                { label: 'New users',       value: ga4?.newUsers7d,       suffix: '', info: 'First-time visitors who have never been to your site before. Growing new users means your reach is expanding.' },
-                { label: 'Pageviews',       value: ga4?.pageviews7d,      suffix: '', info: 'Total pages viewed across all visits. High pageviews relative to sessions means people are exploring multiple pages.' },
-                { label: 'Engagement rate', value: ga4?.engagementRate7d, suffix: '%', info: 'Share of sessions where the visitor stayed 10+ seconds or interacted with the page. Above 60% is healthy.' },
+                { label: 'Sessions',        value: ga4?.sessions,       suffix: '',  info: 'A session is one visit to your site. One person can have multiple sessions in a day if they leave and come back.' },
+                { label: 'Active users',    value: ga4?.activeUsers,    suffix: '',  info: 'People who visited and did something meaningful — viewed a page, clicked a button — in the last 7 days.' },
+                { label: 'New users',       value: ga4?.newUsers,       suffix: '',  info: 'First-time visitors who have never been to your site before. Growing new users means your reach is expanding.' },
+                { label: 'Pageviews',       value: ga4?.pageviews,      suffix: '',  info: 'Total pages viewed across all visits. High pageviews relative to sessions means people are exploring multiple pages.' },
+                { label: 'Engagement rate', value: ga4?.engagementRate, suffix: '%', info: 'Share of sessions where the visitor stayed 10+ seconds or interacted with the page. Above 60% is healthy.' },
               ].map(k => (
                 <div key={k.label} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -2635,22 +2707,39 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                   <div style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.5px', color: 'var(--text)', lineHeight: 1, filter: !ga4?.connected ? 'blur(5px)' : 'none' }}>
                     {k.value != null ? `${fmt(k.value)}${k.suffix}` : '—'}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 4 }}>7 days</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 4 }}>{rangeLabel}</div>
                 </div>
               ))}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14, marginBottom: 14 }}>
-              {/* Daily trend chart */}
+              {/* Daily trend chart — toggle between new users and sessions */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', margin: 0 }}>New users</h3>
-                  <InfoTooltip text="First-time visitors per day over the last 30 days. A rising trend means your reach is growing. Spikes often come from a viral post, launch, or ad campaign." />
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+                    {ga4ChartMetric === 'newUsers' ? 'New users' : 'Sessions'}
+                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {(['newUsers', 'sessions'] as const).map(m => (
+                      <button key={m} onClick={() => setGa4ChartMetric(m)} style={{
+                        fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 99,
+                        border: `1px solid ${ga4ChartMetric === m ? 'var(--gold)' : 'var(--line)'}`,
+                        background: ga4ChartMetric === m ? 'var(--gold)' : 'transparent',
+                        color: ga4ChartMetric === m ? '#ffffff' : 'var(--text-faint)',
+                        cursor: 'pointer', textTransform: 'capitalize',
+                      }}>
+                        {m === 'newUsers' ? 'New users' : 'Sessions'}
+                      </button>
+                    ))}
+                    <InfoTooltip text={ga4ChartMetric === 'newUsers' ? 'First-time visitors per day over the last 30 days. A rising trend means your reach is growing.' : 'Total sessions per day over the last 30 days. Higher than new users = returning visitors.'} />
+                  </div>
                 </div>
-                <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>Daily new users — last 30 days</p>
+                <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 16 }}>
+                  Daily {ga4ChartMetric === 'newUsers' ? 'new users' : 'sessions'} — last 30 days
+                </p>
                 <div style={{ height: 160, filter: !ga4?.connected ? 'blur(4px)' : 'none' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={ga4?.connected && ga4.dailyTrend.length ? ga4.dailyTrend : Array.from({ length: 10 }, (_, i) => ({ date: `d${i}`, newUsers: Math.round(Math.random() * 30 + 5) }))} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                    <AreaChart data={ga4?.connected && ga4.dailyTrend.length ? ga4.dailyTrend : MOCK_GA4_DAILY_TREND} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="ga4Fill" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%"   stopColor="var(--gold)" stopOpacity={0.25} />
@@ -2660,7 +2749,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                       <XAxis dataKey="date" tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                       <YAxis tick={{ fill: 'var(--text-faint)', fontSize: 10 }} axisLine={false} tickLine={false} width={24} />
                       <Tooltip contentStyle={{ background: 'var(--bg-soft)', border: '1px solid var(--line)', borderRadius: 8, fontSize: 11 }} itemStyle={{ color: 'var(--gold)' }} />
-                      <Area type="monotone" dataKey="newUsers" stroke="var(--gold)" strokeWidth={2} fill="url(#ga4Fill)" dot={false} />
+                      <Area type="monotone" dataKey={ga4ChartMetric} stroke="var(--gold)" strokeWidth={2} fill="url(#ga4Fill)" dot={false} />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -2676,12 +2765,16 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 {(() => {
                   const sources = ga4?.connected && ga4.trafficSources.length ? ga4.trafficSources : [
                     { channel: 'Organic Search', sessions: 420 },
-                    { channel: 'Direct', sessions: 280 },
-                    { channel: 'Referral', sessions: 140 },
-                    { channel: 'Social', sessions: 90 },
+                    { channel: 'Direct',         sessions: 280 },
+                    { channel: 'Referral',        sessions: 140 },
+                    { channel: 'Social',          sessions: 90  },
                   ]
                   const maxSessions = Math.max(...sources.map(s => s.sessions), 1)
-                  const CHANNEL_COLORS: Record<string, string> = { 'Organic Search': 'var(--green)', 'Direct': 'var(--green-bright)', 'Referral': 'var(--gold)', 'Social': '#5eead4', 'Email': '#a78bfa', 'Paid Search': '#f87171' }
+                  const CHANNEL_COLORS: Record<string, string> = {
+                    'Organic Search': 'var(--green)', 'Direct': 'var(--green-bright)',
+                    'Referral': 'var(--gold)', 'Social': '#5eead4',
+                    'Email': '#a78bfa', 'Paid Search': MOCK.red,
+                  }
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, filter: !ga4?.connected ? 'blur(4px)' : 'none' }}>
                       {sources.map(s => (
@@ -2710,33 +2803,35 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Entry pages by sessions — 7 days</p>
               <div style={{ filter: !ga4?.connected ? 'blur(4px)' : 'none', overflowX: 'auto' }}>
                 <div style={{ minWidth: isMobile ? 380 : 'unset' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '6px 20px', fontSize: 11, fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid var(--line)' }}>
-                  <span>Page</span><span>Sessions</span><span>New users</span><span>Engagement</span>
-                </div>
-                {(ga4?.connected && ga4.topPages.length ? ga4.topPages : [
-                  { page: '/home', sessions: 340, newUsers: 180, engagementRate: 72 },
-                  { page: '/pricing', sessions: 210, newUsers: 95, engagementRate: 68 },
-                  { page: '/blog/example-post', sessions: 130, newUsers: 110, engagementRate: 81 },
-                ]).map((p, i) => (
-                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '6px 20px', padding: '7px 0', borderBottom: '1px solid var(--line)', alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.page}</span>
-                    <span style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'right' }}>{fmt(p.sessions)}</span>
-                    <span style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'right' }}>{fmt(p.newUsers)}</span>
-                    <span style={{ fontSize: 12, textAlign: 'right', color: p.engagementRate >= 60 ? 'var(--green-bright)' : p.engagementRate >= 40 ? 'var(--gold)' : '#f87171' }}>{p.engagementRate}%</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '6px 20px', fontSize: 11, fontWeight: 600, color: 'var(--text-faint)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid var(--line)' }}>
+                    <span>Page</span><span>Sessions</span><span>New users</span><span>Engagement</span>
                   </div>
-                ))}
+                  {(ga4?.connected && ga4.topPages.length ? ga4.topPages : [
+                    { page: '/home',              sessions: 340, newUsers: 180, engagementRate: 72 },
+                    { page: '/pricing',           sessions: 210, newUsers: 95,  engagementRate: 68 },
+                    { page: '/blog/example-post', sessions: 130, newUsers: 110, engagementRate: 81 },
+                  ]).map((p, i) => (
+                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '6px 20px', padding: '7px 0', borderBottom: '1px solid var(--line)', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.page}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'right' }}>{fmt(p.sessions)}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-dim)', textAlign: 'right' }}>{fmt(p.newUsers)}</span>
+                      <span style={{ fontSize: 12, textAlign: 'right', color: p.engagementRate >= 60 ? 'var(--green-bright)' : p.engagementRate >= 40 ? 'var(--gold)' : MOCK.red }}>{p.engagementRate}%</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
 
+            </>)}
+
             {/* Not connected / error overlay */}
             {(!ga4?.connected || ga4?.error) && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 14 }}>
-                <div style={{ textAlign: 'center', padding: '20px 28px', background: 'var(--card)', border: `1px solid ${ga4?.error ? '#f8717140' : 'var(--line)'}`, borderRadius: 14 }}>
-                  <BarChart2 size={22} style={{ color: ga4?.error ? '#f87171' : 'var(--text-faint)', marginBottom: 10 }} />
+                <div style={{ textAlign: 'center', padding: '20px 28px', background: 'var(--card)', border: `1px solid ${ga4?.error ? `${MOCK.red}40` : 'var(--line)'}`, borderRadius: 14 }}>
+                  <BarChart2 size={22} style={{ color: ga4?.error ? MOCK.red : 'var(--text-faint)', marginBottom: 10 }} />
                   {ga4?.error ? (
                     <>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: '#f87171', marginBottom: 4 }}>GA4 auth failed</p>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: MOCK.red, marginBottom: 4 }}>GA4 auth failed</p>
                       <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Check your service account key in Settings → Integrations</p>
                     </>
                   ) : (

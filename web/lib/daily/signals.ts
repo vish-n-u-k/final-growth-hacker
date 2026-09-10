@@ -3,7 +3,7 @@
 // up to 3 prioritised ActionCards. Called from both /api/today/signals and
 // the daily-email cron.
 
-export type ActionCardType = 'outreach' | 'social' | 'seo' | 'content' | 'module-item' | 'all-good'
+export type ActionCardType = 'outreach' | 'social' | 'seo' | 'content' | 'module-item' | 'all-good' | 'blog'
 
 export interface ActionCard {
   id: string
@@ -53,6 +53,7 @@ export interface SignalInput {
   seoStale?: { moduleId: string; daysSince: number } | null
   geoStale?: { moduleId: string; daysSince: number } | null
   blogSuggestion?: { moduleId: string; score: number; analyzed: boolean } | null
+  blogWeekly?: { lastBlogAt: Date | null; weeklyDue: boolean } | null
 }
 
 export interface ImpactCard {
@@ -165,6 +166,24 @@ export function detectSignals(input: SignalInput, maxCards = 3): ActionCard[] {
         data: { platform, daysSince },
       })
     }
+  }
+
+  // ── Rule 3.5: Weekly blog due ─────────────────────────────────────────────
+  if (input.blogWeekly?.weeklyDue) {
+    const daysSinceBlog = input.blogWeekly.lastBlogAt
+      ? Math.floor((Date.now() - input.blogWeekly.lastBlogAt.getTime()) / 864e5)
+      : null
+    candidates.push({
+      id: 'blog-weekly',
+      type: 'blog',
+      priority: 3.5,
+      headline: 'Write this week\'s SEO blog post',
+      reason: daysSinceBlog !== null
+        ? `Last blog was ${daysSinceBlog} day${daysSinceBlog === 1 ? '' : 's'} ago — weekly cadence keeps content fresh`
+        : 'No blogs generated yet — a blog section drives organic traffic',
+      cta: 'Generate blog',
+      ctaUrl: '/today#blog',
+    })
   }
 
   // ── Rule 4: SEO position drop ─────────────────────────────────────────────

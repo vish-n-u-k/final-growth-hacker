@@ -21,6 +21,25 @@ interface RecentPost {
   scheduledAt: string
 }
 
+interface BlogEntry {
+  id: string
+  title: string
+  slug: string
+  status: string
+  verificationStatus?: string | null
+  verifiedLiveAt?: Date | string | null
+  liveUrl?: string | null
+  createdAt: Date | string | null
+}
+
+interface BlogData {
+  blogs: BlogEntry[]
+  limit: number
+  activeCount: number
+  weeklyDue: boolean
+  lastBlogAt: string | null
+}
+
 interface Props {
   initialData: {
     cards: ActionCard[]
@@ -36,6 +55,7 @@ interface Props {
   gmailModuleId: string | null
   socialModuleId: string | null
   frektoConnected: boolean
+  blogData: BlogData
 }
 
 // ── Type config ───────────────────────────────────────────────────────────────
@@ -46,6 +66,7 @@ const TYPE_CONFIG: Record<string, { label: string; dot: string; border: string }
   seo:           { label: 'SEO signal',      dot: '#179a50', border: '#179a50' },
   content:       { label: 'Content signal',  dot: '#0284c7', border: '#0284c7' },
   'module-item': { label: 'Open item',       dot: '#dc2626', border: '#dc2626' },
+  blog:          { label: 'Blog signal',     dot: '#0891b2', border: '#0891b2' },
 }
 
 const TYPE_WHY: Record<string, string> = {
@@ -54,6 +75,7 @@ const TYPE_WHY: Record<string, string> = {
   seo:           'Keyword positions drop fast when competitors update their pages. Catching this early is much cheaper than recovering lost rankings.',
   content:       'Stale or thin pages drag down your whole domain authority. Refreshing them signals freshness to Google.',
   'module-item': 'High-weight items have the biggest impact on your growth score. Completing them unlocks the next module.',
+  blog:          'Publishing one SEO-optimised blog post per week compounds your organic traffic over time. Sites that publish consistently rank for 3-5x more keywords.',
 }
 
 const IMPACT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -94,6 +116,9 @@ function IconDoc() {
 function IconCheck() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
 }
+function IconPen() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+}
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
   outreach:      <IconMail />,
@@ -101,6 +126,7 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   seo:           <IconSearch />,
   content:       <IconDoc />,
   'module-item': <IconCheck />,
+  blog:          <IconPen />,
 }
 
 // ── Analytics bar ─────────────────────────────────────────────────────────────
@@ -135,7 +161,7 @@ function AnalyticsBar() {
 }
 
 // which card types expand inline vs navigate away
-const INLINE_TYPES: Set<string> = new Set(['outreach', 'social'])
+const INLINE_TYPES: Set<string> = new Set(['outreach', 'social', 'blog'])
 
 // ── Action card ───────────────────────────────────────────────────────────────
 
@@ -387,6 +413,311 @@ function SocialAnalytics() {
   )
 }
 
+// ── Weekly Blog Section ───────────────────────────────────────────────────────
+
+interface GeneratedBlog {
+  id: string
+  title: string
+  slug: string
+  metaTitle?: string | null
+  metaDescription?: string | null
+  targetKeyword?: string | null
+  content: string
+  status: string
+  verificationStatus?: string | null
+  liveUrl?: string | null
+  createdAt: string | null
+}
+
+function WeeklyBlogSection({ initialData }: { initialData: BlogData }) {
+  const [data, setData] = useState<BlogData>(initialData)
+  const [generating, setGenerating] = useState(false)
+  const [generatedBlog, setGeneratedBlog] = useState<GeneratedBlog | null>(null)
+  const [replaceId, setReplaceId] = useState<string | null>(null)
+  const [markingId, setMarkingId] = useState<string | null>(null)
+  const [verifyingId, setVerifyingId] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [showContent, setShowContent] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const generate = async (rid?: string) => {
+    setGenerating(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/blogs/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ replaceId: rid ?? replaceId ?? undefined }),
+      })
+      const json = await res.json()
+      if (json.atLimit) {
+        setData(prev => ({ ...prev, activeCount: prev.limit, blogs: json.blogs }))
+        return
+      }
+      if (json.error) { setError(json.error); return }
+      setGeneratedBlog(json.blog)
+      // refresh list
+      const listRes = await fetch('/api/blogs')
+      if (listRes.ok) setData(await listRes.json())
+      setReplaceId(null)
+    } catch {
+      setError('Generation failed. Please try again.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const verify = async (id: string) => {
+    setVerifyingId(id)
+    try {
+      const res = await fetch(`/api/blogs/${id}/verify`, { method: 'POST' })
+      if (res.ok) {
+        const v = await res.json()
+        if (generatedBlog?.id === id) {
+          setGeneratedBlog(prev => prev ? {
+            ...prev,
+            verificationStatus: v.status,
+            liveUrl: v.liveUrl ?? null,
+          } : null)
+        }
+        // refresh list to get updated verification status
+        const listRes = await fetch('/api/blogs')
+        if (listRes.ok) setData(await listRes.json())
+      }
+    } finally {
+      setVerifyingId(null)
+    }
+  }
+
+  const markPublished = async (id: string) => {
+    setMarkingId(id)
+    try {
+      const res = await fetch(`/api/blogs/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'published' }),
+      })
+      if (res.ok) {
+        if (generatedBlog?.id === id) {
+          setGeneratedBlog(prev => prev ? { ...prev, status: 'published', verificationStatus: 'pending' } : null)
+        }
+        const listRes = await fetch('/api/blogs')
+        if (listRes.ok) setData(await listRes.json())
+      }
+    } finally {
+      setMarkingId(null)
+    }
+    // Auto-trigger verification after publish
+    verify(id)
+  }
+
+  const copyContent = () => {
+    if (!generatedBlog?.content) return
+    navigator.clipboard.writeText(generatedBlog.content)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const atLimit = data.activeCount >= data.limit
+  const latestBlog = data.blogs[0] ?? null
+  const lastBlogDate = latestBlog?.createdAt ? new Date(latestBlog.createdAt) : null
+  const daysSince = lastBlogDate
+    ? Math.floor((Date.now() - lastBlogDate.getTime()) / 864e5)
+    : null
+
+  // Next due: 7 days after last blog
+  const nextDueLabel = (() => {
+    if (!lastBlogDate) return null
+    const next = new Date(lastBlogDate.getTime() + 7 * 864e5)
+    const daysUntil = Math.ceil((next.getTime() - Date.now()) / 864e5)
+    if (daysUntil <= 0) return 'due now'
+    const day = next.toLocaleDateString([], { weekday: 'long' })
+    return `${day} (${daysUntil} day${daysUntil === 1 ? '' : 's'})`
+  })()
+
+  return (
+    <div className="td-blog-section" id="blog">
+      <div className="td-section-label td-section-label--gap">
+        <IconPen />
+        Weekly Blog
+        {atLimit && !replaceId && !generatedBlog && (
+          <span className="td-blog-limit-badge">Limit {data.activeCount}/{data.limit}</span>
+        )}
+      </div>
+
+      {/* Generated blog result */}
+      {generatedBlog && (
+        <div className="td-blog-result">
+          <div className="td-blog-result-header">
+            <div>
+              <div className="td-blog-result-title">{generatedBlog.title}</div>
+              {generatedBlog.targetKeyword && (
+                <div className="td-blog-result-kw">Keyword: {generatedBlog.targetKeyword}</div>
+              )}
+            </div>
+            <span className={`td-blog-status td-blog-status--${generatedBlog.status}`}>
+              {generatedBlog.status}
+            </span>
+          </div>
+          {generatedBlog.metaDescription && (
+            <div className="td-blog-meta-desc">{generatedBlog.metaDescription}</div>
+          )}
+          <div className="td-blog-result-actions">
+            <button className="td-ghost-btn" onClick={copyContent}>
+              {copied ? 'Copied!' : 'Copy markdown'}
+            </button>
+            <button className="td-ghost-btn" onClick={() => setShowContent(s => !s)}>
+              {showContent ? 'Hide content' : 'Preview content'}
+            </button>
+            {generatedBlog.status === 'draft' && (
+              <button
+                className="td-cta-btn"
+                onClick={() => markPublished(generatedBlog.id)}
+                disabled={markingId === generatedBlog.id}
+              >
+                {markingId === generatedBlog.id ? 'Saving...' : 'Mark as published'}
+              </button>
+            )}
+          </div>
+
+          {/* Verification status */}
+          {generatedBlog.status === 'published' && (
+            <div className="td-blog-verify-row">
+              {verifyingId === generatedBlog.id || generatedBlog.verificationStatus === 'pending' ? (
+                <span className="td-blog-verify-checking">
+                  <span className="td-btn-spinner td-btn-spinner--dark" />
+                  Checking if live...
+                </span>
+              ) : generatedBlog.verificationStatus === 'live' ? (
+                <>
+                  <span className="td-blog-verify-live">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    Live
+                  </span>
+                  {generatedBlog.liveUrl && (
+                    <a href={generatedBlog.liveUrl} target="_blank" rel="noopener noreferrer" className="td-blog-live-link">
+                      {generatedBlog.liveUrl}
+                    </a>
+                  )}
+                </>
+              ) : generatedBlog.verificationStatus === 'not_found' ? (
+                <>
+                  <span className="td-blog-verify-notfound">Not found yet</span>
+                  <button className="td-ghost-btn td-ghost-btn--sm" onClick={() => verify(generatedBlog.id)} disabled={verifyingId === generatedBlog.id}>
+                    Check again
+                  </button>
+                </>
+              ) : (
+                <button className="td-ghost-btn td-ghost-btn--sm" onClick={() => verify(generatedBlog.id)} disabled={verifyingId === generatedBlog.id}>
+                  Check if live
+                </button>
+              )}
+            </div>
+          )}
+          {showContent && (
+            <pre className="td-blog-preview">{generatedBlog.content}</pre>
+          )}
+        </div>
+      )}
+
+      {/* At limit — replace mode */}
+      {atLimit && !generatedBlog && (
+        <div className="td-blog-card">
+          <p className="td-blog-at-limit-msg">
+            You&apos;ve reached your blog limit ({data.limit} posts). Select one to replace:
+          </p>
+          <div className="td-blog-replace-list">
+            {data.blogs.map(b => {
+              const date = b.createdAt ? new Date(b.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''
+              return (
+                <label key={b.id} className={`td-blog-replace-row ${replaceId === b.id ? 'td-blog-replace-row--selected' : ''}`}>
+                  <input type="radio" name="replace" value={b.id} checked={replaceId === b.id} onChange={() => setReplaceId(b.id)} />
+                  <span className="td-blog-replace-title">{b.title}</span>
+                  <span className="td-blog-replace-meta">{date} · {b.status}</span>
+                </label>
+              )
+            })}
+          </div>
+          <button
+            className="td-cta-btn"
+            onClick={() => replaceId && generate(replaceId)}
+            disabled={!replaceId || generating}
+            style={{ marginTop: 12 }}
+          >
+            {generating ? (
+              <><span className="td-btn-spinner" />Generating...</>
+            ) : (
+              'Generate replacing selected'
+            )}
+          </button>
+          {error && <p className="td-blog-error">{error}</p>}
+        </div>
+      )}
+
+      {/* Normal states — not at limit */}
+      {!atLimit && !generatedBlog && (
+        <div className="td-blog-card">
+          {data.weeklyDue ? (
+            <>
+              <p className="td-blog-no-blog">
+                {latestBlog
+                  ? `No blog this week — last post was ${daysSince} day${daysSince === 1 ? '' : 's'} ago.`
+                  : 'No blogs generated yet.'}
+              </p>
+              <button className="td-cta-btn" onClick={() => generate()} disabled={generating}>
+                {generating ? (
+                  <><span className="td-btn-spinner" />Generating...</>
+                ) : (
+                  'Generate this week\'s blog'
+                )}
+              </button>
+              {error && <p className="td-blog-error">{error}</p>}
+            </>
+          ) : (
+            <>
+              {nextDueLabel && (
+                <p className="td-blog-next-due">Next blog due: {nextDueLabel}</p>
+              )}
+              {latestBlog && (
+                <div className="td-blog-latest">
+                  <span className="td-blog-latest-label">Latest:</span>
+                  <span className="td-blog-latest-title">&ldquo;{latestBlog.title}&rdquo;</span>
+                  <span className={`td-blog-status td-blog-status--${latestBlog.status}`}>{latestBlog.status}</span>
+                  {latestBlog.status === 'draft' && (
+                    <button
+                      className="td-ghost-btn td-ghost-btn--sm"
+                      onClick={() => markPublished(latestBlog.id)}
+                      disabled={markingId === latestBlog.id}
+                    >
+                      {markingId === latestBlog.id ? 'Saving...' : 'Mark as published'}
+                    </button>
+                  )}
+                  {latestBlog.status === 'published' && (
+                    verifyingId === latestBlog.id || latestBlog.verificationStatus === 'pending' ? (
+                      <span className="td-blog-verify-checking">
+                        <span className="td-btn-spinner td-btn-spinner--dark" />Checking...
+                      </span>
+                    ) : latestBlog.verificationStatus === 'live' ? (
+                      <span className="td-blog-verify-live">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        Live
+                      </span>
+                    ) : (
+                      <button className="td-ghost-btn td-ghost-btn--sm" onClick={() => verify(latestBlog.id)} disabled={verifyingId === latestBlog.id}>
+                        {latestBlog.verificationStatus === 'not_found' ? 'Check again' : 'Check if live'}
+                      </button>
+                    )
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── States ────────────────────────────────────────────────────────────────────
 
 function AllGoodState({ cachedAt, onRefresh, refreshing }: { cachedAt: string; onRefresh: () => void; refreshing: boolean }) {
@@ -418,7 +749,7 @@ function LoadingState() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function TodayDashboard({ initialData, brandName, gmailConnected, gmailAddress, prospectItems, gmailModuleId, socialModuleId, frektoConnected }: Props) {
+export default function TodayDashboard({ initialData, brandName, gmailConnected, gmailAddress, prospectItems, gmailModuleId, socialModuleId, frektoConnected, blogData }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
@@ -573,6 +904,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                 {impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}
               </>
             )}
+            <WeeklyBlogSection initialData={blogData} />
             <SocialAnalytics />
             <SocialFeed posts={recentPosts} />
           </>
@@ -642,6 +974,19 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                     )}
                   </div>
                 )}
+
+                {/* Inline blog generation panel */}
+                {card.type === 'blog' && expandedCard === card.id && (
+                  <div className="td-inline-panel">
+                    <div className="td-inline-panel-header">
+                      <span className="td-inline-panel-title">Generate Weekly Blog</span>
+                      <button className="td-inline-panel-close" onClick={() => setExpandedCard(null)}>×</button>
+                    </div>
+                    <div style={{ padding: '8px 0' }}>
+                      <WeeklyBlogSection initialData={blogData} />
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
 
@@ -657,6 +1002,9 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                 {impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}
               </>
             )}
+
+            {/* Weekly blog */}
+            <WeeklyBlogSection initialData={blogData} />
 
             {/* Social analytics + post feed */}
             <SocialAnalytics />
@@ -1037,6 +1385,105 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
         html.light .td-allgood-ring { border-color: #179a50; color: #179a50; }
         html.light .td-section-label { color: #7aaa8a; }
         html.light .td-feed-status--done { background: #d0eadb; color: #179a50; }
+
+        /* weekly blog */
+        .td-blog-section { display: flex; flex-direction: column; gap: 10px; }
+        .td-blog-limit-badge {
+          font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px;
+          background: rgba(220,38,38,.1); color: #dc2626; text-transform: none;
+          letter-spacing: 0; margin-left: 4px;
+        }
+        .td-blog-card {
+          background: var(--card); border: 1px solid var(--line);
+          border-radius: 14px; padding: 20px 24px;
+          display: flex; flex-direction: column; gap: 12px;
+        }
+        .td-blog-no-blog { font-size: 13px; color: var(--text-dim); margin: 0; }
+        .td-blog-next-due { font-size: 13px; color: var(--text-dim); margin: 0; }
+        .td-blog-at-limit-msg { font-size: 13px; color: var(--text-dim); margin: 0; }
+        .td-blog-error { font-size: 12px; color: #dc2626; margin: 0; }
+
+        .td-blog-replace-list { display: flex; flex-direction: column; gap: 8px; }
+        .td-blog-replace-row {
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 12px; border-radius: 9px;
+          border: 1px solid var(--line); cursor: pointer;
+          font-size: 13px; color: var(--text); background: var(--bg-soft);
+          transition: border-color .12s;
+        }
+        .td-blog-replace-row--selected { border-color: var(--green); background: var(--card); }
+        .td-blog-replace-row input[type=radio] { flex-shrink: 0; accent-color: var(--green); }
+        .td-blog-replace-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .td-blog-replace-meta { font-size: 11px; color: var(--text-faint); flex-shrink: 0; }
+
+        .td-blog-latest {
+          display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+          font-size: 13px; color: var(--text-dim);
+        }
+        .td-blog-latest-label { font-weight: 600; flex-shrink: 0; }
+        .td-blog-latest-title { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .td-ghost-btn--sm { padding: 5px 12px; font-size: 12px; }
+
+        .td-blog-status {
+          font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; flex-shrink: 0;
+        }
+        .td-blog-status--draft     { background: rgba(2,132,199,.1);  color: #0284c7; }
+        .td-blog-status--published { background: rgba(23,154,80,.1);  color: #179a50; }
+        .td-blog-status--replaced  { background: rgba(107,114,128,.1); color: #6b7280; }
+
+        .td-blog-result {
+          background: var(--card); border: 1px solid var(--line); border-left: 3px solid #0891b2;
+          border-radius: 14px; padding: 20px 24px;
+          display: flex; flex-direction: column; gap: 12px;
+        }
+        .td-blog-result-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+        .td-blog-result-title {
+          font-family: var(--font-display, serif); font-size: 18px; font-weight: 700;
+          color: var(--text); letter-spacing: -0.3px; line-height: 1.2;
+        }
+        .td-blog-result-kw { font-size: 12px; color: var(--text-faint); margin-top: 4px; }
+        .td-blog-meta-desc { font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+        .td-blog-result-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .td-blog-preview {
+          font-size: 12px; line-height: 1.7; color: var(--text-dim);
+          background: var(--bg-soft); border: 1px solid var(--line);
+          border-radius: 8px; padding: 16px; white-space: pre-wrap;
+          word-break: break-word; max-height: 400px; overflow-y: auto;
+          font-family: var(--font-body, sans-serif);
+        }
+
+        .td-btn-spinner {
+          display: inline-block; width: 12px; height: 12px; border-radius: 50%;
+          border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
+          animation: td-spin .7s linear infinite; margin-right: 7px; flex-shrink: 0;
+        }
+        .td-btn-spinner--dark {
+          border-color: rgba(0,0,0,.15); border-top-color: var(--text-dim);
+        }
+        @keyframes td-spin { to { transform: rotate(360deg); } }
+
+        /* verification */
+        .td-blog-verify-row {
+          display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+          padding-top: 10px; border-top: 1px solid var(--line);
+        }
+        .td-blog-verify-checking {
+          display: inline-flex; align-items: center;
+          font-size: 12px; color: var(--text-faint);
+        }
+        .td-blog-verify-live {
+          display: inline-flex; align-items: center; gap: 5px;
+          font-size: 12px; font-weight: 600; color: #179a50;
+          background: rgba(23,154,80,.1); padding: 3px 10px; border-radius: 99px;
+        }
+        .td-blog-verify-notfound {
+          font-size: 12px; color: var(--text-faint);
+        }
+        .td-blog-live-link {
+          font-size: 12px; color: #0891b2; text-decoration: none;
+          overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px;
+        }
+        .td-blog-live-link:hover { text-decoration: underline; }
 
         /* responsive */
         @media (max-width: 640px) {

@@ -438,6 +438,26 @@ export const emailTokens = pgTable('email_tokens', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
 })
 
+// ── Brand Blogs ───────────────────────────────────────────────────────────────
+
+export const brandBlogs = pgTable('brand_blogs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  slug: text('slug').notNull(),
+  metaTitle: text('meta_title'),
+  metaDescription: text('meta_description'),
+  targetKeyword: text('target_keyword'),
+  content: text('content').notNull(),   // markdown
+  status: text('status').notNull().default('draft'), // 'draft' | 'published' | 'replaced'
+  frektoJobId: text('frekto_job_id'),   // reserved for real Frekto blog API
+  publishedAt: timestamp('published_at', { withTimezone: true }),
+  verificationStatus: text('verification_status'), // 'pending' | 'live' | 'not_found'
+  verifiedLiveAt: timestamp('verified_live_at', { withTimezone: true }),
+  liveUrl: text('live_url'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
+
 // ── Bug Reports (in-app bug reporting widget) ──────────────────────────────────
 
 export const bugReports = pgTable('bug_reports', {
