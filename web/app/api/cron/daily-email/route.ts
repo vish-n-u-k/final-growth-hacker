@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { brands, brandIntegrations, moduleItems, modules } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { brands, brandIntegrations, moduleItems, modules, reminders } from '@/lib/db/schema'
+import { eq, and, lte, or, isNull } from 'drizzle-orm'
 import { createSign } from 'crypto'
 import { getValidAdminGmailToken, getAdminGmailAddress } from '@/lib/gmail/admin-token'
 import { detectSignals, type ActionCard } from '@/lib/daily/signals'
+import { signReminderToken } from '@/lib/reminders/token'
 
 export const dynamic  = 'force-dynamic'
 export const maxDuration = 60
@@ -206,9 +207,58 @@ function fmt(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
 
+// ── Reminder types ────────────────────────────────────────────────────────────
+
+interface DueReminder {
+  id: string
+  brandId: string
+  title: string
+  nextDueAt: Date
+  intervalDays: number
+}
+
+function buildRemindersSection(dueReminders: DueReminder[], appUrl: string): string {
+  if (dueReminders.length === 0) return ''
+
+  const now = Date.now()
+  const rows = dueReminders.map(r => {
+    const token = signReminderToken(r.id, r.brandId)
+    const doneUrl = `${appUrl}/api/reminders/done?token=${encodeURIComponent(token)}`
+    const diffDays = Math.round((now - r.nextDueAt.getTime()) / 86400000)
+    const label = diffDays > 0
+      ? `<span style="color:#dc2626;font-weight:600;">overdue ${diffDays}d</span>`
+      : diffDays === 0
+        ? `<span style="color:#d97706;font-weight:600;">due today</span>`
+        : `<span style="color:#6b7280;">due in ${Math.abs(diffDays)}d</span>`
+
+    return `
+  <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 8px;">
+    <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-left:3px solid #16a34a;border-radius:8px;padding:12px 16px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
+        <tr>
+          <td style="font-size:14px;color:#111827;">${r.title}</td>
+          <td style="text-align:right;font-size:12px;white-space:nowrap;padding-left:12px;">${label}</td>
+        </tr>
+        <tr><td colspan="2" style="padding-top:8px;">
+          <table role="presentation" cellpadding="0" cellspacing="0">
+            <tr><td style="background:#16a34a;border-radius:5px;">
+              <a href="${doneUrl}" style="display:inline-block;font-size:12px;font-weight:600;color:#fff;text-decoration:none;padding:5px 12px;">Mark done</a>
+            </td></tr>
+          </table>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>`
+  }).join('')
+
+  return `
+  <p style="margin:0 0 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#9ca3af;">Pending Reminders</p>
+  ${rows}`
+}
+
 // ── Email HTML builder (table-based, inline hex — Outlook safe) ───────────────
 
-function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: PhSummary | null, actionCards: ActionCard[] = []): string {
+function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: PhSummary | null, actionCards: ActionCard[] = [], dueReminders: DueReminder[] = []): string {
   const flags = computeFlags(ga4, ph)
   const dashUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com'}/authAnalytics`
 
@@ -363,6 +413,8 @@ function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: 
       ${ph || ga4?.topPage ? engagementBlock : ''}
 
       ${actionCards.length > 0 ? divider + buildActionsSection(actionCards, process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com') : ''}
+
+      ${dueReminders.length > 0 ? divider + buildRemindersSection(dueReminders, process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com') : ''}
 
       ${divider}
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
@@ -537,7 +589,25 @@ export async function GET(req: NextRequest) {
       }
     } catch { /* non-fatal */ }
 
-    const html = buildHtml(brand.name, dateLabel, ga4Data, phData, actionCards)
+    // Fetch reminders due within 2 days
+    let dueReminders: DueReminder[] = []
+    try {
+      const twoDaysFromNow = new Date(Date.now() + 2 * 24 * 3600 * 1000)
+      const rows = await db.select({
+        id: reminders.id, brandId: reminders.brandId, title: reminders.title,
+        nextDueAt: reminders.nextDueAt, intervalDays: reminders.intervalDays,
+      }).from(reminders).where(
+        and(
+          eq(reminders.brandId, brand.id),
+          eq(reminders.enabled, true),
+          lte(reminders.nextDueAt, twoDaysFromNow),
+          or(isNull(reminders.snoozedUntil), lte(reminders.snoozedUntil, new Date())),
+        ),
+      )
+      dueReminders = rows.map(r => ({ ...r, nextDueAt: new Date(r.nextDueAt!) }))
+    } catch { /* non-fatal */ }
+
+    const html = buildHtml(brand.name, dateLabel, ga4Data, phData, actionCards, dueReminders)
     const subject = `${brand.name} daily digest · last 24h`
 
     try {

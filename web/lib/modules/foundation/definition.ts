@@ -285,11 +285,69 @@ Rules:
       ],
     },
 
-    // ── 4. SOCIAL MEDIA PRESENCE ─────────────────────────────────────────────
+    // ── 4. TRACKING ──────────────────────────────────────────────────────────
+    {
+      slug: 'tracking',
+      label: 'Tracking',
+      order: 4,
+      subCategories: [
+        {
+          slug: 'tag-pixels',
+          label: 'Tag Management & Pixels',
+          order: 1,
+          items: [
+            {
+              slug: 'gtm-installed',
+              label: 'Google Tag Manager',
+              prompt: 'Check the HTML for Google Tag Manager (GTM). Look for GTM-XXXXXXX container IDs in script tags or noscript iframes loading googletagmanager.com/ns.html. Report the container ID if found. GTM is the recommended way to deploy all marketing tags — GA4, Meta Pixel, LinkedIn Insight Tag, etc. — without touching code each time.',
+              order: 1,
+              weight: 2,
+              fixGuide: [
+                'Go to tagmanager.google.com → create a free account and container for your website',
+                'Copy the two GTM code snippets shown — paste the first inside <head> and the second immediately after <body> opens',
+                'Once installed, use GTM to fire GA4, Meta Pixel, and other tracking tags — no more manual code deployments',
+                'Verify installation: open your site → GTM Preview mode → confirm the container fires on page load',
+              ],
+            },
+            {
+              slug: 'meta-pixel-installed',
+              label: 'Meta Pixel',
+              prompt: 'Check the HTML scripts for the Meta (Facebook) Pixel. Look for fbq("init", "PIXEL_ID") calls or script tags loading connect.facebook.net/en_US/fbevents.js. Report the Pixel ID if found, or flag as missing. Without the Meta Pixel, Facebook and Instagram ad campaigns cannot track conversions, optimise delivery, or build retargeting audiences.',
+              order: 2,
+              weight: 2,
+              fixGuide: [
+                'Go to business.facebook.com → Events Manager → Connect Data Sources → Web → Facebook Pixel',
+                'Create a new Pixel and copy the base code snippet',
+                'Paste the snippet inside your site\'s <head> tag (or fire it via Google Tag Manager → New Tag → Custom HTML)',
+                'Add a PageView event call: fbq("track", "PageView") — fires on every page load',
+                'Verify: use the Meta Pixel Helper Chrome extension or Events Manager → Test Events to confirm PageView fires',
+                'Once verified, add a Purchase or Lead event on your conversion page so Meta can optimise ad delivery',
+              ],
+            },
+            {
+              slug: 'tiktok-pixel-installed',
+              label: 'TikTok Pixel',
+              prompt: 'Check the HTML scripts for the TikTok Pixel. Look for ttq.load( calls or script tags loading analytics.tiktok.com. Report what you find. This is only relevant if the business runs or plans to run TikTok ads — flag as not applicable if there is no TikTok presence.',
+              order: 3,
+              weight: 1,
+              fixGuide: [
+                'Go to ads.tiktok.com → Assets → Events → Web Events → Set Up Web Events → TikTok Pixel',
+                'Create a new Pixel and choose "Manually install Pixel code"',
+                'Copy the base code and paste it inside your <head> tag (or deploy via GTM)',
+                'Add ttq.track("ViewContent") on key pages and ttq.track("CompletePayment") on your confirmation page',
+                'Verify using the TikTok Pixel Helper Chrome extension',
+              ],
+            },
+          ],
+        },
+      ],
+    },
+
+    // ── 5. SOCIAL MEDIA PRESENCE ─────────────────────────────────────────────
     {
       slug: 'social-presence',
       label: 'Social Media Presence',
-      order: 4,
+      order: 5,
       subCategories: [
         {
           slug: 'social-profiles',
@@ -314,11 +372,11 @@ Rules:
       ],
     },
 
-    // ── 5. BRAND BASICS ──────────────────────────────────────────────────────
+    // ── 6. BRAND BASICS ──────────────────────────────────────────────────────
     {
       slug: 'brand-basics',
       label: 'Brand Basics',
-      order: 5,
+      order: 6,
       subCategories: [
         {
           slug: 'identity',

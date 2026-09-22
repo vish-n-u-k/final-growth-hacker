@@ -41,6 +41,8 @@ import { fetchGmailOutreachData } from '@/lib/modules/gmail-outreach/fetcher'
 import { analyzeGmailOutreach } from '@/lib/modules/gmail-outreach/agent'
 import { fetchEmailMarketingData } from '@/lib/modules/email-marketing/fetcher'
 import { analyzeEmailMarketing } from '@/lib/modules/email-marketing/agent'
+import { fetchAudienceDiscoveryData } from '@/lib/modules/audience-discovery/fetcher'
+import { analyzeAudienceDiscovery } from '@/lib/modules/audience-discovery/agent'
 import { generatePlaybook, type PlaybookData } from '@/lib/playbook/generator'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition, ModuleItemDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
@@ -215,6 +217,10 @@ async function runAnalysis(
     case 'email-marketing': {
       const data = await fetchEmailMarketingData(requirements)
       return analyzeEmailMarketing(data, brainCtx)
+    }
+    case 'audience-discovery': {
+      const data = await fetchAudienceDiscoveryData(requirements)
+      return analyzeAudienceDiscovery(data, brainCtx)
     }
     default:
       throw new Error(`No analyzer registered for module type: ${moduleType}`)

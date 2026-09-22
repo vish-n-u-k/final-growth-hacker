@@ -3,9 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import {
   brands, brandIntegrations, modules, moduleItems,
-  frektoScheduledPosts, keywordSnapshots, modulePageAudit, brandBlogs,
+  frektoScheduledPosts, keywordSnapshots, modulePageAudit, brandBlogs, reminders,
 } from '@/lib/db/schema'
-import { eq, and, desc, gte, inArray, ne } from 'drizzle-orm'
+import { eq, and, desc, gte, inArray, ne, lte, or, isNull } from 'drizzle-orm'
 import { createSign } from 'crypto'
 import { detectSignals, detectImpacts, type ActionCard, type SignalInput } from '@/lib/daily/signals'
 
@@ -120,14 +120,16 @@ export async function GET() {
   if (!brand) return NextResponse.json({ error: 'No brand' }, { status: 404 })
   console.log('[signals] brand found, checking cache')
 
-  // Return cached signals if < 4 hours old
+  // Return cached signals if < 4 hours old (reminders always fetched fresh)
   if (brand.signalsCachedAt && brand.dailySignalsCache) {
     const age = Date.now() - new Date(brand.signalsCachedAt).getTime()
     if (age < 4 * 60 * 60 * 1000) {
       const streak = computeStreak(brand.dailyStreak ?? 0, brand.lastActionDate ?? null)
       const cached = brand.dailySignalsCache as { cards?: ActionCard[]; impacts?: unknown[] } | ActionCard[]
-      const cards = Array.isArray(cached) ? cached : (cached.cards ?? [])
+      const cachedCards = Array.isArray(cached) ? cached : (cached.cards ?? [])
       const impacts = Array.isArray(cached) ? [] : (cached.impacts ?? [])
+      const reminderCards = await fetchReminderCards(brand.id)
+      const cards = [...reminderCards, ...cachedCards]
       return NextResponse.json({
         cards,
         impacts,
@@ -333,15 +335,17 @@ export async function GET() {
     blogWeekly: { lastBlogAt: lastBlogAt ? new Date(lastBlogAt) : null, weeklyDue: blogWeeklyDue },
   }
 
-  const cards = detectSignals(input)
+  const signalCards = detectSignals(input)
   const impacts = detectImpacts(input)
-  console.log(`[signals] cards=${cards.map(c => c.id).join(',')} total=${Date.now() - t0}ms`)
+  console.log(`[signals] cards=${signalCards.map(c => c.id).join(',')} total=${Date.now() - t0}ms`)
 
-  // Cache in DB
+  // Cache signal cards only (not reminders — they're always fetched fresh)
   await db.update(brands)
-    .set({ dailySignalsCache: { cards, impacts }, signalsCachedAt: new Date() })
+    .set({ dailySignalsCache: { cards: signalCards, impacts }, signalsCachedAt: new Date() })
     .where(eq(brands.id, brand.id))
 
+  const reminderCards = await fetchReminderCards(brand.id)
+  const cards = [...reminderCards, ...signalCards]
   const streak = computeStreak(brand.dailyStreak ?? 0, brand.lastActionDate ?? null)
 
   return NextResponse.json({
@@ -352,6 +356,42 @@ export async function GET() {
     allGood: cards.length === 0,
     cachedAt: new Date().toISOString(),
   })
+}
+
+async function fetchReminderCards(brandId: string): Promise<ActionCard[]> {
+  try {
+    const now = new Date()
+    const rows = await db.select({
+      id: reminders.id,
+      title: reminders.title,
+      nextDueAt: reminders.nextDueAt,
+    })
+      .from(reminders)
+      .where(and(
+        eq(reminders.brandId, brandId),
+        eq(reminders.enabled, true),
+        lte(reminders.nextDueAt, now),
+        or(isNull(reminders.snoozedUntil), lte(reminders.snoozedUntil, now)),
+      ))
+      .orderBy(reminders.nextDueAt)
+      .limit(3)
+
+    return rows.map(r => {
+      const daysOverdue = Math.round((Date.now() - new Date(r.nextDueAt!).getTime()) / 86400000)
+      return {
+        id: `reminder-${r.id}`,
+        type: 'reminder' as const,
+        priority: -1,
+        headline: r.title,
+        reason: daysOverdue > 0
+          ? `Overdue by ${daysOverdue} day${daysOverdue === 1 ? '' : 's'}`
+          : 'Due today',
+        cta: 'Mark done',
+        ctaUrl: `/api/reminders/${r.id}/done`,
+        data: { reminderId: r.id },
+      }
+    })
+  } catch { return [] }
 }
 
 function computeStreak(currentStreak: number, lastActionDate: string | null): number {

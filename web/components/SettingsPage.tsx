@@ -22,12 +22,14 @@ interface Props {
   integrationRegistry: IntegrationDefinition[]
   connectedIntegrations: Record<string, ConnectedIntegration>
   mcpKeyPrefix: string | null
+  dailyEmailEnabled: boolean
+  frektoAutoPostEnabled: boolean
   initialTab?: Tab
 }
 
 type Tab = 'brand' | 'playbook' | 'integrations' | 'claude-code' | 'account'
 
-export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations, mcpKeyPrefix, initialTab }: Props) {
+export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations, mcpKeyPrefix, dailyEmailEnabled, frektoAutoPostEnabled, initialTab }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab ?? 'brand')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [oauthToast, setOauthToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
@@ -180,7 +182,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
             </>
           )}
           {tab === 'claude-code' && <ClaudeCodeSection initialKeyPrefix={mcpKeyPrefix} />}
-          {tab === 'account' && <AccountSection userEmail={userEmail} />}
+          {tab === 'account' && <AccountSection userEmail={userEmail} dailyEmailEnabled={dailyEmailEnabled} frektoAutoPostEnabled={frektoAutoPostEnabled} />}
         </div>
       </div>
     </>
@@ -1377,9 +1379,41 @@ function ClaudeCodeSection({ initialKeyPrefix }: { initialKeyPrefix: string | nu
 
 // ── Account Section ───────────────────────────────────────────────────────────
 
-function AccountSection({ userEmail }: { userEmail: string }) {
+function AccountSection({ userEmail, dailyEmailEnabled: initialDailyEmail, frektoAutoPostEnabled: initialAutoPost }: { userEmail: string; dailyEmailEnabled: boolean; frektoAutoPostEnabled: boolean }) {
   const [deleting, setDeleting] = useState(false)
   const router = useRouter()
+
+  const [dailyEmail, setDailyEmail] = useState(initialDailyEmail)
+  const [emailToggling, setEmailToggling] = useState(false)
+  const [autoPost, setAutoPost] = useState(initialAutoPost)
+  const [autoPostToggling, setAutoPostToggling] = useState(false)
+
+  const toggleDailyEmail = async () => {
+    setEmailToggling(true)
+    try {
+      const res = await fetch('/api/analytics/daily-email-pref', { method: 'POST' })
+      if (res.ok) {
+        const data = await res.json() as { dailyEmailEnabled: boolean }
+        setDailyEmail(data.dailyEmailEnabled)
+      }
+    } finally {
+      setEmailToggling(false)
+    }
+  }
+
+  const toggleAutoPost = async () => {
+    setAutoPostToggling(true)
+    try {
+      const res = await fetch('/api/settings/frekto-auto-post', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: !autoPost }),
+      })
+      if (res.ok) setAutoPost(p => !p)
+    } finally {
+      setAutoPostToggling(false)
+    }
+  }
 
   const handleDelete = async () => {
     if (!confirm('Delete your account? This will permanently remove all your data including modules, findings, and integrations. This cannot be undone.')) return
@@ -1412,6 +1446,61 @@ function AccountSection({ userEmail }: { userEmail: string }) {
           <div className="st-field">
             <label className="st-label">Email</label>
             <input className="st-input" value={userEmail} disabled />
+          </div>
+
+          <div className="st-divider" />
+
+          <div className="st-field">
+            <label className="st-label">Notifications</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>Daily email digest</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '2px' }}>Analytics summary sent to {userEmail} each morning</div>
+                </div>
+                <button
+                  disabled={emailToggling}
+                  onClick={toggleDailyEmail}
+                  style={{
+                    flexShrink: 0, width: '44px', height: '24px', borderRadius: '12px', border: 'none',
+                    cursor: emailToggling ? 'not-allowed' : 'pointer',
+                    background: dailyEmail ? 'var(--green)' : 'var(--line)',
+                    position: 'relative', transition: 'background .2s',
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: '3px', width: '18px', height: '18px', borderRadius: '50%',
+                    background: '#fff', transition: 'left .2s', left: dailyEmail ? '23px' : '3px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+                  }} />
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>Auto-post social media</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '2px' }}>GrowJin suggests and publishes posts daily via Frekto</div>
+                </div>
+                <button
+                  disabled={autoPostToggling}
+                  onClick={toggleAutoPost}
+                  style={{
+                    flexShrink: 0, width: '44px', height: '24px', borderRadius: '12px', border: 'none',
+                    cursor: autoPostToggling ? 'not-allowed' : 'pointer',
+                    background: autoPost ? 'var(--green)' : 'var(--line)',
+                    position: 'relative', transition: 'background .2s',
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: '3px', width: '18px', height: '18px', borderRadius: '50%',
+                    background: '#fff', transition: 'left .2s', left: autoPost ? '23px' : '3px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,.2)',
+                  }} />
+                </button>
+              </div>
+
+            </div>
           </div>
 
           <div className="st-divider" />

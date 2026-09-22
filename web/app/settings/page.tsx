@@ -60,6 +60,8 @@ export default async function Settings({ searchParams }: { searchParams: Promise
       integrationRegistry={INTEGRATION_REGISTRY}
       connectedIntegrations={connectedMap}
       mcpKeyPrefix={mcpKeyPrefix}
+      dailyEmailEnabled={brand.dailyEmailEnabled ?? false}
+      frektoAutoPostEnabled={brand.frektoAutoPostEnabled ?? false}
       initialTab={initialTab}
     />
   )

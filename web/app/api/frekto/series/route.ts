@@ -91,6 +91,10 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  const frektoMeta = (frektoInt.metadata as Record<string, string> | null) ?? {}
+  const timezone = frektoMeta['timezone'] ?? 'UTC'
+  const preferredTime = frektoMeta['preferred_time'] ?? '10:00'
+
   let seriesId: string
   try {
     const genRes = await fetch(`${FREKTO_BASE}/generate/series`, {
@@ -106,7 +110,7 @@ export async function POST(request: NextRequest) {
         cadence,
         format: format ?? '1:1',
         output_format: outputFormat ?? 'png',
-        schedule: { start_date: startDate },
+        schedule: { start_date: startDate, time: preferredTime, timezone },
       }),
     })
     if (!genRes.ok) {
