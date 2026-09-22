@@ -63,7 +63,7 @@ Rules:
 - Cover different categories: content, seo, social, marketplace, outreach, ads
 - Do NOT suggest anything already in their existing reminders list
 - Each reminder should have a short 1-sentence reason explaining why it matters
-- Check the website URL for clues about the platform (e.g. `.myshopify.com` = Shopify, `bigcommerce.com` = BigCommerce, `wixsite.com`/`wix.com` = Wix, `etsy.com/shop/` = Etsy seller, `squarespace.com` = Squarespace). If a platform is detected, include 1–2 platform-specific reminders (e.g. "Refresh Shopify product listings every 30 days"). Otherwise, infer from business type and industry.
+- Check the website URL for clues about the platform (e.g. '.myshopify.com' = Shopify, 'bigcommerce.com' = BigCommerce, 'wixsite.com'/'wix.com' = Wix, 'etsy.com/shop/' = Etsy seller, 'squarespace.com' = Squarespace). If a platform is detected, include 1-2 platform-specific reminders (e.g. "Refresh Shopify product listings every 30 days"). Otherwise, infer from business type and industry.
 
 Respond with a JSON array only, no markdown:
 [
