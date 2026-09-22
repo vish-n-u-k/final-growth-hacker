@@ -256,6 +256,12 @@ const IcSend = () => (
     <path d="M3 10l14-7-5 7 5 7-14-7z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
   </svg>
 )
+const IcBell = () => (
+  <svg viewBox="0 0 20 20" fill="none" width="14" height="14">
+    <path d="M10 2a6 6 0 00-6 6v3l-1.5 2.5h15L16 11V8a6 6 0 00-6-6z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+    <path d="M8.5 16.5a1.5 1.5 0 003 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+  </svg>
+)
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -279,6 +285,12 @@ export default function GmailHub({
   const [prospectStates, setProspectStates]     = useState<Record<string, ProspectState>>({})
   const [expandedProspect, setExpandedProspect] = useState<string | null>(null)
   const [needsReconnect, setNeedsReconnect]     = useState(false)
+  // Follow-up reminder state
+  const [followUpEnabled, setFollowUpEnabled]   = useState(true)
+  const [followUpDays, setFollowUpDays]         = useState(3)
+  const [followUpToast, setFollowUpToast]       = useState<string | null>(null)
+  // Reply-detected toast: { reminderId, threadId, name, hasReply? }[]
+  const [replyToasts, setReplyToasts]           = useState<{ reminderId: string; threadId: string; name: string; hasReply?: boolean }[]>([])
   // Campaign state
   const [campaignInstruction, setCampaignInstruction] = useState('')
   const [campaignImportText, setCampaignImportText]   = useState('')
@@ -300,11 +312,40 @@ export default function GmailHub({
   const fetchInbox = useCallback(async () => {
     setInboxLoading(true)
     try {
-      const res  = await fetch('/api/gmail/inbox')
-      const data = await res.json() as Thread[]
-      if (res.ok && Array.isArray(data)) {
+      const [inboxRes, remindersRes] = await Promise.all([
+        fetch('/api/gmail/inbox'),
+        fetch('/api/reminders'),
+      ])
+      const data = await inboxRes.json() as Thread[]
+      if (inboxRes.ok && Array.isArray(data)) {
         setInboxThreads(data)
         if (data.length > 0) setSelectedId(data[0].id)
+
+        // Reply detection: find outreach reminders that reference a threadId, then check if
+        // the corresponding thread now has more than one message (reply received)
+        if (remindersRes.ok) {
+          const remData = await remindersRes.json() as { reminders?: { id: string; title: string; description: string | null; category: string; lastDoneAt: string | null }[] }
+          const outreachReminders = (remData.reminders ?? []).filter(
+            r => r.category === 'outreach' && !r.lastDoneAt && r.description?.includes('gmailThreadId:')
+          )
+          const toasts: { reminderId: string; threadId: string; name: string }[] = []
+          for (const r of outreachReminders) {
+            const match = r.description!.match(/gmailThreadId:(\S+)/)
+            if (!match) continue
+            const tid = match[1]
+            // We don't have message counts from inbox list, so check if a thread with this id
+            // appears in inbox — if so, surface it as a candidate (user can confirm)
+            // A heuristic: if the thread id is in the inbox, we prompt; user decides.
+            // More accurate detection happens when the thread is opened (message count > 1).
+            // For now, store the candidates so we can show the toast when messages load.
+            // We track them in replyToasts and surface them when thread.messages.length > 1.
+            const found = data.find(t => t.id === tid)
+            if (found) {
+              toasts.push({ reminderId: r.id, threadId: tid, name: r.title.replace(/^Follow up:\s*/, '') })
+            }
+          }
+          if (toasts.length > 0) setReplyToasts(toasts)
+        }
       }
     } catch { /* silent */ } finally {
       setInboxLoading(false)
@@ -322,6 +363,10 @@ export default function GmailHub({
       const msgs = await res.json() as { from: string; time: string; body: string; isSelf: boolean }[]
       if (res.ok && Array.isArray(msgs)) {
         setInboxThreads(prev => prev.map(t => t.id === threadId ? { ...t, messages: msgs } : t))
+        // If this thread has a reply and there's a pending outreach reminder for it, surface toast
+        if (msgs.length > 1) {
+          setReplyToasts(prev => prev.map(t => t.threadId === threadId ? { ...t, hasReply: true } : t) as typeof prev)
+        }
       }
     } catch { /* silent */ } finally {
       setLoadingMsgs(prev => { const s = new Set(prev); s.delete(threadId); return s })
@@ -420,7 +465,12 @@ export default function GmailHub({
       const res = await fetch('/api/gmail/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: state.toEmail ?? prospect.email, subject: state.subject, body: state.body }),
+        body: JSON.stringify({
+          to: state.toEmail ?? prospect.email,
+          subject: state.subject,
+          body: state.body,
+          followUpDays: followUpEnabled ? followUpDays : undefined,
+        }),
       })
       const data = await res.json() as { messageId?: string; error?: string; message?: string }
       if (res.status === 403 && data.error === 'missing_send_scope') {
@@ -431,12 +481,35 @@ export default function GmailHub({
       if (!res.ok) throw new Error(data.error ?? 'Send failed')
       setProspectStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'sent' } }))
       setExpandedProspect(null)
+      if (followUpEnabled) {
+        setFollowUpToast(`Follow-up reminder set for ${followUpDays} days`)
+        setTimeout(() => setFollowUpToast(null), 4000)
+      }
     } catch (e: unknown) {
       setProspectStates(prev => ({
         ...prev,
         [prospect.id]: { ...state, status: 'error', error: e instanceof Error ? e.message : 'Send failed' },
       }))
     }
+  }
+
+  async function setThreadFollowup(t: Thread, days: number) {
+    try {
+      const res = await fetch('/api/gmail/set-followup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threadId: t.id, subject: t.subject, recipientName: t.from, days }),
+      })
+      if (res.ok) {
+        setFollowUpToast(`Reminder set — follow up with ${t.from} in ${days} days`)
+        setTimeout(() => setFollowUpToast(null), 4000)
+      }
+    } catch { /* silent */ }
+  }
+
+  async function markReminderDone(reminderId: string) {
+    await fetch(`/api/reminders/${reminderId}/done`, { method: 'POST' })
+    setReplyToasts(prev => prev.filter(t => t.reminderId !== reminderId))
   }
 
   const thread = inboxThreads.find(t => t.id === selectedId) ?? inboxThreads[0] ?? null
@@ -526,7 +599,12 @@ export default function GmailHub({
       const res  = await fetch('/api/gmail/send-email', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ to: state.toEmail ?? prospect.email, subject: state.subject, body: state.body }),
+        body:    JSON.stringify({
+          to: state.toEmail ?? prospect.email,
+          subject: state.subject,
+          body: state.body,
+          followUpDays: followUpEnabled ? followUpDays : undefined,
+        }),
       })
       const data = await res.json() as { messageId?: string; error?: string }
       if (res.status === 403 && data.error === 'missing_send_scope') {
@@ -537,6 +615,10 @@ export default function GmailHub({
       if (!res.ok) throw new Error(data.error ?? 'Send failed')
       setCampaignStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'sent', confirming: false } }))
       if (campaignExpandedId === prospect.id) setCampaignExpandedId(null)
+      if (followUpEnabled) {
+        setFollowUpToast(`Follow-up reminder set for ${followUpDays} days`)
+        setTimeout(() => setFollowUpToast(null), 4000)
+      }
     } catch (e: unknown) {
       setCampaignStates(prev => ({
         ...prev,
@@ -727,6 +809,34 @@ export default function GmailHub({
           </div>
         </div>
 
+        {/* Follow-up reminder toast */}
+        {followUpToast && (
+          <div className="gh-followup-toast">
+            <IcBell />
+            <span>{followUpToast}</span>
+            <button className="gh-alert-close" onClick={() => setFollowUpToast(null)}>✕</button>
+          </div>
+        )}
+
+        {/* Reply-detected toasts */}
+        {replyToasts.filter(t => t.hasReply).map(t => (
+          <div key={t.reminderId} className="gh-reply-toast">
+            <span>You got a reply from <strong>{t.name}</strong> — mark follow-up done?</span>
+            <button
+              className="gh-reply-toast-yes"
+              onClick={() => markReminderDone(t.reminderId)}
+            >
+              Mark done
+            </button>
+            <button
+              className="gh-alert-close"
+              onClick={() => setReplyToasts(prev => prev.filter(x => x.reminderId !== t.reminderId))}
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+
         {/* Stalled alert banner */}
         {showStalled && (
           <div className="gh-alert-banner">
@@ -832,10 +942,11 @@ export default function GmailHub({
               {/* Thread list */}
               <div className="gh-thread-list">
                 {filteredThreads.map(t => (
-                  <button
+                  <div
                     key={t.id}
                     className={`gh-thread-item${selectedId === t.id ? ' active' : ''}${!t.isRead ? ' unread' : ''}`}
                     onClick={() => handleSelectThread(t.id)}
+                    style={{ cursor: 'pointer' }}
                   >
                     {!t.isRead && <span className="gh-unread-dot" />}
                     <div className={`gh-thread-av gh-av-${t.tag ?? 'default'}`}>{t.initials}</div>
@@ -843,12 +954,19 @@ export default function GmailHub({
                       <div className="gh-thread-top">
                         <span className="gh-thread-from">{t.from}</span>
                         <span className="gh-thread-time">{t.time}</span>
+                        <button
+                          className="gh-bell-btn"
+                          title={`Remind me to follow up with ${t.from} in 3 days`}
+                          onClick={e => { e.stopPropagation(); setThreadFollowup(t, 3) }}
+                        >
+                          <IcBell />
+                        </button>
                       </div>
                       <div className="gh-thread-subject">{t.subject}</div>
                       <div className="gh-thread-preview">{t.preview}</div>
                       {t.tag && <span className={`gh-tag gh-tag-${t.tag}`}>{TAG_LABELS[t.tag]}</span>}
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
 
@@ -1259,6 +1377,25 @@ export default function GmailHub({
                           ) : (
                             <div className="gh-send-confirm">
                               <span className="gh-send-confirm-label">Send to {state.toEmail ?? prospect.email}?</span>
+                              <label className="gh-followup-toggle">
+                                <input
+                                  type="checkbox"
+                                  checked={followUpEnabled}
+                                  onChange={e => setFollowUpEnabled(e.target.checked)}
+                                />
+                                Follow up in
+                                <select
+                                  className="gh-followup-days"
+                                  value={followUpDays}
+                                  onChange={e => setFollowUpDays(Number(e.target.value))}
+                                  disabled={!followUpEnabled}
+                                >
+                                  <option value={2}>2 days</option>
+                                  <option value={3}>3 days</option>
+                                  <option value={5}>5 days</option>
+                                  <option value={7}>7 days</option>
+                                </select>
+                              </label>
                               <button className="gh-send-confirm-yes" onClick={() => sendEmail(prospect)}>
                                 Yes, send now
                               </button>
@@ -1646,6 +1783,25 @@ export default function GmailHub({
                                       ) : (
                                         <div className="gh-send-confirm">
                                           <span className="gh-send-confirm-label">Send to {state.toEmail ?? prospect.email}?</span>
+                                          <label className="gh-followup-toggle">
+                                            <input
+                                              type="checkbox"
+                                              checked={followUpEnabled}
+                                              onChange={e => setFollowUpEnabled(e.target.checked)}
+                                            />
+                                            Follow up in
+                                            <select
+                                              className="gh-followup-days"
+                                              value={followUpDays}
+                                              onChange={e => setFollowUpDays(Number(e.target.value))}
+                                              disabled={!followUpEnabled}
+                                            >
+                                              <option value={2}>2 days</option>
+                                              <option value={3}>3 days</option>
+                                              <option value={5}>5 days</option>
+                                              <option value={7}>7 days</option>
+                                            </select>
+                                          </label>
                                           <button className="gh-send-confirm-yes" onClick={() => sendCampaignEmail(prospect)}>Yes, send now</button>
                                           <button
                                             className="gh-send-confirm-no"

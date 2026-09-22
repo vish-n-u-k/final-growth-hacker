@@ -11,10 +11,8 @@ const client = new Anthropic()
 
 export interface ReminderSuggestion {
   title: string
-  description: string
-  category: 'marketplace' | 'content' | 'social' | 'seo' | 'outreach' | 'ads' | 'custom'
+  category: 'marketplace' | 'app-store' | 'directory' | 'profile' | 'custom'
   intervalDays: number
-  reason: string
 }
 
 export async function POST(req: NextRequest) {
@@ -25,17 +23,26 @@ export async function POST(req: NextRequest) {
   const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
   if (!brand) return NextResponse.json({ error: 'Brand not found' }, { status: 404 })
 
-  // Fetch active modules
-  const activeModules = await db.select({ type: modules.type, name: modules.name })
-    .from(modules)
-    .where(and(eq(modules.brandId, brand.id), ne(modules.status, 'not-applicable')))
+  // Fetch active modules (non-fatal — degrade gracefully if query fails)
+  let activeModules: { type: string; name: string }[] = []
+  try {
+    activeModules = await db.select({ type: modules.type, name: modules.name })
+      .from(modules)
+      .where(and(eq(modules.brandId, brand.id), ne(modules.status, 'not-applicable')))
+  } catch (e) {
+    console.warn('Suggest: modules query failed (non-fatal):', e)
+  }
 
-  // Fetch existing reminder titles to avoid duplication
-  const existing = await db.select({ title: reminders.title })
-    .from(reminders)
-    .where(eq(reminders.brandId, brand.id))
-
-  const existingTitles = existing.map(r => r.title)
+  // Fetch existing reminder titles to avoid duplication (non-fatal)
+  let existingTitles: string[] = []
+  try {
+    const existing = await db.select({ title: reminders.title })
+      .from(reminders)
+      .where(eq(reminders.brandId, brand.id))
+    existingTitles = existing.map(r => r.title)
+  } catch (e) {
+    console.warn('Suggest: reminders query failed (non-fatal):', e)
+  }
 
   // Build brand context
   const context = [
@@ -51,28 +58,27 @@ export async function POST(req: NextRequest) {
     existingTitles.length > 0 ? `Already has reminders for: ${existingTitles.slice(0, 12).join(', ')}` : null,
   ].filter(Boolean).join('\n')
 
-  const prompt = `You are a growth marketing advisor. Based on the brand profile below, generate 7 highly specific, actionable recurring reminders for the founder/marketer.
+  const prompt = `You are a business operations advisor. Your job: remind business owners to keep their platform listings and profiles up-to-date.
 
 Brand profile:
 ${context}
 
-Rules:
-- Be SPECIFIC to this brand — use their actual business type, audience, and channels
-- Titles should be concrete tasks, not vague (bad: "Post on social", good: "Share a customer success story on LinkedIn")
-- Vary the intervals: mix weekly (7d), bi-weekly (14d), monthly (30d), and quarterly (90d)
-- Cover different categories: content, seo, social, marketplace, outreach, ads
-- Do NOT suggest anything already in their existing reminders list
-- Each reminder should have a short 1-sentence reason explaining why it matters
-- Check the website URL for clues about the platform (e.g. '.myshopify.com' = Shopify, 'bigcommerce.com' = BigCommerce, 'wixsite.com'/'wix.com' = Wix, 'etsy.com/shop/' = Etsy seller, 'squarespace.com' = Squarespace). If a platform is detected, include 1-2 platform-specific reminders (e.g. "Refresh Shopify product listings every 30 days"). Otherwise, infer from business type and industry.
+Generate 7 platform/listing update reminders for this specific business. Focus ONLY on places where this business needs to periodically refresh their presence — product listings, app store pages, business directories, marketplace profiles, review platforms, etc.
 
-Respond with a JSON array only, no markdown:
+Rules:
+- Only suggest platforms relevant to this business type and industry
+- Check the URL for platform clues: '.myshopify.com' = Shopify, 'etsy.com/shop/' = Etsy, 'apps.apple.com' or 'play.google.com' in their niche = App Store/Play Store, 'bigcommerce.com' = BigCommerce, 'wixsite.com' = Wix, 'squarespace.com' = Squarespace — and include platform-specific reminders
+- Titles must be short (max 7 words) and action-first: "Refresh Shopify product photos", "Update App Store screenshots", "Refresh Google Business hours"
+- Intervals: monthly (30d), bi-monthly (60d), or quarterly (90d) — no weekly tasks
+- Do NOT suggest content creation, social posting, SEO, backlinks, email campaigns, or outreach
+- Do NOT suggest anything already in their existing list
+
+Respond with JSON only, no markdown:
 [
   {
     "title": "...",
-    "description": "...",
-    "category": "content|seo|social|marketplace|outreach|ads|custom",
-    "intervalDays": 14,
-    "reason": "..."
+    "category": "marketplace|app-store|directory|profile|custom",
+    "intervalDays": 30
   }
 ]`
 
@@ -91,15 +97,14 @@ Respond with a JSON array only, no markdown:
     const raw = JSON.parse(text.slice(start, end + 1)) as ReminderSuggestion[]
     const suggestions = raw.slice(0, 8).map(s => ({
       title: String(s.title ?? '').slice(0, 200),
-      description: String(s.description ?? '').slice(0, 400),
-      category: (['marketplace','content','social','seo','outreach','ads','custom'].includes(s.category) ? s.category : 'custom') as ReminderSuggestion['category'],
+      category: (['marketplace','app-store','directory','profile','custom'].includes(s.category) ? s.category : 'custom') as ReminderSuggestion['category'],
       intervalDays: Math.max(1, Math.min(365, parseInt(String(s.intervalDays), 10) || 30)),
-      reason: String(s.reason ?? '').slice(0, 300),
     }))
 
     return NextResponse.json({ suggestions })
   } catch (e) {
-    console.error('Suggest reminders error:', e)
-    return NextResponse.json({ error: 'Failed to generate suggestions' }, { status: 500 })
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error('Suggest reminders error:', msg, e)
+    return NextResponse.json({ error: 'Failed to generate suggestions', detail: msg }, { status: 500 })
   }
 }

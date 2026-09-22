@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import ThemeToggle from '@/components/ThemeToggle'
 import type { ReminderSuggestion } from '@/app/api/reminders/suggest/route'
 
-type ReminderCategory = 'marketplace' | 'content' | 'social' | 'seo' | 'outreach' | 'ads' | 'custom'
+type ReminderCategory = 'marketplace' | 'app-store' | 'directory' | 'profile' | 'custom'
 
 interface Reminder {
   id: string
@@ -29,15 +29,14 @@ interface BrandProfile {
 
 const CAT_CLASS: Record<string, string> = {
   marketplace: 'rm-cat-marketplace',
-  content:     'rm-cat-content',
-  social:      'rm-cat-social',
-  seo:         'rm-cat-seo',
+  'app-store': 'rm-cat-appstore',
+  directory:   'rm-cat-directory',
+  profile:     'rm-cat-profile',
   outreach:    'rm-cat-outreach',
-  ads:         'rm-cat-ads',
   custom:      'rm-cat-custom',
 }
 
-const CATEGORIES: ReminderCategory[] = ['marketplace', 'content', 'social', 'seo', 'outreach', 'ads', 'custom']
+const CATEGORIES: ReminderCategory[] = ['marketplace', 'app-store', 'directory', 'profile', 'custom']
 
 function daysUntil(isoDate: string): number {
   return Math.round((new Date(isoDate).getTime() - Date.now()) / 86400000)
@@ -71,7 +70,7 @@ export default function RemindersPage({
   const [loading, setLoading] = useState(false)
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
   const [showAdd, setShowAdd] = useState(false)
-  const [addForm, setAddForm] = useState({ title: '', description: '', category: 'custom' as ReminderCategory, intervalDays: '30' })
+  const [addForm, setAddForm] = useState({ title: '', category: 'custom' as ReminderCategory, intervalDays: '30' })
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ title: '', description: '', intervalDays: '30' })
@@ -134,9 +133,9 @@ export default function RemindersPage({
     await fetch('/api/reminders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: addForm.title, description: addForm.description || null, category: addForm.category, intervalDays: parseInt(addForm.intervalDays, 10) }),
+      body: JSON.stringify({ title: addForm.title, category: addForm.category, intervalDays: parseInt(addForm.intervalDays, 10) }),
     })
-    setAddForm({ title: '', description: '', category: 'custom', intervalDays: '30' })
+    setAddForm({ title: '', category: 'custom', intervalDays: '30' })
     setShowAdd(false)
     setLoading(false)
     await reload()
@@ -146,7 +145,7 @@ export default function RemindersPage({
     await fetch(`/api/reminders/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: editForm.title, description: editForm.description || null, intervalDays: parseInt(editForm.intervalDays, 10) }),
+      body: JSON.stringify({ title: editForm.title, intervalDays: parseInt(editForm.intervalDays, 10) }),
     })
     setEditId(null)
     await reload()
@@ -166,8 +165,8 @@ export default function RemindersPage({
     setAddedIds(new Set())
     try {
       const res = await fetch('/api/reminders/suggest', { method: 'POST' })
-      if (!res.ok) throw new Error('Failed')
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.detail || data?.error || `HTTP ${res.status}`)
       setSuggestions(data.suggestions ?? [])
     } catch {
       setSuggestError('Could not generate suggestions. Try again.')
@@ -181,7 +180,7 @@ export default function RemindersPage({
     await fetch('/api/reminders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: s.title, description: s.description || null, category: s.category, intervalDays: s.intervalDays }),
+      body: JSON.stringify({ title: s.title, category: s.category, intervalDays: s.intervalDays }),
     })
     setAddingIds(prev => { const n = new Set(prev); n.delete(idx); return n })
     setAddedIds(prev => new Set(prev).add(idx))
@@ -203,7 +202,6 @@ export default function RemindersPage({
       return (
         <div className="rm-card rm-card-editing">
           <input className="rm-input" value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} placeholder="Title" autoFocus />
-          <input className="rm-input" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Description (optional)" style={{ marginTop: 8 }} />
           <div className="rm-edit-row" style={{ marginTop: 10 }}>
             <span className="rm-edit-label">Repeat every</span>
             <input type="number" min="1" className="rm-input rm-input-num" value={editForm.intervalDays} onChange={e => setEditForm(f => ({ ...f, intervalDays: e.target.value }))} />
@@ -232,14 +230,9 @@ export default function RemindersPage({
             }
           </button>
 
-          <div className="rm-card-info">
-            <div className="rm-card-title-row">
-              <span className="rm-card-title">{r.title}</span>
-              <span className={`rm-cat-badge ${CAT_CLASS[r.category] ?? 'rm-cat-custom'}`}>{r.category}</span>
-            </div>
-            {r.description && <span className="rm-card-desc">{r.description}</span>}
-            <span className="rm-card-interval">every {r.intervalDays} days</span>
-          </div>
+          <span className="rm-card-title">{r.title}</span>
+          <span className={`rm-cat-badge ${CAT_CLASS[r.category] ?? 'rm-cat-custom'}`}>{r.category}</span>
+          <span className="rm-card-meta">{r.intervalDays}d</span>
 
           <div className="rm-card-right">
             {days < 0
@@ -379,33 +372,28 @@ export default function RemindersPage({
                     const adding = addingIds.has(idx)
                     return (
                       <div key={idx} className={`rm-suggest-card${added ? ' rm-suggest-card-added' : ''}`}>
-                        <div className="rm-suggest-card-top">
-                          <div className="rm-suggest-card-info">
-                            <span className={`rm-cat-badge ${CAT_CLASS[s.category] ?? 'rm-cat-custom'}`}>{s.category}</span>
-                            <span className="rm-suggest-card-title">{s.title}</span>
-                            {s.description && <span className="rm-suggest-card-desc">{s.description}</span>}
-                            <span className="rm-suggest-card-meta">every {s.intervalDays} days · {s.reason}</span>
-                          </div>
-                          <div className="rm-suggest-actions">
-                            {added
-                              ? <span className="rm-suggest-yes rm-suggest-yes-done">Added</span>
-                              : <>
-                                  <button
-                                    className="rm-suggest-yes"
-                                    onClick={() => !adding && addSuggestion(s, idx)}
-                                    disabled={adding}
-                                  >
-                                    {adding ? '…' : 'Yes'}
-                                  </button>
-                                  <button
-                                    className="rm-suggest-no"
-                                    onClick={() => setSuggestions(prev => prev.filter((_, i) => i !== idx))}
-                                  >
-                                    No
-                                  </button>
-                                </>
-                            }
-                          </div>
+                        <span className="rm-suggest-card-title">{s.title}</span>
+                        <span className={`rm-cat-badge ${CAT_CLASS[s.category] ?? 'rm-cat-custom'}`}>{s.category}</span>
+                        <span className="rm-suggest-card-meta">{s.intervalDays}d</span>
+                        <div className="rm-suggest-actions">
+                          {added
+                            ? <span className="rm-suggest-yes rm-suggest-yes-done">Added</span>
+                            : <>
+                                <button
+                                  className="rm-suggest-yes"
+                                  onClick={() => !adding && addSuggestion(s, idx)}
+                                  disabled={adding}
+                                >
+                                  {adding ? '…' : 'Yes'}
+                                </button>
+                                <button
+                                  className="rm-suggest-no"
+                                  onClick={() => setSuggestions(prev => prev.filter((_, i) => i !== idx))}
+                                >
+                                  No
+                                </button>
+                              </>
+                          }
                         </div>
                       </div>
                     )
@@ -457,10 +445,6 @@ export default function RemindersPage({
             <div className="rm-field">
               <label className="rm-label">Title</label>
               <input className="rm-input" value={addForm.title} onChange={e => setAddForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Update Etsy listings" autoFocus />
-            </div>
-            <div className="rm-field">
-              <label className="rm-label">Description <span style={{ opacity: 0.5 }}>(optional)</span></label>
-              <input className="rm-input" value={addForm.description} onChange={e => setAddForm(f => ({ ...f, description: e.target.value }))} placeholder="Any details..." />
             </div>
             <div className="rm-field-row">
               <div className="rm-field" style={{ flex: 1 }}>

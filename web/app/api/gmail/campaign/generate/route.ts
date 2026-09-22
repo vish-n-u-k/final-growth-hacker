@@ -136,22 +136,26 @@ export async function POST(req: NextRequest) {
 
   const [brain] = await db.select().from(brainContext).where(eq(brainContext.brandId, brand.id))
   const brainSummary = brain?.summary ?? null
+  const playbook = brand.playbook as Record<string, string> | null
 
-  // Scrape prospect's company homepage if domain provided
-  // Also scrape brand's own site if brain context is empty (fallback)
+  // Only scrape prospect domain — never fall back to scraping own site when playbook/usp exist
+  const hasRichContext = !!(playbook?.executiveSummary || brand.usp || brainSummary)
   const [companyText, brandSiteText] = await Promise.all([
     domain ? scrapeCompany(domain) : Promise.resolve(''),
-    !brainSummary && brand.websiteUrl ? scrapeCompany(brand.websiteUrl) : Promise.resolve(''),
+    !hasRichContext && brand.websiteUrl ? scrapeCompany(brand.websiteUrl) : Promise.resolve(''),
   ])
 
   const brandContext = [
     `Company: ${brand.name}`,
     `Website: ${brand.websiteUrl}`,
-    brainSummary
-      ? `Brand overview:\n${brainSummary}`
-      : brandSiteText
-        ? `Brand website content (use this to understand what the brand does and offers):\n${brandSiteText}`
-        : null,
+    brand.industry        ? `Industry: ${brand.industry}` : null,
+    brand.targetAudience  ? `Target audience: ${brand.targetAudience}` : null,
+    brand.usp             ? `Unique value proposition: ${brand.usp}` : null,
+    brand.brandVoice      ? `Brand voice / tone: ${brand.brandVoice}` : null,
+    brand.keywords        ? `Core keywords / themes: ${brand.keywords}` : null,
+    playbook?.executiveSummary ? `Brand summary:\n${playbook.executiveSummary}` : brainSummary ? `Brand overview:\n${brainSummary}` : brandSiteText ? `Brand website content:\n${brandSiteText}` : null,
+    playbook?.icp          ? `Ideal customer profile:\n${playbook.icp}` : null,
+    playbook?.keyOneLiners ? `Key selling points (use these verbatim or adapt them):\n${playbook.keyOneLiners}` : null,
   ].filter(Boolean).join('\n\n')
 
   const prospectContext = [
@@ -201,17 +205,22 @@ Return ONLY this JSON (no markdown, no code fences, no extra text):
   const raw = await callAI({
     system: 'You are a cold email copywriter. Return only a raw JSON object — no markdown, no code blocks, no extra text.',
     prompt,
-    maxTokens: 750,
+    maxTokens: 1200,
     model: 'claude-haiku-4-5-20251001',
   })
 
   try {
-    const start = raw.indexOf('{')
-    const end   = raw.lastIndexOf('}')
-    const copy  = JSON.parse(raw.slice(start, end + 1)) as EmailCopy
+    // Strip markdown fences if present, then extract the JSON object
+    const stripped = raw.replace(/```(?:json)?\s*/gi, '').replace(/```\s*/g, '')
+    const start = stripped.indexOf('{')
+    const end   = stripped.lastIndexOf('}')
+    if (start === -1 || end === -1) throw new Error(`No JSON object found in response: ${raw.slice(0, 200)}`)
+    const copy  = JSON.parse(stripped.slice(start, end + 1)) as EmailCopy
+    if (!copy.subject || !copy.hero || !copy.bullets?.length) throw new Error('Missing required fields in AI response')
     const body  = buildEmailHTML(copy, brand.name, brand.websiteUrl ?? '')
     return NextResponse.json({ subject: copy.subject, body })
-  } catch {
+  } catch (e) {
+    console.error('[campaign/generate] parse error:', e instanceof Error ? e.message : e, '\nraw:', raw.slice(0, 500))
     return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
   }
 }

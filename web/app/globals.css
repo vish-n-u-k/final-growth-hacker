@@ -3966,6 +3966,29 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
 .gh-pc-badge-sent { background: var(--gop-info-bg); color: var(--gop-info-text); border: 1px solid var(--gop-info-border); }
 .gh-pc-status-sent { border-left-color: var(--gop-info-accent); }
 
+/* Follow-up toggle inside send-confirm */
+.gh-followup-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); white-space: nowrap; cursor: pointer; }
+.gh-followup-toggle input[type="checkbox"] { accent-color: var(--green); width: 14px; height: 14px; cursor: pointer; }
+.gh-followup-days { font-size: 12px; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--text-dim); font-family: inherit; cursor: pointer; }
+.gh-followup-days:disabled { opacity: 0.4; }
+
+/* Follow-up reminder toast */
+.gh-followup-toast { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 11px 16px; background: #f0faf3; border: 1px solid #b6e4c5; border-left: 3px solid var(--green); border-radius: 12px; font-size: 13px; color: var(--text-dim); }
+.gh-followup-toast svg { color: var(--green); flex-shrink: 0; }
+.gh-followup-toast span { flex: 1; }
+
+/* Reply-detected toast */
+.gh-reply-toast { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 11px 16px; background: #fffbf0; border: 1px solid #e8d89a; border-left: 3px solid var(--gold); border-radius: 12px; font-size: 13px; color: var(--text-dim); }
+.gh-reply-toast span { flex: 1; }
+.gh-reply-toast strong { color: var(--text); }
+.gh-reply-toast-yes { padding: 5px 13px; border-radius: 7px; background: var(--green); border: none; font-size: 12px; font-weight: 600; color: #fff; cursor: pointer; font-family: inherit; transition: .15s; flex-shrink: 0; }
+.gh-reply-toast-yes:hover { filter: brightness(1.1); }
+
+/* Bell button on thread list items */
+.gh-bell-btn { display: flex; align-items: center; justify-content: center; padding: 3px 5px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--text-faint); cursor: pointer; transition: .15s; flex-shrink: 0; opacity: 0; }
+.gh-thread-item:hover .gh-bell-btn { opacity: 1; }
+.gh-bell-btn:hover { background: var(--bg-soft); border-color: var(--line); color: var(--green); }
+
 /* Reconnect banner */
 .gh-reconnect-banner { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px 16px; background: var(--gop-info-bg); border: 1px solid var(--gop-info-border); border-left: 3px solid var(--gop-info-accent); border-radius: 12px; font-size: 13px; color: var(--gop-info-text); flex-wrap: wrap; }
 .gh-reconnect-btn { margin-left: 4px; padding: 6px 14px; border-radius: 8px; background: var(--gop-info-btn-bg); border: 1px solid var(--gop-info-btn-border); font-size: 12.5px; font-weight: 600; color: var(--gop-info-btn-text); cursor: pointer; text-decoration: none; transition: .15s; flex-shrink: 0; }
@@ -5592,16 +5615,11 @@ html.light .bp-audit-action { border-color: #d4e8da; border-left-color: var(--gr
 .rm-card-editing { border-color: var(--green) !important; padding: 16px; }
 
 .rm-card-row {
-  display: flex; align-items: center; gap: 12px; padding: 13px 16px;
+  display: flex; align-items: center; gap: 10px; padding: 11px 14px;
 }
-.rm-card-info {
-  flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;
-}
-.rm-card-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.rm-card-title { font-size: 13.5px; font-weight: 500; color: var(--text); }
-.rm-card-desc { font-size: 12px; color: var(--text-faint); }
-.rm-card-interval { font-size: 11px; color: var(--text-faint); }
-.rm-card-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.rm-card-title { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rm-card-meta { font-size: 11px; color: var(--text-faint); flex-shrink: 0; }
+.rm-card-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 
 /* Check button */
 .rm-check {
@@ -5626,12 +5644,16 @@ html.light .bp-audit-action { border-color: #d4e8da; border-left-color: var(--gr
   border: 1px solid var(--line); color: var(--text-faint); background: var(--bg-soft);
   white-space: nowrap; flex-shrink: 0;
 }
-.rm-cat-marketplace { color: #60a5fa; background: #0e1e30; border-color: #1e3856; }
-.rm-cat-content     { color: #c4b5fd; background: #1a1030; border-color: #2d1a5a; }
-.rm-cat-social      { color: #34d399; background: #071a10; border-color: #103020; }
-.rm-cat-seo         { color: #a3e635; background: #101a04; border-color: #202e08; }
-.rm-cat-outreach    { color: #fbbf24; background: #1a1200; border-color: #302200; }
-.rm-cat-ads         { color: #f87171; background: #1e0606; border-color: #3a1010; }
+.rm-cat-marketplace { color: #60a5fa; background: var(--bg-soft); border-color: var(--line); }
+.rm-cat-appstore    { color: #a78bfa; background: var(--bg-soft); border-color: var(--line); }
+.rm-cat-directory   { color: #34d399; background: var(--bg-soft); border-color: var(--line); }
+.rm-cat-profile     { color: #fb923c; background: var(--bg-soft); border-color: var(--line); }
+/* legacy categories kept for existing data */
+.rm-cat-content     { color: var(--text-dim); background: var(--bg-soft); border-color: var(--line); }
+.rm-cat-social      { color: var(--text-dim); background: var(--bg-soft); border-color: var(--line); }
+.rm-cat-seo         { color: var(--text-dim); background: var(--bg-soft); border-color: var(--line); }
+.rm-cat-outreach    { color: var(--green); background: #f0faf3; border-color: #b6e4c5; }
+.rm-cat-ads         { color: var(--text-dim); background: var(--bg-soft); border-color: var(--line); }
 
 /* Kebab menu */
 .rm-menu-wrap { position: relative; }
@@ -5750,17 +5772,15 @@ html.light .bp-audit-action { border-color: #d4e8da; border-left-color: var(--gr
 /* Suggestion list */
 .rm-suggest-list { padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
 .rm-suggest-card {
-  border-radius: 10px; padding: 12px 14px;
+  display: flex; align-items: center; gap: 10px;
+  border-radius: 9px; padding: 10px 14px;
   border: 1px solid var(--line); background: var(--bg-soft);
   transition: .15s;
 }
 .rm-suggest-card:hover { border-color: var(--green); }
 .rm-suggest-card-added { opacity: .5; }
-.rm-suggest-card-top { display: flex; align-items: flex-start; gap: 12px; }
-.rm-suggest-card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.rm-suggest-card-title { font-size: 13.5px; font-weight: 500; color: var(--text); }
-.rm-suggest-card-desc { font-size: 12px; color: var(--text-dim); }
-.rm-suggest-card-meta { font-size: 11.5px; color: var(--text-faint); line-height: 1.5; }
+.rm-suggest-card-title { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rm-suggest-card-meta { font-size: 11px; color: var(--text-faint); flex-shrink: 0; }
 
 /* Add button on suggestion (legacy, kept for safety) */
 .rm-suggest-add {

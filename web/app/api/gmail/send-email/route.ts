@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands } from '@/lib/db/schema'
+import { brands, reminders } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getValidGmailToken } from '@/lib/gmail/token'
 
@@ -10,8 +10,8 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { to, subject, body } =
-    await req.json() as { to: string; subject: string; body: string }
+  const { to, subject, body, followUpDays } =
+    await req.json() as { to: string; subject: string; body: string; followUpDays?: number }
 
   const [brand] = await db
     .select({ id: brands.id })
@@ -71,5 +71,25 @@ export async function POST(req: NextRequest) {
   }
 
   const sent = await sendRes.json() as { id: string }
+
+  // Auto-create follow-up reminder if requested
+  if (followUpDays && followUpDays > 0) {
+    const days = Math.min(Math.max(1, followUpDays), 30)
+    const nextDueAt = new Date(Date.now() + days * 24 * 3600 * 1000)
+    const recipientLabel = to.match(/^"?([^"<]+?)"?\s*<[^>]+>$/)
+      ? to.match(/^"?([^"<]+?)"?\s*<[^>]+>$/)![1].trim()
+      : to
+    await db.insert(reminders).values({
+      brandId:     brand.id,
+      title:       `Follow up: ${recipientLabel}`,
+      description: `Re: ${subject}\ngmailThreadId:${sent.id}`,
+      category:    'outreach',
+      intervalDays: days,
+      nextDueAt,
+      isPreset:    false,
+      enabled:     true,
+    })
+  }
+
   return NextResponse.json({ messageId: sent.id })
 }

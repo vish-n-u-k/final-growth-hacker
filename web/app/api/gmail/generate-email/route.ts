@@ -129,13 +129,20 @@ export async function POST(req: NextRequest) {
 
   const [brain] = await db.select().from(brainContext).where(eq(brainContext.brandId, brand.id))
   const brainSummary = brain?.summary ?? null
-  const brainFacts = brain?.facts as Record<string, Record<string, unknown>> | null
+  const playbook = brand.playbook as Record<string, string> | null
 
   const brandContext = [
     `Company: ${brand.name}`,
     `Website: ${brand.websiteUrl}`,
-    brainSummary ? `Brand overview:\n${brainSummary}` : null,
-    brainFacts ? `Key brand facts:\n${JSON.stringify(brainFacts, null, 2).slice(0, 1500)}` : null,
+    brand.industry        ? `Industry: ${brand.industry}` : null,
+    brand.targetAudience  ? `Target audience: ${brand.targetAudience}` : null,
+    brand.usp             ? `Unique value proposition: ${brand.usp}` : null,
+    brand.brandVoice      ? `Brand voice / tone: ${brand.brandVoice}` : null,
+    brand.keywords        ? `Core keywords / themes: ${brand.keywords}` : null,
+    playbook?.executiveSummary ? `Brand summary:\n${playbook.executiveSummary}` : brainSummary ? `Brand overview:\n${brainSummary}` : null,
+    playbook?.icp          ? `Ideal customer profile:\n${playbook.icp}` : null,
+    playbook?.keyOneLiners ? `Key selling points (use these verbatim or adapt them):\n${playbook.keyOneLiners}` : null,
+    playbook?.coldEmailTemplates ? `Existing email templates for reference (adapt the angle, don't copy verbatim):\n${playbook.coldEmailTemplates.slice(0, 800)}` : null,
   ].filter(Boolean).join('\n\n')
 
   const prompt = `Write cold outreach email copy from ${brand.name} to the prospect below.
@@ -176,17 +183,20 @@ Return ONLY this JSON (no markdown, no code fences, no extra text):
   const raw = await callAI({
     system: 'You are a cold email copywriter. Return only a raw JSON object — no markdown, no code blocks, no extra text.',
     prompt,
-    maxTokens: 700,
+    maxTokens: 1000,
     model: 'claude-haiku-4-5-20251001',
   })
 
   try {
-    const start = raw.indexOf('{')
-    const end   = raw.lastIndexOf('}')
-    const copy  = JSON.parse(raw.slice(start, end + 1)) as EmailCopy
+    const stripped = raw.replace(/```(?:json)?\s*/gi, '').replace(/```\s*/g, '')
+    const start = stripped.indexOf('{')
+    const end   = stripped.lastIndexOf('}')
+    if (start === -1 || end === -1) throw new Error(`No JSON in response: ${raw.slice(0, 200)}`)
+    const copy  = JSON.parse(stripped.slice(start, end + 1)) as EmailCopy
     const body  = buildEmailHTML(copy, brand.name, brand.websiteUrl ?? '')
     return NextResponse.json({ subject: copy.subject, body })
-  } catch {
+  } catch (e) {
+    console.error('[generate-email] parse error:', e instanceof Error ? e.message : e, '\nraw:', raw.slice(0, 500))
     return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
   }
 }
