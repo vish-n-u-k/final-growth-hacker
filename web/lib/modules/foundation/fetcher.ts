@@ -19,6 +19,8 @@ export interface FoundationExtracted {
   gtmId: string
   hasAnalyticsScript: boolean
   posthogDetected: boolean
+  metaPixelId: string
+  tiktokPixelDetected: boolean
   h1: string
   h2s: string[]
   bodyTextSnippet: string
@@ -124,6 +126,8 @@ function extractFoundationData(html: string): FoundationExtracted {
   let gtmId = ''
   let hasAnalyticsScript = false
   let posthogDetected = false
+  let metaPixelId = ''
+  let tiktokPixelDetected = false
   $('script').each((_, el) => {
     const src = $(el).attr('src') ?? ''
     const inline = $(el).html() ?? ''
@@ -144,7 +148,26 @@ function extractFoundationData(html: string): FoundationExtracted {
       inline.includes("require('posthog-js')") ||
       inline.includes('require("posthog-js")')
     ) posthogDetected = true
+    // Meta Pixel detection
+    if (src.includes('connect.facebook.net') || inline.includes('fbq(')) {
+      const fbMatch = inline.match(/fbq\s*\(\s*['"]init['"]\s*,\s*['"]?(\d+)['"]?/)
+      metaPixelId = fbMatch ? fbMatch[1] : 'detected'
+    }
+    // TikTok Pixel detection
+    if (
+      src.includes('analytics.tiktok.com') ||
+      inline.includes('ttq.load(') ||
+      inline.includes('ttq.page(')
+    ) tiktokPixelDetected = true
   })
+  // Also check noscript iframes for GTM (fallback)
+  if (!gtmId) {
+    $('noscript').each((_, el) => {
+      const html = $(el).html() ?? ''
+      const m = html.match(/GTM-[A-Z0-9]+/)
+      if (m) gtmId = m[0]
+    })
+  }
 
   // remove noise before text extraction
   $('script, style, svg, noscript').remove()
@@ -203,6 +226,8 @@ function extractFoundationData(html: string): FoundationExtracted {
     gtmId,
     hasAnalyticsScript,
     posthogDetected,
+    metaPixelId,
+    tiktokPixelDetected,
     h1,
     h2s,
     bodyTextSnippet,

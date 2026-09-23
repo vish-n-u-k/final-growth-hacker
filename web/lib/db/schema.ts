@@ -24,6 +24,7 @@ export const brands = pgTable('brands', {
   analyticsCardOverrides: jsonb('analytics_card_overrides'), // per-card label/event overrides for built-in Type B cards
   analyticsColFields: jsonb('analytics_col_fields'),         // saved column→PostHog property mappings for view details table
   dailyEmailEnabled: boolean('daily_email_enabled').default(false),
+  frektoAutoPostEnabled: boolean('frekto_auto_post_enabled').default(false),
   notificationEmail: text('notification_email'), // email to send daily digest to (set when user opts in)
   dailyStreak: integer('daily_streak').default(0),
   lastActionDate: text('last_action_date'), // YYYY-MM-DD — last day user clicked a Today CTA
@@ -458,7 +459,54 @@ export const brandBlogs = pgTable('brand_blogs', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 
+// ── Reminders ─────────────────────────────────────────────────────────────────
+
+export const reminders = pgTable('reminders', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  brandId:      uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  title:        text('title').notNull(),
+  description:  text('description'),
+  category:     text('category').notNull(), // 'marketplace'|'content'|'social'|'seo'|'outreach'|'ads'|'custom'
+  intervalDays: integer('interval_days').notNull().default(30),
+  lastDoneAt:   timestamp('last_done_at', { withTimezone: true }),
+  nextDueAt:    timestamp('next_due_at', { withTimezone: true }).notNull(),
+  snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
+  enabled:      boolean('enabled').notNull().default(true),
+  isPreset:     boolean('is_preset').notNull().default(false),
+  createdAt:    timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
 // ── Bug Reports (in-app bug reporting widget) ──────────────────────────────────
+
+// ── Outreach emails (sent + drafted via GmailHub) ─────────────────────────────
+
+export const outreachEmails = pgTable('outreach_emails', {
+  id:                  uuid('id').primaryKey().defaultRandom(),
+  brandId:             uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  toEmail:             text('to_email').notNull(),
+  toName:              text('to_name'),
+  subject:             text('subject').notNull(),
+  body:                text('body').notNull(),
+  status:              text('status').notNull(),              // 'sent' | 'draft'
+  source:              text('source'),                        // 'outreach' | 'campaign'
+  gmailMessageId:      text('gmail_message_id'),
+  gmailDraftId:        text('gmail_draft_id'),
+  campaignInstruction: text('campaign_instruction'),
+  createdAt:           timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+// ── Outreach prospects (saved contact list) ────────────────────────────────────
+
+export const outreachProspects = pgTable('outreach_prospects', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  brandId:   uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  email:     text('email').notNull(),
+  name:      text('name'),
+  domain:    text('domain'),
+  rawInput:  text('raw_input'),   // original unformatted text if AI-parsed
+  status:    text('status').notNull().default('active'),  // 'active' | 'archived'
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
 
 export const bugReports = pgTable('bug_reports', {
   id: uuid('id').primaryKey().defaultRandom(),

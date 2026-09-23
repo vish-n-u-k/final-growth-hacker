@@ -60,6 +60,7 @@ Rules:
 Using the page summaries and competitor data:
 - What topics do competitors cover that your site has zero content on?
 - What content formats exist on competitor sites but not yours? (comparison pages, case studies, ROI calculators, integration guides, FAQs)
+- Does the site have any free tools, calculators, interactive content, template libraries, checklists, or quizzes? Free tools are one of the highest-ROI content investments: they attract organic backlinks, rank for long-tail queries, and convert visitors at 2–3× the rate of blog posts. If the site has none, flag this as a priority gap and in the action field: (a) suggest 2–3 specific tool ideas tailored to the target audience and business goals (e.g. not just "a calculator" but "a [specific metric] calculator for [target audience]"), with a one-line rationale for each; (b) list 4–6 specific places to submit or list the tool to earn backlinks once built — these should be relevant directories, communities, or aggregator sites for the brand's industry (e.g. Product Hunt, relevant subreddits, niche tool directories, industry newsletters, "best tools for X" roundup sites). If it has some, check whether they are discoverable (in nav/footer), well-promoted, and cover the audience's core pain points.
 - Are there audience pain points evident in competitor content that you never address?
 - Which missing topics are highest priority given the target audience and business goals?
 
@@ -69,8 +70,8 @@ If no competitors provided: cite industry best practice and what brands in this 
 Pass condition: site covers all major topics for the industry with appropriate formats.
 Fail condition: missing a content type or topic that directly addresses the target audience's buying journey.
 
-Weight 3: missing content that directly addresses purchase decisions (pricing comparisons, ROI, alternatives).
-Weight 2: missing content that builds consideration (case studies, how-tos, integration guides).
+Weight 3: missing content that directly addresses purchase decisions (pricing comparisons, ROI, alternatives). Also weight 3 if the site has zero free tools, calculators, or interactive content of any kind.
+Weight 2: missing content that builds consideration (case studies, how-tos, integration guides). Also weight 2 if the site has some free tools but they are buried, underpromoted, or don't match the target audience's core needs.
 Weight 1: missing content that builds awareness (thought leadership, trend articles).
 
 Generate 4–6 findings.`,

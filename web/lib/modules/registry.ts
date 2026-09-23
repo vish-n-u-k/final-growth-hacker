@@ -15,6 +15,7 @@ import { GEO_COMPETITOR_GAP_MODULE } from './geo-competitor-gap/definition'
 import { USER_ANALYTICS_MODULE } from './user-analytics/definition'
 import { BUSINESS_STAGE_MODULE } from './business-stage/definition'
 import { EMAIL_MARKETING_MODULE } from './email-marketing/definition'
+import { AUDIENCE_DISCOVERY_MODULE } from './audience-discovery/definition'
 import type { ModuleDefinition } from './types'
 
 // ── Module Registry ───────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
   OUTREACH_TARGETS_MODULE,        // order: 13
   BUSINESS_STAGE_MODULE,          // order: 14
   EMAIL_MARKETING_MODULE,         // order: 15
+  AUDIENCE_DISCOVERY_MODULE,      // order: 16
   BACKLINKS_MODULE,               // order: 50 — Coming Soon (out of main chain)
 ]
 

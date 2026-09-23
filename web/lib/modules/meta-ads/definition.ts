@@ -11,6 +11,11 @@ export const META_ADS_MODULE: ModuleDefinition = {
   dynamic: true,
   requirements: [
     { key: 'page_id', label: 'Facebook Page ID', type: 'text', placeholder: '123456789012345', required: false },
+    { key: 'ga4_property_id', label: 'GA4 Property ID (optional)', type: 'text', placeholder: '123456789', required: false },
+    { key: 'ga4_client_email', label: 'GA4 Service Account Email (optional)', type: 'text', placeholder: 'name@project.iam.gserviceaccount.com', required: false },
+    { key: 'ga4_private_key', label: 'GA4 Service Account Private Key (optional)', type: 'text', placeholder: '-----BEGIN PRIVATE KEY-----\\nMIIE...', required: false },
+    { key: 'posthog_api_key', label: 'PostHog Personal API Key (optional)', type: 'text', placeholder: 'phx_...', required: false },
+    { key: 'posthog_project_id', label: 'PostHog Project ID (optional)', type: 'text', placeholder: '12345', required: false },
   ],
   systemPrompt: `You are a senior paid media strategist embedded in a growth audit tool. Your tone is direct, data-driven, and consultant-like.
 
@@ -142,7 +147,13 @@ Action steps must be specific: where in Events Manager to verify the pixel, how 
       slug: 'next-campaign',
       label: 'Next Campaign Blueprint',
       order: 7,
-      prompt: `Based on everything you have seen — campaign objectives in use, performance gaps, audience fatigue, conversion rates, and budget allocation — design the single best next campaign this account should run.
+      prompt: `Based on everything you have seen — campaign objectives in use, performance gaps, audience fatigue, conversion rates, budget allocation, and any website analytics data provided (GA4 traffic sources, top landing pages, bounce rates, conversion events, top countries; PostHog custom events and unique user volume) — design the single best next campaign this account should run.
+
+If website analytics are available, use them to:
+- Set audience.countries to the top 1–3 countries by GA4 sessions/conversions (not a generic default)
+- Choose the objective based on funnel gaps: if bounce rate on the top landing page is above 60%, prioritise TRAFFIC to test messaging before CONVERSIONS; if organic traffic is already the #1 channel, prioritise retargeting (CONVERSIONS) over cold AWARENESS
+- Reference the highest-volume PostHog conversion event as the success metric to optimise for
+- Reflect the top-performing landing page in the ad destination if available
 
 Output EXACTLY ONE item with:
 - "category": "next-campaign"

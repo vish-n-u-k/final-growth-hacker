@@ -43,6 +43,7 @@ export function runFoundationRuleEngine(
     const blocked = [
       'ssl-active', 'custom-domain', 'no-noindex', 'mobile-viewport',
       'ga4-installed', 'gsc-linked', 'posthog-installed',
+      'gtm-installed', 'meta-pixel-installed', 'tiktok-pixel-installed',
       'privacy-policy', 'contact-accessible', 'value-prop-exists',
       'cta-exists', 'social-presence', 'favicon-present',
       'business-name-clear', 'page-title-set', 'no-placeholder',
@@ -170,6 +171,51 @@ export function runFoundationRuleEngine(
         'PostHog not installed',
         'Without product analytics **you cannot see how users interact with your product** — funnels, drop-off points, and conversion rates are completely invisible.',
         "Go to posthog.com → create a free project → grab your phc_... API key. Then open `md_files/posthog-setup.md` in your project and paste its contents to Claude Code — it will install PostHog and wire up every important event (auth, onboarding, analysis, item checks, exports, AI features, score milestones) in one pass.")
+  )
+
+  // ── gtm-installed ────────────────────────────────────────────────────────────
+  results.push(e.gtmId
+    ? f('gtm-installed', true,
+        `Google Tag Manager detected (${e.gtmId}).`,
+        'Google Tag Manager is installed',
+        'All marketing tags can be deployed and updated without touching the codebase.',
+        '')
+    : f('gtm-installed', false,
+        'No Google Tag Manager container found in the page HTML.',
+        'GTM not installed',
+        'Without GTM every new tracking tag requires a code deployment — **this slows down marketing execution significantly**.',
+        'Go to tagmanager.google.com, create a container, and paste the two GTM code snippets into your site\'s <head> and <body>.')
+  )
+
+  // ── meta-pixel-installed ─────────────────────────────────────────────────────
+  const hasMetaPixel = !!(e.metaPixelId)
+  results.push(hasMetaPixel
+    ? f('meta-pixel-installed', true,
+        e.metaPixelId !== 'detected'
+          ? `Meta Pixel detected (ID: ${e.metaPixelId}).`
+          : 'Meta Pixel detected (fbevents.js loaded).',
+        'Meta Pixel is installed',
+        'Facebook and Instagram ad campaigns can track conversions and build retargeting audiences.',
+        '')
+    : f('meta-pixel-installed', false,
+        'No Meta Pixel (fbevents.js or fbq() call) found in the page HTML.',
+        'Meta Pixel not installed',
+        '**Without the Meta Pixel, Facebook and Instagram ads cannot track conversions** or optimise delivery — ad spend is wasted.',
+        'Go to business.facebook.com → Events Manager → create a Pixel → paste the base code snippet into your <head>.')
+  )
+
+  // ── tiktok-pixel-installed ───────────────────────────────────────────────────
+  results.push(e.tiktokPixelDetected
+    ? f('tiktok-pixel-installed', true,
+        'TikTok Pixel detected (analytics.tiktok.com script or ttq.load() call found).',
+        'TikTok Pixel is installed',
+        'TikTok ad campaigns can track conversions and build retargeting audiences.',
+        '')
+    : f('tiktok-pixel-installed', false,
+        'No TikTok Pixel detected in the page HTML.',
+        'TikTok Pixel not installed',
+        'If you plan to run TikTok ads, the Pixel is required to track conversions and optimise delivery.',
+        'Go to ads.tiktok.com → Assets → Events → Web Events → create a Pixel → paste the base code or deploy via GTM.')
   )
 
   // ── privacy-policy ───────────────────────────────────────────────────────────

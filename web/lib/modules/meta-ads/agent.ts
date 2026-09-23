@@ -2,6 +2,7 @@ import { callAI } from '@/lib/ai/client'
 import { META_ADS_MODULE } from './definition'
 import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } from '../types'
 import type { MetaAdsFetchResult, MetaCampaign, MetaCampaignInsight, MetaTrackingStatus } from './fetcher'
+import type { AnalyticsData } from './analytics-fetcher'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 
 // ── Format helpers ─────────────────────────────────────────────────────────────
@@ -63,6 +64,54 @@ function formatTracking(t: MetaTrackingStatus): string {
   return lines.join('\n')
 }
 
+function formatAnalytics(analytics: AnalyticsData): string {
+  const parts: string[] = []
+
+  if (analytics.ga4) {
+    const { ga4 } = analytics
+    parts.push('--- GA4 (last 30 days) ---')
+    parts.push(`Total sessions: ${ga4.totalSessions.toLocaleString()} | Total conversions: ${ga4.totalConversions}`)
+
+    if (ga4.channels.length > 0) {
+      parts.push('Traffic channels (sessions → conversions):')
+      ga4.channels.forEach((c) =>
+        parts.push(`  ${c.channel}: ${c.sessions.toLocaleString()} sessions, ${c.conversions} conversions`),
+      )
+    }
+
+    if (ga4.topPages.length > 0) {
+      parts.push('Top landing pages (sessions, bounce rate, conversions):')
+      ga4.topPages.forEach((p) =>
+        parts.push(`  ${p.page}: ${p.sessions.toLocaleString()} sessions | ${p.bounceRate}% bounce | ${p.conversions} conversions`),
+      )
+    }
+
+    if (ga4.countries.length > 0) {
+      parts.push('Top countries (sessions → conversions):')
+      ga4.countries.forEach((c) =>
+        parts.push(`  ${c.country}: ${c.sessions.toLocaleString()} sessions, ${c.conversions} conversions`),
+      )
+    }
+  }
+
+  if (analytics.posthog) {
+    const { posthog } = analytics
+    if (parts.length > 0) parts.push('')
+    parts.push('--- PostHog (last 30 days) ---')
+    parts.push(
+      `Total pageviews: ${posthog.totalPageviews.toLocaleString()} | Unique users: ${posthog.uniqueUsers.toLocaleString()}`,
+    )
+    if (posthog.topConversionEvents.length > 0) {
+      parts.push('Top custom/conversion events:')
+      posthog.topConversionEvents.forEach((e) =>
+        parts.push(`  ${e.event}: ${e.count.toLocaleString()} times`),
+      )
+    }
+  }
+
+  return parts.length > 0 ? parts.join('\n') : 'No website analytics connected.'
+}
+
 function buildPrompt(data: MetaAdsFetchResult, brainContext?: string): string {
   const categories = META_ADS_MODULE.categories as DynamicModuleCategoryDefinition[]
 
@@ -74,6 +123,9 @@ function buildPrompt(data: MetaAdsFetchResult, brainContext?: string): string {
 
   return `${brainContext ? `=== Prior context about this brand ===\n${brainContext}\n\n` : ''}=== Brand Context ===
 Brand: ${data.brandName || 'not provided'}
+
+=== Website Analytics ===
+${formatAnalytics(data.analytics)}
 
 === Tracking Setup ===
 ${formatTracking(data.tracking)}

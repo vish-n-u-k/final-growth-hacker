@@ -133,6 +133,12 @@ export async function POST(request: NextRequest) {
 
   const { format, outputFormat } = getFormat(platform, postType)
 
+  const frektoMeta = (frektoInt.metadata as Record<string, string> | null) ?? {}
+  const timezone = frektoMeta['timezone'] ?? 'UTC'
+  const schedDate = new Date(scheduledAt)
+  const datePart = schedDate.toISOString().slice(0, 10)
+  const timePart = `${String(schedDate.getUTCHours()).padStart(2, '0')}:00`
+
   let jobId: string
   try {
     const genRes = await fetch(`${FREKTO_BASE}/generate`, {
@@ -141,7 +147,12 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${frektoInt.apiKey}`,
       },
-      body: JSON.stringify({ topic: topic.trim(), format, output_format: outputFormat }),
+      body: JSON.stringify({
+        topic: topic.trim(),
+        format,
+        output_format: outputFormat,
+        schedule: { start_date: datePart, time: timePart, timezone },
+      }),
     })
     if (!genRes.ok) {
       const err = await genRes.text()

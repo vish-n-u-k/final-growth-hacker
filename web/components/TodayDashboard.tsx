@@ -67,6 +67,7 @@ const TYPE_CONFIG: Record<string, { label: string; dot: string; border: string }
   content:       { label: 'Content signal',  dot: '#0284c7', border: '#0284c7' },
   'module-item': { label: 'Open item',       dot: '#dc2626', border: '#dc2626' },
   blog:          { label: 'Blog signal',     dot: '#0891b2', border: '#0891b2' },
+  reminder:      { label: 'Reminder',        dot: '#f59e0b', border: '#f59e0b' },
 }
 
 const TYPE_WHY: Record<string, string> = {
@@ -76,6 +77,7 @@ const TYPE_WHY: Record<string, string> = {
   content:       'Stale or thin pages drag down your whole domain authority. Refreshing them signals freshness to Google.',
   'module-item': 'High-weight items have the biggest impact on your growth score. Completing them unlocks the next module.',
   blog:          'Publishing one SEO-optimised blog post per week compounds your organic traffic over time. Sites that publish consistently rank for 3-5x more keywords.',
+  reminder:      '',
 }
 
 const IMPACT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -119,6 +121,9 @@ function IconCheck() {
 function IconPen() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
 }
+function IconBell() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+}
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
   outreach:      <IconMail />,
@@ -127,6 +132,7 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   content:       <IconDoc />,
   'module-item': <IconCheck />,
   blog:          <IconPen />,
+  reminder:      <IconBell />,
 }
 
 // ── Analytics bar ─────────────────────────────────────────────────────────────
@@ -165,16 +171,30 @@ const INLINE_TYPES: Set<string> = new Set(['outreach', 'social', 'blog'])
 
 // ── Action card ───────────────────────────────────────────────────────────────
 
-function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand }: {
+function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone }: {
   card: ActionCard
   rank: number
   onCta: () => void
   expanded: boolean
   onToggleExpand: () => void
+  onDone?: () => void
 }) {
+  const [marking, setMarking] = useState(false)
   const cfg = TYPE_CONFIG[card.type] ?? TYPE_CONFIG.outreach
   const icon = TYPE_ICON[card.type]
   const isInline = INLINE_TYPES.has(card.type)
+
+  async function handleMarkDone() {
+    const reminderId = card.data?.reminderId as string | undefined
+    if (!reminderId) return
+    setMarking(true)
+    try {
+      await fetch(`/api/reminders/${reminderId}/done`, { method: 'POST' })
+      onDone?.()
+    } catch {
+      setMarking(false)
+    }
+  }
 
   return (
     <div className="td-card" style={{ '--td-card-border': cfg.border } as React.CSSProperties}>
@@ -196,7 +216,24 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand }: {
         </div>
       )}
 
-      {isInline ? (
+      {card.type === 'reminder' ? (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            className="td-cta-btn"
+            onClick={handleMarkDone}
+            disabled={marking}
+            style={{ opacity: marking ? 0.6 : 1 }}
+          >
+            {marking ? 'Marking…' : 'Mark done'}
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 5 }}>
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </button>
+          <a href="/reminders" className="td-cta-btn" style={{ background: 'transparent', color: 'var(--text-dim)', border: '1px solid var(--line)', boxShadow: 'none' }}>
+            View all
+          </a>
+        </div>
+      ) : isInline ? (
         <button className="td-cta-btn" onClick={() => { onCta(); onToggleExpand() }}>
           {expanded ? 'Close' : card.type === 'outreach' ? 'Write outreach emails' : 'Create a post'}
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 5, transform: expanded ? 'rotate(180deg)' : 'none' }}>
@@ -925,6 +962,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                   onCta={markAction}
                   expanded={expandedCard === card.id}
                   onToggleExpand={() => setExpandedCard(expandedCard === card.id ? null : card.id)}
+                  onDone={card.type === 'reminder' ? () => setCards(prev => prev.filter(c => c.id !== card.id)) : undefined}
                 />
                 {/* Inline outreach panel */}
                 {card.type === 'outreach' && expandedCard === card.id && (

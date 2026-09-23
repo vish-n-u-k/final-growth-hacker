@@ -1,3 +1,5 @@
+import { fetchAnalyticsData, type AnalyticsData } from './analytics-fetcher'
+
 const META_BASE = 'https://graph.facebook.com/v23.0'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -50,6 +52,7 @@ export interface MetaAdsFetchResult {
   avgCpm: number
   avgFrequency: number
   tracking: MetaTrackingStatus
+  analytics: AnalyticsData
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -175,6 +178,38 @@ function getMockMetaAdsData(brandName: string): MetaAdsFetchResult {
       pixelInHtml: true,
       sdkInHtml: false,
     },
+    analytics: {
+      ga4: {
+        topPages: [
+          { page: '/pricing', sessions: 1840, bounceRate: 58.2, conversions: 94 },
+          { page: '/', sessions: 3210, bounceRate: 71.4, conversions: 38 },
+          { page: '/features', sessions: 920, bounceRate: 44.6, conversions: 27 },
+        ],
+        channels: [
+          { channel: 'Organic Search', sessions: 3100, conversions: 82 },
+          { channel: 'Direct', sessions: 1540, conversions: 41 },
+          { channel: 'Paid Search', sessions: 720, conversions: 28 },
+          { channel: 'Referral', sessions: 340, conversions: 8 },
+        ],
+        countries: [
+          { country: 'United States', sessions: 2840, conversions: 97 },
+          { country: 'United Kingdom', sessions: 890, conversions: 24 },
+          { country: 'Canada', sessions: 540, conversions: 18 },
+        ],
+        totalSessions: 5700,
+        totalConversions: 159,
+      },
+      posthog: {
+        topConversionEvents: [
+          { event: 'signed_up', count: 142 },
+          { event: 'trial_started', count: 87 },
+          { event: 'checkout_completed', count: 34 },
+          { event: 'demo_requested', count: 21 },
+        ],
+        totalPageviews: 18400,
+        uniqueUsers: 4320,
+      },
+    },
   }
 }
 
@@ -284,12 +319,13 @@ export async function fetchMetaAdsData(
     }
   })
 
-  // Fetch pixels + check website HTML in parallel
+  // Fetch pixels, check website HTML, and fetch analytics in parallel
   const pixelsUrl = `${META_BASE}/act_${accountId}/adspixels?fields=id,name,last_fired_time,is_unavailable&access_token=${encodeURIComponent(accessToken)}`
   const websiteUrl = requirements['website_url'] ?? ''
-  const [pixelsRaw, htmlCheck] = await Promise.all([
+  const [pixelsRaw, htmlCheck, analytics] = await Promise.all([
     safeFetch(pixelsUrl),
     checkWebsiteForPixel(websiteUrl),
+    fetchAnalyticsData(requirements),
   ])
   const pixelData = (pixelsRaw as { data?: { id: string; name: string; last_fired_time?: string; is_unavailable?: boolean }[] } | null)?.data ?? []
 
@@ -348,5 +384,6 @@ export async function fetchMetaAdsData(
     avgCpm: Math.round(avgCpm * 100) / 100,
     avgFrequency: Math.round(avgFrequency * 100) / 100,
     tracking,
+    analytics,
   }
 }

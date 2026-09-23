@@ -4,7 +4,12 @@
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit 2>&1 | head -40)",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit 2>&1)",
       "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npx tsc --noEmit 2>&1 | head -60)",
-      "Bash(for f:*)"
+      "Bash(for f:*)",
+      "Skill(claude-in-chrome)",
+      "WebFetch(domain:storeleads.app)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && rm -rf .next && npm run build)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && rm -rf .next/cache && npm run build)",
+      "Bash(cd \"C:\\\\Users\\\\vishn\\\\Desktop\\\\Final Growth Hacker\\\\web\" && npm run build 2>&1 | tail -30)"
     ]
   }
 }

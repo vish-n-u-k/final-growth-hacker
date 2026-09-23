@@ -7,8 +7,7 @@ import GmailHub from '@/components/GmailHub'
 
 export default async function GmailHubPage() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  const user = session?.user
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)

@@ -3,7 +3,7 @@
 // up to 3 prioritised ActionCards. Called from both /api/today/signals and
 // the daily-email cron.
 
-export type ActionCardType = 'outreach' | 'social' | 'seo' | 'content' | 'module-item' | 'all-good' | 'blog'
+export type ActionCardType = 'outreach' | 'social' | 'seo' | 'content' | 'module-item' | 'all-good' | 'blog' | 'reminder'
 
 export interface ActionCard {
   id: string

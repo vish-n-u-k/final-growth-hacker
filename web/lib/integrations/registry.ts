@@ -715,6 +715,9 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
         inputType: 'password',
         helpText: 'From app.frekto.ai → API Keys → Create new key. Free tier includes 10 image/video renders per day.',
       },
+      { key: 'timezone', label: 'Your timezone (e.g. America/New_York)', isMetadata: true, optional: true, inputType: 'text', placeholder: 'UTC' },
+      { key: 'preferred_time', label: 'Preferred post time (HH:MM)', isMetadata: true, optional: true, inputType: 'text', placeholder: '10:00' },
+      { key: 'auto_post_platforms', label: 'Auto-post platforms (comma-separated)', isMetadata: true, optional: true, inputType: 'text', placeholder: 'instagram,linkedin,facebook' },
     ],
   },
   {
