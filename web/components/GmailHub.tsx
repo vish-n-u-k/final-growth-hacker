@@ -30,6 +30,7 @@ interface Limit { name: string; severity: 'high' | 'medium' | 'low'; problem: st
 interface Prospect { id: string; name: string; email: string; company: string; title: string }
 interface ProspectState { status: ProspectStatus; subject: string; body: string; toEmail?: string; error?: string; editingHtml?: boolean }
 interface CampaignProspect { id: string; email: string; name: string; domain: string }
+interface EmailHistoryItem { id: string; toEmail: string; toName: string | null; subject: string; status: string; source: string | null; createdAt: string }
 type CampaignStatus = 'idle' | 'generating' | 'ready' | 'sending' | 'sent' | 'error'
 interface CampaignState { status: CampaignStatus; subject: string; body: string; error?: string; toEmail?: string; editingHtml?: boolean; confirming?: boolean }
 
@@ -294,13 +295,28 @@ export default function GmailHub({
   // Campaign state
   const [campaignInstruction, setCampaignInstruction] = useState('')
   const [campaignImportText, setCampaignImportText]   = useState('')
+  const [campaignImportMode, setCampaignImportMode]   = useState<'csv' | 'ai'>('csv')
+  const [campaignAiParsing, setCampaignAiParsing]     = useState(false)
+  const [campaignAiParseErr, setCampaignAiParseErr]   = useState<string | null>(null)
   const [campaignProspects, setCampaignProspects]     = useState<CampaignProspect[]>([])
   const [campaignStates, setCampaignStates]           = useState<Record<string, CampaignState>>({})
   const [campaignExpandedId, setCampaignExpandedId]   = useState<string | null>(null)
   const [campaignCopied, setCampaignCopied]           = useState<string | null>(null)
+  const [campaignDraftSaving, setCampaignDraftSaving] = useState<Set<string>>(new Set())
+  const [campaignDraftSaved, setCampaignDraftSaved]   = useState<Set<string>>(new Set())
   const [campaignGoalError, setCampaignGoalError]     = useState(false)
   const [sendAllConfirming, setSendAllConfirming]     = useState(false)
   const [campaignManualForm, setCampaignManualForm]   = useState<{ email: string; name: string; domain: string } | null>(null)
+  // AI bulk edit
+  const [aiEditOpen, setAiEditOpen]                   = useState(false)
+  const [aiEditInstruction, setAiEditInstruction]     = useState('')
+  const [aiEditTargeting, setAiEditTargeting]         = useState<'all' | 'select'>('all')
+  const [aiEditSelected, setAiEditSelected]           = useState<Set<string>>(new Set())
+  const [aiEditApplying, setAiEditApplying]           = useState(false)
+  const [aiEditProgress, setAiEditProgress]           = useState<{ done: number; total: number } | null>(null)
+  // Email history
+  const [emailHistory, setEmailHistory]               = useState<EmailHistoryItem[]>([])
+  const [showHistory, setShowHistory]                 = useState(false)
   // Real inbox state
   const [inboxThreads, setInboxThreads]       = useState<Thread[]>([])
   const [inboxLoading, setInboxLoading]       = useState(false)
@@ -355,6 +371,20 @@ export default function GmailHub({
   useEffect(() => {
     if (isConnected) fetchInbox()
   }, [isConnected, fetchInbox])
+
+  useEffect(() => {
+    // Load saved prospects and email history on mount
+    fetch('/api/outreach/prospects').then(r => r.ok ? r.json() : null).then(data => {
+      if (!data?.prospects?.length) return
+      const loaded: CampaignProspect[] = data.prospects.map((p: { id: string; email: string; name?: string; domain?: string }) => ({
+        id: p.id, email: p.email, name: p.name ?? '', domain: p.domain ?? '',
+      }))
+      setCampaignProspects(loaded)
+    }).catch(() => {})
+    fetch('/api/outreach/emails').then(r => r.ok ? r.json() : null).then(data => {
+      if (data?.emails) setEmailHistory(data.emails)
+    }).catch(() => {})
+  }, [])
 
   async function fetchMessages(threadId: string) {
     setLoadingMsgs(prev => new Set(prev).add(threadId))
@@ -533,6 +563,14 @@ export default function GmailHub({
 
   // ── Campaign helpers ───────────────────────────────────────────────────────
 
+  function saveProspectsToDB(prospects: CampaignProspect[], rawInput?: string) {
+    fetch('/api/outreach/prospects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prospects: prospects.map(p => ({ email: p.email, name: p.name, domain: p.domain, rawInput: rawInput ?? null })) }),
+    }).catch(() => {})
+  }
+
   function parseImport() {
     const lines = campaignImportText.split('\n').map(l => l.trim()).filter(Boolean)
     const parsed: CampaignProspect[] = lines.map((line, i) => {
@@ -545,7 +583,32 @@ export default function GmailHub({
       }
     }).filter(p => p.email.includes('@'))
     setCampaignProspects(prev => [...prev, ...parsed])
+    saveProspectsToDB(parsed)
     setCampaignImportText('')
+  }
+
+  async function parseWithAI() {
+    if (!campaignImportText.trim()) return
+    setCampaignAiParsing(true)
+    setCampaignAiParseErr(null)
+    try {
+      const res = await fetch('/api/outreach/parse-prospects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: campaignImportText }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? 'Parse failed')
+      const prospects = data.prospects as CampaignProspect[]
+      if (!prospects.length) { setCampaignAiParseErr('No contacts found in the text.'); return }
+      setCampaignProspects(prev => [...prev, ...prospects])
+      saveProspectsToDB(prospects, campaignImportText)
+      setCampaignImportText('')
+    } catch (e) {
+      setCampaignAiParseErr(e instanceof Error ? e.message : 'Failed to parse')
+    } finally {
+      setCampaignAiParsing(false)
+    }
   }
 
   function addCampaignRow() {
@@ -630,13 +693,19 @@ export default function GmailHub({
   async function saveCampaignDraft(prospect: CampaignProspect) {
     const state = campaignStates[prospect.id]
     if (!state?.subject || !state?.body) return
+    setCampaignDraftSaving(prev => new Set(prev).add(prospect.id))
     try {
-      await fetch('/api/gmail/save-draft', {
+      const res = await fetch('/api/gmail/save-draft', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ to: state.toEmail ?? prospect.email, subject: state.subject, body: state.body }),
       })
+      if (res.ok) {
+        setCampaignDraftSaved(prev => new Set(prev).add(prospect.id))
+        setTimeout(() => setCampaignDraftSaved(prev => { const n = new Set(prev); n.delete(prospect.id); return n }), 3000)
+      }
     } catch { /* silent */ }
+    setCampaignDraftSaving(prev => { const n = new Set(prev); n.delete(prospect.id); return n })
   }
 
   async function sendAllReady() {
@@ -646,6 +715,56 @@ export default function GmailHub({
       await sendCampaignEmail(p)
       await new Promise(r => setTimeout(r, 400))
     }
+  }
+
+  async function applyAiEdit() {
+    if (!aiEditInstruction.trim()) return
+    const targets = aiEditTargeting === 'all'
+      ? campaignProspects.filter(p => campaignStates[p.id]?.status === 'ready')
+      : campaignProspects.filter(p => campaignStates[p.id]?.status === 'ready' && aiEditSelected.has(p.id))
+    if (targets.length === 0) return
+
+    setAiEditApplying(true)
+    setAiEditProgress({ done: 0, total: targets.length })
+
+    // Process in batches of 3 to keep things responsive
+    const batchSize = 3
+    for (let i = 0; i < targets.length; i += batchSize) {
+      const batch = targets.slice(i, i + batchSize)
+      try {
+        const res = await fetch('/api/gmail/campaign/refine', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            instruction: aiEditInstruction,
+            emails: batch.map(p => ({
+              id:              p.id,
+              prospectName:    p.name,
+              prospectEmail:   p.email,
+              prospectDomain:  p.domain,
+              currentSubject:  campaignStates[p.id]?.subject ?? '',
+              currentBody:     campaignStates[p.id]?.body ?? '',
+            })),
+          }),
+        })
+        if (res.ok) {
+          const { results } = await res.json() as { results: { id: string; subject?: string; body?: string; error?: string }[] }
+          setCampaignStates(prev => {
+            const next = { ...prev }
+            for (const r of results) {
+              if (r.body && r.subject) {
+                next[r.id] = { ...next[r.id], subject: r.subject, body: r.body, editingHtml: false }
+              }
+            }
+            return next
+          })
+        }
+      } catch { /* silent — batch failure doesn't stop the rest */ }
+      setAiEditProgress({ done: Math.min(i + batchSize, targets.length), total: targets.length })
+    }
+
+    setAiEditApplying(false)
+    setAiEditProgress(null)
   }
 
   // ── NOT CONNECTED ─────────────────────────────────────────────────────────
@@ -1407,8 +1526,12 @@ export default function GmailHub({
                               </button>
                             </div>
                           )}
-                          <button className="gh-dc-save" onClick={() => saveDraft(prospect)}>
-                            Save to Drafts
+                          <button
+                            className={`gh-dc-save${cardStatus === 'saved' ? ' gh-dc-save-done' : ''}`}
+                            onClick={() => saveDraft(prospect)}
+                            disabled={cardStatus === 'saving'}
+                          >
+                            {cardStatus === 'saving' ? 'Saving…' : cardStatus === 'saved' ? 'Saved' : 'Save to Drafts'}
                           </button>
                           <button
                             className="gh-draft-copy"
@@ -1427,6 +1550,41 @@ export default function GmailHub({
                 )
               })}
             </div>
+          </div>
+        )}
+
+        {/* ── Sent history (shown on outreach + campaign tabs) ── */}
+        {(activeTab === 'outreach' || activeTab === 'campaign') && emailHistory.length > 0 && (
+          <div className="gh-history-wrap">
+            <button className="gh-history-toggle" onClick={() => setShowHistory(h => !h)}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              {emailHistory.length} past email{emailHistory.length !== 1 ? 's' : ''}
+              <span style={{ marginLeft: 4 }}>{showHistory ? '▲' : '▼'}</span>
+            </button>
+            {showHistory && (
+              <table className="gh-history-table">
+                <thead>
+                  <tr>
+                    <th className="gh-history-th">To</th>
+                    <th className="gh-history-th">Subject</th>
+                    <th className="gh-history-th">Status</th>
+                    <th className="gh-history-th">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {emailHistory.map(e => (
+                    <tr key={e.id} className="gh-history-tr">
+                      <td className="gh-history-td">{e.toName ? `${e.toName} <${e.toEmail}>` : e.toEmail}</td>
+                      <td className="gh-history-td">{e.subject}</td>
+                      <td className="gh-history-td">
+                        <span className={`gh-history-badge gh-history-badge-${e.status}`}>{e.status}</span>
+                      </td>
+                      <td className="gh-history-td gh-history-td-date">{new Date(e.createdAt).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
 
@@ -1468,24 +1626,129 @@ export default function GmailHub({
               </div>
 
               {/* Paste import */}
-              <div className="gh-cmp-paste-wrap">
-                <textarea
-                  className="gh-cmp-textarea"
-                  rows={4}
-                  placeholder={'alice@acme.com, Alice Johnson, acme.com\nbob@startup.io, Bob Smith\ncharlie@company.com'}
-                  value={campaignImportText}
-                  onChange={e => setCampaignImportText(e.target.value)}
-                />
-                <div className="gh-cmp-paste-footer">
-                  <span className="gh-cmp-hint">One per line — <strong>email</strong>, name (optional), company domain (optional)</span>
+              <div style={{ marginBottom: 12 }}>
+                {/* Mode tabs */}
+                <div style={{ display: 'flex', borderBottom: '1px solid #c8ddd0', marginBottom: 0 }}>
                   <button
-                    className="gh-cmp-parse-btn"
-                    onClick={parseImport}
-                    disabled={!campaignImportText.trim()}
+                    onClick={() => { setCampaignImportMode('csv'); setCampaignAiParseErr(null) }}
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      border: 'none',
+                      borderBottom: campaignImportMode === 'csv' ? '2px solid #179a50' : '2px solid transparent',
+                      background: 'transparent',
+                      color: campaignImportMode === 'csv' ? '#179a50' : '#3a6048',
+                      fontWeight: campaignImportMode === 'csv' ? 700 : 500,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      marginBottom: -1,
+                    }}
                   >
-                    Add to list →
+                    Formatted
+                  </button>
+                  <button
+                    onClick={() => { setCampaignImportMode('ai'); setCampaignAiParseErr(null) }}
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      border: 'none',
+                      borderBottom: campaignImportMode === 'ai' ? '2px solid #179a50' : '2px solid transparent',
+                      background: 'transparent',
+                      color: campaignImportMode === 'ai' ? '#179a50' : '#3a6048',
+                      fontWeight: campaignImportMode === 'ai' ? 700 : 500,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      marginBottom: -1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 5,
+                    }}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                    Smart Import
                   </button>
                 </div>
+
+                {/* Textarea + footer inside a bordered box */}
+                <div style={{ border: '1px solid #c8ddd0', borderTop: 'none', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
+                  <textarea
+                    rows={campaignImportMode === 'ai' ? 6 : 4}
+                    placeholder={campaignImportMode === 'ai'
+                      ? 'Paste anything — LinkedIn profiles, notes, a spreadsheet column, raw text.\n\ne.g. "John Smith is CEO of Acme, john@acme.com"\nor just a list of emails, one per line'
+                      : 'alice@acme.com, Alice Johnson, acme.com\nbob@startup.io, Bob Smith\ncharlie@company.com'}
+                    value={campaignImportText}
+                    onChange={e => { setCampaignImportText(e.target.value); setCampaignAiParseErr(null) }}
+                    style={{
+                      width: '100%',
+                      display: 'block',
+                      border: 'none',
+                      outline: 'none',
+                      resize: 'vertical',
+                      padding: '10px 12px',
+                      fontSize: 13,
+                      fontFamily: 'inherit',
+                      lineHeight: 1.5,
+                      background: '#fff',
+                      color: '#0c1d13',
+                      boxSizing: 'border-box',
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#f0f6f2', gap: 8 }}>
+                    <span style={{ fontSize: 12, color: '#3a6048' }}>
+                      {campaignImportMode === 'csv'
+                        ? <>One per line — <strong>email</strong>, name (optional), domain (optional)</>
+                        : <>Paste any format — AI extracts emails, names &amp; companies</>}
+                    </span>
+                    {campaignImportMode === 'csv' ? (
+                      <button
+                        onClick={parseImport}
+                        disabled={!campaignImportText.trim()}
+                        style={{
+                          flexShrink: 0,
+                          padding: '6px 14px',
+                          background: campaignImportText.trim() ? '#179a50' : '#c8ddd0',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 6,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: campaignImportText.trim() ? 'pointer' : 'not-allowed',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        Add to list
+                      </button>
+                    ) : (
+                      <button
+                        onClick={parseWithAI}
+                        disabled={!campaignImportText.trim() || campaignAiParsing}
+                        style={{
+                          flexShrink: 0,
+                          padding: '6px 14px',
+                          background: (campaignImportText.trim() && !campaignAiParsing) ? '#179a50' : '#c8ddd0',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 6,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: (campaignImportText.trim() && !campaignAiParsing) ? 'pointer' : 'not-allowed',
+                          fontFamily: 'inherit',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        {campaignAiParsing
+                          ? <><span className="gh-spinner-dot" style={{ width: 5, height: 5 }}/><span className="gh-spinner-dot" style={{ width: 5, height: 5 }}/><span className="gh-spinner-dot" style={{ width: 5, height: 5 }}/>&nbsp;Parsing</>
+                          : 'Parse with AI'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {campaignAiParseErr && <p style={{ margin: '6px 0 0', fontSize: 12, color: '#c0392b' }}>{campaignAiParseErr}</p>}
               </div>
 
               {/* Prospect list */}
@@ -1555,10 +1818,9 @@ export default function GmailHub({
                     disabled={!campaignManualForm.email.includes('@')}
                     onClick={() => {
                       if (!campaignManualForm.email.includes('@')) return
-                      setCampaignProspects(prev => [
-                        ...prev,
-                        { id: `cp-${Date.now()}`, ...campaignManualForm },
-                      ])
+                      const p = { id: `cp-${Date.now()}`, ...campaignManualForm }
+                      setCampaignProspects(prev => [...prev, p])
+                      saveProspectsToDB([p])
                       setCampaignManualForm(null)
                     }}
                   >
@@ -1635,11 +1897,93 @@ export default function GmailHub({
                   </div>
                 )}
 
+                {/* AI bulk edit panel */}
+                {(() => {
+                  const readyEmails = campaignProspects.filter(p => campaignStates[p.id]?.status === 'ready')
+                  if (readyEmails.length === 0) return null
+                  const targetCount = aiEditTargeting === 'all'
+                    ? readyEmails.length
+                    : [...aiEditSelected].filter(id => campaignStates[id]?.status === 'ready').length
+                  return (
+                    <div style={{ margin: '0 0 12px', border: '1px solid #c8ddd0', borderRadius: 8, overflow: 'hidden' }}>
+                      {/* Toggle header */}
+                      <button
+                        onClick={() => setAiEditOpen(v => !v)}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: aiEditOpen ? '#f0f6f2' : '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#179a50', textAlign: 'left' }}
+                      >
+                        <IcAI />
+                        AI Edit Emails
+                        <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 400, color: '#3a6048' }}>
+                          {aiEditOpen ? 'hide ▲' : `apply changes to ${readyEmails.length} ready email${readyEmails.length !== 1 ? 's' : ''} ▼`}
+                        </span>
+                      </button>
+
+                      {aiEditOpen && (
+                        <div style={{ padding: '12px 14px', borderTop: '1px solid #e0ece4', background: '#fafcfb' }}>
+                          {/* Instruction input */}
+                          <textarea
+                            rows={2}
+                            placeholder={'Describe the change to apply to all selected emails...\ne.g. "Make it shorter and more casual" or "Add a P.S. about our free trial"'}
+                            value={aiEditInstruction}
+                            onChange={e => setAiEditInstruction(e.target.value)}
+                            style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid #c8ddd0', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', lineHeight: 1.5, resize: 'vertical', background: '#fff', color: '#0c1d13', outline: 'none', marginBottom: 10 }}
+                          />
+
+                          {/* Targeting toggle */}
+                          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                            <button
+                              onClick={() => setAiEditTargeting('all')}
+                              style={{ padding: '6px 14px', border: '1px solid', borderColor: aiEditTargeting === 'all' ? '#179a50' : '#c8ddd0', borderRadius: 6, background: aiEditTargeting === 'all' ? '#179a50' : '#fff', color: aiEditTargeting === 'all' ? '#fff' : '#3a6048', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                            >
+                              All ready ({readyEmails.length})
+                            </button>
+                            <button
+                              onClick={() => setAiEditTargeting('select')}
+                              style={{ padding: '6px 14px', border: '1px solid', borderColor: aiEditTargeting === 'select' ? '#179a50' : '#c8ddd0', borderRadius: 6, background: aiEditTargeting === 'select' ? '#179a50' : '#fff', color: aiEditTargeting === 'select' ? '#fff' : '#3a6048', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                            >
+                              Select emails
+                            </button>
+                            {aiEditTargeting === 'select' && aiEditSelected.size > 0 && (
+                              <span style={{ fontSize: 12, color: '#3a6048', alignSelf: 'center' }}>
+                                {aiEditSelected.size} selected
+                              </span>
+                            )}
+                          </div>
+
+                          {aiEditTargeting === 'select' && (
+                            <p style={{ margin: '0 0 10px', fontSize: 12, color: '#7aaa8a' }}>
+                              Check the boxes on each email row below to select it.
+                            </p>
+                          )}
+
+                          {/* Apply button */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <button
+                              onClick={applyAiEdit}
+                              disabled={aiEditApplying || !aiEditInstruction.trim() || targetCount === 0}
+                              style={{ padding: '8px 18px', background: (!aiEditApplying && aiEditInstruction.trim() && targetCount > 0) ? '#179a50' : '#c8ddd0', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: (!aiEditApplying && aiEditInstruction.trim() && targetCount > 0) ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}
+                            >
+                              <IcAI />
+                              {aiEditApplying
+                                ? `Applying… ${aiEditProgress ? `(${aiEditProgress.done}/${aiEditProgress.total})` : ''}`
+                                : `Apply to ${targetCount} email${targetCount !== 1 ? 's' : ''}`}
+                            </button>
+                            {aiEditApplying && (
+                              <span style={{ fontSize: 12, color: '#7aaa8a' }}>Emails update as each batch completes</span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
                 {/* Per-prospect rows */}
                 <div className="gh-cmp-oi-list">
                   <table className="gh-cmp-table">
                     <thead>
                       <tr>
+                        {aiEditOpen && aiEditTargeting === 'select' && <th className="gh-cmp-th" style={{ width: 32 }} />}
                         <th className="gh-cmp-th">Email</th>
                         <th className="gh-cmp-th">Name</th>
                         <th className="gh-cmp-th">Domain</th>
@@ -1655,6 +1999,22 @@ export default function GmailHub({
                         return (
                           <Fragment key={prospect.id}>
                             <tr className={`gh-cmp-tr${isExpanded ? ' expanded' : ''}`}>
+                              {aiEditOpen && aiEditTargeting === 'select' && (
+                                <td className="gh-cmp-td" style={{ width: 32, textAlign: 'center', verticalAlign: 'middle' }}>
+                                  {status === 'ready' && (
+                                    <input
+                                      type="checkbox"
+                                      checked={aiEditSelected.has(prospect.id)}
+                                      onChange={e => setAiEditSelected(prev => {
+                                        const next = new Set(prev)
+                                        e.target.checked ? next.add(prospect.id) : next.delete(prospect.id)
+                                        return next
+                                      })}
+                                      style={{ cursor: 'pointer', width: 14, height: 14, accentColor: '#179a50' }}
+                                    />
+                                  )}
+                                </td>
+                              )}
                               <td className="gh-cmp-td gh-cmp-td-email">
                                 {prospect.email}
                                 {!isExpanded && status === 'ready' && state?.subject && (
@@ -1714,7 +2074,7 @@ export default function GmailHub({
                             </tr>
                             {isExpanded && state && (
                               <tr>
-                                <td colSpan={5} className="gh-cmp-td-expanded">
+                                <td colSpan={aiEditOpen && aiEditTargeting === 'select' ? 6 : 5} className="gh-cmp-td-expanded">
                                   <div className="gh-email-editor">
                                     <div className="gh-ee-to-row">
                                       <span className="gh-ee-to-label">To:</span>
@@ -1812,7 +2172,13 @@ export default function GmailHub({
                                           >Cancel</button>
                                         </div>
                                       )}
-                                      <button className="gh-dc-save" onClick={() => saveCampaignDraft(prospect)}>Save to Drafts</button>
+                                      <button
+                                        className={`gh-dc-save${campaignDraftSaved.has(prospect.id) ? ' gh-dc-save-done' : ''}`}
+                                        onClick={() => saveCampaignDraft(prospect)}
+                                        disabled={campaignDraftSaving.has(prospect.id)}
+                                      >
+                                        {campaignDraftSaving.has(prospect.id) ? 'Saving…' : campaignDraftSaved.has(prospect.id) ? 'Saved' : 'Save to Drafts'}
+                                      </button>
                                       <button
                                         className="gh-draft-copy"
                                         onClick={() => {

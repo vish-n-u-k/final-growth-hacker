@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands } from '@/lib/db/schema'
+import { brands, outreachEmails } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getValidGmailToken } from '@/lib/gmail/token'
 
@@ -62,5 +62,12 @@ export async function POST(req: NextRequest) {
   }
 
   const draft = await draftRes.json() as { id: string }
+
+  // Log to outreach_emails (fire-and-forget)
+  db.insert(outreachEmails).values({
+    brandId: brand.id, toEmail: to, subject, body,
+    status: 'draft', gmailDraftId: draft.id, source: 'outreach',
+  }).catch(e => console.error('[save-draft] DB log error:', e))
+
   return NextResponse.json({ draftId: draft.id })
 }

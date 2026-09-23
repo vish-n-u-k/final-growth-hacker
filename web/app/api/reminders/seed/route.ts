@@ -30,7 +30,6 @@ export async function POST(req: NextRequest) {
     toInsert.map(p => ({
       brandId: brand.id,
       title: p.title,
-      description: p.description ?? null,
       category: p.category,
       intervalDays: p.intervalDays,
       nextDueAt: new Date(now.getTime() + p.intervalDays * 24 * 3600 * 1000),

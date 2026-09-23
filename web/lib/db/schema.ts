@@ -478,6 +478,36 @@ export const reminders = pgTable('reminders', {
 
 // ── Bug Reports (in-app bug reporting widget) ──────────────────────────────────
 
+// ── Outreach emails (sent + drafted via GmailHub) ─────────────────────────────
+
+export const outreachEmails = pgTable('outreach_emails', {
+  id:                  uuid('id').primaryKey().defaultRandom(),
+  brandId:             uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  toEmail:             text('to_email').notNull(),
+  toName:              text('to_name'),
+  subject:             text('subject').notNull(),
+  body:                text('body').notNull(),
+  status:              text('status').notNull(),              // 'sent' | 'draft'
+  source:              text('source'),                        // 'outreach' | 'campaign'
+  gmailMessageId:      text('gmail_message_id'),
+  gmailDraftId:        text('gmail_draft_id'),
+  campaignInstruction: text('campaign_instruction'),
+  createdAt:           timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
+// ── Outreach prospects (saved contact list) ────────────────────────────────────
+
+export const outreachProspects = pgTable('outreach_prospects', {
+  id:        uuid('id').primaryKey().defaultRandom(),
+  brandId:   uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  email:     text('email').notNull(),
+  name:      text('name'),
+  domain:    text('domain'),
+  rawInput:  text('raw_input'),   // original unformatted text if AI-parsed
+  status:    text('status').notNull().default('active'),  // 'active' | 'archived'
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
 export const bugReports = pgTable('bug_reports', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: text('user_id'),

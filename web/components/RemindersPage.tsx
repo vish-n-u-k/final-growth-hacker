@@ -18,6 +18,18 @@ interface Reminder {
   snoozedUntil: string | null
   enabled: boolean
   isPreset: boolean
+  createdAt: string | null
+}
+
+interface DraftState {
+  open: boolean
+  loading: boolean
+  to: string
+  subject: string
+  body: string       // HTML — source of truth for sending
+  editingHtml: boolean
+  sending: boolean
+  error: string | null
 }
 
 interface BrandProfile {
@@ -81,6 +93,9 @@ export default function RemindersPage({
   const [suggestError, setSuggestError] = useState<string | null>(null)
   const [addingIds, setAddingIds] = useState<Set<number>>(new Set())
   const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
+
+  // Outreach follow-up compose state
+  const [drafts, setDrafts] = useState<Record<string, DraftState>>({})
 
   useEffect(() => {
     if (!openMenu) return
@@ -187,6 +202,45 @@ export default function RemindersPage({
     await reload()
   }
 
+  function setDraft(id: string, patch: Partial<DraftState>) {
+    setDrafts(prev => ({ ...prev, [id]: { ...prev[id], ...patch } as DraftState }))
+  }
+
+  async function draftFollowup(id: string) {
+    setDraft(id, { open: true, loading: true, error: null, to: '', subject: '', body: '', editingHtml: false, sending: false })
+    try {
+      const res = await fetch('/api/gmail/draft-followup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reminderId: id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
+      setDraft(id, { loading: false, to: data.to ?? '', subject: data.subject ?? '', body: data.body ?? '' })
+    } catch (e) {
+      setDraft(id, { loading: false, error: e instanceof Error ? e.message : 'Failed to generate draft' })
+    }
+  }
+
+  async function sendFollowup(id: string) {
+    const d = drafts[id]
+    if (!d || !d.body.trim()) return
+    setDraft(id, { sending: true, error: null })
+    try {
+      const res = await fetch('/api/gmail/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: d.to, subject: d.subject, body: d.body, followUpDays: 5 }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`)
+      await markDone(id)
+      setDrafts(prev => { const n = { ...prev }; delete n[id]; return n })
+    } catch (e) {
+      setDraft(id, { sending: false, error: e instanceof Error ? e.message : 'Send failed' })
+    }
+  }
+
   const groups = groupReminders(reminders)
   const totalActive = groups.overdue.length + groups.thisWeek.length + groups.upcoming.length
   const showSuggestPanel = suggestLoading || suggestions.length > 0 || suggestError !== null
@@ -197,6 +251,7 @@ export default function RemindersPage({
     const days = daysUntil(r.nextDueAt)
     const isEditing = editId === r.id
     const isDoing = doneIds.has(r.id)
+    const draft = drafts[r.id]
 
     if (isEditing) {
       return (
@@ -214,6 +269,155 @@ export default function RemindersPage({
         </div>
       )
     }
+
+    // ── Outreach card ────────────────────────────────────────────────────────
+
+    if (r.category === 'outreach') {
+      const recipient = r.title.replace(/^Follow up:\s*/i, '').trim()
+      const desc = r.description ?? ''
+      const subject = desc.split('\n')[0].replace(/^Re:\s*/i, '').trim()
+      const daysSince = r.createdAt
+        ? Math.max(1, Math.round((Date.now() - new Date(r.createdAt).getTime()) / 86400000))
+        : r.intervalDays
+
+      return (
+        <div className={`rm-card rm-card-outreach${days < 0 ? ' rm-card-overdue' : days <= 2 ? ' rm-card-urgent' : days <= 7 ? ' rm-card-soon' : ''}`}>
+          {/* Top row: due badge + kebab menu */}
+          <div className="rm-card-row" style={{ paddingBottom: 8 }}>
+            <span className={`rm-cat-badge ${CAT_CLASS['outreach']}`}>outreach</span>
+            <div className="rm-card-right" style={{ marginLeft: 'auto' }}>
+              {days < 0
+                ? <span className="rm-due rm-due-overdue">{Math.abs(days)}d overdue</span>
+                : days === 0
+                  ? <span className="rm-due rm-due-today">today</span>
+                  : days <= 2
+                    ? <span className="rm-due rm-due-urgent">in {days}d</span>
+                    : <span className="rm-due">in {days}d</span>
+              }
+              <div className="rm-menu-wrap">
+                <button className="rm-kebab" onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === r.id ? null : r.id) }}>&#8942;</button>
+                {openMenu === r.id && (
+                  <div className="rm-menu" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => { setEditId(r.id); setEditForm({ title: r.title, description: r.description ?? '', intervalDays: String(r.intervalDays) }); setOpenMenu(null) }}>Edit</button>
+                    <button onClick={() => snooze(r.id)}>Snooze 7 days</button>
+                    <button onClick={() => toggleEnabled(r.id, !r.enabled)}>{r.enabled ? 'Disable' : 'Enable'}</button>
+                    <button className="rm-menu-delete" onClick={() => deleteReminder(r.id)}>Delete</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Recipient + subject info */}
+          <div className="rm-outreach-meta">
+            <span className="rm-outreach-recipient">{recipient}</span>
+            {subject && <span className="rm-outreach-subject">{subject}</span>}
+            <span className="rm-outreach-days">Sent {daysSince} day{daysSince !== 1 ? 's' : ''} ago · no reply</span>
+          </div>
+
+          {/* Action buttons */}
+          <div className="rm-outreach-actions">
+            <button
+              className="rm-btn-draft-followup"
+              onClick={() => draftFollowup(r.id)}
+              disabled={draft?.loading || draft?.sending || isDoing}
+            >
+              {draft?.loading ? 'Drafting…' : 'Draft Follow-Up'}
+            </button>
+            <button
+              className="rm-btn-got-reply"
+              onClick={() => markDone(r.id)}
+              disabled={isDoing || draft?.sending}
+            >
+              {isDoing ? '…' : 'Got a reply'}
+            </button>
+          </div>
+
+          {/* Inline compose panel */}
+          {draft?.open && (
+            <div className="rm-compose">
+              {draft.loading && (
+                <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>Generating draft…</span>
+              )}
+              {!draft.loading && (
+                <>
+                  <div className="rm-compose-field">
+                    <label className="rm-compose-label">To</label>
+                    <input
+                      className="rm-compose-input"
+                      value={draft.to}
+                      onChange={e => setDraft(r.id, { to: e.target.value })}
+                      placeholder="recipient@example.com"
+                    />
+                  </div>
+                  <div className="rm-compose-field">
+                    <label className="rm-compose-label">Subject</label>
+                    <input
+                      className="rm-compose-input"
+                      value={draft.subject}
+                      onChange={e => setDraft(r.id, { subject: e.target.value })}
+                      placeholder="Re: …"
+                    />
+                  </div>
+                  <div className="rm-compose-field">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <label className="rm-compose-label" style={{ marginBottom: 0 }}>Body</label>
+                      <button
+                        style={{ fontSize: 10.5, color: 'var(--text-faint)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '2px 9px', cursor: 'pointer', fontFamily: 'inherit' }}
+                        onClick={() => setDraft(r.id, { editingHtml: !draft.editingHtml })}
+                      >
+                        {draft.editingHtml ? 'Preview' : 'Source'}
+                      </button>
+                    </div>
+                    {draft.editingHtml ? (
+                      <textarea
+                        className="rm-compose-textarea"
+                        value={draft.body}
+                        onChange={e => setDraft(r.id, { body: e.target.value })}
+                        style={{ fontFamily: 'monospace', fontSize: 12.5, minHeight: 120 }}
+                      />
+                    ) : (
+                      <div
+                        className="rm-compose-preview"
+                        dangerouslySetInnerHTML={{ __html: draft.body }}
+                      />
+                    )}
+                  </div>
+                  <div className="rm-compose-actions">
+                    <button
+                      className="rm-btn-send-followup"
+                      onClick={() => sendFollowup(r.id)}
+                      disabled={draft.sending || !draft.to.trim() || !draft.body.trim()}
+                    >
+                      {draft.sending ? 'Sending…' : 'Send'}
+                    </button>
+                    <button
+                      className="rm-btn-ghost"
+                      style={{ height: 32, fontSize: 13 }}
+                      onClick={() => { markDone(r.id); setDrafts(prev => { const n = { ...prev }; delete n[r.id]; return n }) }}
+                      disabled={draft.sending || isDoing}
+                    >
+                      Mark done, don't send
+                    </button>
+                    <button
+                      className="rm-btn-ghost"
+                      style={{ height: 32, fontSize: 13 }}
+                      onClick={() => setDrafts(prev => { const n = { ...prev }; delete n[r.id]; return n })}
+                      disabled={draft.sending}
+                    >
+                      Cancel
+                    </button>
+                    {draft.error && <span className="rm-compose-error">{draft.error}</span>}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    // ── Standard card ────────────────────────────────────────────────────────
 
     return (
       <div className={`rm-card${days < 0 ? ' rm-card-overdue' : days <= 2 ? ' rm-card-urgent' : days <= 7 ? ' rm-card-soon' : ''}`}>

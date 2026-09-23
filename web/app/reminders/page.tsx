@@ -29,6 +29,7 @@ export default async function Reminders() {
     snoozedUntil: r.snoozedUntil?.toISOString() ?? null,
     enabled: r.enabled,
     isPreset: r.isPreset,
+    createdAt: r.createdAt?.toISOString() ?? null,
   }))
 
   const brandProfile = {

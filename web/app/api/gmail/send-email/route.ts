@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands, reminders } from '@/lib/db/schema'
+import { brands, reminders, outreachEmails } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getValidGmailToken } from '@/lib/gmail/token'
 
@@ -10,8 +10,8 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { to, subject, body, followUpDays } =
-    await req.json() as { to: string; subject: string; body: string; followUpDays?: number }
+  const { to, subject, body, followUpDays, source, campaignInstruction } =
+    await req.json() as { to: string; subject: string; body: string; followUpDays?: number; source?: string; campaignInstruction?: string }
 
   const [brand] = await db
     .select({ id: brands.id })
@@ -71,6 +71,14 @@ export async function POST(req: NextRequest) {
   }
 
   const sent = await sendRes.json() as { id: string }
+
+  // Log to outreach_emails (fire-and-forget)
+  const recipientName = to.match(/^"?([^"<]+?)"?\s*<[^>]+>$/)?.[1]?.trim() ?? null
+  db.insert(outreachEmails).values({
+    brandId: brand.id, toEmail: to, toName: recipientName,
+    subject, body, status: 'sent', gmailMessageId: sent.id,
+    source: source ?? 'outreach', campaignInstruction: campaignInstruction ?? null,
+  }).catch(e => console.error('[send-email] DB log error:', e))
 
   // Auto-create follow-up reminder if requested
   if (followUpDays && followUpDays > 0) {
