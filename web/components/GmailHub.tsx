@@ -31,11 +31,16 @@ interface Limit { name: string; severity: 'high' | 'medium' | 'low'; problem: st
 interface Prospect { id: string; name: string; email: string; company: string; title: string }
 interface ProspectState { status: ProspectStatus; subject: string; body: string; toEmail?: string; error?: string; editingHtml?: boolean }
 interface CampaignProspect { id: string; email: string; name: string; domain: string }
-interface EmailHistoryItem { id: string; toEmail: string; toName: string | null; subject: string; status: string; source: string | null; createdAt: string }
+interface EmailHistoryItem { id: string; toEmail: string; toName: string | null; subject: string; status: string; source: string | null; scheduledAt: string | null; sentAt: string | null; lastError: string | null; createdAt: string }
 type CampaignStatus = 'idle' | 'generating' | 'ready' | 'sending' | 'sent' | 'scheduled' | 'error'
-interface CampaignState { status: CampaignStatus; subject: string; body: string; error?: string; toEmail?: string; editingHtml?: boolean; confirming?: boolean; scheduledAt?: string }
+interface CampaignState { status: CampaignStatus; subject: string; body: string; error?: string; toEmail?: string; editingHtml?: boolean; confirming?: boolean; scheduledAt?: string; scheduledId?: string }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
+
+function toLocalInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
 
 function getTomorrowAt9am(): string {
   const d = new Date()
@@ -47,7 +52,11 @@ function getTomorrowAt9am(): string {
 
 function formatScheduledDate(iso: string): string {
   const d = new Date(iso)
-  return d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  return d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
+}
+
+function localTimeZone(): string {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return 'local' }
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -391,6 +400,29 @@ export default function GmailHub({
     if (isConnected) fetchInbox()
   }, [isConnected, fetchInbox])
 
+  const loadEmailHistory = useCallback(() => {
+    fetch('/api/outreach/emails').then(r => r.ok ? r.json() : null).then(data => {
+      if (data?.emails) setEmailHistory(data.emails)
+    }).catch(() => {})
+  }, [])
+
+  async function cancelScheduledEmail(emailId: string, prospectId?: string) {
+    const res = await fetch(`/api/outreach/emails/${emailId}/cancel`, { method: 'POST' })
+    const data = await res.json().catch(() => ({})) as { error?: string }
+    if (!res.ok) {
+      setFollowUpToast(data.error ?? 'Could not cancel email')
+    } else {
+      setFollowUpToast('Scheduled email cancelled')
+      if (prospectId) {
+        setCampaignStates(prev => prev[prospectId]
+          ? { ...prev, [prospectId]: { ...prev[prospectId], status: 'ready', scheduledAt: undefined, scheduledId: undefined } }
+          : prev)
+      }
+    }
+    setTimeout(() => setFollowUpToast(null), 4000)
+    loadEmailHistory()
+  }
+
   useEffect(() => {
     // Load saved prospects and email history on mount
     fetch('/api/outreach/prospects').then(r => r.ok ? r.json() : null).then(data => {
@@ -400,10 +432,8 @@ export default function GmailHub({
       }))
       setCampaignProspects(loaded)
     }).catch(() => {})
-    fetch('/api/outreach/emails').then(r => r.ok ? r.json() : null).then(data => {
-      if (data?.emails) setEmailHistory(data.emails)
-    }).catch(() => {})
-  }, [])
+    loadEmailHistory()
+  }, [loadEmailHistory])
 
   async function fetchMessages(threadId: string) {
     setLoadingMsgs(prev => new Set(prev).add(threadId))
@@ -686,18 +716,20 @@ export default function GmailHub({
           subject: state.subject,
           body: state.body,
           followUpDays: followUpEnabled ? followUpDays : undefined,
+          source: 'campaign',
           ...(scheduledAt ? { scheduledAt } : {}),
         }),
       })
-      const data = await res.json() as { messageId?: string; error?: string; scheduled?: boolean; scheduledAt?: string }
+      const data = await res.json() as { id?: string; messageId?: string; error?: string; scheduled?: boolean; scheduledAt?: string }
       if (res.status === 403 && data.error === 'missing_send_scope') {
         setNeedsReconnect(true)
         setCampaignStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'ready', confirming: false } }))
         return
       }
       if (!res.ok) throw new Error(data.error ?? 'Send failed')
+      loadEmailHistory()
       if (scheduledAt) {
-        setCampaignStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'scheduled', scheduledAt, confirming: false } }))
+        setCampaignStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'scheduled', scheduledAt, scheduledId: data.id, confirming: false } }))
         if (campaignExpandedId === prospect.id) setCampaignExpandedId(null)
         setFollowUpToast(`Scheduled for ${formatScheduledDate(scheduledAt)}`)
         setTimeout(() => setFollowUpToast(null), 4000)
@@ -1603,9 +1635,16 @@ export default function GmailHub({
                       <td className="gh-history-td">{e.toName ? `${e.toName} <${e.toEmail}>` : e.toEmail}</td>
                       <td className="gh-history-td">{e.subject}</td>
                       <td className="gh-history-td">
-                        <span className={`gh-history-badge gh-history-badge-${e.status}`}>{e.status}</span>
+                        <span className={`gh-history-badge gh-history-badge-${e.status}`} title={e.lastError ?? undefined}>{e.status}</span>
+                        {(e.status === 'scheduled' || e.status === 'failed') && (
+                          <button className="gh-history-cancel" onClick={() => cancelScheduledEmail(e.id)}>Cancel</button>
+                        )}
                       </td>
-                      <td className="gh-history-td gh-history-td-date">{new Date(e.createdAt).toLocaleDateString()}</td>
+                      <td className="gh-history-td gh-history-td-date">
+                        {e.status === 'scheduled' && e.scheduledAt
+                          ? formatScheduledDate(e.scheduledAt)
+                          : new Date(e.sentAt ?? e.createdAt).toLocaleDateString()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -2116,6 +2155,14 @@ export default function GmailHub({
                                   </>
                                 )}
                                 {status === 'sent' && <span className="gh-gen-sent-badge">Sent</span>}
+                                {status === 'scheduled' && state?.scheduledId && (
+                                  <button
+                                    className="gh-cmp-view-btn"
+                                    onClick={() => cancelScheduledEmail(state.scheduledId!, prospect.id)}
+                                  >
+                                    Cancel
+                                  </button>
+                                )}
                               </td>
                             </tr>
                             {isExpanded && state && (
@@ -2233,6 +2280,7 @@ export default function GmailHub({
                                         <div className="gh-cmp-schedule-row">
                                           <input
                                             type="datetime-local"
+                                            min={toLocalInputValue(new Date())}
                                             className="gh-cmp-schedule-input"
                                             value={scheduleDates[prospect.id] ?? getTomorrowAt9am()}
                                             onChange={e => setScheduleDates(prev => ({ ...prev, [prospect.id]: e.target.value }))}
@@ -2253,6 +2301,7 @@ export default function GmailHub({
                                           >
                                             Cancel
                                           </button>
+                                          <span className="gh-cmp-schedule-hint">Your time ({localTimeZone()}) · sends within an hour of this time</span>
                                         </div>
                                       )}
                                       <button

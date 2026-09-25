@@ -487,11 +487,18 @@ export const outreachEmails = pgTable('outreach_emails', {
   toName:              text('to_name'),
   subject:             text('subject').notNull(),
   body:                text('body').notNull(),
-  status:              text('status').notNull(),              // 'sent' | 'draft'
+  status:              text('status').notNull(),              // 'sent' | 'draft' | 'scheduled' | 'sending' | 'failed' | 'cancelled'
   source:              text('source'),                        // 'outreach' | 'campaign'
   gmailMessageId:      text('gmail_message_id'),
+  gmailThreadId:       text('gmail_thread_id'),
   gmailDraftId:        text('gmail_draft_id'),
   campaignInstruction: text('campaign_instruction'),
+  scheduledAt:         timestamp('scheduled_at', { withTimezone: true }),
+  sentAt:              timestamp('sent_at', { withTimezone: true }),
+  followUpDays:        integer('follow_up_days'),              // reminder created at actual send time
+  sendAttempts:        integer('send_attempts').notNull().default(0),
+  claimedAt:           timestamp('claimed_at', { withTimezone: true }), // set when cron picks it up (status 'sending')
+  lastError:           text('last_error'),
   createdAt:           timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
