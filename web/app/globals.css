@@ -6019,27 +6019,69 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gh-saved-in { margin-left: 8px; font-size: 10.5px; font-weight: 600; color: var(--green); background: var(--bg-soft); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
 
 /* ── Gmail Hub: Follow-ups tab ── */
-.gh-fu { display: flex; flex-direction: column; gap: 14px; position: relative; }
-.gh-fu-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
-.gh-fu-title { font-family: var(--font-display); font-size: 20px; font-weight: 600; color: var(--text); }
-.gh-fu-sub { margin: 4px 0 0; font-size: 13px; color: var(--text-dim); max-width: 620px; line-height: 1.5; }
-.gh-fu-filters { display: flex; gap: 6px; flex-wrap: wrap; }
-.gh-fu-filter { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text-dim); font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; transition: .15s; }
-.gh-fu-filter:hover { background: var(--bg-soft); border-color: var(--green); }
-.gh-fu-filter.active { background: var(--green); border-color: var(--green); color: #fff; }
-.gh-fu-empty { font-size: 13.5px; color: var(--text-dim); padding: 28px 0; text-align: center; }
-.gh-fu-date { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
-.gh-fu-due { display: inline-block; padding: 2px 9px; border-radius: 6px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.gh-fu { margin-top: 24px; display: flex; flex-direction: column; gap: 12px; position: relative; }
+.gh-fu-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
+.gh-fu-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.gh-fu-head-text { min-width: 0; flex: 1 1 320px; }
+.gh-fu-title { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 20px; font-weight: 600; color: var(--text); }
+.gh-fu-sub { margin: 4px 0 0; font-size: 13px; color: var(--text-dim); max-width: 560px; line-height: 1.5; }
+
+.gh-fu-filters { display: inline-flex; padding: 3px; gap: 2px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; }
+.gh-fu-filter { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 7px; border: none; background: transparent; color: var(--text-dim); font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background .15s, color .15s; }
+.gh-fu-filter:hover:not(.active) { color: var(--text); }
+.gh-fu-filter.active { background: var(--card); color: var(--green); box-shadow: 0 1px 4px var(--green-glow); }
+.gh-fu-filter-count { min-width: 18px; padding: 0 6px; border-radius: 9px; background: var(--card); border: 1px solid var(--line); font-size: 11px; line-height: 16px; text-align: center; color: var(--text-dim); }
+.gh-fu-filter.active .gh-fu-filter-count { background: var(--bg-soft); color: var(--green); }
+
+.gh-fu-error { padding: 9px 12px; border-radius: 8px; background: var(--gop-err-bg); border: 1px solid var(--gop-err-border); font-size: 12.5px; color: var(--gop-err-text); }
+
+.gh-fu-empty { padding: 36px 16px; text-align: center; border: 1px dashed var(--line); border-radius: 12px; background: var(--bg); }
+.gh-fu-empty-title { font-size: 14.5px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.gh-fu-empty p { margin: 0 auto; max-width: 440px; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+
+.gh-fu-table-wrap { border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; }
+.gh-fu-table { width: 100%; min-width: 780px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+.gh-fu-col-recipient { width: 22%; }
+.gh-fu-col-sent { width: 84px; }
+.gh-fu-col-due { width: 140px; }
+.gh-fu-col-actions { width: 296px; }
+.gh-fu-table th { padding: 9px 14px; text-align: left; font-size: 11px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em; background: var(--bg-soft); border-bottom: 1px solid var(--line); white-space: nowrap; }
+.gh-fu-table th.gh-fu-th-actions { text-align: right; }
+.gh-fu-table td { padding: 12px 14px; vertical-align: middle; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-fu-tr { border-bottom: 1px solid var(--line); background: var(--card); transition: background .1s; }
+.gh-fu-tr:hover, .gh-fu-tr.open { background: var(--bg-soft); }
+.gh-fu-table tbody tr:last-child { border-bottom: none; }
+.gh-fu-recipient { font-weight: 600; }
+.gh-fu-subject { color: var(--text-dim) !important; }
+.gh-fu-muted { color: var(--text-faint); font-size: 12.5px; }
+.gh-fu-due-date { margin-top: 3px; font-size: 11.5px; }
+
+.gh-fu-due { display: inline-block; padding: 2px 9px; border-radius: 6px; font-family: var(--font-body); font-size: 11.5px; font-weight: 600; white-space: nowrap; letter-spacing: 0; }
 .gh-fu-due-overdue  { background: #fdeceb; color: #b42318; border: 1px solid #f5c2bd; }
 .gh-fu-due-today    { background: #fff6e0; color: var(--gold); border: 1px solid #ecd9a4; }
 .gh-fu-due-upcoming { background: var(--bg-soft); color: var(--text-dim); border: 1px solid var(--line); }
 .gh-fu-due-snoozed  { background: var(--card); color: var(--text-faint); border: 1px dashed var(--line); }
-.gh-fu-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.gh-fu-select { padding: 6px 8px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--text-dim); font-size: 12.5px; font-weight: 600; font-family: inherit; cursor: pointer; }
+
+.gh-fu-td-actions { overflow: visible !important; }
+.gh-fu-actions { display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
+.gh-fu-btn { height: 32px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text-dim); font-size: 12.5px; font-weight: 600; font-family: inherit; cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s, color .15s; }
+.gh-fu-btn:hover:not(:disabled) { background: var(--bg-soft); border-color: var(--green); color: var(--text); }
+.gh-fu-btn:disabled { opacity: .5; cursor: not-allowed; }
+.gh-fu-btn-primary { background: var(--green); border-color: var(--green); color: #fff; }
+.gh-fu-btn-primary:hover:not(:disabled) { background: var(--green); color: #fff; box-shadow: 0 2px 12px var(--green-glow); }
+.gh-fu-select { padding-right: 8px; }
+
+.gh-fu-draft-row { border-bottom: 1px solid var(--line); }
+.gh-fu-draft-cell { padding: 0 !important; white-space: normal !important; overflow: visible !important; background: var(--bg-soft); }
+.gh-fu-draft-cell .gh-email-editor { border-top: 1px solid var(--line); }
+.gh-fu-drafting { display: flex; align-items: center; gap: 12px; padding: 18px 20px; font-size: 13px; color: var(--text-dim); }
 .gh-fu-body-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
 .gh-fu-src-btn { font-size: 10.5px; color: var(--text-faint); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 9px; cursor: pointer; font-family: inherit; }
-.gh-fu-toast { position: sticky; top: 8px; z-index: 5; align-self: center; background: var(--card); border: 1px solid var(--green); color: var(--text); padding: 8px 14px; border-radius: 10px; font-size: 13px; box-shadow: 0 2px 12px var(--green-glow); }
+
+.gh-fu-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 50; background: var(--card); border: 1px solid var(--green); color: var(--text); padding: 10px 16px; border-radius: 10px; font-size: 13px; box-shadow: 0 2px 12px var(--green-glow); }
+
 @media (max-width: 720px) {
-  .gh-fu-table th:nth-child(2), .gh-fu-table td:nth-child(2),
-  .gh-fu-table th:nth-child(3), .gh-fu-table td:nth-child(3) { display: none; }
+  .gh-fu-card { padding: 16px; }
+  .gh-fu-filters { width: 100%; }
+  .gh-fu-filter { flex: 1; justify-content: center; padding: 6px 8px; }
 }

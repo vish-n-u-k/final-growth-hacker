@@ -199,93 +199,125 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
   }
 
   if (loading) {
-    return <div className="gh-fu"><p className="gh-fu-empty">Loading follow-ups…</p></div>
+    return (
+      <div className="gh-fu">
+        <div className="gh-fu-card"><p className="gh-fu-empty">Loading follow-ups…</p></div>
+      </div>
+    )
   }
+
+  const overdueCount = followUps.filter(f => !f.snoozed && dueLabel(f).tone === 'overdue').length
 
   return (
     <div className="gh-fu">
-      {toast && <div className="gh-fu-toast">{toast}</div>}
+      {toast && <div className="gh-fu-toast" role="status">{toast}</div>}
 
-      <div className="gh-fu-head">
-        <div>
-          <div className="gh-fu-title">Follow-ups</div>
-          <p className="gh-fu-sub">
-            Emails you asked to follow up on. When one is due, draft a short nudge and send it, snooze it,
-            or close it if they replied. Due follow-ups also appear in your morning email.
-          </p>
+      <div className="gh-fu-card">
+        <div className="gh-fu-head">
+          <div className="gh-fu-head-text">
+            <div className="gh-fu-title">
+              Follow-ups
+              {overdueCount > 0 && <span className="gh-fu-due gh-fu-due-overdue">{overdueCount} overdue</span>}
+            </div>
+            <p className="gh-fu-sub">
+              Emails waiting on a reply. When one is due, draft a short nudge and send it, snooze it,
+              or close it if they already replied.
+            </p>
+          </div>
+          <div className="gh-fu-filters" role="tablist">
+            {([
+              ['due',      'Due now',  dueCount],
+              ['upcoming', 'Upcoming', followUps.length - dueCount],
+              ['all',      'All',      followUps.length],
+            ] as [Filter, string, number][]).map(([key, label, count]) => (
+              <button
+                key={key}
+                role="tab"
+                aria-selected={filter === key}
+                className={`gh-fu-filter${filter === key ? ' active' : ''}`}
+                onClick={() => setFilter(key)}
+              >
+                {label}
+                <span className="gh-fu-filter-count">{count}</span>
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="gh-fu-filters">
-          {([
-            ['due',      `Due now (${dueCount})`],
-            ['upcoming', `Upcoming (${followUps.length - dueCount})`],
-            ['all',      `All (${followUps.length})`],
-          ] as [Filter, string][]).map(([key, label]) => (
-            <button
-              key={key}
-              className={`gh-fu-filter${filter === key ? ' active' : ''}`}
-              onClick={() => setFilter(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
 
-      {error && <div className="gh-gen-error">{error}</div>}
+        {error && <div className="gh-fu-error">{error}</div>}
 
-      {visible.length === 0 ? (
-        <p className="gh-fu-empty">
-          {followUps.length === 0
-            ? 'No follow-ups yet. Send a campaign email with "Follow up in N days" ticked, or use the bell icon on an inbox thread.'
-            : filter === 'due' ? 'Nothing due right now.' : 'Nothing here.'}
-        </p>
-      ) : (
-        <table className="gh-cmp-table gh-fu-table">
-          <thead>
-            <tr>
-              <th className="gh-cmp-th">Recipient</th>
-              <th className="gh-cmp-th">Original subject</th>
-              <th className="gh-cmp-th">Sent</th>
-              <th className="gh-cmp-th">Follow up</th>
-              <th className="gh-cmp-th">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
+        {visible.length === 0 ? (
+          <div className="gh-fu-empty">
+            <div className="gh-fu-empty-title">
+              {followUps.length === 0 ? 'No follow-ups yet' : filter === 'due' ? 'You are all caught up' : 'Nothing here'}
+            </div>
+            <p>
+              {followUps.length === 0
+                ? 'Tick "Follow up in N days" when sending a campaign email, or use the bell icon on an inbox thread.'
+                : filter === 'due'
+                  ? 'No follow-ups are due today. Check Upcoming to see what is next.'
+                  : 'No follow-ups match this filter.'}
+            </p>
+          </div>
+        ) : (
+          <div className="gh-fu-table-wrap">
+            <table className="gh-fu-table">
+              <colgroup>
+                <col className="gh-fu-col-recipient" />
+                <col />
+                <col className="gh-fu-col-sent" />
+                <col className="gh-fu-col-due" />
+                <col className="gh-fu-col-actions" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Recipient</th>
+                  <th>Original subject</th>
+                  <th>Sent</th>
+                  <th>Follow up</th>
+                  <th className="gh-fu-th-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
             {visible.map(f => {
               const d = drafts[f.id]
               const due = dueLabel(f)
               const isBusy = busy.has(f.id)
               return (
                 <Fragment key={f.id}>
-                  <tr className={`gh-cmp-tr${d ? ' expanded' : ''}`}>
-                    <td className="gh-cmp-td gh-cmp-td-email">{f.recipient}</td>
-                    <td className="gh-cmp-td">{f.subject || <span className="gh-cmp-td-empty">—</span>}</td>
-                    <td className="gh-cmp-td gh-fu-date">{formatDate(f.createdAt)}</td>
-                    <td className="gh-cmp-td">
-                      <span className={`gh-fu-due gh-fu-due-${due.tone}`}>{due.text}</span>
-                      <div className="gh-fu-date">{formatDate(f.dueAt)}</div>
+                  <tr className={`gh-fu-tr${d ? ' open' : ''}`}>
+                    <td className="gh-fu-recipient" title={f.recipient}>{f.recipient}</td>
+                    <td className="gh-fu-subject" title={f.subject || undefined}>
+                      {f.subject || <span className="gh-fu-muted">No subject</span>}
                     </td>
-                    <td className="gh-cmp-td gh-cmp-td-action">
+                    <td className="gh-fu-muted">{formatDate(f.createdAt)}</td>
+                    <td>
+                      <span className={`gh-fu-due gh-fu-due-${due.tone}`}>{due.text}</span>
+                      <div className="gh-fu-muted gh-fu-due-date">{formatDate(f.dueAt)}</div>
+                    </td>
+                    <td className="gh-fu-td-actions">
                       <div className="gh-fu-actions">
-                        {!d && (
-                          <button className="gh-cmp-gen-btn" onClick={() => draftFollowUp(f.id)} disabled={isBusy}>
-                            Draft follow-up
-                          </button>
-                        )}
+                        <button
+                          className="gh-fu-btn gh-fu-btn-primary"
+                          onClick={() => (d ? closeDraft(f.id) : draftFollowUp(f.id))}
+                          disabled={isBusy || d?.sending}
+                        >
+                          {d ? 'Hide draft' : 'Draft follow-up'}
+                        </button>
                         <select
-                          className="gh-fu-select"
+                          className="gh-fu-btn gh-fu-select"
                           value=""
                           disabled={isBusy}
                           onChange={e => { const n = Number(e.target.value); if (n) snooze(f.id, n) }}
-                          title="Push this follow-up back"
+                          aria-label="Snooze this follow-up"
                         >
-                          <option value="">Snooze…</option>
+                          <option value="">Snooze</option>
                           <option value={1}>1 day</option>
                           <option value={3}>3 days</option>
                           <option value={7}>7 days</option>
                         </select>
                         <button
-                          className="gh-cmp-view-btn"
+                          className="gh-fu-btn"
                           onClick={() => markDone(f.id)}
                           disabled={isBusy}
                           title="They replied, or no follow-up needed"
@@ -296,11 +328,14 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
                     </td>
                   </tr>
                   {d && (
-                    <tr>
-                      <td colSpan={5} className="gh-cmp-td-expanded">
+                    <tr className="gh-fu-draft-row">
+                      <td colSpan={5} className="gh-fu-draft-cell">
                         {d.loading ? (
-                          <div className="gh-gen-spinner">
-                            <span className="gh-spinner-dot" /><span className="gh-spinner-dot" /><span className="gh-spinner-dot" />
+                          <div className="gh-fu-drafting">
+                            <div className="gh-gen-spinner">
+                              <span className="gh-spinner-dot" /><span className="gh-spinner-dot" /><span className="gh-spinner-dot" />
+                            </div>
+                            Writing a follow-up from the original thread…
                           </div>
                         ) : (
                           <div className="gh-email-editor">
@@ -375,9 +410,11 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
                 </Fragment>
               )
             })}
-          </tbody>
-        </table>
-      )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

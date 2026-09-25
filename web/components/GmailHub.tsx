@@ -8,8 +8,7 @@ import FollowUpsTab from '@/components/FollowUpsTab'
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type LeadTag = 'hot' | 'warm' | 'cold' | 'partnership' | 'press' | 'followup' | 'vendor'
-type LeadStage = 'new' | 'contacted' | 'qualified' | 'closed'
-type Tab = 'inbox' | 'pipeline' | 'drafts' | 'outreach' | 'campaign' | 'followups'
+type Tab = 'inbox' | 'outreach' | 'campaign' | 'followups'
 type ProspectStatus = 'idle' | 'generating' | 'ready' | 'saving' | 'saved' | 'confirming' | 'sending' | 'sent' | 'error'
 type InboxFilter = 'all' | 'leads' | 'press' | 'partnership'
 
@@ -18,15 +17,6 @@ interface Thread {
   id: string; from: string; email: string; initials: string
   subject: string; preview: string; time: string; isRead: boolean
   tag: LeadTag | null; messages: Msg[]; aiSummary: string; aiDraft: string
-}
-interface Lead {
-  id: string; name: string; email: string; company: string
-  stage: LeadStage; level: 'hot' | 'warm' | 'cold'
-  lastContact: string; value: string; subject: string
-}
-interface Draft {
-  id: string; to: string; email: string; subject: string
-  context: string; content: string; urgency: 'high' | 'medium' | 'low'
 }
 interface Prospect { id: string; name: string; email: string; company: string; title: string }
 interface ProspectState { status: ProspectStatus; subject: string; body: string; toEmail?: string; error?: string; editingHtml?: boolean }
@@ -143,59 +133,12 @@ const THREADS: Thread[] = [
   },
 ]
 
-const LEADS: Lead[] = [
-  { id: 'l1', name: 'Priya Sharma', email: 'priya@scalex.io', company: 'ScaleX', stage: 'new', level: 'hot', lastContact: 'Today', value: '$4,800/yr', subject: 'Pricing + agency plan inquiry' },
-  { id: 'l2', name: 'Carlos Mejia', email: 'carlos@digitalops.mx', company: 'DigitalOps', stage: 'new', level: 'cold', lastContact: '3 days ago', value: '$600/yr', subject: 'General enquiry' },
-  { id: 'l3', name: 'Sophie Laurent', email: 'sophie@brandstudio.fr', company: 'BrandStudio', stage: 'new', level: 'warm', lastContact: '4 days ago', value: '$2,400/yr', subject: 'Feature comparison' },
-  { id: 'l4', name: 'Marcus Webb', email: 'marcus@techforward.co', company: 'TechForward', stage: 'contacted', level: 'warm', lastContact: 'Yesterday', value: '$2,400/yr', subject: 'HubSpot integration question' },
-  { id: 'l5', name: 'Daniel Park', email: 'daniel@growthops.io', company: 'GrowthOps', stage: 'contacted', level: 'warm', lastContact: '5 days ago', value: '$1,200/yr', subject: 'GEO score (trial user)' },
-  { id: 'l6', name: 'Kenji Mori', email: 'kenji@saasops.jp', company: 'SaasOps', stage: 'contacted', level: 'warm', lastContact: '1 week ago', value: '$1,800/yr', subject: 'Competitor comparison' },
-  { id: 'l7', name: 'Fatima Al-Rashid', email: 'fatima@nexusbrands.ae', company: 'Nexus Brands', stage: 'qualified', level: 'hot', lastContact: '2 days ago', value: '$9,600/yr', subject: 'Enterprise plan evaluation' },
-  { id: 'l8', name: 'Jake Thornton', email: 'jake@loopagency.io', company: 'Loop Agency', stage: 'qualified', level: 'warm', lastContact: '1 week ago', value: '$6,000/yr', subject: 'White-label inquiry' },
-  { id: 'l9', name: 'Yuki Tanaka', email: 'yuki@marketstack.jp', company: 'MarketStack', stage: 'closed', level: 'hot', lastContact: '2 weeks ago', value: '$3,600/yr', subject: 'Onboarded — paid' },
-  { id: 'l10', name: 'Amara Diallo', email: 'amara@growhub.sn', company: 'GrowHub', stage: 'closed', level: 'warm', lastContact: '3 weeks ago', value: '$1,200/yr', subject: 'Onboarded — paid' },
-]
-
-const DRAFTS: Draft[] = [
-  {
-    id: 'd1', to: 'Priya Sharma', email: 'priya@scalex.io', urgency: 'high',
-    subject: 'Re: Interested in your growth tool — pricing?',
-    context: 'Hot lead — inbound pricing + agency plan inquiry',
-    content: 'Hi Priya,\n\nThanks for reaching out — great that you found us via LinkedIn!\n\nWe do have an agency plan covering up to 5 brands under one account, which sounds perfect for your situation.\n\nHere\'s our pricing: [pricing page]\n\nWould Thursday or Friday work for a 20-minute call?\n\nBest,\n[Your name]',
-  },
-  {
-    id: 'd2', to: 'Marcus Webb', email: 'marcus@techforward.co', urgency: 'medium',
-    subject: 'Re: Following up on our conversation',
-    context: 'Warm lead — HubSpot integration concern',
-    content: 'Hi Marcus,\n\nGood to hear back! HubSpot integration is on our Q3 roadmap. In the meantime you can export audit results as CSV and push to HubSpot in a couple of minutes.\n\nHappy to show the export flow on a quick screen share.\n\nDoes Thursday work?\n\nBest,\n[Your name]',
-  },
-  {
-    id: 'd3', to: 'TechCrunch Editorial', email: 'tips@techcrunch.com', urgency: 'high',
-    subject: 'Re: AI marketing tools roundup',
-    context: 'Press feature — deadline Friday EOD',
-    content: 'Hi,\n\nThanks for reaching out — we\'d love to be included!\n\nGrowJin is an AI-powered marketing audit platform for SMBs — SEO, GEO, content quality, and social presence in one dashboard.\n\nDemo: [video link] | Product: [URL]\n\nHappy to provide additional assets.\n\nBest,\n[Your name]',
-  },
-  {
-    id: 'd4', to: 'Aisha Okonkwo', email: 'aisha@brightleaf.co', urgency: 'low',
-    subject: 'Re: Partnership idea',
-    context: 'Partnership — referral + co-marketing proposal',
-    content: 'Hi Aisha,\n\nThis sounds like a great fit. We often see clients needing content execution after their audit — a referral arrangement makes sense both ways.\n\nFree for a 30-min call next week? Tuesday or Wednesday afternoon works.\n\nLooking forward to it,\n[Your name]',
-  },
-]
-
 const PROSPECTS: Prospect[] = [
   { id: 'p1', name: 'Sarah Chen',      email: 'sarah@launchpad.io',    company: 'LaunchPad',      title: 'Head of Growth' },
   { id: 'p2', name: 'Tom Ramirez',     email: 'tom@foundry.co',         company: 'Foundry Studio', title: 'Co-founder & CEO' },
   { id: 'p3', name: 'Natasha Ivanova', email: 'natasha@clearpath.io',  company: 'ClearPath',      title: 'Marketing Director' },
   { id: 'p4', name: 'David Osei',      email: 'david@buildforward.co', company: 'BuildForward',   title: 'VP Marketing' },
   { id: 'p5', name: 'Mei Lin',         email: 'mei@springhub.com',     company: 'SpringHub',      title: 'Growth Lead' },
-]
-
-const STAGES: { key: LeadStage; label: string; color: string }[] = [
-  { key: 'new',       label: 'New',       color: '#60a5fa' },
-  { key: 'contacted', label: 'Contacted', color: '#f59e0b' },
-  { key: 'qualified', label: 'Qualified', color: '#4ade80' },
-  { key: 'closed',    label: 'Closed',    color: '#a3e635' },
 ]
 
 // ── Inline SVG icons ──────────────────────────────────────────────────────────
@@ -266,7 +209,6 @@ export default function GmailHub({
   const [activeTab, setActiveTab]             = useState<Tab>('inbox')
   const [selectedId, setSelectedId]           = useState<string>('')
   const [copied, setCopied]                   = useState<string | null>(null)
-  const [expandedDraft, setExpandedDraft]     = useState<string | null>('d1')
   const [inboxFilter, setInboxFilter]         = useState<InboxFilter>('all')
   const [showStalled, setShowStalled]         = useState(true)
   const [disconnecting, setDisconnecting]     = useState(false)
@@ -849,9 +791,9 @@ export default function GmailHub({
               <div className="gh-connect-feats">
                 {[
                   { Icon: IcLead, label: 'Lead Detection',   desc: 'AI tags inbound emails Hot / Warm / Cold based on buying intent' },
-                  { Icon: IcDraft, label: 'AI Draft Replies', desc: 'Context-aware drafts saved to Gmail — you review before sending' },
+                  { Icon: IcDraft, label: 'AI Campaigns',     desc: 'Personalised outreach emails for a list of prospects, sent now or scheduled' },
                   { Icon: IcClock, label: 'Stalled Alerts',   desc: 'Surface deals that have gone quiet for 7+ days with no follow-up' },
-                  { Icon: IcPipe,  label: 'Sales Pipeline',   desc: 'Leads flow from inbox to a visual kanban: New → Qualified → Closed' },
+                  { Icon: IcPipe,  label: 'Follow-ups',       desc: 'Reminders when a prospect has not replied, with an AI-drafted nudge ready to send' },
                 ].map(({ Icon, label, desc }) => (
                   <div key={label} className="gh-connect-feat">
                     <div className="gh-feat-icon-wrap"><Icon /></div>
@@ -1029,19 +971,9 @@ export default function GmailHub({
             <span className="gh-stat-sub">no reply 7+ days</span>
           </div>
           <div className="gh-stat">
-            <div className="gh-stat-label">Drafts Ready</div>
-            <div className="gh-stat-num">{DRAFTS.length}</div>
-            <span className="gh-stat-sub">awaiting your review</span>
-          </div>
-          <div className="gh-stat">
             <div className="gh-stat-label">Replied This Week</div>
             <div className="gh-stat-num">12</div>
             <span className="gh-stat-trend">↑ 4 vs last week</span>
-          </div>
-          <div className="gh-stat">
-            <div className="gh-stat-label">Pipeline Value</div>
-            <div className="gh-stat-num">$28.4k</div>
-            <span className="gh-stat-sub">estimated ARR</span>
           </div>
         </div>
 
@@ -1049,8 +981,6 @@ export default function GmailHub({
         <div className="gh-tabs">
           {([
             ['inbox',       'Inbox Intelligence'],
-            ['pipeline',    'Lead Pipeline'],
-            ['drafts',      `Draft Replies (${DRAFTS.length})`],
             ['campaign',    'Campaigns'],
             ['followups',   followUpDueCount > 0 ? `Follow-ups (${followUpDueCount})` : 'Follow-ups'],
           ] as [Tab, string][]).map(([key, label]) => (
@@ -1243,101 +1173,6 @@ export default function GmailHub({
               )}
             </div>
             )}
-          </div>
-        )}
-
-        {/* ── Lead Pipeline ── */}
-        {activeTab === 'pipeline' && (
-          <div className="gh-pipeline-wrap">
-
-            <div className="gh-pipeline-top">
-              <div>
-                <div className="gh-pipeline-title">Lead Pipeline</div>
-                <div className="gh-pipeline-sub">{LEADS.length} leads · estimated $28,400 ARR</div>
-              </div>
-              <button className="gh-add-lead-btn">+ Add manually</button>
-            </div>
-
-            <div className="gh-kanban">
-              {STAGES.map(stage => {
-                const stageLeads = LEADS.filter(l => l.stage === stage.key)
-                const stageVal = stageLeads.reduce((s, l) => s + parseInt(l.value.replace(/[^0-9]/g, '') || '0'), 0)
-                return (
-                  <div key={stage.key} className="gh-kc" style={{ '--kc-color': stage.color } as React.CSSProperties}>
-                    <div className="gh-kc-hd">
-                      <div className="gh-kc-hd-left">
-                        <span className="gh-kc-label">{stage.label}</span>
-                        <span className="gh-kc-count">{stageLeads.length}</span>
-                      </div>
-                      <span className="gh-kc-val">${(stageVal / 1000).toFixed(1)}k</span>
-                    </div>
-                    <div className="gh-kc-bar"><div className="gh-kc-bar-fill" style={{ width: `${Math.min(100, stageLeads.length * 20)}%` }} /></div>
-                    <div className="gh-kc-cards">
-                      {stageLeads.map(lead => (
-                        <div key={lead.id} className="gh-lead-card">
-                          <div className="gh-lc-top-row">
-                            <div className="gh-lc-av">{lead.name.split(' ').map(n => n[0]).join('')}</div>
-                            <span className={`gh-lc-level gh-lc-${lead.level}`}>{lead.level}</span>
-                          </div>
-                          <div className="gh-lc-name">{lead.name}</div>
-                          <div className="gh-lc-company">{lead.company}</div>
-                          <div className="gh-lc-subject">{lead.subject}</div>
-                          <div className="gh-lc-foot">
-                            <span className="gh-lc-value">{lead.value}</span>
-                            <span className="gh-lc-time">{lead.lastContact}</span>
-                          </div>
-                        </div>
-                      ))}
-                      <button className="gh-kc-add">+ Add</button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ── Draft Replies ── */}
-        {activeTab === 'drafts' && (
-          <div className="gh-drafts">
-            <div className="gh-drafts-notice">
-              <IcDraft />
-              <span>AI-drafted replies based on thread context. Review each one, then save to Gmail Drafts or discard. <strong>Nothing is sent automatically.</strong></span>
-            </div>
-            <div className="gh-draft-list">
-              {DRAFTS.map(draft => (
-                <div key={draft.id} className={`gh-draft-card${expandedDraft === draft.id ? ' expanded' : ''} gh-dc-urgency-${draft.urgency}`}>
-                  <button className="gh-dc-hd" onClick={() => setExpandedDraft(expandedDraft === draft.id ? null : draft.id)}>
-                    <div className="gh-dc-left">
-                      <div className="gh-dc-to">
-                        To: <strong>{draft.to}</strong>
-                        <span className="gh-dc-email">&nbsp;&lt;{draft.email}&gt;</span>
-                      </div>
-                      <div className="gh-dc-subject">{draft.subject}</div>
-                      <span className="gh-dc-context-tag">{draft.context}</span>
-                    </div>
-                    <div className="gh-dc-right">
-                      <span className={`gh-dc-urgency-badge gh-dc-ub-${draft.urgency}`}>
-                        {draft.urgency === 'high' ? 'Urgent' : draft.urgency === 'medium' ? 'Soon' : 'Low'}
-                      </span>
-                      <span className="gh-dc-expand">{expandedDraft === draft.id ? '−' : '+'}</span>
-                    </div>
-                  </button>
-                  {expandedDraft === draft.id && (
-                    <div className="gh-dc-body">
-                      <pre className="gh-dc-content">{draft.content}</pre>
-                      <div className="gh-dc-actions">
-                        <button className="gh-dc-save">Save to Gmail Drafts</button>
-                        <button className="gh-dc-copy" onClick={() => copyText(draft.content, draft.id)}>
-                          {copied === draft.id ? 'Copied' : 'Copy text'}
-                        </button>
-                        <button className="gh-dc-discard">Discard</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
