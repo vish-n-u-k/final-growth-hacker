@@ -79,19 +79,6 @@ export default async function ToolsPage() {
       ),
     },
     {
-      href: '/today',
-      title: "Today's List",
-      desc: 'Your top tasks for today.',
-      color: '#d97706',
-      glow: 'rgba(217,119,6,0.25)',
-      icon: (
-        <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
-          <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M10 6v4l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      ),
-    },
-    {
       href: '/reminders',
       title: 'Create Reminders',
       desc: 'Never miss a follow-up.',
@@ -117,6 +104,20 @@ export default async function ToolsPage() {
           <circle cx="15" cy="4.5" r="2.2" stroke="currentColor" strokeWidth="1.5"/>
           <circle cx="15" cy="15.5" r="2.2" stroke="currentColor" strokeWidth="1.5"/>
           <path d="M6.9 8.9l6.2-3.3M6.9 11.1l6.2 3.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      ),
+    },
+    {
+      href: '/today',
+      title: "Today's List",
+      desc: 'Your top tasks for today.',
+      color: '#d97706',
+      glow: 'rgba(217,119,6,0.25)',
+      comingSoon: true,
+      icon: (
+        <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
+          <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5"/>
+          <path d="M10 6v4l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       ),
     },

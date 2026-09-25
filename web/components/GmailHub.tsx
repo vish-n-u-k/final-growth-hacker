@@ -220,7 +220,7 @@ export default function GmailHub({
   const [followUpDays, setFollowUpDays]         = useState(3)
   const [followUpToast, setFollowUpToast]       = useState<string | null>(null)
   // Reply-detected toast: { reminderId, threadId, name, hasReply? }[]
-  const [replyToasts, setReplyToasts]           = useState<{ reminderId: string; threadId: string; name: string; hasReply?: boolean }[]>([])
+  const [followupNews, setFollowupNews]         = useState<string | null>(null)
   // Campaign state
   const [campaignInstruction, setCampaignInstruction] = useState('')
   const [campaignImportText, setCampaignImportText]   = useState('')
@@ -264,40 +264,11 @@ export default function GmailHub({
   const fetchInbox = useCallback(async () => {
     setInboxLoading(true)
     try {
-      const [inboxRes, remindersRes] = await Promise.all([
-        fetch('/api/gmail/inbox'),
-        fetch('/api/reminders'),
-      ])
+      const inboxRes = await fetch('/api/gmail/inbox')
       const data = await inboxRes.json() as Thread[]
       if (inboxRes.ok && Array.isArray(data)) {
         setInboxThreads(data)
         if (data.length > 0) setSelectedId(data[0].id)
-
-        // Reply detection: find outreach reminders that reference a threadId, then check if
-        // the corresponding thread now has more than one message (reply received)
-        if (remindersRes.ok) {
-          const remData = await remindersRes.json() as { reminders?: { id: string; title: string; description: string | null; category: string; lastDoneAt: string | null }[] }
-          const outreachReminders = (remData.reminders ?? []).filter(
-            r => r.category === 'outreach' && !r.lastDoneAt && r.description?.includes('gmailThreadId:')
-          )
-          const toasts: { reminderId: string; threadId: string; name: string }[] = []
-          for (const r of outreachReminders) {
-            const match = r.description!.match(/gmailThreadId:(\S+)/)
-            if (!match) continue
-            const tid = match[1]
-            // We don't have message counts from inbox list, so check if a thread with this id
-            // appears in inbox — if so, surface it as a candidate (user can confirm)
-            // A heuristic: if the thread id is in the inbox, we prompt; user decides.
-            // More accurate detection happens when the thread is opened (message count > 1).
-            // For now, store the candidates so we can show the toast when messages load.
-            // We track them in replyToasts and surface them when thread.messages.length > 1.
-            const found = data.find(t => t.id === tid)
-            if (found) {
-              toasts.push({ reminderId: r.id, threadId: tid, name: r.title.replace(/^Follow up:\s*/, '') })
-            }
-          }
-          if (toasts.length > 0) setReplyToasts(toasts)
-        }
       }
     } catch { /* silent */ } finally {
       setInboxLoading(false)
@@ -307,6 +278,23 @@ export default function GmailHub({
   useEffect(() => {
     if (isConnected) fetchInbox()
   }, [isConnected, fetchInbox])
+
+  // Check follow-up threads for replies / opt-outs / bounces and surface anything new
+  useEffect(() => {
+    if (!isConnected) return
+    fetch('/api/gmail/followups/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      .then(r => r.ok ? r.json() : null)
+      .then((c: { replied?: number; optedOut?: number; bounced?: number } | null) => {
+        if (!c) return
+        const parts = [
+          c.replied  ? `${c.replied} prospect${c.replied !== 1 ? 's' : ''} replied` : null,
+          c.optedOut ? `${c.optedOut} opted out` : null,
+          c.bounced  ? `${c.bounced} bounced` : null,
+        ].filter(Boolean)
+        if (parts.length) setFollowupNews(`${parts.join(', ')}. Those follow-ups were closed automatically.`)
+      })
+      .catch(() => {})
+  }, [isConnected])
 
   const loadEmailHistory = useCallback(() => {
     fetch('/api/outreach/emails').then(r => r.ok ? r.json() : null).then(data => {
@@ -353,10 +341,6 @@ export default function GmailHub({
       const msgs = await res.json() as { from: string; time: string; body: string; isSelf: boolean }[]
       if (res.ok && Array.isArray(msgs)) {
         setInboxThreads(prev => prev.map(t => t.id === threadId ? { ...t, messages: msgs } : t))
-        // If this thread has a reply and there's a pending outreach reminder for it, surface toast
-        if (msgs.length > 1) {
-          setReplyToasts(prev => prev.map(t => t.threadId === threadId ? { ...t, hasReply: true } : t) as typeof prev)
-        }
       }
     } catch { /* silent */ } finally {
       setLoadingMsgs(prev => { const s = new Set(prev); s.delete(threadId); return s })
@@ -497,10 +481,6 @@ export default function GmailHub({
     } catch { /* silent */ }
   }
 
-  async function markReminderDone(reminderId: string) {
-    await fetch(`/api/reminders/${reminderId}/done`, { method: 'POST' })
-    setReplyToasts(prev => prev.filter(t => t.reminderId !== reminderId))
-  }
 
   const thread = inboxThreads.find(t => t.id === selectedId) ?? inboxThreads[0] ?? null
 
@@ -929,24 +909,19 @@ export default function GmailHub({
           </div>
         )}
 
-        {/* Reply-detected toasts */}
-        {replyToasts.filter(t => t.hasReply).map(t => (
-          <div key={t.reminderId} className="gh-reply-toast">
-            <span>You got a reply from <strong>{t.name}</strong> — mark follow-up done?</span>
+        {/* Follow-up outcomes detected in Gmail */}
+        {followupNews && activeTab !== 'followups' && (
+          <div className="gh-reply-toast">
+            <span>{followupNews}</span>
             <button
               className="gh-reply-toast-yes"
-              onClick={() => markReminderDone(t.reminderId)}
+              onClick={() => { setActiveTab('followups'); setFollowupNews(null) }}
             >
-              Mark done
+              View
             </button>
-            <button
-              className="gh-alert-close"
-              onClick={() => setReplyToasts(prev => prev.filter(x => x.reminderId !== t.reminderId))}
-            >
-              ✕
-            </button>
+            <button className="gh-alert-close" onClick={() => setFollowupNews(null)}>✕</button>
           </div>
-        ))}
+        )}
 
         {/* Stalled alert banner */}
         {showStalled && (

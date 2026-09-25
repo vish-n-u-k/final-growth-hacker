@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { brands, reminders, brainContext } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getValidGmailToken } from '@/lib/gmail/token'
+import { checkFollowup } from '@/lib/gmail/reply-check'
 import { writeFollowupCopy, buildFollowupHTML, brandContextFor, firstName } from '@/lib/email/followup'
 
 // ── Minimal Gmail types (mirrored from thread/[id]/route.ts) ──────────────────
@@ -11,7 +12,7 @@ import { writeFollowupCopy, buildFollowupHTML, brandContextFor, firstName } from
 interface GmailHeader  { name: string; value: string }
 interface GmailPart    { mimeType: string; body?: { data?: string }; parts?: GmailPart[] }
 interface GmailPayload { mimeType: string; headers?: GmailHeader[]; body?: { data?: string }; parts?: GmailPart[] }
-interface GmailMessage { id: string; payload?: GmailPayload }
+interface GmailMessage { id: string; labelIds?: string[]; payload?: GmailPayload }
 interface GmailThread  { messages?: GmailMessage[] }
 
 function decodeBase64(data: string): string {
@@ -77,6 +78,20 @@ export async function POST(req: NextRequest) {
     ? Math.max(1, Math.round((Date.now() - new Date(reminder.createdAt).getTime()) / 86400000))
     : reminder.intervalDays
 
+  // Don't write a nudge to someone who already replied, opted out, or bounced
+  if (threadId) {
+    try {
+      const token = await getValidGmailToken(brand.id)
+      const check = await checkFollowup(reminder, token)
+      if (check.outcome === 'replied' || check.outcome === 'opted_out' || check.outcome === 'bounced') {
+        const reason = check.outcome === 'replied' ? `${recipient} already replied`
+          : check.outcome === 'opted_out' ? `${recipient} asked not to be contacted`
+          : 'The original email bounced'
+        return NextResponse.json({ error: `${reason}. This follow-up has been closed.`, outcome: check.outcome }, { status: 409 })
+      }
+    } catch { /* check is best-effort; still allow drafting */ }
+  }
+
   // Fetch thread if possible
   let recipientEmail = ''
   let threadContext = ''
@@ -95,17 +110,19 @@ export async function POST(req: NextRequest) {
         threadFound = true
         const messages = thread.messages ?? []
 
-        // Extract recipient email from first sent message's To: header
-        if (messages[0]?.payload?.headers) {
-          recipientEmail = getHeader(messages[0].payload.headers, 'To')
-        }
+        // Recipient: To of our first sent message, or From of theirs if the thread started inbound
+        const firstSent = messages.find(m => m.labelIds?.includes('SENT'))
+        const firstTheirs = messages.find(m => !m.labelIds?.includes('SENT'))
+        if (firstSent?.payload?.headers) recipientEmail = getHeader(firstSent.payload.headers, 'To')
+        else if (firstTheirs?.payload?.headers) recipientEmail = getHeader(firstTheirs.payload.headers, 'From')
 
         // Reply to the latest message so Gmail keeps the follow-up in the same thread
         const last = messages[messages.length - 1]
         if (last?.payload?.headers) inReplyTo = getHeader(last.payload.headers, 'Message-ID')
 
-        // Build thread context (first 3 messages, 800 chars each)
-        const parts = messages.slice(0, 3).map(msg => {
+        // Thread context: the opening message plus the 4 most recent (800 chars each)
+        const picked = messages.length <= 5 ? messages : [messages[0], ...messages.slice(-4)]
+        const parts = picked.map(msg => {
           const from = msg.payload?.headers ? getHeader(msg.payload.headers, 'From') : ''
           const text = msg.payload ? extractText(msg.payload).slice(0, 800) : ''
           return from ? `From: ${from}\n${text}` : text

@@ -17,6 +17,9 @@ interface Reminder {
   lastDoneAt: string | null
   enabled: boolean
   createdAt: string
+  followupStatus: string | null
+  followupNote: string | null
+  followupCheckedAt: string | null
 }
 
 interface FollowUp {
@@ -26,6 +29,24 @@ interface FollowUp {
   createdAt: string
   dueAt: Date
   snoozed: boolean
+  status: string | null
+  note: string | null
+  threadId: string | null
+}
+
+interface Resolved {
+  id: string
+  recipient: string
+  subject: string
+  status: 'replied' | 'opted_out' | 'bounced'
+  note: string | null
+  at: string
+  threadId: string | null
+}
+
+interface CheckSummary {
+  checked: number; replied: number; optedOut: number; bounced: number
+  autoReply: number; selfReplied: number; untracked: number
 }
 
 interface Draft {
@@ -41,11 +62,18 @@ interface Draft {
   inReplyTo: string | null
 }
 
-type Filter = 'due' | 'upcoming' | 'all'
+type Filter = 'due' | 'upcoming' | 'all' | 'resolved'
 
 const DAY = 86_400_000
 const BATCH = 3
+const RESOLVED_WINDOW_DAYS = 14
 
+const RESOLVED_LABEL: Record<Resolved['status'], string> = {
+  replied: 'Replied', opted_out: 'Opted out', bounced: 'Bounced',
+}
+
+const threadIdOf = (desc: string | null) => desc?.match(/gmailThreadId:(\S+)/)?.[1] ?? null
+const gmailLink = (threadId: string) => `https://mail.google.com/mail/u/0/#all/${threadId}`
 function toFollowUp(r: Reminder): FollowUp {
   const desc = r.description ?? ''
   const snoozeUntil = r.snoozedUntil ? new Date(r.snoozedUntil) : null
@@ -57,7 +85,21 @@ function toFollowUp(r: Reminder): FollowUp {
     createdAt: r.createdAt,
     dueAt:     snoozed ? snoozeUntil! : new Date(r.nextDueAt),
     snoozed,
+    status:    r.followupStatus,
+    note:      r.followupNote,
+    threadId:  threadIdOf(r.description),
   }
+}
+
+function summarize(c: CheckSummary): string | null {
+  const parts = [
+    c.replied     && `${c.replied} replied`,
+    c.optedOut    && `${c.optedOut} opted out`,
+    c.bounced     && `${c.bounced} bounced`,
+    c.autoReply   && `${c.autoReply} out of office (pushed back)`,
+    c.selfReplied && `${c.selfReplied} you already followed up in Gmail (reset)`,
+  ].filter(Boolean)
+  return parts.length ? parts.join(' · ') : null
 }
 
 function dueLabel(f: FollowUp): { text: string; tone: 'overdue' | 'today' | 'upcoming' | 'snoozed' } {
@@ -86,6 +128,9 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
   const [toast, setToast]         = useState<string | null>(null)
   const [selected, setSelected]   = useState<Set<string>>(new Set())
   const [remindAgainDays, setRemindAgainDays] = useState(5)
+  const [resolved, setResolved]   = useState<Resolved[]>([])
+  const [checking, setChecking]   = useState(false)
+  const [checkedAt, setCheckedAt] = useState<Date | null>(null)
 
   // Bulk state
   const [bulkBusy, setBulkBusy]           = useState<string | null>(null)
@@ -103,6 +148,20 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
         .map(toFollowUp)
         .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())
       setFollowUps(rows)
+      const cutoff = Date.now() - RESOLVED_WINDOW_DAYS * DAY
+      setResolved((data.reminders ?? [])
+        .filter(r => r.category === 'outreach' && r.lastDoneAt && new Date(r.lastDoneAt).getTime() > cutoff
+          && (r.followupStatus === 'replied' || r.followupStatus === 'opted_out' || r.followupStatus === 'bounced'))
+        .map(r => ({
+          id:        r.id,
+          recipient: r.title.replace(/^Follow up:\s*/i, '').trim(),
+          subject:   (r.description ?? '').split('\n')[0].replace(/^Re:\s*/i, '').trim(),
+          status:    r.followupStatus as Resolved['status'],
+          note:      r.followupNote,
+          at:        r.lastDoneAt!,
+          threadId:  threadIdOf(r.description),
+        }))
+        .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()))
       const ids = new Set(rows.map(r => r.id))
       setSelected(prev => new Set([...prev].filter(id => ids.has(id))))
       setError(null)
@@ -113,7 +172,35 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  const checkReplies = useCallback(async (force: boolean) => {
+    setChecking(true)
+    try {
+      const res = await fetch('/api/gmail/followups/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force }),
+      })
+      const data = await res.json() as CheckSummary & { error?: string }
+      if (!res.ok) {
+        if (force) flash(data.error ?? 'Could not check Gmail for replies')
+        return
+      }
+      setCheckedAt(new Date())
+      const summary = summarize(data)
+      if (summary) flash(summary)
+      else if (force) flash('No new replies')
+      await load()
+    } catch {
+      if (force) flash('Could not check Gmail for replies')
+    } finally {
+      setChecking(false)
+    }
+  }, [load])
+
+  // Show the list straight away, then check Gmail in the background
+  useEffect(() => {
+    load().then(() => checkReplies(false))
+  }, [load, checkReplies])
 
   const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999)
   const isDue = (f: FollowUp) => !f.snoozed && f.dueAt.getTime() <= endOfToday.getTime()
@@ -121,7 +208,7 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
 
   useEffect(() => { onCountChange?.(dueCount) }, [dueCount, onCountChange])
 
-  const visible = followUps.filter(f =>
+  const visible = filter === 'resolved' ? [] : followUps.filter(f =>
     filter === 'all' ? true : filter === 'due' ? isDue(f) : !isDue(f),
   )
   const selectedVisible    = visible.filter(f => selected.has(f.id))
@@ -173,6 +260,12 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
         body: JSON.stringify({ reminderId: id }),
       })
       const data = await res.json()
+      if (res.status === 409) {
+        discardDraft(id)
+        flash(data.error ?? 'This follow-up is no longer needed')
+        await load()
+        return
+      }
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
       setDraft(id, {
         loading: false, to: data.to ?? '', subject: data.subject ?? '', body: data.body ?? '',
@@ -363,11 +456,21 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
               edit several at once with AI, then send. Close any that already replied.
             </p>
           </div>
+          <div className="gh-fu-head-side">
+            <div className="gh-fu-check">
+              <span className="gh-fu-muted">
+                {checking ? 'Checking Gmail for replies…' : checkedAt ? `Replies checked ${checkedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}
+              </span>
+              <button className="gh-fu-btn" onClick={() => checkReplies(true)} disabled={checking || locked}>
+                {checking ? 'Checking…' : 'Check for replies'}
+              </button>
+            </div>
           <div className="gh-fu-filters" role="tablist">
             {([
               ['due',      'Due now',  dueCount],
               ['upcoming', 'Upcoming', followUps.length - dueCount],
               ['all',      'All',      followUps.length],
+              ['resolved', 'Resolved', resolved.length],
             ] as [Filter, string, number][]).map(([key, label, count]) => (
               <button
                 key={key}
@@ -380,6 +483,7 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
                 <span className="gh-fu-filter-count">{count}</span>
               </button>
             ))}
+          </div>
           </div>
         </div>
 
@@ -493,7 +597,53 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
           </div>
         )}
 
-        {visible.length === 0 ? (
+        {filter === 'resolved' ? (
+          resolved.length === 0 ? (
+            <div className="gh-fu-empty">
+              <div className="gh-fu-empty-title">Nothing resolved yet</div>
+              <p>When a prospect replies, opts out, or an email bounces, the follow-up closes itself and shows up here for {RESOLVED_WINDOW_DAYS} days.</p>
+            </div>
+          ) : (
+            <div className="gh-fu-table-wrap">
+              <table className="gh-fu-table gh-fu-table-resolved">
+                <colgroup>
+                  <col className="gh-fu-col-recipient" />
+                  <col className="gh-fu-col-outcome" />
+                  <col />
+                  <col className="gh-fu-col-sent" />
+                  <col className="gh-fu-col-open" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Recipient</th>
+                    <th>Outcome</th>
+                    <th>What they said</th>
+                    <th>Closed</th>
+                    <th className="gh-fu-th-actions"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resolved.map(r => (
+                    <tr key={r.id} className="gh-fu-tr">
+                      <td className="gh-fu-recipient" title={r.recipient}>
+                        {r.recipient}
+                        {r.subject && <div className="gh-fu-muted gh-fu-due-date" title={r.subject}>{r.subject}</div>}
+                      </td>
+                      <td><span className={`gh-fu-outcome gh-fu-outcome-${r.status}`}>{RESOLVED_LABEL[r.status]}</span></td>
+                      <td className="gh-fu-note" title={r.note ?? undefined}>{r.note || <span className="gh-fu-muted">—</span>}</td>
+                      <td className="gh-fu-muted">{formatDate(r.at)}</td>
+                      <td className="gh-fu-td-actions">
+                        {r.threadId && (
+                          <a className="gh-fu-btn gh-fu-link" href={gmailLink(r.threadId)} target="_blank" rel="noreferrer">Open in Gmail</a>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : visible.length === 0 ? (
           <div className="gh-fu-empty">
             <div className="gh-fu-empty-title">
               {followUps.length === 0 ? 'No follow-ups yet' : filter === 'due' ? 'You are all caught up' : 'Nothing here'}
@@ -550,7 +700,15 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
                             onChange={e => toggleSelected(f.id, e.target.checked)}
                           />
                         </td>
-                        <td className="gh-fu-recipient" title={f.recipient}>{f.recipient}</td>
+                        <td className="gh-fu-recipient" title={f.recipient}>
+                          {f.recipient}
+                          {f.status === 'auto_reply' && (
+                            <div><span className="gh-fu-tag" title={f.note ?? undefined}>Out of office, pushed back</span></div>
+                          )}
+                          {f.status === 'untracked' && (
+                            <div><span className="gh-fu-tag gh-fu-tag-warn" title="The original Gmail thread could not be found, so replies are not detected for this one">Replies not tracked</span></div>
+                          )}
+                        </td>
                         <td className="gh-fu-subject" title={f.subject || undefined}>
                           {f.subject || <span className="gh-fu-muted">No subject</span>}
                         </td>

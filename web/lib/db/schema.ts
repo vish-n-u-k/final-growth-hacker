@@ -474,6 +474,11 @@ export const reminders = pgTable('reminders', {
   enabled:      boolean('enabled').notNull().default(true),
   isPreset:     boolean('is_preset').notNull().default(false),
   createdAt:    timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  // Gmail follow-up reply tracking (lib/gmail/reply-check.ts)
+  followupStatus:     text('followup_status'),      // 'replied' | 'opted_out' | 'bounced' | 'auto_reply' | 'untracked' | null
+  followupNote:       text('followup_note'),        // snippet of the reply / reason
+  followupCheckedAt:  timestamp('followup_checked_at', { withTimezone: true }),
+  followupLastSeenAt: timestamp('followup_last_seen_at', { withTimezone: true }), // newest thread message already processed
 })
 
 // ── Bug Reports (in-app bug reporting widget) ──────────────────────────────────
