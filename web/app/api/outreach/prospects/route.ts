@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, outreachProspects } from '@/lib/db/schema'
-import { eq, desc } from 'drizzle-orm'
+import { eq, desc, and } from 'drizzle-orm'
 
 export async function GET() {
   const supabase = await createClient()
@@ -36,10 +36,22 @@ export async function POST(req: NextRequest) {
   if (!Array.isArray(prospects) || prospects.length === 0)
     return NextResponse.json({ error: 'prospects array required' }, { status: 400 })
 
+  // Skip emails already saved for this brand
+  const existing = await db.select({ email: outreachProspects.email })
+    .from(outreachProspects).where(eq(outreachProspects.brandId, brand.id))
+  const seen = new Set(existing.map(e => e.email.toLowerCase()))
+  const fresh = prospects.filter(p => {
+    const key = p.email?.trim().toLowerCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  if (fresh.length === 0) return NextResponse.json({ ids: [] }, { status: 200 })
+
   const rows = await db.insert(outreachProspects).values(
-    prospects.map(p => ({
+    fresh.map(p => ({
       brandId:  brand.id,
-      email:    p.email,
+      email:    p.email.trim(),
       name:     p.name ?? null,
       domain:   p.domain ?? null,
       rawInput: p.rawInput ?? null,
@@ -59,7 +71,7 @@ export async function DELETE(req: NextRequest) {
 
   const { id } = await req.json() as { id: string }
   await db.delete(outreachProspects)
-    .where(eq(outreachProspects.id, id))
+    .where(and(eq(outreachProspects.id, id), eq(outreachProspects.brandId, brand.id)))
 
   return NextResponse.json({ ok: true })
 }

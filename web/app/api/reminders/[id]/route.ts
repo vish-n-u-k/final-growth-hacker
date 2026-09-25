@@ -27,7 +27,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.intervalDays !== undefined) updates.intervalDays = Math.max(1, parseInt(body.intervalDays, 10))
   if (body.enabled !== undefined) updates.enabled = body.enabled
   if (body.snooze === true) {
-    updates.snoozedUntil = new Date(Date.now() + 7 * 24 * 3600 * 1000)
+    const snoozeDays = Math.min(Math.max(1, Number(body.snoozeDays) || 7), 30)
+    updates.snoozedUntil = new Date(Date.now() + snoozeDays * 24 * 3600 * 1000)
   }
   if (body.snooze === false) {
     updates.snoozedUntil = null

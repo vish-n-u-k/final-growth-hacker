@@ -3,12 +3,12 @@
 import { useState, useEffect, useCallback, Fragment } from 'react'
 import Link from 'next/link'
 import { useSmartBack } from '@/lib/useSmartBack'
+import FollowUpsTab from '@/components/FollowUpsTab'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type LeadTag = 'hot' | 'warm' | 'cold' | 'partnership' | 'press' | 'followup' | 'vendor'
-type LeadStage = 'new' | 'contacted' | 'qualified' | 'closed'
-type Tab = 'inbox' | 'pipeline' | 'drafts' | 'outreach' | 'campaign' | 'limitations'
+type Tab = 'inbox' | 'outreach' | 'campaign' | 'followups'
 type ProspectStatus = 'idle' | 'generating' | 'ready' | 'saving' | 'saved' | 'confirming' | 'sending' | 'sent' | 'error'
 type InboxFilter = 'all' | 'leads' | 'press' | 'partnership'
 
@@ -18,16 +18,6 @@ interface Thread {
   subject: string; preview: string; time: string; isRead: boolean
   tag: LeadTag | null; messages: Msg[]; aiSummary: string; aiDraft: string
 }
-interface Lead {
-  id: string; name: string; email: string; company: string
-  stage: LeadStage; level: 'hot' | 'warm' | 'cold'
-  lastContact: string; value: string; subject: string
-}
-interface Draft {
-  id: string; to: string; email: string; subject: string
-  context: string; content: string; urgency: 'high' | 'medium' | 'low'
-}
-interface Limit { name: string; severity: 'high' | 'medium' | 'low'; problem: string; solution: string }
 interface Prospect { id: string; name: string; email: string; company: string; title: string }
 interface ProspectState { status: ProspectStatus; subject: string; body: string; toEmail?: string; error?: string; editingHtml?: boolean }
 interface CampaignProspect { id: string; email: string; name: string; domain: string }
@@ -143,98 +133,12 @@ const THREADS: Thread[] = [
   },
 ]
 
-const LEADS: Lead[] = [
-  { id: 'l1', name: 'Priya Sharma', email: 'priya@scalex.io', company: 'ScaleX', stage: 'new', level: 'hot', lastContact: 'Today', value: '$4,800/yr', subject: 'Pricing + agency plan inquiry' },
-  { id: 'l2', name: 'Carlos Mejia', email: 'carlos@digitalops.mx', company: 'DigitalOps', stage: 'new', level: 'cold', lastContact: '3 days ago', value: '$600/yr', subject: 'General enquiry' },
-  { id: 'l3', name: 'Sophie Laurent', email: 'sophie@brandstudio.fr', company: 'BrandStudio', stage: 'new', level: 'warm', lastContact: '4 days ago', value: '$2,400/yr', subject: 'Feature comparison' },
-  { id: 'l4', name: 'Marcus Webb', email: 'marcus@techforward.co', company: 'TechForward', stage: 'contacted', level: 'warm', lastContact: 'Yesterday', value: '$2,400/yr', subject: 'HubSpot integration question' },
-  { id: 'l5', name: 'Daniel Park', email: 'daniel@growthops.io', company: 'GrowthOps', stage: 'contacted', level: 'warm', lastContact: '5 days ago', value: '$1,200/yr', subject: 'GEO score (trial user)' },
-  { id: 'l6', name: 'Kenji Mori', email: 'kenji@saasops.jp', company: 'SaasOps', stage: 'contacted', level: 'warm', lastContact: '1 week ago', value: '$1,800/yr', subject: 'Competitor comparison' },
-  { id: 'l7', name: 'Fatima Al-Rashid', email: 'fatima@nexusbrands.ae', company: 'Nexus Brands', stage: 'qualified', level: 'hot', lastContact: '2 days ago', value: '$9,600/yr', subject: 'Enterprise plan evaluation' },
-  { id: 'l8', name: 'Jake Thornton', email: 'jake@loopagency.io', company: 'Loop Agency', stage: 'qualified', level: 'warm', lastContact: '1 week ago', value: '$6,000/yr', subject: 'White-label inquiry' },
-  { id: 'l9', name: 'Yuki Tanaka', email: 'yuki@marketstack.jp', company: 'MarketStack', stage: 'closed', level: 'hot', lastContact: '2 weeks ago', value: '$3,600/yr', subject: 'Onboarded — paid' },
-  { id: 'l10', name: 'Amara Diallo', email: 'amara@growhub.sn', company: 'GrowHub', stage: 'closed', level: 'warm', lastContact: '3 weeks ago', value: '$1,200/yr', subject: 'Onboarded — paid' },
-]
-
-const DRAFTS: Draft[] = [
-  {
-    id: 'd1', to: 'Priya Sharma', email: 'priya@scalex.io', urgency: 'high',
-    subject: 'Re: Interested in your growth tool — pricing?',
-    context: 'Hot lead — inbound pricing + agency plan inquiry',
-    content: 'Hi Priya,\n\nThanks for reaching out — great that you found us via LinkedIn!\n\nWe do have an agency plan covering up to 5 brands under one account, which sounds perfect for your situation.\n\nHere\'s our pricing: [pricing page]\n\nWould Thursday or Friday work for a 20-minute call?\n\nBest,\n[Your name]',
-  },
-  {
-    id: 'd2', to: 'Marcus Webb', email: 'marcus@techforward.co', urgency: 'medium',
-    subject: 'Re: Following up on our conversation',
-    context: 'Warm lead — HubSpot integration concern',
-    content: 'Hi Marcus,\n\nGood to hear back! HubSpot integration is on our Q3 roadmap. In the meantime you can export audit results as CSV and push to HubSpot in a couple of minutes.\n\nHappy to show the export flow on a quick screen share.\n\nDoes Thursday work?\n\nBest,\n[Your name]',
-  },
-  {
-    id: 'd3', to: 'TechCrunch Editorial', email: 'tips@techcrunch.com', urgency: 'high',
-    subject: 'Re: AI marketing tools roundup',
-    context: 'Press feature — deadline Friday EOD',
-    content: 'Hi,\n\nThanks for reaching out — we\'d love to be included!\n\nGrowJin is an AI-powered marketing audit platform for SMBs — SEO, GEO, content quality, and social presence in one dashboard.\n\nDemo: [video link] | Product: [URL]\n\nHappy to provide additional assets.\n\nBest,\n[Your name]',
-  },
-  {
-    id: 'd4', to: 'Aisha Okonkwo', email: 'aisha@brightleaf.co', urgency: 'low',
-    subject: 'Re: Partnership idea',
-    context: 'Partnership — referral + co-marketing proposal',
-    content: 'Hi Aisha,\n\nThis sounds like a great fit. We often see clients needing content execution after their audit — a referral arrangement makes sense both ways.\n\nFree for a 30-min call next week? Tuesday or Wednesday afternoon works.\n\nLooking forward to it,\n[Your name]',
-  },
-]
-
 const PROSPECTS: Prospect[] = [
   { id: 'p1', name: 'Sarah Chen',      email: 'sarah@launchpad.io',    company: 'LaunchPad',      title: 'Head of Growth' },
   { id: 'p2', name: 'Tom Ramirez',     email: 'tom@foundry.co',         company: 'Foundry Studio', title: 'Co-founder & CEO' },
   { id: 'p3', name: 'Natasha Ivanova', email: 'natasha@clearpath.io',  company: 'ClearPath',      title: 'Marketing Director' },
   { id: 'p4', name: 'David Osei',      email: 'david@buildforward.co', company: 'BuildForward',   title: 'VP Marketing' },
   { id: 'p5', name: 'Mei Lin',         email: 'mei@springhub.com',     company: 'SpringHub',      title: 'Growth Lead' },
-]
-
-const LIMITATIONS: Limit[] = [
-  {
-    name: 'Read-Only by Design — No Auto-Send, Ever',
-    severity: 'low',
-    problem: 'We request gmail.readonly + gmail.compose scopes only. We deliberately do not request gmail.send. All AI-drafted replies go to your Gmail Drafts folder — you must review and click Send yourself. This is an intentional product decision, not a technical limitation.',
-    solution: 'The workflow is: AI drafts → you review → you send. We may add a one-click "Send" confirmation dialog in v2, but auto-send without user action will never exist in this product.',
-  },
-  {
-    name: 'No Real-Time Inbox Sync',
-    severity: 'medium',
-    problem: 'Gmail push notifications via Google Pub/Sub require persistent server infrastructure that does not work on Vercel serverless functions. Your inbox view is a snapshot from the last sync, not a live feed.',
-    solution: 'Inbox syncs every 15 minutes via Vercel Cron (Pro plan). You can also trigger a manual Refresh at any time. A "Last synced" timestamp is always shown in the header so you know data freshness.',
-  },
-  {
-    name: 'Gmail API Daily Quota',
-    severity: 'medium',
-    problem: 'The Gmail API enforces per-project daily quotas. Fetching 50 threads with full bodies consumes significant quota, especially across multiple users. If quota is exhausted, syncs fail silently until midnight UTC.',
-    solution: 'We cache aggressively — subsequent loads read from the database, not the Gmail API. Quota usage is monitored and you will see a warning banner when within 20% of the daily limit.',
-  },
-  {
-    name: 'AI Lead Scoring is Probabilistic',
-    severity: 'low',
-    problem: 'Hot / Warm / Cold tags are generated by Claude based on email content. Claude may mis-tag a vendor email or miss a subtle buying signal in a brief reply. Scores are a best-effort first-pass triage, not a rule-based system.',
-    solution: 'You can manually re-tag any thread at any time. Manual tags persist across all future syncs and always override AI tags.',
-  },
-  {
-    name: 'Attachments Not Analyzed',
-    severity: 'low',
-    problem: 'Email attachments (PDFs, images, spreadsheets) are not downloaded or analyzed. We only process email text bodies to minimize data exposure and keep the integration scope minimal.',
-    solution: 'Planned for v2 with explicit per-attachment opt-in. If a lead attaches an RFP or brief, you will need to review it directly in Gmail.',
-  },
-  {
-    name: 'Email Content Stored in Your Database',
-    severity: 'medium',
-    problem: 'Thread content (sender, subject, body, AI summary) is stored in your Supabase database to power the inbox view and lead pipeline. Sensitive email content lives in a third-party database hosted on AWS.',
-    solution: 'We store only synced/flagged threads — not your full inbox history. All data is AES-256 encrypted at rest. You can delete all stored email data from Settings at any time.',
-  },
-]
-
-const STAGES: { key: LeadStage; label: string; color: string }[] = [
-  { key: 'new',       label: 'New',       color: '#60a5fa' },
-  { key: 'contacted', label: 'Contacted', color: '#f59e0b' },
-  { key: 'qualified', label: 'Qualified', color: '#4ade80' },
-  { key: 'closed',    label: 'Closed',    color: '#a3e635' },
 ]
 
 // ── Inline SVG icons ──────────────────────────────────────────────────────────
@@ -305,7 +209,6 @@ export default function GmailHub({
   const [activeTab, setActiveTab]             = useState<Tab>('inbox')
   const [selectedId, setSelectedId]           = useState<string>('')
   const [copied, setCopied]                   = useState<string | null>(null)
-  const [expandedDraft, setExpandedDraft]     = useState<string | null>('d1')
   const [inboxFilter, setInboxFilter]         = useState<InboxFilter>('all')
   const [showStalled, setShowStalled]         = useState(true)
   const [disconnecting, setDisconnecting]     = useState(false)
@@ -325,6 +228,11 @@ export default function GmailHub({
   const [campaignAiParsing, setCampaignAiParsing]     = useState(false)
   const [campaignAiParseErr, setCampaignAiParseErr]   = useState<string | null>(null)
   const [campaignProspects, setCampaignProspects]     = useState<CampaignProspect[]>([])
+  const [savedProspects, setSavedProspects]           = useState<CampaignProspect[]>([])
+  const [savedOpen, setSavedOpen]                     = useState(false)
+  const [savedSelected, setSavedSelected]             = useState<Set<string>>(new Set())
+  const [savedSearch, setSavedSearch]                 = useState('')
+  const [followUpDueCount, setFollowUpDueCount]       = useState(0)
   const [campaignStates, setCampaignStates]           = useState<Record<string, CampaignState>>({})
   const [campaignExpandedId, setCampaignExpandedId]   = useState<string | null>(null)
   const [campaignCopied, setCampaignCopied]           = useState<string | null>(null)
@@ -423,17 +331,20 @@ export default function GmailHub({
     loadEmailHistory()
   }
 
-  useEffect(() => {
-    // Load saved prospects and email history on mount
+  const loadSavedProspects = useCallback(() => {
     fetch('/api/outreach/prospects').then(r => r.ok ? r.json() : null).then(data => {
-      if (!data?.prospects?.length) return
-      const loaded: CampaignProspect[] = data.prospects.map((p: { id: string; email: string; name?: string; domain?: string }) => ({
+      if (!data?.prospects) return
+      setSavedProspects(data.prospects.map((p: { id: string; email: string; name?: string | null; domain?: string | null }) => ({
         id: p.id, email: p.email, name: p.name ?? '', domain: p.domain ?? '',
-      }))
-      setCampaignProspects(loaded)
+      })))
     }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    // Saved prospects stay in their own section — the campaign list starts empty
+    loadSavedProspects()
     loadEmailHistory()
-  }, [loadEmailHistory])
+  }, [loadSavedProspects, loadEmailHistory])
 
   async function fetchMessages(threadId: string) {
     setLoadingMsgs(prev => new Set(prev).add(threadId))
@@ -617,6 +528,35 @@ export default function GmailHub({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prospects: prospects.map(p => ({ email: p.email, name: p.name, domain: p.domain, rawInput: rawInput ?? null })) }),
+    }).then(() => loadSavedProspects()).catch(() => {})
+  }
+
+  // Adds to the current campaign, skipping emails already in it
+  function addToCampaign(prospects: CampaignProspect[]) {
+    setCampaignProspects(prev => {
+      const seen = new Set(prev.map(p => p.email.toLowerCase()))
+      const fresh = prospects.filter(p => {
+        const key = p.email.toLowerCase()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      return [...prev, ...fresh]
+    })
+  }
+
+  function addSelectedSavedToCampaign() {
+    addToCampaign(savedProspects.filter(p => savedSelected.has(p.id)))
+    setSavedSelected(new Set())
+  }
+
+  async function deleteSavedProspect(id: string) {
+    setSavedProspects(prev => prev.filter(p => p.id !== id))
+    setSavedSelected(prev => { const n = new Set(prev); n.delete(id); return n })
+    await fetch('/api/outreach/prospects', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
     }).catch(() => {})
   }
 
@@ -631,7 +571,7 @@ export default function GmailHub({
         domain: parts[2] ?? '',
       }
     }).filter(p => p.email.includes('@'))
-    setCampaignProspects(prev => [...prev, ...parsed])
+    addToCampaign(parsed)
     saveProspectsToDB(parsed)
     setCampaignImportText('')
   }
@@ -650,7 +590,7 @@ export default function GmailHub({
       if (!res.ok) throw new Error(data?.error ?? 'Parse failed')
       const prospects = data.prospects as CampaignProspect[]
       if (!prospects.length) { setCampaignAiParseErr('No contacts found in the text.'); return }
-      setCampaignProspects(prev => [...prev, ...prospects])
+      addToCampaign(prospects)
       saveProspectsToDB(prospects, campaignImportText)
       setCampaignImportText('')
     } catch (e) {
@@ -658,13 +598,6 @@ export default function GmailHub({
     } finally {
       setCampaignAiParsing(false)
     }
-  }
-
-  function addCampaignRow() {
-    setCampaignProspects(prev => [
-      ...prev,
-      { id: `cp-${Date.now()}`, email: '', name: '', domain: '' },
-    ])
   }
 
   function removeCampaignProspect(id: string) {
@@ -858,9 +791,9 @@ export default function GmailHub({
               <div className="gh-connect-feats">
                 {[
                   { Icon: IcLead, label: 'Lead Detection',   desc: 'AI tags inbound emails Hot / Warm / Cold based on buying intent' },
-                  { Icon: IcDraft, label: 'AI Draft Replies', desc: 'Context-aware drafts saved to Gmail — you review before sending' },
+                  { Icon: IcDraft, label: 'AI Campaigns',     desc: 'Personalised outreach emails for a list of prospects, sent now or scheduled' },
                   { Icon: IcClock, label: 'Stalled Alerts',   desc: 'Surface deals that have gone quiet for 7+ days with no follow-up' },
-                  { Icon: IcPipe,  label: 'Sales Pipeline',   desc: 'Leads flow from inbox to a visual kanban: New → Qualified → Closed' },
+                  { Icon: IcPipe,  label: 'Follow-ups',       desc: 'Reminders when a prospect has not replied, with an AI-drafted nudge ready to send' },
                 ].map(({ Icon, label, desc }) => (
                   <div key={label} className="gh-connect-feat">
                     <div className="gh-feat-icon-wrap"><Icon /></div>
@@ -1038,19 +971,9 @@ export default function GmailHub({
             <span className="gh-stat-sub">no reply 7+ days</span>
           </div>
           <div className="gh-stat">
-            <div className="gh-stat-label">Drafts Ready</div>
-            <div className="gh-stat-num">{DRAFTS.length}</div>
-            <span className="gh-stat-sub">awaiting your review</span>
-          </div>
-          <div className="gh-stat">
             <div className="gh-stat-label">Replied This Week</div>
             <div className="gh-stat-num">12</div>
             <span className="gh-stat-trend">↑ 4 vs last week</span>
-          </div>
-          <div className="gh-stat">
-            <div className="gh-stat-label">Pipeline Value</div>
-            <div className="gh-stat-num">$28.4k</div>
-            <span className="gh-stat-sub">estimated ARR</span>
           </div>
         </div>
 
@@ -1058,10 +981,8 @@ export default function GmailHub({
         <div className="gh-tabs">
           {([
             ['inbox',       'Inbox Intelligence'],
-            ['pipeline',    'Lead Pipeline'],
-            ['drafts',      `Draft Replies (${DRAFTS.length})`],
             ['campaign',    'Campaigns'],
-            ['limitations', 'Limitations'],
+            ['followups',   followUpDueCount > 0 ? `Follow-ups (${followUpDueCount})` : 'Follow-ups'],
           ] as [Tab, string][]).map(([key, label]) => (
             <button
               key={key}
@@ -1252,101 +1173,6 @@ export default function GmailHub({
               )}
             </div>
             )}
-          </div>
-        )}
-
-        {/* ── Lead Pipeline ── */}
-        {activeTab === 'pipeline' && (
-          <div className="gh-pipeline-wrap">
-
-            <div className="gh-pipeline-top">
-              <div>
-                <div className="gh-pipeline-title">Lead Pipeline</div>
-                <div className="gh-pipeline-sub">{LEADS.length} leads · estimated $28,400 ARR</div>
-              </div>
-              <button className="gh-add-lead-btn">+ Add manually</button>
-            </div>
-
-            <div className="gh-kanban">
-              {STAGES.map(stage => {
-                const stageLeads = LEADS.filter(l => l.stage === stage.key)
-                const stageVal = stageLeads.reduce((s, l) => s + parseInt(l.value.replace(/[^0-9]/g, '') || '0'), 0)
-                return (
-                  <div key={stage.key} className="gh-kc" style={{ '--kc-color': stage.color } as React.CSSProperties}>
-                    <div className="gh-kc-hd">
-                      <div className="gh-kc-hd-left">
-                        <span className="gh-kc-label">{stage.label}</span>
-                        <span className="gh-kc-count">{stageLeads.length}</span>
-                      </div>
-                      <span className="gh-kc-val">${(stageVal / 1000).toFixed(1)}k</span>
-                    </div>
-                    <div className="gh-kc-bar"><div className="gh-kc-bar-fill" style={{ width: `${Math.min(100, stageLeads.length * 20)}%` }} /></div>
-                    <div className="gh-kc-cards">
-                      {stageLeads.map(lead => (
-                        <div key={lead.id} className="gh-lead-card">
-                          <div className="gh-lc-top-row">
-                            <div className="gh-lc-av">{lead.name.split(' ').map(n => n[0]).join('')}</div>
-                            <span className={`gh-lc-level gh-lc-${lead.level}`}>{lead.level}</span>
-                          </div>
-                          <div className="gh-lc-name">{lead.name}</div>
-                          <div className="gh-lc-company">{lead.company}</div>
-                          <div className="gh-lc-subject">{lead.subject}</div>
-                          <div className="gh-lc-foot">
-                            <span className="gh-lc-value">{lead.value}</span>
-                            <span className="gh-lc-time">{lead.lastContact}</span>
-                          </div>
-                        </div>
-                      ))}
-                      <button className="gh-kc-add">+ Add</button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ── Draft Replies ── */}
-        {activeTab === 'drafts' && (
-          <div className="gh-drafts">
-            <div className="gh-drafts-notice">
-              <IcDraft />
-              <span>AI-drafted replies based on thread context. Review each one, then save to Gmail Drafts or discard. <strong>Nothing is sent automatically.</strong></span>
-            </div>
-            <div className="gh-draft-list">
-              {DRAFTS.map(draft => (
-                <div key={draft.id} className={`gh-draft-card${expandedDraft === draft.id ? ' expanded' : ''} gh-dc-urgency-${draft.urgency}`}>
-                  <button className="gh-dc-hd" onClick={() => setExpandedDraft(expandedDraft === draft.id ? null : draft.id)}>
-                    <div className="gh-dc-left">
-                      <div className="gh-dc-to">
-                        To: <strong>{draft.to}</strong>
-                        <span className="gh-dc-email">&nbsp;&lt;{draft.email}&gt;</span>
-                      </div>
-                      <div className="gh-dc-subject">{draft.subject}</div>
-                      <span className="gh-dc-context-tag">{draft.context}</span>
-                    </div>
-                    <div className="gh-dc-right">
-                      <span className={`gh-dc-urgency-badge gh-dc-ub-${draft.urgency}`}>
-                        {draft.urgency === 'high' ? 'Urgent' : draft.urgency === 'medium' ? 'Soon' : 'Low'}
-                      </span>
-                      <span className="gh-dc-expand">{expandedDraft === draft.id ? '−' : '+'}</span>
-                    </div>
-                  </button>
-                  {expandedDraft === draft.id && (
-                    <div className="gh-dc-body">
-                      <pre className="gh-dc-content">{draft.content}</pre>
-                      <div className="gh-dc-actions">
-                        <button className="gh-dc-save">Save to Gmail Drafts</button>
-                        <button className="gh-dc-copy" onClick={() => copyText(draft.content, draft.id)}>
-                          {copied === draft.id ? 'Copied' : 'Copy text'}
-                        </button>
-                        <button className="gh-dc-discard">Discard</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
           </div>
         )}
 
@@ -1669,7 +1495,7 @@ export default function GmailHub({
             <div className="gh-cmp-section">
               <div className="gh-cmp-section-hd">
                 <div className="gh-cmp-step-num">1</div>
-                <div className="gh-cmp-section-title">What is your campaign goal?</div>
+                <div className="gh-cmp-section-title">What is this campaign about?</div>
               </div>
               <textarea
                 className="gh-cmp-textarea"
@@ -1684,9 +1510,9 @@ export default function GmailHub({
             <div className="gh-cmp-section">
               <div className="gh-cmp-section-hd">
                 <div className="gh-cmp-step-num">2</div>
-                <div className="gh-cmp-section-title">Who are you emailing?</div>
+                <div className="gh-cmp-section-title">Who should get it?</div>
                 {campaignProspects.length > 0 && (
-                  <span className="gh-cmp-section-count">{campaignProspects.length} added</span>
+                  <span className="gh-cmp-section-count">{campaignProspects.length} recipient{campaignProspects.length !== 1 ? 's' : ''}</span>
                 )}
               </div>
 
@@ -1816,44 +1642,21 @@ export default function GmailHub({
                 {campaignAiParseErr && <p style={{ margin: '6px 0 0', fontSize: 12, color: '#c0392b' }}>{campaignAiParseErr}</p>}
               </div>
 
-              {/* Prospect list */}
+              {/* Current campaign recipients (compact) */}
               {campaignProspects.length > 0 && (
-                <div className="gh-cmp-pi-list">
-                  <div className="gh-cmp-pi-list-hd">
-                    <span>{campaignProspects.length} prospect{campaignProspects.length !== 1 ? 's' : ''}</span>
-                    <button
-                      className="gh-cmp-add-row-btn"
-                      onClick={() => setCampaignManualForm({ email: '', name: '', domain: '' })}
-                    >
-                      + Add manually
-                    </button>
-                  </div>
-                  <table className="gh-cmp-table">
-                    <thead>
-                      <tr>
-                        <th className="gh-cmp-th">Email</th>
-                        <th className="gh-cmp-th">Name</th>
-                        <th className="gh-cmp-th">Domain</th>
-                        <th className="gh-cmp-th"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {campaignProspects.map(p => (
-                        <tr key={p.id} className="gh-cmp-tr">
-                          <td className="gh-cmp-td gh-cmp-td-email">{p.email}</td>
-                          <td className="gh-cmp-td">{p.name || <span className="gh-cmp-td-empty">—</span>}</td>
-                          <td className="gh-cmp-td">{p.domain || <span className="gh-cmp-td-empty">—</span>}</td>
-                          <td className="gh-cmp-td gh-cmp-td-action">
-                            <button
-                              className="gh-cmp-remove-btn"
-                              onClick={() => removeCampaignProspect(p.id)}
-                              title="Remove"
-                            >✕</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="gh-cmp-recipients">
+                  {campaignProspects.map(p => (
+                    <span key={p.id} className="gh-cmp-chip" title={[p.name, p.domain].filter(Boolean).join(' · ') || undefined}>
+                      {p.email}
+                      <button className="gh-cmp-chip-x" onClick={() => removeCampaignProspect(p.id)} title="Remove from campaign">✕</button>
+                    </span>
+                  ))}
+                  <button
+                    className="gh-cmp-chip-clear"
+                    onClick={() => { setCampaignProspects([]); setCampaignStates({}) }}
+                  >
+                    Clear all
+                  </button>
                 </div>
               )}
 
@@ -1884,7 +1687,7 @@ export default function GmailHub({
                     onClick={() => {
                       if (!campaignManualForm.email.includes('@')) return
                       const p = { id: `cp-${Date.now()}`, ...campaignManualForm }
-                      setCampaignProspects(prev => [...prev, p])
+                      addToCampaign([p])
                       saveProspectsToDB([p])
                       setCampaignManualForm(null)
                     }}
@@ -1895,15 +1698,27 @@ export default function GmailHub({
                 </div>
               )}
 
-              {/* Empty state */}
-              {campaignProspects.length === 0 && campaignManualForm === null && (
-                <button
-                  className="gh-cmp-add-row-btn"
-                  onClick={() => setCampaignManualForm({ email: '', name: '', domain: '' })}
-                >
-                  + Add manually instead
-                </button>
-              )}
+              <div className="gh-cmp-add-links">
+                {campaignManualForm === null && (
+                  <button
+                    className="gh-cmp-add-row-btn"
+                    onClick={() => setCampaignManualForm({ email: '', name: '', domain: '' })}
+                  >
+                    + Add one manually
+                  </button>
+                )}
+                {savedProspects.length > 0 && (
+                  <button
+                    className="gh-cmp-add-row-btn"
+                    onClick={() => {
+                      setSavedOpen(true)
+                      setTimeout(() => document.getElementById('gh-saved-prospects')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+                    }}
+                  >
+                    Pick from saved prospects ({savedProspects.length})
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Step 3 — Generate & Send */}
@@ -2301,7 +2116,7 @@ export default function GmailHub({
                                           >
                                             Cancel
                                           </button>
-                                          <span className="gh-cmp-schedule-hint">Your time ({localTimeZone()}) · sends within an hour of this time</span>
+                                          <span className="gh-cmp-schedule-hint">Your time ({localTimeZone()}) · scheduled emails go out once a day, in the 4 PM IST send after this time</span>
                                         </div>
                                       )}
                                       <button
@@ -2344,34 +2159,105 @@ export default function GmailHub({
               </div>
             )}
 
-          </div>
-        )}
-
-
-
-        {/* ── Limitations ── */}
-        {activeTab === 'limitations' && (
-          <div className="gh-limitations">
-            <p className="gh-limit-intro">
-              Honest summary of what this integration can and cannot do — technical constraints, API limits, and deliberate product decisions explained plainly.
-            </p>
-            <div className="gh-limit-grid">
-              {LIMITATIONS.map(l => (
-                <div key={l.name} className={`gh-limit-card gh-limit-${l.severity}`}>
-                  <div className="gh-lim-head">
-                    <div className="gh-lim-name">{l.name}</div>
-                    <span className={`gh-lim-sev gh-lim-sev-${l.severity}`}>
-                      {l.severity === 'high' ? 'Blocker' : l.severity === 'medium' ? 'Medium' : 'Low'}
-                    </span>
-                  </div>
-                  <p className="gh-lim-problem">{l.problem}</p>
-                  <div className="gh-lim-sol-label">How we handle it</div>
-                  <div className="gh-lim-solution">{l.solution}</div>
+            {/* Saved prospects — everyone imported before, kept out of the way until needed */}
+            {savedProspects.length > 0 && (() => {
+              const inCampaign = new Set(campaignProspects.map(p => p.email.toLowerCase()))
+              const q = savedSearch.trim().toLowerCase()
+              const filtered = q
+                ? savedProspects.filter(p => [p.email, p.name, p.domain].some(v => v.toLowerCase().includes(q)))
+                : savedProspects
+              const selectable = filtered.filter(p => !inCampaign.has(p.email.toLowerCase()))
+              const allSelected = selectable.length > 0 && selectable.every(p => savedSelected.has(p.id))
+              return (
+                <div className="gh-cmp-section gh-saved" id="gh-saved-prospects">
+                  <button className="gh-saved-toggle" onClick={() => setSavedOpen(o => !o)}>
+                    <span className="gh-cmp-section-title">Saved prospects</span>
+                    <span className="gh-cmp-section-count">{savedProspects.length}</span>
+                    <span className="gh-saved-caret">{savedOpen ? 'Hide ▲' : 'Show ▼'}</span>
+                  </button>
+                  {savedOpen && (
+                    <div className="gh-saved-body">
+                      <div className="gh-saved-bar">
+                        <input
+                          className="gh-cmp-pinput gh-saved-search"
+                          placeholder="Search email, name or domain"
+                          value={savedSearch}
+                          onChange={e => setSavedSearch(e.target.value)}
+                        />
+                        <button
+                          className="gh-cmp-gen-all-btn"
+                          disabled={savedSelected.size === 0}
+                          onClick={addSelectedSavedToCampaign}
+                        >
+                          {savedSelected.size > 0 ? `Add ${savedSelected.size} to campaign` : 'Add to campaign'}
+                        </button>
+                      </div>
+                      <div className="gh-saved-scroll">
+                        <table className="gh-cmp-table">
+                          <thead>
+                            <tr>
+                              <th className="gh-cmp-th" style={{ width: 32 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={allSelected}
+                                  disabled={selectable.length === 0}
+                                  onChange={e => setSavedSelected(e.target.checked ? new Set(selectable.map(p => p.id)) : new Set())}
+                                  style={{ accentColor: 'var(--green)', cursor: 'pointer' }}
+                                />
+                              </th>
+                              <th className="gh-cmp-th">Email</th>
+                              <th className="gh-cmp-th">Name</th>
+                              <th className="gh-cmp-th">Domain</th>
+                              <th className="gh-cmp-th"></th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.map(p => {
+                              const added = inCampaign.has(p.email.toLowerCase())
+                              return (
+                                <tr key={p.id} className="gh-cmp-tr">
+                                  <td className="gh-cmp-td" style={{ width: 32, textAlign: 'center' }}>
+                                    <input
+                                      type="checkbox"
+                                      disabled={added}
+                                      checked={added || savedSelected.has(p.id)}
+                                      onChange={e => setSavedSelected(prev => {
+                                        const n = new Set(prev)
+                                        if (e.target.checked) n.add(p.id); else n.delete(p.id)
+                                        return n
+                                      })}
+                                      style={{ accentColor: 'var(--green)', cursor: added ? 'default' : 'pointer' }}
+                                    />
+                                  </td>
+                                  <td className="gh-cmp-td gh-cmp-td-email">
+                                    {p.email}
+                                    {added && <span className="gh-saved-in">In campaign</span>}
+                                  </td>
+                                  <td className="gh-cmp-td">{p.name || <span className="gh-cmp-td-empty">—</span>}</td>
+                                  <td className="gh-cmp-td">{p.domain || <span className="gh-cmp-td-empty">—</span>}</td>
+                                  <td className="gh-cmp-td gh-cmp-td-action">
+                                    <button className="gh-cmp-remove-btn" onClick={() => deleteSavedProspect(p.id)} title="Delete saved prospect">✕</button>
+                                  </td>
+                                </tr>
+                              )
+                            })}
+                            {filtered.length === 0 && (
+                              <tr><td className="gh-cmp-td gh-cmp-td-empty" colSpan={5}>No matches</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
+              )
+            })()}
+
           </div>
         )}
+
+        {/* ── Follow-ups ── */}
+        {activeTab === 'followups' && <FollowUpsTab onCountChange={setFollowUpDueCount} />}
 
       </div>
     </div>
