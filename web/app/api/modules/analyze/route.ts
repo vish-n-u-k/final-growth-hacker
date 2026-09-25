@@ -573,7 +573,16 @@ Key One-Liners: ${pb.keyOneLiners}`
       ])
       Object.assign(requirements, updatedReqs)
     } catch (err) {
-      console.error('[Foundation] prefetch/analysis block threw — falling back to runAnalysis:', err)
+      const msg = err instanceof Error ? err.message : 'Analysis failed'
+      const isFetchError = msg.startsWith('Could not fetch')
+      console.error('[Foundation] prefetch/analysis block threw:', err)
+      if (isFetchError) {
+        await db.update(modules).set({ status: 'pending' }).where(eq(modules.id, moduleId))
+        return NextResponse.json(
+          { error: `Unable to reach ${requirements['website_url']}. Make sure the site is publicly accessible and try again.` },
+          { status: 400 },
+        )
+      }
       foundationResults = null
     }
   }

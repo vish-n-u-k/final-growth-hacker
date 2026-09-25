@@ -34,19 +34,19 @@ export default function ContrastChecker({ websiteUrl }: { websiteUrl?: string })
   const [bg, setBg] = useState('#ffffff')
   const manualResult = evaluateContrast(fg, bg)
 
-  const runScan = () => {
+  const runScan = (fresh = false) => {
     if (!websiteUrl) return
     setLoading(true)
     setScanError(null)
     fetch('/api/tools/color-contrast', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ websiteUrl }),
+      body: JSON.stringify({ websiteUrl, fresh }),
     })
       .then(async (res) => {
         if (!res.ok) {
           const d = await res.json().catch(() => null) as { error?: string } | null
-          throw new Error(d?.error ?? 'Scan failed')
+          throw new Error(d?.error ?? (res.status === 504 ? 'the scan timed out' : 'Scan failed'))
         }
         return res.json() as Promise<ColorContrastScanResult>
       })
@@ -65,7 +65,7 @@ export default function ContrastChecker({ websiteUrl }: { websiteUrl?: string })
       <div className="cc-checker-hd">
         <span>Contrast checker</span>
         {websiteUrl && (
-          <button type="button" className="cc-rescan" onClick={runScan} disabled={loading}>
+          <button type="button" className="cc-rescan" onClick={() => runScan(true)} disabled={loading}>
             {loading ? 'Scanning…' : 'Re-scan page'}
           </button>
         )}

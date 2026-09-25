@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useSmartBack } from '@/lib/useSmartBack'
 import ThemeToggle from '@/components/ThemeToggle'
 import type { ReminderSuggestion } from '@/app/api/reminders/suggest/route'
 
@@ -78,6 +79,7 @@ export default function RemindersPage({
   brandProfile: BrandProfile
 }) {
   const router = useRouter()
+  const goBack = useSmartBack('/dashboard')
   const [reminders, setReminders] = useState<Reminder[]>(initialReminders)
   const [loading, setLoading] = useState(false)
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
@@ -503,8 +505,8 @@ export default function RemindersPage({
         <div className="st-page-hd" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
             <button
-              onClick={() => router.push('/dashboard')}
-              title="Back to dashboard"
+              onClick={goBack}
+              title="Back"
               style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--text)', cursor: 'pointer', flexShrink: 0, marginTop: 4 }}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none">

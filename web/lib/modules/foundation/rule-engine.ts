@@ -27,7 +27,9 @@ export function runFoundationRuleEngine(
   // ── site-accessible ──────────────────────────────────────────────────────────
   results.push(e
     ? f('site-accessible', true,
-        'Website is live and returning a successful response.',
+        data.jinaFallback
+          ? 'Website is live. Direct scanning was blocked (bot protection active) — content fetched via Jina Reader.'
+          : 'Website is live and returning a successful response.',
         'Site is live and accessible',
         'Your site loads correctly for visitors and bots.',
         '')
@@ -89,31 +91,43 @@ export function runFoundationRuleEngine(
 
   // ── no-noindex ───────────────────────────────────────────────────────────────
   const hasNoindex = /noindex/i.test(e.metaRobots)
-  results.push(!hasNoindex
+  results.push(data.jinaFallback
     ? f('no-noindex', true,
-        'No noindex directive found — search engines can crawl and index this site.',
-        'Search engines can index this site',
-        'Your pages are eligible to appear in Google search results.',
-        '')
-    : f('no-noindex', false,
-        `noindex directive found in robots meta tag: "${e.metaRobots}" — Google cannot index this site.`,
-        'Site is blocked from Google',
-        '**This site is invisible to search engines** — no organic traffic is possible while noindex is active.',
-        'Remove the <meta name="robots" content="noindex"> tag or change it to "index,follow".')
+        'Could not read HTML head — site blocks automated scanning. Assumed indexable; verify manually in your page source.',
+        'Cannot verify — check manually',
+        'Open your page source and confirm there is no <meta name="robots" content="noindex"> tag.',
+        'View source (Ctrl+U) and search for "noindex" to confirm.')
+    : !hasNoindex
+      ? f('no-noindex', true,
+          'No noindex directive found — search engines can crawl and index this site.',
+          'Search engines can index this site',
+          'Your pages are eligible to appear in Google search results.',
+          '')
+      : f('no-noindex', false,
+          `noindex directive found in robots meta tag: "${e.metaRobots}" — Google cannot index this site.`,
+          'Site is blocked from Google',
+          '**This site is invisible to search engines** — no organic traffic is possible while noindex is active.',
+          'Remove the <meta name="robots" content="noindex"> tag or change it to "index,follow".')
   )
 
   // ── mobile-viewport ──────────────────────────────────────────────────────────
-  results.push(e.metaViewport
+  results.push(data.jinaFallback
     ? f('mobile-viewport', true,
-        `Viewport meta tag is set: "${e.metaViewport}".`,
-        'Mobile viewport tag is present',
-        'The site renders correctly on mobile devices.',
-        '')
-    : f('mobile-viewport', false,
-        'No viewport meta tag found — the site will render incorrectly on mobile devices.',
-        'Missing mobile viewport tag',
-        '**Over 60% of web traffic is mobile** — without a viewport tag the site appears broken on phones.',
-        'Add <meta name="viewport" content="width=device-width, initial-scale=1"> inside your HTML <head>.')
+        'Could not read HTML head — site blocks automated scanning. Assumed present; verify manually.',
+        'Cannot verify — check manually',
+        'Open your page source and confirm <meta name="viewport"> exists in the <head>.',
+        'View source (Ctrl+U) and search for "viewport" to confirm.')
+    : e.metaViewport
+      ? f('mobile-viewport', true,
+          `Viewport meta tag is set: "${e.metaViewport}".`,
+          'Mobile viewport tag is present',
+          'The site renders correctly on mobile devices.',
+          '')
+      : f('mobile-viewport', false,
+          'No viewport meta tag found — the site will render incorrectly on mobile devices.',
+          'Missing mobile viewport tag',
+          '**Over 60% of web traffic is mobile** — without a viewport tag the site appears broken on phones.',
+          'Add <meta name="viewport" content="width=device-width, initial-scale=1"> inside your HTML <head>.')
   )
 
   // ── ga4-installed ────────────────────────────────────────────────────────────
@@ -123,17 +137,18 @@ export function runFoundationRuleEngine(
   else if (e.gtmId) ga4Detail = `Google Tag Manager detected (${e.gtmId}) — GA4 may be loaded via GTM.`
   else if (e.hasAnalyticsScript) ga4Detail = 'Analytics script detected (Google Tag Manager or gtag.js).'
   else ga4Detail = 'No Google Analytics GA4 tracking code found in the page HTML.'
-  results.push(hasGa4
-    ? f('ga4-installed', true,
-        ga4Detail,
-        'Google Analytics is installed',
-        'Visitor behaviour can be tracked and growth decisions can be data-driven.',
-        '')
-    : f('ga4-installed', false,
-        ga4Detail,
-        'No analytics tracking found',
+  results.push(data.jinaFallback
+    ? f('ga4-installed', false,
+        'Could not scan scripts — site blocks automated scanning. Check manually whether GA4, GTM, or another analytics tool is installed.',
+        'Cannot verify — check manually',
         '**Without analytics you are flying blind** — no data to make growth decisions from.',
-        "Go to analytics.google.com, create a GA4 property, and add the tracking snippet to your site's <head>.")
+        "Go to analytics.google.com to verify your GA4 property is active, or check your site's <head> for a gtag/GTM snippet.")
+    : hasGa4
+      ? f('ga4-installed', true, ga4Detail, 'Google Analytics is installed',
+          'Visitor behaviour can be tracked and growth decisions can be data-driven.', '')
+      : f('ga4-installed', false, ga4Detail, 'No analytics tracking found',
+          '**Without analytics you are flying blind** — no data to make growth decisions from.',
+          "Go to analytics.google.com, create a GA4 property, and add the tracking snippet to your site's <head>.")
   )
 
   // ── gsc-linked ───────────────────────────────────────────────────────────────
@@ -144,87 +159,126 @@ export function runFoundationRuleEngine(
     gscMeta['gsc_dns_txt_value'] ||
     hasGa4
   )
-  results.push(gscVerified
-    ? f('gsc-linked', true,
-        e.gscVerification
-          ? `Google Search Console verification tag found: "${e.gscVerification.slice(0, 40)}…".`
-          : 'Google Search Console verification detected.',
-        'Google Search Console is verified',
-        'Google can report on your search performance and index pages faster.',
-        '')
-    : f('gsc-linked', false,
-        'No Google Search Console verification found in the page HTML.',
-        'Search Console not verified',
+  results.push(data.jinaFallback
+    ? f('gsc-linked', false,
+        'Could not scan HTML head — site blocks automated scanning. Verify GSC manually.',
+        'Cannot verify — check manually',
         '**Without GSC you have no data on what searches drive traffic** — keyword and ranking data is unavailable.',
-        'Go to search.google.com/search-console, add your property, and verify using the HTML tag method.')
+        'Go to search.google.com/search-console to confirm your property is verified.')
+    : gscVerified
+      ? f('gsc-linked', true,
+          e.gscVerification
+            ? `Google Search Console verification tag found: "${e.gscVerification.slice(0, 40)}…".`
+            : 'Google Search Console verification detected.',
+          'Google Search Console is verified',
+          'Google can report on your search performance and index pages faster.',
+          '')
+      : f('gsc-linked', false,
+          'No Google Search Console verification found in the page HTML.',
+          'Search Console not verified',
+          '**Without GSC you have no data on what searches drive traffic** — keyword and ranking data is unavailable.',
+          'Go to search.google.com/search-console, add your property, and verify using the HTML tag method.')
   )
 
   // ── posthog-installed ────────────────────────────────────────────────────────
-  results.push(e.posthogDetected
-    ? f('posthog-installed', true,
-        'PostHog analytics detected in the page scripts.',
-        'PostHog is installed',
-        'User behaviour, funnels, and product analytics are being tracked.',
-        '')
-    : f('posthog-installed', false,
-        'No PostHog analytics detected in the page scripts.',
-        'PostHog not installed',
+  results.push(data.jinaFallback
+    ? f('posthog-installed', false,
+        'Could not scan scripts — site blocks automated scanning. Check manually whether PostHog is installed.',
+        'Cannot verify — check manually',
         'Without product analytics **you cannot see how users interact with your product** — funnels, drop-off points, and conversion rates are completely invisible.',
         "Go to posthog.com → create a free project → grab your phc_... API key. Then open `md_files/posthog-setup.md` in your project and paste its contents to Claude Code — it will install PostHog and wire up every important event (auth, onboarding, analysis, item checks, exports, AI features, score milestones) in one pass.")
+    : e.posthogDetected
+      ? f('posthog-installed', true,
+          'PostHog analytics detected in the page scripts.',
+          'PostHog is installed',
+          'User behaviour, funnels, and product analytics are being tracked.',
+          '')
+      : f('posthog-installed', false,
+          'No PostHog analytics detected in the page scripts.',
+          'PostHog not installed',
+          'Without product analytics **you cannot see how users interact with your product** — funnels, drop-off points, and conversion rates are completely invisible.',
+          "Go to posthog.com → create a free project → grab your phc_... API key. Then open `md_files/posthog-setup.md` in your project and paste its contents to Claude Code — it will install PostHog and wire up every important event (auth, onboarding, analysis, item checks, exports, AI features, score milestones) in one pass.")
   )
 
   // ── gtm-installed ────────────────────────────────────────────────────────────
-  results.push(e.gtmId
-    ? f('gtm-installed', true,
-        `Google Tag Manager detected (${e.gtmId}).`,
-        'Google Tag Manager is installed',
-        'All marketing tags can be deployed and updated without touching the codebase.',
-        '')
-    : f('gtm-installed', false,
-        'No Google Tag Manager container found in the page HTML.',
-        'GTM not installed',
+  results.push(data.jinaFallback
+    ? f('gtm-installed', false,
+        'Could not scan scripts — site blocks automated scanning. Check manually whether GTM is installed.',
+        'Cannot verify — check manually',
         'Without GTM every new tracking tag requires a code deployment — **this slows down marketing execution significantly**.',
-        'Go to tagmanager.google.com, create a container, and paste the two GTM code snippets into your site\'s <head> and <body>.')
+        "View your page source and search for 'GTM-' to check if Google Tag Manager is installed.")
+    : e.gtmId
+      ? f('gtm-installed', true,
+          `Google Tag Manager detected (${e.gtmId}).`,
+          'Google Tag Manager is installed',
+          'All marketing tags can be deployed and updated without touching the codebase.',
+          '')
+      : f('gtm-installed', false,
+          'No Google Tag Manager container found in the page HTML.',
+          'GTM not installed',
+          'Without GTM every new tracking tag requires a code deployment — **this slows down marketing execution significantly**.',
+          'Go to tagmanager.google.com, create a container, and paste the two GTM code snippets into your site\'s <head> and <body>.')
   )
 
   // ── meta-pixel-installed ─────────────────────────────────────────────────────
   const hasMetaPixel = !!(e.metaPixelId)
-  results.push(hasMetaPixel
-    ? f('meta-pixel-installed', true,
-        e.metaPixelId !== 'detected'
-          ? `Meta Pixel detected (ID: ${e.metaPixelId}).`
-          : 'Meta Pixel detected (fbevents.js loaded).',
-        'Meta Pixel is installed',
-        'Facebook and Instagram ad campaigns can track conversions and build retargeting audiences.',
-        '')
-    : f('meta-pixel-installed', false,
-        'No Meta Pixel (fbevents.js or fbq() call) found in the page HTML.',
-        'Meta Pixel not installed',
+  results.push(data.jinaFallback
+    ? f('meta-pixel-installed', false,
+        'Could not scan scripts — site blocks automated scanning. Check manually whether Meta Pixel is installed.',
+        'Cannot verify — check manually',
         '**Without the Meta Pixel, Facebook and Instagram ads cannot track conversions** or optimise delivery — ad spend is wasted.',
-        'Go to business.facebook.com → Events Manager → create a Pixel → paste the base code snippet into your <head>.')
+        "View your page source and search for 'fbq(' or 'fbevents.js' to check if Meta Pixel is installed.")
+    : hasMetaPixel
+      ? f('meta-pixel-installed', true,
+          e.metaPixelId !== 'detected'
+            ? `Meta Pixel detected (ID: ${e.metaPixelId}).`
+            : 'Meta Pixel detected (fbevents.js loaded).',
+          'Meta Pixel is installed',
+          'Facebook and Instagram ad campaigns can track conversions and build retargeting audiences.',
+          '')
+      : f('meta-pixel-installed', false,
+          'No Meta Pixel (fbevents.js or fbq() call) found in the page HTML.',
+          'Meta Pixel not installed',
+          '**Without the Meta Pixel, Facebook and Instagram ads cannot track conversions** or optimise delivery — ad spend is wasted.',
+          'Go to business.facebook.com → Events Manager → create a Pixel → paste the base code snippet into your <head>.')
   )
 
   // ── tiktok-pixel-installed ───────────────────────────────────────────────────
-  results.push(e.tiktokPixelDetected
+  // Only relevant if the business is on TikTok — otherwise don't penalise or nag about it
+  const tiktokRelevant = e.tiktokPixelDetected || e.hasTiktokLink || !!e.socialLinks['tiktok']
+  results.push(!tiktokRelevant
     ? f('tiktok-pixel-installed', true,
-        'TikTok Pixel detected (analytics.tiktok.com script or ttq.load() call found).',
-        'TikTok Pixel is installed',
-        'TikTok ad campaigns can track conversions and build retargeting audiences.',
+        'Not applicable — no TikTok profile is linked from your site, so a TikTok Pixel is not needed.',
+        'Not needed — no TikTok presence',
+        'The TikTok Pixel only matters if you run TikTok ads. Skip this unless you start advertising on TikTok.',
         '')
-    : f('tiktok-pixel-installed', false,
-        'No TikTok Pixel detected in the page HTML.',
-        'TikTok Pixel not installed',
+    : data.jinaFallback
+    ? f('tiktok-pixel-installed', false,
+        'Could not scan scripts — site blocks automated scanning. Check manually whether TikTok Pixel is installed.',
+        'Cannot verify — check manually',
         'If you plan to run TikTok ads, the Pixel is required to track conversions and optimise delivery.',
-        'Go to ads.tiktok.com → Assets → Events → Web Events → create a Pixel → paste the base code or deploy via GTM.')
+        "View your page source and search for 'ttq.load(' or 'analytics.tiktok.com' to check if TikTok Pixel is installed.")
+    : e.tiktokPixelDetected
+      ? f('tiktok-pixel-installed', true,
+          'TikTok Pixel detected (analytics.tiktok.com script or ttq.load() call found).',
+          'TikTok Pixel is installed',
+          'TikTok ad campaigns can track conversions and build retargeting audiences.',
+          '')
+      : f('tiktok-pixel-installed', false,
+          'Your site links to a TikTok profile, but no TikTok Pixel was detected in the page HTML.',
+          'TikTok Pixel not installed',
+          'If you plan to run TikTok ads, the Pixel is required to track conversions and optimise delivery.',
+          'Go to ads.tiktok.com → Assets → Events → Web Events → create a Pixel → paste the base code or deploy via GTM.')
   )
 
   // ── privacy-policy ───────────────────────────────────────────────────────────
   const privacyUrl = e.probedPages.privacyUrl
-  const privacyInLinks = e.allLinks.some(l => /privacy/i.test(l.text) || /privacy/i.test(l.href))
-  const hasPrivacy = !!(privacyUrl || privacyInLinks)
+  const hasPrivacy = !!(privacyUrl || e.privacyLinkHref)
   results.push(hasPrivacy
     ? f('privacy-policy', true,
-        privacyUrl ? `Privacy policy page confirmed at ${privacyUrl}.` : 'Privacy policy link found on the page.',
+        privacyUrl
+          ? `Privacy policy page confirmed at ${privacyUrl}.`
+          : `Privacy policy link found on the page (${e.privacyLinkHref}).`,
         'Privacy policy is present',
         'Legal compliance is in place — required for running ads and operating in most jurisdictions.',
         '')
@@ -237,7 +291,7 @@ export function runFoundationRuleEngine(
 
   // ── contact-accessible ───────────────────────────────────────────────────────
   const contactUrl = e.probedPages.contactUrl
-  const contactInLinks = e.allLinks.some(l =>
+  const contactInLinks = [...e.allLinks, ...e.navLinks, ...e.footerLinks].some(l =>
     /contact|support|help|reach/i.test(l.text) || /contact|support|help/i.test(l.href)
   )
   const emailInBody = /\S+@\S+\.\S+/.test(e.bodyTextSnippet)
@@ -303,17 +357,23 @@ export function runFoundationRuleEngine(
   )
 
   // ── favicon-present ──────────────────────────────────────────────────────────
-  results.push(e.favicon
+  results.push(data.jinaFallback
     ? f('favicon-present', true,
-        `Favicon found: "${e.favicon}".`,
-        'Favicon is set',
-        'The site has a professional browser tab icon.',
-        '')
-    : f('favicon-present', false,
-        'No favicon tag found — the browser tab shows a blank icon.',
-        'No favicon set',
-        '**A missing favicon makes the site look unfinished** — small details like this affect first impressions.',
-        'Create a favicon at favicon.io and add <link rel="icon" href="/favicon.ico"> to your HTML <head>.')
+        'Could not read HTML head — site blocks automated scanning. Assumed present; verify manually.',
+        'Cannot verify — check manually',
+        'Open your page source and confirm <link rel="icon"> exists in the <head>.',
+        'View source (Ctrl+U) and search for "favicon" to confirm.')
+    : e.favicon
+      ? f('favicon-present', true,
+          `Favicon found: "${e.favicon}".`,
+          'Favicon is set',
+          'The site has a professional browser tab icon.',
+          '')
+      : f('favicon-present', false,
+          'No favicon tag found — the browser tab shows a blank icon.',
+          'No favicon set',
+          '**A missing favicon makes the site look unfinished** — small details like this affect first impressions.',
+          'Create a favicon at favicon.io and add <link rel="icon" href="/favicon.ico"> to your HTML <head>.')
   )
 
   // ── business-name-clear ──────────────────────────────────────────────────────

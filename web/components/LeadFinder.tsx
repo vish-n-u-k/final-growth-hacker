@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { useSmartBack } from '@/lib/useSmartBack'
 
 interface ScrapedLead {
   id: string
@@ -34,6 +35,7 @@ export default function LeadFinder({
   brandName: string
   gmailConnected: boolean
 }) {
+  const goBack = useSmartBack('/gmail-hub')
   const [url, setUrl] = useState('')
   const [platform, setPlatform] = useState<'shopify' | 'trustpilot'>('shopify')
   const [status, setStatus] = useState<PageStatus>('idle')
@@ -154,7 +156,7 @@ export default function LeadFinder({
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="gh-header">
           <div>
-            <Link href="/gmail-hub" className="gh-back">← Gmail Hub</Link>
+            <button onClick={goBack} className="gh-back">← Back</button>
             <h1 className="gh-title">
               Lead Finder
               <span className="gh-badge-new">BETA</span>

@@ -26,19 +26,19 @@ export default function FontSizeChecker({ websiteUrl }: { websiteUrl?: string })
   const [scan, setScan] = useState<FontSizeScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const runScan = () => {
+  const runScan = (fresh = false) => {
     if (!websiteUrl) return
     setLoading(true)
     setError(null)
     fetch('/api/tools/font-size', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ websiteUrl }),
+      body: JSON.stringify({ websiteUrl, fresh }),
     })
       .then(async (res) => {
         if (!res.ok) {
           const d = await res.json().catch(() => null) as { error?: string } | null
-          throw new Error(d?.error ?? 'Scan failed')
+          throw new Error(d?.error ?? (res.status === 504 ? 'the scan timed out' : 'Scan failed'))
         }
         return res.json() as Promise<FontSizeScanResult>
       })
@@ -58,7 +58,7 @@ export default function FontSizeChecker({ websiteUrl }: { websiteUrl?: string })
     <div className="cc-checker" onClick={(e) => e.stopPropagation()}>
       <div className="cc-checker-hd">
         <span>Live font size checker</span>
-        <button type="button" className="cc-rescan" onClick={runScan} disabled={loading}>
+        <button type="button" className="cc-rescan" onClick={() => runScan(true)} disabled={loading}>
           {loading ? 'Scanning…' : 'Re-scan page'}
         </button>
       </div>

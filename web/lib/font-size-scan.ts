@@ -1,3 +1,5 @@
+import { fetchPsiAccessibility, clearPsiCache } from '@/lib/psi'
+
 export interface FontSizeViolation {
   selector: string
   fontSize: string
@@ -10,20 +12,12 @@ export interface FontSizeScanResult {
   violations: FontSizeViolation[]
 }
 
-export async function scanFontSize(url: string): Promise<FontSizeScanResult | null> {
+export async function scanFontSize(url: string, fresh = false): Promise<FontSizeScanResult | { error: string }> {
   try {
-    const key = process.env.GOOGLE_PSI_API_KEY
-    const params = new URLSearchParams({ url, strategy: 'mobile' })
-    params.append('category', 'accessibility')
-    if (key) params.set('key', key)
-    const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params.toString()}`
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 25000)
-    const res = await fetch(endpoint, { signal: controller.signal })
-    clearTimeout(timer)
-    if (!res.ok) return null
-    const json = await res.json() as Record<string, unknown>
-    const lhr = json.lighthouseResult as Record<string, unknown> | undefined
+    if (fresh) clearPsiCache(url)
+    const psi = await fetchPsiAccessibility(url)
+    if (!psi.ok) return { error: psi.error }
+    const lhr = psi.lhr
     const cats = lhr?.categories as Record<string, { score: number | null }> | undefined
     const audits = lhr?.audits as Record<string, { details?: { items?: Record<string, unknown>[] } }> | undefined
 
@@ -55,6 +49,6 @@ export async function scanFontSize(url: string): Promise<FontSizeScanResult | nu
       violations,
     }
   } catch {
-    return null
+    return { error: 'Could not read the scan results' }
   }
 }

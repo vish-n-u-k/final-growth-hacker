@@ -305,6 +305,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   )
   const [showRequestedModal, setShowRequestedModal] = useState(false)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [toolsLoading, setToolsLoading] = useState(false)
   const [lastAnalyzedAtMap, setLastAnalyzedAtMap] = useState<Record<string, string | null>>({})
   const [pageVerdictsMap, setPageVerdictsMap] = useState<Record<string, ModuleData['pageVerdicts']>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.pageVerdicts]))
@@ -1824,6 +1825,25 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             </a>
             <ThemeToggle />
             <button
+              onClick={() => { setToolsLoading(true); router.push('/tools') }}
+              title="Tools"
+              disabled={toolsLoading}
+              style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: toolsLoading ? 'default' : 'pointer', color: 'var(--text-dim)', flexShrink: 0, transition: 'color 0.15s', opacity: toolsLoading ? .7 : 1 }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-dim)')}
+            >
+              {toolsLoading ? (
+                <span className="md-spin" style={{ width: '14px', height: '14px', flexShrink: 0 }} />
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+                  <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+                  <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+                  <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+                </svg>
+              )}
+            </button>
+            <button
               onClick={() => setNotesOpen(true)}
               title="Notes"
               style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: 'pointer', color: 'var(--text-dim)', flexShrink: 0, transition: 'color 0.15s' }}
@@ -1954,20 +1974,39 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             </div>
           </div>
 
-          <button
-            onClick={() => { setAnalyticsLoading(true); router.push('/authAnalytics') }}
-            className="btn-analytics"
-            disabled={analyticsLoading}
-          >
-            {analyticsLoading ? (
-              <span className="md-spin" style={{ width: '13px', height: '13px', flexShrink: 0 }} />
-            ) : (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
-            <span className="btn-analytics-label">{analyticsLoading ? 'Loading…' : 'Analytics'}</span>
-          </button>
+          <div className="hero-actions-row">
+            <button
+              onClick={() => { setToolsLoading(true); router.push('/tools') }}
+              className="btn-tools"
+              disabled={toolsLoading}
+            >
+              {toolsLoading ? (
+                <span className="md-spin" style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+                  <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+                  <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+                  <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+                </svg>
+              )}
+              <span>{toolsLoading ? 'Loading…' : 'Tools'}</span>
+            </button>
+            <button
+              onClick={() => { setAnalyticsLoading(true); router.push('/authAnalytics') }}
+              className="btn-analytics"
+              disabled={analyticsLoading}
+            >
+              {analyticsLoading ? (
+                <span className="md-spin" style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+              ) : (
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                  <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+              <span className="btn-analytics-label">{analyticsLoading ? 'Loading…' : 'Analytics'}</span>
+            </button>
+          </div>
 
           <div className="hero-divider" />
 

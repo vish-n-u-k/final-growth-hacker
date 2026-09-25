@@ -10,8 +10,8 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { to, subject, body, followUpDays, source, campaignInstruction } =
-    await req.json() as { to: string; subject: string; body: string; followUpDays?: number; source?: string; campaignInstruction?: string }
+  const { to, subject, body, followUpDays, source, campaignInstruction, scheduledAt } =
+    await req.json() as { to: string; subject: string; body: string; followUpDays?: number; source?: string; campaignInstruction?: string; scheduledAt?: string }
 
   const [brand] = await db
     .select({ id: brands.id })
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       Authorization:  `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ raw: encoded }),
+    body: JSON.stringify({ raw: encoded, ...(scheduledAt ? { deliveryTime: scheduledAt } : {}) }),
   })
 
   if (!sendRes.ok) {
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
   const recipientName = to.match(/^"?([^"<]+?)"?\s*<[^>]+>$/)?.[1]?.trim() ?? null
   db.insert(outreachEmails).values({
     brandId: brand.id, toEmail: to, toName: recipientName,
-    subject, body, status: 'sent', gmailMessageId: sent.id,
+    subject, body, status: scheduledAt ? 'scheduled' : 'sent', gmailMessageId: sent.id,
     source: source ?? 'outreach', campaignInstruction: campaignInstruction ?? null,
   }).catch(e => console.error('[send-email] DB log error:', e))
 
@@ -99,5 +99,5 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  return NextResponse.json({ messageId: sent.id })
+  return NextResponse.json({ messageId: sent.id, scheduled: !!scheduledAt, scheduledAt: scheduledAt ?? null })
 }

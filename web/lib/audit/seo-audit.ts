@@ -1147,7 +1147,9 @@ async function checkTechnical(
   findings.push(f('perf.js_size', 'info', 'JavaScript bundle size check requires fetching all JS files — use Lighthouse or WebPageTest for accurate measurement.'))
 
   // perf.ttfb
-  findings.push(ttfb < 200
+  findings.push(ttfb < 0
+    ? f('perf.ttfb', 'info', 'TTFB could not be measured — site blocked direct scanning (content fetched via Jina Reader).')
+    : ttfb < 200
     ? f('perf.ttfb', 'good', `Server responds in ${ttfb}ms (TTFB) — excellent.`)
     : ttfb < 600
     ? f('perf.ttfb', 'ok', `Server responds in ${ttfb}ms (TTFB) — acceptable, aim for <200ms.`,
@@ -1173,14 +1175,14 @@ async function checkTechnical(
 export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAuditError> {
   const normalizedUrl = url.startsWith('http') ? url : `https://${url}`
 
-  let res: Response
-  let html: string
-  let finalUrl: string
-  let ttfb: number
+  let html = ''
+  let finalUrl = normalizedUrl
+  let ttfb = -1
+  let headers: Record<string, string> = {}
 
   try {
     const start = Date.now()
-    res = await fetch(normalizedUrl, {
+    const res = await fetch(normalizedUrl, {
       headers: { 'User-Agent': UA, 'Accept-Encoding': 'gzip, deflate, br' },
       redirect: 'follow',
       signal: AbortSignal.timeout(15_000),
@@ -1188,11 +1190,10 @@ export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAudi
     ttfb = Date.now() - start
     finalUrl = res.url
     html = await res.text()
+    headers = Object.fromEntries(res.headers.entries())
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Failed to fetch the page' }
   }
-
-  const headers = Object.fromEntries(res.headers.entries())
   const $ = cheerio.load(html)
   const canonicalHref = $('link[rel="canonical"]').attr('href') ?? null
 

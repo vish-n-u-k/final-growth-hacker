@@ -29,6 +29,8 @@ export interface FoundationExtracted {
   allLinks: { text: string; href: string }[]
   ctaTexts: string[]
   socialLinks: Record<string, string>
+  privacyLinkHref: string | null  // found anywhere in the page (not limited to the first 50 links)
+  hasTiktokLink: boolean
   probedPages: ProbedPages
 }
 
@@ -78,8 +80,18 @@ function detectSocialLinks(links: { href: string }[]): Record<string, string> {
   return found
 }
 
+const PRIVACY_TEXT_RE = /privacy|data protection|datenschutz|confidentialit/i
+const PRIVACY_HREF_RE = /privacy|datenschutz|data-protection/i
+// Third-party privacy links that don't count (reCAPTCHA badge, cookie banners, embeds)
+const THIRD_PARTY_PRIVACY_RE = /google\.com|cookielaw\.org|onetrust\.com|hubspot\.com|youtube\.com|vimeo\.com|stripe\.com|facebook\.com/i
+// Matches a quoted site-relative path containing "privacy" anywhere in the raw HTML — covers
+// footers rendered from JS payloads (Next.js, Framer, Webflow) that cheerio can't see as <a> tags
+const RAW_PRIVACY_PATH_RE = /["'](\/[a-z0-9\-_/]*privacy[a-z0-9\-_/]*)["']/i
+
 function extractFoundationData(html: string): FoundationExtracted {
   const $ = cheerio.load(html)
+  const rawPrivacyMatch = html.match(RAW_PRIVACY_PATH_RE)
+  const hasTiktokLink = /tiktok\.com\/@/i.test(html)
 
   // title
   const title = $('title').first().text().trim()
@@ -213,6 +225,11 @@ function extractFoundationData(html: string): FoundationExtracted {
 
   const socialLinks = detectSocialLinks(allLinks)
 
+  // privacy link — search every link, not just the first 50 (footers are at the end of the page)
+  const privacyLink = allLinks.find(l =>
+    (PRIVACY_TEXT_RE.test(l.text) || PRIVACY_HREF_RE.test(l.href)) && !THIRD_PARTY_PRIVACY_RE.test(l.href))
+  const privacyLinkHref = privacyLink?.href || rawPrivacyMatch?.[1] || null
+
   return {
     title,
     metaRobots,
@@ -236,6 +253,8 @@ function extractFoundationData(html: string): FoundationExtracted {
     allLinks: allLinks.slice(0, 50),
     ctaTexts: ctaTexts.slice(0, 10),
     socialLinks,
+    privacyLinkHref,
+    hasTiktokLink,
     probedPages: { privacyUrl: null, contactUrl: null, termsUrl: null },
   }
 }
@@ -279,6 +298,7 @@ export interface FoundationFetchResult {
   url: string
   customDomain: boolean
   hostingPlatform: string | null
+  jinaFallback: boolean
 }
 
 export async function getFaviconColor(faviconUrl: string): Promise<string> {
@@ -308,25 +328,35 @@ export async function getFaviconColor(faviconUrl: string): Promise<string> {
   }
 }
 
-const PRIVACY_PATHS = ['/privacy-policy', '/privacy', '/legal/privacy', '/legal', '/terms-privacy']
+const PRIVACY_PATHS = [
+  '/privacy-policy', '/privacy', '/privacy-notice', '/legal/privacy', '/legal/privacy-policy',
+  '/policies/privacy-policy', '/pages/privacy-policy', '/privacy-policy/', '/legal', '/terms-privacy',
+]
 const CONTACT_PATHS = ['/contact', '/contact-us', '/support', '/help', '/reach-us']
 const TERMS_PATHS  = ['/terms', '/terms-of-service', '/terms-and-conditions', '/tos', '/legal/terms']
 
+const PROBE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+
+async function probeOne(url: string): Promise<boolean> {
+  const opts = { signal: AbortSignal.timeout(6000), headers: { 'User-Agent': PROBE_UA }, redirect: 'follow' as const }
+  try {
+    const head = await fetch(url, { ...opts, method: 'HEAD' })
+    if (head.ok) return true
+    // Many servers/CDNs reject HEAD (405) or bot-ish requests (403) — retry with a real GET
+    if (head.status !== 404 && head.status !== 410) {
+      const get = await fetch(url, { ...opts, signal: AbortSignal.timeout(6000) })
+      get.body?.cancel().catch(() => {})
+      return get.ok
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
 async function probeFirstMatch(origin: string, paths: string[]): Promise<string | null> {
   const results = await Promise.all(
-    paths.map(async (path) => {
-      try {
-        const res = await fetch(`${origin}${path}`, {
-          method: 'HEAD',
-          signal: AbortSignal.timeout(5000),
-          headers: { 'User-Agent': 'GrowJinBot/1.0' },
-          redirect: 'follow',
-        })
-        return res.ok ? `${origin}${path}` : null
-      } catch {
-        return null
-      }
-    }),
+    paths.map(async (path) => ((await probeOne(`${origin}${path}`)) ? `${origin}${path}` : null)),
   )
   return results.find((r) => r !== null) ?? null
 }
@@ -345,19 +375,42 @@ async function probePages(url: string): Promise<ProbedPages> {
   }
 }
 
-async function safeFetch(url: string, timeoutMs = 12000): Promise<string | null> {
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+
+async function safeFetch(url: string, timeoutMs = 20000): Promise<string | null> {
+  const headers = {
+    'User-Agent': BROWSER_UA,
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'Cache-Control': 'no-cache',
+  }
+  // First attempt with browser UA
   try {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'GrowJinBot/1.0 (Site Auditor)' },
-    })
+    const res = await fetch(url, { signal: controller.signal, headers, redirect: 'follow' })
     clearTimeout(timer)
-    if (!res.ok) return null
-    return await res.text()
-  } catch {
+    if (res.ok) return await res.text()
+    // 403/429 — try without some headers
+    if (res.status === 403 || res.status === 429) throw new Error(`status ${res.status}`)
     return null
+  } catch {
+    // Retry with minimal headers
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), timeoutMs)
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { 'User-Agent': BROWSER_UA },
+        redirect: 'follow',
+      })
+      clearTimeout(timer)
+      if (!res.ok) return null
+      return await res.text()
+    } catch {
+      return null
+    }
   }
 }
 
@@ -370,12 +423,12 @@ export async function fetchFoundationData(requirements: Record<string, string>):
     Promise.resolve(detectFreeHosting(url)),
     probePages(url),
   ])
-  const extracted = html ? extractFoundationData(html) : null
-  if (extracted) extracted.probedPages = probedPagesResult
-  return {
-    extracted,
-    url,
-    customDomain,
-    hostingPlatform,
+
+  if (html) {
+    const extracted = extractFoundationData(html)
+    extracted.probedPages = probedPagesResult
+    return { extracted, url, customDomain, hostingPlatform, jinaFallback: false }
   }
+
+  return { extracted: null, url, customDomain, hostingPlatform, jinaFallback: false }
 }

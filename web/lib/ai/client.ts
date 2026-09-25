@@ -48,9 +48,12 @@ async function callViaCLI(system: string, prompt: string, model: string): Promis
   const { ANTHROPIC_API_KEY: _stripped, CLAUDECODE: _cc, ...cliEnv } = process.env
 
   return new Promise((resolve, reject) => {
-    const child = spawn('claude', args, {
+    // On Windows the npm-installed CLI is a .cmd shim — spawn can't resolve it without a shell
+    const isWin = process.platform === 'win32'
+    const child = spawn(isWin ? 'claude.cmd' : 'claude', args, {
       env: cliEnv,
       stdio: ['pipe', 'pipe', 'pipe'],
+      shell: isWin,
     })
 
     let stdout = ''

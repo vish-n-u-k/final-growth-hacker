@@ -4,6 +4,8 @@
 // requests the accessibility category, so it stays fast and doesn't duplicate that call's
 // accessibility+seo request.
 
+import { fetchPsiAccessibility, clearPsiCache } from '@/lib/psi'
+
 export interface ColorContrastViolation {
   ratio: number
   fg: string
@@ -30,22 +32,12 @@ interface PsiNode {
   snippet?: string
 }
 
-export async function scanColorContrast(url: string): Promise<ColorContrastScanResult | null> {
+export async function scanColorContrast(url: string, fresh = false): Promise<ColorContrastScanResult | { error: string }> {
   try {
-    const key = process.env.GOOGLE_PSI_API_KEY
-    const params = new URLSearchParams({ url, strategy: 'mobile' })
-    params.append('category', 'accessibility')
-    if (key) params.set('key', key)
-    const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params.toString()}`
-
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 25000)
-    const res = await fetch(endpoint, { signal: controller.signal })
-    clearTimeout(timer)
-    if (!res.ok) return null
-
-    const json = await res.json() as Record<string, unknown>
-    const lhr = json.lighthouseResult as Record<string, unknown> | undefined
+    if (fresh) clearPsiCache(url)
+    const psi = await fetchPsiAccessibility(url)
+    if (!psi.ok) return { error: psi.error }
+    const lhr = psi.lhr
     const cats = lhr?.categories as Record<string, { score: number | null }> | undefined
     const audits = lhr?.audits as Record<string, { details?: { items?: Array<{ node?: PsiNode }> } }> | undefined
 
@@ -71,6 +63,6 @@ export async function scanColorContrast(url: string): Promise<ColorContrastScanR
       violations,
     }
   } catch {
-    return null
+    return { error: 'Could not read the scan results' }
   }
 }

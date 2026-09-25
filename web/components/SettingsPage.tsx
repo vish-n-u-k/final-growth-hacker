@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useSmartBack } from '@/lib/useSmartBack'
 import { createClient } from '@/lib/supabase/client'
 import type { IntegrationDefinition } from '@/lib/integrations/registry'
 import { INTEGRATION_GROUPS } from '@/lib/integrations/registry'
@@ -34,6 +35,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [oauthToast, setOauthToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const router = useRouter()
+  const goBack = useSmartBack('/dashboard')
   const searchParams = useSearchParams()
 
   // Show toast after OAuth redirect
@@ -123,8 +125,8 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <button
-            onClick={() => router.push('/dashboard')}
-            title="Back to dashboard"
+            onClick={goBack}
+            title="Back"
             style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--text)', cursor: 'pointer', flexShrink: 0 }}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
