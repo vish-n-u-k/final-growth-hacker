@@ -11,7 +11,7 @@ export class GmailSendError extends Error {
 /** Sends an HTML email from the brand's connected Gmail account. */
 export async function sendGmailMessage(
   brandId: string,
-  { to, subject, body }: { to: string; subject: string; body: string },
+  { to, subject, body, threadId, inReplyTo }: { to: string; subject: string; body: string; threadId?: string | null; inReplyTo?: string | null },
 ): Promise<{ id: string; threadId: string }> {
   let accessToken: string
   try {
@@ -21,9 +21,11 @@ export async function sendGmailMessage(
   }
 
   // Build RFC 2822 message and encode as base64url
+  // In-Reply-To/References + threadId make Gmail file a follow-up under the original thread
   const message = [
     `To: ${to}`,
     `Subject: ${subject}`,
+    ...(inReplyTo ? [`In-Reply-To: ${inReplyTo}`, `References: ${inReplyTo}`] : []),
     'MIME-Version: 1.0',
     'Content-Type: text/html; charset=utf-8',
     '',
@@ -42,7 +44,7 @@ export async function sendGmailMessage(
       Authorization:  `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ raw: encoded }),
+    body: JSON.stringify({ raw: encoded, ...(threadId ? { threadId } : {}) }),
   })
 
   if (!res.ok) {

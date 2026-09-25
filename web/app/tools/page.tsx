@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import ToolCardStatus from './ToolCardStatus'
 
 interface Tool {
   href: string
@@ -148,7 +149,7 @@ export default async function ToolsPage() {
                 </div>
                 <div className="tl-card-title">{tool.title}</div>
                 <div className="tl-card-desc">{tool.desc}</div>
-                {!tool.comingSoon && <div className="tl-card-arrow" style={{ color: tool.color }}>Open →</div>}
+                {!tool.comingSoon && <ToolCardStatus color={tool.color} />}
               </>
             )
 

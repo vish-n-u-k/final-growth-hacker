@@ -4042,6 +4042,10 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
 .tl-card-title { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -.2px; }
 .tl-card-desc { font-size: 13px; color: var(--text-dim); line-height: 1.5; flex: 1; }
 .tl-card-arrow { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.tl-card-spinner { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; flex-shrink: 0; }
+.tl-card:has(.tl-card-arrow.is-pending) { border-color: var(--tl-color, var(--green)); box-shadow: 0 4px 18px var(--tl-glow, var(--green-glow)); cursor: progress; }
+.tl-card:has(.tl-card-arrow.is-pending)::before { animation: tl-bar 1s ease-in-out infinite; }
+@keyframes tl-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 .tl-card--disabled { cursor: default; opacity: .6; }
 .tl-card--disabled:hover { border-color: color-mix(in srgb, var(--tl-color, var(--green)) 28%, var(--card)); box-shadow: none; transform: none; }
 
@@ -6041,7 +6045,7 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gh-fu-empty p { margin: 0 auto; max-width: 440px; font-size: 13px; color: var(--text-dim); line-height: 1.5; }
 
 .gh-fu-table-wrap { border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; }
-.gh-fu-table { width: 100%; min-width: 780px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+.gh-fu-table { width: 100%; min-width: 820px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
 .gh-fu-col-recipient { width: 22%; }
 .gh-fu-col-sent { width: 84px; }
 .gh-fu-col-due { width: 140px; }
@@ -6078,6 +6082,25 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gh-fu-drafting { display: flex; align-items: center; gap: 12px; padding: 18px 20px; font-size: 13px; color: var(--text-dim); }
 .gh-fu-body-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
 .gh-fu-src-btn { font-size: 10.5px; color: var(--text-faint); background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 2px 9px; cursor: pointer; font-family: inherit; }
+
+.gh-fu-col-check { width: 40px; }
+.gh-fu-table th.gh-fu-th-check, .gh-fu-table td.gh-fu-td-check { padding-left: 14px; padding-right: 0; text-align: left; }
+.gh-fu-table input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--green); cursor: pointer; vertical-align: middle; }
+.gh-fu-tr.selected { background: var(--bg-soft); }
+.gh-fu-ready { color: var(--green); font-weight: 600; }
+
+.gh-fu-bulk { display: flex; flex-direction: column; gap: 10px; }
+.gh-fu-bulk-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 8px 10px 8px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); min-height: 50px; }
+.gh-fu-bulk-label { font-size: 13px; font-weight: 600; color: var(--text-dim); }
+.gh-fu-bulk-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.gh-fu-btn.active { border-color: var(--green); color: var(--green); background: var(--bg-soft); }
+.gh-fu-btn-send { background: #2563eb; border-color: #2563eb; color: #fff; }
+.gh-fu-btn-send:hover:not(:disabled) { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.gh-fu-panel { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-soft); font-size: 13px; color: var(--text); }
+.gh-fu-panel.gh-fu-panel-row, .gh-fu-panel-row { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.gh-fu-panel-btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gh-fu-textarea { width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; font-family: inherit; line-height: 1.5; resize: vertical; background: var(--card); color: var(--text); outline: none; }
+.gh-fu-textarea:focus { border-color: var(--green); }
 
 .gh-fu-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 50; background: var(--card); border: 1px solid var(--green); color: var(--text); padding: 10px 16px; border-radius: 10px; font-size: 13px; box-shadow: 0 2px 12px var(--green-glow); }
 
