@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useSmartBack } from '@/lib/useSmartBack'
 import type { DBItemFull } from '@/lib/modules/types'
 import MetaAdLaunchPanel from '@/components/MetaAdLaunchPanel'
 import type { CampaignBrief } from '@/components/MetaAdLaunchPanel'
@@ -231,6 +232,7 @@ function isCredentialError(msg: string) {
 
 export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, brandName, websiteUrl, lastAnalyzedAt, items, ogTags, pixelStatus }: Props) {
   const router = useRouter()
+  const goBack = useSmartBack('/dashboard')
   const [analysing, setAnalysing] = useState(moduleStatus === 'analyzing')
   const [analyseError, setAnalyseError] = useState<string | null>(null)
   const [demoMode, setDemoMode] = useState(false)
@@ -269,12 +271,12 @@ export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, bran
     <div className="bp-page">
       {/* Top bar */}
       <div className="bp-topbar">
-        <Link href="/dashboard" className="bp-back">
+        <button onClick={goBack} className="bp-back">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
-          Dashboard
-        </Link>
+          Back
+        </button>
         <div className="bp-topbar-center">
           <span className="bp-topbar-title">Meta Ads</span>
           <span className="bp-dot">·</span>

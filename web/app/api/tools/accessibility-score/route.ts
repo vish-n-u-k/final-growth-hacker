@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { scanAccessibilityScore, type AccessibilityScoreResult } from '@/lib/accessibility-score-scan'
 
-export const maxDuration = 30
+// A mobile PageSpeed Insights run often takes 20–40s+
+export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
-  const { websiteUrl } = await request.json() as { websiteUrl: string }
+  const { websiteUrl, fresh } = await request.json() as { websiteUrl: string; fresh?: boolean }
   if (!websiteUrl) return NextResponse.json({ error: 'Missing URL' }, { status: 400 })
 
   const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
-  const result = await scanAccessibilityScore(url)
+  const result = await scanAccessibilityScore(url, !!fresh)
 
-  if (!result) {
-    return NextResponse.json({ error: 'Could not analyze this page right now — try again in a moment.' }, { status: 502 })
+  if ('error' in result) {
+    return NextResponse.json({ error: result.error }, { status: 502 })
   }
 
   return NextResponse.json(result satisfies AccessibilityScoreResult)

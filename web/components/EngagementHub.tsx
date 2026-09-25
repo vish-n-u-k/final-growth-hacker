@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
+import { useSmartBack } from '@/lib/useSmartBack'
 
 interface Platform {
   id: string
@@ -141,6 +141,7 @@ const PIPELINE = [
 ]
 
 export default function EngagementHub({ brandName }: { brandName: string }) {
+  const goBack = useSmartBack('/dashboard')
   const [activeTab, setActiveTab] = useState<'overview' | 'complications'>('overview')
 
   const totalDms = PLATFORMS.filter(p => p.status !== 'disconnected').reduce((s, p) => s + p.dms, 0)
@@ -155,7 +156,7 @@ export default function EngagementHub({ brandName }: { brandName: string }) {
         {/* Header */}
         <div className="eh-header">
           <div>
-            <Link href="/dashboard" className="eh-back">← Dashboard</Link>
+            <button onClick={goBack} className="eh-back">← Back</button>
             <div className="eh-title">
               Social Engagement Hub
               <span className="eh-beta">Beta</span>

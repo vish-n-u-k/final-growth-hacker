@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, Fragment } from 'react'
 import Link from 'next/link'
+import { useSmartBack } from '@/lib/useSmartBack'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -31,8 +32,23 @@ interface Prospect { id: string; name: string; email: string; company: string; t
 interface ProspectState { status: ProspectStatus; subject: string; body: string; toEmail?: string; error?: string; editingHtml?: boolean }
 interface CampaignProspect { id: string; email: string; name: string; domain: string }
 interface EmailHistoryItem { id: string; toEmail: string; toName: string | null; subject: string; status: string; source: string | null; createdAt: string }
-type CampaignStatus = 'idle' | 'generating' | 'ready' | 'sending' | 'sent' | 'error'
-interface CampaignState { status: CampaignStatus; subject: string; body: string; error?: string; toEmail?: string; editingHtml?: boolean; confirming?: boolean }
+type CampaignStatus = 'idle' | 'generating' | 'ready' | 'sending' | 'sent' | 'scheduled' | 'error'
+interface CampaignState { status: CampaignStatus; subject: string; body: string; error?: string; toEmail?: string; editingHtml?: boolean; confirming?: boolean; scheduledAt?: string }
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+
+function getTomorrowAt9am(): string {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  d.setHours(9, 0, 0, 0)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T09:00`
+}
+
+function formatScheduledDate(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
@@ -275,6 +291,7 @@ export default function GmailHub({
   initialConnected?: boolean
   gmailAddress?: string | null
 }) {
+  const goBack = useSmartBack('/dashboard')
   const [isConnected, setIsConnected]         = useState(initialConnected)
   const [activeTab, setActiveTab]             = useState<Tab>('inbox')
   const [selectedId, setSelectedId]           = useState<string>('')
@@ -305,6 +322,8 @@ export default function GmailHub({
   const [campaignDraftSaving, setCampaignDraftSaving] = useState<Set<string>>(new Set())
   const [campaignDraftSaved, setCampaignDraftSaved]   = useState<Set<string>>(new Set())
   const [campaignGoalError, setCampaignGoalError]     = useState(false)
+  const [scheduleMode, setScheduleMode]               = useState<Record<string, boolean>>({})
+  const [scheduleDates, setScheduleDates]             = useState<Record<string, string>>({})
   const [sendAllConfirming, setSendAllConfirming]     = useState(false)
   const [campaignManualForm, setCampaignManualForm]   = useState<{ email: string; name: string; domain: string } | null>(null)
   // AI bulk edit
@@ -654,7 +673,7 @@ export default function GmailHub({
     }
   }
 
-  async function sendCampaignEmail(prospect: CampaignProspect) {
+  async function sendCampaignEmail(prospect: CampaignProspect, scheduledAt?: string) {
     const state = campaignStates[prospect.id]
     if (!state?.subject || !state?.body) return
     setCampaignStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'sending', confirming: false } }))
@@ -667,20 +686,28 @@ export default function GmailHub({
           subject: state.subject,
           body: state.body,
           followUpDays: followUpEnabled ? followUpDays : undefined,
+          ...(scheduledAt ? { scheduledAt } : {}),
         }),
       })
-      const data = await res.json() as { messageId?: string; error?: string }
+      const data = await res.json() as { messageId?: string; error?: string; scheduled?: boolean; scheduledAt?: string }
       if (res.status === 403 && data.error === 'missing_send_scope') {
         setNeedsReconnect(true)
         setCampaignStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'ready', confirming: false } }))
         return
       }
       if (!res.ok) throw new Error(data.error ?? 'Send failed')
-      setCampaignStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'sent', confirming: false } }))
-      if (campaignExpandedId === prospect.id) setCampaignExpandedId(null)
-      if (followUpEnabled) {
-        setFollowUpToast(`Follow-up reminder set for ${followUpDays} days`)
+      if (scheduledAt) {
+        setCampaignStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'scheduled', scheduledAt, confirming: false } }))
+        if (campaignExpandedId === prospect.id) setCampaignExpandedId(null)
+        setFollowUpToast(`Scheduled for ${formatScheduledDate(scheduledAt)}`)
         setTimeout(() => setFollowUpToast(null), 4000)
+      } else {
+        setCampaignStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'sent', confirming: false } }))
+        if (campaignExpandedId === prospect.id) setCampaignExpandedId(null)
+        if (followUpEnabled) {
+          setFollowUpToast(`Follow-up reminder set for ${followUpDays} days`)
+          setTimeout(() => setFollowUpToast(null), 4000)
+        }
       }
     } catch (e: unknown) {
       setCampaignStates(prev => ({
@@ -776,7 +803,7 @@ export default function GmailHub({
 
           <div className="gh-header">
             <div>
-              <Link href="/dashboard" className="gh-back">← Dashboard</Link>
+              <button onClick={goBack} className="gh-back">← Back</button>
               <div className="gh-title">
                 Gmail Intelligence Hub
                 <span className="gh-badge-new">New</span>
@@ -903,7 +930,7 @@ export default function GmailHub({
         {/* Header */}
         <div className="gh-header">
           <div>
-            <Link href="/dashboard" className="gh-back">← Dashboard</Link>
+            <button onClick={goBack} className="gh-back">← Back</button>
             <div className="gh-title">
               Gmail Intelligence Hub
               <span className="gh-badge-new">New</span>
@@ -1001,7 +1028,6 @@ export default function GmailHub({
             ['inbox',       'Inbox Intelligence'],
             ['pipeline',    'Lead Pipeline'],
             ['drafts',      `Draft Replies (${DRAFTS.length})`],
-            ['outreach',    'Cold Outreach'],
             ['campaign',    'Campaigns'],
             ['limitations', 'Limitations'],
           ] as [Tab, string][]).map(([key, label]) => (
@@ -1892,6 +1918,25 @@ export default function GmailHub({
                     <span className="gh-send-confirm-label">
                       Send {campaignProspects.filter(p => campaignStates[p.id]?.status === 'ready').length} emails now?
                     </span>
+                    <label className="gh-followup-toggle">
+                      <input
+                        type="checkbox"
+                        checked={followUpEnabled}
+                        onChange={e => setFollowUpEnabled(e.target.checked)}
+                      />
+                      Follow up in
+                      <select
+                        className="gh-followup-days"
+                        value={followUpDays}
+                        onChange={e => setFollowUpDays(Number(e.target.value))}
+                        disabled={!followUpEnabled}
+                      >
+                        <option value={2}>2 days</option>
+                        <option value={3}>3 days</option>
+                        <option value={5}>5 days</option>
+                        <option value={7}>7 days</option>
+                      </select>
+                    </label>
                     <button className="gh-send-confirm-yes" onClick={sendAllReady}>Yes, send all</button>
                     <button className="gh-send-confirm-no" onClick={() => setSendAllConfirming(false)}>Cancel</button>
                   </div>
@@ -2030,10 +2075,11 @@ export default function GmailHub({
                                 {status !== 'idle' && (
                                   <span className={`gh-cmp-status-badge gh-cmp-sb-${status}`}>
                                     {status === 'generating' ? 'Generating…'
-                                      : status === 'ready'   ? 'Ready'
-                                      : status === 'sending' ? 'Sending…'
-                                      : status === 'sent'    ? 'Sent ✓'
-                                      :                        'Error'}
+                                      : status === 'ready'     ? 'Ready'
+                                      : status === 'sending'   ? 'Sending…'
+                                      : status === 'sent'      ? 'Sent ✓'
+                                      : status === 'scheduled' ? `Scheduled · ${formatScheduledDate(state?.scheduledAt ?? '')}`
+                                      :                          'Error'}
                                   </span>
                                 )}
                               </td>
@@ -2131,15 +2177,26 @@ export default function GmailHub({
                                     </div>
                                     <div className="gh-ee-actions">
                                       {!state.confirming ? (
-                                        <button
-                                          className="gh-send-btn"
-                                          onClick={() => setCampaignStates(prev => ({
-                                            ...prev,
-                                            [prospect.id]: { ...state, confirming: true },
-                                          }))}
-                                        >
-                                          <IcSend /> Send Email
-                                        </button>
+                                        <>
+                                          <button
+                                            className="gh-send-btn"
+                                            onClick={() => setCampaignStates(prev => ({
+                                              ...prev,
+                                              [prospect.id]: { ...state, confirming: true },
+                                            }))}
+                                          >
+                                            <IcSend /> Send Email
+                                          </button>
+                                          <button
+                                            className="gh-cmp-schedule-btn"
+                                            onClick={() => {
+                                              setScheduleDates(prev => ({ ...prev, [prospect.id]: getTomorrowAt9am() }))
+                                              setScheduleMode(prev => ({ ...prev, [prospect.id]: true }))
+                                            }}
+                                          >
+                                            Schedule
+                                          </button>
+                                        </>
                                       ) : (
                                         <div className="gh-send-confirm">
                                           <span className="gh-send-confirm-label">Send to {state.toEmail ?? prospect.email}?</span>
@@ -2170,6 +2227,32 @@ export default function GmailHub({
                                               [prospect.id]: { ...state, confirming: false },
                                             }))}
                                           >Cancel</button>
+                                        </div>
+                                      )}
+                                      {scheduleMode[prospect.id] && (
+                                        <div className="gh-cmp-schedule-row">
+                                          <input
+                                            type="datetime-local"
+                                            className="gh-cmp-schedule-input"
+                                            value={scheduleDates[prospect.id] ?? getTomorrowAt9am()}
+                                            onChange={e => setScheduleDates(prev => ({ ...prev, [prospect.id]: e.target.value }))}
+                                          />
+                                          <button
+                                            className="gh-send-confirm-yes"
+                                            onClick={() => {
+                                              const dt = scheduleDates[prospect.id] || getTomorrowAt9am()
+                                              setScheduleMode(prev => ({ ...prev, [prospect.id]: false }))
+                                              sendCampaignEmail(prospect, new Date(dt).toISOString())
+                                            }}
+                                          >
+                                            Confirm
+                                          </button>
+                                          <button
+                                            className="gh-send-confirm-no"
+                                            onClick={() => setScheduleMode(prev => ({ ...prev, [prospect.id]: false }))}
+                                          >
+                                            Cancel
+                                          </button>
                                         </div>
                                       )}
                                       <button

@@ -770,6 +770,24 @@ html.light .hero-social-icon--connected { color: #5b6560; }
 }
 .btn-analytics:disabled { opacity: .7; cursor: default; }
 
+.hero-actions-row { position: absolute; top: 24px; right: 24px; z-index: 1; display: flex; align-items: center; gap: 10px; }
+.hero-actions-row .btn-analytics { position: static; }
+.btn-tools {
+  display: flex; align-items: center; gap: 7px;
+  padding: 9px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text-dim);
+  font-size: 13px; font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color .15s, color .15s;
+}
+.btn-tools:hover:not(:disabled) { border-color: var(--green); color: var(--text); }
+.btn-tools:disabled { opacity: .7; cursor: default; }
+
 @keyframes md-spin { to { transform: rotate(360deg); } }
 @keyframes btn-shimmer {
   0% { transform: translateX(-150%); }
@@ -2742,11 +2760,13 @@ html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); borde
   .level-reanalyze-btn { padding: 7px; gap: 0; }
   .level-reanalyze-btn .level-reanalyze-label { display: none; }
 
-  /* Analytics btn: full-width, in normal flow below the social icons on mobile */
+  /* Analytics + Tools btns: full-width, stacked below the social icons on mobile */
+  .hero-actions-row { position: static; width: 100%; flex-direction: column; margin: 20px 0; }
   .btn-analytics {
     position: static; width: 100%;
-    justify-content: center; padding: 13px 18px; margin: 20px 0 20px;
+    justify-content: center; padding: 13px 18px; margin: 0;
   }
+  .btn-tools { width: 100%; justify-content: center; padding: 13px 18px; }
   .overview-card { padding: 20px; }
   .overview-card .hero-brand h1 { font-size: 20px; }
 
@@ -3329,7 +3349,7 @@ html.light .cs-module { background: var(--card); border-color: var(--line); }
 
 /* Header */
 .eh-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding: 30px 0 24px; border-bottom: 1px solid var(--line); }
-.eh-back { font-size: 12px; color: var(--text-faint); text-decoration: none; display: flex; align-items: center; gap: 5px; margin-bottom: 6px; transition: color .15s; width: fit-content; }
+.eh-back { font-size: 12px; color: var(--text-faint); text-decoration: none; display: flex; align-items: center; gap: 5px; margin-bottom: 6px; transition: color .15s; width: fit-content; background: transparent; border: none; padding: 0; cursor: pointer; font-family: inherit; }
 .eh-back:hover { color: var(--green); }
 .eh-title { font-family: var(--font-display, 'Fraunces', serif); font-size: 28px; font-weight: 600; letter-spacing: -.5px; color: var(--text); display: flex; align-items: center; gap: 12px; line-height: 1; }
 .eh-beta { background: #1a2a3d; color: #60a5fa; font-size: 10.5px; font-weight: 700; padding: 3px 11px; border-radius: 20px; letter-spacing: .5px; text-transform: uppercase; font-family: var(--font-body, 'Outfit', sans-serif); border: 1px solid #243650; }
@@ -3523,7 +3543,7 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
 
 /* ── Header ── */
 .gh-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding: 30px 0 22px; border-bottom: 1px solid var(--line); }
-.gh-back { font-size: 12px; color: var(--text-faint); text-decoration: none; display: flex; align-items: center; gap: 5px; margin-bottom: 6px; transition: color .15s; width: fit-content; }
+.gh-back { font-size: 12px; color: var(--text-faint); text-decoration: none; display: flex; align-items: center; gap: 5px; margin-bottom: 6px; transition: color .15s; width: fit-content; background: transparent; border: none; padding: 0; cursor: pointer; font-family: inherit; }
 .gh-back:hover { color: var(--green); }
 .gh-title { font-family: var(--font-display, 'Fraunces', serif); font-size: 28px; font-weight: 600; letter-spacing: -.5px; color: var(--text); display: flex; align-items: center; gap: 12px; line-height: 1; }
 .gh-badge-new { background: var(--gh-badge-new-bg); color: var(--gh-badge-new-color); font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 20px; letter-spacing: .5px; text-transform: uppercase; font-family: var(--font-body, 'Outfit', sans-serif); border: 1px solid var(--gh-badge-new-border); }
@@ -4009,6 +4029,21 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
 .gh-feat-label { font-size: 13.5px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
 .gh-feat-desc { font-size: 12.5px; color: var(--text-faint); line-height: 1.5; }
 
+/* ── Tools hub ── */
+.tl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; padding: 36px 0 80px; }
+.tl-card { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; text-decoration: none; transition: border-color .15s, transform .15s, box-shadow .15s; }
+.tl-card:hover { border-color: var(--tl-color, var(--green)); box-shadow: 0 4px 18px var(--tl-glow, var(--green-glow)); transform: translateY(-2px); }
+.tl-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.tl-card-icon { width: 36px; height: 36px; border-radius: 10px; border: 1px solid; display: grid; place-items: center; flex-shrink: 0; }
+.tl-card-badge { font-size: 10px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding: 3px 9px; border-radius: 20px; white-space: nowrap; }
+.tl-card-badge--on { background: var(--gop-info-bg, var(--bg-soft)); color: var(--green); border: 1px solid var(--green); }
+.tl-card-badge--off { background: var(--bg-soft); color: var(--text-faint); border: 1px solid var(--line); }
+.tl-card-title { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -.2px; }
+.tl-card-desc { font-size: 11.5px; color: var(--text-faint); line-height: 1.45; flex: 1; }
+.tl-card-arrow { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.tl-card--disabled { cursor: default; opacity: .6; }
+.tl-card--disabled:hover { border-color: var(--line); box-shadow: none; transform: none; }
+
 .gh-scopes { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin-bottom: 24px; }
 .gh-scopes-title { font-size: 10.5px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 12px; }
 .gh-scope-list { display: flex; flex-direction: column; gap: 9px; }
@@ -4187,6 +4222,13 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
 .gh-cmp-sb-sending    { color: #60a5fa; background: #60a5fa18; border: 1px solid #60a5fa44; }
 .gh-cmp-sb-sent       { color: var(--gop-info-text); background: var(--gop-info-bg); border: 1px solid var(--gop-info-border); }
 .gh-cmp-sb-error      { color: var(--gop-err-text); background: var(--gop-err-bg); border: 1px solid var(--gop-err-border); }
+.gh-cmp-sb-scheduled  { color: var(--gop-info-text); background: var(--gop-info-bg); border: 1px solid var(--gop-info-border); }
+/* Schedule button + inline picker */
+.gh-cmp-schedule-btn { padding: 9px 18px; border-radius: 9px; background: transparent; border: 1px solid var(--line); font-size: 13px; font-weight: 600; color: var(--text-dim); cursor: pointer; font-family: inherit; transition: .15s; white-space: nowrap; }
+.gh-cmp-schedule-btn:hover { border-color: var(--green); color: var(--green); background: var(--bg-soft); }
+.gh-cmp-schedule-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; background: var(--gop-info-bg); border: 1px solid var(--gop-info-border); border-radius: 10px; padding: 8px 12px; }
+.gh-cmp-schedule-input { padding: 5px 9px; border: 1px solid var(--line); border-radius: 7px; font-size: 12.5px; font-family: inherit; color: var(--text); background: var(--card); cursor: pointer; outline: none; transition: border-color .15s; }
+.gh-cmp-schedule-input:focus { border-color: var(--green); }
 /* Action buttons */
 .gh-cmp-gen-btn { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 9px; background: transparent; border: 1px solid var(--lime); font-size: 12.5px; font-weight: 600; color: var(--lime); cursor: pointer; font-family: inherit; transition: .15s; white-space: nowrap; }
 .gh-cmp-gen-btn:hover:not(:disabled) { background: var(--bg-soft); }
@@ -4702,6 +4744,7 @@ html.light .bp-topbar { border-bottom-color: #d4e8da; background: #fafcfb; }
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 12px; font-weight: 500; color: var(--text-faint);
   text-decoration: none; white-space: nowrap; transition: color 0.15s; flex-shrink: 0;
+  background: transparent; border: none; padding: 0; cursor: pointer; font-family: inherit;
 }
 .bp-back:hover { color: var(--green); }
 .bp-topbar-center {

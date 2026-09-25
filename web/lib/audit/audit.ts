@@ -10,6 +10,7 @@
  */
 
 import * as cheerio from 'cheerio'
+import { fetchPsiAccessibility } from '@/lib/psi'
 import { connect as tlsConnect } from 'tls'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -154,21 +155,11 @@ export interface A11yData {
   accessibleNamesPass: boolean | null
 }
 
-async function fetchPsiAccessibility(url: string): Promise<A11yData | null> {
+async function fetchPsiA11y(url: string): Promise<A11yData | null> {
   try {
-    const key = process.env.GOOGLE_PSI_API_KEY
-    const params = new URLSearchParams({ url, strategy: 'mobile' })
-    params.append('category', 'accessibility')
-    params.append('category', 'seo')
-    if (key) params.set('key', key)
-    const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params.toString()}`
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 8000)
-    const res = await fetch(endpoint, { signal: controller.signal })
-    clearTimeout(timer)
-    if (!res.ok) return null
-    const json = await res.json() as Record<string, unknown>
-    const lhr = json.lighthouseResult as Record<string, unknown> | undefined
+    const psi = await fetchPsiAccessibility(url)
+    if (!psi.ok) return null
+    const lhr = psi.lhr
     const cats = lhr?.categories as Record<string, { score: number | null }> | undefined
     const audits = lhr?.audits as Record<string, { score: number | null; details?: { items?: unknown[] } }> | undefined
 
@@ -385,7 +376,10 @@ function auditSpeed(
   const findings: Finding[] = []
 
   // response-time
-  if (responseTimeMs > 3000) {
+  if (responseTimeMs < 0) {
+    findings.push(f('response-time', 'info',
+      'Response time could not be measured — site blocked direct scanning (content fetched via Jina Reader).'))
+  } else if (responseTimeMs > 3000) {
     findings.push(f('response-time', 'bad',
       `Server responded in ${(responseTimeMs / 1000).toFixed(1)}s — ideal is under 2s.`,
       'Enable server-side caching, use a CDN, or optimise server response time.'))
@@ -862,15 +856,16 @@ function auditTech($: cheerio.CheerioAPI, robotsStatus: number, sitemapStatus: n
 export async function runAudit(url: string): Promise<AuditResult | AuditError> {
   const normalizedUrl = normalizeUrl(url)
 
-  // Fetch main page
-  let res: Response
-  let html: string
-  let finalUrl: string
-  let responseTimeMs: number
+  // Fetch main page — fall back to Jina Reader if blocked
+  let html = ''
+  let finalUrl = normalizedUrl
+  let responseTimeMs = -1
+  let headers: Record<string, string> = {}
+  let status = 200
 
   try {
     const start = Date.now()
-    res = await fetch(normalizedUrl, {
+    const res = await fetch(normalizedUrl, {
       headers: { 'User-Agent': UA, 'Accept-Encoding': 'gzip, deflate, br' },
       redirect: 'follow',
       signal: AbortSignal.timeout(15_000),
@@ -878,11 +873,13 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
     responseTimeMs = Date.now() - start
     finalUrl = res.url
     html = await res.text()
+    headers = Object.fromEntries(res.headers.entries())
+    status = res.status
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Failed to fetch the page' }
   }
 
-  // Fetch robots.txt and sitemap.xml in parallel
+  // Fetch robots.txt and sitemap.xml in parallel (these are usually not blocked)
   const origin = new URL(finalUrl).origin
   const [robotsRes, sitemapRes] = await Promise.allSettled([
     fetch(`${origin}/robots.txt`, { signal: AbortSignal.timeout(5_000) }),
@@ -892,7 +889,6 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
   const sitemapStatus = sitemapRes.status === 'fulfilled' ? sitemapRes.value.status : 0
 
   const $ = cheerio.load(html)
-  const headers = Object.fromEntries(res.headers.entries())
   const bodySize = Buffer.byteLength(html, 'utf8')
 
   // Optional: Lighthouse
@@ -902,7 +898,7 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
   // Run all 8 category audits
   const [trustFindings, a11yData] = await Promise.all([
     auditTrust(finalUrl, headers, $),
-    fetchPsiAccessibility(finalUrl),
+    fetchPsiA11y(finalUrl),
   ])
 
   const sections: AuditSection[] = [
@@ -926,7 +922,7 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
   return {
     url: normalizedUrl,
     final_url: finalUrl,
-    status: res.status,
+    status,
     timestamp: new Date().toLocaleString(),
     lighthouse: !!lighthouseData,
     overall,
