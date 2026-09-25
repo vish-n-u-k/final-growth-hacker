@@ -22,6 +22,9 @@ export async function GET() {
       source:         outreachEmails.source,
       gmailMessageId: outreachEmails.gmailMessageId,
       gmailDraftId:   outreachEmails.gmailDraftId,
+      scheduledAt:    outreachEmails.scheduledAt,
+      sentAt:         outreachEmails.sentAt,
+      lastError:      outreachEmails.lastError,
       createdAt:      outreachEmails.createdAt,
     })
     .from(outreachEmails)

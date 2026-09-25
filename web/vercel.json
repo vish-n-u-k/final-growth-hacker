@@ -1,6 +1,7 @@
 {
   "crons": [
-    { "path": "/api/cron/daily-email",  "schedule": "30 0 * * *" },
-    { "path": "/api/cron/daily-social", "schedule": "0 6 * * *" }
+    { "path": "/api/cron/daily-email",    "schedule": "30 0 * * *" },
+    { "path": "/api/cron/daily-social",   "schedule": "0 6 * * *" },
+    { "path": "/api/cron/send-scheduled", "schedule": "0 * * * *" }
   ]
 }
