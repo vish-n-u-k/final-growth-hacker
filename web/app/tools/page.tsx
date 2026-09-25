@@ -37,7 +37,7 @@ export default async function ToolsPage() {
     {
       href: '/gmail-hub',
       title: 'Gmail Hub',
-      desc: 'Sorted leads, AI drafts, and follow-ups from your inbox.',
+      desc: 'Leads, AI drafts and follow-ups.',
       color: '#2563eb',
       glow: 'rgba(37,99,235,0.25)',
       badge: gmailBadge,
@@ -51,9 +51,9 @@ export default async function ToolsPage() {
     {
       href: '/lead-finder',
       title: 'Find Leads',
-      desc: 'Scrape reviews for warm prospects, then draft outreach.',
-      color: '#0891b2',
-      glow: 'rgba(8,145,178,0.25)',
+      desc: 'Turn reviews into warm prospects.',
+      color: '#059669',
+      glow: 'rgba(5,150,105,0.25)',
       badge: gmailBadge,
       icon: (
         <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
@@ -65,7 +65,7 @@ export default async function ToolsPage() {
     {
       href: '/dashboard/meta-ads/blueprint',
       title: 'Meta Ads',
-      desc: 'A ready-to-launch 3-funnel Meta ad campaign.',
+      desc: 'Ready-to-launch ad campaigns.',
       color: '#7c3aed',
       glow: 'rgba(124,58,237,0.25)',
       icon: (
@@ -80,7 +80,7 @@ export default async function ToolsPage() {
     {
       href: '/today',
       title: "Today's List",
-      desc: 'Your highest-impact tasks for today, in one place.',
+      desc: 'Your top tasks for today.',
       color: '#d97706',
       glow: 'rgba(217,119,6,0.25)',
       icon: (
@@ -93,9 +93,9 @@ export default async function ToolsPage() {
     {
       href: '/reminders',
       title: 'Create Reminders',
-      desc: 'Recurring nudges so follow-ups never slip through.',
-      color: '#e11d48',
-      glow: 'rgba(225,29,72,0.25)',
+      desc: 'Never miss a follow-up.',
+      color: '#dc2626',
+      glow: 'rgba(220,38,38,0.25)',
       icon: (
         <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
           <path d="M10 2a6 6 0 00-6 6v3l-1.5 2.5h15L16 11V8a6 6 0 00-6-6z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
@@ -106,9 +106,9 @@ export default async function ToolsPage() {
     {
       href: '/social',
       title: 'Social Studio',
-      desc: 'Generate and schedule posts across platforms.',
-      color: '#64748b',
-      glow: 'rgba(100,116,139,0.25)',
+      desc: 'Create and schedule posts.',
+      color: '#db2777',
+      glow: 'rgba(219,39,119,0.25)',
       comingSoon: true,
       icon: (
         <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
@@ -152,10 +152,11 @@ export default async function ToolsPage() {
               </>
             )
 
+            const style = { '--tl-color': tool.color, '--tl-glow': tool.glow } as React.CSSProperties
             return tool.comingSoon ? (
-              <div key={tool.href} className="tl-card tl-card--disabled">{content}</div>
+              <div key={tool.href} className="tl-card tl-card--disabled" style={style}>{content}</div>
             ) : (
-              <Link key={tool.href} href={tool.href} className="tl-card" style={{ '--tl-color': tool.color, '--tl-glow': tool.glow } as React.CSSProperties}>{content}</Link>
+              <Link key={tool.href} href={tool.href} className="tl-card" style={style}>{content}</Link>
             )
           })}
         </div>
