@@ -10,8 +10,8 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { to, subject, body, followUpDays, source, campaignInstruction, scheduledAt } =
-    await req.json() as { to: string; subject: string; body: string; followUpDays?: number; source?: string; campaignInstruction?: string; scheduledAt?: string }
+  const { to, subject, body, followUpDays, source, campaignInstruction, scheduledAt, threadId, inReplyTo } =
+    await req.json() as { to: string; subject: string; body: string; followUpDays?: number; source?: string; campaignInstruction?: string; scheduledAt?: string; threadId?: string | null; inReplyTo?: string | null }
 
   const [brand] = await db
     .select({ id: brands.id })
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
   let sent: { id: string; threadId: string }
   try {
-    sent = await sendGmailMessage(brand.id, { to, subject, body })
+    sent = await sendGmailMessage(brand.id, { to, subject, body, threadId, inReplyTo })
   } catch (e: unknown) {
     if (e instanceof GmailSendError) {
       if (e.code === 'missing_send_scope') {

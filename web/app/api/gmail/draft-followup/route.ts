@@ -4,14 +4,15 @@ import { db } from '@/lib/db'
 import { brands, reminders, brainContext } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getValidGmailToken } from '@/lib/gmail/token'
-import { callAI } from '@/lib/ai/client'
+import { checkFollowup } from '@/lib/gmail/reply-check'
+import { writeFollowupCopy, buildFollowupHTML, brandContextFor, firstName } from '@/lib/email/followup'
 
 // ── Minimal Gmail types (mirrored from thread/[id]/route.ts) ──────────────────
 
 interface GmailHeader  { name: string; value: string }
 interface GmailPart    { mimeType: string; body?: { data?: string }; parts?: GmailPart[] }
 interface GmailPayload { mimeType: string; headers?: GmailHeader[]; body?: { data?: string }; parts?: GmailPart[] }
-interface GmailMessage { id: string; payload?: GmailPayload }
+interface GmailMessage { id: string; labelIds?: string[]; payload?: GmailPayload }
 interface GmailThread  { messages?: GmailMessage[] }
 
 function decodeBase64(data: string): string {
@@ -77,9 +78,25 @@ export async function POST(req: NextRequest) {
     ? Math.max(1, Math.round((Date.now() - new Date(reminder.createdAt).getTime()) / 86400000))
     : reminder.intervalDays
 
+  // Don't write a nudge to someone who already replied, opted out, or bounced
+  if (threadId) {
+    try {
+      const token = await getValidGmailToken(brand.id)
+      const check = await checkFollowup(reminder, token)
+      if (check.outcome === 'replied' || check.outcome === 'opted_out' || check.outcome === 'bounced') {
+        const reason = check.outcome === 'replied' ? `${recipient} already replied`
+          : check.outcome === 'opted_out' ? `${recipient} asked not to be contacted`
+          : 'The original email bounced'
+        return NextResponse.json({ error: `${reason}. This follow-up has been closed.`, outcome: check.outcome }, { status: 409 })
+      }
+    } catch { /* check is best-effort; still allow drafting */ }
+  }
+
   // Fetch thread if possible
   let recipientEmail = ''
   let threadContext = ''
+  let inReplyTo = ''
+  let threadFound = false
 
   if (threadId) {
     try {
@@ -90,15 +107,22 @@ export async function POST(req: NextRequest) {
       )
       if (res.ok) {
         const thread = await res.json() as GmailThread
+        threadFound = true
         const messages = thread.messages ?? []
 
-        // Extract recipient email from first sent message's To: header
-        if (messages[0]?.payload?.headers) {
-          recipientEmail = getHeader(messages[0].payload.headers, 'To')
-        }
+        // Recipient: To of our first sent message, or From of theirs if the thread started inbound
+        const firstSent = messages.find(m => m.labelIds?.includes('SENT'))
+        const firstTheirs = messages.find(m => !m.labelIds?.includes('SENT'))
+        if (firstSent?.payload?.headers) recipientEmail = getHeader(firstSent.payload.headers, 'To')
+        else if (firstTheirs?.payload?.headers) recipientEmail = getHeader(firstTheirs.payload.headers, 'From')
 
-        // Build thread context (first 3 messages, 800 chars each)
-        const parts = messages.slice(0, 3).map(msg => {
+        // Reply to the latest message so Gmail keeps the follow-up in the same thread
+        const last = messages[messages.length - 1]
+        if (last?.payload?.headers) inReplyTo = getHeader(last.payload.headers, 'Message-ID')
+
+        // Thread context: the opening message plus the 4 most recent (800 chars each)
+        const picked = messages.length <= 5 ? messages : [messages[0], ...messages.slice(-4)]
+        const parts = picked.map(msg => {
           const from = msg.payload?.headers ? getHeader(msg.payload.headers, 'From') : ''
           const text = msg.payload ? extractText(msg.payload).slice(0, 800) : ''
           return from ? `From: ${from}\n${text}` : text
@@ -110,50 +134,31 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Brand context
   const [brain] = await db.select().from(brainContext).where(eq(brainContext.brandId, brand.id))
-  const playbook = brand.playbook as Record<string, string> | null
-  const brandCtx = [
-    `Company: ${brand.name}`,
-    brand.usp            ? `Value proposition: ${brand.usp}` : null,
-    brand.targetAudience ? `Target audience: ${brand.targetAudience}` : null,
-    playbook?.keyOneLiners
-      ? `Key selling points: ${playbook.keyOneLiners}`
-      : brain?.summary
-        ? `Brand overview: ${brain.summary.slice(0, 400)}`
-        : null,
-  ].filter(Boolean).join('\n')
+  const displayName = recipientEmail.match(/^"?([^"<]+?)"?\s*<[^>]+>$/)?.[1] ?? recipient
 
-  const subjectLine = rawSubject || 'your product/service'
+  let copy
+  try {
+    copy = await writeFollowupCopy({
+      brandContext:  brandContextFor(brand, brain?.summary),
+      brandUrl:      brand.websiteUrl ?? '',
+      recipientName: firstName(displayName),
+      subject:       rawSubject,
+      daysSince,
+      threadContext,
+    })
+  } catch (e) {
+    console.error('[draft-followup] AI error:', e instanceof Error ? e.message : e)
+    return NextResponse.json({ error: 'Could not write a follow-up, try again' }, { status: 502 })
+  }
 
-  const prompt = `You sent a cold outreach email to ${recipient} ${daysSince} day${daysSince !== 1 ? 's' : ''} ago about "${subjectLine}". They haven't replied.
-
-Write a short, human follow-up email body. 2-3 sentences max. Reference the original briefly. Don't be pushy — light "circling back" tone.${threadContext ? `\n\nOriginal thread:\n${threadContext}` : ''}
-
-Brand context:
-${brandCtx}
-
-Return ONLY the follow-up body text — no subject line, no "Hi [Name]" greeting, no signature. Just 2-3 natural sentences.`
-
-  const raw = await callAI({
-    system: 'You write short follow-up email bodies. Return only plain body text — no subject, no greeting, no signature.',
-    prompt,
-    maxTokens: 200,
-    model: 'claude-haiku-4-5-20251001',
-  })
-
-  const bodyText = raw.trim().replace(/—/g, '').replace(/\s{2,}/g, ' ').trim()
-
-  // Wrap in minimal HTML for sending
-  const bodyHtml = bodyText
-    .split(/\n{2,}/)
-    .map(para => `<p style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;line-height:1.75;color:#1a2e20;margin:0 0 14px;">${para.replace(/\n/g, '<br/>')}</p>`)
-    .join('\n')
+  const bodyHtml = buildFollowupHTML(copy, brand)
 
   return NextResponse.json({
     to: recipientEmail,
     subject: rawSubject ? `Re: ${rawSubject}` : '',
     body: bodyHtml,
-    bodyText,
+    threadId: threadFound ? threadId : null,
+    inReplyTo: threadFound && inReplyTo ? inReplyTo : null,
   })
 }

@@ -6,6 +6,7 @@ import { createSign } from 'crypto'
 import { getValidAdminGmailToken, getAdminGmailAddress } from '@/lib/gmail/admin-token'
 import { detectSignals, type ActionCard } from '@/lib/daily/signals'
 import { signReminderToken } from '@/lib/reminders/token'
+import { checkBrandFollowups } from '@/lib/gmail/reply-check'
 
 export const dynamic  = 'force-dynamic'
 export const maxDuration = 60
@@ -516,6 +517,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const cronStarted = Date.now()
+
   // Get admin Gmail token — same account used across the app
   let accessToken: string
   let fromEmail: string | null
@@ -588,6 +591,11 @@ export async function GET(req: NextRequest) {
         actionCards = detectSignals({ ga4: ga4Signal, ph: phSignal, uncheckedCriticalItems: unchecked }, 2)
       }
     } catch { /* non-fatal */ }
+
+    // Refresh Gmail follow-ups first so replied / bounced ones drop out of the digest
+    if (Date.now() - cronStarted < 30_000) {
+      await checkBrandFollowups(brand.id, { deadline: cronStarted + 40_000 }).catch(() => {})
+    }
 
     // Fetch reminders due within 2 days
     let dueReminders: DueReminder[] = []

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react'
 
 // Gmail follow-up reminders (created when an email is sent with "Follow up in N days",
 // or via the bell icon in the inbox). Lists what is due and lets the user draft + send,
-// snooze, or close each one.
+// snooze, or close each one — individually or in bulk.
 
 interface Reminder {
   id: string
@@ -17,6 +17,9 @@ interface Reminder {
   lastDoneAt: string | null
   enabled: boolean
   createdAt: string
+  followupStatus: string | null
+  followupNote: string | null
+  followupCheckedAt: string | null
 }
 
 interface FollowUp {
@@ -26,23 +29,51 @@ interface FollowUp {
   createdAt: string
   dueAt: Date
   snoozed: boolean
+  status: string | null
+  note: string | null
+  threadId: string | null
+}
+
+interface Resolved {
+  id: string
+  recipient: string
+  subject: string
+  status: 'replied' | 'opted_out' | 'bounced'
+  note: string | null
+  at: string
+  threadId: string | null
+}
+
+interface CheckSummary {
+  checked: number; replied: number; optedOut: number; bounced: number
+  autoReply: number; selfReplied: number; untracked: number
 }
 
 interface Draft {
   loading: boolean
   sending: boolean
+  open: boolean
   error: string | null
   to: string
   subject: string
   body: string
   editingHtml: boolean
-  nextFollowUpDays: number
+  threadId: string | null
+  inReplyTo: string | null
 }
 
-type Filter = 'due' | 'upcoming' | 'all'
+type Filter = 'due' | 'upcoming' | 'all' | 'resolved'
 
 const DAY = 86_400_000
+const BATCH = 3
+const RESOLVED_WINDOW_DAYS = 14
 
+const RESOLVED_LABEL: Record<Resolved['status'], string> = {
+  replied: 'Replied', opted_out: 'Opted out', bounced: 'Bounced',
+}
+
+const threadIdOf = (desc: string | null) => desc?.match(/gmailThreadId:(\S+)/)?.[1] ?? null
+const gmailLink = (threadId: string) => `https://mail.google.com/mail/u/0/#all/${threadId}`
 function toFollowUp(r: Reminder): FollowUp {
   const desc = r.description ?? ''
   const snoozeUntil = r.snoozedUntil ? new Date(r.snoozedUntil) : null
@@ -54,7 +85,21 @@ function toFollowUp(r: Reminder): FollowUp {
     createdAt: r.createdAt,
     dueAt:     snoozed ? snoozeUntil! : new Date(r.nextDueAt),
     snoozed,
+    status:    r.followupStatus,
+    note:      r.followupNote,
+    threadId:  threadIdOf(r.description),
   }
+}
+
+function summarize(c: CheckSummary): string | null {
+  const parts = [
+    c.replied     && `${c.replied} replied`,
+    c.optedOut    && `${c.optedOut} opted out`,
+    c.bounced     && `${c.bounced} bounced`,
+    c.autoReply   && `${c.autoReply} out of office (pushed back)`,
+    c.selfReplied && `${c.selfReplied} you already followed up in Gmail (reset)`,
+  ].filter(Boolean)
+  return parts.length ? parts.join(' · ') : null
 }
 
 function dueLabel(f: FollowUp): { text: string; tone: 'overdue' | 'today' | 'upcoming' | 'snoozed' } {
@@ -71,6 +116,8 @@ function formatDate(d: Date | string): string {
   return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+const isDrafted = (d?: Draft) => !!d && !d.loading && !!d.body
+
 export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCount: number) => void }) {
   const [followUps, setFollowUps] = useState<FollowUp[]>([])
   const [loading, setLoading]     = useState(true)
@@ -79,6 +126,17 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
   const [drafts, setDrafts]       = useState<Record<string, Draft>>({})
   const [busy, setBusy]           = useState<Set<string>>(new Set())
   const [toast, setToast]         = useState<string | null>(null)
+  const [selected, setSelected]   = useState<Set<string>>(new Set())
+  const [remindAgainDays, setRemindAgainDays] = useState(5)
+  const [resolved, setResolved]   = useState<Resolved[]>([])
+  const [checking, setChecking]   = useState(false)
+  const [checkedAt, setCheckedAt] = useState<Date | null>(null)
+
+  // Bulk state
+  const [bulkBusy, setBulkBusy]           = useState<string | null>(null)
+  const [aiEditOpen, setAiEditOpen]       = useState(false)
+  const [aiInstruction, setAiInstruction] = useState('')
+  const [sendConfirm, setSendConfirm]     = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -90,6 +148,22 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
         .map(toFollowUp)
         .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())
       setFollowUps(rows)
+      const cutoff = Date.now() - RESOLVED_WINDOW_DAYS * DAY
+      setResolved((data.reminders ?? [])
+        .filter(r => r.category === 'outreach' && r.lastDoneAt && new Date(r.lastDoneAt).getTime() > cutoff
+          && (r.followupStatus === 'replied' || r.followupStatus === 'opted_out' || r.followupStatus === 'bounced'))
+        .map(r => ({
+          id:        r.id,
+          recipient: r.title.replace(/^Follow up:\s*/i, '').trim(),
+          subject:   (r.description ?? '').split('\n')[0].replace(/^Re:\s*/i, '').trim(),
+          status:    r.followupStatus as Resolved['status'],
+          note:      r.followupNote,
+          at:        r.lastDoneAt!,
+          threadId:  threadIdOf(r.description),
+        }))
+        .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()))
+      const ids = new Set(rows.map(r => r.id))
+      setSelected(prev => new Set([...prev].filter(id => ids.has(id))))
       setError(null)
     } catch {
       setError('Could not load follow-ups')
@@ -98,7 +172,35 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
+  const checkReplies = useCallback(async (force: boolean) => {
+    setChecking(true)
+    try {
+      const res = await fetch('/api/gmail/followups/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force }),
+      })
+      const data = await res.json() as CheckSummary & { error?: string }
+      if (!res.ok) {
+        if (force) flash(data.error ?? 'Could not check Gmail for replies')
+        return
+      }
+      setCheckedAt(new Date())
+      const summary = summarize(data)
+      if (summary) flash(summary)
+      else if (force) flash('No new replies')
+      await load()
+    } catch {
+      if (force) flash('Could not check Gmail for replies')
+    } finally {
+      setChecking(false)
+    }
+  }, [load])
+
+  // Show the list straight away, then check Gmail in the background
+  useEffect(() => {
+    load().then(() => checkReplies(false))
+  }, [load, checkReplies])
 
   const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999)
   const isDue = (f: FollowUp) => !f.snoozed && f.dueAt.getTime() <= endOfToday.getTime()
@@ -106,9 +208,13 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
 
   useEffect(() => { onCountChange?.(dueCount) }, [dueCount, onCountChange])
 
-  const visible = followUps.filter(f =>
+  const visible = filter === 'resolved' ? [] : followUps.filter(f =>
     filter === 'all' ? true : filter === 'due' ? isDue(f) : !isDue(f),
   )
+  const selectedVisible    = visible.filter(f => selected.has(f.id))
+  const selectedUndrafted  = selectedVisible.filter(f => !drafts[f.id])
+  const selectedDrafted    = selectedVisible.filter(f => isDrafted(drafts[f.id]))
+  const allVisibleSelected = visible.length > 0 && selectedVisible.length === visible.length
 
   function flash(msg: string) {
     setToast(msg)
@@ -119,8 +225,12 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
     setDrafts(prev => ({ ...prev, [id]: { ...prev[id], ...patch } as Draft }))
   }
 
-  function closeDraft(id: string) {
+  function discardDraft(id: string) {
     setDrafts(prev => { const n = { ...prev }; delete n[id]; return n })
+  }
+
+  function toggleSelected(id: string, on: boolean) {
+    setSelected(prev => { const n = new Set(prev); if (on) n.add(id); else n.delete(id); return n })
   }
 
   async function withBusy(id: string, fn: () => Promise<void>) {
@@ -130,9 +240,18 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
     }
   }
 
-  async function draftFollowUp(id: string) {
+  async function runInBatches<T>(items: T[], fn: (item: T) => Promise<void>) {
+    for (let i = 0; i < items.length; i += BATCH) {
+      await Promise.all(items.slice(i, i + BATCH).map(fn))
+    }
+  }
+
+  // ── Single-item actions ────────────────────────────────────────────────────
+
+  async function draftFollowUp(id: string, open = true) {
     setDrafts(prev => ({ ...prev, [id]: {
-      loading: true, sending: false, error: null, to: '', subject: '', body: '', editingHtml: false, nextFollowUpDays: 5,
+      loading: true, sending: false, open, error: null, to: '', subject: '', body: '',
+      editingHtml: false, threadId: null, inReplyTo: null,
     } }))
     try {
       const res = await fetch('/api/gmail/draft-followup', {
@@ -141,16 +260,28 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
         body: JSON.stringify({ reminderId: id }),
       })
       const data = await res.json()
+      if (res.status === 409) {
+        discardDraft(id)
+        flash(data.error ?? 'This follow-up is no longer needed')
+        await load()
+        return
+      }
       if (!res.ok) throw new Error(data?.error ?? `HTTP ${res.status}`)
-      setDraft(id, { loading: false, to: data.to ?? '', subject: data.subject ?? '', body: data.body ?? '' })
+      setDraft(id, {
+        loading: false, to: data.to ?? '', subject: data.subject ?? '', body: data.body ?? '',
+        threadId: data.threadId ?? null, inReplyTo: data.inReplyTo ?? null,
+      })
     } catch (e) {
-      setDraft(id, { loading: false, error: e instanceof Error ? e.message : 'Failed to draft follow-up' })
+      setDraft(id, { loading: false, open: true, error: e instanceof Error ? e.message : 'Failed to draft follow-up' })
     }
   }
 
-  async function sendFollowUp(id: string) {
-    const d = drafts[id]
-    if (!d?.to.trim() || !d.body.trim()) return
+  /** Sends a drafted follow-up. Returns true on success. Does not reload the list. */
+  async function sendOne(id: string, d: Draft): Promise<boolean> {
+    if (!d.to.trim() || !d.body.trim()) {
+      setDraft(id, { open: true, error: 'Add a recipient email before sending' })
+      return false
+    }
     setDraft(id, { sending: true, error: null })
     try {
       const res = await fetch('/api/gmail/send-email', {
@@ -158,42 +289,141 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: d.to, subject: d.subject, body: d.body,
-          followUpDays: d.nextFollowUpDays > 0 ? d.nextFollowUpDays : undefined,
+          threadId: d.threadId, inReplyTo: d.inReplyTo,
+          followUpDays: remindAgainDays > 0 ? remindAgainDays : undefined,
           source: 'followup',
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data?.message ?? data?.error ?? `HTTP ${res.status}`)
       await fetch(`/api/reminders/${id}/done`, { method: 'POST' })
-      closeDraft(id)
-      flash(d.nextFollowUpDays > 0
-        ? `Follow-up sent. Next check-in in ${d.nextFollowUpDays} days.`
-        : 'Follow-up sent.')
-      await load()
+      discardDraft(id)
+      return true
     } catch (e) {
-      setDraft(id, { sending: false, error: e instanceof Error ? e.message : 'Send failed' })
+      setDraft(id, { sending: false, open: true, error: e instanceof Error ? e.message : 'Send failed' })
+      return false
     }
+  }
+
+  async function sendSingle(id: string) {
+    const d = drafts[id]
+    if (!d) return
+    if (await sendOne(id, d)) {
+      flash(remindAgainDays > 0 ? `Follow-up sent. Next check-in in ${remindAgainDays} days.` : 'Follow-up sent.')
+      await load()
+    }
+  }
+
+  async function snoozeIds(ids: string[], days: number) {
+    const results = await Promise.all(ids.map(id => fetch(`/api/reminders/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ snooze: true, snoozeDays: days }),
+    }).then(r => r.ok).catch(() => false)))
+    return results.filter(Boolean).length
+  }
+
+  async function closeIds(ids: string[]) {
+    const results = await Promise.all(ids.map(id =>
+      fetch(`/api/reminders/${id}/done`, { method: 'POST' }).then(r => r.ok).catch(() => false),
+    ))
+    ids.forEach(discardDraft)
+    return results.filter(Boolean).length
   }
 
   function snooze(id: string, days: number) {
     return withBusy(id, async () => {
-      const res = await fetch(`/api/reminders/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ snooze: true, snoozeDays: days }),
-      })
-      if (!res.ok) { flash('Could not snooze'); return }
-      flash(`Snoozed for ${days} days`)
+      const ok = await snoozeIds([id], days)
+      flash(ok ? `Snoozed for ${days} days` : 'Could not snooze')
       await load()
     })
   }
 
   function markDone(id: string) {
     return withBusy(id, async () => {
-      const res = await fetch(`/api/reminders/${id}/done`, { method: 'POST' })
-      if (!res.ok) { flash('Could not update'); return }
-      closeDraft(id)
-      flash('Follow-up closed')
+      const ok = await closeIds([id])
+      flash(ok ? 'Follow-up closed' : 'Could not update')
+      await load()
+    })
+  }
+
+  // ── Bulk actions ───────────────────────────────────────────────────────────
+
+  async function bulk(label: string, fn: () => Promise<void>) {
+    setBulkBusy(label)
+    try { await fn() } finally { setBulkBusy(null) }
+  }
+
+  function draftMany(ids: string[]) {
+    return bulk(`Drafting ${ids.length}…`, async () => {
+      await runInBatches(ids, id => draftFollowUp(id, false))
+      flash(`Drafted ${ids.length} follow-up${ids.length !== 1 ? 's' : ''}. Review them before sending.`)
+    })
+  }
+
+  function applyAiEdit() {
+    const targets = selectedDrafted.map(f => ({ id: f.id, d: drafts[f.id] }))
+    if (!aiInstruction.trim() || targets.length === 0) return
+    return bulk(`Editing 0/${targets.length}…`, async () => {
+      let failed = 0
+      for (let i = 0; i < targets.length; i += BATCH) {
+        const batch = targets.slice(i, i + BATCH)
+        try {
+          const res = await fetch('/api/gmail/followup/refine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              instruction: aiInstruction,
+              emails: batch.map(t => ({ id: t.id, to: t.d.to, recipient: followUps.find(f => f.id === t.id)?.recipient, currentBody: t.d.body })),
+            }),
+          })
+          if (!res.ok) throw new Error()
+          const data = await res.json() as { results?: { id: string; body?: string; error?: string }[] }
+          for (const r of data.results ?? []) {
+            if (r.body) setDraft(r.id, { body: r.body, editingHtml: false })
+            else failed++
+          }
+        } catch {
+          failed += batch.length
+        }
+        setBulkBusy(`Editing ${Math.min(i + BATCH, targets.length)}/${targets.length}…`)
+      }
+      flash(failed ? `Edited ${targets.length - failed}, ${failed} failed` : `Edited ${targets.length} follow-up${targets.length !== 1 ? 's' : ''}`)
+      setAiEditOpen(false)
+    })
+  }
+
+  function sendMany() {
+    const targets = selectedDrafted.map(f => ({ id: f.id, d: drafts[f.id] }))
+    setSendConfirm(false)
+    return bulk(`Sending 0/${targets.length}…`, async () => {
+      let sent = 0
+      for (const [i, t] of targets.entries()) {
+        if (await sendOne(t.id, t.d)) sent++
+        setBulkBusy(`Sending ${i + 1}/${targets.length}…`)
+      }
+      const failed = targets.length - sent
+      flash(failed ? `Sent ${sent}, ${failed} failed (see the open rows)` : `Sent ${sent} follow-up${sent !== 1 ? 's' : ''}`)
+      await load()
+    })
+  }
+
+  function snoozeMany(days: number) {
+    const ids = selectedVisible.map(f => f.id)
+    return bulk('Snoozing…', async () => {
+      const ok = await snoozeIds(ids, days)
+      flash(`Snoozed ${ok} follow-up${ok !== 1 ? 's' : ''} for ${days} days`)
+      setSelected(new Set())
+      await load()
+    })
+  }
+
+  function closeMany() {
+    const ids = selectedVisible.map(f => f.id)
+    return bulk('Closing…', async () => {
+      const ok = await closeIds(ids)
+      flash(`Closed ${ok} follow-up${ok !== 1 ? 's' : ''}`)
+      setSelected(new Set())
       await load()
     })
   }
@@ -207,6 +437,8 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
   }
 
   const overdueCount = followUps.filter(f => !f.snoozed && dueLabel(f).tone === 'overdue').length
+  const dueUndrafted = followUps.filter(f => isDue(f) && !drafts[f.id])
+  const locked = !!bulkBusy
 
   return (
     <div className="gh-fu">
@@ -220,15 +452,25 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
               {overdueCount > 0 && <span className="gh-fu-due gh-fu-due-overdue">{overdueCount} overdue</span>}
             </div>
             <p className="gh-fu-sub">
-              Emails waiting on a reply. When one is due, draft a short nudge and send it, snooze it,
-              or close it if they already replied.
+              Emails waiting on a reply. Draft a short, branded nudge that lands in the original Gmail thread,
+              edit several at once with AI, then send. Close any that already replied.
             </p>
           </div>
+          <div className="gh-fu-head-side">
+            <div className="gh-fu-check">
+              <span className="gh-fu-muted">
+                {checking ? 'Checking Gmail for replies…' : checkedAt ? `Replies checked ${checkedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}
+              </span>
+              <button className="gh-fu-btn" onClick={() => checkReplies(true)} disabled={checking || locked}>
+                {checking ? 'Checking…' : 'Check for replies'}
+              </button>
+            </div>
           <div className="gh-fu-filters" role="tablist">
             {([
               ['due',      'Due now',  dueCount],
               ['upcoming', 'Upcoming', followUps.length - dueCount],
               ['all',      'All',      followUps.length],
+              ['resolved', 'Resolved', resolved.length],
             ] as [Filter, string, number][]).map(([key, label, count]) => (
               <button
                 key={key}
@@ -242,11 +484,166 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
               </button>
             ))}
           </div>
+          </div>
         </div>
 
         {error && <div className="gh-fu-error">{error}</div>}
 
-        {visible.length === 0 ? (
+        {visible.length > 0 && (
+          <div className="gh-fu-bulk">
+            <div className="gh-fu-bulk-row">
+              <span className="gh-fu-bulk-label">
+                {bulkBusy ?? (selectedVisible.length > 0 ? `${selectedVisible.length} selected` : 'Select rows to act on several at once')}
+              </span>
+              <div className="gh-fu-bulk-actions">
+                {selectedVisible.length === 0 ? (
+                  dueUndrafted.length > 0 && (
+                    <button
+                      className="gh-fu-btn gh-fu-btn-primary"
+                      disabled={locked}
+                      onClick={() => {
+                        setSelected(new Set(dueUndrafted.map(f => f.id)))
+                        draftMany(dueUndrafted.map(f => f.id))
+                      }}
+                    >
+                      Draft all due ({dueUndrafted.length})
+                    </button>
+                  )
+                ) : (
+                  <>
+                    <button
+                      className="gh-fu-btn gh-fu-btn-primary"
+                      disabled={locked || selectedUndrafted.length === 0}
+                      onClick={() => draftMany(selectedUndrafted.map(f => f.id))}
+                    >
+                      Draft{selectedUndrafted.length ? ` ${selectedUndrafted.length}` : ''}
+                    </button>
+                    <button
+                      className={`gh-fu-btn${aiEditOpen ? ' active' : ''}`}
+                      disabled={locked || selectedDrafted.length === 0}
+                      onClick={() => { setAiEditOpen(o => !o); setSendConfirm(false) }}
+                    >
+                      AI edit{selectedDrafted.length ? ` ${selectedDrafted.length}` : ''}
+                    </button>
+                    <button
+                      className="gh-fu-btn gh-fu-btn-send"
+                      disabled={locked || selectedDrafted.length === 0}
+                      onClick={() => { setSendConfirm(true); setAiEditOpen(false) }}
+                    >
+                      Send{selectedDrafted.length ? ` ${selectedDrafted.length}` : ''}
+                    </button>
+                    <select
+                      className="gh-fu-btn gh-fu-select"
+                      value=""
+                      disabled={locked}
+                      onChange={e => { const n = Number(e.target.value); if (n) snoozeMany(n) }}
+                      aria-label="Snooze selected"
+                    >
+                      <option value="">Snooze</option>
+                      <option value={1}>1 day</option>
+                      <option value={3}>3 days</option>
+                      <option value={7}>7 days</option>
+                    </select>
+                    <button className="gh-fu-btn" disabled={locked} onClick={closeMany}>Close</button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {aiEditOpen && selectedDrafted.length > 0 && (
+              <div className="gh-fu-panel">
+                <textarea
+                  className="gh-fu-textarea"
+                  rows={2}
+                  placeholder={'Describe the change for all selected drafts, e.g. "Shorter and more casual" or "Mention our free audit and add a button to book a call"'}
+                  value={aiInstruction}
+                  onChange={e => setAiInstruction(e.target.value)}
+                />
+                <div className="gh-fu-panel-row">
+                  <span className="gh-fu-muted">
+                    Applies to {selectedDrafted.length} drafted follow-up{selectedDrafted.length !== 1 ? 's' : ''}. Rows without a draft are skipped.
+                  </span>
+                  <div className="gh-fu-panel-btns">
+                    <button className="gh-fu-btn" onClick={() => setAiEditOpen(false)} disabled={locked}>Cancel</button>
+                    <button className="gh-fu-btn gh-fu-btn-primary" onClick={applyAiEdit} disabled={locked || !aiInstruction.trim()}>
+                      Apply to {selectedDrafted.length}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {sendConfirm && selectedDrafted.length > 0 && (
+              <div className="gh-fu-panel gh-fu-panel-row">
+                <span>
+                  Send {selectedDrafted.length} follow-up{selectedDrafted.length !== 1 ? 's' : ''} now?
+                  {selectedUndrafted.length > 0 && <span className="gh-fu-muted"> {selectedUndrafted.length} without a draft will be skipped.</span>}
+                </span>
+                <div className="gh-fu-panel-btns">
+                  <label className="gh-followup-toggle">
+                    If no reply, remind me in
+                    <select className="gh-followup-days" value={remindAgainDays} onChange={e => setRemindAgainDays(Number(e.target.value))}>
+                      <option value={0}>Don&apos;t remind</option>
+                      <option value={3}>3 days</option>
+                      <option value={5}>5 days</option>
+                      <option value={7}>7 days</option>
+                    </select>
+                  </label>
+                  <button className="gh-fu-btn" onClick={() => setSendConfirm(false)}>Cancel</button>
+                  <button className="gh-fu-btn gh-fu-btn-send" onClick={sendMany}>Yes, send all</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {filter === 'resolved' ? (
+          resolved.length === 0 ? (
+            <div className="gh-fu-empty">
+              <div className="gh-fu-empty-title">Nothing resolved yet</div>
+              <p>When a prospect replies, opts out, or an email bounces, the follow-up closes itself and shows up here for {RESOLVED_WINDOW_DAYS} days.</p>
+            </div>
+          ) : (
+            <div className="gh-fu-table-wrap">
+              <table className="gh-fu-table gh-fu-table-resolved">
+                <colgroup>
+                  <col className="gh-fu-col-recipient" />
+                  <col className="gh-fu-col-outcome" />
+                  <col />
+                  <col className="gh-fu-col-sent" />
+                  <col className="gh-fu-col-open" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Recipient</th>
+                    <th>Outcome</th>
+                    <th>What they said</th>
+                    <th>Closed</th>
+                    <th className="gh-fu-th-actions"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resolved.map(r => (
+                    <tr key={r.id} className="gh-fu-tr">
+                      <td className="gh-fu-recipient" title={r.recipient}>
+                        {r.recipient}
+                        {r.subject && <div className="gh-fu-muted gh-fu-due-date" title={r.subject}>{r.subject}</div>}
+                      </td>
+                      <td><span className={`gh-fu-outcome gh-fu-outcome-${r.status}`}>{RESOLVED_LABEL[r.status]}</span></td>
+                      <td className="gh-fu-note" title={r.note ?? undefined}>{r.note || <span className="gh-fu-muted">—</span>}</td>
+                      <td className="gh-fu-muted">{formatDate(r.at)}</td>
+                      <td className="gh-fu-td-actions">
+                        {r.threadId && (
+                          <a className="gh-fu-btn gh-fu-link" href={gmailLink(r.threadId)} target="_blank" rel="noreferrer">Open in Gmail</a>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+        ) : visible.length === 0 ? (
           <div className="gh-fu-empty">
             <div className="gh-fu-empty-title">
               {followUps.length === 0 ? 'No follow-ups yet' : filter === 'due' ? 'You are all caught up' : 'Nothing here'}
@@ -263,6 +660,7 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
           <div className="gh-fu-table-wrap">
             <table className="gh-fu-table">
               <colgroup>
+                <col className="gh-fu-col-check" />
                 <col className="gh-fu-col-recipient" />
                 <col />
                 <col className="gh-fu-col-sent" />
@@ -271,6 +669,14 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
               </colgroup>
               <thead>
                 <tr>
+                  <th className="gh-fu-th-check">
+                    <input
+                      type="checkbox"
+                      aria-label="Select all"
+                      checked={allVisibleSelected}
+                      onChange={e => setSelected(e.target.checked ? new Set(visible.map(f => f.id)) : new Set())}
+                    />
+                  </th>
                   <th>Recipient</th>
                   <th>Original subject</th>
                   <th>Sent</th>
@@ -279,137 +685,155 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
                 </tr>
               </thead>
               <tbody>
-            {visible.map(f => {
-              const d = drafts[f.id]
-              const due = dueLabel(f)
-              const isBusy = busy.has(f.id)
-              return (
-                <Fragment key={f.id}>
-                  <tr className={`gh-fu-tr${d ? ' open' : ''}`}>
-                    <td className="gh-fu-recipient" title={f.recipient}>{f.recipient}</td>
-                    <td className="gh-fu-subject" title={f.subject || undefined}>
-                      {f.subject || <span className="gh-fu-muted">No subject</span>}
-                    </td>
-                    <td className="gh-fu-muted">{formatDate(f.createdAt)}</td>
-                    <td>
-                      <span className={`gh-fu-due gh-fu-due-${due.tone}`}>{due.text}</span>
-                      <div className="gh-fu-muted gh-fu-due-date">{formatDate(f.dueAt)}</div>
-                    </td>
-                    <td className="gh-fu-td-actions">
-                      <div className="gh-fu-actions">
-                        <button
-                          className="gh-fu-btn gh-fu-btn-primary"
-                          onClick={() => (d ? closeDraft(f.id) : draftFollowUp(f.id))}
-                          disabled={isBusy || d?.sending}
-                        >
-                          {d ? 'Hide draft' : 'Draft follow-up'}
-                        </button>
-                        <select
-                          className="gh-fu-btn gh-fu-select"
-                          value=""
-                          disabled={isBusy}
-                          onChange={e => { const n = Number(e.target.value); if (n) snooze(f.id, n) }}
-                          aria-label="Snooze this follow-up"
-                        >
-                          <option value="">Snooze</option>
-                          <option value={1}>1 day</option>
-                          <option value={3}>3 days</option>
-                          <option value={7}>7 days</option>
-                        </select>
-                        <button
-                          className="gh-fu-btn"
-                          onClick={() => markDone(f.id)}
-                          disabled={isBusy}
-                          title="They replied, or no follow-up needed"
-                        >
-                          Close
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  {d && (
-                    <tr className="gh-fu-draft-row">
-                      <td colSpan={5} className="gh-fu-draft-cell">
-                        {d.loading ? (
-                          <div className="gh-fu-drafting">
-                            <div className="gh-gen-spinner">
-                              <span className="gh-spinner-dot" /><span className="gh-spinner-dot" /><span className="gh-spinner-dot" />
-                            </div>
-                            Writing a follow-up from the original thread…
+                {visible.map(f => {
+                  const d = drafts[f.id]
+                  const due = dueLabel(f)
+                  const isBusy = busy.has(f.id) || locked
+                  return (
+                    <Fragment key={f.id}>
+                      <tr className={`gh-fu-tr${d?.open ? ' open' : ''}${selected.has(f.id) ? ' selected' : ''}`}>
+                        <td className="gh-fu-td-check">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${f.recipient}`}
+                            checked={selected.has(f.id)}
+                            onChange={e => toggleSelected(f.id, e.target.checked)}
+                          />
+                        </td>
+                        <td className="gh-fu-recipient" title={f.recipient}>
+                          {f.recipient}
+                          {f.status === 'auto_reply' && (
+                            <div><span className="gh-fu-tag" title={f.note ?? undefined}>Out of office, pushed back</span></div>
+                          )}
+                          {f.status === 'untracked' && (
+                            <div><span className="gh-fu-tag gh-fu-tag-warn" title="The original Gmail thread could not be found, so replies are not detected for this one">Replies not tracked</span></div>
+                          )}
+                        </td>
+                        <td className="gh-fu-subject" title={f.subject || undefined}>
+                          {f.subject || <span className="gh-fu-muted">No subject</span>}
+                        </td>
+                        <td className="gh-fu-muted">{formatDate(f.createdAt)}</td>
+                        <td>
+                          <span className={`gh-fu-due gh-fu-due-${due.tone}`}>{due.text}</span>
+                          <div className="gh-fu-muted gh-fu-due-date">
+                            {d?.loading ? 'Drafting…' : isDrafted(d) ? <span className="gh-fu-ready">Draft ready</span> : formatDate(f.dueAt)}
                           </div>
-                        ) : (
-                          <div className="gh-email-editor">
-                            <div className="gh-ee-to-row">
-                              <span className="gh-ee-to-label">To:</span>
-                              <input
-                                className="gh-ee-to-input"
-                                value={d.to}
-                                onChange={e => setDraft(f.id, { to: e.target.value })}
-                                placeholder="recipient@email.com"
-                              />
-                            </div>
-                            <div className="gh-ee-fields">
-                              <div className="gh-ee-field">
-                                <label className="gh-ee-label">Subject</label>
-                                <input
-                                  className="gh-ee-input"
-                                  value={d.subject}
-                                  onChange={e => setDraft(f.id, { subject: e.target.value })}
-                                />
-                              </div>
-                              <div className="gh-ee-field">
-                                <div className="gh-fu-body-hd">
-                                  <label className="gh-ee-label" style={{ marginBottom: 0 }}>Body</label>
-                                  <button className="gh-fu-src-btn" onClick={() => setDraft(f.id, { editingHtml: !d.editingHtml })}>
-                                    {d.editingHtml ? 'Preview' : 'Source'}
-                                  </button>
+                        </td>
+                        <td className="gh-fu-td-actions">
+                          <div className="gh-fu-actions">
+                            <button
+                              className="gh-fu-btn gh-fu-btn-primary"
+                              onClick={() => (d ? setDraft(f.id, { open: !d.open }) : draftFollowUp(f.id))}
+                              disabled={isBusy || d?.sending}
+                            >
+                              {!d ? 'Draft follow-up' : d.open ? 'Hide draft' : 'Review draft'}
+                            </button>
+                            <select
+                              className="gh-fu-btn gh-fu-select"
+                              value=""
+                              disabled={isBusy}
+                              onChange={e => { const n = Number(e.target.value); if (n) snooze(f.id, n) }}
+                              aria-label="Snooze this follow-up"
+                            >
+                              <option value="">Snooze</option>
+                              <option value={1}>1 day</option>
+                              <option value={3}>3 days</option>
+                              <option value={7}>7 days</option>
+                            </select>
+                            <button
+                              className="gh-fu-btn"
+                              onClick={() => markDone(f.id)}
+                              disabled={isBusy}
+                              title="They replied, or no follow-up needed"
+                            >
+                              Close
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {d?.open && (
+                        <tr className="gh-fu-draft-row">
+                          <td colSpan={6} className="gh-fu-draft-cell">
+                            {d.loading ? (
+                              <div className="gh-fu-drafting">
+                                <div className="gh-gen-spinner">
+                                  <span className="gh-spinner-dot" /><span className="gh-spinner-dot" /><span className="gh-spinner-dot" />
                                 </div>
-                                {d.editingHtml ? (
-                                  <textarea
-                                    className="gh-ee-textarea"
-                                    rows={8}
-                                    style={{ fontFamily: 'monospace', fontSize: 12.5 }}
-                                    value={d.body}
-                                    onChange={e => setDraft(f.id, { body: e.target.value })}
-                                  />
-                                ) : (
-                                  <div className="gh-ee-preview" dangerouslySetInnerHTML={{ __html: d.body }} />
-                                )}
+                                Writing a follow-up from the original thread…
                               </div>
-                            </div>
-                            {d.error && <div className="gh-gen-error">{d.error}</div>}
-                            <div className="gh-ee-actions">
-                              <button
-                                className="gh-send-btn"
-                                onClick={() => sendFollowUp(f.id)}
-                                disabled={d.sending || !d.to.trim() || !d.body.trim()}
-                              >
-                                {d.sending ? 'Sending…' : 'Send follow-up'}
-                              </button>
-                              <label className="gh-followup-toggle">
-                                If no reply, remind me again in
-                                <select
-                                  className="gh-followup-days"
-                                  value={d.nextFollowUpDays}
-                                  onChange={e => setDraft(f.id, { nextFollowUpDays: Number(e.target.value) })}
-                                >
-                                  <option value={0}>Don&apos;t remind</option>
-                                  <option value={3}>3 days</option>
-                                  <option value={5}>5 days</option>
-                                  <option value={7}>7 days</option>
-                                </select>
-                              </label>
-                              <button className="gh-dc-discard" onClick={() => draftFollowUp(f.id)} disabled={d.sending}>Regenerate</button>
-                              <button className="gh-send-confirm-no" onClick={() => closeDraft(f.id)} disabled={d.sending}>Cancel</button>
-                            </div>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              )
-            })}
+                            ) : (
+                              <div className="gh-email-editor">
+                                <div className="gh-ee-to-row">
+                                  <span className="gh-ee-to-label">To:</span>
+                                  <input
+                                    className="gh-ee-to-input"
+                                    value={d.to}
+                                    onChange={e => setDraft(f.id, { to: e.target.value })}
+                                    placeholder="recipient@email.com"
+                                  />
+                                </div>
+                                <div className="gh-ee-fields">
+                                  <div className="gh-ee-field">
+                                    <label className="gh-ee-label">Subject</label>
+                                    <input
+                                      className="gh-ee-input"
+                                      value={d.subject}
+                                      onChange={e => setDraft(f.id, { subject: e.target.value })}
+                                    />
+                                  </div>
+                                  <div className="gh-ee-field">
+                                    <div className="gh-fu-body-hd">
+                                      <label className="gh-ee-label" style={{ marginBottom: 0 }}>Body</label>
+                                      <button className="gh-fu-src-btn" onClick={() => setDraft(f.id, { editingHtml: !d.editingHtml })}>
+                                        {d.editingHtml ? 'Preview' : 'Source'}
+                                      </button>
+                                    </div>
+                                    {d.editingHtml ? (
+                                      <textarea
+                                        className="gh-ee-textarea"
+                                        rows={11}
+                                        style={{ fontFamily: 'monospace', fontSize: 12.5 }}
+                                        value={d.body}
+                                        onChange={e => setDraft(f.id, { body: e.target.value })}
+                                      />
+                                    ) : d.body ? (
+                                      <div className="gh-ee-preview" dangerouslySetInnerHTML={{ __html: d.body }} />
+                                    ) : null}
+                                  </div>
+                                </div>
+                                {d.error && <div className="gh-gen-error">{d.error}</div>}
+                                <div className="gh-ee-actions">
+                                  <button
+                                    className="gh-send-btn"
+                                    onClick={() => sendSingle(f.id)}
+                                    disabled={d.sending || locked || !d.to.trim() || !d.body.trim()}
+                                  >
+                                    {d.sending ? 'Sending…' : 'Send follow-up'}
+                                  </button>
+                                  <label className="gh-followup-toggle">
+                                    If no reply, remind me in
+                                    <select
+                                      className="gh-followup-days"
+                                      value={remindAgainDays}
+                                      onChange={e => setRemindAgainDays(Number(e.target.value))}
+                                    >
+                                      <option value={0}>Don&apos;t remind</option>
+                                      <option value={3}>3 days</option>
+                                      <option value={5}>5 days</option>
+                                      <option value={7}>7 days</option>
+                                    </select>
+                                  </label>
+                                  <button className="gh-dc-discard" onClick={() => draftFollowUp(f.id)} disabled={d.sending || locked}>Regenerate</button>
+                                  <button className="gh-send-confirm-no" onClick={() => discardDraft(f.id)} disabled={d.sending}>Discard</button>
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
               </tbody>
             </table>
           </div>
