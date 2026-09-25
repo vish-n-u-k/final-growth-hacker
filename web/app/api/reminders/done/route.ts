@@ -24,8 +24,11 @@ export async function GET(req: NextRequest) {
   const now = new Date()
   const nextDueAt = new Date(now.getTime() + existing[0].intervalDays * 24 * 3600 * 1000)
 
+  // Gmail follow-ups are one-off: close them instead of re-arming the interval
+  const isGmailFollowup = existing[0].description?.includes('gmailThreadId:') ?? false
+
   await db.update(reminders)
-    .set({ lastDoneAt: now, nextDueAt, snoozedUntil: null })
+    .set({ lastDoneAt: now, nextDueAt, snoozedUntil: null, ...(isGmailFollowup ? { enabled: false } : {}) })
     .where(eq(reminders.id, payload.reminderId))
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com'
