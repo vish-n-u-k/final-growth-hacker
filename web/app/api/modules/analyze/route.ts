@@ -33,8 +33,6 @@ import { fetchUserAnalyticsData } from '@/lib/modules/user-analytics/fetcher'
 import { analyzeUserAnalytics } from '@/lib/modules/user-analytics/agent'
 import { fetchCommunityDiscovery } from '@/lib/modules/community-finder/fetcher'
 import { analyzeCommunitiesFinder } from '@/lib/modules/community-finder/agent'
-import { fetchUserAcquisitionData } from '@/lib/modules/user-acquisition/fetcher'
-import { analyzeUserAcquisition } from '@/lib/modules/user-acquisition/agent'
 import { fetchBusinessStageData } from '@/lib/modules/business-stage/fetcher'
 import { analyzeBusinessStage } from '@/lib/modules/business-stage/agent'
 import { fetchGmailOutreachData } from '@/lib/modules/gmail-outreach/fetcher'
@@ -79,10 +77,6 @@ async function runAnalysis(
   brainCtx?: string,
 ): Promise<ModuleAnalysisResult[] | DynamicModuleAnalysisResult[]> {
   switch (moduleType) {
-    case 'user-acquisition': {
-      const data = await fetchUserAcquisitionData(requirements)
-      return analyzeUserAcquisition(data, brainCtx)
-    }
     case 'foundation': {
       const data = await fetchFoundationData(requirements)
       if (!data.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)

@@ -2247,7 +2247,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         {/* Module accordion stack */}
         <div className="levels">
           {(() => {
-            const filtered = sortedByOrder.filter(m => m.type !== 'user-acquisition' && m.type !== 'business-stage')
+            const filtered = sortedByOrder.filter(m => m.type !== 'business-stage')
             let separatorPlaced = false
             return filtered.map((modData) => {
             const isOpen = openModules.has(modData.id)

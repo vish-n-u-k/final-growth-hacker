@@ -8,7 +8,7 @@ import AnalyticsDashboard, { type ModuleHealth } from './AnalyticsDashboard'
 
 function getModuleSource(type: string): string {
   const aiRules = ['seo', 'geo', 'content-audit', 'social-media', 'brand-audit', 'geo-competitor-gap']
-  const ai = ['competitor-analysis', 'user-acquisition', 'meta-ads', 'outreach-targets', 'user-analytics', 'gmail-outreach']
+  const ai = ['competitor-analysis', 'business-stage', 'meta-ads', 'outreach-targets', 'user-analytics', 'gmail-outreach']
   if (aiRules.includes(type)) return 'AI + Rules'
   if (ai.includes(type)) return 'AI'
   return 'Internal'

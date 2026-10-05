@@ -16,8 +16,6 @@ import { fetchGeoData } from '@/lib/modules/geo/fetcher'
 import { analyzeGeo } from '@/lib/modules/geo/agent'
 import { fetchBusinessStageData } from '@/lib/modules/business-stage/fetcher'
 import { analyzeBusinessStage } from '@/lib/modules/business-stage/agent'
-import { fetchUserAcquisitionData } from '@/lib/modules/user-acquisition/fetcher'
-import { analyzeUserAcquisition } from '@/lib/modules/user-acquisition/agent'
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
 import { withAIContext } from '@/lib/ai/client'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult } from '@/lib/modules/types'
@@ -73,10 +71,6 @@ async function runModuleAnalysis(
     case 'business-stage': {
       const data = await fetchBusinessStageData(requirements)
       return analyzeBusinessStage(data, brainCtx)
-    }
-    case 'user-acquisition': {
-      const data = await fetchUserAcquisitionData(requirements)
-      return analyzeUserAcquisition(data, brainCtx)
     }
     default:
       throw new Error(`Module type "${moduleType}" is not supported via MCP analyze. Use the dashboard to trigger this analysis.`)

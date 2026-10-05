@@ -1,5 +1,4 @@
 import { GMAIL_OUTREACH_MODULE } from './gmail-outreach/definition'
-import { USER_ACQUISITION_MODULE } from './user-acquisition/definition'
 import { BACKLINKS_MODULE } from './backlinks/definition'
 import { FOUNDATION_MODULE } from './foundation/definition'
 import { WEBSITE_MODULE } from './website/definition'
@@ -23,7 +22,6 @@ import type { ModuleDefinition } from './types'
 // The order field on each definition controls the sequence and gating.
 
 export const MODULE_REGISTRY: ModuleDefinition[] = [
-  USER_ACQUISITION_MODULE,        // order: 0
   FOUNDATION_MODULE,              // order: 1
   WEBSITE_MODULE,                 // order: 2
   SEO_MODULE,                     // order: 3
