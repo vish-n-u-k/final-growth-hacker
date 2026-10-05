@@ -48,20 +48,57 @@ source of truth for "what's actually been done" on this branch.
   `analytics/page copy.tsx`). `lib/modules/user-acquisition/` deleted. Also dropped the
   empty `community-finder` category stub from Social Media Audit's definition.
 
+## Done (continued)
+
+- **Persistent sidebar shell** (commit `54b7cba`). New `app/(shell)/` route group —
+  a route group adds no URL segment, so every page's URL is unchanged — now wraps
+  `dashboard`, `today`, `gmail-hub`, `social`, `lead-finder`, `engagement-hub`,
+  `reminders`, `settings`, `analytics`, `authAnalytics`, `authJourney`, `tools`.
+  `app/(shell)/layout.tsx` does its own auth/brand check (middleware already gates
+  the whole app, this is a second line of defense) and renders the new
+  `components/AppSidebar.tsx`: real `<Link>`s, `usePathname()` for active-state —
+  no client-side fake nav switching like the mockup. Grouped Grow (Growth Path,
+  Today) / Work (Outreach→`/gmail-hub`, Social Studio→`/social`,
+  Meta Ads→`/dashboard/meta-ads/blueprint`, Lead Finder, Reminders) / Insights
+  (Analytics→`/analytics`, the one that's actually live — `authAnalytics` and
+  `authJourney` aren't linked from anywhere real, left alone, not in nav).
+  Settings pinned at bottom. Engagement Hub intentionally left out of the nav
+  (page still works, just unlinked, matching the mockup's decision) — the folder
+  still moved into the shell so it gets consistent chrome if visited directly.
+  Only one import needed fixing from the move: `components/NextCampaignBlueprintPage.tsx`
+  imported a type by absolute path from the old `@/app/dashboard/meta-ads/...`
+  location.
+  Tool pages' own internals are **untouched** — shell-only, per decision #2.
+
+- **Real unlock gating for Meta Ads / Outreach** (same commit). Per decision #5,
+  these keep gating from the real module system rather than becoming always-open.
+  New `lib/modules/lock-state.ts` mirrors `AllModulesDashboard.tsx`'s
+  `isModuleLocked` rule (order-chain, 80% threshold from the module's persisted
+  `score`, locking disabled outside production) server-side, so the sidebar can
+  grey out `Outreach`/`Meta Ads` without importing a `'use client'` component or
+  duplicating that component's logic. Locked items render as non-clickable with
+  a lock icon and a tooltip.
+
 ## Not done yet (next up)
 
-- [ ] Persistent sidebar shell (Grow / Work / Insights groups, per the artifact) as a
-      real `layout.tsx` wrapping the authenticated app routes.
-- [ ] Wire real components (`GmailHub`, `SocialStudioPage`, `LeadFinder`,
-      `RemindersPage`, the Meta Ads blueprint page) into the new shell as the Work
-      tools' content, in place of each one's current standalone full-page layout.
 - [ ] Growth Path page: build the module stepper + the 0→500 journey band against
-      live module data (respecting real lock state per decision #5) and a real
-      PostHog signup count (decision #6) instead of the mockup's hardcoded numbers.
-- [ ] Decide routing: does `/dashboard` itself become the shell, or does the shell
-      live at a new path and `/dashboard` redirect into it?
+      live module data and a real PostHog signup count (decision #6) instead of
+      the mockup's hardcoded numbers. `app/(shell)/dashboard/page.tsx` and
+      `components/AllModulesDashboard.tsx` still render the pre-existing UI as-is —
+      the shell just wraps it now, the journey band itself hasn't been built in
+      real code yet.
 - [ ] Settings becomes a tab/section inside the shell rather than its own standalone
-      page (matches the mockup's `Settings` nav item).
+      page (matches the mockup's `Settings` nav item) — currently it's still its
+      own full page, just wrapped in the shell like everything else.
+- [ ] Known perf duplication: the shell layout re-queries `brands` on every
+      navigation, on top of each page's own identical query. Not wrong, just
+      redundant — worth deduping (React `cache()`, or lift the brand lookup higher)
+      once the shell's shape has settled.
+- [ ] Not build-tested — this environment has no `node_modules`/`next` binary, so
+      none of this has run through `next build` or a dev server. Verified instead
+      by exhaustive grep for anything importing the moved paths by filesystem
+      location (vs. URL, which route groups don't change). Run a real build before
+      trusting this in production.
 
 ## Explicitly not doing right now (pinned, see decision #4)
 
