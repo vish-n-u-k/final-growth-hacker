@@ -6125,3 +6125,49 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   .gh-fu-filters { width: 100%; }
   .gh-fu-filter { flex: 1; justify-content: center; padding: 6px 8px; }
 }
+
+/* ── App shell (persistent sidebar nav wrapping dashboard/tool pages) ───── */
+.app-shell { display: flex; min-height: 100vh; }
+.app-sidebar {
+  width: 216px; flex-shrink: 0; background: var(--bg-soft); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; padding: 18px 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.app-sidebar-brand {
+  display: flex; align-items: center; gap: 9px; padding: 6px 8px 18px;
+  font-family: var(--font-display, 'Fraunces', serif); font-weight: 700; font-size: 15px; color: var(--text);
+}
+.app-sidebar-mark { width: 22px; height: 22px; border-radius: 6px; background: var(--green); flex-shrink: 0; }
+.app-sidebar-group { margin-bottom: 16px; }
+.app-sidebar-glabel {
+  font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--text-faint); padding: 0 10px 8px;
+}
+.app-navitem {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 8px;
+  border: none; background: transparent; color: var(--text-dim); font-size: 13px; font-weight: 500;
+  text-align: left; margin-bottom: 2px; text-decoration: none; cursor: pointer;
+}
+.app-navitem:hover { background: var(--card); color: var(--text); }
+.app-navitem.active { background: var(--accent); color: var(--accent-foreground); font-weight: 700; }
+.app-navitem-locked { color: var(--text-faint); cursor: default; opacity: .7; }
+.app-navitem-locked:hover { background: transparent; color: var(--text-faint); }
+.app-sidebar-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line); }
+.app-sidebar-workspace { display: flex; align-items: center; gap: 9px; padding: 10px 10px 2px; }
+.app-sidebar-avatar {
+  width: 26px; height: 26px; border-radius: 50%; background: var(--text); color: var(--bg);
+  display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.app-sidebar-wsname { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-shell-main { flex: 1; min-width: 0; }
+
+@media (max-width: 760px) {
+  .app-shell { flex-direction: column; }
+  .app-sidebar {
+    width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: nowrap;
+    overflow-x: auto; -webkit-overflow-scrolling: touch; border-right: none; border-bottom: 1px solid var(--line);
+    padding: 8px 10px; gap: 2px;
+  }
+  .app-sidebar-brand, .app-sidebar-glabel, .app-sidebar-foot { display: none; }
+  .app-sidebar-group { display: flex; align-items: center; gap: 4px; margin-bottom: 0; flex-shrink: 0; }
+  .app-navitem, .app-navitem-locked { white-space: nowrap; flex-shrink: 0; }
+}
