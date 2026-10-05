@@ -1039,21 +1039,24 @@ function IntegrationCard({
               )}
             </div>
           )}
-          {def.fields.map((field) => (
-            <div key={field.key} className="st-field">
-              <label className="st-label">{field.label}</label>
-              <input
-                className="st-input"
-                type={field.inputType}
-                placeholder={field.placeholder}
-                value={fields[field.key] ?? ''}
-                onChange={(e) => setFields((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                required={!field.optional}
-                autoComplete="off"
-              />
-              {field.helpText && <p className="st-field-hint">{field.helpText}</p>}
-            </div>
-          ))}
+          {def.fields.map((field) => {
+            const isSecretAlreadySet = isConnected && field.inputType === 'password'
+            return (
+              <div key={field.key} className="st-field">
+                <label className="st-label">{field.label}</label>
+                <input
+                  className="st-input"
+                  type={field.inputType}
+                  placeholder={isSecretAlreadySet ? 'Already set — leave blank to keep it' : field.placeholder}
+                  value={fields[field.key] ?? ''}
+                  onChange={(e) => setFields((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                  required={!field.optional && !isSecretAlreadySet}
+                  autoComplete="off"
+                />
+                {field.helpText && <p className="st-field-hint">{field.helpText}</p>}
+              </div>
+            )
+          })}
           {error && <p className="st-error">{error}</p>}
           <div className="st-int-form-actions">
             {isConnected && (
