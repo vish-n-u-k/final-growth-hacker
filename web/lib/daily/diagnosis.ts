@@ -11,12 +11,13 @@
 // dismissal, cooldown and auto-clear for free. Rule-based, no AI calls.
 
 import { db } from '@/lib/db'
-import { brands, brandIntegrations, modules, brandBlogs, frektoScheduledPosts, keywordSnapshots } from '@/lib/db/schema'
-import { and, desc, eq, gte, ne } from 'drizzle-orm'
+import { brands, brandIntegrations, modules, keywordSnapshots } from '@/lib/db/schema'
+import { and, eq, gte } from 'drizzle-orm'
 import { getGaAnalytics } from '@/lib/mcp/tools/get_ga_analytics'
 import { getGscData } from '@/lib/mcp/tools/get_gsc_data'
 import { getPosthogSegments } from '@/lib/mcp/tools/get_posthog_segments'
 import { openSignal, clearSignals, getOpenSignals, saveSnapshot, type SignalInput } from '@/lib/signals'
+import { getActivity } from '@/lib/signals/activity'
 
 export type GrowthStage = 'awareness' | 'conversion' | 'retention' | 'growth' | 'unknown'
 
@@ -41,9 +42,11 @@ export interface DiagnosisMetrics {
   search: { opportunities: { query: string; impressions: number; clicks: number; position: number }[] } | null
   // returnPct: % of users active 15–30 days ago who were active again in the last 14 days
   app: { newThisWeek: number | null; newLastWeek: number | null; growthPct: number | null; returnPct: number | null; returnBase: number | null; active30d: number | null } | null
-  socialConnected: boolean
-  daysSinceLastPost: number | null
-  daysSinceLastBlog: number | null
+  // From the real website (RSS / sitemap) and real social accounts, checked daily.
+  // canSee=false means GrowJin couldn't check, NOT that there's no activity.
+  blog: { canSee: boolean; source: string | null; postCount: number; daysSinceLast: number | null }
+  social: { canSee: boolean; daysSinceLast: number | null; lastPlatform: string | null; accounts: string[]; unreadable: string[] }
+  socialConnected: boolean // Frekto connected (GrowJin can schedule posts)
   metaAdsConnected: boolean
   gmailConnected: boolean
   githubConnected: boolean
@@ -103,18 +106,12 @@ async function posthogReturnRate(brandId: string): Promise<{ returnPct: number |
 
 
 export async function gatherMetrics(brandId: string): Promise<DiagnosisMetrics> {
-  const [brandRows, integrations, mods, [lastBlog], [lastPost], kwRows, ga, gsc, ph, ret] = await Promise.all([
-    db.select({ websiteType: brands.websiteType }).from(brands).where(eq(brands.id, brandId)).limit(1),
+  const [brandRows, integrations, mods, kwRows, ga, gsc, ph, ret] = await Promise.all([
+    db.select({ websiteType: brands.websiteType, websiteUrl: brands.websiteUrl }).from(brands).where(eq(brands.id, brandId)).limit(1),
     db.select({ provider: brandIntegrations.provider }).from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brandId), eq(brandIntegrations.status, 'connected'))),
     db.select({ type: modules.type, score: modules.score, lastAnalyzedAt: modules.lastAnalyzedAt, status: modules.status })
       .from(modules).where(eq(modules.brandId, brandId)),
-    db.select({ createdAt: brandBlogs.createdAt }).from(brandBlogs)
-      .where(and(eq(brandBlogs.brandId, brandId), ne(brandBlogs.status, 'replaced')))
-      .orderBy(desc(brandBlogs.createdAt)).limit(1),
-    db.select({ scheduledAt: frektoScheduledPosts.scheduledAt }).from(frektoScheduledPosts)
-      .where(and(eq(frektoScheduledPosts.brandId, brandId), eq(frektoScheduledPosts.status, 'done')))
-      .orderBy(desc(frektoScheduledPosts.scheduledAt)).limit(1),
     db.select({ position: keywordSnapshots.position, fetchedAt: keywordSnapshots.fetchedAt }).from(keywordSnapshots)
       .where(and(eq(keywordSnapshots.brandId, brandId), gte(keywordSnapshots.fetchedAt, new Date(Date.now() - 7 * 864e5)))),
     getGaAnalytics(brandId, '30d').catch(() => null),
@@ -124,6 +121,7 @@ export async function gatherMetrics(brandId: string): Promise<DiagnosisMetrics> 
   ])
 
   const providers = new Set(integrations.map((i) => i.provider))
+  const activity = await getActivity(brandId, brandRows[0]?.websiteUrl ?? null)
   const scoreOf = (type: string) => {
     const m = mods.find((x) => x.type === type && x.status !== 'locked' && x.status !== 'not-applicable')
     return m?.lastAnalyzedAt ? (m.score ?? 0) : null
@@ -178,9 +176,20 @@ export async function gatherMetrics(brandId: string): Promise<DiagnosisMetrics> 
     traffic,
     search,
     app,
+    blog: {
+      canSee: activity.blog.canSee,
+      source: activity.blog.source,
+      postCount: activity.blog.postCount,
+      daysSinceLast: daysSince(activity.blog.lastPublishedAt ? new Date(activity.blog.lastPublishedAt) : null),
+    },
+    social: {
+      canSee: activity.social.canSee,
+      daysSinceLast: daysSince(activity.social.lastPostAt ? new Date(activity.social.lastPostAt) : null),
+      lastPlatform: activity.social.lastPlatform,
+      accounts: activity.social.platforms.filter((p) => !p.error && p.platform !== 'growjin').map((p) => p.platform),
+      unreadable: activity.social.unreadable ?? [],
+    },
     socialConnected: providers.has('frekto'),
-    daysSinceLastPost: daysSince(lastPost?.scheduledAt),
-    daysSinceLastBlog: daysSince(lastBlog?.createdAt),
     metaAdsConnected: providers.has('meta_ads'),
     gmailConnected: providers.has('gmail'),
     githubConnected: providers.has('github'),
@@ -248,11 +257,14 @@ function blogPlay(m: DiagnosisMetrics, reason: string): Play | null {
       priority: 3,
     }
   }
-  if (m.daysSinceLastBlog === null || m.daysSinceLastBlog >= BLOG_GAP_DAYS) {
+  // Only when we can actually see the blog and its newest post is old.
+  // Unknown dates or no visible blog → say nothing rather than guess.
+  if (m.blog.canSee && m.blog.daysSinceLast !== null && m.blog.daysSinceLast >= BLOG_GAP_DAYS) {
+    const where = m.blog.source === 'rss' ? 'your blog feed' : m.blog.source === 'sitemap' ? 'your sitemap' : 'GrowJin'
     return {
       signalKey: 'blog-weekly',
-      title: 'Publish this week\'s blog post',
-      detail: `${reason} ${m.daysSinceLastBlog === null ? 'No blog posts yet.' : `Last post was ${m.daysSinceLastBlog} days ago.`} Regular posts are the cheapest way to grow search traffic.`,
+      title: 'Publish a new blog post',
+      detail: `${reason} Your newest blog post (found via ${where}) is ${m.blog.daysSinceLast} days old. Regular posts are the cheapest way to grow search traffic.`,
       action: 'Pick one question your customers ask often, write a clear post answering it, and publish it on your site.',
       route: 'content',
       priority: 2,
@@ -263,15 +275,25 @@ function blogPlay(m: DiagnosisMetrics, reason: string): Play | null {
 }
 
 function socialPlay(m: DiagnosisMetrics, reason: string, priority: 1 | 2 | 3 = 2): Play | null {
-  if (!m.socialConnected) return null
-  if (m.daysSinceLastPost !== null && m.daysSinceLastPost < SOCIAL_GAP_DAYS) return null
+  // Only when real accounts were checked — never claim "nothing posted" from GrowJin's own table
+  if (!m.social.canSee) return null
+  if (m.social.daysSinceLast !== null && m.social.daysSinceLast < SOCIAL_GAP_DAYS) return null
+  const cap = (a: string) => a[0].toUpperCase() + a.slice(1)
+  const accounts = m.social.accounts.map(cap).join(', ')
+  const unseen = m.social.unreadable.map(cap).join(', ')
+  const caveat = unseen ? ` GrowJin can't read ${unseen} yet, so if you posted there recently, mark this not relevant.` : ''
+  const platform = m.social.lastPlatform && m.social.lastPlatform !== 'growjin'
+    ? m.social.lastPlatform[0].toUpperCase() + m.social.lastPlatform.slice(1)
+    : null
   return {
     signalKey: 'social-post',
     title: 'Post on social media today',
-    detail: `${reason} ${m.daysSinceLastPost === null ? 'Nothing has been posted yet.' : `Last post went out ${m.daysSinceLastPost} days ago.`}`,
-    action: 'Draft one post about a customer problem you solve, with a link back to your site, and schedule it through Frekto.',
+    detail: `${reason} ${m.social.daysSinceLast === null
+      ? `No posts found on ${accounts || 'your connected accounts'}.`
+      : `Your last post${platform ? ` on ${platform}` : ''} was ${m.social.daysSinceLast} days ago.`}${caveat}`,
+    action: `Draft one post about a customer problem you solve, with a link back to your site, and ${m.socialConnected ? 'schedule it through Frekto' : `post it${platform ? ` on ${platform}` : ''}`}.`,
     route: 'content',
-    priority,
+    priority: unseen ? 1 : priority,
     cooldownDays: 2,
   }
 }

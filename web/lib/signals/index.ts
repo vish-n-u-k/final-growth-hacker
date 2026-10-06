@@ -33,11 +33,20 @@ export async function openSignal(brandId: string, s: SignalInput): Promise<boole
       eq(brandSignals.signalKey, s.signalKey),
     ))
 
-  // Already open, or the user closed it within the cooldown → skip.
+  // Already open → refresh its wording so numbers ("last post 4 days ago") stay current
+  const open = recent.find((r) => r.status === 'open')
+  if (open) {
+    await db
+      .update(brandSignals)
+      .set({ title: s.title, detail: s.detail ?? null, action: s.action ?? null, route: s.route ?? 'manual', priority: s.priority ?? 2 })
+      .where(eq(brandSignals.id, open.id))
+    return false
+  }
+
+  // The user closed it within the cooldown → skip.
   // 'cleared' (condition went away on its own) doesn't block re-raising.
   const blocked = recent.some((r) =>
-    r.status === 'open' ||
-    ((r.status === 'done' || r.status === 'dismissed') && r.resolvedAt && r.resolvedAt >= since),
+    (r.status === 'done' || r.status === 'dismissed') && r.resolvedAt && r.resolvedAt >= since,
   )
   if (blocked) return false
 
