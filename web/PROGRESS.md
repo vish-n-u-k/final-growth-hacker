@@ -79,17 +79,34 @@ source of truth for "what's actually been done" on this branch.
   duplicating that component's logic. Locked items render as non-clickable with
   a lock icon and a tooltip.
 
+## Corrections to earlier entries in this log
+
+- **The 0→500 journey band already existed before this redesign.**
+  `components/AllModulesDashboard.tsx` already has a live, PostHog-wired progress
+  bar (`userCount` state, `/api/posthog/user-count`, `JOURNEY_MILESTONES =
+  [0,100,200,300,400,500]`, a filled track + "X users · you're here" tag, manual
+  entry fallback via localStorage). An earlier version of this log listed building
+  this as "not done yet" — that was wrong, written without checking the real
+  component first. Nothing to build here; decision #6 (wire to real PostHog) was
+  already satisfied before this session started.
+- **Trimming the module rail to 10 steps was also a mistake**, now retracted from
+  `UI_SPEC.md` too. `gmail-outreach` and `meta-ads` are still real sequential-unlock
+  modules in `lib/modules/registry.ts` — hiding them from the visible rail while
+  they still gate later modules would be confusing, and it contradicts decision
+  #5 ("keep modules as-is for now"). Not doing this without a real registry
+  restructure, which is out of scope right now.
+
 ## Not done yet (next up)
 
-- [ ] Growth Path page: build the module stepper + the 0→500 journey band against
-      live module data and a real PostHog signup count (decision #6) instead of
-      the mockup's hardcoded numbers. `app/(shell)/dashboard/page.tsx` and
-      `components/AllModulesDashboard.tsx` still render the pre-existing UI as-is —
-      the shell just wraps it now, the journey band itself hasn't been built in
-      real code yet.
-- [ ] Settings becomes a tab/section inside the shell rather than its own standalone
-      page (matches the mockup's `Settings` nav item) — currently it's still its
-      own full page, just wrapped in the shell like everything else.
+- [ ] Nothing currently queued for the Growth Path page — both items above turned
+      out to be already-done or inadvisable. If there's a real UI gap here, it
+      needs a fresh, specific ask rather than the two retracted items above.
+- [ ] Settings-as-tab: on reflection this is likely already satisfied by the shell
+      wrap itself — `/settings` already renders inside `app-shell-main` with the
+      sidebar still visible, which is functionally what "a section inside the
+      shell" meant in the mockup (there, "tab" just meant "the sidebar stays put
+      and only the content area swaps," which real routing already gives for free).
+      Leaving this un-checked until confirmed there's a concrete gap beyond that.
 - [ ] Known perf duplication: the shell layout re-queries `brands` on every
       navigation, on top of each page's own identical query. Not wrong, just
       redundant — worth deduping (React `cache()`, or lift the brand lookup higher)

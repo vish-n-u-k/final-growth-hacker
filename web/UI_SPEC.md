@@ -131,15 +131,16 @@ Shell-specific classes already in `app/globals.css`: `.app-shell`,
 
 ## 4. Page-by-page (mix of built, partially built, and pending — see PROGRESS.md)
 
-**Growth Path** (`/dashboard`, `components/AllModulesDashboard.tsx`) — currently
-renders its pre-existing real module-list UI, just wrapped in the new shell.
-**Pending** (not yet built in real code): a "0→500 users" journey band above the
-module list, and trimming the rail's step count now that Outreach/Meta Ads moved
-out (rail should show Foundation, Website Audit, SEO, GEO, Social Media, Brand
-Audit, Content Audit, Competitor Analysis, User Analytics, Audience Discovery —
-10 steps). Journey band should wire to a real PostHog signup count, not a
-placeholder. Visual reference for the journey band concept: the mockup's
-`renderJourney()` (Tier 2 — layout/visual idea only, data source must be real).
+**Growth Path** (`/dashboard`, `components/AllModulesDashboard.tsx`) — real,
+already fully built, including a live PostHog-wired "0→500 users" journey bar
+(`userCount`, `JOURNEY_MILESTONES`, `/api/posthog/user-count`) — just wrapped in
+the new shell. **Correction**: an earlier draft of this spec said the journey
+band and a 10-step rail trim were still pending. Both of those were mistakes —
+the journey band already existed before this redesign, and trimming
+Outreach/Meta Ads out of the rail would break their real unlock-chain gating
+(`gmail-outreach`/`meta-ads` are still real sequential modules in
+`lib/modules/registry.ts`). Neither is queued anymore. If there's a real gap on
+this page, it needs a fresh, specific ask.
 
 **Today** (`/today`, `components/TodayDashboard.tsx`) — real, already fully
 built (signal cards, streak, analytics bar, social feed, weekly blog section).
@@ -199,9 +200,11 @@ Do not implement this tier without an explicit decision to move past shell-first
 
 ## 6. What's next
 
-See `PROGRESS.md`'s "Not done yet" section for the live, authoritative list —
-as of this writing: the Growth Path journey band + PostHog wiring, trimming the
-module rail to 10 steps, and the Settings-as-tab decision. Also check the open
-task list (tasks #10–#19 as of this writing) for unrelated-to-UI but still
-pending backend/content gaps found during this session's audits — those are not
-UI work, don't conflate them with this spec.
+See `PROGRESS.md`'s "Not done yet" section for the live, authoritative list.
+As of this writing there's no concretely-queued UI work beyond what's already
+built — the two items that used to be here (journey band, rail trim) were
+retracted as mistakes; see `PROGRESS.md`'s "Corrections" section. Settings-as-tab
+is likely already satisfied by the shell wrap itself. Also check the open task
+list (tasks #10–#19 as of this writing) for unrelated-to-UI but still pending
+backend/content gaps found during this session's audits — those are not UI
+work, don't conflate them with this spec.
