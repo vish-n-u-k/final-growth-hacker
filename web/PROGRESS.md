@@ -96,6 +96,33 @@ source of truth for "what's actually been done" on this branch.
   #5 ("keep modules as-is for now"). Not doing this without a real registry
   restructure, which is out of scope right now.
 
+## Styling pass (Tier 2, CSS/inline-style only — logic untouched)
+
+Per the UI_SPEC.md Tier 2 note: Reminders' real layout turned out not to be a
+list+detail shape at all (it's a sectioned card list that already shows full
+detail inline — forcing it into two panes would be worse, not better), so
+instead of restructuring any page, did a targeted visual-consistency pass:
+converted every status/category "badge" or "tag" chip across the 5 Work tools
+from a small rounded rectangle to a true pill (border-radius 99px), matching
+the mockup's chip convention. Cards, buttons, and panels were already close to
+the mockup's own radii (9-16px) and were left alone. Changed:
+- `app/globals.css`: `.rm-cat-badge` (Reminders), `.gh-tag`, `.gh-filter-badge`,
+  `.gh-pc-badge`, `.gh-gen-sent-badge`, `.gh-history-badge`,
+  `.gh-cmp-status-badge`, `.gh-fu-tag` (Outreach/GmailHub + FollowUpsTab).
+- `components/SocialStudioPage.tsx`: `PlatformPill` and `StatusPill` inline
+  styles (both were already named "Pill" but rendered as rounded rectangles).
+- Lead Finder (`.lf-fit-badge`) and Meta Ads (`.bp-health-pill`, `.mlp-tag`)
+  were already pill-shaped — no change needed there.
+- Deliberately left out of scope: `GmailOutreachProspects.tsx`'s `.gop-*`
+  classes — that component only renders inside Today's inline outreach panel,
+  not inside the Outreach page itself, and Today is explicitly not part of this
+  redesign. Also left Engagement Hub (`.eh-*`) and Analytics (`.an-*`/`.ov-*`)
+  alone — neither is one of the 5 target pages.
+- **Not visually verified** — this environment has no `node_modules`/dev
+  server, so none of this has been seen rendered. These are small, scoped,
+  pure-CSS value changes (no JSX/logic touched), but check it in a browser
+  before trusting it.
+
 ## Not done yet (next up)
 
 - [ ] Nothing currently queued for the Growth Path page — both items above turned
