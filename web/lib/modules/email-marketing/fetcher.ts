@@ -48,7 +48,7 @@ const FREE_HOSTING_DOMAINS = [
   'typeform.com', 'webnode.com', 'site123.com', 'godaddysites.com',
 ]
 
-async function checkSpf(domain: string): Promise<{ found: boolean; value: string | null }> {
+export async function checkSpf(domain: string): Promise<{ found: boolean; value: string | null }> {
   try {
     const records = await dnsPromises.resolveTxt(domain)
     for (const record of records) {
@@ -63,12 +63,16 @@ async function checkSpf(domain: string): Promise<{ found: boolean; value: string
   }
 }
 
-async function checkDkim(domain: string): Promise<{ found: boolean; selector: string | null }> {
-  const selectors = [
-    'google', 'mailchimp', 'default', 'k1', 'k2',
-    'selector1', 'selector2', 's1', 's2',
-    'mail', 'email', 'dkim', 'key1', 'smtp', 'mandrill',
-  ]
+const DKIM_SELECTORS = [
+  'google', 'mailchimp', 'default', 'k1', 'k2',
+  'selector1', 'selector2', 's1', 's2',
+  'mail', 'email', 'dkim', 'key1', 'smtp', 'mandrill',
+]
+
+export async function checkDkim(
+  domain: string,
+  selectors: string[] = DKIM_SELECTORS,
+): Promise<{ found: boolean; selector: string | null }> {
   for (const selector of selectors) {
     try {
       const records = await dnsPromises.resolveTxt(`${selector}._domainkey.${domain}`)
@@ -83,7 +87,7 @@ async function checkDkim(domain: string): Promise<{ found: boolean; selector: st
   return { found: false, selector: null }
 }
 
-async function checkDmarc(domain: string): Promise<{ found: boolean; value: string | null }> {
+export async function checkDmarc(domain: string): Promise<{ found: boolean; value: string | null }> {
   try {
     const records = await dnsPromises.resolveTxt(`_dmarc.${domain}`)
     for (const record of records) {
@@ -98,7 +102,7 @@ async function checkDmarc(domain: string): Promise<{ found: boolean; value: stri
   }
 }
 
-async function checkMx(domain: string): Promise<{ found: boolean; records: string[] }> {
+export async function checkMx(domain: string): Promise<{ found: boolean; records: string[] }> {
   try {
     const records = await dnsPromises.resolveMx(domain)
     if (records.length > 0) {

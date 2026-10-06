@@ -1,0 +1,12 @@
+I'm attaching a standalone HTML mockup (module-slider.html) of a proposed dashboard UI. The concept:
+
+Right now the module dashboard shows all growth modules (Foundation, Website Audit, SEO, GEO, Social Media, Brand Audit, etc.) stacked as one long accordion list on a single page — every module visible at once, click a row to expand it.
+
+The proposed change: show ONE module at a time, full-page, like a slider/carousel. A numbered step rail across the top shows all modules — done (green check), current (highlighted), or locked (greyed with a lock icon). A module only unlocks once the previous one's score hits 80%. Clicking a locked step, or the "next" arrow while locked, shows a message explaining what's needed instead of doing nothing. Left/right arrows (or a bottom Prev/Next bar on mobile) move between unlocked modules. There's also a toggle to flip back to "Today" — the current accordion view — for comparison.
+
+Build this as a real page in this Next.js app at web/app/newui/page.tsx, as a 'use client' component. Match the attached HTML's structure and interactions exactly, but:
+- Use this app's own CSS variables from app/globals.css (var(--bg), var(--card), var(--line), var(--green), var(--green-bright), var(--text), var(--text-dim), var(--text-faint), var(--locked), var(--bg-soft), var(--accent), var(--accent-foreground)) instead of the hardcoded hex values in the HTML file, so it follows the app's actual light theme (default theme, set via the "light" class on <html> in app/layout.tsx).
+- Keep the dark header bar (#0d2218 background) as a fixed brand anchor, matching the rest of the app's header treatment.
+- Use real module names and realistic checklist items for the first two steps (Foundation, Website Audit) like the HTML file has; the remaining steps can stay as simple locked placeholders.
+
+Don't commit or push anything yet — just create the file so I can run npm run dev and check /newui locally.

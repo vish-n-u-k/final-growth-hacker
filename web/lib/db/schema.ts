@@ -536,3 +536,41 @@ export const bugReports = pgTable('bug_reports', {
   status: text('status').notNull().default('open'),     // 'open' | 'closed'
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
+
+// ── Brand Signals (change-detected tasks: DNS broke, ads underperforming, stage changed) ──
+
+export const brandSignals = pgTable(
+  'brand_signals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),        // module type that raised it, e.g. 'email-marketing'
+    signalKey: text('signal_key').notNull(), // dedupe key within source, e.g. 'dns-spf-missing'
+    title: text('title').notNull(),
+    detail: text('detail'),
+    action: text('action'),
+    route: text('route').notNull().default('manual'), // 'code' | 'content' | 'manual'
+    priority: integer('priority').notNull().default(2), // 3=critical | 2=important | 1=minor
+    status: text('status').notNull().default('open'),   // 'open' | 'done' | 'dismissed' | 'cleared'
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (table) => ({
+    brandStatusIdx: index('brand_signals_brand_status_idx').on(table.brandId, table.status),
+  }),
+)
+
+// Last-seen state per brand + source, so detectors can tell what changed
+export const signalSnapshots = pgTable(
+  'signal_snapshots',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    data: jsonb('data').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    uniq: unique('signal_snapshots_unique').on(table.brandId, table.source),
+  }),
+)

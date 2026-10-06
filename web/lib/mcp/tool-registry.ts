@@ -78,6 +78,39 @@ export const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: 'get_today_tasks',
+    description:
+      "Use this when the user asks what to do today, says \"do today's tasks\", or arrives from the GrowJin daily email. Returns today's top growth tasks (same list as the daily email). Each task has an id, label, priority, route (\"code\" = change the website codebase, \"content\" = create posts/blog content, \"manual\" = the user must do it themselves), the AI finding, and a recommended action. Also returns focus: the current growth bottleneck (awareness = not enough traffic, conversion = visitors don't act, retention = users go quiet, growth = healthy) with a one-line summary based on live analytics. Task kinds: \"alert\" = something broke or changed (DNS record missing, ads underperforming); \"play\" = the action that best fixes the bottleneck; \"item\" = a checklist fix. finding explains why the task was picked, with numbers. needsUserInput=true means ask the user for real data instead of inventing it. After completing a task: for kind=\"item\" call toggle_item with its id and checked=true; for kind=\"alert\" or \"play\" call resolve_signal with its id.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'string',
+          description: 'Max number of tasks to return. Defaults to "3", max 10.',
+        },
+      },
+    },
+  },
+  {
+    name: 'resolve_signal',
+    description:
+      'Closes an alert or play (a kind="alert" or kind="play" task from get_today_tasks) once it has been handled. Use status="done" when the issue was fixed, or "dismissed" when the user says it does not apply. A closed signal will not be raised again for 7 days.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        signal_id: {
+          type: 'string',
+          description: 'The id of the signal task.',
+        },
+        status: {
+          type: 'string',
+          description: '"done" (default) or "dismissed".',
+        },
+      },
+      required: ['signal_id'],
+    },
+  },
+  {
     name: 'get_pending_items',
     description:
       'Use this when a user asks what to work on, fix, or prioritise next — e.g. "what should I do next?", "what is broken on my site?", "what are my biggest issues?", "what should I fix first?", "what is holding back my SEO?". Returns all incomplete checklist items — not yet verified by AI and not manually checked — sorted by priority (critical first). Each item includes a label, weight, and AI action suggestion. If module_type is provided, scoped to that module only. If omitted, returns pending items across all non-locked modules.',

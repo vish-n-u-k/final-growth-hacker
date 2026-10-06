@@ -40,10 +40,18 @@ interface BlogData {
   lastBlogAt: string | null
 }
 
+interface TodayFocus {
+  stage: string
+  summary: string
+}
+
+type TaskStatus = 'done' | 'dismissed'
+
 interface Props {
   initialData: {
     cards: ActionCard[]
     impacts: ImpactCard[]
+    focus?: TodayFocus | null
     streak: number
     allGood: boolean
     cachedAt: string
@@ -65,7 +73,9 @@ const TYPE_CONFIG: Record<string, { label: string; dot: string; border: string }
   social:        { label: 'Social signal',   dot: '#7c3aed', border: '#7c3aed' },
   seo:           { label: 'SEO signal',      dot: '#179a50', border: '#179a50' },
   content:       { label: 'Content signal',  dot: '#0284c7', border: '#0284c7' },
-  'module-item': { label: 'Open item',       dot: '#dc2626', border: '#dc2626' },
+  'module-item': { label: 'Quick win',       dot: '#dc2626', border: '#dc2626' },
+  alert:         { label: 'Alert',           dot: '#dc2626', border: '#dc2626' },
+  play:          { label: 'Growth focus',    dot: '#179a50', border: '#179a50' },
   blog:          { label: 'Blog signal',     dot: '#0891b2', border: '#0891b2' },
   reminder:      { label: 'Reminder',        dot: '#f59e0b', border: '#f59e0b' },
 }
@@ -75,7 +85,9 @@ const TYPE_WHY: Record<string, string> = {
   social:        'Gaps longer than 5 days cause the algorithm to deprioritise your account. Consistency beats perfection.',
   seo:           'Keyword positions drop fast when competitors update their pages. Catching this early is much cheaper than recovering lost rankings.',
   content:       'Stale or thin pages drag down your whole domain authority. Refreshing them signals freshness to Google.',
-  'module-item': 'High-weight items have the biggest impact on your growth score. Completing them unlocks the next module.',
+  'module-item': '',
+  alert:         '',
+  play:          '',
   blog:          'Publishing one SEO-optimised blog post per week compounds your organic traffic over time. Sites that publish consistently rank for 3-5x more keywords.',
   reminder:      '',
 }
@@ -133,6 +145,8 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   'module-item': <IconCheck />,
   blog:          <IconPen />,
   reminder:      <IconBell />,
+  alert:         <IconBell />,
+  play:          <IconSearch />,
 }
 
 // ── Analytics bar ─────────────────────────────────────────────────────────────
@@ -171,15 +185,25 @@ const INLINE_TYPES: Set<string> = new Set(['outreach', 'social', 'blog'])
 
 // ── Action card ───────────────────────────────────────────────────────────────
 
-function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone }: {
+function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, onComplete }: {
   card: ActionCard
   rank: number
   onCta: () => void
   expanded: boolean
   onToggleExpand: () => void
   onDone?: () => void
+  onComplete?: (status: TaskStatus) => Promise<void>
 }) {
   const [marking, setMarking] = useState(false)
+  const [completing, setCompleting] = useState<TaskStatus | null>(null)
+  const action = typeof card.data?.action === 'string' ? card.data.action : null
+  const taskKind = card.data?.taskKind as string | undefined
+
+  async function handleComplete(status: TaskStatus) {
+    if (!onComplete) return
+    setCompleting(status)
+    try { await onComplete(status) } catch { setCompleting(null) }
+  }
   const cfg = TYPE_CONFIG[card.type] ?? TYPE_CONFIG.outreach
   const icon = TYPE_ICON[card.type]
   const isInline = INLINE_TYPES.has(card.type)
@@ -209,7 +233,12 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone }:
       <h3 className="td-card-headline">{card.headline}</h3>
       <p className="td-card-reason">{card.reason}</p>
 
-      {TYPE_WHY[card.type] && (
+      {action ? (
+        <div className="td-card-why">
+          <span className="td-why-label">What to do</span>
+          {action}
+        </div>
+      ) : TYPE_WHY[card.type] && (
         <div className="td-card-why">
           <span className="td-why-label">Why this matters</span>
           {TYPE_WHY[card.type]}
@@ -233,20 +262,34 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone }:
             View all
           </a>
         </div>
-      ) : isInline ? (
-        <button className="td-cta-btn" onClick={() => { onCta(); onToggleExpand() }}>
-          {expanded ? 'Close' : card.type === 'outreach' ? 'Write outreach emails' : 'Create a post'}
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 5, transform: expanded ? 'rotate(180deg)' : 'none' }}>
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
-        </button>
       ) : (
-        <a href={card.ctaUrl} className="td-cta-btn" onClick={onCta}>
-          {card.cta}
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 5 }}>
-            <path d="M5 12h14M12 5l7 7-7 7"/>
-          </svg>
-        </a>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {isInline ? (
+            <button className="td-cta-btn" onClick={() => { onCta(); onToggleExpand() }}>
+              {expanded ? 'Close' : card.type === 'outreach' ? 'Write outreach emails' : card.type === 'blog' ? 'Write the blog post' : 'Create a post'}
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 5, transform: expanded ? 'rotate(180deg)' : 'none' }}>
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </button>
+          ) : (
+            <a href={card.ctaUrl} className="td-cta-btn" onClick={onCta}>
+              {card.cta}
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 5 }}>
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </a>
+          )}
+          {onComplete && (
+            <button className="td-ghost-btn" onClick={() => handleComplete('done')} disabled={completing !== null}>
+              {completing === 'done' ? 'Marking…' : 'Mark done'}
+            </button>
+          )}
+          {onComplete && taskKind !== 'item' && (
+            <button className="td-ghost-btn" onClick={() => handleComplete('dismissed')} disabled={completing !== null}>
+              {completing === 'dismissed' ? 'Hiding…' : 'Not relevant'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   )
@@ -807,6 +850,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
   }, [gmailModuleId, analyzing, router])
   const [cards, setCards] = useState<ActionCard[]>(initialData.cards)
   const [impacts, setImpacts] = useState<ImpactCard[]>(initialData.impacts ?? [])
+  const [focus, setFocus] = useState<TodayFocus | null>(initialData.focus ?? null)
   const [recentPosts, setRecentPosts] = useState<RecentPost[]>([])
   const [streak, setStreak] = useState(initialData.streak)
   const [allGood, setAllGood] = useState(initialData.allGood)
@@ -851,6 +895,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
         const d = await res.json()
         setCards(d.cards ?? [])
         setImpacts(d.impacts ?? [])
+        setFocus(d.focus ?? null)
         setRecentPosts(d.recentPosts ?? [])
         setStreak(d.streak ?? 0)
         setAllGood(d.allGood ?? false)
@@ -867,6 +912,18 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
       if (res.ok) setStreak((await res.json()).streak ?? streak)
     } catch { /* silent */ }
   }, [streak])
+
+  // Same effect as Claude's toggle_item / resolve_signal: the task leaves the list everywhere
+  const completeTask = useCallback(async (card: ActionCard, status: TaskStatus) => {
+    const res = await fetch('/api/today/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: card.data?.taskKind, id: card.data?.taskId, status }),
+    })
+    if (!res.ok) throw new Error('complete failed')
+    setCards(prev => prev.filter(c => c.id !== card.id))
+    if (status === 'done') markAction()
+  }, [markAction])
 
   const now = new Date()
   const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
@@ -947,6 +1004,14 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
           </>
         ) : (
           <>
+            {/* Today's focus (current growth bottleneck) */}
+            {focus && (
+              <div className="td-card-why" style={{ marginBottom: 12 }}>
+                <span className="td-why-label">Today&apos;s focus</span>
+                {focus.summary}
+              </div>
+            )}
+
             {/* Action cards */}
             <div className="td-section-label">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -963,6 +1028,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                   expanded={expandedCard === card.id}
                   onToggleExpand={() => setExpandedCard(expandedCard === card.id ? null : card.id)}
                   onDone={card.type === 'reminder' ? () => setCards(prev => prev.filter(c => c.id !== card.id)) : undefined}
+                  onComplete={card.data?.taskKind ? (status) => completeTask(card, status) : undefined}
                 />
                 {/* Inline outreach panel */}
                 {card.type === 'outreach' && expandedCard === card.id && (

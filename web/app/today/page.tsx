@@ -128,13 +128,15 @@ export default async function TodayPage() {
 
   // Use cached signals if < 4 hours old; otherwise show empty + let client fetch
   let cards: ActionCard[] = []
+  let focus: { stage: string; summary: string } | null = null
   let allGood = false
   let cachedAt = ''
   if (brand.signalsCachedAt && brand.dailySignalsCache) {
     const age = Date.now() - new Date(brand.signalsCachedAt).getTime()
     if (age < 4 * 60 * 60 * 1000) {
-      const cached = brand.dailySignalsCache as { cards?: ActionCard[]; impacts?: unknown[] } | ActionCard[]
+      const cached = brand.dailySignalsCache as { cards?: ActionCard[]; impacts?: unknown[]; focus?: { stage: string; summary: string } | null } | ActionCard[]
       cards = Array.isArray(cached) ? cached : (cached.cards ?? [])
+      focus = Array.isArray(cached) ? null : (cached.focus ?? null)
       allGood = cards.length === 0
       cachedAt = new Date(brand.signalsCachedAt).toISOString()
     }
@@ -142,7 +144,7 @@ export default async function TodayPage() {
 
   return (
     <TodayDashboard
-      initialData={{ cards, impacts: [], streak, allGood, cachedAt }}
+      initialData={{ cards, impacts: [], focus, streak, allGood, cachedAt }}
       brandName={brand.name}
       gmailConnected={gmailConnected}
       gmailAddress={gmailAddress}
