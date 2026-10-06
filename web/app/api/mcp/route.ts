@@ -19,6 +19,7 @@ import { getPosthogChurnedUsers } from '@/lib/mcp/tools/get_posthog_churned_user
 import { getPosthogProUsers } from '@/lib/mcp/tools/get_posthog_pro_users'
 import { getTodayTasks, buildTodayPrompt } from '@/lib/daily/today-tasks'
 import { resolveSignal } from '@/lib/signals'
+import { createSocialPost, getSocialPostStatus, scheduleSocialPost } from '@/lib/frekto/posts'
 
 export const maxDuration = 300
 
@@ -83,6 +84,29 @@ async function dispatch(
       if (today.tasks.length === 0) return { ...today, message: 'Nothing pending today. Suggest re-running analyze_module on SEO or GEO to find new work.' }
       return today
     }
+
+    case 'create_social_post':
+      return createSocialPost(brandId, {
+        topic: args['topic'] ? String(args['topic']) : undefined,
+        platform: args['platform'] ? String(args['platform']).toLowerCase() : undefined,
+        postType: args['post_type'] ? String(args['post_type']).toLowerCase() : undefined,
+      })
+
+    case 'get_social_post_status':
+      return getSocialPostStatus(brandId, String(args['job_id'] ?? ''))
+
+    case 'schedule_social_post':
+      return scheduleSocialPost(brandId, {
+        jobId: String(args['job_id'] ?? ''),
+        topic: args['topic'] ? String(args['topic']) : undefined,
+        platform: args['platform'] ? String(args['platform']).toLowerCase() : undefined,
+        postType: args['post_type'] ? String(args['post_type']).toLowerCase() : undefined,
+        postNow: args['post_now'] === true || args['post_now'] === 'true',
+        startDate: args['start_date'] ? String(args['start_date']) : undefined,
+        time: args['time'] ? String(args['time']) : undefined,
+        timezone: args['timezone'] ? String(args['timezone']) : undefined,
+        allowRegenerate: args['allow_regenerate'] === true || args['allow_regenerate'] === 'true',
+      })
 
     case 'resolve_signal':
       return resolveSignal(
@@ -210,9 +234,16 @@ export async function POST(request: Request) {
       return rpcError(id, -32603, err instanceof Error ? err.message : 'Internal error')
     }
 
-    return rpcResult(id, {
-      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-    })
+    // Tools may attach an inline preview image as _image; send it as MCP image content
+    const content: Record<string, unknown>[] = []
+    if (result && typeof result === 'object' && '_image' in result) {
+      const { _image, ...rest } = result as { _image?: { data: string; mimeType: string } }
+      result = rest
+      if (_image) content.push({ type: 'image', data: _image.data, mimeType: _image.mimeType })
+    }
+    content.unshift({ type: 'text', text: JSON.stringify(result, null, 2) })
+
+    return rpcResult(id, { content })
   }
 
   return rpcError(id, -32601, `Method not found: ${method}`)

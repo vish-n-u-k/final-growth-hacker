@@ -92,6 +92,63 @@ export const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: 'create_social_post',
+    description:
+      "Use when the user asks to create, make or draft a social media post (or to do today's \"Post on social media\" task). Generates the post image/video with Frekto using the brand's stored Frekto brand profile, as a PREVIEW only — nothing is published. Returns job_id, preview_url (and slide_urls for carousels) and an inline preview image. Show the preview to the user and ask whether to post now, schedule it for a date, or make a different one. Never schedule without the user's explicit approval. If status is \"rendering\", call get_social_post_status with the job_id after ~20 seconds. Requires Frekto connected in GrowJin.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          description: 'What the post is about (max 300 chars). Leave empty to let Frekto pick a fitting topic from the brand profile. Only ask the user for specifics Frekto cannot know (a launch date, a new feature, an event).',
+        },
+        platform: {
+          type: 'string',
+          description: 'linkedin, instagram, facebook, pinterest or youtube. Defaults to the brand\'s main Frekto platform.',
+        },
+        post_type: {
+          type: 'string',
+          description: 'Instagram/Facebook only: "feed" (default), "story" or "reel" (video).',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_social_post_status',
+    description:
+      'Checks a post created with create_social_post that was still rendering. Returns the preview when done. Then show it to the user and ask before scheduling.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        job_id: {
+          type: 'string',
+          description: 'The job_id returned by create_social_post.',
+        },
+      },
+      required: ['job_id'],
+    },
+  },
+  {
+    name: 'schedule_social_post',
+    description:
+      'Publishes or schedules a post the user has APPROVED (from create_social_post), through Frekto. Call only after the user explicitly says to post or schedule it. Use post_now=true to publish within about a minute, or start_date (+ optional time and timezone) to schedule. Frekto writes the caption and hashtags. GrowJin records the post and closes today\'s "Post on social media" task automatically. If scheduling the approved render fails, ask the user before retrying with allow_regenerate=true (that schedules a new render on the same topic, which may look different).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        job_id: { type: 'string', description: 'The job_id of the approved post.' },
+        topic: { type: 'string', description: 'The post topic (for GrowJin\'s record).' },
+        platform: { type: 'string', description: 'linkedin, instagram, facebook, pinterest or youtube. Defaults to the brand\'s main Frekto platform.' },
+        post_type: { type: 'string', description: 'Instagram/Facebook only: "feed" (default), "story" or "reel".' },
+        post_now: { type: 'boolean', description: 'true to publish as soon as possible (within about a minute).' },
+        start_date: { type: 'string', description: 'Date to publish, YYYY-MM-DD. Required unless post_now is true.' },
+        time: { type: 'string', description: 'Time of day, HH:MM 24h. Defaults to 09:00.' },
+        timezone: { type: 'string', description: 'IANA timezone, e.g. "Asia/Kolkata". Defaults to the brand\'s Frekto timezone.' },
+        allow_regenerate: { type: 'boolean', description: 'Only after the user agrees: if the approved render cannot be scheduled, schedule a fresh render on the same topic instead.' },
+      },
+      required: ['job_id'],
+    },
+  },
+  {
     name: 'resolve_signal',
     description:
       'Closes an alert or play (a kind="alert" or kind="play" task from get_today_tasks) once it has been handled. Use status="done" when the issue was fixed, or "dismissed" when the user says it does not apply. A closed signal will not be raised again for 7 days.',
