@@ -462,7 +462,6 @@ function esc(s: string): string {
 
 function buildTodayTasksSection(today: TodayTasks): string {
   const claudeUrl = `https://claude.ai/new?q=${encodeURIComponent(buildTodayPrompt(today))}`
-  const remaining = today.totalPending - today.tasks.length
 
   const rows = today.tasks.map(t => {
     const { label, color } = ROUTE_STYLE[t.route]
@@ -480,7 +479,6 @@ function buildTodayTasksSection(today: TodayTasks): string {
   <p style="margin:0 0 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#9ca3af;">Today's Tasks</p>
   ${today.focus ? `<p style="margin:0 0 14px;font-size:14px;color:#111827;line-height:1.5;"><strong>Focus:</strong> ${esc(today.focus.summary)}</p>` : ''}
   ${rows}
-  ${remaining > 0 ? `<p style="margin:0 0 12px;font-size:12px;color:#9ca3af;">+${remaining} more pending</p>` : ''}
   <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:6px 0 0;">
     <tr><td align="center">
       <table role="presentation" cellpadding="0" cellspacing="0">

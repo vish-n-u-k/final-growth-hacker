@@ -5,7 +5,8 @@
 // Up to 3 slots, filled in this order:
 //   1. alert — something broke or changed (DNS, Meta Ads, business stage)
 //   2. play  — the action that best fixes the current bottleneck (lib/daily/diagnosis.ts)
-//   3. item  — a checklist quick win, preferring modules that match the bottleneck
+//   3. item  — a checklist quick win (concrete one-time fix only), preferring modules
+//              that match the bottleneck
 // Leftover slots are filled from whatever remains.
 
 import { db } from '@/lib/db'
@@ -14,6 +15,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { getOpenSignals, getSnapshot } from '@/lib/signals'
 import { runDiagnosis, type Diagnosis, type GrowthStage } from '@/lib/daily/diagnosis'
 import type { ActionCard, ActionCardType } from '@/lib/daily/signals'
+import { MODULE_MAP } from '@/lib/modules/registry'
 
 // How a task gets done:
 //   code    — Claude changes the website codebase (GitHub repo)
@@ -43,7 +45,6 @@ export interface TodayTasks {
   websiteUrl: string | null
   githubRepo: string | null
   focus: { stage: GrowthStage; summary: string; computedAt: string } | null
-  totalPending: number
   tasks: TodayTask[]
 }
 
@@ -153,8 +154,16 @@ export async function getTodayTasks(
   // critical+match > critical > important+match > important > ...
   const score = (i: (typeof items)[number]) => (i.weight ?? 1) * 2 + (matchesStage(i) ? 1 : 0)
 
-  // Pending = not verified, not checked, not skipped, and actually analysed
-  const pending = items.filter((i) => !i.aiVerified && !i.userChecked && !i.userSkipped && i.aiDetail)
+  // Quick wins must be concrete one-time fixes: fixed checklist checks (Foundation, SEO, GEO…)
+  // or items flagged as fixable in code. AI-generated strategy advice ("make educational
+  // content your main pillar") stays in its module, not in today's list.
+  const isConcrete = (i: (typeof items)[number]) => {
+    const type = modMap.get(i.moduleId)?.type ?? ''
+    return !MODULE_MAP[type]?.dynamic || !!i.fixable || i.exportType === 'auto' || i.exportType === 'needs_choice'
+  }
+
+  // Pending = not verified, not checked, not skipped, actually analysed, and concrete
+  const pending = items.filter((i) => !i.aiVerified && !i.userChecked && !i.userSkipped && i.aiDetail && isConcrete(i))
   pending.sort((a, b) =>
     score(b) - score(a) ||
     (modMap.get(a.moduleId)?.order ?? 99) - (modMap.get(b.moduleId)?.order ?? 99) ||
@@ -196,7 +205,6 @@ export async function getTodayTasks(
     websiteUrl: brand.websiteUrl ?? null,
     githubRepo,
     focus: diagnosis ? { stage: diagnosis.stage, summary: diagnosis.summary, computedAt: diagnosis.computedAt } : null,
-    totalPending: signals.length + pending.length,
     tasks,
   }
 }
