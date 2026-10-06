@@ -9,7 +9,7 @@
 
 import { db } from '@/lib/db'
 import { brandBlogs, brandIntegrations, frektoScheduledPosts } from '@/lib/db/schema'
-import { and, desc, eq, ne } from 'drizzle-orm'
+import { and, desc, eq, inArray, lte, ne } from 'drizzle-orm'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
 
 export interface BlogActivity {
@@ -216,10 +216,14 @@ export async function checkSocialActivity(brandId: string): Promise<SocialActivi
     checks.push({ platform: 'pinterest', run: async () => firstOf(await getJson('https://api.pinterest.com/v5/pins?page_size=1', { Authorization: `Bearer ${pin.accessToken}` }), 'items', 'created_at') })
   }
 
-  // Posts published through GrowJin's Frekto integration
+  // Posts published through GrowJin's Frekto integration (scheduled ones count once their time has passed)
   checks.push({ platform: 'growjin', run: async () => {
     const [row] = await db.select({ scheduledAt: frektoScheduledPosts.scheduledAt }).from(frektoScheduledPosts)
-      .where(and(eq(frektoScheduledPosts.brandId, brandId), eq(frektoScheduledPosts.status, 'done')))
+      .where(and(
+        eq(frektoScheduledPosts.brandId, brandId),
+        inArray(frektoScheduledPosts.status, ['scheduled', 'done']),
+        lte(frektoScheduledPosts.scheduledAt, new Date()),
+      ))
       .orderBy(desc(frektoScheduledPosts.scheduledAt)).limit(1)
     return row ? new Date(row.scheduledAt).toISOString() : null
   } })

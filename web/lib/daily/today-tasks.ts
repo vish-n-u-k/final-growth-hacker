@@ -243,7 +243,7 @@ export function buildTodayPrompt(t: Pick<TodayTasks, 'brandName' | 'websiteUrl' 
     '',
     '1. Call get_today_tasks. Start by telling me today\'s focus (my current bottleneck) in one sentence.',
     `2. For each "code" task: make the change in the website codebase${t.githubRepo ? ` (${t.githubRepo})` : ''} and open a pull request. If you cannot edit the repo here, give me the exact code change to apply.`,
-    '3. For each "content" task: draft the content (posts, blog copy, emails) and use any connected publishing tools if I approve.',
+    '3. For each "content" task: draft the content (blog copy, emails). For social posts use create_social_post, show me the preview, and only call schedule_social_post after I approve.',
     '4. For each "manual" task: give me short step-by-step instructions.',
     '5. If a task needs real data from me (stats, testimonials, quotes), ask instead of inventing it.',
     '6. When a task is done: if its kind is "item", call toggle_item with its id and checked=true; if its kind is "alert" or "play", call resolve_signal with its id and status="done".',
