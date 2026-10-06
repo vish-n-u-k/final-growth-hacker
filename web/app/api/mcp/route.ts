@@ -17,6 +17,8 @@ import { getPosthogUsers } from '@/lib/mcp/tools/get_posthog_users'
 import { getPosthogPowerUsers } from '@/lib/mcp/tools/get_posthog_power_users'
 import { getPosthogChurnedUsers } from '@/lib/mcp/tools/get_posthog_churned_users'
 import { getPosthogProUsers } from '@/lib/mcp/tools/get_posthog_pro_users'
+import { getTodayTasks, buildTodayPrompt } from '@/lib/daily/today-tasks'
+import { resolveSignal } from '@/lib/signals'
 
 export const maxDuration = 300
 
@@ -29,8 +31,14 @@ const CORS_HEADERS = {
 
 const INITIALIZE_RESPONSE = {
   protocolVersion: '2024-11-05',
-  capabilities: { tools: {} },
+  capabilities: { tools: {}, prompts: {} },
   serverInfo: { name: 'growjin', version: '1.0.0' },
+}
+
+const DAILY_PROMPT = {
+  name: 'daily_growth_tasks',
+  description: "Work through today's GrowJin growth tasks (code fixes, content, manual steps).",
+  arguments: [],
 }
 
 function rpcResult(id: unknown, result: unknown) {
@@ -67,6 +75,21 @@ async function dispatch(
 
     case 'get_brand_info':
       return getBrandInfo(brandId)
+
+    case 'get_today_tasks': {
+      const limit = Math.min(Math.max(parseInt(String(args['limit'] ?? '3'), 10) || 3, 1), 10)
+      const today = await getTodayTasks(brandId, limit)
+      if (!today) return { error: 'Brand not found.' }
+      if (today.tasks.length === 0) return { ...today, message: 'Nothing pending today. Suggest re-running analyze_module on SEO or GEO to find new work.' }
+      return today
+    }
+
+    case 'resolve_signal':
+      return resolveSignal(
+        brandId,
+        String(args['signal_id'] ?? ''),
+        args['status'] === 'dismissed' ? 'dismissed' : 'done',
+      )
 
     case 'get_pending_items':
       return getPendingItems(brandId, args['module_type'] ? String(args['module_type']) : undefined)
@@ -160,6 +183,20 @@ export async function POST(request: Request) {
 
   if (method === 'tools/list') {
     return rpcResult(id, { tools: TOOLS })
+  }
+
+  if (method === 'prompts/list') {
+    return rpcResult(id, { prompts: [DAILY_PROMPT] })
+  }
+
+  if (method === 'prompts/get') {
+    if (params['name'] !== DAILY_PROMPT.name) return rpcError(id, -32602, `Unknown prompt: ${String(params['name'])}`)
+    const today = await getTodayTasks(brandId)
+    if (!today) return rpcError(id, -32603, 'Brand not found')
+    return rpcResult(id, {
+      description: DAILY_PROMPT.description,
+      messages: [{ role: 'user', content: { type: 'text', text: buildTodayPrompt(today) } }],
+    })
   }
 
   if (method === 'tools/call') {

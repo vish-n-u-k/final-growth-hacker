@@ -1,13 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import {
-  brands, brandIntegrations, modules, moduleItems,
-  frektoScheduledPosts, keywordSnapshots, modulePageAudit, brandBlogs, reminders,
-} from '@/lib/db/schema'
-import { eq, and, desc, gte, inArray, ne, lte, or, isNull } from 'drizzle-orm'
+import { brands, brandIntegrations, frektoScheduledPosts, keywordSnapshots, reminders } from '@/lib/db/schema'
+import { eq, and, desc, gte, lte, or, isNull } from 'drizzle-orm'
 import { createSign } from 'crypto'
-import { detectSignals, detectImpacts, type ActionCard, type SignalInput } from '@/lib/daily/signals'
+import { detectImpacts, type ActionCard, type SignalInput } from '@/lib/daily/signals'
+import { getTodayTasks, tasksToCards, type TodayTasks } from '@/lib/daily/today-tasks'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -81,79 +79,44 @@ async function fetchGA4Signals(clientEmail: string, privateKey: string, property
   return { visits, visitsPrior, weekSessions }
 }
 
-// ── PostHog helper ─────────────────────────────────────────────────────────────
-
-async function hogql(host: string, pid: string, key: string, query: string): Promise<unknown[][] | null> {
-  try {
-    const res = await fetch(`${host}/api/projects/${pid}/query`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: { kind: 'HogQLQuery', query } }),
-      signal: AbortSignal.timeout(12000),
-    })
-    if (!res.ok) return null
-    return ((await res.json()) as { results?: unknown[][] }).results ?? null
-  } catch { return null }
-}
-
-async function fetchPHSignals(host: string, pid: string, key: string) {
-  const trendRows = await hogql(host, pid, key,
-    `SELECT toDate(timestamp) as day, count(DISTINCT person_id) as dau FROM events
-     WHERE toDate(timestamp) >= toDate(now()) - 8 AND toDate(timestamp) < toDate(now())
-     GROUP BY day ORDER BY day ASC`,
-  )
-  const dauTrend = (trendRows ?? []).map(r => ({ date: String(r[0] ?? ''), dau: Number(r[1] ?? 0) }))
-  const last = dauTrend[dauTrend.length - 1]
-  const prev = dauTrend[dauTrend.length - 2]
-  return { dau: last?.dau ?? 0, dauPrior: prev?.dau ?? 0, dauTrend }
-}
-
 // ── Route ──────────────────────────────────────────────────────────────────────
+// Action cards come from getTodayTasks — the same list as the daily email and the
+// MCP get_today_tasks tool. This route adds reminders, "what's working" impacts,
+// recent social posts and the streak on top.
 
-export async function GET() {
+type CachedSignals = { cards?: ActionCard[]; impacts?: unknown[]; focus?: TodayTasks['focus'] }
+
+export async function GET(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  console.log('[signals] user authed, fetching brand')
   const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
   if (!brand) return NextResponse.json({ error: 'No brand' }, { status: 404 })
-  console.log('[signals] brand found, checking cache')
 
-  // Return cached signals if < 4 hours old (reminders always fetched fresh)
-  if (brand.signalsCachedAt && brand.dailySignalsCache) {
+  const streak = computeStreak(brand.dailyStreak ?? 0, brand.lastActionDate ?? null)
+  const force = new URL(request.url).searchParams.get('refresh') === '1'
+
+  // Return cached cards if < 4 hours old (reminders always fetched fresh)
+  if (!force && brand.signalsCachedAt && brand.dailySignalsCache) {
     const age = Date.now() - new Date(brand.signalsCachedAt).getTime()
     if (age < 4 * 60 * 60 * 1000) {
-      const streak = computeStreak(brand.dailyStreak ?? 0, brand.lastActionDate ?? null)
-      const cached = brand.dailySignalsCache as { cards?: ActionCard[]; impacts?: unknown[] } | ActionCard[]
+      const cached = brand.dailySignalsCache as CachedSignals | ActionCard[]
       const cachedCards = Array.isArray(cached) ? cached : (cached.cards ?? [])
       const impacts = Array.isArray(cached) ? [] : (cached.impacts ?? [])
+      const focus = Array.isArray(cached) ? null : (cached.focus ?? null)
       const reminderCards = await fetchReminderCards(brand.id)
       const cards = [...reminderCards, ...cachedCards]
-      return NextResponse.json({
-        cards,
-        impacts,
-        streak,
-        allGood: cards.length === 0,
-        cachedAt: brand.signalsCachedAt,
-      })
+      return NextResponse.json({ cards, impacts, focus, streak, allGood: cards.length === 0, cachedAt: brand.signalsCachedAt })
     }
   }
 
-  // Fetch integrations + DB data in parallel
   const sevenDaysAgo = new Date(Date.now() - 7 * 864e5)
-  const t0 = Date.now()
-  console.log('[signals] starting parallel DB fetch')
-
-  const [integrations, allModules, frektoRows, kwRows, critItems, auditPages, [latestBlog]] = await Promise.all([
+  const [today, [ga4Int], frektoRows, kwRows] = await Promise.all([
+    getTodayTasks(brand.id),
     db.select().from(brandIntegrations)
-      .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.status, 'connected'))),
-
-    db.select({ id: modules.id, type: modules.type, score: modules.score, status: modules.status, lastAnalyzedAt: modules.lastAnalyzedAt })
-      .from(modules)
-      .where(eq(modules.brandId, brand.id)),
-
-    // Last 15 frekto posts
+      .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.provider, 'ga4_api'), eq(brandIntegrations.status, 'connected')))
+      .limit(1),
     db.select({
       platform: frektoScheduledPosts.platform,
       topic: frektoScheduledPosts.topic,
@@ -163,144 +126,23 @@ export async function GET() {
       .from(frektoScheduledPosts)
       .where(eq(frektoScheduledPosts.brandId, brand.id))
       .orderBy(desc(frektoScheduledPosts.scheduledAt))
-      .limit(15),
-
-    // Keyword snapshots last 7 days
+      .limit(10),
     db.select({ position: keywordSnapshots.position, fetchedAt: keywordSnapshots.fetchedAt })
       .from(keywordSnapshots)
       .where(and(eq(keywordSnapshots.brandId, brand.id), gte(keywordSnapshots.fetchedAt, sevenDaysAgo))),
-
-    // Critical items (weight=3) that are unchecked
-    db.select({
-      id: moduleItems.id,
-      slug: moduleItems.slug,
-      label: moduleItems.label,
-      moduleId: moduleItems.moduleId,
-      aiVerified: moduleItems.aiVerified,
-      userChecked: moduleItems.userChecked,
-    })
-      .from(moduleItems)
-      .where(and(
-        eq(moduleItems.weight, 3),
-        eq(moduleItems.aiVerified, false),
-        eq(moduleItems.userChecked, false),
-      ))
-      .limit(20),
-
-    // Content audit pages with Remove/Refresh verdict
-    db.select({ title: modulePageAudit.title, url: modulePageAudit.url, verdict: modulePageAudit.verdict, moduleId: modulePageAudit.moduleId })
-      .from(modulePageAudit)
-      .where(inArray(modulePageAudit.verdict, ['Remove', 'Refresh']))
-      .limit(50),
-
-    // Latest non-replaced blog for weekly cadence signal
-    db.select({ createdAt: brandBlogs.createdAt })
-      .from(brandBlogs)
-      .where(and(eq(brandBlogs.brandId, brand.id), ne(brandBlogs.status, 'replaced')))
-      .orderBy(desc(brandBlogs.createdAt))
-      .limit(1),
   ])
 
-  console.log(`[signals] DB fetch done in ${Date.now() - t0}ms`)
-  const intMap = new Map(integrations.map(i => [i.provider, i]))
-  const ga4Int = intMap.get('ga4_api')
-  const phInt  = intMap.get('posthog')
-
+  // "What's working" impacts: yesterday's traffic vs the day before, keyword gains
   const ga4Meta = (ga4Int?.metadata as Record<string, string> | null) ?? {}
-  const phMeta  = (phInt?.metadata  as Record<string, string> | null) ?? {}
+  const ga4Data = ga4Meta.client_email && ga4Meta.private_key && ga4Meta.property_id
+    ? await fetchGA4Signals(ga4Meta.client_email, ga4Meta.private_key, ga4Meta.property_id)
+    : null
 
-  // Filter to unlocked modules
-  const unlockedModules = allModules.filter(m => m.status !== 'locked')
-
-  // Fetch live GA4 + PostHog in parallel
-  const t1 = Date.now()
-  const hasGa4 = !!(ga4Int && ga4Meta.client_email && ga4Meta.private_key && ga4Meta.property_id)
-  const hasPH  = !!(phInt?.apiKey && phMeta.project_id)
-  console.log(`[signals] fetching GA4=${hasGa4} PostHog=${hasPH}`)
-
-  const [ga4Data, phData] = await Promise.all([
-    hasGa4
-      ? fetchGA4Signals(ga4Meta.client_email, ga4Meta.private_key, ga4Meta.property_id)
-      : Promise.resolve(null),
-    hasPH
-      ? fetchPHSignals(
-          (phMeta.posthog_host ?? 'https://us.posthog.com').replace(/\/$/, ''),
-          phMeta.project_id,
-          phInt!.apiKey!,
-        )
-      : Promise.resolve(null),
-  ])
-  console.log(`[signals] GA4=${JSON.stringify(ga4Data)} PH_dau=${phData?.dau ?? 'null'} (${Date.now() - t1}ms)`)
-
-  // Resolve module IDs for critical items
-  const moduleTypeMap = new Map(unlockedModules.map(m => [m.id, m.type]))
-  const seoModule = unlockedModules.find(m => m.type === 'seo') ?? null
-  const geoModule = unlockedModules.find(m => m.type === 'geo') ?? null
-  const contentAuditModule = unlockedModules.find(m => m.type === 'content-audit') ?? null
-
-  const daysSince = (d: Date | null | undefined) =>
-    d ? Math.floor((Date.now() - new Date(d).getTime()) / 864e5) : null
-
-  const STALE_DAYS = 14
-
-  const seoStale = (() => {
-    if (!seoModule) return null
-    const days = daysSince(seoModule.lastAnalyzedAt)
-    return days !== null && days > STALE_DAYS ? { moduleId: seoModule.id, daysSince: days } : null
-  })()
-
-  const geoStale = (() => {
-    if (!geoModule) return null
-    const days = daysSince(geoModule.lastAnalyzedAt)
-    return days !== null && days > STALE_DAYS ? { moduleId: geoModule.id, daysSince: days } : null
-  })()
-
-  const blogSuggestion = (() => {
-    if (!contentAuditModule) return null
-    const analyzed = contentAuditModule.lastAnalyzedAt != null
-    const score = contentAuditModule.score ?? 0
-    // Show signal if: not yet analyzed, or analyzed with low score (< 60)
-    if (!analyzed || score < 60) {
-      return { moduleId: contentAuditModule.id, score, analyzed }
-    }
-    return null
-  })()
-
-  // Filter critical items to those in this brand's unlocked modules
-  const brandModuleIds = new Set(unlockedModules.map(m => m.id))
-  const uncheckedCritical = critItems
-    .filter(i => brandModuleIds.has(i.moduleId))
-    .map(i => ({
-      id: i.id,
-      slug: i.slug,
-      label: i.label,
-      moduleId: i.moduleId,
-      moduleType: moduleTypeMap.get(i.moduleId) ?? 'module',
-    }))
-    .slice(0, 5)
-
-  // Frekto signal
-  const lastSent = frektoRows.find(r => r.status === 'done') ?? null
-  const frektoSignal: SignalInput['frekto'] = {
-    lastSentAt: lastSent?.scheduledAt ?? null,
-    activePlatform: lastSent?.platform ?? frektoRows[0]?.platform ?? null,
-    hasAnyPosts: frektoRows.length > 0,
-  }
-
-  // Recent posts for the social feed UI (done + scheduled, last 10)
-  const recentPosts = frektoRows.slice(0, 10).map(r => ({
-    platform: r.platform,
-    topic: r.topic,
-    status: r.status,
-    scheduledAt: r.scheduledAt,
-  }))
-
-  // Keyword signal — compare last 3 days vs days 4-7
   let kwSignal: SignalInput['keywords'] = null
   if (kwRows.length >= 2) {
     const now = Date.now()
     const recent = kwRows.filter(r => now - new Date(r.fetchedAt).getTime() < 3 * 864e5)
-    const older  = kwRows.filter(r => {
+    const older = kwRows.filter(r => {
       const age = now - new Date(r.fetchedAt).getTime()
       return age >= 3 * 864e5 && age < 7 * 864e5
     })
@@ -309,49 +151,24 @@ export async function GET() {
       kwSignal = { recentAvgPosition: avg(recent), olderAvgPosition: avg(older) }
     }
   }
+  const impacts = detectImpacts({ ga4: ga4Data, keywords: kwSignal })
 
-  // Filter page audit to this brand's modules
-  const brandAuditPages = auditPages
-    .filter(p => brandModuleIds.has(p.moduleId))
-    .slice(0, 5)
+  const taskCards = today ? tasksToCards(today) : []
+  const focus = today?.focus ?? null
 
-  const lastBlogAt = latestBlog?.createdAt ?? null
-  const daysSinceBlog = lastBlogAt
-    ? Math.floor((Date.now() - new Date(lastBlogAt).getTime()) / 864e5)
-    : null
-  const blogWeeklyDue = daysSinceBlog === null || daysSinceBlog >= 7
-
-  const input: SignalInput = {
-    ga4: ga4Data,
-    ph: phData,
-    frekto: frektoSignal,
-    keywords: kwSignal,
-    seoModule: seoModule ? { id: seoModule.id, score: seoModule.score ?? 0 } : null,
-    uncheckedCriticalItems: uncheckedCritical,
-    pageAuditItems: brandAuditPages.map(p => ({ title: p.title, url: p.url, verdict: p.verdict })),
-    seoStale,
-    geoStale,
-    blogSuggestion,
-    blogWeekly: { lastBlogAt: lastBlogAt ? new Date(lastBlogAt) : null, weeklyDue: blogWeeklyDue },
-  }
-
-  const signalCards = detectSignals(input)
-  const impacts = detectImpacts(input)
-  console.log(`[signals] cards=${signalCards.map(c => c.id).join(',')} total=${Date.now() - t0}ms`)
-
-  // Cache signal cards only (not reminders — they're always fetched fresh)
+  // Cache task cards only (not reminders — they're always fetched fresh)
   await db.update(brands)
-    .set({ dailySignalsCache: { cards: signalCards, impacts }, signalsCachedAt: new Date() })
+    .set({ dailySignalsCache: { cards: taskCards, impacts, focus }, signalsCachedAt: new Date() })
     .where(eq(brands.id, brand.id))
 
   const reminderCards = await fetchReminderCards(brand.id)
-  const cards = [...reminderCards, ...signalCards]
-  const streak = computeStreak(brand.dailyStreak ?? 0, brand.lastActionDate ?? null)
+  const cards = [...reminderCards, ...taskCards]
 
   return NextResponse.json({
     cards,
     impacts,
-    recentPosts,
+    focus,
+    recentPosts: frektoRows,
     streak,
     allGood: cards.length === 0,
     cachedAt: new Date().toISOString(),
