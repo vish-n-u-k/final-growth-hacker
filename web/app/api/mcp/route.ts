@@ -4,6 +4,7 @@ import { getGrowthOverview } from '@/lib/mcp/tools/get_growth_overview'
 import { getModuleDetail } from '@/lib/mcp/tools/get_module_detail'
 import { analyzeModule } from '@/lib/mcp/tools/analyze_module'
 import { toggleItem } from '@/lib/mcp/tools/toggle_item'
+import { skipItem } from '@/lib/mcp/tools/skip_item'
 import { getBrandInfo } from '@/lib/mcp/tools/get_brand_info'
 import { getPendingItems } from '@/lib/mcp/tools/get_pending_items'
 import { getGaAnalytics } from '@/lib/mcp/tools/get_ga_analytics'
@@ -73,6 +74,9 @@ async function dispatch(
 
     case 'toggle_item':
       return toggleItem(brandId, String(args['item_id'] ?? ''), Boolean(args['checked']))
+
+    case 'skip_item':
+      return skipItem(brandId, String(args['item_id'] ?? ''), args['reason'] ? String(args['reason']) : undefined)
 
     case 'get_brand_info':
       return getBrandInfo(brandId)

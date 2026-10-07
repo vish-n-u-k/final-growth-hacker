@@ -69,6 +69,25 @@ export const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: 'skip_item',
+    description:
+      'Drops a checklist item (a kind="item" task from get_today_tasks) that the user says does not apply or will not do. It leaves today\'s list and the pending list. Only call after the user agrees to drop it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        item_id: {
+          type: 'string',
+          description: 'The UUID of the module item to skip.',
+        },
+        reason: {
+          type: 'string',
+          description: 'Optional. Why the user dropped it, in their words.',
+        },
+      },
+      required: ['item_id'],
+    },
+  },
+  {
     name: 'get_brand_info',
     description:
       'Returns the brand profile including name, website URL, industry, target audience, USP, and the executive summary from the sales playbook.',
@@ -80,7 +99,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_today_tasks',
     description:
-      "Use this when the user asks what to do today, says \"do today's tasks\", or arrives from the GrowJin daily email. Returns today's top growth tasks (same list as the daily email). Each task has an id, label, priority, route (\"code\" = change the website codebase, \"content\" = create posts/blog content, \"manual\" = the user must do it themselves), the AI finding, and a recommended action. Also returns focus: the current growth bottleneck (awareness = not enough traffic, conversion = visitors don't act, retention = users go quiet, growth = healthy) with a one-line summary based on live analytics. Task kinds: \"alert\" = something broke or changed (DNS record missing, ads underperforming); \"play\" = the action that best fixes the bottleneck; \"item\" = a checklist fix. finding explains why the task was picked, with numbers. Present only these tasks; do not mention other pending items. needsUserInput=true means ask the user for real data instead of inventing it. After completing a task: for kind=\"item\" call toggle_item with its id and checked=true; for kind=\"alert\" or \"play\" call resolve_signal with its id.",
+      "Use this when the user asks what to do today, says \"do today's tasks\", or arrives from the GrowJin daily email. Returns today's top growth tasks (same list as the daily email). Each task has an id, label, priority, route (\"code\" = change the website codebase, \"content\" = create posts/blog content, \"manual\" = the user must do it themselves), the AI finding, and a recommended action. Also returns focus: the current growth bottleneck (awareness = not enough traffic, conversion = visitors don't act, retention = users go quiet, growth = healthy) with a one-line summary based on live analytics. Task kinds: \"alert\" = something broke or changed (DNS record missing, ads underperforming); \"play\" = the action that best fixes the bottleneck; \"item\" = a checklist fix. finding explains why the task was picked, with numbers. Present only these tasks; do not mention other pending items. needsUserInput=true means ask the user for real data instead of inventing it. daysPending = days since the task was first shown; overdue=true means it has waited 2+ days (its priority is already raised one level): do overdue tasks first and say how long they have waited. askToDrop=true (5+ days) means ask the user to do it now or drop it; to drop, call skip_item for kind=\"item\" or resolve_signal with status=\"dismissed\" for kind=\"alert\"/\"play\". After completing a task: for kind=\"item\" call toggle_item with its id and checked=true; for kind=\"alert\" or \"play\" call resolve_signal with its id.",
     inputSchema: {
       type: 'object',
       properties: {

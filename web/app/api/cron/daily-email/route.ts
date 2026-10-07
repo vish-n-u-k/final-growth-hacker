@@ -468,7 +468,7 @@ function buildTodayTasksSection(today: TodayTasks): string {
     return `
   <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:0 0 10px;">
     <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-left:3px solid ${color};border-radius:10px;padding:14px 16px;">
-      <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${color};">${label} &middot; ${t.priority}</p>
+      <p style="margin:0 0 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:${color};">${label} &middot; ${t.priority}${t.overdue ? ` &middot; <span style="color:#dc2626;">overdue ${t.daysPending} days</span>` : ''}</p>
       <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#111827;">${esc(t.label)}</p>
       ${t.action ? `<p style="margin:0;font-size:13px;color:#6b7280;line-height:1.5;">${esc(t.action)}</p>` : ''}
     </td></tr>
