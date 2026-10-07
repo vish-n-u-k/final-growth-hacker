@@ -5,6 +5,7 @@ import { getModuleDetail } from '@/lib/mcp/tools/get_module_detail'
 import { analyzeModule } from '@/lib/mcp/tools/analyze_module'
 import { toggleItem } from '@/lib/mcp/tools/toggle_item'
 import { skipItem } from '@/lib/mcp/tools/skip_item'
+import { getGrowthHistory } from '@/lib/mcp/tools/get_growth_history'
 import { getBrandInfo } from '@/lib/mcp/tools/get_brand_info'
 import { getPendingItems } from '@/lib/mcp/tools/get_pending_items'
 import { getGaAnalytics } from '@/lib/mcp/tools/get_ga_analytics'
@@ -20,6 +21,7 @@ import { getPosthogChurnedUsers } from '@/lib/mcp/tools/get_posthog_churned_user
 import { getPosthogProUsers } from '@/lib/mcp/tools/get_posthog_pro_users'
 import { getTodayTasks, buildTodayPrompt } from '@/lib/daily/today-tasks'
 import { resolveSignal } from '@/lib/signals'
+import { logActivity, touchMcp } from '@/lib/activity'
 import { createSocialPost, getSocialPostStatus, scheduleSocialPost } from '@/lib/frekto/posts'
 
 export const maxDuration = 300
@@ -77,6 +79,9 @@ async function dispatch(
 
     case 'skip_item':
       return skipItem(brandId, String(args['item_id'] ?? ''), args['reason'] ? String(args['reason']) : undefined)
+
+    case 'get_growth_history':
+      return getGrowthHistory(brandId, Math.min(Math.max(parseInt(String(args['days'] ?? '30'), 10) || 30, 1), 365))
 
     case 'get_brand_info':
       return getBrandInfo(brandId)
@@ -180,6 +185,22 @@ async function dispatch(
   }
 }
 
+// Usage tracking: which tools Claude calls, and tasks completed from Claude.
+// Logs the tool name only — never arguments or results.
+async function logToolCall(brandId: string, tool: string, args: Record<string, unknown>, result: unknown) {
+  const ok = !(result && typeof result === 'object' && 'error' in result)
+  const writes: Promise<unknown>[] = [logActivity(brandId, 'mcp_call', { tool, ok }), touchMcp(brandId)]
+  if (ok) {
+    const completed =
+      tool === 'toggle_item' && Boolean(args['checked']) ? { kind: 'item', status: 'done' } :
+      tool === 'skip_item' ? { kind: 'item', status: 'dismissed' } :
+      tool === 'resolve_signal' ? { kind: 'signal', status: args['status'] === 'dismissed' ? 'dismissed' : 'done' } :
+      null
+    if (completed) writes.push(logActivity(brandId, 'task_completed', { ...completed, via: 'claude' }))
+  }
+  await Promise.all(writes)
+}
+
 export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS_HEADERS })
 }
@@ -206,6 +227,7 @@ export async function POST(request: Request) {
 
   // Route by method
   if (method === 'initialize') {
+    await Promise.all([logActivity(brandId, 'mcp_session'), touchMcp(brandId)])
     return rpcResult(id, INITIALIZE_RESPONSE)
   }
 
@@ -237,6 +259,7 @@ export async function POST(request: Request) {
     } catch (err) {
       return rpcError(id, -32603, err instanceof Error ? err.message : 'Internal error')
     }
+    await logToolCall(brandId, toolName, toolArgs, result)
 
     // Tools may attach an inline preview image as _image; send it as MCP image content
     const content: Record<string, unknown>[] = []

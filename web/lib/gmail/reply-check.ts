@@ -3,10 +3,14 @@ import { reminders } from '@/lib/db/schema'
 import { eq, and, isNull, like } from 'drizzle-orm'
 import { getValidGmailToken } from '@/lib/gmail/token'
 import { callAI } from '@/lib/ai/client'
+import { emailAddressOf, suppressEmail } from '@/lib/gmail/suppression'
+import { extractText, stripQuoted, type GmailPart } from '@/lib/gmail/message-text'
 
 // Reads each open follow-up's Gmail thread and works out what happened since the
 // email went out: a real reply, an opt-out, a bounce, an out-of-office, or the user
-// replying themselves. Updates the reminder accordingly.
+// replying themselves. Updates the reminder accordingly. If the thread has no reply,
+// also searches the whole mailbox for mail from the recipient (replies sent as a new
+// email). Opt-outs and bounces are added to email_suppressions.
 
 export type FollowupOutcome =
   | 'replied'       // a person replied — closed
@@ -61,7 +65,7 @@ async function classifyReply(text: string): Promise<'replied' | 'opted_out'> {
   try {
     const raw = await callAI({
       system: 'You classify replies to sales outreach emails. Answer with exactly one word.',
-      prompt: `Reply text:\n"""${text.slice(0, 800)}"""\n\nIs the sender asking to stop contact or clearly not interested? Answer OPTOUT or REPLY.`,
+      prompt: `Reply text:\n"""${text.slice(0, 2000)}"""\n\nIs the sender asking to stop contact or clearly not interested? Answer OPTOUT or REPLY.`,
       maxTokens: 5,
       model: 'claude-haiku-4-5-20251001',
     })
@@ -71,18 +75,54 @@ async function classifyReply(text: string): Promise<'replied' | 'opted_out'> {
   }
 }
 
-async function fetchThread(accessToken: string, threadId: string): Promise<GmailMsg[] | null> {
+const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me'
+const META_HEADERS = ['From', 'To', 'Subject', 'Auto-Submitted', 'X-Autoreply', 'X-Autorespond', 'Precedence', 'Content-Type']
+
+function metadataParams(): URLSearchParams {
   const params = new URLSearchParams({ format: 'metadata' })
-  for (const h of ['From', 'Subject', 'Auto-Submitted', 'X-Autoreply', 'X-Autorespond', 'Precedence', 'Content-Type']) {
-    params.append('metadataHeaders', h)
-  }
-  const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}?${params}`, {
+  for (const h of META_HEADERS) params.append('metadataHeaders', h)
+  return params
+}
+
+async function fetchThread(accessToken: string, threadId: string): Promise<GmailMsg[] | null> {
+  const res = await fetch(`${GMAIL}/threads/${threadId}?${metadataParams()}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (res.status === 404 || res.status === 400) return null
   if (!res.ok) throw new Error(`Gmail ${res.status}`)
   const data = await res.json() as { messages?: GmailMsg[] }
   return data.messages ?? []
+}
+
+// Replies that didn't land in the original thread: a fresh email, a changed subject,
+// a phone client that broke threading. Searches the whole mailbox for mail from
+// the recipient since the follow-up was last checked.
+async function searchOtherReplies(accessToken: string, from: string, sinceMs: number, threadId: string): Promise<GmailMsg[]> {
+  const q = `from:(${from}) after:${Math.floor(sinceMs / 1000)}`
+  const res = await fetch(`${GMAIL}/messages?${new URLSearchParams({ q, maxResults: '5' })}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) return []
+  const list = await res.json() as { messages?: { id: string; threadId: string }[] }
+  const ids = (list.messages ?? []).filter((m) => m.threadId !== threadId).map((m) => m.id)
+  const msgs = await Promise.all(ids.map(async (id) => {
+    const r = await fetch(`${GMAIL}/messages/${id}?${metadataParams()}`, { headers: { Authorization: `Bearer ${accessToken}` } })
+    return r.ok ? await r.json() as GmailMsg : null
+  }))
+  return msgs.filter((m): m is GmailMsg => !!m && Number(m.internalDate ?? 0) > sinceMs)
+}
+
+// Full reply text (quoted original removed) so opt-outs below the first line aren't missed
+async function replyText(accessToken: string, m: GmailMsg): Promise<string> {
+  try {
+    const res = await fetch(`${GMAIL}/messages/${m.id}?format=full`, { headers: { Authorization: `Bearer ${accessToken}` } })
+    if (res.ok) {
+      const full = await res.json() as { payload?: GmailPart }
+      const text = full.payload ? stripQuoted(extractText(full.payload)) : ''
+      if (text) return text
+    }
+  } catch { /* fall back to the snippet */ }
+  return m.snippet ?? ''
 }
 
 /** Checks one follow-up and applies the outcome to the database. */
@@ -107,7 +147,20 @@ export async function checkFollowup(r: Reminder, accessToken: string): Promise<C
     .sort((a, b) => a.at - b.at)
   const lastSeen = fresh.length ? new Date(fresh[fresh.length - 1].at) : r.followupLastSeenAt
 
-  const human = fresh.filter(x => !x.m.labelIds?.includes('SENT') && !isBounce(x.m) && !isAutoReply(x.m))
+  // The address we wrote to: To of our first sent message in the thread
+  const firstSent = messages.find(m => m.labelIds?.includes('SENT'))
+  const recipient = firstSent ? emailAddressOf(header(firstSent, 'To')) : ''
+
+  let human = fresh.filter(x => !x.m.labelIds?.includes('SENT') && !isBounce(x.m) && !isAutoReply(x.m))
+  let elsewhere = false
+  if (!human.length && recipient.includes('@')) {
+    const other = await searchOtherReplies(accessToken, recipient, since, threadId).catch(() => [])
+    human = other
+      .filter(m => !isBounce(m) && !isAutoReply(m))
+      .map(m => ({ m, at: Number(m.internalDate ?? 0) }))
+      .sort((a, b) => a.at - b.at)
+    elsewhere = human.length > 0
+  }
   const bounce = fresh.find(x => isBounce(x.m))
   const self = fresh.filter(x => x.m.labelIds?.includes('SENT'))
   const auto = fresh.filter(x => !x.m.labelIds?.includes('SENT') && isAutoReply(x.m))
@@ -121,14 +174,26 @@ export async function checkFollowup(r: Reminder, accessToken: string): Promise<C
   }
 
   if (human.length) {
-    const text = human.map(x => x.m.snippet ?? '').join('\n').trim()
+    const latest = human[human.length - 1].m
+    const text = [
+      ...human.slice(0, -1).map(x => x.m.snippet ?? ''),
+      await replyText(accessToken, latest),
+    ].join('\n').trim()
     const outcome = await classifyReply(text)
-    await close(outcome, human[human.length - 1].m.snippet ?? '')
+    const note = (elsewhere ? 'Replied in a separate email: ' : '') + (latest.snippet ?? '')
+    await close(outcome, note)
+    if (outcome === 'opted_out') {
+      // Never email them again — the original recipient and whoever replied for them
+      if (recipient) await suppressEmail(r.brandId, recipient, 'opted_out', latest.snippet)
+      const replier = emailAddressOf(header(latest, 'From'))
+      if (replier && replier !== recipient) await suppressEmail(r.brandId, replier, 'opted_out', latest.snippet)
+    }
     return { reminderId: r.id, outcome, note: text }
   }
 
   if (bounce) {
     await close('bounced', bounce.m.snippet ?? 'Delivery failed')
+    if (recipient) await suppressEmail(r.brandId, recipient, 'bounced', bounce.m.snippet)
     return { reminderId: r.id, outcome: 'bounced' }
   }
 

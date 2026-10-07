@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { brands, outreachEmails } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { sendGmailMessage, createFollowupReminder, parseRecipientName, GmailSendError } from '@/lib/gmail/send'
+import { isSuppressed } from '@/lib/gmail/suppression'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -22,6 +23,13 @@ export async function POST(req: NextRequest) {
 
   // Scheduled send: queue it — /api/cron/send-scheduled delivers it (hourly)
   if (scheduledAt) {
+    const blocked = await isSuppressed(brand.id, to)
+    if (blocked) {
+      return NextResponse.json({
+        error: blocked.reason === 'bounced' ? `Not scheduled: an earlier email to ${to} bounced.` : `Not scheduled: ${to} asked not to be contacted.`,
+      }, { status: 409 })
+    }
+
     const when = new Date(scheduledAt)
     if (isNaN(when.getTime())) return NextResponse.json({ error: 'Invalid scheduled time' }, { status: 400 })
     if (when.getTime() < Date.now() - 60_000) {
@@ -46,13 +54,15 @@ export async function POST(req: NextRequest) {
       if (e.code === 'missing_send_scope') {
         return NextResponse.json({ error: 'missing_send_scope', message: e.message }, { status: 403 })
       }
+      if (e.code === 'suppressed') return NextResponse.json({ error: e.message }, { status: 409 })
       return NextResponse.json({ error: e.message }, { status: e.code === 'not_connected' ? 400 : 502 })
     }
     throw e
   }
 
-  // Log to outreach_emails (fire-and-forget)
-  db.insert(outreachEmails).values({
+  // Log to outreach_emails. Awaited: on serverless, work left running after the
+  // response can be cut off, and the email would go missing from history.
+  await db.insert(outreachEmails).values({
     brandId: brand.id, toEmail: to, toName: parseRecipientName(to),
     subject, body, status: 'sent', sentAt: new Date(),
     gmailMessageId: sent.id, gmailThreadId: sent.threadId,
