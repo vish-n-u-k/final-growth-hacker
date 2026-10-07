@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations, modules } from '@/lib/db/schema'
 import { and, eq, ne, isNotNull } from 'drizzle-orm'
-import { detectEmailDns, detectMetaAds } from '@/lib/signals/detectors'
+import { detectEmailDns, detectMetaAds, detectLaunchedCampaigns } from '@/lib/signals/detectors'
 import { runDiagnosis } from '@/lib/daily/diagnosis'
+import { recordBrandHistory } from '@/lib/history'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -24,6 +25,23 @@ export async function GET(req: NextRequest) {
   }
 
   const started = Date.now()
+
+  // History first (cheap, DB only) so slow detector / diagnosis jobs can't crowd it
+  // out. Runs just after 00:00 UTC, so it records the day that just ended.
+  const historyDate = new Date(started - 86_400_000).toISOString().slice(0, 10)
+  const allBrands = await db.select({ id: brands.id }).from(brands)
+  let historyRecorded = 0
+  const historyErrors: string[] = []
+  for (const b of allBrands) {
+    if (Date.now() - started > 15_000) { historyErrors.push('stopped: time limit'); break }
+    try {
+      await recordBrandHistory(b.id, historyDate)
+      historyRecorded++
+    } catch (e) {
+      historyErrors.push(`${b.id}: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
   const jobs: Job[] = []
 
   // Email deliverability: brands with an applicable Email Marketing module
@@ -44,6 +62,7 @@ export async function GET(req: NextRequest) {
   for (const m of metaInts) {
     const accountId = (m.metadata as Record<string, string> | null)?.['ad_account_id'] ?? ''
     if (m.accessToken && accountId) jobs.push({ brandId: m.brandId, source: 'meta-ads', run: () => detectMetaAds(m.brandId, m.accessToken!, accountId) })
+    if (m.accessToken) jobs.push({ brandId: m.brandId, source: 'meta-launches', run: () => detectLaunchedCampaigns(m.brandId, m.accessToken!) })
   }
 
   // Growth diagnosis (bottleneck + plays) for every brand with an analysed module.
@@ -74,5 +93,10 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  return NextResponse.json({ ok: true, jobs: jobs.length, results })
+  return NextResponse.json({
+    ok: true,
+    history: { date: historyDate, recorded: historyRecorded, errors: historyErrors.slice(0, 20) },
+    jobs: jobs.length,
+    results,
+  })
 }

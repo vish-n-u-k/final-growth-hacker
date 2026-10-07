@@ -88,6 +88,20 @@ export const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: 'get_growth_history',
+    description:
+      'Use this for progress-over-time questions — e.g. "how have I improved?", "what changed this month?", "is my score going up?", "am I still stuck on traffic?". Returns one snapshot per day (overall score, each module score, growth bottleneck stage, traffic and app-user numbers, tasks completed) plus a first-vs-latest summary of what changed. History starts from when daily snapshots began, so early on there may be only a few days.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        days: {
+          type: 'string',
+          description: 'How many days back to look. Defaults to "30", max 365.',
+        },
+      },
+    },
+  },
+  {
     name: 'get_brand_info',
     description:
       'Returns the brand profile including name, website URL, industry, target audience, USP, and the executive summary from the sales playbook.',

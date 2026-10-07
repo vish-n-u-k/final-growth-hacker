@@ -36,8 +36,9 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/.well-known/') ||
     pathname === '/oauth/authorize'
   const isCronEndpoint = pathname.startsWith('/api/cron/')
+  const isTrackedLink = pathname.startsWith('/api/r/') // signed email links, e.g. "Do it in Claude"
 
-  if (!user && !isAuthPage && !isMcpEndpoint && !isOAuthPublic && !isCronEndpoint) {
+  if (!user && !isAuthPage && !isMcpEndpoint && !isOAuthPublic && !isCronEndpoint && !isTrackedLink) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

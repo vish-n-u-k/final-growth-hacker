@@ -15,7 +15,8 @@ export async function GET() {
   const prospects = await db
     .select()
     .from(outreachProspects)
-    .where(eq(outreachProspects.brandId, brand.id))
+    // Opted-out / bounced prospects are hidden so they can't be picked for a campaign
+    .where(and(eq(outreachProspects.brandId, brand.id), eq(outreachProspects.status, 'active')))
     .orderBy(desc(outreachProspects.createdAt))
     .limit(500)
 

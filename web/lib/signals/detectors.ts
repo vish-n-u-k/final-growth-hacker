@@ -5,6 +5,9 @@
 
 import { checkSpf, checkDkim, checkDmarc } from '@/lib/modules/email-marketing/fetcher'
 import { openSignal, clearSignals, getSnapshot, saveSnapshot, getOpenSignals } from '@/lib/signals'
+import { db } from '@/lib/db'
+import { adLaunches } from '@/lib/db/schema'
+import { and, eq, gte } from 'drizzle-orm'
 
 // ── Email deliverability (SPF / DKIM / DMARC newly broken) ────────────────────
 
@@ -187,6 +190,73 @@ export async function detectMetaAds(brandId: string, accessToken: string, rawAcc
   await clearSignals(brandId, 'meta-ads', META_KEYS.filter((k) => !triggered.has(k)))
   await saveSnapshot(brandId, 'meta-ads', { currency, spend, impressions, clicks, ctr, cpc, weeklyBudget })
   return { currency, spend, ctr, cpc, weeklyBudget, opened }
+}
+
+// ── Campaigns launched from GrowJin (still paused? how are they doing?) ──────
+// Launches are created PAUSED. Refreshes each one's status and lifetime results in
+// ad_launches, and raises a task if it was never switched on.
+
+const LAUNCH_TRACK_DAYS = 90
+const LAUNCH_PAUSED_DAYS = 2
+
+interface MetaInsightRow {
+  spend?: string; impressions?: string; clicks?: string; ctr?: string; cpc?: string
+  actions?: { action_type: string; value: string }[]
+}
+
+export async function detectLaunchedCampaigns(brandId: string, accessToken: string) {
+  if (!accessToken || accessToken === 'demo') return { skipped: 'no credentials' }
+
+  const launches = await db.select().from(adLaunches).where(and(
+    eq(adLaunches.brandId, brandId),
+    eq(adLaunches.platform, 'meta'),
+    gte(adLaunches.launchedAt, new Date(Date.now() - LAUNCH_TRACK_DAYS * 86400000)),
+  ))
+  if (launches.length === 0) return { launches: 0 }
+
+  const opened: string[] = []
+  const toClear: string[] = []
+  for (const l of launches) {
+    const [info, insights] = await Promise.all([
+      metaGet(`${l.campaignId}?fields=effective_status`, accessToken),
+      metaGet(`${l.campaignId}/insights?date_preset=maximum&fields=spend,impressions,clicks,ctr,cpc,actions`, accessToken),
+    ])
+    const status = (info as { effective_status?: string } | null)?.effective_status
+    if (!status) continue // unreachable, token problem (handled by detectMetaAds) or deleted
+
+    const row = ((insights?.data as MetaInsightRow[] | undefined) ?? [])[0]
+    const metrics = row ? {
+      spend: parseFloat(row.spend ?? '0'),
+      impressions: parseInt(row.impressions ?? '0', 10),
+      clicks: parseInt(row.clicks ?? '0', 10),
+      ctr: parseFloat(row.ctr ?? '0'),
+      cpc: parseFloat(row.cpc ?? '0'),
+      linkClicks: parseInt(row.actions?.find((a) => a.action_type === 'link_click')?.value ?? '0', 10),
+    } : l.metrics
+    const activatedAt = l.activatedAt ?? (status === 'ACTIVE' ? new Date() : null)
+
+    await db.update(adLaunches)
+      .set({ status, metrics, activatedAt, checkedAt: new Date() })
+      .where(eq(adLaunches.id, l.id))
+
+    const key = `campaign-paused:${l.campaignId}`
+    const ageDays = (Date.now() - (l.launchedAt?.getTime() ?? Date.now())) / 86400000
+    if (!activatedAt && status === 'PAUSED' && ageDays >= LAUNCH_PAUSED_DAYS) {
+      const isNew = await openSignal(brandId, {
+        source: 'meta-ads',
+        signalKey: key,
+        title: `Your campaign "${l.name}" is ready but still paused`,
+        detail: `GrowJin created it ${Math.floor(ageDays)} days ago, paused so you could review it first. It hasn't run yet, so it isn't reaching anyone.`,
+        action: 'Open Meta Ads Manager, review the campaign, ad set and ad, then switch the campaign on. If you decided not to run it, dismiss this task.',
+        priority: 2,
+      })
+      if (isNew) opened.push(key)
+    } else {
+      toClear.push(key)
+    }
+  }
+  await clearSignals(brandId, 'meta-ads', toClear)
+  return { launches: launches.length, opened }
 }
 
 // ── Business stage (stage changed, new red flag) ─────────────────────────────

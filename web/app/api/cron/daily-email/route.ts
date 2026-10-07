@@ -7,6 +7,7 @@ import { getValidAdminGmailToken, getAdminGmailAddress } from '@/lib/gmail/admin
 import { signReminderToken } from '@/lib/reminders/token'
 import { checkBrandFollowups } from '@/lib/gmail/reply-check'
 import { getTodayTasks, buildTodayPrompt, type TodayTasks, type TaskRoute } from '@/lib/daily/today-tasks'
+import { claudeClickUrl, logActivity } from '@/lib/activity'
 
 export const dynamic  = 'force-dynamic'
 export const maxDuration = 60
@@ -259,7 +260,7 @@ function buildRemindersSection(dueReminders: DueReminder[], appUrl: string): str
 
 // ── Email HTML builder (table-based, inline hex — Outlook safe) ───────────────
 
-function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: PhSummary | null, dueReminders: DueReminder[] = [], today: TodayTasks | null = null): string {
+function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: PhSummary | null, dueReminders: DueReminder[] = [], today: TodayTasks | null = null, brandId: string | null = null): string {
   const flags = computeFlags(ga4, ph)
   const dashUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com'}/authAnalytics`
 
@@ -402,7 +403,7 @@ function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: 
     <!-- Body -->
     <tr><td style="background:#ffffff;border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;padding:28px 32px;">
 
-      ${today && today.tasks.length > 0 ? buildTodayTasksSection(today) + divider : ''}
+      ${today && today.tasks.length > 0 ? buildTodayTasksSection(today, brandId) + divider : ''}
 
       ${flags.length ? flagsBlock + divider : ''}
 
@@ -460,8 +461,11 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-function buildTodayTasksSection(today: TodayTasks): string {
-  const claudeUrl = `https://claude.ai/new?q=${encodeURIComponent(buildTodayPrompt(today))}`
+function buildTodayTasksSection(today: TodayTasks, brandId: string | null): string {
+  // Tracked link (counts the click, then opens Claude) when we know the brand
+  const claudeUrl = brandId
+    ? claudeClickUrl(process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com', brandId)
+    : `https://claude.ai/new?q=${encodeURIComponent(buildTodayPrompt(today))}`
 
   const rows = today.tasks.map(t => {
     const { label, color } = ROUTE_STYLE[t.route]
@@ -605,11 +609,12 @@ export async function GET(req: NextRequest) {
       dueReminders = rows.map(r => ({ ...r, nextDueAt: new Date(r.nextDueAt!) }))
     } catch { /* non-fatal */ }
 
-    const html = buildHtml(brand.name, dateLabel, ga4Data, phData, dueReminders, today)
+    const html = buildHtml(brand.name, dateLabel, ga4Data, phData, dueReminders, today, brand.id)
     const subject = `${brand.name} daily digest · last 24h`
 
     try {
       const sent = await sendViaGmail(accessToken, fromEmail, toEmail, subject, html)
+      if (sent) await logActivity(brand.id, 'daily_email_sent', { tasks: today?.tasks.length ?? 0 })
       results.push({ brandName: brand.name, to: toEmail, sent })
     } catch (e) {
       results.push({ brandName: brand.name, to: toEmail, sent: false, error: String(e) })

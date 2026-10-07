@@ -5,6 +5,7 @@ import { brands } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { toggleItem } from '@/lib/mcp/tools/toggle_item'
 import { resolveSignal } from '@/lib/signals'
+import { logActivity } from '@/lib/activity'
 
 // Completes a /today task card: checklist items are ticked, alerts/plays are
 // resolved (done or dismissed). Same effect as the MCP toggle_item / resolve_signal.
@@ -27,6 +28,11 @@ export async function POST(request: NextRequest) {
     ? await toggleItem(brand.id, id, true)
     : await resolveSignal(brand.id, id, status === 'dismissed' ? 'dismissed' : 'done')
   if ('error' in result) return NextResponse.json(result, { status: 404 })
+  await logActivity(brand.id, 'task_completed', {
+    kind: kind === 'item' ? 'item' : 'signal',
+    status: kind !== 'item' && status === 'dismissed' ? 'dismissed' : 'done',
+    via: 'app',
+  })
 
   // Next /today load rebuilds the list so the next task moves up
   await db.update(brands).set({ signalsCachedAt: null }).where(eq(brands.id, brand.id))
