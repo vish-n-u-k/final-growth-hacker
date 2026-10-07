@@ -8,11 +8,15 @@
 //   3. item  — a checklist quick win (concrete one-time fix only), preferring modules
 //              that match the bottleneck
 // Leftover slots are filled from whatever remains.
+//
+// Overdue escalation: the first day each task is shown is remembered (snapshot
+// 'today-history'). A task still pending OVERDUE_DAYS later is flagged overdue and
+// bumped one priority level; after DROP_ASK_DAYS Claude asks to do it or drop it.
 
 import { db } from '@/lib/db'
 import { brands, brandIntegrations, modules, moduleItems, moduleCategories } from '@/lib/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
-import { getOpenSignals, getSnapshot } from '@/lib/signals'
+import { getOpenSignals, getSnapshot, saveSnapshot } from '@/lib/signals'
 import { runDiagnosis, type Diagnosis, type GrowthStage } from '@/lib/daily/diagnosis'
 import type { ActionCard, ActionCardType } from '@/lib/daily/signals'
 import { MODULE_MAP } from '@/lib/modules/registry'
@@ -38,6 +42,9 @@ export interface TodayTask {
   finding: string | null // why this task, with the numbers behind it
   action: string | null
   needsUserInput: boolean
+  daysPending: number // days since this task was first shown (0 = new today)
+  overdue: boolean // daysPending >= OVERDUE_DAYS; priority already bumped one level
+  askToDrop: boolean // daysPending >= DROP_ASK_DAYS; ask the user to do it now or drop it
 }
 
 export interface TodayTasks {
@@ -64,6 +71,15 @@ const STAGE_MODULES: Record<GrowthStage, Set<string>> = {
 const CONVERSION_SLUG = /cta|value|proof|testimonial|trust|pricing|headline|hero|h1/i
 
 const DIAGNOSIS_MAX_AGE_MS = 20 * 3600000
+
+const OVERDUE_DAYS = 2
+const DROP_ASK_DAYS = 5
+const BUMP: Record<TodayTask['priority'], TodayTask['priority']> = { minor: 'important', important: 'critical', critical: 'critical' }
+
+// task key (`signal:<id>` / `item:<id>`) → UTC date it was first shown
+type TaskHistory = Record<string, string>
+const utcDate = (d = new Date()) => d.toISOString().slice(0, 10)
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / 864e5)
 
 function routeFor(exportType: string | null, moduleType: string): TaskRoute {
   if (exportType === 'auto' || exportType === 'needs_choice') return 'code'
@@ -96,7 +112,7 @@ export async function getTodayTasks(
   }
   const stage: GrowthStage = diagnosis?.stage ?? 'unknown'
 
-  const [[github], allModules, signals] = await Promise.all([
+  const [[github], allModules, signals, history] = await Promise.all([
     db.select({ metadata: brandIntegrations.metadata })
       .from(brandIntegrations)
       .where(and(
@@ -107,22 +123,35 @@ export async function getTodayTasks(
       .limit(1),
     db.select().from(modules).where(eq(modules.brandId, brandId)).orderBy(modules.order),
     getOpenSignals(brandId).catch(() => []),
+    getSnapshot<TaskHistory>(brandId, 'today-history').then((h) => h ?? {}).catch((): TaskHistory => ({})),
   ])
   const githubRepo = (github?.metadata as Record<string, string> | null)?.repo_url ?? null
   const activeModules = allModules.filter((m) => m.status !== 'locked' && m.status !== 'not-applicable')
   const modByType = new Map(activeModules.map((m) => [m.type, m]))
 
+  // ── Overdue tracking ───────────────────────────────────────────────────────
+  const todayDate = utcDate()
+  const pendingDays = (key: string) => (history[key] ? Math.max(0, daysBetween(history[key], todayDate)) : 0)
+  const escalation = (key: string, base: TodayTask['priority']) => {
+    const daysPending = pendingDays(key)
+    const overdue = daysPending >= OVERDUE_DAYS
+    return { priority: overdue ? BUMP[base] : base, daysPending, overdue, askToDrop: daysPending >= DROP_ASK_DAYS }
+  }
+
   // ── Alerts + plays (both stored as signals) ────────────────────────────────
-  signals.sort((a, b) => b.priority - a.priority || (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
+  // Overdue signals rank one level higher so newer alerts don't push them out
+  const effPriority = (s: (typeof signals)[number]) =>
+    Math.min(3, s.priority + (pendingDays(`signal:${s.id}`) >= OVERDUE_DAYS ? 1 : 0))
+  signals.sort((a, b) => effPriority(b) - effPriority(a) || (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))
   const toTask = (s: (typeof signals)[number]): TodayTask => {
     const isPlay = s.source === 'diagnosis'
     const mod = modByType.get(s.source)
     return {
+      ...escalation(`signal:${s.id}`, WEIGHT_LABEL[s.priority] ?? 'important'),
       id: s.id,
       key: s.signalKey,
       kind: isPlay ? 'play' : 'alert',
       label: s.title,
-      priority: WEIGHT_LABEL[s.priority] ?? 'important',
       route: (s.route as TaskRoute) ?? 'manual',
       module: isPlay ? 'Growth focus' : mod?.name ?? s.source,
       moduleType: s.source,
@@ -172,11 +201,11 @@ export async function getTodayTasks(
   const itemTasks = pending.slice(0, limit).map((item): TodayTask => {
     const mod = modMap.get(item.moduleId)!
     return {
+      ...escalation(`item:${item.id}`, WEIGHT_LABEL[item.weight ?? 1] ?? 'minor'),
       id: item.id,
       key: item.slug,
       kind: 'item',
       label: item.label,
-      priority: WEIGHT_LABEL[item.weight ?? 1] ?? 'minor',
       route: routeFor(item.exportType ?? null, mod.type),
       module: mod.name,
       moduleType: mod.type,
@@ -199,6 +228,24 @@ export async function getTodayTasks(
   take(alerts, limit) // more breakage beats more suggestions
   take(plays, limit)
   take(itemTasks, limit)
+
+  // Remember first-shown dates. Drop entries for tasks no longer pending (done,
+  // dismissed, cleared, verified) so a task that comes back later starts fresh.
+  const stillPending = new Set([
+    ...signals.map((s) => `signal:${s.id}`),
+    ...pending.map((i) => `item:${i.id}`),
+  ])
+  const nextHistory: TaskHistory = {}
+  for (const [key, date] of Object.entries(history)) if (stillPending.has(key)) nextHistory[key] = date
+  for (const t of tasks) {
+    const key = `${t.kind === 'item' ? 'item' : 'signal'}:${t.id}`
+    nextHistory[key] ??= todayDate
+  }
+  if (JSON.stringify(nextHistory) !== JSON.stringify(history)) {
+    await saveSnapshot(brandId, 'today-history', nextHistory).catch((err) => {
+      console.error('[today-tasks] saving task history failed:', err)
+    })
+  }
 
   return {
     brandName: brand.name,
@@ -226,11 +273,11 @@ export function tasksToCards(today: TodayTasks): ActionCard[] {
       type,
       priority: i,
       headline: t.label,
-      reason: t.finding ?? '',
+      reason: (t.overdue ? `Overdue: waiting ${t.daysPending} days. ` : '') + (t.finding ?? ''),
       cta: t.moduleId ? `Open ${t.module}` : PLAY_SETTINGS.has(t.key) ? 'Open settings' : 'Open modules',
       ctaUrl,
       sourceModule: t.moduleId ?? undefined,
-      data: { taskKind: t.kind, taskId: t.id, action: t.action, route: t.route },
+      data: { taskKind: t.kind, taskId: t.id, action: t.action, route: t.route, daysPending: t.daysPending, overdue: t.overdue },
     }
   })
 }
@@ -241,7 +288,7 @@ export function buildTodayPrompt(t: Pick<TodayTasks, 'brandName' | 'websiteUrl' 
   return [
     `Use the GrowJin MCP to work through today's growth tasks for ${t.brandName}${t.websiteUrl ? ` (${t.websiteUrl})` : ''}.`,
     '',
-    '1. Call get_today_tasks. Start by telling me today\'s focus (my current bottleneck) in one sentence.',
+    '1. Call get_today_tasks. Start by telling me today\'s focus (my current bottleneck) in one sentence. Do overdue tasks first and tell me how many days each has been waiting. For any task with askToDrop=true, ask me whether to do it now or drop it: to drop an "item" call skip_item; to drop an "alert" or "play" call resolve_signal with status="dismissed".',
     `2. For each "code" task: make the change in the website codebase${t.githubRepo ? ` (${t.githubRepo})` : ''} and open a pull request. If you cannot edit the repo here, give me the exact code change to apply.`,
     '3. For each "content" task: draft the content (blog copy, emails). For social posts use create_social_post, show me the preview, and only call schedule_social_post after I approve.',
     '4. For each "manual" task: give me short step-by-step instructions.',
