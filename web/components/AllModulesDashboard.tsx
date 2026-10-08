@@ -2538,7 +2538,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
                     {/* Competitor URLs panel — outreach-targets only */}
                     {modData.type === 'outreach-targets' && !needsSetup && (
-                      <div style={{ margin: '16px 28px 0', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10 }}>
+                      <div className="gp-inset-panel" style={{ margin: '16px 28px 0', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10 }}>
                         <div
                           role="button"
                           tabIndex={0}
@@ -2589,7 +2589,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
                     {/* Playbook — Foundation module only */}
                     {modData.type === 'foundation' && (
-                      <div style={{ margin: '16px 28px 0', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10 }}>
+                      <div className="gp-inset-panel" style={{ margin: '16px 28px 0', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10 }}>
                         <div
                           role="button"
                           tabIndex={0}
@@ -2602,10 +2602,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                           </svg>
                           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Playbook</span>
-                          <span style={{ fontSize: 12, color: '#8b938f', fontWeight: 400 }}>(your AI-generated sales playbook — ICP, scripts & objections)</span>
+                          <span className="gp-playbook-sub" style={{ fontSize: 12, color: '#8b938f', fontWeight: 400 }}>(your AI-generated sales playbook — ICP, scripts & objections)</span>
                           {playbookData
                             ? <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 500, marginLeft: 2 }}>Generated</span>
-                            : <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 2 }}>Run analysis to generate</span>
+                            : <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 2 }}>{reanalyzing ? 'Generating…' : 'Run analysis to generate'}</span>
                           }
                           {playbookData && !playbookEditing && (
                             <button

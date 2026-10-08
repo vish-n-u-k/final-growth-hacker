@@ -88,7 +88,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
           {oauthToast.msg}
         </div>
       )}
-      <header>
+      <header className="shell-dup-header">
         <div className="md-header-inner">
           <div className="logo" style={{ cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
             <span className="mark">
@@ -125,6 +125,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <button
+            className="shell-dup-back"
             onClick={goBack}
             title="Back"
             style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--text)', cursor: 'pointer', flexShrink: 0 }}

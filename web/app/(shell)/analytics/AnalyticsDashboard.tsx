@@ -6,7 +6,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell,
 } from 'recharts'
 import {
-  ArrowLeft, RefreshCw, UserPlus, LogIn, Crown, UserMinus,
+  RefreshCw, UserPlus, LogIn, Crown, UserMinus,
   Trash2, MessageSquare, Star, TrendingDown, TrendingUp,
   Zap, ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle,
 } from 'lucide-react'
@@ -587,12 +587,6 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <button style={{
-              width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer',
-            }}>
-              <ArrowLeft size={15} />
-            </button>
             <div>
               <h1 style={{
                 fontSize: 22, fontWeight: 700, letterSpacing: '-0.4px', color: 'var(--text)',

@@ -6168,9 +6168,14 @@ html.light .rm-outreach-days { color: var(--text-faint); }
     overflow-x: auto; -webkit-overflow-scrolling: touch; border-right: none; border-bottom: 1px solid var(--line);
     padding: 8px 10px; gap: 2px;
   }
-  .app-sidebar-brand, .app-sidebar-glabel, .app-sidebar-foot { display: none; }
+  .app-sidebar-brand, .app-sidebar-glabel, .app-sidebar-workspace { display: none; }
+  /* Keep Settings reachable on phones (it's the only route to sign-out there) */
+  .app-sidebar-foot { display: flex; margin: 0; padding: 0; border: 0; flex-shrink: 0; }
   .app-sidebar-group { display: flex; align-items: center; gap: 4px; margin-bottom: 0; flex-shrink: 0; }
   .app-navitem, .app-navitem-locked { white-space: nowrap; flex-shrink: 0; width: auto; }
+  /* Fade the right edge so it reads as scrollable */
+  .app-sidebar { scrollbar-width: none; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+  .app-sidebar::-webkit-scrollbar { display: none; }
 }
 
 /* ── Growth Path (dashboard): topbar, road-to-500 band, step rail, stage card ── */
@@ -6389,3 +6394,26 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gp-run-msg { margin: 4px 24px 12px; font-size: 13px; line-height: 1.5; }
 .gp-run-msg--info { color: var(--text-dim); background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
 @media (max-width: 760px) { .gp-run-msg { margin: 4px 12px 10px; } }
+
+/* ── Real-phone fixes ── */
+/* iOS Safari zooms the page when a field under 16px is focused, and stays zoomed. */
+@media (max-width: 760px), (pointer: coarse) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]), textarea, select { font-size: 16px !important; }
+}
+@media (max-width: 760px) {
+  /* Module card actions: keep the words ("Analysing…", "Re-analyse") — an icon alone is unclear */
+  .gp-col .level-export-btn, .gp-col .level-reanalyze-btn { padding: 7px 12px; gap: 6px; }
+  .gp-col .level-reanalyze-btn .level-reanalyze-label, .gp-col .level-export-btn .level-export-label { display: inline; }
+  .gp-inset-panel { margin: 12px 12px 0 !important; }
+  .gp-playbook-sub { display: none; }
+}
+/* Inside the app shell the sidebar/nav strip is the navigation: on phones, drop the
+   pre-shell duplicates (second logo bars, Today's mini nav, back links) that push content down. */
+@media (max-width: 760px) {
+  .app-shell-main .shell-dup-header,
+  .app-shell-main .td-nav,
+  .app-shell-main .shell-dup-back,
+  .app-shell-main .gh-back,
+  .app-shell-main .bp-back,
+  .app-shell-main .eh-back { display: none !important; }
+}

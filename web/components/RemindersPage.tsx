@@ -488,7 +488,7 @@ export default function RemindersPage({
 
   return (
     <>
-      <header>
+      <header className="shell-dup-header">
         <div className="md-header-inner">
           <div className="logo" style={{ cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
             <span className="mark"><img src="/growjinlogo.svg" alt="" /></span>
@@ -505,6 +505,7 @@ export default function RemindersPage({
         <div className="st-page-hd" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
             <button
+              className="shell-dup-back"
               onClick={goBack}
               title="Back"
               style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--text)', cursor: 'pointer', flexShrink: 0, marginTop: 4 }}

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import type { JSX } from 'react'
+import { useEffect, type JSX } from 'react'
 
 interface NavItem {
   href: string
@@ -70,6 +70,12 @@ export default function AppSidebar({
   lockedTypes: string[]
 }) {
   const pathname = usePathname()
+
+  // Phones show the nav as a horizontal strip: keep the current page's item in view.
+  useEffect(() => {
+    if (window.innerWidth > 760) return
+    document.querySelector('.app-sidebar .app-navitem.active')?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [pathname])
 
   return (
     <nav className="app-sidebar">

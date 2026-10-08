@@ -244,6 +244,28 @@ Foundation never shows. Every reload started another full run, because
   retried, results applied, the error shown, the playbook appearing after the
   refresh. A real AI run was not exercised (no API key here).
 
+**Real-phone pass (after a tester's "UI isn't proper on phone").** Checked against
+a local DB with a real (mocked-auth) session, not just mock props: login,
+signup, onboarding and every shell page at 390 and 320px.
+- **Settings was unreachable on phones**: it lives in the sidebar footer, which
+  the mobile strip hid, and so did sign-out (the header's Sign out is also
+  hidden on mobile). The footer now shows Settings in the strip.
+- **iOS zoom-on-focus**: fields were 12–15px, and iOS Safari zooms (and stays
+  zoomed) on any field under 16px. Fields are 16px on phones and touch devices.
+- Nav strip: the right edge fades so it reads as scrollable, and the current
+  page's item scrolls into view.
+- Duplicate pre-shell chrome is hidden on phones (Today's mini nav, the second
+  logo bar on Settings/Reminders, "← Back" links). The single-module page and
+  Keyword Tracker keep their headers because those hold real actions.
+- Analytics' back button had no click handler at all; removed.
+- Module card on phones: the buttons keep their labels ("Analysing…",
+  "Re-analyse") instead of a bare icon. The Playbook and competitor-URL panels
+  get phone margins, and the playbook's long subtitle is hidden. It shows
+  "Generating…" while Foundation runs.
+- **Noticed, not changed:** when an AI call fails, the raw SDK error text
+  reaches the user (e.g. "Could not resolve authentication method…"). Worth
+  mapping to a friendly message.
+
 **Known, not fixed (pre-existing):** `middleware.ts`'s matcher doesn't exclude
 `.js` files in `public/`, so for logged-out visitors (i.e. the real /login page)
 `/fb-widget.js` is redirected to `/login` and the HTML is parsed as JS — a
