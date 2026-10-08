@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, type JSX } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 
 interface NavItem {
   href: string
@@ -70,18 +70,55 @@ export default function AppSidebar({
   lockedTypes: string[]
 }) {
   const pathname = usePathname()
+  // Phones: the sidebar becomes a slide-in drawer behind a menu button (desktop ignores this state).
+  const [open, setOpen] = useState(false)
+  const menuBtnRef = useRef<HTMLButtonElement>(null)
+  const closeBtnRef = useRef<HTMLButtonElement>(null)
 
-  // Phones show the nav as a horizontal strip: keep the current page's item in view.
+  // Close when the route changes (a nav item was tapped).
+  useEffect(() => { setOpen(false) }, [pathname])
+
   useEffect(() => {
-    if (window.innerWidth > 760) return
-    document.querySelector('.app-sidebar .app-navitem.active')?.scrollIntoView({ block: 'nearest', inline: 'center' })
-  }, [pathname])
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    closeBtnRef.current?.focus()
+    const menuBtn = menuBtnRef.current
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+      menuBtn?.focus()
+    }
+  }, [open])
+
+  // Tapping the page you're already on doesn't change the route, so close explicitly.
+  const closeOnNav = () => setOpen(false)
 
   return (
-    <nav className="app-sidebar">
+    <>
+    <header className="app-mobilebar">
+      <button
+        ref={menuBtnRef}
+        className="app-mobilebar-btn"
+        onClick={() => setOpen(true)}
+        aria-label="Open menu"
+        aria-expanded={open}
+        aria-controls="app-sidebar"
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
+      <span className="app-mobilebar-brand"><span className="app-sidebar-mark" />GrowJin</span>
+    </header>
+    <div className={`app-drawer-backdrop${open ? ' open' : ''}`} onClick={() => setOpen(false)} aria-hidden="true" />
+    <nav id="app-sidebar" className={`app-sidebar${open ? ' open' : ''}`} aria-label="Main">
       <div className="app-sidebar-brand">
         <span className="app-sidebar-mark" />
         GrowJin
+        <button ref={closeBtnRef} className="app-drawer-close" onClick={() => setOpen(false)} aria-label="Close menu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+        </button>
       </div>
       {NAV.map((group) => (
         <div className="app-sidebar-group" key={group.label}>
@@ -102,7 +139,7 @@ export default function AppSidebar({
               )
             }
             return (
-              <Link href={item.href} className={`app-navitem${active ? ' active' : ''}`} key={item.href}>
+              <Link href={item.href} className={`app-navitem${active ? ' active' : ''}`} key={item.href} onClick={closeOnNav} aria-current={active ? 'page' : undefined}>
                 <NavIcon name={item.icon} />
                 {item.label}
               </Link>
@@ -111,7 +148,7 @@ export default function AppSidebar({
         </div>
       ))}
       <div className="app-sidebar-foot">
-        <Link href="/settings" className={`app-navitem${pathname.startsWith('/settings') ? ' active' : ''}`}>
+        <Link href="/settings" className={`app-navitem${pathname.startsWith('/settings') ? ' active' : ''}`} onClick={closeOnNav}>
           <NavIcon name="gear" />
           Settings
         </Link>
@@ -121,5 +158,6 @@ export default function AppSidebar({
         </div>
       </div>
     </nav>
+    </>
   )
 }

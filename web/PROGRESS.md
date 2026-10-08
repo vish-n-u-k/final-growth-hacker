@@ -266,6 +266,15 @@ signup, onboarding and every shell page at 390 and 320px.
   reaches the user (e.g. "Could not resolve authentication method…"). Worth
   mapping to a friendly message.
 
+**Phone nav → side drawer.** The horizontal scrolling strip felt odd to testers.
+On phones, a slim top bar with a menu button now opens the full sidebar as a
+drawer: same groups and labels, Settings and the workspace. It closes on
+navigation (including tapping the current page), backdrop tap or Escape. Body
+scroll is locked while it's open, and focus goes to Close, then back to the menu
+button. Locked items stay visible but greyed out. Desktop is unchanged.
+Verified with real routing at 390 and 320px (every shell page still has no
+horizontal scroll) and at 1280px.
+
 **Known, not fixed (pre-existing):** `middleware.ts`'s matcher doesn't exclude
 `.js` files in `public/`, so for logged-out visitors (i.e. the real /login page)
 `/fb-widget.js` is redirected to `/login` and the HTML is parsed as JS — a

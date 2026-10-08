@@ -83,9 +83,12 @@ and nothing is locked outside `NEXT_PUBLIC_APP_ENV=production`. A locked nav ite
 renders as non-clickable with a lock icon and a tooltip — see
 `.app-navitem-locked` in `app/globals.css`.
 
-**Mobile (≤760px):** the sidebar becomes a horizontal scrollable strip (icons +
-labels, no wrap, no group labels, workspace footer hidden) instead of stacking —
-see the `@media (max-width: 760px)` block appended to `app/globals.css`.
+**Mobile (≤760px):** a slim top bar (`.app-mobilebar`: menu button + GrowJin)
+opens the sidebar as a slide-in drawer (`.app-sidebar.open` + `.app-drawer-backdrop`)
+with the same groups, labels, Settings and workspace as desktop. It closes on
+navigation, backdrop tap or Escape, and locks body scroll while open. The bar is
+deliberately not sticky, because several pages pin their own headers at `top: 0`.
+(This replaced an earlier horizontal scrolling strip, which testers found odd.)
 
 ## 3. Design tokens (Tier 1 — use these, don't invent new ones)
 
