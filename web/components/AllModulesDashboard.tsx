@@ -2381,7 +2381,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   )}
 
                   {!isLocked && !def.comingSoon && !(modData.type === 'gmail-outreach' && !connectedIntegrations['gmail']) && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={e => e.stopPropagation()}>
+                    <div className="level-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={e => e.stopPropagation()}>
                       {!!effectiveLastAnalyzedAt && modData.type !== 'community-finder' && (
                         <span className="md-info-wrap" style={{ display: 'inline-flex' }}>
                           <button

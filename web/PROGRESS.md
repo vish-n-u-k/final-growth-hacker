@@ -275,6 +275,23 @@ button. Locked items stay visible but greyed out. Desktop is unchanged.
 Verified with real routing at 390 and 320px (every shell page still has no
 horizontal scroll) and at 1280px.
 
+**Logo and chopped words (checked with the real fonts this time).** Earlier
+screenshots used a fallback serif because this sandbox can't reach Google Fonts,
+so text that fit for us overflowed on real phones. The test browser now loads
+Fraunces/Outfit/Geist/Geist Mono from @fontsource and flags any clipped or
+ellipsised text.
+- The sidebar, drawer and phone bar use the real `/growjinlogo.svg` instead of
+  a plain green square.
+- Module card title was cut to "Fo…" on phones: once a module has been analysed
+  it shows Export and Re-analyse, and the title had to share their row. On
+  phones the header is now a grid: score ring and title on row 1, buttons on a
+  full-width row 2.
+- The Playbook panel was inset 20px more than the categories: an old
+  `.level-body > div:first-child { padding: 12px 18px !important }` phone rule
+  was winning. Overridden with a more specific selector.
+- Result: no cut-off text on any shell page, login, signup or onboarding at 320,
+  360, 390, 430, 768 or 1280px with the real fonts.
+
 **Known, not fixed (pre-existing):** `middleware.ts`'s matcher doesn't exclude
 `.js` files in `public/`, so for logged-out visitors (i.e. the real /login page)
 `/fb-widget.js` is redirected to `/login` and the HTML is parsed as JS — a

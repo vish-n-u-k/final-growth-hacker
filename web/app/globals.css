@@ -6137,7 +6137,7 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   display: flex; align-items: center; gap: 9px; padding: 6px 8px 18px;
   font-family: var(--font-display, 'Fraunces', serif); font-weight: 700; font-size: 15px; color: var(--text);
 }
-.app-sidebar-mark { width: 22px; height: 22px; border-radius: 6px; background: var(--green); flex-shrink: 0; }
+.app-sidebar-logo { width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0; display: block; }
 .app-sidebar-group { margin-bottom: 16px; }
 .app-sidebar-glabel {
   font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
@@ -6429,7 +6429,7 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   /* Module card actions: keep the words ("Analysing…", "Re-analyse") — an icon alone is unclear */
   .gp-col .level-export-btn, .gp-col .level-reanalyze-btn { padding: 7px 12px; gap: 6px; }
   .gp-col .level-reanalyze-btn .level-reanalyze-label, .gp-col .level-export-btn .level-export-label { display: inline; }
-  .gp-inset-panel { margin: 12px 12px 0 !important; }
+  .gp-col .level-body > .gp-inset-panel { margin: 12px 12px 8px !important; padding: 0 !important; }
   .gp-playbook-sub { display: none; }
 }
 /* Inside the app shell the sidebar/nav strip is the navigation: on phones, drop the
@@ -6441,4 +6441,17 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   .app-shell-main .gh-back,
   .app-shell-main .bp-back,
   .app-shell-main .eh-back { display: none !important; }
+}
+
+/* Module card header on phones: the title gets the full row next to the score ring,
+   and the actions (Export / Re-analyse) drop to their own row — sharing one row
+   squeezed long names like "Foundation" down to a couple of letters. */
+@media (max-width: 760px) {
+  .gp-col .level-head { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; row-gap: 12px; align-items: center; }
+  .gp-col .level-head > .level-prog { display: none !important; }
+  .gp-col .level-head > .level-actions { grid-column: 1 / -1; }
+  .gp-col .level-head > .level-actions > * { flex: 1 1 0; }
+  .gp-col .level-head > .level-actions .level-export-btn,
+  .gp-col .level-head > .level-actions .level-reanalyze-btn { width: 100%; justify-content: center; }
+  .gp-col .level-info .name { overflow-wrap: break-word; }
 }
