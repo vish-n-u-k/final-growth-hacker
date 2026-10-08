@@ -6347,3 +6347,41 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   .gp-phase-top { font-size: 12.5px; }
   .gp-col .level-info .name { font-size: 16px; }
 }
+
+/* ── Small-screen fixes for the Work/Insights pages ── */
+/* Outreach (GmailHub): connect screen + stat row */
+@media (max-width: 1000px) {
+  .gh-connect-outer { grid-template-columns: minmax(0, 1fr); gap: 28px; padding: 28px 0 56px; }
+  .gh-connect-right { position: static; max-width: 520px; width: 100%; }
+  .gh-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .gh-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .gh-stat { padding: 14px 16px; }
+  .gh-scope-row { flex-wrap: wrap; row-gap: 2px; }
+  .gh-scope-reason { flex-basis: 100%; padding-left: 18px; }
+}
+/* Reminders: title on its own line, badge/due/menu below */
+@media (max-width: 480px) {
+  .rm-card-row { flex-wrap: wrap; row-gap: 6px; }
+  .rm-card-row > .rm-card-title { white-space: normal; flex-basis: calc(100% - 44px); }
+  .rm-card-title + .rm-cat-badge { margin-left: 34px; }
+}
+/* Analytics: fixed 4/3/2-column grids collapse */
+@media (max-width: 1000px) {
+  .an-g4 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .an-g3 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 760px) {
+  .an-page { padding: 20px 16px !important; }
+  .an-g2 { grid-template-columns: minmax(0, 1fr) !important; }
+}
+@media (max-width: 760px) {
+  .gh-tabs { overflow-x: auto; scrollbar-width: none; max-width: 100%; }
+  .gh-tabs::-webkit-scrollbar { display: none; }
+  .gh-tab { white-space: nowrap; flex-shrink: 0; margin-bottom: 0; }
+  .an-g4 > div > div:first-child, .an-g3 > div > div:first-child { flex-wrap: wrap; gap: 6px; }
+}
+@media (max-width: 360px) {
+  .an-g4 > div, .an-g3 > div { padding: 16px !important; }
+}

@@ -187,6 +187,25 @@ No horizontal overflow anywhere. Fixes:
 On phones, Sign out is hidden from the topbar, but it's still reachable via
 Settings in the nav strip.
 
+**Mobile pass: Work/Insights pages.** I rendered Today, Outreach (connected and
+not connected), Social Studio, Lead Finder, Reminders, Analytics, Settings
+(including the integrations tab) and Meta Ads with mock data at 320, 360, 390,
+430, 768 and 1024px. None of them scroll sideways any more. Fixes:
+- **Outreach**: the connect screen's 2-column layout (1fr + 460px) now stacks
+  below 1000px, so the preview no longer runs ~430px off-screen. The stat row
+  is 3 columns on tablets and 2 on phones (it was 5 squashed columns). The
+  Gmail-permission rows wrap, and the tab bar scrolls sideways.
+- **Reminders**: the header buttons wrap, so "+ Add" isn't pushed off-screen.
+  On phones, each card's title gets its own line instead of being cut to
+  "Review your p…".
+- **Analytics**: the fixed 4/3/2-column inline grids (now `.an-g4/.an-g3/.an-g2`)
+  become 2 columns below 1000px, and the 2-column grids become 1 column on
+  phones. The header wraps, and badges in the card headers wrap.
+- Today, Social Studio, Lead Finder, Settings and Meta Ads already worked.
+  Not changed.
+Caveat: lists that load data client-side (Outreach inbox, Lead Finder results)
+were checked with an empty or error state, not with real rows.
+
 **Known, not fixed (pre-existing):** `middleware.ts`'s matcher doesn't exclude
 `.js` files in `public/`, so for logged-out visitors (i.e. the real /login page)
 `/fb-widget.js` is redirected to `/login` and the HTML is parsed as JS — a
