@@ -123,6 +123,42 @@ the mockup's own radii (9-16px) and were left alone. Changed:
   pure-CSS value changes (no JSX/logic touched), but check it in a browser
   before trusting it.
 
+## Growth Path redesign (dashboard) — rendered and checked this time
+
+`components/AllModulesDashboard.tsx` now follows the mockup's layout. Logic
+(scoring, lock rule, analyse/export/fix flows, every module's inner content) is
+untouched — the change is the page structure around it:
+- **Topbar** (Growth Path / "Step N of M — Module") replaces the old standalone
+  header; its logo, Tools and Settings buttons were redundant with the sidebar.
+  Theme toggle, Notes and Sign out stay here (the sidebar has none of them).
+- **Road-to-500 band** replaces the hero + old milestone bar. Uses the Business
+  Stage module's own ranges (0–10 / 10–50 / 50–100 / 100–250 / 250–500) so the
+  band and the stage playbook agree. PostHog-disconnected state keeps its
+  Connect / See-what-we-track actions.
+- **Step rail** + **one module at a time**: the accordion of every module is gone;
+  the rail picks which module card shows. Defaults to the first unlocked module
+  under 80%. An unlock bar above the card mirrors the real lock rule (it only
+  says "unlocks X" when X actually depends on this step — the first three
+  modules never gate each other).
+- **Growth Stage card** (sticky, right): classification + concern from the
+  Business Stage module, with "View full playbook". This also fixes a gap — the
+  playbook modal was previously only reachable while PostHog was *disconnected*.
+- **Removed:** the hardcoded "Projected MRR $9.5K ($19 × 500)" box. It showed a
+  fixed number with a tooltip claiming it was "sourced from your website" — it
+  wasn't. Bring it back only if it's wired to real pricing data.
+- Sidebar now has the mockup's icons. Fixed two bugs found once this could be
+  rendered: the mobile nav strip overlapped its own items (nav items inherited
+  `width: 100%`), and unconnected social icons were white boxes in dark mode
+  (light-only colors hardcoded).
+- **Verified:** `tsc` clean; rendered with mock data in light, dark, mobile
+  (390px), PostHog disconnected, a locked step selected, and the playbook modal.
+  Not verified against real DB data.
+
+**Known, not fixed (pre-existing):** `middleware.ts`'s matcher doesn't exclude
+`.js` files in `public/`, so for logged-out visitors (i.e. the real /login page)
+`/fb-widget.js` is redirected to `/login` and the HTML is parsed as JS — a
+console error on the login/signup pages.
+
 ## Not done yet (next up)
 
 - [ ] Nothing currently queued for the Growth Path page — both items above turned

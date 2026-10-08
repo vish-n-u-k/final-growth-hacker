@@ -131,10 +131,10 @@ Shell-specific classes already in `app/globals.css`: `.app-shell`,
 
 ## 4. Page-by-page (mix of built, partially built, and pending — see PROGRESS.md)
 
-**Growth Path** (`/dashboard`, `components/AllModulesDashboard.tsx`) — real,
-already fully built, including a live PostHog-wired "0→500 users" journey bar
-(`userCount`, `JOURNEY_MILESTONES`, `/api/posthog/user-count`) — just wrapped in
-the new shell. **Correction**: an earlier draft of this spec said the journey
+**Growth Path** (`/dashboard`, `components/AllModulesDashboard.tsx`) — **redesigned
+to the mockup's layout**: topbar, road-to-500 band (Business Stage ranges, live
+PostHog count), step rail with one module card at a time, unlock bar, sticky
+Growth Stage card. See PROGRESS.md "Growth Path redesign" for details. **Correction**: an earlier draft of this spec said the journey
 band and a 10-step rail trim were still pending. Both of those were mistakes —
 the journey band already existed before this redesign, and trimming
 Outreach/Meta Ads out of the rail would break their real unlock-chain gating

@@ -2,10 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import type { JSX } from 'react'
 
 interface NavItem {
   href: string
   label: string
+  icon: string
   lockedType?: 'gmail-outreach' | 'meta-ads'
 }
 
@@ -16,20 +18,40 @@ interface NavGroup {
 
 const NAV: NavGroup[] = [
   { label: 'Grow', items: [
-    { href: '/dashboard', label: 'Growth Path' },
-    { href: '/today', label: 'Today' },
+    { href: '/dashboard', label: 'Growth Path', icon: 'path' },
+    { href: '/today', label: 'Today', icon: 'sun' },
   ]},
   { label: 'Work', items: [
-    { href: '/gmail-hub', label: 'Outreach', lockedType: 'gmail-outreach' },
-    { href: '/social', label: 'Social Studio' },
-    { href: '/dashboard/meta-ads/blueprint', label: 'Meta Ads', lockedType: 'meta-ads' },
-    { href: '/lead-finder', label: 'Lead Finder' },
-    { href: '/reminders', label: 'Reminders' },
+    { href: '/gmail-hub', label: 'Outreach', icon: 'mail', lockedType: 'gmail-outreach' },
+    { href: '/social', label: 'Social Studio', icon: 'image' },
+    { href: '/dashboard/meta-ads/blueprint', label: 'Meta Ads', icon: 'megaphone', lockedType: 'meta-ads' },
+    { href: '/lead-finder', label: 'Lead Finder', icon: 'target' },
+    { href: '/reminders', label: 'Reminders', icon: 'bell' },
   ]},
   { label: 'Insights', items: [
-    { href: '/analytics', label: 'Analytics' },
+    { href: '/analytics', label: 'Analytics', icon: 'chart' },
   ]},
 ]
+
+const ICON: Record<string, JSX.Element> = {
+  path: <path d="M6 16h4a4 4 0 0 0 4-4V8a4 4 0 0 1 4-4M4 18a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM16 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />,
+  sun: <><circle cx="10" cy="10" r="3.2" /><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.8 4.8l1.4 1.4M13.8 13.8l1.4 1.4M4.8 15.2l1.4-1.4M13.8 6.2l1.4-1.4" /></>,
+  mail: <><rect x="2.5" y="4.5" width="15" height="11" rx="2" /><path d="M3.5 6l6.5 5 6.5-5" /></>,
+  image: <><rect x="2.5" y="3.5" width="15" height="13" rx="2" /><circle cx="7" cy="8" r="1.4" /><path d="M4 14l3.5-3.5L10 13l3-3.5 3 3.5" /></>,
+  megaphone: <><path d="M3 8v4h2.5L13 16V4L5.5 8H3Z" /><path d="M15.5 8.3a2.6 2.6 0 0 1 0 3.4" /></>,
+  target: <><circle cx="10" cy="10" r="7" /><circle cx="10" cy="10" r="3.4" /></>,
+  bell: <><path d="M6 7.5a4 4 0 0 1 8 0c0 3.5 1.2 4.7 1.5 5.3H4.5C4.8 12.2 6 11 6 7.5Z" /><path d="M8.3 15.5a1.8 1.8 0 0 0 3.4 0" /></>,
+  chart: <path d="M3 16.5h14M5.8 16.5v-5M10 16.5v-9M14.2 16.5V4.5" />,
+  gear: <><circle cx="10" cy="10" r="2.6" /><path d="M10 3v2M10 15v2M17 10h-2M5 10H3M14.9 5.1l-1.4 1.4M6.5 13.5l-1.4 1.4M14.9 14.9l-1.4-1.4M6.5 6.5L5.1 5.1" /></>,
+}
+
+function NavIcon({ name }: { name: string }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      {ICON[name]}
+    </svg>
+  )
+}
 
 // Growth Path owns every /dashboard/* route except the ones other nav items claim
 // for themselves (Meta Ads lives under /dashboard/meta-ads).
@@ -64,6 +86,7 @@ export default function AppSidebar({
             if (locked) {
               return (
                 <span className="app-navitem app-navitem-locked" key={item.href} title="Locked until the module before it is further along">
+                  <NavIcon name={item.icon} />
                   {item.label}
                   <svg width="13" height="13" viewBox="0 0 20 20" fill="none" style={{ marginLeft: 'auto', flexShrink: 0 }}>
                     <rect x="4.5" y="9" width="11" height="8" rx="1.6" stroke="currentColor" strokeWidth="1.6"/>
@@ -74,6 +97,7 @@ export default function AppSidebar({
             }
             return (
               <Link href={item.href} className={`app-navitem${active ? ' active' : ''}`} key={item.href}>
+                <NavIcon name={item.icon} />
                 {item.label}
               </Link>
             )
@@ -82,6 +106,7 @@ export default function AppSidebar({
       ))}
       <div className="app-sidebar-foot">
         <Link href="/settings" className={`app-navitem${pathname.startsWith('/settings') ? ' active' : ''}`}>
+          <NavIcon name="gear" />
           Settings
         </Link>
         <div className="app-sidebar-workspace">
