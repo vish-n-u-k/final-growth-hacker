@@ -154,6 +154,16 @@ untouched — the change is the page structure around it:
   (390px), PostHog disconnected, a locked step selected, and the playbook modal.
   Not verified against real DB data.
 
+**Polish pass (follow-up).** Topbar now lines up with the content column. The
+step rail is a bordered card with a "N of M modules complete" summary, and it
+auto-scrolls the selected step into view. The module card is lighter: no
+double accent stripe, no dead chevron, a tighter header, and category rows with
+a neutral border (green when open). Social icons are smaller. The footnote is
+left-aligned under the column. On mobile, the stray divider in the website/social
+row is hidden. All styles are scoped under `.gp-*` in the "Growth Path polish"
+block of `app/globals.css`, because other pages reuse `.level` / `.md-cat`.
+Re-rendered in light, dark and 390px; `tsc` clean.
+
 **Known, not fixed (pre-existing):** `middleware.ts`'s matcher doesn't exclude
 `.js` files in `public/`, so for logged-out visitors (i.e. the real /login page)
 `/fb-widget.js` is redirected to `/login` and the HTML is parsed as JS — a

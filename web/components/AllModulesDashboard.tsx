@@ -489,6 +489,15 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const selectedModule = railModules.find(m => openModules.has(m.id)) ?? currentStep
   const selectedIdx = selectedModule ? railModules.indexOf(selectedModule) : -1
   const currentIdx = currentStep ? railModules.indexOf(currentStep) : -1
+  const railDoneCount = railModules.filter(m => !isModuleLocked(m) && (liveScores[m.id] ?? 0) >= 80).length
+
+  const railRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const wrap = railRef.current
+    const el = wrap?.querySelector<HTMLElement>('.gp-step--selected')
+    if (!wrap || !el) return
+    wrap.scrollTo({ left: el.offsetLeft - wrap.clientWidth / 2 + el.offsetWidth / 2, behavior: 'smooth' })
+  }, [selectedModule?.id])
 
   const currentPhaseIdx = Math.max(0, JOURNEY_PHASES.findIndex(p => userCount < p.max))
   const currentPhase = JOURNEY_PHASES[currentPhaseIdx]
@@ -2081,8 +2090,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         })()}
 
         {/* Module step rail */}
-        <div className="gp-rail-wrap">
-          <div className="gp-rail" style={{ minWidth: `${railModules.length * 68}px` }}>
+        <div className="gp-rail-head">
+          <span className="gp-eyebrow">Your growth path</span>
+          <span className="gp-rail-summary"><b>{railDoneCount}</b> of {railModules.length} modules complete</span>
+        </div>
+        <div className="gp-rail-wrap" ref={railRef}>
+          <div className="gp-rail" style={{ minWidth: `${railModules.length * 92}px` }}>
             <div className="gp-rail-track" style={{ left: `calc(100% / ${railModules.length * 2})`, right: `calc(100% / ${railModules.length * 2})` }} />
             <div
               className="gp-rail-fill"

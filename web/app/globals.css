@@ -6262,3 +6262,58 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   .gp-band { flex: 1 1 30%; height: 46px; }
   .gp-band-name { font-size: 9.5px; }
 }
+
+/* ── Growth Path polish (scoped: other pages reuse .level / .md-cat) ── */
+/* Align the topbar with the centered content column below it. */
+.gp-topbar { padding-left: max(32px, calc((100% - 1140px) / 2 + 36px)); padding-right: max(32px, calc((100% - 1140px) / 2 + 36px)); }
+.gp-wrap { padding-bottom: 40px; }
+
+/* Website + social profiles: a quiet row, not a toolbar. */
+.gp-meta { margin: 0 0 14px; gap: 8px; }
+.gp-meta .hero-social-icon { width: 28px; height: 28px; border-radius: 8px; }
+.gp-meta .hero-social-icon svg { width: 14px; height: 14px; }
+.gp-meta .hero-website-url { font-size: 12.5px; }
+
+/* Step rail */
+.gp-rail-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.gp-rail-head .gp-eyebrow { margin: 0; }
+.gp-rail-summary { font-size: 12px; color: var(--text-faint); }
+.gp-rail-summary b { color: var(--text); font-family: 'Geist Mono', monospace; }
+.gp-rail-wrap {
+  border: 1px solid var(--line); border-radius: 14px; background: var(--card);
+  padding: 16px 8px 14px; margin-bottom: 22px; scrollbar-width: thin;
+}
+.gp-rail-track, .gp-rail-fill { top: 15px; }
+.gp-step { padding-top: 0; }
+.gp-step-dot { width: 30px; height: 30px; font-size: 11px; }
+.gp-step-label { max-width: 84px; font-size: 11.5px; }
+
+/* Module card: one calm surface, status carried by the % and bar colors. */
+.gp-col .levels { gap: 0; padding-bottom: 8px; }
+.gp-col .level { padding: 0; border-radius: 16px; box-shadow: 0 1px 2px #0000000a, 0 8px 24px -16px #00000033; }
+.gp-col .level.locked { opacity: .7; }
+.gp-col .level-head { padding: 20px 24px; gap: 16px; cursor: default; }
+.gp-col .level-head .chev { display: none; }
+.gp-col .level-badge { width: 54px; height: 54px; }
+.gp-col .level-info .name { font-family: var(--font-display, 'Fraunces', serif); font-size: 19px; }
+.gp-col .level-info .focus { font-size: 13.5px; font-style: normal; color: var(--text-dim); }
+.gp-col .md-cats { gap: 8px; padding: 4px 20px 22px; }
+.gp-col .md-cat { border-radius: 12px; border-left-width: 1px !important; border-left-color: var(--line) !important; }
+.gp-col .md-cat-open { border-color: var(--green) !important; }
+.gp-col .md-cat-hd { padding: 14px 18px; }
+.gp-col .md-cat-hd-name { font-size: 14.5px; }
+.gp-col .md-cat-hd-count { font-size: 11px; padding: 2px 8px; border-radius: 99px; }
+
+/* Unlock bar sits on the card as its header strip. */
+.gp-unlock { border-radius: 14px; margin-bottom: 10px; }
+
+@media (max-width: 760px) {
+  .gp-topbar { padding-left: 16px; padding-right: 16px; }
+  .gp-col .level-head { padding: 16px; flex-wrap: wrap; }
+  .gp-col .md-cats { padding: 4px 12px 16px; }
+  .gp-col .md-cat-hd { padding: 12px 14px; }
+}
+.gp-wrap .foot-note { text-align: left; margin-top: 18px; }
+@media (max-width: 760px) {
+  .gp-meta .hero-meta-divider { display: none; }
+}
