@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleCategories, moduleItems, modulePageAudit, brandIntegrations } from '@/lib/db/schema'
+import { claimRun, finishRun, getRun, isStale, failStaleRun, STALE_RUN_ERROR } from '@/lib/modules/runs'
 import { getCompetitorUrlsString, storeCompetitors } from '@/lib/modules/competitor-registry'
 import { eq, and } from 'drizzle-orm'
 import { MODULE_MAP } from '@/lib/modules/registry'
@@ -43,7 +44,7 @@ import { analyzeEmailMarketing } from '@/lib/modules/email-marketing/agent'
 import { fetchAudienceDiscoveryData } from '@/lib/modules/audience-discovery/fetcher'
 import { analyzeAudienceDiscovery } from '@/lib/modules/audience-discovery/agent'
 import { generatePlaybook, type PlaybookData } from '@/lib/playbook/generator'
-import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition, ModuleItemDefinition } from '@/lib/modules/types'
+import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition, ModuleItemDefinition, ModuleDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
 
 // Derive export type from static item definition (saves adding to every definition file)
@@ -255,8 +256,52 @@ export async function POST(request: NextRequest) {
   const def = MODULE_MAP[mod.type]
   if (!def) return NextResponse.json({ error: 'Unknown module type' }, { status: 400 })
 
-  await db.update(modules).set({ status: 'analyzing' }).where(eq(modules.id, moduleId))
+  const background = (body as { background?: boolean }).background === true
 
+  // Only one analysis per module at a time — reloads and second devices join the live run.
+  const { claimed, runId } = await claimRun(moduleId)
+  if (!claimed) {
+    if (background) return NextResponse.json({ running: true, runId }, { status: 202 })
+    return NextResponse.json({ error: 'An analysis is already running for this module. Results will appear when it finishes.' }, { status: 409 })
+  }
+
+  const job = () => runTracked(() => executeAnalysis(mod, brand, def, moduleId), moduleId, runId)
+  if (background) {
+    // Respond immediately; the work continues after the response (bounded by maxDuration).
+    // The dashboard polls GET ?moduleId=…&runId=… for the outcome, so a dropped connection
+    // (phone locked, flaky network) no longer loses the result.
+    after(async () => { await job() })
+    return NextResponse.json({ running: true, runId }, { status: 202 })
+  }
+  return job()
+}
+
+// Records the run's outcome; any unexpected throw releases the module instead of leaving it 'analyzing'.
+async function runTracked(work: () => Promise<Response>, moduleId: string, runId: string | null): Promise<Response> {
+  try {
+    const res = await work()
+    let error: string | null = null
+    if (!res.ok) {
+      const data = await res.clone().json().catch(() => ({})) as { error?: string }
+      error = data.error ?? 'Analysis failed. Please try again.'
+    }
+    await finishRun(runId, error)
+    return res
+  } catch (err) {
+    console.error('[analyze] unexpected failure:', err)
+    const error = 'Analysis failed. Please try again.'
+    await db.update(modules).set({ status: 'pending' }).where(eq(modules.id, moduleId)).catch(() => {})
+    await finishRun(runId, error)
+    return NextResponse.json({ error }, { status: 500 })
+  }
+}
+
+async function executeAnalysis(
+  mod: typeof modules.$inferSelect,
+  brand: typeof brands.$inferSelect,
+  def: ModuleDefinition,
+  moduleId: string,
+): Promise<Response> {
   // Get relevant brain context to inject into this module's agent (skip for User Acquisition — runs first, no prior context)
   let brainCtx: string | undefined
   if (def.order > 0) {
@@ -354,87 +399,90 @@ Key One-Liners: ${pb.keyOneLiners}`
     const existingItems = await db.select().from(moduleItems).where(eq(moduleItems.moduleId, moduleId))
     const userCheckedSlugs = new Set(existingItems.filter(i => i.userChecked).map(i => i.slug))
 
-    if (existingItems.length > 0) {
-      await db.delete(moduleItems).where(eq(moduleItems.moduleId, moduleId))
-    }
-
-    // Build category slug → id map
-    let cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
-    let catMap = new Map(cats.filter(c => !c.parentId).map(c => [c.slug, c.id]))
-
-    // If categories weren't seeded at onboarding (module added to registry after user onboarded), seed them now
-    if (catMap.size === 0) {
-      for (const cat of def.categories) {
-        // eslint-disable-next-line no-await-in-loop
-        await db.insert(moduleCategories).values({
-          moduleId,
-          parentId: null,
-          slug: cat.slug,
-          label: cat.label,
-          order: cat.order,
-        }).onConflictDoNothing()
+    // Replace findings: one transaction, so a page load never sees the module half-written.
+    await db.transaction(async (tx) => {
+      if (existingItems.length > 0) {
+        await tx.delete(moduleItems).where(eq(moduleItems.moduleId, moduleId))
       }
-      cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
-      catMap = new Map(cats.filter(c => !c.parentId).map(c => [c.slug, c.id]))
-    }
 
-    // Insert findings into module_items
-    await Promise.all(
-      findings.map(r => {
-        const categoryId = catMap.get(r.category)
-        if (!categoryId) return Promise.resolve()
-        const wasChecked = userCheckedSlugs.has(r.slug)
-        const isCalendar = r.slug === 'content-calendar-30-day'
-        return db.insert(moduleItems).values({
-          moduleId,
-          categoryId,
-          slug: r.slug,
-          label: r.label,
-          weight: r.weight,
-          aiDetail: r.detail,
-          aiHighlight: r.highlight ?? null,
-          aiNarrative: r.narrative,
-          aiAction: r.action,
-          aiData: isCalendar && calendarData ? calendarData : null,
-          aiVerified: r.verified,
-          aiVerifiedAt: r.verified ? new Date() : null,
-          userChecked: wasChecked,
-          userCheckedAt: wasChecked ? new Date() : null,
-          completedBy: r.verified ? 'ai' : wasChecked ? 'user' : null,
-          fixable: false,
-          updatedAt: new Date(),
-        })
-      }),
-    )
+      // Build category slug → id map
+      let cats = await tx.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+      let catMap = new Map(cats.filter(c => !c.parentId).map(c => [c.slug, c.id]))
 
-    // Re-insert user_checked items Claude didn't return — keep them visible in checklist as completed
-    const returnedSlugsCa = new Set(findings.map((r) => r.slug))
-    const orphansCa = existingItems.filter((i) => i.userChecked && !returnedSlugsCa.has(i.slug))
-    if (orphansCa.length > 0) {
+      // If categories weren't seeded at onboarding (module added to registry after user onboarded), seed them now
+      if (catMap.size === 0) {
+        for (const cat of def.categories) {
+          // eslint-disable-next-line no-await-in-loop
+          await tx.insert(moduleCategories).values({
+            moduleId,
+            parentId: null,
+            slug: cat.slug,
+            label: cat.label,
+            order: cat.order,
+          }).onConflictDoNothing()
+        }
+        cats = await tx.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+        catMap = new Map(cats.filter(c => !c.parentId).map(c => [c.slug, c.id]))
+      }
+
+      // Insert findings into module_items
       await Promise.all(
-        orphansCa.map((i) =>
-          db.insert(moduleItems).values({
-            moduleId: i.moduleId,
-            categoryId: i.categoryId,
-            slug: i.slug,
-            label: i.label,
-            weight: i.weight,
-            aiDetail: i.aiDetail,
-            aiHighlight: i.aiHighlight,
-            aiNarrative: i.aiNarrative,
-            aiAction: i.aiAction,
-            aiData: i.aiData,
-            aiVerified: i.aiVerified,
-            aiVerifiedAt: i.aiVerifiedAt,
-            userChecked: true,
-            userCheckedAt: i.userCheckedAt,
-            completedBy: i.completedBy,
-            fixable: i.fixable,
+        findings.map(r => {
+          const categoryId = catMap.get(r.category)
+          if (!categoryId) return Promise.resolve()
+          const wasChecked = userCheckedSlugs.has(r.slug)
+          const isCalendar = r.slug === 'content-calendar-30-day'
+          return tx.insert(moduleItems).values({
+            moduleId,
+            categoryId,
+            slug: r.slug,
+            label: r.label,
+            weight: r.weight,
+            aiDetail: r.detail,
+            aiHighlight: r.highlight ?? null,
+            aiNarrative: r.narrative,
+            aiAction: r.action,
+            aiData: isCalendar && calendarData ? calendarData : null,
+            aiVerified: r.verified,
+            aiVerifiedAt: r.verified ? new Date() : null,
+            userChecked: wasChecked,
+            userCheckedAt: wasChecked ? new Date() : null,
+            completedBy: r.verified ? 'ai' : wasChecked ? 'user' : null,
+            fixable: false,
             updatedAt: new Date(),
-          }).onConflictDoNothing(),
-        ),
+          })
+        }),
       )
-    }
+
+      // Re-insert user_checked items Claude didn't return — keep them visible in checklist as completed
+      const returnedSlugsCa = new Set(findings.map((r) => r.slug))
+      const orphansCa = existingItems.filter((i) => i.userChecked && !returnedSlugsCa.has(i.slug))
+      if (orphansCa.length > 0) {
+        await Promise.all(
+          orphansCa.map((i) =>
+            tx.insert(moduleItems).values({
+              moduleId: i.moduleId,
+              categoryId: i.categoryId,
+              slug: i.slug,
+              label: i.label,
+              weight: i.weight,
+              aiDetail: i.aiDetail,
+              aiHighlight: i.aiHighlight,
+              aiNarrative: i.aiNarrative,
+              aiAction: i.aiAction,
+              aiData: i.aiData,
+              aiVerified: i.aiVerified,
+              aiVerifiedAt: i.aiVerifiedAt,
+              userChecked: true,
+              userCheckedAt: i.userCheckedAt,
+              completedBy: i.completedBy,
+              fixable: i.fixable,
+              updatedAt: new Date(),
+            }).onConflictDoNothing(),
+          ),
+        )
+      }
+    })
 
     // Upsert page verdicts — wipe old, insert new
     await db.delete(modulePageAudit).where(eq(modulePageAudit.moduleId, moduleId))
@@ -632,94 +680,97 @@ Key One-Liners: ${pb.keyOneLiners}`
       existingItems.filter((i) => i.userChecked).map((i) => [normalizeLabel(i.label ?? ''), i]),
     )
 
-    // Delete all existing items for this module (fresh slate from Claude)
-    if (existingItems.length > 0) {
-      await db.delete(moduleItems).where(eq(moduleItems.moduleId, moduleId))
-    }
-
-    // Get or create categories for this module
-    let cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
-    const existingCatSlugs = new Set(cats.filter((c) => !c.parentId).map((c) => c.slug))
-
-    // If new categories in definition don't exist in DB, create them
-    if (def.categories) {
-      const missingCats = (def.categories as ModuleCategoryDefinition[]).filter((cat) => !existingCatSlugs.has(cat.slug))
-      if (missingCats.length > 0) {
-        const catInserts = missingCats.map((cat) => ({
-          moduleId,
-          slug: cat.slug,
-          label: cat.label,
-          order: cat.order ?? 0,
-          parentId: null as string | null,
-        }))
-        await db.insert(moduleCategories).values(catInserts)
-        cats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+    // Replace items: one transaction, so a page load never sees the module half-written.
+    await db.transaction(async (tx) => {
+      // Delete all existing items for this module (fresh slate from Claude)
+      if (existingItems.length > 0) {
+        await tx.delete(moduleItems).where(eq(moduleItems.moduleId, moduleId))
       }
-    }
 
-    const catMap = new Map(cats.filter((c) => !c.parentId).map((c) => [c.slug, c.id]))
+      // Get or create categories for this module
+      let cats = await tx.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+      const existingCatSlugs = new Set(cats.filter((c) => !c.parentId).map((c) => c.slug))
 
-    // Insert fresh items from Claude, restoring user_checked where slug OR label matches
-    await Promise.all(
-      dynamicResults.map((r) => {
-        const categoryId = catMap.get(r.category)
-        if (!categoryId) return Promise.resolve()
-        const wasChecked = userCheckedSlugs.has(r.slug) || checkedByLabel.has(normalizeLabel(r.label))
-        return db.insert(moduleItems).values({
-          moduleId,
-          categoryId,
-          slug: r.slug,
-          label: r.label,
-          weight: r.weight,
-          aiDetail: r.detail,
-          aiHighlight: (r as DynamicModuleAnalysisResult).highlight ?? null,
-          aiNarrative: r.narrative,
-          aiAction: r.action,
-          aiData: (r as DynamicModuleAnalysisResult).aiData ?? null,
-          aiVerified: r.verified,
-          aiVerifiedAt: r.verified ? new Date() : null,
-          userChecked: wasChecked,
-          userCheckedAt: wasChecked ? new Date() : null,
-          completedBy: r.verified ? 'ai' : wasChecked ? 'user' : null,
-          fixable: (r as DynamicModuleAnalysisResult).fixable ?? false,
-          exportType: (r as DynamicModuleAnalysisResult).exportType ?? null,
-          choiceOptions: (r as DynamicModuleAnalysisResult).choiceOptions ?? null,
-          updatedAt: new Date(),
-        })
-      }),
-    )
+      // If new categories in definition don't exist in DB, create them
+      if (def.categories) {
+        const missingCats = (def.categories as ModuleCategoryDefinition[]).filter((cat) => !existingCatSlugs.has(cat.slug))
+        if (missingCats.length > 0) {
+          const catInserts = missingCats.map((cat) => ({
+            moduleId,
+            slug: cat.slug,
+            label: cat.label,
+            order: cat.order ?? 0,
+            parentId: null as string | null,
+          }))
+          await tx.insert(moduleCategories).values(catInserts)
+          cats = await tx.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+        }
+      }
 
-    // Re-insert user_checked items Claude didn't return — keep them visible in checklist as completed
-    const returnedSlugs = new Set(dynamicResults.map((r) => r.slug))
-    const returnedLabels = new Set(dynamicResults.map((r) => normalizeLabel(r.label)))
-    // Exclude orphans whose label already appears in Claude's output (label-matched → userChecked restored above)
-    const completedOrphans = existingItems.filter(
-      (i) => i.userChecked && !returnedSlugs.has(i.slug) && !returnedLabels.has(normalizeLabel(i.label ?? '')),
-    )
-    if (completedOrphans.length > 0) {
+      const catMap = new Map(cats.filter((c) => !c.parentId).map((c) => [c.slug, c.id]))
+
+      // Insert fresh items from Claude, restoring user_checked where slug OR label matches
       await Promise.all(
-        completedOrphans.map((i) =>
-          db.insert(moduleItems).values({
-            moduleId: i.moduleId,
-            categoryId: i.categoryId,
-            slug: i.slug,
-            label: i.label,
-            weight: i.weight,
-            aiDetail: i.aiDetail,
-            aiHighlight: i.aiHighlight,
-            aiNarrative: i.aiNarrative,
-            aiAction: i.aiAction,
-            aiVerified: i.aiVerified,
-            aiVerifiedAt: i.aiVerifiedAt,
-            userChecked: true,
-            userCheckedAt: i.userCheckedAt,
-            completedBy: i.completedBy,
-            fixable: i.fixable,
+        dynamicResults.map((r) => {
+          const categoryId = catMap.get(r.category)
+          if (!categoryId) return Promise.resolve()
+          const wasChecked = userCheckedSlugs.has(r.slug) || checkedByLabel.has(normalizeLabel(r.label))
+          return tx.insert(moduleItems).values({
+            moduleId,
+            categoryId,
+            slug: r.slug,
+            label: r.label,
+            weight: r.weight,
+            aiDetail: r.detail,
+            aiHighlight: (r as DynamicModuleAnalysisResult).highlight ?? null,
+            aiNarrative: r.narrative,
+            aiAction: r.action,
+            aiData: (r as DynamicModuleAnalysisResult).aiData ?? null,
+            aiVerified: r.verified,
+            aiVerifiedAt: r.verified ? new Date() : null,
+            userChecked: wasChecked,
+            userCheckedAt: wasChecked ? new Date() : null,
+            completedBy: r.verified ? 'ai' : wasChecked ? 'user' : null,
+            fixable: (r as DynamicModuleAnalysisResult).fixable ?? false,
+            exportType: (r as DynamicModuleAnalysisResult).exportType ?? null,
+            choiceOptions: (r as DynamicModuleAnalysisResult).choiceOptions ?? null,
             updatedAt: new Date(),
-          }).onConflictDoNothing(),
-        ),
+          })
+        }),
       )
-    }
+
+      // Re-insert user_checked items Claude didn't return — keep them visible in checklist as completed
+      const returnedSlugs = new Set(dynamicResults.map((r) => r.slug))
+      const returnedLabels = new Set(dynamicResults.map((r) => normalizeLabel(r.label)))
+      // Exclude orphans whose label already appears in Claude's output (label-matched → userChecked restored above)
+      const completedOrphans = existingItems.filter(
+        (i) => i.userChecked && !returnedSlugs.has(i.slug) && !returnedLabels.has(normalizeLabel(i.label ?? '')),
+      )
+      if (completedOrphans.length > 0) {
+        await Promise.all(
+          completedOrphans.map((i) =>
+            tx.insert(moduleItems).values({
+              moduleId: i.moduleId,
+              categoryId: i.categoryId,
+              slug: i.slug,
+              label: i.label,
+              weight: i.weight,
+              aiDetail: i.aiDetail,
+              aiHighlight: i.aiHighlight,
+              aiNarrative: i.aiNarrative,
+              aiAction: i.aiAction,
+              aiVerified: i.aiVerified,
+              aiVerifiedAt: i.aiVerifiedAt,
+              userChecked: true,
+              userCheckedAt: i.userCheckedAt,
+              completedBy: i.completedBy,
+              fixable: i.fixable,
+              updatedAt: new Date(),
+            }).onConflictDoNothing(),
+          ),
+        )
+      }
+    })
 
     // Store discovered competitors in the registry (for competitor-related modules)
     if ((mod.type === 'competitor-analysis' || mod.type === 'competitor-audit') && brand.id) {
@@ -889,4 +940,58 @@ Key One-Liners: ${pb.keyOneLiners}`
 
   const { items: freshItems, categories: freshCats } = await getFreshModuleState(moduleId)
   return NextResponse.json({ ok: true, dynamic: def.dynamic ?? false, score, lastAnalyzedAt: new Date().toISOString(), items: freshItems, categories: freshCats })
+}
+
+// Poll target for background analyses: { state: 'running' | 'failed' | 'done' | 'idle' }.
+// 'done' carries the same payload as a synchronous POST so the dashboard applies it the same way.
+export async function GET(request: NextRequest) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const moduleId = request.nextUrl.searchParams.get('moduleId')
+  const runId = request.nextUrl.searchParams.get('runId')
+  if (!moduleId) return NextResponse.json({ error: 'moduleId is required' }, { status: 400 })
+
+  const [mod] = await db.select().from(modules).where(eq(modules.id, moduleId))
+  if (!mod) return NextResponse.json({ error: 'Module not found' }, { status: 404 })
+  const [brand] = await db.select().from(brands).where(eq(brands.id, mod.brandId))
+  const adminEmails = (process.env.ADMIN_EMAILS ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  if (!brand || (!adminEmails.includes(user.email ?? '') && brand.userId !== user.id)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  const run = await getRun(moduleId, runId)
+  if (run && isStale(run)) {
+    await failStaleRun(run)
+    return NextResponse.json({ state: 'failed', error: STALE_RUN_ERROR })
+  }
+  if (run?.status === 'running') return NextResponse.json({ state: 'running' })
+  if (run?.status === 'failed') return NextResponse.json({ state: 'failed', error: run.error ?? 'Analysis failed. Please try again.' })
+  if (!run && mod.status === 'analyzing') {
+    // Table missing: the module's own status is all we have. Table present but no run row:
+    // 'analyzing' was set by something that doesn't track runs (MCP tool, or a run from before
+    // run tracking existed) — nothing to wait on from here.
+    return NextResponse.json({ state: run === undefined ? 'running' : 'idle' })
+  }
+  if (!run && !mod.lastAnalyzedAt) return NextResponse.json({ state: 'idle' })
+
+  const def = MODULE_MAP[mod.type]
+  const { items, categories } = await getFreshModuleState(moduleId)
+  const pageVerdicts = mod.type === 'content-audit'
+    ? (await db.select().from(modulePageAudit).where(eq(modulePageAudit.moduleId, moduleId))).map(v => ({
+        url: v.url, title: v.title ?? null, wordCount: v.wordCount ?? 0, verdict: v.verdict,
+        urgency: v.urgency, reason: v.reason ?? null, action: v.action ?? null,
+      }))
+    : undefined
+  return NextResponse.json({
+    state: 'done',
+    ok: true,
+    dynamic: def?.dynamic ?? false,
+    score: mod.score ?? 0,
+    lastAnalyzedAt: (mod.lastAnalyzedAt ?? new Date()).toISOString(),
+    items,
+    categories,
+    pageVerdicts,
+  })
 }
