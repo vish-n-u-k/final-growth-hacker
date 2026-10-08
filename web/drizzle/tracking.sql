@@ -1,6 +1,12 @@
 -- Tracking tables: email suppressions, activity events, brand history, ad launches
 -- Run in the Supabase SQL editor. Safe to re-run.
 
+-- Gmail follow-up reply tracking (columns in lib/db/schema.ts `reminders`, used by lib/gmail/reply-check.ts)
+ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_status text;
+ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_note text;
+ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_checked_at timestamptz;
+ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_last_seen_at timestamptz;
+
 CREATE TABLE IF NOT EXISTS email_suppressions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   brand_id uuid NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
