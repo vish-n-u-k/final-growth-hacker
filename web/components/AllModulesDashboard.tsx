@@ -2005,6 +2005,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
           return (
             <div
+              className="gp-sm-overlay"
               style={{ position: 'fixed', inset: 0, background: '#000000bb', backdropFilter: 'blur(4px)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
               onClick={(e) => { if (e.target === e.currentTarget) setStageModalOpen(false) }}
             >
@@ -2032,7 +2033,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       style={{
                         fontSize: '12px', fontWeight: 600, padding: '5px 14px', borderRadius: '20px', cursor: bsBusy ? 'default' : 'pointer',
                         border: '1px solid var(--green)', color: 'var(--green-bright)', background: 'transparent',
-                        fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', opacity: bsBusy ? 0.6 : 1,
+                        fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', opacity: bsBusy ? 0.6 : 1, whiteSpace: 'nowrap', flexShrink: 0,
                       }}
                     >
                       {bsBusy ? <><svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>{ensuringBs ? 'Setting up…' : 'Analysing…'}</> : 'Re-analyse'}
@@ -2057,7 +2058,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 </div>
 
                 {/* Underline tabs */}
-                <div style={{ display: 'flex', gap: '0', padding: '16px 24px 0', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
+                <div className="gp-sm-tabs" style={{ display: 'flex', gap: '0', padding: '16px 24px 0', borderBottom: '1px solid var(--line)', flexShrink: 0, overflowX: 'auto', scrollbarWidth: 'none' }}>
                   {TABS.map((tab, i) => (
                     <button
                       key={tab.slug}
@@ -2069,7 +2070,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         background: 'transparent', border: 'none',
                         borderBottom: stageModalTab === i ? '2px solid var(--green-bright)' : '2px solid transparent',
                         cursor: 'pointer', fontFamily: 'inherit',
-                        display: 'flex', alignItems: 'center', gap: '6px',
+                        display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', flexShrink: 0,
                         marginBottom: '-1px',
                         transition: 'color .15s',
                       }}

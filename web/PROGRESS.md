@@ -175,6 +175,18 @@ Clicking a phase opens its first unlocked, unfinished module. The grouping is
 update them if modules move. Rendered in light, dark, 390px and with a locked
 phase selected; `tsc` clean.
 
+**Mobile pass.** Checked at 320, 360, 390, 430 and 768px, with the page as
+loaded, with a category and item expanded, and with the playbook modal open.
+No horizontal overflow anywhere. Fixes:
+- Module title no longer truncates ("Website Auc…"); it wraps instead.
+- Export and Re-analyse are at least 36px tall, and phase pills are 36px, so
+  they're easier to tap.
+- Expanded items have less nested padding.
+- The playbook modal opens as a bottom sheet on phones. Re-analyse no longer
+  wraps, and the tabs scroll sideways instead of being clipped.
+On phones, Sign out is hidden from the topbar, but it's still reachable via
+Settings in the nav strip.
+
 **Known, not fixed (pre-existing):** `middleware.ts`'s matcher doesn't exclude
 `.js` files in `public/`, so for logged-out visitors (i.e. the real /login page)
 `/fb-widget.js` is redirected to `/login` and the HTML is parsed as JS — a

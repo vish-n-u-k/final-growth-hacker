@@ -6328,3 +6328,22 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   .gp-phase-blurb { display: none; }
   .gp-pill { font-size: 12.5px; }
 }
+
+/* ── Growth Path: small-screen fixes ── */
+@media (max-width: 760px) {
+  .gp-col .level-info { flex: 1 1 0; min-width: 0; }
+  .gp-col .level-info .name { white-space: normal; overflow: visible; font-size: 17px; line-height: 1.2; }
+  .gp-col .level-export-btn, .gp-col .level-reanalyze-btn { min-height: 36px; min-width: 36px; justify-content: center; }
+  .gp-col .md-sub { padding: 0 12px 16px; }
+  .gp-col .md-item { padding: 12px; gap: 10px; }
+  .gp-pill { min-height: 36px; }
+  .gp-phase { min-height: 0; }
+  .gp-sm-overlay { padding: 12px !important; align-items: flex-end !important; }
+  .gp-sm-overlay > div { max-height: 92vh !important; border-radius: 18px !important; }
+  .gp-sm-tabs { padding-left: 14px !important; padding-right: 14px !important; }
+  .gp-sm-tabs::-webkit-scrollbar { display: none; }
+}
+@media (max-width: 360px) {
+  .gp-phase-top { font-size: 12.5px; }
+  .gp-col .level-info .name { font-size: 16px; }
+}
