@@ -69,12 +69,135 @@ export const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: 'skip_item',
+    description:
+      'Drops a checklist item (a kind="item" task from get_today_tasks) that the user says does not apply or will not do. It leaves today\'s list and the pending list. Only call after the user agrees to drop it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        item_id: {
+          type: 'string',
+          description: 'The UUID of the module item to skip.',
+        },
+        reason: {
+          type: 'string',
+          description: 'Optional. Why the user dropped it, in their words.',
+        },
+      },
+      required: ['item_id'],
+    },
+  },
+  {
+    name: 'get_growth_history',
+    description:
+      'Use this for progress-over-time questions — e.g. "how have I improved?", "what changed this month?", "is my score going up?", "am I still stuck on traffic?". Returns one snapshot per day (overall score, each module score, growth bottleneck stage, traffic and app-user numbers, tasks completed) plus a first-vs-latest summary of what changed. History starts from when daily snapshots began, so early on there may be only a few days.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        days: {
+          type: 'string',
+          description: 'How many days back to look. Defaults to "30", max 365.',
+        },
+      },
+    },
+  },
+  {
     name: 'get_brand_info',
     description:
       'Returns the brand profile including name, website URL, industry, target audience, USP, and the executive summary from the sales playbook.',
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'get_today_tasks',
+    description:
+      "Use this when the user asks what to do today, says \"do today's tasks\", or arrives from the GrowJin daily email. Returns today's top growth tasks (same list as the daily email). Each task has an id, label, priority, route (\"code\" = change the website codebase, \"content\" = create posts/blog content, \"manual\" = the user must do it themselves), the AI finding, and a recommended action. Also returns focus: the current growth bottleneck (awareness = not enough traffic, conversion = visitors don't act, retention = users go quiet, growth = healthy) with a one-line summary based on live analytics. Task kinds: \"alert\" = something broke or changed (DNS record missing, ads underperforming); \"play\" = the action that best fixes the bottleneck; \"item\" = a checklist fix. finding explains why the task was picked, with numbers. Present only these tasks; do not mention other pending items. needsUserInput=true means ask the user for real data instead of inventing it. daysPending = days since the task was first shown; overdue=true means it has waited 2+ days (its priority is already raised one level): do overdue tasks first and say how long they have waited. askToDrop=true (5+ days) means ask the user to do it now or drop it; to drop, call skip_item for kind=\"item\" or resolve_signal with status=\"dismissed\" for kind=\"alert\"/\"play\". After completing a task: for kind=\"item\" call toggle_item with its id and checked=true; for kind=\"alert\" or \"play\" call resolve_signal with its id.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'string',
+          description: 'Max number of tasks to return. Defaults to "3", max 10.',
+        },
+      },
+    },
+  },
+  {
+    name: 'create_social_post',
+    description:
+      "Use when the user asks to create, make or draft a social media post (or to do today's \"Post on social media\" task). Generates the post image/video with Frekto using the brand's stored Frekto brand profile, as a PREVIEW only — nothing is published. Returns job_id, preview_url (and slide_urls for carousels) and an inline preview image. Show the preview to the user and ask whether to post now, schedule it for a date, or make a different one. Never schedule without the user's explicit approval. If status is \"rendering\", call get_social_post_status with the job_id after ~20 seconds. Requires Frekto connected in GrowJin.",
+    inputSchema: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          description: 'What the post is about (max 300 chars). Leave empty to let Frekto pick a fitting topic from the brand profile. Only ask the user for specifics Frekto cannot know (a launch date, a new feature, an event).',
+        },
+        platform: {
+          type: 'string',
+          description: 'linkedin, instagram, facebook, pinterest or youtube. Defaults to the brand\'s main Frekto platform.',
+        },
+        post_type: {
+          type: 'string',
+          description: 'Instagram/Facebook only: "feed" (default), "story" or "reel" (video).',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_social_post_status',
+    description:
+      'Checks a post created with create_social_post that was still rendering. Returns the preview when done. Then show it to the user and ask before scheduling.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        job_id: {
+          type: 'string',
+          description: 'The job_id returned by create_social_post.',
+        },
+      },
+      required: ['job_id'],
+    },
+  },
+  {
+    name: 'schedule_social_post',
+    description:
+      'Publishes or schedules a post the user has APPROVED (from create_social_post), through Frekto. Call only after the user explicitly says to post or schedule it. Use post_now=true to publish within about a minute, or start_date (+ optional time and timezone) to schedule. Frekto writes the caption and hashtags. GrowJin records the post and closes today\'s "Post on social media" task automatically. If scheduling the approved render fails, ask the user before retrying with allow_regenerate=true (that schedules a new render on the same topic, which may look different).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        job_id: { type: 'string', description: 'The job_id of the approved post.' },
+        topic: { type: 'string', description: 'The post topic (for GrowJin\'s record).' },
+        platform: { type: 'string', description: 'linkedin, instagram, facebook, pinterest or youtube. Defaults to the brand\'s main Frekto platform.' },
+        post_type: { type: 'string', description: 'Instagram/Facebook only: "feed" (default), "story" or "reel".' },
+        post_now: { type: 'boolean', description: 'true to publish as soon as possible (within about a minute).' },
+        start_date: { type: 'string', description: 'Date to publish, YYYY-MM-DD. Required unless post_now is true.' },
+        time: { type: 'string', description: 'Time of day, HH:MM 24h. Defaults to 09:00.' },
+        timezone: { type: 'string', description: 'IANA timezone, e.g. "Asia/Kolkata". Defaults to the brand\'s Frekto timezone.' },
+        allow_regenerate: { type: 'boolean', description: 'Only after the user agrees: if the approved render cannot be scheduled, schedule a fresh render on the same topic instead.' },
+      },
+      required: ['job_id'],
+    },
+  },
+  {
+    name: 'resolve_signal',
+    description:
+      'Closes an alert or play (a kind="alert" or kind="play" task from get_today_tasks) once it has been handled. Use status="done" when the issue was fixed, or "dismissed" when the user says it does not apply. A closed signal will not be raised again for 7 days.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        signal_id: {
+          type: 'string',
+          description: 'The id of the signal task.',
+        },
+        status: {
+          type: 'string',
+          description: '"done" (default) or "dismissed".',
+        },
+      },
+      required: ['signal_id'],
     },
   },
   {

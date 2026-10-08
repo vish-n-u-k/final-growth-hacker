@@ -536,3 +536,116 @@ export const bugReports = pgTable('bug_reports', {
   status: text('status').notNull().default('open'),     // 'open' | 'closed'
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
+
+// ── Brand Signals (change-detected tasks: DNS broke, ads underperforming, stage changed) ──
+
+export const brandSignals = pgTable(
+  'brand_signals',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),        // module type that raised it, e.g. 'email-marketing'
+    signalKey: text('signal_key').notNull(), // dedupe key within source, e.g. 'dns-spf-missing'
+    title: text('title').notNull(),
+    detail: text('detail'),
+    action: text('action'),
+    route: text('route').notNull().default('manual'), // 'code' | 'content' | 'manual'
+    priority: integer('priority').notNull().default(2), // 3=critical | 2=important | 1=minor
+    status: text('status').notNull().default('open'),   // 'open' | 'done' | 'dismissed' | 'cleared'
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (table) => ({
+    brandStatusIdx: index('brand_signals_brand_status_idx').on(table.brandId, table.status),
+  }),
+)
+
+// Last-seen state per brand + source, so detectors can tell what changed
+export const signalSnapshots = pgTable(
+  'signal_snapshots',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    source: text('source').notNull(),
+    data: jsonb('data').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    uniq: unique('signal_snapshots_unique').on(table.brandId, table.source),
+  }),
+)
+
+// ── Email suppressions (opted out / bounced — never email again) ─────────────
+// SQL: drizzle/tracking.sql
+export const emailSuppressions = pgTable(
+  'email_suppressions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),          // lowercased address
+    reason: text('reason').notNull(),        // 'opted_out' | 'bounced'
+    note: text('note'),                      // reply snippet / bounce reason
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    uniq: unique('email_suppressions_unique').on(table.brandId, table.email),
+  }),
+)
+
+// ── Activity events (is the Claude-first loop being used?) ────────────────────
+// type: 'mcp_session' | 'mcp_call' | 'daily_email_sent' | 'email_claude_click' | 'task_completed'
+export const activityEvents = pgTable(
+  'activity_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    type: text('type').notNull(),
+    detail: jsonb('detail'),                 // e.g. { tool: 'toggle_item' } — never email or task content
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    brandCreatedIdx: index('activity_events_brand_created_idx').on(table.brandId, table.createdAt),
+  }),
+)
+
+// ── Brand history (one row per brand per day, written by the daily-signals cron) ──
+export const brandHistory = pgTable(
+  'brand_history',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    date: text('date').notNull(),            // YYYY-MM-DD (UTC) — the day this row describes
+    data: jsonb('data').notNull(),           // BrandDay — see lib/history/index.ts
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  },
+  (table) => ({
+    uniq: unique('brand_history_unique').on(table.brandId, table.date),
+  }),
+)
+
+// ── Ad launches (campaigns GrowJin created, tracked after launch) ─────────────
+export const adLaunches = pgTable(
+  'ad_launches',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    moduleId: uuid('module_id'),
+    platform: text('platform').notNull().default('meta'),
+    campaignId: text('campaign_id').notNull(),
+    adSetId: text('ad_set_id'),
+    adId: text('ad_id'),
+    name: text('name').notNull(),
+    objective: text('objective'),
+    dailyBudget: real('daily_budget'),       // in account currency (major units)
+    currency: text('currency'),
+    brief: jsonb('brief'),                   // CampaignBrief as launched
+    status: text('status').notNull().default('PAUSED'), // Meta effective_status, refreshed nightly
+    activatedAt: timestamp('activated_at', { withTimezone: true }), // first time seen ACTIVE
+    metrics: jsonb('metrics'),               // lifetime { spend, impressions, clicks, ctr, cpc, results }
+    launchedAt: timestamp('launched_at', { withTimezone: true }).defaultNow(),
+    checkedAt: timestamp('checked_at', { withTimezone: true }),
+  },
+  (table) => ({
+    uniq: unique('ad_launches_unique').on(table.platform, table.campaignId),
+  }),
+)

@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { brands, outreachEmails } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getValidGmailToken } from '@/lib/gmail/token'
+import { buildRawMessage } from '@/lib/gmail/send'
+import { isSuppressed } from '@/lib/gmail/suppression'
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -20,6 +22,13 @@ export async function POST(req: NextRequest) {
     .limit(1)
   if (!brand) return NextResponse.json({ error: 'No brand' }, { status: 404 })
 
+  const blocked = await isSuppressed(brand.id, to)
+  if (blocked) {
+    return NextResponse.json({
+      error: blocked.reason === 'bounced' ? `An earlier email to ${to} bounced.` : `${to} asked not to be contacted.`,
+    }, { status: 409 })
+  }
+
   let accessToken: string
   try {
     accessToken = await getValidGmailToken(brand.id)
@@ -30,21 +39,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Build RFC 2822 message and encode as base64url
-  const message = [
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    'MIME-Version: 1.0',
-    'Content-Type: text/html; charset=utf-8',
-    '',
-    body,
-  ].join('\r\n')
-
-  const encoded = Buffer.from(message)
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '')
+  const encoded = buildRawMessage({ to, subject, body })
 
   const draftRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts', {
     method: 'POST',
@@ -63,8 +58,8 @@ export async function POST(req: NextRequest) {
 
   const draft = await draftRes.json() as { id: string }
 
-  // Log to outreach_emails (fire-and-forget)
-  db.insert(outreachEmails).values({
+  // Log to outreach_emails (awaited so serverless doesn't cut it off)
+  await db.insert(outreachEmails).values({
     brandId: brand.id, toEmail: to, subject, body,
     status: 'draft', gmailDraftId: draft.id, source: 'outreach',
   }).catch(e => console.error('[save-draft] DB log error:', e))

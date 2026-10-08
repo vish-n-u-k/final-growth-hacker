@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { outreachEmails } from '@/lib/db/schema'
 import { eq, and, lte, asc, sql } from 'drizzle-orm'
-import { sendGmailMessage, createFollowupReminder } from '@/lib/gmail/send'
+import { sendGmailMessage, createFollowupReminder, GmailSendError } from '@/lib/gmail/send'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -70,7 +70,8 @@ export async function GET(req: NextRequest) {
       results.push({ id, status: 'sent' })
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Send failed'
-      const giveUp = email.sendAttempts >= MAX_ATTEMPTS
+      // Opted out / bounced since it was scheduled: retrying won't help
+      const giveUp = email.sendAttempts >= MAX_ATTEMPTS || (e instanceof GmailSendError && e.code === 'suppressed')
       // Back to 'scheduled' so the next hourly run retries it
       await db.update(outreachEmails)
         .set({ status: giveUp ? 'failed' : 'scheduled', lastError: message })

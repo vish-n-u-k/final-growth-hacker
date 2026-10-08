@@ -35,6 +35,7 @@ import { fetchCommunityDiscovery } from '@/lib/modules/community-finder/fetcher'
 import { analyzeCommunitiesFinder } from '@/lib/modules/community-finder/agent'
 import { fetchBusinessStageData } from '@/lib/modules/business-stage/fetcher'
 import { analyzeBusinessStage } from '@/lib/modules/business-stage/agent'
+import { detectBusinessStageChange } from '@/lib/signals/detectors'
 import { fetchGmailOutreachData } from '@/lib/modules/gmail-outreach/fetcher'
 import { analyzeGmailOutreach } from '@/lib/modules/gmail-outreach/agent'
 import { fetchEmailMarketingData } from '@/lib/modules/email-marketing/fetcher'
@@ -606,6 +607,24 @@ Key One-Liners: ${pb.keyOneLiners}`
 
     // Preserve any user_checked state before wiping items
     const existingItems = await db.select().from(moduleItems).where(eq(moduleItems.moduleId, moduleId))
+
+    // Business stage: compare previous vs new classification / red flag → signals
+    if (mod.type === 'business-stage') {
+      try {
+        const stageCats = await db.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
+        const catSlugById = new Map(stageCats.map((c) => [c.id, c.slug]))
+        const prevOf = (slug: string) => existingItems.find((i) => catSlugById.get(i.categoryId) === slug)
+        const nextOf = (slug: string) => dynamicResults.find((r) => r.category === slug)
+        await detectBusinessStageChange(
+          brand.id,
+          { classification: prevOf('classification')?.label ?? null, redFlag: prevOf('red-flag')?.label ?? null },
+          { classification: nextOf('classification')?.label ?? null, redFlag: nextOf('red-flag')?.label ?? null, redFlagDetail: nextOf('red-flag')?.detail ?? null },
+        )
+      } catch (err) {
+        console.error('Business stage signal detection failed:', err)
+      }
+    }
+
     const userCheckedSlugs = new Set(existingItems.filter((i) => i.userChecked).map((i) => i.slug))
     // Normalize label for fuzzy matching (handles slug drift between runs)
     const normalizeLabel = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim()

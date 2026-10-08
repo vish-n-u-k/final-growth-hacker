@@ -4,6 +4,8 @@ import { getGrowthOverview } from '@/lib/mcp/tools/get_growth_overview'
 import { getModuleDetail } from '@/lib/mcp/tools/get_module_detail'
 import { analyzeModule } from '@/lib/mcp/tools/analyze_module'
 import { toggleItem } from '@/lib/mcp/tools/toggle_item'
+import { skipItem } from '@/lib/mcp/tools/skip_item'
+import { getGrowthHistory } from '@/lib/mcp/tools/get_growth_history'
 import { getBrandInfo } from '@/lib/mcp/tools/get_brand_info'
 import { getPendingItems } from '@/lib/mcp/tools/get_pending_items'
 import { getGaAnalytics } from '@/lib/mcp/tools/get_ga_analytics'
@@ -17,6 +19,10 @@ import { getPosthogUsers } from '@/lib/mcp/tools/get_posthog_users'
 import { getPosthogPowerUsers } from '@/lib/mcp/tools/get_posthog_power_users'
 import { getPosthogChurnedUsers } from '@/lib/mcp/tools/get_posthog_churned_users'
 import { getPosthogProUsers } from '@/lib/mcp/tools/get_posthog_pro_users'
+import { getTodayTasks, buildTodayPrompt } from '@/lib/daily/today-tasks'
+import { resolveSignal } from '@/lib/signals'
+import { logActivity, touchMcp } from '@/lib/activity'
+import { createSocialPost, getSocialPostStatus, scheduleSocialPost } from '@/lib/frekto/posts'
 
 export const maxDuration = 300
 
@@ -29,8 +35,14 @@ const CORS_HEADERS = {
 
 const INITIALIZE_RESPONSE = {
   protocolVersion: '2024-11-05',
-  capabilities: { tools: {} },
+  capabilities: { tools: {}, prompts: {} },
   serverInfo: { name: 'growjin', version: '1.0.0' },
+}
+
+const DAILY_PROMPT = {
+  name: 'daily_growth_tasks',
+  description: "Work through today's GrowJin growth tasks (code fixes, content, manual steps).",
+  arguments: [],
 }
 
 function rpcResult(id: unknown, result: unknown) {
@@ -65,8 +77,52 @@ async function dispatch(
     case 'toggle_item':
       return toggleItem(brandId, String(args['item_id'] ?? ''), Boolean(args['checked']))
 
+    case 'skip_item':
+      return skipItem(brandId, String(args['item_id'] ?? ''), args['reason'] ? String(args['reason']) : undefined)
+
+    case 'get_growth_history':
+      return getGrowthHistory(brandId, Math.min(Math.max(parseInt(String(args['days'] ?? '30'), 10) || 30, 1), 365))
+
     case 'get_brand_info':
       return getBrandInfo(brandId)
+
+    case 'get_today_tasks': {
+      const limit = Math.min(Math.max(parseInt(String(args['limit'] ?? '3'), 10) || 3, 1), 10)
+      const today = await getTodayTasks(brandId, limit)
+      if (!today) return { error: 'Brand not found.' }
+      if (today.tasks.length === 0) return { ...today, message: 'Nothing pending today. Suggest re-running analyze_module on SEO or GEO to find new work.' }
+      return today
+    }
+
+    case 'create_social_post':
+      return createSocialPost(brandId, {
+        topic: args['topic'] ? String(args['topic']) : undefined,
+        platform: args['platform'] ? String(args['platform']).toLowerCase() : undefined,
+        postType: args['post_type'] ? String(args['post_type']).toLowerCase() : undefined,
+      })
+
+    case 'get_social_post_status':
+      return getSocialPostStatus(brandId, String(args['job_id'] ?? ''))
+
+    case 'schedule_social_post':
+      return scheduleSocialPost(brandId, {
+        jobId: String(args['job_id'] ?? ''),
+        topic: args['topic'] ? String(args['topic']) : undefined,
+        platform: args['platform'] ? String(args['platform']).toLowerCase() : undefined,
+        postType: args['post_type'] ? String(args['post_type']).toLowerCase() : undefined,
+        postNow: args['post_now'] === true || args['post_now'] === 'true',
+        startDate: args['start_date'] ? String(args['start_date']) : undefined,
+        time: args['time'] ? String(args['time']) : undefined,
+        timezone: args['timezone'] ? String(args['timezone']) : undefined,
+        allowRegenerate: args['allow_regenerate'] === true || args['allow_regenerate'] === 'true',
+      })
+
+    case 'resolve_signal':
+      return resolveSignal(
+        brandId,
+        String(args['signal_id'] ?? ''),
+        args['status'] === 'dismissed' ? 'dismissed' : 'done',
+      )
 
     case 'get_pending_items':
       return getPendingItems(brandId, args['module_type'] ? String(args['module_type']) : undefined)
@@ -129,6 +185,22 @@ async function dispatch(
   }
 }
 
+// Usage tracking: which tools Claude calls, and tasks completed from Claude.
+// Logs the tool name only — never arguments or results.
+async function logToolCall(brandId: string, tool: string, args: Record<string, unknown>, result: unknown) {
+  const ok = !(result && typeof result === 'object' && 'error' in result)
+  const writes: Promise<unknown>[] = [logActivity(brandId, 'mcp_call', { tool, ok }), touchMcp(brandId)]
+  if (ok) {
+    const completed =
+      tool === 'toggle_item' && Boolean(args['checked']) ? { kind: 'item', status: 'done' } :
+      tool === 'skip_item' ? { kind: 'item', status: 'dismissed' } :
+      tool === 'resolve_signal' ? { kind: 'signal', status: args['status'] === 'dismissed' ? 'dismissed' : 'done' } :
+      null
+    if (completed) writes.push(logActivity(brandId, 'task_completed', { ...completed, via: 'claude' }))
+  }
+  await Promise.all(writes)
+}
+
 export async function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS_HEADERS })
 }
@@ -155,11 +227,26 @@ export async function POST(request: Request) {
 
   // Route by method
   if (method === 'initialize') {
+    await Promise.all([logActivity(brandId, 'mcp_session'), touchMcp(brandId)])
     return rpcResult(id, INITIALIZE_RESPONSE)
   }
 
   if (method === 'tools/list') {
     return rpcResult(id, { tools: TOOLS })
+  }
+
+  if (method === 'prompts/list') {
+    return rpcResult(id, { prompts: [DAILY_PROMPT] })
+  }
+
+  if (method === 'prompts/get') {
+    if (params['name'] !== DAILY_PROMPT.name) return rpcError(id, -32602, `Unknown prompt: ${String(params['name'])}`)
+    const today = await getTodayTasks(brandId)
+    if (!today) return rpcError(id, -32603, 'Brand not found')
+    return rpcResult(id, {
+      description: DAILY_PROMPT.description,
+      messages: [{ role: 'user', content: { type: 'text', text: buildTodayPrompt(today) } }],
+    })
   }
 
   if (method === 'tools/call') {
@@ -172,10 +259,18 @@ export async function POST(request: Request) {
     } catch (err) {
       return rpcError(id, -32603, err instanceof Error ? err.message : 'Internal error')
     }
+    await logToolCall(brandId, toolName, toolArgs, result)
 
-    return rpcResult(id, {
-      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-    })
+    // Tools may attach an inline preview image as _image; send it as MCP image content
+    const content: Record<string, unknown>[] = []
+    if (result && typeof result === 'object' && '_image' in result) {
+      const { _image, ...rest } = result as { _image?: { data: string; mimeType: string } }
+      result = rest
+      if (_image) content.push({ type: 'image', data: _image.data, mimeType: _image.mimeType })
+    }
+    content.unshift({ type: 'text', text: JSON.stringify(result, null, 2) })
+
+    return rpcResult(id, { content })
   }
 
   return rpcError(id, -32601, `Method not found: ${method}`)

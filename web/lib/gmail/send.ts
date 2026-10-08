@@ -1,30 +1,32 @@
 import { db } from '@/lib/db'
 import { reminders } from '@/lib/db/schema'
 import { getValidGmailToken } from '@/lib/gmail/token'
+import { isSuppressed } from '@/lib/gmail/suppression'
 
 export class GmailSendError extends Error {
-  constructor(message: string, public code: 'not_connected' | 'missing_send_scope' | 'api_error') {
+  constructor(message: string, public code: 'not_connected' | 'missing_send_scope' | 'api_error' | 'suppressed') {
     super(message)
   }
 }
 
-/** Sends an HTML email from the brand's connected Gmail account. */
-export async function sendGmailMessage(
-  brandId: string,
-  { to, subject, body, threadId, inReplyTo }: { to: string; subject: string; body: string; threadId?: string | null; inReplyTo?: string | null },
-): Promise<{ id: string; threadId: string }> {
-  let accessToken: string
-  try {
-    accessToken = await getValidGmailToken(brandId)
-  } catch (e: unknown) {
-    throw new GmailSendError(e instanceof Error ? e.message : 'Gmail not connected', 'not_connected')
-  }
+// Non-ASCII header values (emoji, ₹, accented names) must be RFC 2047 encoded or they arrive garbled
+function encodeHeader(value: string): string {
+  return /[^\x20-\x7e]/.test(value) ? `=?UTF-8?B?${Buffer.from(value).toString('base64')}?=` : value
+}
 
-  // Build RFC 2822 message and encode as base64url
+function encodeAddress(to: string): string {
+  const m = to.match(/^"?([^"<]+?)"?\s*<([^>]+)>$/)
+  return m ? `${encodeHeader(m[1].trim())} <${m[2]}>` : to
+}
+
+/** RFC 2822 message as base64url, for Gmail messages.send / drafts.create. */
+export function buildRawMessage(
+  { to, subject, body, inReplyTo }: { to: string; subject: string; body: string; inReplyTo?: string | null },
+): string {
   // In-Reply-To/References + threadId make Gmail file a follow-up under the original thread
   const message = [
-    `To: ${to}`,
-    `Subject: ${subject}`,
+    `To: ${encodeAddress(to)}`,
+    `Subject: ${encodeHeader(subject)}`,
     ...(inReplyTo ? [`In-Reply-To: ${inReplyTo}`, `References: ${inReplyTo}`] : []),
     'MIME-Version: 1.0',
     'Content-Type: text/html; charset=utf-8',
@@ -32,11 +34,36 @@ export async function sendGmailMessage(
     body,
   ].join('\r\n')
 
-  const encoded = Buffer.from(message)
+  return Buffer.from(message)
     .toString('base64')
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '')
+}
+
+/** Sends an HTML email from the brand's connected Gmail account. */
+export async function sendGmailMessage(
+  brandId: string,
+  { to, subject, body, threadId, inReplyTo }: { to: string; subject: string; body: string; threadId?: string | null; inReplyTo?: string | null },
+): Promise<{ id: string; threadId: string }> {
+  const blocked = await isSuppressed(brandId, to)
+  if (blocked) {
+    throw new GmailSendError(
+      blocked.reason === 'bounced'
+        ? `Not sent: an earlier email to ${to} bounced.`
+        : `Not sent: ${to} asked not to be contacted.`,
+      'suppressed',
+    )
+  }
+
+  let accessToken: string
+  try {
+    accessToken = await getValidGmailToken(brandId)
+  } catch (e: unknown) {
+    throw new GmailSendError(e instanceof Error ? e.message : 'Gmail not connected', 'not_connected')
+  }
+
+  const encoded = buildRawMessage({ to, subject, body, inReplyTo })
 
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method: 'POST',

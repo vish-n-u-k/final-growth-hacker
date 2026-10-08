@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands, modules, brandIntegrations } from '@/lib/db/schema'
+import { brands, modules, brandIntegrations, adLaunches } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import type { CampaignBrief } from '@/components/MetaAdLaunchPanel'
 
@@ -319,6 +319,22 @@ export async function POST(request: NextRequest) {
       status: 'PAUSED',
     }, accessToken) as { id: string }
     console.log('[launch-campaign] step 5 done — adId:', ad.id)
+
+    // Record the launch so GrowJin can follow it (activation, spend, results) nightly
+    await db.insert(adLaunches).values({
+      brandId: brand.id,
+      moduleId,
+      platform: 'meta',
+      campaignId: campaign.id,
+      adSetId: adSet.id,
+      adId: ad.id,
+      name: brief.campaignName,
+      objective: graphObjective,
+      dailyBudget: ZERO_DECIMAL_CURRENCIES.has(currency.toUpperCase()) ? dailyBudget : dailyBudget / 100,
+      currency,
+      brief,
+      status: 'PAUSED',
+    }).onConflictDoNothing().catch((e) => console.error('[launch-campaign] could not record launch:', e))
 
     const cleanAccountId = adAccountId.replace(/^act_/, '')
     return NextResponse.json({
