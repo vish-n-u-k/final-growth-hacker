@@ -582,10 +582,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
         </div>
       )}
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 28px' }}>
+      <div className="an-page" style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 28px' }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, marginBottom: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <button style={{
               width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -605,7 +605,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               </p>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             {/* View toggle */}
             <div style={{ display: 'flex', padding: '3px', border: '1px solid var(--line)', borderRadius: 99, background: 'var(--bg-soft)' }}>
               {(['users', 'website'] as const).map(v => (
@@ -643,7 +643,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 background: 'var(--green)10', color: 'var(--green)', cursor: 'pointer',
               }}
             >
-              <ArrowRight size={12} /> Acquisition &amp; Journeys
+              <ArrowRight size={12} /> <span style={{ whiteSpace: 'nowrap' }}>Acquisition &amp; Journeys</span>
             </button>
             <button
               onClick={() => { setPhLoading(true); fetch(`/api/analytics/auth-dashboard?brandId=${brand.id}`).then(r => r.json()).then((d: DashboardData) => setData(d)).finally(() => setPhLoading(false)) }}
@@ -697,7 +697,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             Last 24 hours
           </h2>
           {/* Group 1: activity events */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
+          <div className="an-g4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
             {activityTiles.filter(t => !['dau', 'mau'].includes(t.key)).map((item) => (
               <StatCard
                 key={item.key}
@@ -714,7 +714,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
           <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 10 }}>
             Active users
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          <div className="an-g4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
             {activityTiles.filter(t => ['dau', 'mau'].includes(t.key)).map((item) => (
               <StatCard
                 key={item.key}
@@ -734,7 +734,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
           <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
             Growth &amp; retention
           </h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
+          <div className="an-g4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
             <KpiCard label="MRR" value="$0" sub="Monthly recurring revenue" source="Stripe" delta={0} comingSoon />
             <KpiCard label="ARR" value="$0" sub="Annualised run rate" source="Stripe" delta={0} comingSoon />
             <KpiCard label="Churn rate" value="0%" sub="Paid cancellations, 30d" source="Stripe" delta={0} bad comingSoon />
@@ -772,7 +772,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               </div>
 
               {/* KPI row */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
+              <div className="an-g3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
                 {webKpis.map(k => {
                   const chg = pctChange(k.current, k.prior)
                   const good = k.invertGood ? (chg ?? 0) < 0 : (chg ?? 0) > 0
@@ -821,7 +821,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               {wa.countries.length > 0 && (
                 <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 14 }}>Top countries</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px 24px' }}>
+                  <div className="an-g2" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px 24px' }}>
                     {wa.countries.slice(0, 10).map((c, i) => {
                       const maxV = wa.countries[0]?.visitors ?? 1
                       return (
@@ -898,7 +898,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
           </div>
           <div style={{ position: 'relative', opacity: gsc?.connected && !gsc?.error ? 1 : 0.55 }}>
             {/* KPI row */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+            <div className="an-g4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
               {[
                 { label: 'Organic clicks', value: gsc?.clicks7d,      suffix: '',  sub: '7 days' },
                 { label: 'Impressions',    value: gsc?.impressions7d,  suffix: '',  sub: '7 days' },
@@ -915,7 +915,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div className="an-g2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               {/* Click trend chart */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Click trend</h3>
@@ -1007,7 +1007,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
           {trafficData?.connected ? (
             <div style={{ opacity: trafficLoading ? 0.55 : 1, transition: 'opacity 0.2s' }}>
               {/* ── 3 stat cards ── */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
+              <div className="an-g3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
                 {[
                   { label: 'Active users',    value: trafficData.stats?.activeUsers    ?? 0, color: 'var(--text)' },
                   { label: 'New users',       value: trafficData.stats?.newUsers       ?? 0, color: '#4ade80' },
@@ -1059,7 +1059,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               })()}
 
               {/* ── Trend + Channels side by side ── */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+              <div className="an-g2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
                 {/* Trend chart */}
                 {trafficData.trend?.length > 1 ? (
                   <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
@@ -1138,7 +1138,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
 
               {/* ── Devices / Countries / Browsers ── */}
               {((trafficData.devices ?? []).length > 0 || (trafficData.countries ?? []).length > 0 || (trafficData.browsers ?? []).length > 0) && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+                <div className="an-g3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
 
                   {/* Devices */}
                   {(trafficData.devices ?? []).length > 0 && (

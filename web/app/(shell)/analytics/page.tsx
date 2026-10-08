@@ -8,7 +8,7 @@ import AnalyticsDashboard, { type ModuleHealth } from './AnalyticsDashboard'
 
 function getModuleSource(type: string): string {
   const aiRules = ['seo', 'geo', 'content-audit', 'social-media', 'brand-audit', 'geo-competitor-gap']
-  const ai = ['competitor-analysis', 'user-acquisition', 'meta-ads', 'outreach-targets', 'user-analytics', 'gmail-outreach']
+  const ai = ['competitor-analysis', 'business-stage', 'meta-ads', 'outreach-targets', 'user-analytics', 'gmail-outreach']
   if (aiRules.includes(type)) return 'AI + Rules'
   if (ai.includes(type)) return 'AI'
   return 'Internal'
@@ -77,15 +77,11 @@ export default async function AuthAnalyticsPage() {
       }]
     })
 
-  const DEFAULT_COL_FIELDS = { name: '$email', email: '$email', source: '$channel_type', location: '$geoip_country_name', plan: 'plan' }
-  const savedColFields = (brand.analyticsColFields as Record<string, string> | null) ?? DEFAULT_COL_FIELDS
-
   return (
     <AnalyticsDashboard
-      brand={{ id: brand.id, name: brand.name, websiteUrl: brand.websiteUrl, createdAt: brand.createdAt?.toISOString() ?? null }}
+      brand={{ id: brand.id, name: brand.name }}
       modules={moduleHealth}
       dailyEmailEnabled={brand.dailyEmailEnabled ?? false}
-      savedColFields={savedColFields}
     />
   )
 }

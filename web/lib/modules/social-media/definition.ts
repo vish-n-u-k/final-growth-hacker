@@ -259,13 +259,5 @@ Format rules per platform:
 
 Generate exactly one item per active platform. If only 2 platforms are active, generate 2 items. Never generate a suggestion for a platform with tier "none".`,
     },
-    {
-      slug: 'community-finder',
-      label: 'Community Finder',
-      order: 7,
-      prompt: '',
-      comingSoon: true,
-      comingSoonNote: 'Discover Facebook Groups, LinkedIn communities, and Reddit subreddits where your target audience is active. Requires Facebook Groups API access currently in restricted review — coming soon.',
-    },
   ],
 }

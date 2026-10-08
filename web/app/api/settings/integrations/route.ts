@@ -19,14 +19,29 @@ export async function POST(request: NextRequest) {
   const def = INTEGRATION_MAP[provider]
   if (!def) return NextResponse.json({ error: 'Unknown provider' }, { status: 400 })
 
-  // Separate top-level fields from metadata fields
-  const metadataFields: Record<string, string> = {}
-  let apiKey: string | undefined
-  let accessToken: string | undefined
+  // The client never receives real secret values back (see app/settings/page.tsx), so a
+  // blank password-type field here means "leave it as is", not "clear it" — start from
+  // whatever's already stored and only overwrite fields the user actually typed into.
+  const [existing] = await db
+    .select()
+    .from(brandIntegrations)
+    .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.provider, provider)))
+    .limit(1)
+
+  const metadataFields: Record<string, string> = { ...((existing?.metadata as Record<string, string> | null) ?? {}) }
+  let apiKey: string | undefined = existing?.apiKey ?? undefined
+  let accessToken: string | undefined = existing?.accessToken ?? undefined
 
   for (const fieldDef of def.fields) {
     const value = fields[fieldDef.key]
-    if (!value?.trim()) continue
+    const isSecret = fieldDef.inputType === 'password'
+
+    if (!value?.trim()) {
+      // Non-secret metadata fields (e.g. social profile URLs) can still be cleared by blanking them.
+      if (!isSecret && fieldDef.isMetadata) delete metadataFields[fieldDef.key]
+      continue
+    }
+
     if (fieldDef.isMetadata) {
       // Sanitize private keys: strip surrounding quotes + normalize \n sequences
       let sanitized = value.trim()

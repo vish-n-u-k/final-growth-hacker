@@ -7,7 +7,7 @@ import { useSmartBack } from '@/lib/useSmartBack'
 import type { DBItemFull } from '@/lib/modules/types'
 import MetaAdLaunchPanel from '@/components/MetaAdLaunchPanel'
 import type { CampaignBrief } from '@/components/MetaAdLaunchPanel'
-import type { OGTagResult, PixelStatus } from '@/app/dashboard/meta-ads/blueprint/page'
+import type { OGTagResult, PixelStatus } from '@/app/(shell)/dashboard/meta-ads/blueprint/page'
 
 const AUDIT_CATEGORIES = [
   { slug: 'campaign-performance', label: 'Campaigns' },

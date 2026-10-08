@@ -60,7 +60,7 @@ function PlatformPill({ platform, size = 'sm' }: { platform: string; size?: 'sm'
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      padding: pad, borderRadius: '5px', fontSize: fs, fontWeight: 700,
+      padding: pad, borderRadius: '99px', fontSize: fs, fontWeight: 700,
       background: `${color}18`, color, border: `1px solid ${color}40`,
       letterSpacing: '0.02em', textTransform: 'uppercase',
     }}>
@@ -78,7 +78,7 @@ function StatusPill({ status }: { status: string }) {
   const cfg = configs[status] ?? configs.scheduled
   return (
     <span style={{
-      display: 'inline-block', padding: '2px 8px', borderRadius: '4px', fontSize: '10px',
+      display: 'inline-block', padding: '2px 8px', borderRadius: '99px', fontSize: '10px',
       fontWeight: 600, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
     }}>
       {cfg.label}

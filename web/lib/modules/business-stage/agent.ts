@@ -4,19 +4,38 @@ import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } fro
 import type { BusinessStageFetchResult } from './fetcher'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 
-const CATEGORY_SLUGS = ['classification', 'concern', 'insight', 'actions', 'red-flag'] as const
+const DIAGNOSTIC_SLUGS = new Set(['classification', 'concern', 'insight', 'actions', 'red-flag'])
+const TACTICAL_SLUGS = new Set(['immediate-actions', 'channel-strategy', 'messaging-positioning', 'referral-word-of-mouth', 'next-phase-readiness'])
+const ALL_CATEGORY_SLUGS = new Set([...DIAGNOSTIC_SLUGS, ...TACTICAL_SLUGS])
 
 function buildContext(data: BusinessStageFetchResult, brainContext?: string): string {
   const yesNo = (v: boolean) => (v ? 'Yes' : 'No')
 
-  return `${brainContext ? `=== Prior context about this brand ===\n${brainContext}\n\n` : ''}=== Verified User Count ===
-${data.userCount != null
-    ? `ACTUAL COUNT (from PostHog analytics — use this, do not guess from website signals): ${data.userCount} users`
-    : 'Not available — estimate from website signals below.'
-}
+  const countLine = data.countSource === 'posthog'
+    ? `${data.userCount?.toLocaleString() ?? 0} (live from PostHog)`
+    : data.countSource === 'manual'
+      ? `${data.userCount?.toLocaleString() ?? 0} (manually entered)`
+      : 'Unknown — assume 0 and treat as Phase 1 / earliest stage'
+
+  const nextPhaseLine = data.usersToNextPhase !== null
+    ? `${data.usersToNextPhase} more users needed to reach next acquisition phase (${data.nextPhaseLabel})`
+    : 'Already at maximum acquisition phase — focus on sustaining and scaling'
+
+  return `${brainContext ? `=== Prior context about this brand ===\n${brainContext}\n\n` : ''}=== Brand Context ===
+Brand name: ${data.brandName || 'not provided'}
+Website: ${data.url}
+Industry: ${data.industry ?? 'not provided — infer from brand name and website if possible'}
+Target audience: ${data.targetAudience ?? 'not provided — infer from context'}
+Unique selling point: ${data.usp ?? 'not provided'}
+Brand voice: ${data.brandVoice ?? 'not provided'}
+
+=== Verified User Count & Acquisition Phase ===
+User count: ${countLine}
+Current acquisition phase: ${data.phaseLabel}
+Next acquisition phase: ${data.nextPhaseLabel}
+${nextPhaseLine}
 
 === Website Signals ===
-URL: ${data.url}
 Title: "${data.title}"
 Meta description: "${data.metaDescription}"
 H1: "${data.h1}"
@@ -66,10 +85,10 @@ function buildPrompt(context: string): string {
 ${categoryInstructions}
 
 === Output Format ===
-Return EXACTLY 5 items in a single JSON array — one per category.
-Category slugs must be exactly: "classification", "concern", "insight", "actions", "red-flag".
+Return a single JSON array covering ALL 10 categories above.
 
-[{
+The five diagnostic categories ("classification", "concern", "insight", "actions", "red-flag") each produce EXACTLY 1 item, shaped like:
+{
   "category": "classification" | "concern" | "insight" | "actions" | "red-flag",
   "slug": string,
   "label": string,
@@ -79,7 +98,21 @@ Category slugs must be exactly: "classification", "concern", "insight", "actions
   "action": "",
   "verified": true,
   "fixable": false
-}]
+}
+
+The five tactical categories ("immediate-actions", "channel-strategy", "messaging-positioning", "referral-word-of-mouth", "next-phase-readiness") each produce the number of items their instructions ask for (several items per category), shaped like:
+{
+  "category": "immediate-actions" | "channel-strategy" | "messaging-positioning" | "referral-word-of-mouth" | "next-phase-readiness",
+  "slug": string — kebab-case, pattern: {category-slug}-{short-descriptor},
+  "label": string — plain English, specific and actionable, cite the brand/industry/audience where relevant,
+  "weight": 1 | 2 | 3,
+  "detail": string — one plain English sentence describing the specific observation or gap; wrap the key data point in **double asterisks**,
+  "highlight": string — 5–8 plain English words capturing the key point; no jargon, no period,
+  "narrative": string — exactly 1 plain English sentence explaining the business impact or opportunity; wrap the key risk or opportunity in **double asterisks**,
+  "action": string — starts with a verb, completable within 14 days, specific to this brand; wrap the specific step in **double asterisks**,
+  "verified": boolean — true only if this tactic is demonstrably already active,
+  "fixable": false
+}
 
 Return ONLY valid JSON. No markdown, no text outside the array.`
 }
@@ -94,7 +127,7 @@ export async function analyzeBusinessStage(
   const raw = await callAI({
     system: BUSINESS_STAGE_MODULE.systemPrompt,
     prompt,
-    maxTokens: 2048,
+    maxTokens: 12000,
     model: 'claude-haiku-4-5-20251001',
   })
 
@@ -114,23 +147,24 @@ export async function analyzeBusinessStage(
     }
   }
 
-  const validSlugs = new Set<string>(CATEGORY_SLUGS)
-
-  return (parsed as any[])
+  return (parsed as Record<string, unknown>[])
     .filter(
       (r) =>
         typeof r.category === 'string' &&
-        validSlugs.has(r.category) &&
+        ALL_CATEGORY_SLUGS.has(r.category) &&
         typeof r.slug === 'string' &&
         typeof r.label === 'string' &&
         (r.weight === 1 || r.weight === 2 || r.weight === 3) &&
         typeof r.detail === 'string' &&
         typeof r.narrative === 'string',
     )
-    .map((r) => ({
-      ...r,
-      action: r.action ?? '',
-      verified: true,
-      fixable: false,
-    })) as DynamicModuleAnalysisResult[]
+    .map((r) => {
+      const isDiagnostic = DIAGNOSTIC_SLUGS.has(r.category as string)
+      return {
+        ...r,
+        action: typeof r.action === 'string' ? r.action : '',
+        verified: isDiagnostic ? true : typeof r.verified === 'boolean' ? r.verified : false,
+        fixable: false,
+      }
+    }) as DynamicModuleAnalysisResult[]
 }

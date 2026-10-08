@@ -158,9 +158,22 @@ function renderMd(text: string, color: string) {
   return <div style={{ fontSize: '14.5px' }}>{out}</div>
 }
 
-function userCountToBarPct(count: number): number {
-  return Math.min(Math.max(count / 500, 0), 1) * 100
-}
+// Same stage ranges the Business Stage module classifies brands into.
+const JOURNEY_PHASES = [
+  { min: 0,   max: 10,       range: '0–10',    name: 'First customers' },
+  { min: 10,  max: 50,       range: '10–50',   name: 'Early adopters' },
+  { min: 50,  max: 100,      range: '50–100',  name: 'One channel that works' },
+  { min: 100, max: 250,      range: '100–250', name: 'Scaling up' },
+  { min: 250, max: Infinity, range: '250–500', name: 'New markets' },
+]
+
+// Display-only grouping of the module chain (by registry `order`). Locking stays per-module.
+const GROWTH_PHASES = [
+  { maxOrder: 3,        name: 'Get set up',    blurb: 'Foundation, website, SEO' },
+  { maxOrder: 7,        name: 'Get found',     blurb: 'AI search, social, brand' },
+  { maxOrder: 11,       name: 'Win attention', blurb: 'Content, competitors, outreach, ads' },
+  { maxOrder: Infinity, name: 'Scale',         blurb: 'Analytics, email, audience' },
+]
 
 function InlineIntegrationForm({ intDef, onConnected }: { intDef: IntegrationDefinition; onConnected: () => void }) {
   const [values, setValues] = useState<Record<string, string>>({})
@@ -301,8 +314,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     Object.fromEntries(pendingModuleIds.map(id => [id, true]))
   )
   const [showRequestedModal, setShowRequestedModal] = useState(false)
-  const [analyticsLoading, setAnalyticsLoading] = useState(false)
-  const [toolsLoading, setToolsLoading] = useState(false)
   const [lastAnalyzedAtMap, setLastAnalyzedAtMap] = useState<Record<string, string | null>>({})
   const [pageVerdictsMap, setPageVerdictsMap] = useState<Record<string, ModuleData['pageVerdicts']>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.pageVerdicts]))
@@ -479,17 +490,43 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     return !prev || liveScores[prev.id] < 80
   }
 
-  const activeModule = sortedByOrder.find(m => !isModuleLocked(m))
-  const currentLevel = activeModule?.order ?? 0
-  const barPct = userCountToBarPct(userCount)
-  const journeyTagPct = Math.min(Math.max(barPct, 9), 91)
 
-  const JOURNEY_MILESTONES = [0, 100, 200, 300, 400, 500]
+  // Growth Path layout: one module shown at a time, picked from the step rail.
+  const railModules = sortedByOrder.filter(m => m.type !== 'business-stage')
+  const currentStep = railModules.find(m => !isModuleLocked(m) && (liveScores[m.id] ?? 0) < 80) ?? railModules[railModules.length - 1]
+  const selectedModule = railModules.find(m => openModules.has(m.id)) ?? currentStep
+  const selectedIdx = selectedModule ? railModules.indexOf(selectedModule) : -1
+  const isStepDone = (m: ModuleData) => !isModuleLocked(m) && !m.definition.comingSoon && (liveScores[m.id] ?? 0) >= 80
+  const railDoneCount = railModules.filter(isStepDone).length
 
-  const toggleModule = (modId: string) =>
-    setOpenModules(prev =>
-      prev.has(modId) ? new Set() : new Set([modId])
-    )
+  const phaseIdxOf = (m: ModuleData) => GROWTH_PHASES.findIndex(p => m.order <= p.maxOrder)
+  const phases = GROWTH_PHASES.map((p, i) => {
+    const mods = railModules.filter(m => phaseIdxOf(m) === i)
+    const active = mods.filter(m => !m.definition.comingSoon)
+    return {
+      ...p,
+      mods,
+      total: active.length,
+      done: active.filter(isStepDone).length,
+      locked: active.length > 0 && active.every(isModuleLocked),
+      pct: active.length ? Math.round(active.reduce((s, m) => s + Math.min(liveScores[m.id] ?? 0, 100), 0) / active.length) : 0,
+    }
+  }).filter(p => p.mods.length > 0)
+  const selectedPhase = phases.find(p => selectedModule && p.mods.includes(selectedModule)) ?? phases[0]
+
+  const currentPhaseIdx = Math.max(0, JOURNEY_PHASES.findIndex(p => userCount < p.max))
+  const currentPhase = JOURNEY_PHASES[currentPhaseIdx]
+  const nextPhase = JOURNEY_PHASES[currentPhaseIdx + 1] ?? null
+  const phaseCap = currentPhase.max === Infinity ? 500 : currentPhase.max
+  const phaseMarkerPct = Math.min(Math.max((userCount - currentPhase.min) / (phaseCap - currentPhase.min), 0.04), 0.96) * 100
+
+  const bsItemsAll = resolvedBsModId ? (dynItemsMap[resolvedBsModId] ?? []) : []
+  const bsClassItem = bsItemsAll.find(i => i.categorySlug === 'classification')
+    ?? bsItemsAll.find(i => i.categorySlug === 'business-classification')
+  const bsConcernItem = bsItemsAll.find(i => i.categorySlug === 'concern')
+    ?? bsItemsAll.find(i => i.categorySlug === 'stage-challenges')
+
+  const toggleModule = (modId: string) => setOpenModules(new Set([modId]))
 
   const toggleCat = (modId: string, slug: string) =>
     setOpenCatsMap(prev => {
@@ -1796,97 +1833,31 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         </div>
       )}
 
-      {/* Header */}
-      <header>
-        <div className="md-header-inner">
-          <div className="logo" style={{ cursor: 'pointer' }} onClick={() => router.push('/dashboard')}>
-            <span className="mark">
-              <img src="/growjinlogo.svg" alt="" />
-            </span>
-            GrowJin
-          </div>
-          <div className="md-header-actions">
-            <ThemeToggle />
-            <button
-              onClick={() => { setToolsLoading(true); router.push('/tools') }}
-              title="Tools"
-              disabled={toolsLoading}
-              style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: toolsLoading ? 'default' : 'pointer', color: 'var(--text-dim)', flexShrink: 0, transition: 'color 0.15s', opacity: toolsLoading ? .7 : 1 }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-dim)')}
-            >
-              {toolsLoading ? (
-                <span className="md-spin" style={{ width: '14px', height: '14px', flexShrink: 0 }} />
-              ) : (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-                  <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-                  <rect x="3" y="14" width="7" height="7" rx="1.5"/>
-                  <rect x="14" y="14" width="7" height="7" rx="1.5"/>
-                </svg>
-              )}
-            </button>
-            <button
-              onClick={() => setNotesOpen(true)}
-              title="Notes"
-              style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: 'pointer', color: 'var(--text-dim)', flexShrink: 0, transition: 'color 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-dim)')}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="16" y1="13" x2="8" y2="13" />
-                <line x1="16" y1="17" x2="8" y2="17" />
-                <polyline points="10 9 9 9 8 9" />
-              </svg>
-            </button>
-            <button
-              onClick={() => router.push('/settings')}
-              title="Settings"
-              style={{ display: 'grid', placeItems: 'center', width: 32, height: 32, background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, cursor: 'pointer', color: 'var(--text-dim)', flexShrink: 0, transition: 'color 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-dim)')}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            <button
-              onClick={handleLogout}
-              className="mob-hide"
-              style={{ fontSize: 13, color: 'var(--text-dim)', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.15s, color 0.15s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--green)'; e.currentTarget.style.color = 'var(--text)' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.color = 'var(--text-dim)' }}
-            >
-              {userEmail} · Sign out
-            </button>
+      {/* Growth Path topbar */}
+      <div className="gp-topbar">
+        <div>
+          <h1 className="gp-title">Growth Path</h1>
+          <div className="gp-sub">
+            {selectedModule ? `Step ${selectedIdx + 1} of ${railModules.length} — ${selectedModule.name}` : brand.name}
           </div>
         </div>
-      </header>
+        <div className="gp-top-actions">
+          <ThemeToggle />
+          <button className="gp-icon-btn" onClick={() => setNotesOpen(true)} title="Notes">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+          </button>
+          <button className="gp-signout mob-hide" onClick={handleLogout}>{userEmail} · Sign out</button>
+        </div>
+      </div>
 
-      <div className="wrap">
-        {/* Hero + Overview */}
-        <div className="overview-card" style={{ position: 'relative' }}>
-          <div className="hero-brand">
-            {brand.logoUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={brand.logoUrl}
-                alt=""
-                className="hero-favicon"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-              />
-            )}
-            <h1><span className="hero-brand-name">{brand.name}</span>&apos;s road to 500 users</h1>
-          </div>
-          <div className="hero-badge">
-            <span className="hero-badge-dot" />
-            One module at a time — clear each gate before you level up
-          </div>
+      <div className="wrap gp-wrap">
           {/* Website URL + social icons */}
-          <div className="hero-meta" onClick={() => setActiveTooltip(null)}>
+          <div className="hero-meta gp-meta" onClick={() => setActiveTooltip(null)}>
             {brand.websiteUrl && (
               <a
                 href={brand.websiteUrl}
@@ -1957,168 +1928,57 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             </div>
           </div>
 
-          <div className="hero-actions-row">
-            <button
-              onClick={() => { setToolsLoading(true); router.push('/tools') }}
-              className="btn-tools"
-              disabled={toolsLoading}
-            >
-              {toolsLoading ? (
-                <span className="md-spin" style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+        {/* Road to 500 users */}
+        <div className="gp-journey">
+          <div className="gp-journey-top">
+            <div>
+              <div className="gp-eyebrow">Your road to 500 users</div>
+              {connectedIntegrations['posthog'] ? (
+                <div className="gp-count">
+                  {posthogLoading ? <span className="count-loading"><span /><span /><span /></span> : userCount.toLocaleString()}
+                  <span className="gp-count-label">users · {currentPhase.name}</span>
+                </div>
               ) : (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-                  <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-                  <rect x="3" y="14" width="7" height="7" rx="1.5"/>
-                  <rect x="14" y="14" width="7" height="7" rx="1.5"/>
-                </svg>
+                <div className="gp-count gp-count--off">
+                  —<span className="gp-count-label">live user count locked</span>
+                </div>
               )}
-              <span>{toolsLoading ? 'Loading…' : 'Tools'}</span>
-            </button>
-            <button
-              onClick={() => { setAnalyticsLoading(true); router.push('/authAnalytics') }}
-              className="btn-analytics"
-              disabled={analyticsLoading}
-            >
-              {analyticsLoading ? (
-                <span className="md-spin" style={{ width: '13px', height: '13px', flexShrink: 0 }} />
+              {connectedIntegrations['posthog'] && posthogDataStartDate && (
+                <div className="gp-tracking">
+                  Tracking since {new Date(posthogDataStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+                </div>
+              )}
+            </div>
+            <div className="gp-journey-note">
+              {connectedIntegrations['posthog'] ? (
+                nextPhase
+                  ? <>{Math.max(nextPhase.min - userCount, 0).toLocaleString()} more users to reach <strong>{nextPhase.name}</strong></>
+                  : <>Last stage on the road — keep compounding</>
               ) : (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                  <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <>
+                  <span>Connect PostHog so GrowJin can place you on the road and match tactics to your phase. Read-only, takes about a minute.</span>
+                  <div className="gp-journey-actions">
+                    <button className="gp-btn-primary" onClick={() => router.push('/settings?tab=integrations')}>Connect PostHog</button>
+                    <button className="gp-btn-ghost" onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}>See what we track</button>
+                  </div>
+                </>
               )}
-              <span className="btn-analytics-label">{analyticsLoading ? 'Loading…' : 'Analytics'}</span>
-            </button>
+            </div>
           </div>
-
-          <div className="hero-divider" />
-
-          <div className={`overview-body${!connectedIntegrations['posthog'] ? ' overview-body--disconnected' : ''}`}>
-          {!connectedIntegrations['posthog'] ? (
-            <>
-              {/* Header row */}
-              <div className="overview-dis-header">
-                <span className="overview-dis-badge">
-                  <span className="overview-dis-badge-dot" />
-                  PostHog not connected
-                </span>
-              </div>
-              {/* Body */}
-              <div className="overview-dis-body">
-                {/* Left: dimmed number */}
-                <div className="overview-dis-left">
-                  <div className="overview-dis-num">
-                    <span className="overview-dis-dash">—</span>
-                    <span className="overview-dis-slash">/500</span>
-                  </div>
-                  <div className="overview-dis-lock-label">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
-                    Live user count locked
-                  </div>
+          <div className="gp-bands">
+            {JOURNEY_PHASES.map((p, i) => {
+              const state = !connectedIntegrations['posthog'] ? 'locked'
+                : i < currentPhaseIdx ? 'done'
+                : i === currentPhaseIdx ? 'current'
+                : 'locked'
+              return (
+                <div key={p.range} className={`gp-band gp-band--${state}`}>
+                  {state === 'current' && <span className="gp-band-marker" style={{ left: `${phaseMarkerPct}%` }} />}
+                  <span className="gp-band-range">{p.range}</span>
+                  <span className="gp-band-name">{state === 'done' ? `✓ ${p.name}` : p.name}</span>
                 </div>
-                {/* Right: CTA */}
-                <div className="overview-dis-right">
-                  <div className="overview-dis-title">Connect PostHog to start counting</div>
-                  <p className="overview-dis-desc">GrowJin reads your active users straight from PostHog to place you on the road and match tactics to your current phase. Connect it once and your count updates on its own.</p>
-                  <div className="overview-dis-bar">
-                    <div className="overview-dis-track" />
-                    <div className="overview-dis-labels">
-                      <span>0</span><span>10</span><span>50</span><span>100</span><span>500</span>
-                    </div>
-                  </div>
-                  <div className="overview-dis-actions">
-                    <button className="overview-dis-btn-primary" onClick={() => router.push('/settings?tab=integrations')}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>
-                      Connect PostHog
-                    </button>
-                    <button className="overview-dis-btn-secondary" onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}>See what we track</button>
-                  </div>
-                  <p className="overview-dis-disclaimer">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                    Read-only access. Takes about a minute — you&apos;ll need your PostHog project API key.
-                  </p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <div className="overview-eyebrow">Users on board</div>
-                <div
-                  className="big-num"
-                  style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}
-                >
-                  {posthogLoading ? (
-                    <span className="count-loading"><span /><span /><span /></span>
-                  ) : (
-                    userCount.toLocaleString()
-                  )}
-                  <span>/500</span>
-                </div>
-                <div className="overview-tracking">
-                  {posthogDataStartDate
-                    ? `Tracking since ${new Date(posthogDataStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`
-                    : posthogLoading ? '…' : `Level ${currentLevel}`}
-                </div>
-                {(
-                  <div className="mrr-box">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                      <div className="mrr-box-label">
-                        Projected MRR
-                      </div>
-                      <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }} className="mrr-tip-wrap">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: '#9c701f', flexShrink: 0, cursor: 'default', opacity: 0.75 }}>
-                          <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><circle cx="12" cy="8" r="0.5" fill="currentColor" strokeWidth="3"/>
-                        </svg>
-                        <div className="mrr-tip-box">
-                          Pricing data sourced from your website
-                          <span className="mrr-tip-caret" />
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                      <span className="mrr-box-value">
-                        $9.5K
-                      </span>
-                      <span className="mrr-box-chip">
-                        $19 × 500
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="meta">
-                <div className="desc">
-                  Specific tactics to get more users, based on <strong>exactly where {brand.name} is today</strong> — not a generic playbook.
-                </div>
-                <div className="journey-bar">
-                  <div className="journey-track-wrap">
-                    <div className="journey-track">
-                      <div className="journey-fill" style={{ width: `${barPct}%` }} />
-                    </div>
-                    <div className="journey-dots">
-                      {JOURNEY_MILESTONES.map((m, i) => (
-                        <span key={m} className="journey-dot" style={{ left: `${i * (100 / (JOURNEY_MILESTONES.length - 1))}%` }} />
-                      ))}
-                      <span className="journey-dot journey-dot-active" style={{ left: `${barPct}%` }} />
-                    </div>
-                  </div>
-                  <div className="journey-labels">
-                    {JOURNEY_MILESTONES.map(m => (
-                      <span key={m}>{m}</span>
-                    ))}
-                  </div>
-                  <div className="journey-tag-wrap">
-                    <span className="journey-tag" style={{ left: `${journeyTagPct}%` }}>
-                      {userCount.toLocaleString()} · you’re here
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
+              )
+            })}
           </div>
         </div>
 
@@ -2145,6 +2005,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
           return (
             <div
+              className="gp-sm-overlay"
               style={{ position: 'fixed', inset: 0, background: '#000000bb', backdropFilter: 'blur(4px)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
               onClick={(e) => { if (e.target === e.currentTarget) setStageModalOpen(false) }}
             >
@@ -2172,7 +2033,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       style={{
                         fontSize: '12px', fontWeight: 600, padding: '5px 14px', borderRadius: '20px', cursor: bsBusy ? 'default' : 'pointer',
                         border: '1px solid var(--green)', color: 'var(--green-bright)', background: 'transparent',
-                        fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', opacity: bsBusy ? 0.6 : 1,
+                        fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', opacity: bsBusy ? 0.6 : 1, whiteSpace: 'nowrap', flexShrink: 0,
                       }}
                     >
                       {bsBusy ? <><svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>{ensuringBs ? 'Setting up…' : 'Analysing…'}</> : 'Re-analyse'}
@@ -2197,7 +2058,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 </div>
 
                 {/* Underline tabs */}
-                <div style={{ display: 'flex', gap: '0', padding: '16px 24px 0', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
+                <div className="gp-sm-tabs" style={{ display: 'flex', gap: '0', padding: '16px 24px 0', borderBottom: '1px solid var(--line)', flexShrink: 0, overflowX: 'auto', scrollbarWidth: 'none' }}>
                   {TABS.map((tab, i) => (
                     <button
                       key={tab.slug}
@@ -2209,7 +2070,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         background: 'transparent', border: 'none',
                         borderBottom: stageModalTab === i ? '2px solid var(--green-bright)' : '2px solid transparent',
                         cursor: 'pointer', fontFamily: 'inherit',
-                        display: 'flex', alignItems: 'center', gap: '6px',
+                        display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', flexShrink: 0,
                         marginBottom: '-1px',
                         transition: 'color .15s',
                       }}
@@ -2244,17 +2105,124 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           )
         })()}
 
-        {/* Module accordion stack */}
+        {/* Module step rail */}
+        <div className="gp-rail-head">
+          <span className="gp-eyebrow">Your growth path</span>
+          <span className="gp-rail-summary"><b>{railDoneCount}</b> of {railModules.length} modules complete</span>
+        </div>
+        <div className="gp-path">
+          <div className="gp-phases">
+            {phases.map((p, i) => {
+              const isSel = p === selectedPhase
+              return (
+                <button
+                  key={p.name}
+                  className={`gp-phase${p.locked ? ' gp-phase--locked' : ''}${isSel ? ' gp-phase--selected' : ''}`}
+                  onClick={() => {
+                    const target = p.mods.find(m => !m.definition.comingSoon && !isModuleLocked(m) && !isStepDone(m)) ?? p.mods[0]
+                    setOpenModules(new Set([target.id]))
+                  }}
+                  aria-pressed={isSel}
+                >
+                  <span className="gp-phase-top">
+                    <span>{i + 1} · {p.name}</span>
+                    <span className="gp-phase-count">
+                      {p.locked ? (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-label="Locked"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                      ) : `${p.done}/${p.total}`}
+                    </span>
+                  </span>
+                  <span className="gp-phase-blurb">{p.blurb}</span>
+                  <span className="gp-phase-bar"><i style={{ width: `${p.locked ? 0 : p.pct}%` }} /></span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="gp-pills">
+            {selectedPhase?.mods.map(m => {
+              const locked = isModuleLocked(m)
+              const done = isStepDone(m)
+              const soon = !!m.definition.comingSoon
+              const state = done ? 'done' : locked || soon ? 'locked' : 'open'
+              const score = liveScores[m.id] ?? 0
+              return (
+                <button
+                  key={m.id}
+                  className={`gp-pill gp-pill--${state}${m.id === selectedModule?.id ? ' gp-pill--selected' : ''}`}
+                  onClick={() => setOpenModules(new Set([m.id]))}
+                  title={locked ? `${m.name} — locked` : `${m.name} — ${score}%`}
+                >
+                  <span className="gp-pill-dot">
+                    {done ? (
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    ) : state === 'locked' ? (
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                    ) : railModules.indexOf(m) + 1}
+                  </span>
+                  {m.name}
+                  {soon ? <span className="gp-pill-pct">Soon</span>
+                    : !locked && <span className="gp-pill-pct">{(lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt) ? `${score}%` : '—'}</span>}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="gp-main">
+        <div className="gp-col">
+
+        {/* Unlock progress for the selected step */}
+        {selectedModule && !selectedModule.definition.comingSoon && (() => {
+          const score = liveScores[selectedModule.id] ?? 0
+          if (isModuleLocked(selectedModule)) {
+            const prev = [...railModules.slice(0, selectedIdx)].reverse().find(p => !p.definition.comingSoon)
+            if (!prev) return null
+            const prevScore = liveScores[prev.id] ?? 0
+            return (
+              <div className="gp-unlock gp-unlock--locked">
+                <div className="gp-unlock-row">
+                  <span>Locked — reach <b>80%</b> on {prev.name} to unlock</span>
+                  <b className="gp-unlock-num">{prevScore}% / 80%</b>
+                </div>
+                <div className="gp-unlock-track"><div className="gp-unlock-fill" style={{ width: `${Math.min(prevScore / 80, 1) * 100}%` }} /></div>
+              </div>
+            )
+          }
+          const next = railModules.slice(selectedIdx + 1).find(p => !p.definition.comingSoon)
+          // Mirrors isModuleLocked: the first three modules never gate each other.
+          const unlocksNext = !!next && next.order > 3
+          if (score >= 80) {
+            return (
+              <div className="gp-unlock gp-unlock--done">
+                <div className="gp-unlock-row">
+                  <span>{unlocksNext ? <>Step complete — <b>{next.name}</b> is unlocked</> : <>Step complete</>}</span>
+                  <b className="gp-unlock-num">{score}%</b>
+                </div>
+              </div>
+            )
+          }
+          return (
+            <div className="gp-unlock">
+              <div className="gp-unlock-row">
+                <span>Reach <b>80%</b>{unlocksNext ? <> to unlock {next.name}</> : <> to complete this step</>}</span>
+                <b className="gp-unlock-num">{score}% / 80%</b>
+              </div>
+              <div className="gp-unlock-track"><div className="gp-unlock-fill" style={{ width: `${Math.min(score / 80, 1) * 100}%` }} /></div>
+            </div>
+          )
+        })()}
+
+        {/* Selected module (one at a time) */}
         <div className="levels">
           {(() => {
-            const filtered = sortedByOrder.filter(m => m.type !== 'user-acquisition' && m.type !== 'business-stage')
-            let separatorPlaced = false
+            const filtered = railModules.filter(m => m.id === selectedModule?.id)
+            // Single-module view: the "locked below" separator has nothing to sit between.
+            let separatorPlaced = true
             return filtered.map((modData) => {
-            const isOpen = openModules.has(modData.id)
+            const isOpen = true
             const isLocked = isModuleLocked(modData)
             const liveScore = liveScores[modData.id] ?? 0
             const isDone = !isLocked && liveScore >= 80
-            const isYouAreHere = !isLocked && !isDone && modData.id === activeModule?.id
             const stateClass = isLocked ? 'locked' : 'active'
             const reanalyzing = reanalyzingMap[modData.id] ?? false
             const reqValues = reqValuesMap[modData.id] ?? {}
@@ -2930,6 +2898,22 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             )
           })
         })()}
+        </div>
+        </div>
+
+        {/* Growth Stage */}
+        <aside className="gp-stage">
+          <span className="gp-stage-tag">Growth Stage</span>
+          <h4 className="gp-stage-title">{bsClassItem?.label ?? 'Your stage playbook'}</h4>
+          <p className="gp-stage-text">
+            {bsConcernItem?.aiDetail
+              ?? bsClassItem?.aiDetail
+              ?? 'Tactics matched to where you are on the road to 500 users — what to focus on, what to skip, and the red flag to fix first.'}
+          </p>
+          <button className="gp-stage-cta" onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}>
+            {bsItemsAll.length > 0 ? 'View full playbook' : 'Get your playbook'}
+          </button>
+        </aside>
         </div>
 
         <p className="foot-note">
