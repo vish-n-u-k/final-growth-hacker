@@ -164,6 +164,17 @@ row is hidden. All styles are scoped under `.gp-*` in the "Growth Path polish"
 block of `app/globals.css`, because other pages reuse `.level` / `.md-cat`.
 Re-rendered in light, dark and 390px; `tsc` clean.
 
+**Step rail → phases.** The 16-step horizontal rail (mostly identical grey
+padlocks, wrapping names, running off-screen) is replaced by 4 phase cards:
+Get set up (order 1–3), Get found (4–7), Win attention (8–11), Scale (12+).
+Each card shows done/total and a progress bar, or a lock if every module in
+it is locked. Only the selected phase's modules show below it, as pills.
+Clicking a phase opens its first unlocked, unfinished module. The grouping is
+**display-only** (`GROWTH_PHASES` in `AllModulesDashboard.tsx`, by registry
+`order`), so locking is still per-module. The phase blurbs are hardcoded, so
+update them if modules move. Rendered in light, dark, 390px and with a locked
+phase selected; `tsc` clean.
+
 **Known, not fixed (pre-existing):** `middleware.ts`'s matcher doesn't exclude
 `.js` files in `public/`, so for logged-out visitors (i.e. the real /login page)
 `/fb-widget.js` is redirected to `/login` and the HTML is parsed as JS — a

@@ -167,6 +167,14 @@ const JOURNEY_PHASES = [
   { min: 250, max: Infinity, range: '250–500', name: 'New markets' },
 ]
 
+// Display-only grouping of the module chain (by registry `order`). Locking stays per-module.
+const GROWTH_PHASES = [
+  { maxOrder: 3,        name: 'Get set up',    blurb: 'Foundation, website, SEO' },
+  { maxOrder: 7,        name: 'Get found',     blurb: 'AI search, social, brand' },
+  { maxOrder: 11,       name: 'Win attention', blurb: 'Content, competitors, outreach, ads' },
+  { maxOrder: Infinity, name: 'Scale',         blurb: 'Analytics, email, audience' },
+]
+
 function InlineIntegrationForm({ intDef, onConnected }: { intDef: IntegrationDefinition; onConnected: () => void }) {
   const [values, setValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
@@ -488,16 +496,23 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const currentStep = railModules.find(m => !isModuleLocked(m) && (liveScores[m.id] ?? 0) < 80) ?? railModules[railModules.length - 1]
   const selectedModule = railModules.find(m => openModules.has(m.id)) ?? currentStep
   const selectedIdx = selectedModule ? railModules.indexOf(selectedModule) : -1
-  const currentIdx = currentStep ? railModules.indexOf(currentStep) : -1
-  const railDoneCount = railModules.filter(m => !isModuleLocked(m) && (liveScores[m.id] ?? 0) >= 80).length
+  const isStepDone = (m: ModuleData) => !isModuleLocked(m) && !m.definition.comingSoon && (liveScores[m.id] ?? 0) >= 80
+  const railDoneCount = railModules.filter(isStepDone).length
 
-  const railRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const wrap = railRef.current
-    const el = wrap?.querySelector<HTMLElement>('.gp-step--selected')
-    if (!wrap || !el) return
-    wrap.scrollTo({ left: el.offsetLeft - wrap.clientWidth / 2 + el.offsetWidth / 2, behavior: 'smooth' })
-  }, [selectedModule?.id])
+  const phaseIdxOf = (m: ModuleData) => GROWTH_PHASES.findIndex(p => m.order <= p.maxOrder)
+  const phases = GROWTH_PHASES.map((p, i) => {
+    const mods = railModules.filter(m => phaseIdxOf(m) === i)
+    const active = mods.filter(m => !m.definition.comingSoon)
+    return {
+      ...p,
+      mods,
+      total: active.length,
+      done: active.filter(isStepDone).length,
+      locked: active.length > 0 && active.every(isModuleLocked),
+      pct: active.length ? Math.round(active.reduce((s, m) => s + Math.min(liveScores[m.id] ?? 0, 100), 0) / active.length) : 0,
+    }
+  }).filter(p => p.mods.length > 0)
+  const selectedPhase = phases.find(p => selectedModule && p.mods.includes(selectedModule)) ?? phases[0]
 
   const currentPhaseIdx = Math.max(0, JOURNEY_PHASES.findIndex(p => userCount < p.max))
   const currentPhase = JOURNEY_PHASES[currentPhaseIdx]
@@ -2094,40 +2109,61 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           <span className="gp-eyebrow">Your growth path</span>
           <span className="gp-rail-summary"><b>{railDoneCount}</b> of {railModules.length} modules complete</span>
         </div>
-        <div className="gp-rail-wrap" ref={railRef}>
-          <div className="gp-rail" style={{ minWidth: `${railModules.length * 92}px` }}>
-            <div className="gp-rail-track" style={{ left: `calc(100% / ${railModules.length * 2})`, right: `calc(100% / ${railModules.length * 2})` }} />
-            <div
-              className="gp-rail-fill"
-              style={{
-                left: `calc(100% / ${railModules.length * 2})`,
-                width: `calc((100% - 100% / ${railModules.length}) * ${railModules.length > 1 ? Math.max(currentIdx, 0) / (railModules.length - 1) : 0})`,
-              }}
-            />
-            <div className="gp-rail-steps">
-              {railModules.map((m, i) => {
-                const locked = isModuleLocked(m)
-                const done = !locked && (liveScores[m.id] ?? 0) >= 80
-                const stepState = done ? 'done' : locked || m.definition.comingSoon ? 'locked' : 'open'
-                return (
-                  <button
-                    key={m.id}
-                    className={`gp-step gp-step--${stepState}${m.id === selectedModule?.id ? ' gp-step--selected' : ''}`}
-                    onClick={() => setOpenModules(new Set([m.id]))}
-                    title={locked ? `${m.name} — locked` : `${m.name} — ${liveScores[m.id] ?? 0}%`}
-                  >
-                    <span className="gp-step-dot">
-                      {done ? (
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                      ) : stepState === 'locked' ? (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                      ) : i + 1}
+        <div className="gp-path">
+          <div className="gp-phases">
+            {phases.map((p, i) => {
+              const isSel = p === selectedPhase
+              return (
+                <button
+                  key={p.name}
+                  className={`gp-phase${p.locked ? ' gp-phase--locked' : ''}${isSel ? ' gp-phase--selected' : ''}`}
+                  onClick={() => {
+                    const target = p.mods.find(m => !m.definition.comingSoon && !isModuleLocked(m) && !isStepDone(m)) ?? p.mods[0]
+                    setOpenModules(new Set([target.id]))
+                  }}
+                  aria-pressed={isSel}
+                >
+                  <span className="gp-phase-top">
+                    <span>{i + 1} · {p.name}</span>
+                    <span className="gp-phase-count">
+                      {p.locked ? (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-label="Locked"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                      ) : `${p.done}/${p.total}`}
                     </span>
-                    <span className="gp-step-label">{m.name}</span>
-                  </button>
-                )
-              })}
-            </div>
+                  </span>
+                  <span className="gp-phase-blurb">{p.blurb}</span>
+                  <span className="gp-phase-bar"><i style={{ width: `${p.locked ? 0 : p.pct}%` }} /></span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="gp-pills">
+            {selectedPhase?.mods.map(m => {
+              const locked = isModuleLocked(m)
+              const done = isStepDone(m)
+              const soon = !!m.definition.comingSoon
+              const state = done ? 'done' : locked || soon ? 'locked' : 'open'
+              const score = liveScores[m.id] ?? 0
+              return (
+                <button
+                  key={m.id}
+                  className={`gp-pill gp-pill--${state}${m.id === selectedModule?.id ? ' gp-pill--selected' : ''}`}
+                  onClick={() => setOpenModules(new Set([m.id]))}
+                  title={locked ? `${m.name} — locked` : `${m.name} — ${score}%`}
+                >
+                  <span className="gp-pill-dot">
+                    {done ? (
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    ) : state === 'locked' ? (
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                    ) : railModules.indexOf(m) + 1}
+                  </span>
+                  {m.name}
+                  {soon ? <span className="gp-pill-pct">Soon</span>
+                    : !locked && <span className="gp-pill-pct">{(lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt) ? `${score}%` : '—'}</span>}
+                </button>
+              )
+            })}
           </div>
         </div>
 

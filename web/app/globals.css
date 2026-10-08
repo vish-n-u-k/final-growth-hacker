@@ -6211,22 +6211,6 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gp-band--locked { background: var(--card); border-color: var(--line); color: var(--text-faint); }
 .gp-band-marker { position: absolute; top: -9px; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 7px solid var(--green); transform: translateX(-50%); }
 
-.gp-rail-wrap { overflow-x: auto; margin-bottom: 26px; padding: 4px 0 2px; }
-.gp-rail { position: relative; }
-.gp-rail-track, .gp-rail-fill { position: absolute; top: 21px; height: 2px; }
-.gp-rail-track { background: var(--line); }
-.gp-rail-fill { background: var(--green); }
-.gp-rail-steps { position: relative; display: flex; }
-.gp-step { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 7px; background: none; border: none; padding: 4px 2px 0; cursor: pointer; font-family: inherit; }
-.gp-step-dot { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Geist Mono', monospace; font-size: 12px; font-weight: 600; background: var(--card); border: 1px solid var(--line); color: var(--text-faint); transition: transform .15s, box-shadow .15s; }
-.gp-step--done .gp-step-dot { background: var(--green); border-color: var(--green); color: #fff; }
-.gp-step--open .gp-step-dot { border: 2px solid var(--green); color: var(--accent-foreground); }
-.gp-step--locked .gp-step-dot { background: var(--bg-soft); color: var(--locked); }
-.gp-step--selected .gp-step-dot { box-shadow: 0 0 0 4px var(--accent); }
-.gp-step:hover .gp-step-dot { transform: translateY(-1px); }
-.gp-step-label { font-size: 11px; line-height: 1.25; text-align: center; color: var(--text-faint); }
-.gp-step--done .gp-step-label { color: var(--text-dim); }
-.gp-step--selected .gp-step-label { color: var(--text); font-weight: 700; }
 
 .gp-main { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 22px; align-items: start; }
 .gp-col { min-width: 0; }
@@ -6279,14 +6263,6 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gp-rail-head .gp-eyebrow { margin: 0; }
 .gp-rail-summary { font-size: 12px; color: var(--text-faint); }
 .gp-rail-summary b { color: var(--text); font-family: 'Geist Mono', monospace; }
-.gp-rail-wrap {
-  border: 1px solid var(--line); border-radius: 14px; background: var(--card);
-  padding: 16px 8px 14px; margin-bottom: 22px; scrollbar-width: thin;
-}
-.gp-rail-track, .gp-rail-fill { top: 15px; }
-.gp-step { padding-top: 0; }
-.gp-step-dot { width: 30px; height: 30px; font-size: 11px; }
-.gp-step-label { max-width: 84px; font-size: 11.5px; }
 
 /* Module card: one calm surface, status carried by the % and bar colors. */
 .gp-col .levels { gap: 0; padding-bottom: 8px; }
@@ -6316,4 +6292,39 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gp-wrap .foot-note { text-align: left; margin-top: 18px; }
 @media (max-width: 760px) {
   .gp-meta .hero-meta-divider { display: none; }
+}
+
+/* ── Growth Path phases (replaces the 16-step rail) ── */
+.gp-path { border: 1px solid var(--line); border-radius: 16px; background: var(--card); padding: 14px; margin-bottom: 22px; }
+.gp-phases { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.gp-phase { text-align: left; font-family: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.gp-phase:hover { border-color: var(--green); }
+.gp-phase--locked { background: var(--bg-soft); color: var(--text-faint); }
+.gp-phase--selected { border-color: var(--green); box-shadow: 0 0 0 3px var(--accent); }
+.gp-phase-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; font-weight: 600; }
+.gp-phase-count { font-family: 'Geist Mono', monospace; font-size: 11.5px; font-weight: 600; color: var(--accent-foreground); white-space: nowrap; }
+.gp-phase--locked .gp-phase-count { color: var(--locked); }
+.gp-phase-blurb { display: block; font-size: 12px; color: var(--text-faint); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gp-phase-bar { display: block; height: 4px; border-radius: 99px; background: var(--bg-soft); margin-top: 10px; overflow: hidden; }
+.gp-phase-bar i { display: block; height: 100%; background: var(--green); border-radius: 99px; transition: width .3s; }
+.gp-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+.gp-pill { display: inline-flex; align-items: center; gap: 7px; font-family: inherit; font-size: 13px; color: var(--text-dim); background: var(--card); border: 1px solid var(--line); border-radius: 99px; padding: 6px 13px 6px 6px; cursor: pointer; transition: border-color .15s; }
+.gp-pill:hover { border-color: var(--green); }
+.gp-pill-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-family: 'Geist Mono', monospace; font-size: 10.5px; font-weight: 700; border: 1.5px solid var(--line); color: var(--text-faint); background: var(--card); }
+.gp-pill--done .gp-pill-dot { background: var(--green); border-color: var(--green); color: #fff; }
+.gp-pill--open .gp-pill-dot { border-color: var(--green); color: var(--accent-foreground); }
+.gp-pill--locked { background: var(--bg-soft); color: var(--text-faint); }
+.gp-pill--locked .gp-pill-dot { background: transparent; color: var(--locked); }
+.gp-pill--selected { border-color: var(--green); background: var(--accent); color: var(--text); font-weight: 600; }
+.gp-pill-pct { font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 500; color: var(--text-faint); }
+.gp-pill--selected .gp-pill-pct { color: var(--accent-foreground); }
+@media (max-width: 900px) {
+  .gp-phases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .gp-path { padding: 10px; }
+  .gp-phase { padding: 10px 12px; }
+  .gp-phase-top { font-size: 13px; }
+  .gp-phase-blurb { display: none; }
+  .gp-pill { font-size: 12.5px; }
 }
