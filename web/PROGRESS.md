@@ -206,6 +206,44 @@ not connected), Social Studio, Lead Finder, Reminders, Analytics, Settings
 Caveat: lists that load data client-side (Outreach inbox, Lead Finder results)
 were checked with an empty or error state, not with real rows.
 
+**Fix: Foundation's first analysis after signup "spins then shows nothing".**
+Cause: the dashboard waited on one long POST (crawl plus two AI calls, sometimes
+analysed twice). A dropped connection (phone locked, flaky network, platform
+timeout) lost the result. The error was only shown inside a setup form that
+Foundation never shows. Every reload started another full run, because
+`lastAnalyzedAt` is only set at the very end.
+- `POST /api/modules/analyze` with `background: true` now returns 202
+  immediately and keeps running via `after()`. The new `GET
+  /api/modules/analyze?moduleId=&runId=` reports running / failed (with the
+  message) / done (same payload as the synchronous POST). Callers that don't
+  pass `background` still get the old synchronous behaviour.
+- One run per module: `claimRun()` (`lib/modules/runs.ts`) atomically flips the
+  module to `analyzing`. A second request (reload, other device) joins the live
+  run. A run still `running` after 5.5 min (killed at maxDuration) is marked
+  failed ("took too long") and can be retried.
+- Dashboard: starts in background mode and polls every 3s, retrying network
+  blips and checking straight away when a backgrounded tab comes back. On load
+  it rejoins any module already `analyzing`. Errors now show on the module card,
+  and a first run shows "Analysing your site… you can leave this page". When
+  Foundation finishes, `router.refresh()` makes the playbook, logo and theme
+  appear without a reload.
+- AI-generated items (content audit, dynamic modules) are now replaced inside a
+  DB transaction, so a page load never sees them half-written.
+- **Needs `drizzle/module_runs.sql` run in Supabase.** Without it everything
+  still works in the background, but there's no dedupe and no error message
+  (the spinner just stops).
+- Verified against a local Postgres with a mocked auth service and a
+  deliberately slow site:
+  - 202 returned at once, and a duplicate POST joins the same run;
+  - running → failed with the message, and the module is released;
+  - a killed run is reported as failed and taken over by the next POST;
+  - legacy stuck `analyzing` with no runs → idle;
+  - the table missing → no crash;
+  - synchronous callers are unchanged.
+  The browser flow was checked with mocked responses: one POST, a dropped poll
+  retried, results applied, the error shown, the playbook appearing after the
+  refresh. A real AI run was not exercised (no API key here).
+
 **Known, not fixed (pre-existing):** `middleware.ts`'s matcher doesn't exclude
 `.js` files in `public/`, so for logged-out visitors (i.e. the real /login page)
 `/fb-widget.js` is redirected to `/login` and the HTML is parsed as JS — a

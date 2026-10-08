@@ -6385,3 +6385,7 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 @media (max-width: 360px) {
   .an-g4 > div, .an-g3 > div { padding: 16px !important; }
 }
+/* Analysis status line above a module's categories (errors + first-run notice) */
+.gp-run-msg { margin: 4px 24px 12px; font-size: 13px; line-height: 1.5; }
+.gp-run-msg--info { color: var(--text-dim); background: var(--bg-soft); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+@media (max-width: 760px) { .gp-run-msg { margin: 4px 12px 10px; } }

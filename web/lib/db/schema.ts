@@ -120,6 +120,24 @@ export const moduleItems = pgTable(
   }),
 )
 
+// ── Module Runs (one row per analysis job — see drizzle/module_runs.sql) ─────
+// Only read/written by lib/modules/runs.ts, which tolerates the table being absent.
+
+export const moduleRuns = pgTable(
+  'module_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    moduleId: uuid('module_id').notNull().references(() => modules.id, { onDelete: 'cascade' }),
+    status: text('status').notNull().default('running'), // 'running' | 'done' | 'failed'
+    error: text('error'),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+  },
+  (table) => ({
+    moduleStartedIdx: index('module_runs_module_started_idx').on(table.moduleId, table.startedAt),
+  }),
+)
+
 // ── Brand Integrations ────────────────────────────────────────────────────────
 
 export const brandIntegrations = pgTable(

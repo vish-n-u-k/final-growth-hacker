@@ -44,6 +44,25 @@ export interface ModuleData {
   pageVerdicts: { url: string; title: string | null; wordCount: number; verdict: string; urgency: string; reason: string | null; action: string | null }[]
 }
 
+// Result of an analysis — returned by POST /api/modules/analyze (sync) and by its GET poll once done.
+interface AnalysisPayload {
+  ok: boolean
+  dynamic: boolean
+  score: number
+  lastAnalyzedAt: string
+  items: Array<{
+    id: string; slug: string; label: string; weight: number; categoryId: string
+    aiDetail: string | null; aiHighlight: string | null; aiNarrative: string | null; aiAction: string | null
+    aiDraft: string | null; aiData: unknown | null
+    aiVerified: boolean; userChecked: boolean; completedBy: string | null
+    fixable: boolean; fixInputKey: string | null; fixIntegrationProvider: string | null
+    userSkipped: boolean; userSkipReason: string | null
+    exportType: string | null; choiceOptions: string[] | null; userChoice: string | null
+  }>
+  categories: Array<{ id: string; slug: string }>
+  pageVerdicts?: ModuleData['pageVerdicts']
+}
+
 interface Props {
   brand: { id: string; name: string; keywords?: string; websiteUrl?: string; logoUrl?: string; themeColor?: string; playbook?: Record<string, string> | null }
   allModulesData: ModuleData[]
@@ -384,6 +403,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   // Playbook state (Foundation module only)
   const [playbookData, setPlaybookData] = useState<Record<string, string> | null>(brand.playbook ?? null)
   const [playbookOpen, setPlaybookOpen] = useState(false)
+  // Pick up a playbook generated after load (Foundation's first run refreshes server props)
+  useEffect(() => {
+    if (brand.playbook && !playbookData) setPlaybookData(brand.playbook)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [brand.playbook])
   const [playbookEditing, setPlaybookEditing] = useState(false)
   const [playbookDraft, setPlaybookDraft] = useState<Record<string, string>>({})
   const [playbookSaving, setPlaybookSaving] = useState(false)
@@ -622,7 +646,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     }
 
     try {
-    const body: Record<string, unknown> = { moduleId: modId }
+    const body: Record<string, unknown> = { moduleId: modId, background: true }
     const reqs = overrideReqs ?? reqValues
     const nonEmpty = Object.fromEntries(Object.entries(reqs).filter(([, v]) => typeof v === 'string' && (v as string).trim()))
     if (Object.keys(nonEmpty).length > 0) body.requirements = nonEmpty
@@ -631,89 +655,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    if (res.ok) {
-      const data = await res.json() as {
-        ok: boolean
-        dynamic: boolean
-        score: number
-        lastAnalyzedAt: string
-        items: Array<{
-          id: string; slug: string; label: string; weight: number; categoryId: string
-          aiDetail: string | null; aiHighlight: string | null; aiNarrative: string | null; aiAction: string | null
-          aiDraft: string | null; aiData: unknown | null
-          aiVerified: boolean; userChecked: boolean; completedBy: string | null
-          fixable: boolean; fixInputKey: string | null; fixIntegrationProvider: string | null
-          userSkipped: boolean; userSkipReason: string | null
-          exportType: string | null; choiceOptions: string[] | null; userChoice: string | null
-        }>
-        categories: Array<{ id: string; slug: string }>
-        pageVerdicts?: ModuleData['pageVerdicts']
-      }
-
-      setLastAnalyzedAtMap(prev => ({ ...prev, [modId]: data.lastAnalyzedAt }))
-
-      const isDynamic = data.dynamic ?? allModulesData.find(m => m.id === modId)?.definition.dynamic
-      const catIdToSlug = new Map(data.categories.map(c => [c.id, c.slug]))
-
-      if (isDynamic) {
-        const fullItems: DBItemFull[] = data.items.map(item => ({
-          id: item.id,
-          slug: item.slug,
-          label: item.label,
-          weight: item.weight,
-          categorySlug: catIdToSlug.get(item.categoryId) ?? '',
-          aiDetail: item.aiDetail,
-          aiHighlight: item.aiHighlight ?? null,
-          aiNarrative: item.aiNarrative,
-          aiAction: item.aiAction,
-          aiDraft: item.aiDraft ?? null,
-          aiData: item.aiData ?? null,
-          aiVerified: item.aiVerified ?? false,
-          userChecked: item.userChecked ?? false,
-          completedBy: item.completedBy,
-          fixable: item.fixable ?? false,
-          fixType: null,
-          fixInputKey: item.fixInputKey ?? null,
-          fixIntegrationProvider: item.fixIntegrationProvider ?? null,
-          userSkipped: item.userSkipped ?? false,
-          userSkipReason: item.userSkipReason ?? null,
-          exportType: item.exportType ?? null,
-          choiceOptions: item.choiceOptions ?? null,
-          userChoice: item.userChoice ?? null,
-        }))
-        setDynItemsMap(prev => ({ ...prev, [modId]: fullItems }))
-      } else {
-        const itemStates: Record<string, DBItemState> = {}
-        for (const item of data.items) {
-          itemStates[item.slug] = {
-            id: item.id,
-            aiDetail: item.aiDetail,
-            aiHighlight: item.aiHighlight ?? null,
-            aiNarrative: item.aiNarrative,
-            aiAction: item.aiAction,
-            aiVerified: item.aiVerified ?? false,
-            userChecked: item.userChecked ?? false,
-            completedBy: item.completedBy,
-            fixable: item.fixable ?? false,
-            fixInputKey: item.fixInputKey ?? null,
-            fixIntegrationProvider: item.fixIntegrationProvider ?? null,
-            userSkipped: item.userSkipped ?? false,
-            userSkipReason: item.userSkipReason ?? null,
-            exportType: item.exportType ?? null,
-            choiceOptions: item.choiceOptions ?? null,
-            userChoice: item.userChoice ?? null,
-          }
-        }
-        setStatesMap(prev => ({ ...prev, [modId]: itemStates }))
-      }
-
-      if (data.pageVerdicts) {
-        setPageVerdictsMap(prev => ({ ...prev, [modId]: data.pageVerdicts! }))
-      }
-
-      setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
-
-      // Export prep modal disabled for now
+    if (res.status === 202) {
+      // Runs server-side in the background; poll until it lands (also joins a run already in flight).
+      const { runId } = await res.json() as { runId: string | null }
+      await pollAnalysis(modId, runId)
+    } else if (res.ok) {
+      applyAnalysisResult(modId, await res.json() as AnalysisPayload)
     } else {
       const data = await res.json().catch(() => ({}))
       setSetupErrorMap(prev => ({ ...prev, [modId]: (data as { error?: string }).error ?? 'Analysis failed. Please try again.' }))
@@ -723,6 +670,116 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
       setSetupErrorMap(prev => ({ ...prev, [modId]: 'Network error. Please try again.' }))
     }
+  }
+
+  // Polls a background analysis until it finishes, fails, or we give up. Network blips are
+  // retried (phones drop requests when locked), and a tab coming back to the foreground
+  // checks immediately instead of waiting out the interval.
+  const pollingRef = useRef<Set<string>>(new Set())
+  const pollAnalysis = async (modId: string, runId: string | null) => {
+    if (pollingRef.current.has(modId)) return
+    pollingRef.current.add(modId)
+    setReanalyzingMap(prev => ({ ...prev, [modId]: true }))
+    const deadline = Date.now() + 7 * 60_000 // server marks a run dead after 5.5 min
+    const waitOrWake = (ms: number) => new Promise<void>(resolve => {
+      const done = () => { clearTimeout(t); document.removeEventListener('visibilitychange', onVis); resolve() }
+      const onVis = () => { if (document.visibilityState === 'visible') done() }
+      const t = setTimeout(done, ms)
+      document.addEventListener('visibilitychange', onVis)
+    })
+    try {
+      for (let attempt = 0; ; attempt++) {
+        await waitOrWake(attempt === 0 ? 1500 : 3000)
+        let data: (AnalysisPayload & { state?: string; error?: string }) | null = null
+        try {
+          const qs = new URLSearchParams({ moduleId: modId, ...(runId ? { runId } : {}) })
+          const res = await fetch(`/api/modules/analyze?${qs}`, { cache: 'no-store' })
+          if (res.ok) data = await res.json()
+        } catch { /* transient — retry */ }
+        if (data?.state === 'done') { applyAnalysisResult(modId, data); return }
+        if (data?.state === 'failed') {
+          setSetupErrorMap(prev => ({ ...prev, [modId]: data?.error ?? 'Analysis failed. Please try again.' }))
+          return
+        }
+        if (data?.state === 'idle') return
+        if (Date.now() > deadline) {
+          setSetupErrorMap(prev => ({ ...prev, [modId]: 'This is taking longer than usual. Refresh in a minute to see the results.' }))
+          return
+        }
+      }
+    } finally {
+      pollingRef.current.delete(modId)
+      setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
+    }
+  }
+
+  const applyAnalysisResult = (modId: string, data: AnalysisPayload) => {
+    setLastAnalyzedAtMap(prev => ({ ...prev, [modId]: data.lastAnalyzedAt }))
+
+    const isDynamic = data.dynamic ?? allModulesData.find(m => m.id === modId)?.definition.dynamic
+    const catIdToSlug = new Map(data.categories.map(c => [c.id, c.slug]))
+
+    if (isDynamic) {
+      const fullItems: DBItemFull[] = data.items.map(item => ({
+        id: item.id,
+        slug: item.slug,
+        label: item.label,
+        weight: item.weight,
+        categorySlug: catIdToSlug.get(item.categoryId) ?? '',
+        aiDetail: item.aiDetail,
+        aiHighlight: item.aiHighlight ?? null,
+        aiNarrative: item.aiNarrative,
+        aiAction: item.aiAction,
+        aiDraft: item.aiDraft ?? null,
+        aiData: item.aiData ?? null,
+        aiVerified: item.aiVerified ?? false,
+        userChecked: item.userChecked ?? false,
+        completedBy: item.completedBy,
+        fixable: item.fixable ?? false,
+        fixType: null,
+        fixInputKey: item.fixInputKey ?? null,
+        fixIntegrationProvider: item.fixIntegrationProvider ?? null,
+        userSkipped: item.userSkipped ?? false,
+        userSkipReason: item.userSkipReason ?? null,
+        exportType: item.exportType ?? null,
+        choiceOptions: item.choiceOptions ?? null,
+        userChoice: item.userChoice ?? null,
+      }))
+      setDynItemsMap(prev => ({ ...prev, [modId]: fullItems }))
+    } else {
+      const itemStates: Record<string, DBItemState> = {}
+      for (const item of data.items) {
+        itemStates[item.slug] = {
+          id: item.id,
+          aiDetail: item.aiDetail,
+          aiHighlight: item.aiHighlight ?? null,
+          aiNarrative: item.aiNarrative,
+          aiAction: item.aiAction,
+          aiVerified: item.aiVerified ?? false,
+          userChecked: item.userChecked ?? false,
+          completedBy: item.completedBy,
+          fixable: item.fixable ?? false,
+          fixInputKey: item.fixInputKey ?? null,
+          fixIntegrationProvider: item.fixIntegrationProvider ?? null,
+          userSkipped: item.userSkipped ?? false,
+          userSkipReason: item.userSkipReason ?? null,
+          exportType: item.exportType ?? null,
+          choiceOptions: item.choiceOptions ?? null,
+          userChoice: item.userChoice ?? null,
+        }
+      }
+      setStatesMap(prev => ({ ...prev, [modId]: itemStates }))
+    }
+
+    if (data.pageVerdicts) {
+      setPageVerdictsMap(prev => ({ ...prev, [modId]: data.pageVerdicts! }))
+    }
+
+    setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
+    setSetupErrorMap(prev => ({ ...prev, [modId]: null }))
+    // Foundation also saves the playbook, logo, theme colour and social links on the brand —
+    // refresh server props so they show without a reload (client item state is kept).
+    if (allModulesData.find(m => m.id === modId)?.type === 'foundation') router.refresh()
   }
 
   // Ensures the business-stage module exists (creates it if missing), then runs analysis.
@@ -749,13 +806,19 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     }
   }
 
-  // Auto-trigger Foundation analysis when user arrives from onboarding (never analyzed yet)
+  // On load: auto-start Foundation for a brand that has never been analysed, and re-attach to
+  // any analysis already running (started in another tab/device or before a reload). Starting
+  // Foundation is safe to repeat — the server joins an in-flight run instead of starting another.
   useEffect(() => {
     if (autoAnalysisTriggered.current) return
+    autoAnalysisTriggered.current = true
     const foundation = allModulesData.find(m => m.type === 'foundation')
     if (foundation && !foundation.lastAnalyzedAt) {
-      autoAnalysisTriggered.current = true
       handleReanalyze(foundation.id, foundation.requirements)
+    }
+    for (const m of allModulesData) {
+      const startedAbove = m.id === foundation?.id && !foundation.lastAnalyzedAt
+      if (m.status === 'analyzing' && !startedAbove) pollAnalysis(m.id, null)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -2228,6 +2291,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             const reqValues = reqValuesMap[modData.id] ?? {}
             const setupError = setupErrorMap[modData.id] ?? null
             const requested = requestedMap[modData.id] ?? false
+            // Foundation (and everything outside production) analyses directly; other modules go through an admin request
+            const runsDirect = process.env.NEXT_PUBLIC_APP_ENV !== 'production' || modData.type === 'foundation'
             const prUrl = prUrlMap[modData.id] ?? null
             const def = modData.definition
             const effectiveLastAnalyzedAt = lastAnalyzedAtMap[modData.id] !== undefined ? lastAnalyzedAtMap[modData.id] : modData.lastAnalyzedAt
@@ -2343,7 +2408,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         style={requested ? { opacity: 1, color: 'var(--gold)', borderColor: 'var(--gold)', cursor: 'default' } : undefined}
                       >
                         {reanalyzing ? (
-                          <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg><span className="level-reanalyze-label">Requesting…</span></>
+                          <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg><span className="level-reanalyze-label">{runsDirect ? 'Analysing…' : 'Requesting…'}</span></>
                         ) : requested ? (
                           <>
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
@@ -2450,7 +2515,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                             : { background: 'var(--green)', color: '#ffffff' }}
                         >
                           {reanalyzing ? (
-                            <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>Requesting…</>
+                            <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>{runsDirect ? 'Analysing…' : 'Requesting…'}</>
                           ) : requested ? (
                             <>
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
@@ -2683,6 +2748,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                           </p>
                         </div>
                       )
+                    )}
+
+                    {/* Outside the setup form so it's visible for modules that never show one (e.g. Foundation) */}
+                    {setupError && !needsSetup && <p className="md-setup-error gp-run-msg" role="alert">{setupError}</p>}
+                    {reanalyzing && runsDirect && !effectiveLastAnalyzedAt && !setupError && (
+                      <p className="gp-run-msg gp-run-msg--info">Analysing your site — this usually takes 1–3 minutes. You can leave this page; results will be here when you come back.</p>
                     )}
 
                     <div className="md-cats" style={(modData.type === 'business-stage' || modData.type === 'gmail-outreach') ? { display: 'none' } : needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
