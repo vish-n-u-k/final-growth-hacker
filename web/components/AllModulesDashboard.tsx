@@ -180,6 +180,8 @@ function renderMd(text: string, color: string) {
   return <div style={{ fontSize: '14.5px' }}>{out}</div>
 }
 
+const SOCIAL_KEYS = ['facebook', 'instagram', 'linkedin', 'youtube', 'pinterest', 'twitter', 'tiktok']
+
 // Same stage ranges the Business Stage module classifies brands into.
 const JOURNEY_PHASES = [
   { min: 0,   max: 10,       range: '0–10',    name: 'First customers' },
@@ -393,18 +395,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const [generatingDraft, setGeneratingDraft] = useState<Set<string>>(new Set())
   const [skipPrompting, setSkipPrompting] = useState<Set<string>>(new Set())
   const [skipReasonDraft, setSkipReasonDraft] = useState<Record<string, string>>({})
-  const [activeTooltip, setActiveTooltip] = useState<string | null>(null)
   const [conflictModal, setConflictModal] = useState<{
     modId: string; slug: string; itemId: string; isDynamic: boolean; itemLabel: string
     conflicts: { topic: string; moduleName: string; aiActions: string[] }[]
   } | null>(null)
-
-  useEffect(() => {
-    if (!activeTooltip) return
-    const close = () => setActiveTooltip(null)
-    document.addEventListener('click', close)
-    return () => document.removeEventListener('click', close)
-  }, [activeTooltip])
 
   // Playbook state (Foundation module only)
   const [playbookData, setPlaybookData] = useState<Record<string, string> | null>(brand.playbook ?? null)
@@ -1827,6 +1821,48 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     )
   }
 
+  // Progress toward 80% for the selected step, shown inside its module card.
+  const unlockEl = !selectedModule || selectedModule.definition.comingSoon ? null : (() => {
+    const score = liveScores[selectedModule.id] ?? 0
+    if (isPlanLocked(selectedModule)) return null // the module card's upgrade panel covers it
+    if (isModuleLocked(selectedModule)) {
+      const prev = [...railModules.slice(0, selectedIdx)].reverse().find(p => !p.definition.comingSoon)
+      if (!prev) return null
+      const prevScore = liveScores[prev.id] ?? 0
+      return (
+        <div className="gp-unlock gp-unlock--locked">
+          <div className="gp-unlock-row">
+            <span>Locked — reach <b>80%</b> on {prev.name} to unlock</span>
+            <b className="gp-unlock-num">{prevScore}% / 80%</b>
+          </div>
+          <div className="gp-unlock-track"><div className="gp-unlock-fill" style={{ width: `${Math.min(prevScore / 80, 1) * 100}%` }} /></div>
+        </div>
+      )
+    }
+    const next = railModules.slice(selectedIdx + 1).find(p => !p.definition.comingSoon)
+    // Mirrors isModuleLocked: the first three modules never gate each other.
+    const unlocksNext = !!next && next.order > 3
+    if (score >= 80) {
+      return (
+        <div className="gp-unlock gp-unlock--done">
+          <div className="gp-unlock-row">
+            <span>{unlocksNext && isPlanLocked(next) ? <>Step complete — <b>{next.name}</b> is next, with <Link href="/pricing">Pro</Link></> : unlocksNext ? <>Step complete — <b>{next.name}</b> is unlocked</> : <>Step complete</>}</span>
+            <b className="gp-unlock-num">{score}%</b>
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div className="gp-unlock">
+        <div className="gp-unlock-row">
+          <span>Reach <b>80%</b>{unlocksNext ? <> to unlock {next.name}</> : <> to complete this step</>}</span>
+          <b className="gp-unlock-num">{score}% / 80%</b>
+        </div>
+        <div className="gp-unlock-track"><div className="gp-unlock-fill" style={{ width: `${Math.min(score / 80, 1) * 100}%` }} /></div>
+      </div>
+    )
+  })()
+
   return (
     <>
       {/* Analysis Requested Modal */}
@@ -1923,13 +1959,19 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <line x1="16" y1="17" x2="8" y2="17" />
             </svg>
           </button>
-          <button className="gp-signout mob-hide" onClick={handleLogout}>{userEmail} · Sign out</button>
+          <button className="gp-icon-btn mob-hide" onClick={handleLogout} title={`Sign out (${userEmail})`} aria-label="Sign out">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+          </button>
         </div>
       </div>
 
       <div className="wrap gp-wrap">
           {/* Website URL + social icons */}
-          <div className="hero-meta gp-meta" onClick={() => setActiveTooltip(null)}>
+          <div className="hero-meta gp-meta">
             {brand.websiteUrl && (
               <a
                 href={brand.websiteUrl}
@@ -1956,84 +1998,60 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 { key: 'twitter', label: 'X / Twitter', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> },
                 { key: 'tiktok', label: 'TikTok', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.83a8.16 8.16 0 0 0 4.78 1.52V6.9a4.85 4.85 0 0 1-1.01-.21z"/></svg> },
               ] as { key: string; label: string; icon: JSX.Element }[])
-              .sort((a, b) => (socialLinks[b.key] ? 1 : 0) - (socialLinks[a.key] ? 1 : 0))
-              .map(({ key, label, icon }) => {
-                const url = socialLinks[key]
-                const connected = !!url
-                return (
-                  <div key={key} className="hero-social-icon-wrap">
-                    {connected ? (
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hero-social-icon hero-social-icon--connected"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {icon}
-                      </a>
-                    ) : (
-                      <button
-                        className="hero-social-icon hero-social-icon--dim"
-                        onClick={(e) => { e.stopPropagation(); setActiveTooltip(activeTooltip === key ? null : key) }}
-                      >
-                        {icon}
-                      </button>
-                    )}
-                    <span className="hero-social-name-tag">{connected ? label : 'Not connected'}</span>
-                    {activeTooltip === key && (
-                      <div className="hero-social-tooltip" onClick={(e) => e.stopPropagation()}>
-                        <strong>Add {label}</strong>
-                        Re-run Foundation analysis or add the link in Settings
-                        <a
-                          href="/settings?tab=integrations"
-                          className="hero-social-tooltip-btn"
-                          onClick={(e) => { e.stopPropagation(); setActiveTooltip(null) }}
-                        >
-                          Go to Integrations →
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+              .filter(({ key }) => !!socialLinks[key])
+              .map(({ key, label, icon }) => (
+                <div key={key} className="hero-social-icon-wrap">
+                  <a
+                    href={socialLinks[key]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hero-social-icon hero-social-icon--connected"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {icon}
+                  </a>
+                  <span className="hero-social-name-tag">{label}</span>
+                </div>
+              ))}
+              {SOCIAL_KEYS.some(k => !socialLinks[k]) && (
+                <Link href="/settings?tab=integrations" className="gp-meta-add">
+                  {SOCIAL_KEYS.some(k => socialLinks[k]) ? '+ Add more' : '+ Add social profiles'}
+                </Link>
+              )}
             </div>
           </div>
 
         {/* Road to 500 users */}
         <div className="gp-journey">
           <div className="gp-journey-top">
-            <div>
-              <div className="gp-eyebrow">Your road to 500 users</div>
+            <div className="gp-journey-status">
+              <span className="gp-eyebrow">Road to 500 users</span>
               {connectedIntegrations['posthog'] ? (
-                <div className="gp-count">
+                <span className="gp-count">
                   {posthogLoading ? <span className="count-loading"><span /><span /><span /></span> : userCount.toLocaleString()}
                   <span className="gp-count-label">users · {currentPhase.name}</span>
-                </div>
+                </span>
               ) : (
-                <div className="gp-count gp-count--off">
-                  —<span className="gp-count-label">live user count locked</span>
-                </div>
-              )}
-              {connectedIntegrations['posthog'] && posthogDataStartDate && (
-                <div className="gp-tracking">
-                  Tracking since {new Date(posthogDataStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
-                </div>
+                <span className="gp-journey-hint">Connect PostHog to see where you are and get tactics for your stage.</span>
               )}
             </div>
             <div className="gp-journey-note">
               {connectedIntegrations['posthog'] ? (
-                nextPhase
-                  ? <>{Math.max(nextPhase.min - userCount, 0).toLocaleString()} more users to reach <strong>{nextPhase.name}</strong></>
-                  : <>Last stage on the road — keep compounding</>
-              ) : (
                 <>
-                  <span>Connect PostHog so GrowJin can place you on the road and match tactics to your phase. Read-only, takes about a minute.</span>
-                  <div className="gp-journey-actions">
-                    <button className="gp-btn-primary" onClick={() => router.push('/settings?tab=integrations')}>Connect PostHog</button>
-                    <button className="gp-btn-ghost" onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}>See what we track</button>
-                  </div>
+                  {nextPhase
+                    ? <>{Math.max(nextPhase.min - userCount, 0).toLocaleString()} more to reach <strong>{nextPhase.name}</strong></>
+                    : <>Last stage on the road — keep compounding</>}
+                  {posthogDataStartDate && (
+                    <span className="gp-tracking">
+                      {' '}· since {new Date(posthogDataStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
+                    </span>
+                  )}
                 </>
+              ) : (
+                <div className="gp-journey-actions">
+                  <button className="gp-btn-link" onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}>What we track</button>
+                  <button className="gp-btn-primary" onClick={() => router.push('/settings?tab=integrations')}>Connect PostHog</button>
+                </div>
               )}
             </div>
           </div>
@@ -2044,10 +2062,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 : i === currentPhaseIdx ? 'current'
                 : 'locked'
               return (
-                <div key={p.range} className={`gp-band gp-band--${state}`}>
-                  {state === 'current' && <span className="gp-band-marker" style={{ left: `${phaseMarkerPct}%` }} />}
+                <div key={p.range} className={`gp-band gp-band--${state}`} title={`${p.range} users · ${p.name}`}>
+                  <span className="gp-band-bar">
+                    {state === 'current' && <i style={{ width: `${phaseMarkerPct}%` }} />}
+                  </span>
                   <span className="gp-band-range">{p.range}</span>
-                  <span className="gp-band-name">{state === 'done' ? `✓ ${p.name}` : p.name}</span>
+                  {state === 'current' && <span className="gp-band-name">{p.name}</span>}
                 </div>
               )
             })}
@@ -2263,48 +2283,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         <div className="gp-main">
         <div className="gp-col">
 
-        {/* Unlock progress for the selected step */}
-        {selectedModule && !selectedModule.definition.comingSoon && (() => {
-          const score = liveScores[selectedModule.id] ?? 0
-          if (isPlanLocked(selectedModule)) return null // the module card's upgrade panel covers it
-          if (isModuleLocked(selectedModule)) {
-            const prev = [...railModules.slice(0, selectedIdx)].reverse().find(p => !p.definition.comingSoon)
-            if (!prev) return null
-            const prevScore = liveScores[prev.id] ?? 0
-            return (
-              <div className="gp-unlock gp-unlock--locked">
-                <div className="gp-unlock-row">
-                  <span>Locked — reach <b>80%</b> on {prev.name} to unlock</span>
-                  <b className="gp-unlock-num">{prevScore}% / 80%</b>
-                </div>
-                <div className="gp-unlock-track"><div className="gp-unlock-fill" style={{ width: `${Math.min(prevScore / 80, 1) * 100}%` }} /></div>
-              </div>
-            )
-          }
-          const next = railModules.slice(selectedIdx + 1).find(p => !p.definition.comingSoon)
-          // Mirrors isModuleLocked: the first three modules never gate each other.
-          const unlocksNext = !!next && next.order > 3
-          if (score >= 80) {
-            return (
-              <div className="gp-unlock gp-unlock--done">
-                <div className="gp-unlock-row">
-                  <span>{unlocksNext && isPlanLocked(next) ? <>Step complete — <b>{next.name}</b> is next, with <Link href="/pricing">Pro</Link></> : unlocksNext ? <>Step complete — <b>{next.name}</b> is unlocked</> : <>Step complete</>}</span>
-                  <b className="gp-unlock-num">{score}%</b>
-                </div>
-              </div>
-            )
-          }
-          return (
-            <div className="gp-unlock">
-              <div className="gp-unlock-row">
-                <span>Reach <b>80%</b>{unlocksNext ? <> to unlock {next.name}</> : <> to complete this step</>}</span>
-                <b className="gp-unlock-num">{score}% / 80%</b>
-              </div>
-              <div className="gp-unlock-track"><div className="gp-unlock-fill" style={{ width: `${Math.min(score / 80, 1) * 100}%` }} /></div>
-            </div>
-          )
-        })()}
-
         {/* Selected module (one at a time) */}
         <div className="levels">
           {(() => {
@@ -2467,6 +2445,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                   </svg>
                 </div>
+
+                {unlockEl}
 
                 {/* Level body */}
                 <div className="level-body" style={{ maxHeight: isOpen ? '9999px' : undefined }}>
@@ -2641,8 +2621,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                             <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                             <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                           </svg>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Playbook</span>
-                          <span className="gp-playbook-sub" style={{ fontSize: 12, color: '#8b938f', fontWeight: 400 }}>(your AI-generated sales playbook — ICP, scripts & objections)</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }} title="Your AI-generated sales playbook: ICP, scripts and objections">Playbook</span>
                           {playbookData
                             ? <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 500, marginLeft: 2 }}>Generated</span>
                             : <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 2 }}>{reanalyzing ? 'Generating…' : 'Run analysis to generate'}</span>
@@ -3027,9 +3006,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         </aside>
         </div>
 
-        <p className="foot-note">
-          Click any item to see full analysis and action · AI verified = confirmed by Claude · Self-reported = marked by you
-        </p>
       </div>
 
       {/* Export Prep Modal */}
