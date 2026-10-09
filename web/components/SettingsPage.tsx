@@ -32,6 +32,11 @@ type Tab = 'brand' | 'playbook' | 'integrations' | 'claude-code' | 'account'
 
 export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations, mcpKeyPrefix, dailyEmailEnabled, frektoAutoPostEnabled, initialTab }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab ?? 'brand')
+
+  // Phones show the tabs as a horizontal strip: keep the active one in view.
+  useEffect(() => {
+    document.querySelector('.st-tab-active')?.scrollIntoView({ inline: 'center', block: 'nearest' })
+  }, [tab])
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [oauthToast, setOauthToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const router = useRouter()
