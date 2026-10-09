@@ -6768,3 +6768,40 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gp-live-pill-text { overflow: hidden; text-overflow: ellipsis; }
 .gp-live-pill-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: color-mix(in srgb, var(--green) 15%, var(--line)); }
 .gp-live-pill-bar i { display: block; height: 100%; background: var(--green); transition: width .8s ease; }
+
+/* ── Growth Path, less boxed: phases are a flat tab row (no cards in a card), pills sit right under it,
+   and the next-step box is slimmer. ── */
+.gp-next { padding: 14px 18px; gap: 10px 20px; }
+.gp-next-title { font-size: 17px; }
+.gp-next-text { font-size: 13px; }
+.gp-next-cta { padding: 9px 16px; font-size: 13.5px; }
+
+.gp-path { border: none; border-radius: 0; background: none; padding: 0; margin-bottom: 20px; }
+.gp-phases, .gp-phases--split { display: flex; gap: 0; border-bottom: 1px solid var(--line); }
+.gp-phase, .gp-phases--split > .gp-phase {
+  flex: 1 1 0; min-width: 0; border: none; border-radius: 0; background: none !important; box-shadow: none !important;
+  padding: 8px 12px 10px; border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.gp-phase:hover { border-bottom-color: var(--line); }
+.gp-phase--selected, .gp-phase--selected:hover { border-bottom-color: var(--green); }
+.gp-phase-top { font-size: 13.5px; font-weight: 500; color: var(--text-dim); }
+.gp-phase--selected .gp-phase-top { font-weight: 650; color: var(--text); }
+.gp-phase--locked .gp-phase-top { color: var(--text-faint); }
+.gp-phase-blurb { display: none; }
+.gp-phase-bar { height: 3px; margin-top: 7px; background: var(--line); }
+.gp-path .gp-pills { margin-top: 14px; padding-top: 0; border-top: none; }
+
+@media (max-width: 760px) {
+  /* Four tabs don't fit a phone: scroll them sideways. */
+  .gp-phases, .gp-phases--split { overflow-x: auto; scrollbar-width: none; flex-direction: row; }
+  .gp-phases::-webkit-scrollbar { display: none; }
+  .gp-phase, .gp-phases--split > .gp-phase { flex: 0 0 auto !important; padding: 8px 12px 10px; }
+  .gp-phase-top { white-space: nowrap; gap: 10px; }
+  .gp-next { padding: 14px; }
+}
+/* One line under the tabs, not three: the counts carry each phase's progress. */
+.gp-path .gp-phase-bar { display: none; }
+@media (max-width: 760px) {
+  .gp-phases { -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); }
+  .gp-phase-top { font-size: 13px; }
+}

@@ -1897,6 +1897,14 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       : baseTitleRef.current
   }, [liveMod?.id, liveRun?.time, readyNotice]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Phones scroll the phase tabs sideways: keep the selected one in view (scrolls the row only, not the page).
+  useEffect(() => {
+    const tab = document.querySelector<HTMLElement>('.gp-phase--selected')
+    const row = tab?.parentElement
+    if (!tab || !row || row.scrollWidth <= row.clientWidth) return
+    row.scrollLeft = Math.max(0, tab.offsetLeft - row.offsetLeft - 16)
+  }, [selectedPhase?.name])
+
   // "Your next step": one plain-language instruction so a new user knows what to do first.
   const goToModule = (m: ModuleData, catSlug?: string) => {
     setOpenModules(new Set([m.id]))
@@ -1944,7 +1952,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     return {
       label: 'Your next step', progress, busy: false,
       title: `Get ${m.name} to 80%`,
-      text: `You’re at ${score}%. Open a section, fix what’s flagged on your site, then tick it off (or hit Re-analyse). At 80% this step is done.`,
+      // The how-to is for someone's first step; after that, the number is enough.
+      text: railDoneCount === 0
+        ? `You’re at ${score}%. Open a section, fix what’s flagged on your site, then tick it off (or hit Re-analyse). At 80% this step is done.`
+        : `You’re at ${score}%, ${Math.max(80 - score, 0)} points to go.`,
       cta: { label: firstGap ? `Start with ${firstGap.c.label}` : `Open ${m.name}`, run: () => goToModule(m, firstGap?.c.slug) },
     }
   })()
@@ -2330,7 +2341,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           <span className="gp-eyebrow">Your growth path</span>
           {proStepCount > 0
             ? <span className="gp-rail-summary"><b>{freeDone}</b> of {freeTotal} free steps done</span>
-            : <span className="gp-rail-summary"><b>{railDoneCount}</b> of {railModules.length} modules complete</span>}
+            : <span className="gp-rail-summary"><b>{railDoneCount}</b> of {railModules.filter(m => !m.definition.comingSoon).length} steps done</span>}
         </div>
         <div className="gp-path">
           {(() => {
