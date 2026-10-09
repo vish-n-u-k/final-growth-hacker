@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAccess } from '@/lib/billing/plan'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations, reminders } from '@/lib/db/schema'
 import { eq, and, lte, or, isNull } from 'drizzle-orm'
@@ -556,6 +557,8 @@ export async function GET(req: NextRequest) {
   for (const brand of allBrands) {
     const toEmail = brand.notificationEmail
     if (!toEmail) continue // no email stored — user never properly opted in
+    // The daily email is a Pro feature (no-op unless BILLING_ENABLED=true).
+    if (!(await getAccess(brand.id, toEmail)).pro) continue
 
     const integrations = await db.select().from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.status, 'connected')))

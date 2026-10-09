@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands } from '@/lib/db/schema'
@@ -80,6 +81,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const proBlock = await requirePro()
+  if (proBlock) return proBlock
   const { id } = await params
 
   const supabase = await createClient()

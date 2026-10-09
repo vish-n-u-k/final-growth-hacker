@@ -292,6 +292,19 @@ ellipsised text.
 - Result: no cut-off text on any shell page, login, signup or onboarding at 320,
   360, 390, 430, 768 or 1280px with the real fonts.
 
+**Billing: Free / Pro with Stripe, behind `BILLING_ENABLED`.**
+- Free covers Foundation, Website Audit and SEO. Everything else is Pro,
+  monthly or yearly: the other modules, Today and the daily email, Outreach,
+  Social, Meta Ads, Lead Finder, Reminders, Analytics.
+- The free list is configurable via `BILLING_FREE_MODULES`, and
+  `BILLING_PRO_EMAILS` grants Pro without paying.
+- Off by default: nothing changes until the env var is set.
+- Needs `drizzle/billing.sql` and the Stripe setup in `BILLING_PLAN.md`
+  (products, webhook, customer portal).
+- Tested locally with billing off, as a free user, with an email override, and
+  with signed webhooks. The real Checkout/Portal redirects still need a
+  Stripe test-mode run.
+
 **Known, not fixed (pre-existing):** `middleware.ts`'s matcher doesn't exclude
 `.js` files in `public/`, so for logged-out visitors (i.e. the real /login page)
 `/fb-widget.js` is redirected to `/login` and the HTML is parsed as JS — a

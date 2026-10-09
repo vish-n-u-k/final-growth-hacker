@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requirePro } from '@/lib/billing/guard'
 import { db } from '@/lib/db'
 import { reminders } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
@@ -7,6 +8,8 @@ import { verifyReminderToken } from '@/lib/reminders/token'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  const proBlock = await requirePro()
+  if (proBlock) return proBlock
   const token = req.nextUrl.searchParams.get('token')
   if (!token) return NextResponse.redirect(new URL('/reminders?done=invalid', req.url))
 

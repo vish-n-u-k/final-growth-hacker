@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleCategories, moduleItems, modulePageAudit, brandIntegrations } from '@/lib/db/schema'
 import { claimRun, finishRun, getRun, isStale, failStaleRun, STALE_RUN_ERROR } from '@/lib/modules/runs'
+import { getAccess, canUseModule } from '@/lib/billing/plan'
 import { getCompetitorUrlsString, storeCompetitors } from '@/lib/modules/competitor-registry'
 import { eq, and } from 'drizzle-orm'
 import { MODULE_MAP } from '@/lib/modules/registry'
@@ -255,6 +256,11 @@ export async function POST(request: NextRequest) {
 
   const def = MODULE_MAP[mod.type]
   if (!def) return NextResponse.json({ error: 'Unknown module type' }, { status: 400 })
+
+  // Pro gate — a no-op unless BILLING_ENABLED=true. Admins analysing on a brand's behalf are exempt.
+  if (!isAdmin && !canUseModule(await getAccess(brand.id, user.email), mod.type)) {
+    return NextResponse.json({ error: `${def.name} is part of GrowJin Pro.`, upgrade: true }, { status: 402 })
+  }
 
   const background = (body as { background?: boolean }).background === true
 

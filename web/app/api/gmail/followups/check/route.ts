@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands } from '@/lib/db/schema'
@@ -10,6 +11,8 @@ export const maxDuration = 60
 // Checks open follow-ups against their Gmail threads (replies, opt-outs, bounces, out-of-office).
 // Body: { force?: boolean } — force re-checks ones checked in the last 10 minutes.
 export async function POST(req: NextRequest) {
+  const proBlock = await requirePro()
+  if (proBlock) return proBlock
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

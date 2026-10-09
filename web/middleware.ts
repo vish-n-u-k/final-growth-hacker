@@ -37,8 +37,9 @@ export async function middleware(request: NextRequest) {
     pathname === '/oauth/authorize'
   const isCronEndpoint = pathname.startsWith('/api/cron/')
   const isTrackedLink = pathname.startsWith('/api/r/') // signed email links, e.g. "Do it in Claude"
+  const isStripeWebhook = pathname === '/api/billing/webhook' // authenticated by Stripe's signature
 
-  if (!user && !isAuthPage && !isMcpEndpoint && !isOAuthPublic && !isCronEndpoint && !isTrackedLink) {
+  if (!user && !isAuthPage && !isMcpEndpoint && !isOAuthPublic && !isCronEndpoint && !isTrackedLink && !isStripeWebhook) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

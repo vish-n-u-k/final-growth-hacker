@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
@@ -232,6 +233,8 @@ const NOT_CONNECTED: Record<string, PlatformStats> = {
 }
 
 export async function GET() {
+  const proBlock = await requirePro()
+  if (proBlock) return proBlock
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

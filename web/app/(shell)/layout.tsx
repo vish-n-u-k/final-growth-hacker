@@ -5,6 +5,8 @@ import { brands } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { getLockedModuleTypes } from '@/lib/modules/lock-state'
 import AppSidebar from '@/components/AppSidebar'
+import Link from 'next/link'
+import { getAccess } from '@/lib/billing/plan'
 
 // Persistent sidebar shell for every authenticated app route (growth path, the
 // work tools, insights, settings). Pages keep their own auth/brand checks —
@@ -19,12 +21,20 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
   if (!brand) redirect('/onboarding')
 
-  const lockedTypes = Array.from(await getLockedModuleTypes(brand.id))
+  const [lockedSet, access] = await Promise.all([getLockedModuleTypes(brand.id), getAccess(brand.id, user.email)])
+  const lockedTypes = Array.from(lockedSet)
 
   return (
     <div className="app-shell">
-      <AppSidebar brandName={brand.name} lockedTypes={lockedTypes} />
-      <div className="app-shell-main">{children}</div>
+      <AppSidebar brandName={brand.name} lockedTypes={lockedTypes} plan={{ enabled: access.enabled, pro: access.pro }} />
+      <div className="app-shell-main">
+        {access.paymentFailed && (
+          <div className="billing-banner" role="alert">
+            Your last Pro payment failed. <Link href="/pricing">Update your card</Link> to keep Pro.
+          </div>
+        )}
+        {children}
+      </div>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleItems, competitors, modulePageAudit, brandIntegrations, frektoScheduledPosts } from '@/lib/db/schema'
@@ -10,6 +11,8 @@ import { fetchGscTopQueries } from '@/lib/modules/seo/keyword-fetchers'
 export const maxDuration = 90
 
 export async function POST(request: NextRequest) {
+  const proBlock = await requirePro()
+  if (proBlock) return proBlock
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

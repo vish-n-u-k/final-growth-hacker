@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations, frektoScheduledPosts, keywordSnapshots, reminders } from '@/lib/db/schema'
@@ -87,6 +88,8 @@ async function fetchGA4Signals(clientEmail: string, privateKey: string, property
 type CachedSignals = { cards?: ActionCard[]; impacts?: unknown[]; focus?: TodayTasks['focus'] }
 
 export async function GET(request: Request) {
+  const proBlock = await requirePro()
+  if (proBlock) return proBlock
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

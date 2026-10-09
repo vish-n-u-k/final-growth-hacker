@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { getAccess, planLockedTypes } from '@/lib/billing/plan'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit, analysisRequests, itemLinks } from '@/lib/db/schema'
@@ -241,6 +242,13 @@ export default async function DashboardPage() {
   }
   allModulesData.sort((a, b) => a.order - b.order)
 
+  const access = await getAccess(brand.id, user.email)
+  const billing = {
+    enabled: access.enabled,
+    pro: access.pro,
+    planLocked: planLockedTypes(access, allModulesData.map(m => m.type)),
+  }
+
   return (
     <AllModulesDashboard
       brand={{ id: brand.id, name: brand.name, keywords: brand.keywords ?? '', websiteUrl: brand.websiteUrl, logoUrl: brand.logoUrl ?? '', themeColor: brand.themeColor ?? '', playbook: (brand.playbook as Record<string, string> | null) ?? null }}
@@ -251,6 +259,7 @@ export default async function DashboardPage() {
       connectedIntegrations={connectedIntegrations}
       socialLinks={socialLinks}
       conflictLinks={conflictLinks}
+      billing={billing}
     />
   )
 }

@@ -9,6 +9,7 @@ interface NavItem {
   label: string
   icon: string
   lockedType?: 'gmail-outreach' | 'meta-ads'
+  pro?: boolean // needs GrowJin Pro when billing is on
 }
 
 interface NavGroup {
@@ -19,17 +20,17 @@ interface NavGroup {
 const NAV: NavGroup[] = [
   { label: 'Grow', items: [
     { href: '/dashboard', label: 'Growth Path', icon: 'path' },
-    { href: '/today', label: 'Today', icon: 'sun' },
+    { href: '/today', label: 'Today', icon: 'sun', pro: true },
   ]},
   { label: 'Work', items: [
-    { href: '/gmail-hub', label: 'Outreach', icon: 'mail', lockedType: 'gmail-outreach' },
-    { href: '/social', label: 'Social Studio', icon: 'image' },
-    { href: '/dashboard/meta-ads/blueprint', label: 'Meta Ads', icon: 'megaphone', lockedType: 'meta-ads' },
-    { href: '/lead-finder', label: 'Lead Finder', icon: 'target' },
-    { href: '/reminders', label: 'Reminders', icon: 'bell' },
+    { href: '/gmail-hub', label: 'Outreach', icon: 'mail', lockedType: 'gmail-outreach', pro: true },
+    { href: '/social', label: 'Social Studio', icon: 'image', pro: true },
+    { href: '/dashboard/meta-ads/blueprint', label: 'Meta Ads', icon: 'megaphone', lockedType: 'meta-ads', pro: true },
+    { href: '/lead-finder', label: 'Lead Finder', icon: 'target', pro: true },
+    { href: '/reminders', label: 'Reminders', icon: 'bell', pro: true },
   ]},
   { label: 'Insights', items: [
-    { href: '/analytics', label: 'Analytics', icon: 'chart' },
+    { href: '/analytics', label: 'Analytics', icon: 'chart', pro: true },
   ]},
 ]
 
@@ -65,10 +66,14 @@ function isActive(pathname: string, href: string): boolean {
 export default function AppSidebar({
   brandName,
   lockedTypes,
+  plan = { enabled: false, pro: true },
 }: {
   brandName: string
   lockedTypes: string[]
+  plan?: { enabled: boolean; pro: boolean }
 }) {
+  // Free users (billing on) see Pro tools tagged; the pages themselves show the upgrade screen.
+  const showPro = plan.enabled && !plan.pro
   const pathname = usePathname()
   // Phones: the sidebar becomes a slide-in drawer behind a menu button (desktop ignores this state).
   const [open, setOpen] = useState(false)
@@ -129,7 +134,9 @@ export default function AppSidebar({
         <div className="app-sidebar-group" key={group.label}>
           <div className="app-sidebar-glabel">{group.label}</div>
           {group.items.map((item) => {
-            const locked = item.lockedType ? lockedTypes.includes(item.lockedType) : false
+            const proTagged = showPro && item.pro
+            // Plan beats progress: a Pro tool shows as Pro (clickable → upgrade screen), not padlocked.
+            const locked = !proTagged && (item.lockedType ? lockedTypes.includes(item.lockedType) : false)
             const active = isActive(pathname, item.href)
             if (locked) {
               return (
@@ -147,12 +154,18 @@ export default function AppSidebar({
               <Link href={item.href} className={`app-navitem${active ? ' active' : ''}`} key={item.href} onClick={closeOnNav} aria-current={active ? 'page' : undefined}>
                 <NavIcon name={item.icon} />
                 {item.label}
+                {proTagged && <span className="pro-badge app-navitem-pro">Pro</span>}
               </Link>
             )
           })}
         </div>
       ))}
       <div className="app-sidebar-foot">
+        {plan.enabled && (
+          <Link href="/pricing" className={`app-plan${plan.pro ? '' : ' app-plan--free'}`} onClick={closeOnNav}>
+            {plan.pro ? <><span className="pro-badge">Pro</span> Your plan</> : <>Upgrade to <span className="pro-badge">Pro</span></>}
+          </Link>
+        )}
         <Link href="/settings" className={`app-navitem${pathname.startsWith('/settings') ? ' active' : ''}`} onClick={closeOnNav}>
           <NavIcon name="gear" />
           Settings

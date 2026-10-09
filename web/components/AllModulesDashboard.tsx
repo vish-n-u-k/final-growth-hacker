@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull } from '@/lib/modules/types'
 import ExportPrepModal from '@/components/ExportPrepModal'
@@ -72,6 +73,8 @@ interface Props {
   connectedIntegrations: Record<string, boolean>
   socialLinks: Record<string, string>
   conflictLinks?: { itemIdA: string; itemIdB: string }[]
+  // Free/Pro (lib/billing/plan.ts). Billing off → { enabled: false, pro: true, planLocked: [] }.
+  billing?: { enabled: boolean; pro: boolean; planLocked: string[] }
 }
 
 function timeAgo(iso: string | null): string {
@@ -286,7 +289,10 @@ function LevelRing({ score }: { score: number }) {
   )
 }
 
-export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, githubConnected, connectedIntegrations, socialLinks, conflictLinks = [] }: Props) {
+const BILLING_OFF = { enabled: false, pro: true, planLocked: [] as string[] }
+
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, githubConnected, connectedIntegrations, socialLinks, conflictLinks = [], billing = BILLING_OFF }: Props) {
+  const isPlanLocked = (m: Pick<ModuleData, 'type'>) => billing.planLocked.includes(m.type)
   const [notesOpen, setNotesOpen] = useState(false)
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.itemStates]))
@@ -533,6 +539,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       total: active.length,
       done: active.filter(isStepDone).length,
       locked: active.length > 0 && active.every(isModuleLocked),
+      pro: active.length > 0 && active.every(isPlanLocked),
       pct: active.length ? Math.round(active.reduce((s, m) => s + Math.min(liveScores[m.id] ?? 0, 100), 0) / active.length) : 0,
     }
   }).filter(p => p.mods.length > 0)
@@ -620,10 +627,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   }, [])
 
   const handleReanalyze = async (modId: string, reqValues: Record<string, string>, overrideReqs?: Record<string, string>) => {
+    const modType = allModulesData.find(m => m.id === modId)?.type
+    if (modType && billing.planLocked.includes(modType)) { router.push('/pricing'); return }
+
     setSetupErrorMap(prev => ({ ...prev, [modId]: null }))
     setReanalyzingMap(prev => ({ ...prev, [modId]: true }))
 
-    const modType = allModulesData.find(m => m.id === modId)?.type
     if (process.env.NEXT_PUBLIC_APP_ENV === 'production' && modType !== 'foundation') {
       const modName = allModulesData.find(m => m.id === modId)?.name ?? modId
       try {
@@ -813,7 +822,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     if (autoAnalysisTriggered.current) return
     autoAnalysisTriggered.current = true
     const foundation = allModulesData.find(m => m.type === 'foundation')
-    if (foundation && !foundation.lastAnalyzedAt) {
+    if (foundation && !foundation.lastAnalyzedAt && !isPlanLocked(foundation)) {
       handleReanalyze(foundation.id, foundation.requirements)
     }
     for (const m of allModulesData) {
@@ -2190,7 +2199,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <span className="gp-phase-top">
                     <span>{i + 1} · {p.name}</span>
                     <span className="gp-phase-count">
-                      {p.locked ? (
+                      {p.pro ? <span className="pro-badge">Pro</span> : p.locked ? (
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-label="Locked"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
                       ) : `${p.done}/${p.total}`}
                     </span>
@@ -2208,6 +2217,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               const soon = !!m.definition.comingSoon
               const state = done ? 'done' : locked || soon ? 'locked' : 'open'
               const score = liveScores[m.id] ?? 0
+              const pro = isPlanLocked(m)
               return (
                 <button
                   key={m.id}
@@ -2223,7 +2233,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     ) : railModules.indexOf(m) + 1}
                   </span>
                   {m.name}
-                  {soon ? <span className="gp-pill-pct">Soon</span>
+                  {pro ? <span className="pro-badge">Pro</span>
+                    : soon ? <span className="gp-pill-pct">Soon</span>
                     : !locked && <span className="gp-pill-pct">{(lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt) ? `${score}%` : '—'}</span>}
                 </button>
               )
@@ -2237,6 +2248,16 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         {/* Unlock progress for the selected step */}
         {selectedModule && !selectedModule.definition.comingSoon && (() => {
           const score = liveScores[selectedModule.id] ?? 0
+          if (isPlanLocked(selectedModule)) {
+            return (
+              <div className="gp-unlock gp-unlock--pro">
+                <div className="gp-unlock-row">
+                  <span><span className="pro-badge">Pro</span> {selectedModule.name} is part of GrowJin Pro</span>
+                  <Link href="/pricing" className="gp-unlock-cta">Upgrade</Link>
+                </div>
+              </div>
+            )
+          }
           if (isModuleLocked(selectedModule)) {
             const prev = [...railModules.slice(0, selectedIdx)].reverse().find(p => !p.definition.comingSoon)
             if (!prev) return null
@@ -2258,7 +2279,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             return (
               <div className="gp-unlock gp-unlock--done">
                 <div className="gp-unlock-row">
-                  <span>{unlocksNext ? <>Step complete — <b>{next.name}</b> is unlocked</> : <>Step complete</>}</span>
+                  <span>{unlocksNext && isPlanLocked(next) ? <>Step complete — <b>{next.name}</b> is next, with <Link href="/pricing">Pro</Link></> : unlocksNext ? <>Step complete — <b>{next.name}</b> is unlocked</> : <>Step complete</>}</span>
                   <b className="gp-unlock-num">{score}%</b>
                 </div>
               </div>
@@ -2284,6 +2305,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             return filtered.map((modData) => {
             const isOpen = true
             const isLocked = isModuleLocked(modData)
+            const planLocked = isPlanLocked(modData)
             const liveScore = liveScores[modData.id] ?? 0
             const isDone = !isLocked && liveScore >= 80
             const stateClass = isLocked ? 'locked' : 'active'
@@ -2322,7 +2344,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     <div className="levels-lock-separator-line" />
                   </div>
                 )}
-              <div className={`level ${stateClass}${isDone ? ' done' : ''}${isOpen ? ' open' : ''}`}>
+              <div className={`level ${stateClass}${isDone ? ' done' : ''}${isOpen ? ' open' : ''}${planLocked ? ' pro-locked' : ''}`}>
 
                 {/* Level head */}
                 <div className="level-head" onClick={() => toggleModule(modData.id)}>
@@ -2380,7 +2402,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     </div>
                   )}
 
-                  {!isLocked && !def.comingSoon && !(modData.type === 'gmail-outreach' && !connectedIntegrations['gmail']) && (
+                  {!isLocked && !planLocked && !def.comingSoon && !(modData.type === 'gmail-outreach' && !connectedIntegrations['gmail']) && (
                     <div className="level-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={e => e.stopPropagation()}>
                       {!!effectiveLastAnalyzedAt && modData.type !== 'community-finder' && (
                         <span className="md-info-wrap" style={{ display: 'inline-flex' }}>
@@ -2439,6 +2461,15 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
                 {/* Level body */}
                 <div className="level-body" style={{ maxHeight: isOpen ? '9999px' : undefined }}>
+                  {planLocked && (
+                    <div className="gp-pro-panel">
+                      <div>
+                        <div className="gp-pro-panel-title"><span className="pro-badge">Pro</span> Unlock {modData.name}</div>
+                        <p className="gp-pro-panel-text">{def.description ? `${def.description} ` : ''}Analyse it, get fixes and track it with GrowJin Pro.</p>
+                      </div>
+                      <Link href="/pricing" className="gp-pro-panel-cta">See Pro plans</Link>
+                    </div>
+                  )}
                   {isLocked ? (
                     <div className="md-cats" style={{ pointerEvents: 'none', opacity: 0.6 }}>
                       {def.categories.map((cat) => (

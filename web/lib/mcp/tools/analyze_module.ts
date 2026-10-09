@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { getAccess, canUseModule } from '@/lib/billing/plan'
 import { brands, modules, moduleItems, moduleCategories, brandIntegrations } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { MODULE_MAP } from '@/lib/modules/registry'
@@ -90,6 +91,11 @@ export async function analyzeModule(brandId: string, moduleType: string) {
 
   if (mod.status === 'analyzing') {
     return { message: 'Analysis already in progress for this module. Check back shortly.' }
+  }
+
+  // Pro gate — a no-op unless BILLING_ENABLED=true.
+  if (!canUseModule(await getAccess(brand.id), mod.type)) {
+    return { error: `${mod.name} is part of GrowJin Pro. Upgrade in the GrowJin app (Pricing) to analyse it.` }
   }
 
   const def = MODULE_MAP[mod.type]

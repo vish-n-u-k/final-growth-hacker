@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, outreachEmails } from '@/lib/db/schema'
@@ -6,6 +7,8 @@ import { eq, and, inArray } from 'drizzle-orm'
 
 // Cancels a scheduled (or failed) email before the cron sends it.
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const proBlock = await requirePro()
+  if (proBlock) return proBlock
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

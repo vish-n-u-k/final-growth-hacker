@@ -138,6 +138,21 @@ export const moduleRuns = pgTable(
   }),
 )
 
+// ── Brand Subscriptions (Stripe billing — see drizzle/billing.sql) ───────────
+// Only read/written by lib/billing/*, which tolerates the table being absent.
+
+export const brandSubscriptions = pgTable('brand_subscriptions', {
+  brandId: uuid('brand_id').primaryKey().references(() => brands.id, { onDelete: 'cascade' }),
+  stripeCustomerId: text('stripe_customer_id').unique(),
+  stripeSubscriptionId: text('stripe_subscription_id'),
+  status: text('status'),                 // Stripe subscription status
+  priceId: text('price_id'),
+  billingInterval: text('billing_interval'), // 'month' | 'year'
+  currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
+  cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 // ── Brand Integrations ────────────────────────────────────────────────────────
 
 export const brandIntegrations = pgTable(

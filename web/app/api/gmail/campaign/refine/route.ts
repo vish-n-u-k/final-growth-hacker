@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brainContext } from '@/lib/db/schema'
@@ -95,6 +96,8 @@ function buildEmailHTML(copy: EmailCopy, brandName: string, websiteUrl: string, 
 const noEmDash = (s: string) => s.replace(/—/g, '').replace(/\s{2,}/g, ' ').trim()
 
 export async function POST(req: NextRequest) {
+  const proBlock = await requirePro()
+  if (proBlock) return proBlock
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
