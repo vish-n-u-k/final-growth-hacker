@@ -283,7 +283,7 @@ function LevelRing({ score }: { score: number }) {
       <text
         x="23" y="23" textAnchor="middle" dominantBaseline="central"
         fill={color}
-        style={{ fontSize: '12px', fontWeight: 800, fontFamily: 'Outfit, sans-serif', letterSpacing: '-0.5px' }}
+        style={{ fontSize: '12px', fontWeight: 800, fontFamily: 'inherit', letterSpacing: '-0.5px' }}
       >
         {score}%
       </text>
@@ -1821,6 +1821,49 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     )
   }
 
+  // "Your next step": one plain-language instruction so a new user knows what to do first.
+  const goToModule = (m: ModuleData, catSlug?: string) => {
+    setOpenModules(new Set([m.id]))
+    if (catSlug) setOpenCatsMap(prev => ({ ...prev, [m.id]: new Set([catSlug]) }))
+    requestAnimationFrame(() => document.getElementById('gp-module')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+  const nextStep = (() => {
+    const m = railModules.find(x => !x.definition.comingSoon && !isModuleLocked(x) && (liveScores[x.id] ?? 0) < 80)
+    const freeTotal = railModules.filter(x => !x.definition.comingSoon && !isPlanLocked(x)).length
+    const freeDone = railModules.filter(x => !isPlanLocked(x) && isStepDone(x)).length
+    const progress = `${freeDone} of ${freeTotal} steps done`
+    if (!m) return { label: 'All caught up', title: 'Every step is at 80% or more', text: 'Keep things there: re-analyse a step after you change your site.', progress, busy: false, cta: null as null | { label: string; run: () => void } }
+    if (isPlanLocked(m)) {
+      return {
+        label: 'Free steps done', progress, busy: false,
+        title: 'You’ve finished the free steps',
+        text: `Next is ${m.name}. GrowJin Pro unlocks it and the rest of the path, plus the daily plan and outreach tools.`,
+        cta: { label: 'See Pro plans', run: () => router.push('/pricing') },
+      }
+    }
+    const analysed = lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt
+    const score = liveScores[m.id] ?? 0
+    if (reanalyzingMap[m.id]) {
+      return { label: 'Your next step', progress, busy: true, title: `Checking your ${m.name.toLowerCase()}…`, text: 'This takes about a minute. Your checklist appears below when it’s ready — you can leave this page open.', cta: null }
+    }
+    if (!analysed) {
+      return {
+        label: 'Your next step', progress, busy: false,
+        title: `Run ${m.name}`,
+        text: `${m.definition.description ? m.definition.description + ' ' : ''}GrowJin checks your site and gives you a checklist of fixes.`,
+        cta: { label: `Open ${m.name}`, run: () => goToModule(m) },
+      }
+    }
+    const cats = m.definition.dynamic ? [] : (m.definition.categories as ModuleCategoryDefinition[])
+    const firstGap = cats.map(c => ({ c, st: getCatStats(c, statesMap[m.id] ?? {}) })).filter(x => x.st.total > 0 && x.st.done < x.st.total).sort((a, b) => a.st.pct - b.st.pct)[0]
+    return {
+      label: 'Your next step', progress, busy: false,
+      title: `Get ${m.name} to 80%`,
+      text: `You’re at ${score}%. Open a section, fix what’s flagged on your site, then tick it off (or hit Re-analyse). At 80% this step is done.`,
+      cta: { label: firstGap ? `Start with ${firstGap.c.label}` : `Open ${m.name}`, run: () => goToModule(m, firstGap?.c.slug) },
+    }
+  })()
+
   // Progress toward 80% for the selected step, shown inside its module card.
   const unlockEl = !selectedModule || selectedModule.definition.comingSoon ? null : (() => {
     const score = liveScores[selectedModule.id] ?? 0
@@ -1970,6 +2013,18 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       </div>
 
       <div className="wrap gp-wrap">
+          <section className={`gp-next${nextStep.busy ? ' gp-next--busy' : ''}`} aria-live="polite">
+            <div className="gp-next-body">
+              <div className="gp-next-label">
+                {nextStep.busy && <span className="gp-next-spin" aria-hidden="true" />}
+                {nextStep.label}<span className="gp-next-progress"> · {nextStep.progress}</span>
+              </div>
+              <h2 className="gp-next-title">{nextStep.title}</h2>
+              <p className="gp-next-text">{nextStep.text}</p>
+            </div>
+            {nextStep.cta && <button className="gp-next-cta" onClick={nextStep.cta.run}>{nextStep.cta.label} →</button>}
+          </section>
+
           {/* Website URL + social icons */}
           <div className="hero-meta gp-meta">
             {brand.websiteUrl && (
@@ -2032,7 +2087,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <span className="gp-count-label">users · {currentPhase.name}</span>
                 </span>
               ) : (
-                <span className="gp-journey-hint">Connect PostHog to see where you are and get tactics for your stage.</span>
+                <span className="gp-journey-hint">Optional: connect PostHog to track your live user count.</span>
               )}
             </div>
             <div className="gp-journey-note">
@@ -2050,7 +2105,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               ) : (
                 <div className="gp-journey-actions">
                   <button className="gp-btn-link" onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}>What we track</button>
-                  <button className="gp-btn-primary" onClick={() => router.push('/settings?tab=integrations')}>Connect PostHog</button>
+                  <button className="gp-btn-ghost" onClick={() => router.push('/settings?tab=integrations')}>Connect PostHog</button>
                 </div>
               )}
             </div>
@@ -2284,7 +2339,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         <div className="gp-col">
 
         {/* Selected module (one at a time) */}
-        <div className="levels">
+        <div className="levels" id="gp-module">
           {(() => {
             const filtered = railModules.filter(m => m.id === selectedModule?.id)
             // Single-module view: the "locked below" separator has nothing to sit between.

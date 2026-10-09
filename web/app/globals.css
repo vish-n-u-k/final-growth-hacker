@@ -5,6 +5,9 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* One typeface: headings and body both use Geist (loaded in app/layout.tsx as --font-sans). */
+  --font-display: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   --bg: #0a0c0b;
   --bg-soft: #111413;
   --card: #181b19;
@@ -1329,7 +1332,7 @@ html.light .md-spin { border-color: rgba(23,154,80,0.3); border-top-color: var(-
   line-height: 1.8;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: 'Geist Mono', monospace;
+  font-family: var(--font-mono), ui-monospace, monospace;
   background: rgba(0, 0, 0, 0.2);
   padding: 12px;
   border-radius: 8px;
@@ -4058,7 +4061,7 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
 .gh-scope-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .gh-scope-dot.yes { background: var(--green-bright); box-shadow: 0 0 6px var(--green); }
 .gh-scope-dot.no  { background: var(--gop-err-text); }
-.gh-scope-name { font-size: 12.5px; font-weight: 600; color: var(--text); font-family: 'Geist Mono', monospace; }
+.gh-scope-name { font-size: 12.5px; font-weight: 600; color: var(--text); font-family: var(--font-mono), ui-monospace, monospace; }
 .gh-scope-reason { font-size: 12.5px; color: var(--text-dim); }
 .gh-connect-btn { display: flex; align-items: center; gap: 10px; padding: 13px 28px; border-radius: 12px; background: linear-gradient(150deg, var(--green-bright), var(--green)); color: #ffffff; font-weight: 700; font-size: 14.5px; border: none; cursor: pointer; font-family: inherit; transition: opacity .15s, box-shadow .15s; margin-bottom: 12px; box-shadow: 0 0 28px #2fbf7130; }
 .gh-connect-btn:hover { opacity: .9; box-shadow: 0 0 40px #2fbf7145; }
@@ -6140,7 +6143,7 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .app-sidebar-logo { width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0; display: block; }
 .app-sidebar-group { margin-bottom: 16px; }
 .app-sidebar-glabel {
-  font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+  font-family: inherit; font-variant-numeric: tabular-nums; font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
   color: var(--text-faint); padding: 0 10px 8px;
 }
 .app-navitem {
@@ -6218,8 +6221,8 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 
 .gp-journey { border: 1px solid var(--line); border-radius: 14px; background: var(--bg-soft); padding: 20px 22px; margin-bottom: 24px; }
 .gp-journey-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
-.gp-eyebrow { font-family: 'Geist Mono', monospace; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px; }
-.gp-count { font-family: 'Geist Mono', monospace; font-size: 32px; font-weight: 600; line-height: 1; color: var(--text); display: flex; align-items: baseline; gap: 10px; }
+.gp-eyebrow { font-family: inherit; font-variant-numeric: tabular-nums; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px; }
+.gp-count { font-family: inherit; font-variant-numeric: tabular-nums; font-size: 32px; font-weight: 600; line-height: 1; color: var(--text); display: flex; align-items: baseline; gap: 10px; }
 .gp-count--off { color: var(--text-faint); }
 .gp-count-label { font-family: var(--font-body, 'Outfit', sans-serif); font-size: 13.5px; font-weight: 500; color: var(--text-dim); }
 .gp-tracking { font-size: 11.5px; color: var(--text-faint); margin-top: 6px; }
@@ -6232,7 +6235,7 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gp-btn-ghost:hover { border-color: var(--green); color: var(--text); }
 .gp-bands { display: flex; gap: 4px; }
 .gp-band { position: relative; flex: 1; min-width: 0; height: 50px; border-radius: 9px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border: 1px solid transparent; padding: 0 4px; text-align: center; }
-.gp-band-range { font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 600; }
+.gp-band-range { font-family: inherit; font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 600; }
 .gp-band-name { font-size: 10.5px; line-height: 1.2; }
 .gp-band--done { background: var(--green); color: #fff; }
 .gp-band--done .gp-band-name { color: rgba(255,255,255,.88); }
@@ -6247,14 +6250,14 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gp-unlock { border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 12px 16px; margin-bottom: 14px; }
 .gp-unlock-row { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--text-dim); }
 .gp-unlock-row b { color: var(--text); }
-.gp-unlock-num { font-family: 'Geist Mono', monospace; font-weight: 600; white-space: nowrap; }
+.gp-unlock-num { font-family: inherit; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
 .gp-unlock-track { height: 6px; border-radius: 99px; background: var(--line); margin-top: 9px; overflow: hidden; }
 .gp-unlock-fill { height: 100%; border-radius: 99px; background: var(--green); }
 .gp-unlock--locked .gp-unlock-fill { background: var(--locked); }
 .gp-unlock--done { border-color: var(--green); background: var(--accent); }
 
 .gp-stage { position: sticky; top: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg-soft); padding: 18px; }
-.gp-stage-tag { display: inline-block; font-family: 'Geist Mono', monospace; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent-foreground); background: var(--accent); padding: 3px 9px; border-radius: 99px; margin-bottom: 12px; }
+.gp-stage-tag { display: inline-block; font-family: inherit; font-variant-numeric: tabular-nums; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent-foreground); background: var(--accent); padding: 3px 9px; border-radius: 99px; margin-bottom: 12px; }
 .gp-stage-title { font-family: var(--font-display, 'Fraunces', serif); font-size: 16px; font-weight: 600; line-height: 1.3; color: var(--text); margin: 0 0 8px; }
 .gp-stage-text { font-size: 12.5px; color: var(--text-dim); line-height: 1.55; margin: 0 0 14px; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
 .gp-stage-cta { display: block; width: 100%; padding: 10px; border-radius: 9px; border: none; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; }
@@ -6292,7 +6295,7 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gp-rail-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .gp-rail-head .gp-eyebrow { margin: 0; }
 .gp-rail-summary { font-size: 12px; color: var(--text-faint); }
-.gp-rail-summary b { color: var(--text); font-family: 'Geist Mono', monospace; }
+.gp-rail-summary b { color: var(--text); font-family: inherit; font-variant-numeric: tabular-nums; }
 
 /* Module card: one calm surface, status carried by the % and bar colors. */
 .gp-col .levels { gap: 0; padding-bottom: 8px; }
@@ -6332,7 +6335,7 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gp-phase--locked { background: var(--bg-soft); color: var(--text-faint); }
 .gp-phase--selected { border-color: var(--green); box-shadow: 0 0 0 3px var(--accent); }
 .gp-phase-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; font-weight: 600; }
-.gp-phase-count { font-family: 'Geist Mono', monospace; font-size: 11.5px; font-weight: 600; color: var(--accent-foreground); white-space: nowrap; }
+.gp-phase-count { font-family: inherit; font-variant-numeric: tabular-nums; font-size: 11.5px; font-weight: 600; color: var(--accent-foreground); white-space: nowrap; }
 .gp-phase--locked .gp-phase-count { color: var(--locked); }
 .gp-phase-blurb { display: block; font-size: 12px; color: var(--text-faint); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gp-phase-bar { display: block; height: 4px; border-radius: 99px; background: var(--bg-soft); margin-top: 10px; overflow: hidden; }
@@ -6340,13 +6343,13 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gp-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .gp-pill { display: inline-flex; align-items: center; gap: 7px; font-family: inherit; font-size: 13px; color: var(--text-dim); background: var(--card); border: 1px solid var(--line); border-radius: 99px; padding: 6px 13px 6px 6px; cursor: pointer; transition: border-color .15s; }
 .gp-pill:hover { border-color: var(--green); }
-.gp-pill-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-family: 'Geist Mono', monospace; font-size: 10.5px; font-weight: 700; border: 1.5px solid var(--line); color: var(--text-faint); background: var(--card); }
+.gp-pill-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; font-family: inherit; font-variant-numeric: tabular-nums; font-size: 10.5px; font-weight: 700; border: 1.5px solid var(--line); color: var(--text-faint); background: var(--card); }
 .gp-pill--done .gp-pill-dot { background: var(--green); border-color: var(--green); color: #fff; }
 .gp-pill--open .gp-pill-dot { border-color: var(--green); color: var(--accent-foreground); }
 .gp-pill--locked { background: var(--bg-soft); color: var(--text-faint); }
 .gp-pill--locked .gp-pill-dot { background: transparent; color: var(--locked); }
 .gp-pill--selected { border-color: var(--green); background: var(--accent); color: var(--text); font-weight: 600; }
-.gp-pill-pct { font-family: 'Geist Mono', monospace; font-size: 11px; font-weight: 500; color: var(--text-faint); }
+.gp-pill-pct { font-family: inherit; font-variant-numeric: tabular-nums; font-size: 11px; font-weight: 500; color: var(--text-faint); }
 .gp-pill--selected .gp-pill-pct { color: var(--accent-foreground); }
 @media (max-width: 900px) {
   .gp-phases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -6459,7 +6462,7 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 /* ── Billing: Pro badges, upgrade screens, pricing page ── */
 .pro-badge {
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-  font-family: 'Geist Mono', monospace; font-size: 9.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  font-family: inherit; font-variant-numeric: tabular-nums; font-size: 9.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
   color: #7a5a08; background: #fdf3d6; border: 1px solid #ecd49a; border-radius: 99px; padding: 2px 7px; line-height: 1.3;
 }
 :root:not(.light) .pro-badge { color: #e7c873; background: #2a2414; border-color: #4a3f20; }
@@ -6544,7 +6547,7 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gp-phases--split > .gp-phase { flex: 1 1 0; min-width: 0; }
 .gp-pro-group { flex: 3 1 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 10px; border: 1px dashed var(--line); border-radius: 14px; background: var(--bg-soft); }
 .gp-pro-group-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px; }
-.gp-pro-group-label { font-family: 'Geist Mono', monospace; font-size: 10.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
+.gp-pro-group-label { font-family: inherit; font-variant-numeric: tabular-nums; font-size: 10.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
 .gp-pro-group-cta { font-size: 12px; font-weight: 700; color: var(--accent-foreground); text-decoration: none; }
 .gp-pro-group-grid { display: grid; gap: 8px; flex: 1; }
 .gp-pro-group .gp-phase { background: var(--card); }
@@ -6604,3 +6607,26 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   .gp-col .level .gp-unlock { margin: 0 16px 12px; }
   .gp-col .md-cats .md-cat { margin-bottom: 0; }
 }
+
+/* ── Growth Path: "Your next step" — the one thing a new user should do now ── */
+.gp-next { display: flex; align-items: center; justify-content: space-between; gap: 14px 24px; flex-wrap: wrap; padding: 18px 22px; margin-bottom: 18px; border-radius: 14px; border: 1px solid color-mix(in srgb, var(--green) 35%, var(--line)); background: color-mix(in srgb, var(--green) 7%, var(--card)); }
+.gp-next-body { min-width: 0; flex: 1 1 360px; }
+.gp-next-label { display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent-foreground); margin-bottom: 6px; }
+.gp-next-progress { font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--text-faint); }
+.gp-next-title { font-size: 19px; font-weight: 650; letter-spacing: -.2px; line-height: 1.3; color: var(--text); margin: 0 0 4px; }
+.gp-next-text { font-size: 13.5px; line-height: 1.55; color: var(--text-dim); margin: 0; max-width: 640px; }
+.gp-next-cta { flex-shrink: 0; padding: 10px 18px; border-radius: 10px; border: none; background: var(--green); color: #fff; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.gp-next-cta:hover { filter: brightness(1.08); }
+.gp-next-spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: md-spin .8s linear infinite; }
+@media (max-width: 760px) {
+  .gp-next { padding: 16px; }
+  .gp-next-title { font-size: 17px; }
+  .gp-next-cta { width: 100%; white-space: normal; }
+}
+
+/* Headings were a serif; in Geist they read better a touch heavier and tighter. */
+.gp-title { font-weight: 650; letter-spacing: -.4px; }
+.app-sidebar-brand { letter-spacing: -.2px; }
+/* The next-step card holds the one primary action; the stage card's button is secondary. */
+.gp-stage-cta { background: var(--card); color: var(--text); border: 1px solid var(--line); font-weight: 600; }
+.gp-stage-cta:hover { opacity: 1; border-color: var(--green); }

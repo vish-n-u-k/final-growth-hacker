@@ -159,7 +159,7 @@ function ModuleRing({ score }: { score: number }) {
       <text
         x="22" y="22" textAnchor="middle" dominantBaseline="central"
         fill={color}
-        style={{ fontSize: '9.5px', fontWeight: 800, fontFamily: 'Outfit, sans-serif' }}
+        style={{ fontSize: '9.5px', fontWeight: 800, fontFamily: 'inherit' }}
       >
         {score}
       </text>
