@@ -32,11 +32,6 @@ type Tab = 'brand' | 'playbook' | 'integrations' | 'claude-code' | 'account'
 
 export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations, mcpKeyPrefix, dailyEmailEnabled, frektoAutoPostEnabled, initialTab }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab ?? 'brand')
-
-  // Phones show the tabs as a horizontal strip: keep the active one in view.
-  useEffect(() => {
-    document.querySelector('.st-tab-active')?.scrollIntoView({ inline: 'center', block: 'nearest' })
-  }, [tab])
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [oauthToast, setOauthToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
   const router = useRouter()
@@ -120,7 +115,8 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
         <button
           className="st-drawer-toggle"
           onClick={() => setDrawerOpen(!drawerOpen)}
-          aria-label="Toggle navigation menu"
+          aria-label="Settings sections"
+          aria-expanded={drawerOpen}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="3" y1="6" x2="21" y2="6" />
@@ -130,7 +126,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <button
-            className="shell-dup-back"
+            className="shell-dup-back st-back"
             onClick={goBack}
             title="Back"
             style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--text)', cursor: 'pointer', flexShrink: 0 }}

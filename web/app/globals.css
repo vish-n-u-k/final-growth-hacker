@@ -6631,29 +6631,21 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gp-stage-cta { background: var(--card); color: var(--text); border: 1px solid var(--line); font-weight: 600; }
 .gp-stage-cta:hover { opacity: 1; border-color: var(--green); }
 
-/* ── Settings on phones: one menu (the app drawer), section tabs as a scrollable strip, stacked integration cards ── */
+/* ── Settings on phones: the app's GrowJin bar is hidden here (AppSidebar); Settings keeps its own
+   section menu (☰, right) and gets a back arrow (left). Integration cards stack. ── */
 .st-int-group-body .st-oauth-section { padding: 14px 16px 0; margin-bottom: 0; }
 .sp-custom-input { min-width: 0; }
 @media (max-width: 768px) {
-  /* The app's own menu button already opens navigation; Settings doesn't need a second one. */
-  .st-drawer-toggle { display: none !important; }
-  .st-page-hd { padding: 18px 16px 14px; border-bottom: none; }
-  .st-layout { padding: 0 16px 60px !important; }
-  .st-layout::before, .st-layout.drawer-open::before { display: none !important; }
-  .st-tabs, .st-layout.drawer-open .st-tabs {
-    position: static !important; left: auto !important; width: auto !important; height: auto !important;
-    flex-direction: row !important; flex-wrap: nowrap !important; gap: 6px !important;
-    padding: 0 0 14px !important; margin: 0 0 18px !important; overflow-x: auto !important;
-    background: transparent !important; border-right: none !important; border-bottom: 1px solid var(--line) !important;
-    z-index: auto !important; transition: none !important; scrollbar-width: none;
+  .st-page-hd { padding: 14px 16px; }
+  .st-page-hd .st-drawer-toggle { order: 2; margin-left: auto; }
+  .app-shell-main .st-page-hd .st-back { display: flex !important; }
+  /* The ☰ sits on the right, so the section panel slides in from the right. */
+  .st-layout .st-tabs {
+    padding-top: 24px !important; left: auto !important; right: calc(-1 * min(320px, 85vw)) !important;
+    width: min(320px, 85vw) !important; border-right: none !important; border-left: 1px solid var(--line) !important;
+    transition: right .3s ease !important;
   }
-  .st-tabs::-webkit-scrollbar { display: none; }
-  .st-tab {
-    flex-shrink: 0; white-space: nowrap; width: auto !important;
-    padding: 8px 14px !important; font-size: 13px; border-radius: 99px !important;
-    border: 1px solid var(--line) !important; background: var(--card);
-  }
-  .st-tab-active { background: var(--accent) !important; border-color: var(--green) !important; color: var(--accent-foreground); }
+  .st-layout.drawer-open .st-tabs { left: auto !important; right: 0 !important; }
 
   /* One-click connect cards: text full width, button full width underneath (was squeezed side by side). */
   .st-int-group-body .st-oauth-section { padding: 12px 12px 0; }
