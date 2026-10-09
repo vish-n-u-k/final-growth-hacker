@@ -181,8 +181,6 @@ function renderMd(text: string, color: string) {
   return <div style={{ fontSize: '14.5px' }}>{out}</div>
 }
 
-const SOCIAL_KEYS = ['facebook', 'instagram', 'linkedin', 'youtube', 'pinterest', 'twitter', 'tiktok']
-
 // Same stage ranges the Business Stage module classifies brands into.
 const JOURNEY_PHASES = [
   { min: 0,   max: 10,       range: '0–10',    name: 'First customers' },
@@ -267,11 +265,11 @@ function SparkleIcon({ size = 12, style }: { size?: number; style?: React.CSSPro
   )
 }
 
-function LevelRing({ score }: { score: number }) {
+function LevelRing({ score, pending = false }: { score: number; pending?: boolean }) {
   const r = 20
   const circ = 2 * Math.PI * r
   const offset = circ * (1 - Math.max(score, 0) / 100)
-  const color = ringColor(score)
+  const color = pending ? 'var(--text-faint)' : ringColor(score)
   return (
     <svg width="100%" height="100%" viewBox="0 0 46 46" style={{ display: 'block' }}>
       <circle
@@ -286,7 +284,7 @@ function LevelRing({ score }: { score: number }) {
         fill={color}
         style={{ fontSize: '12px', fontWeight: 800, fontFamily: 'inherit', letterSpacing: '-0.5px' }}
       >
-        {score}%
+        {pending ? '—' : `${score}%`}
       </text>
     </svg>
   )
@@ -294,7 +292,7 @@ function LevelRing({ score }: { score: number }) {
 
 const BILLING_OFF = { enabled: false, pro: true, planLocked: [] as string[] }
 
-export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, isAdmin = false, githubConnected, connectedIntegrations, socialLinks, conflictLinks = [], billing = BILLING_OFF }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, isAdmin = false, githubConnected, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
   const isPlanLocked = (m: Pick<ModuleData, 'type'>) => billing.planLocked.includes(m.type)
   const [notesOpen, setNotesOpen] = useState(false)
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
@@ -1828,10 +1826,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     if (catSlug) setOpenCatsMap(prev => ({ ...prev, [m.id]: new Set([catSlug]) }))
     requestAnimationFrame(() => document.getElementById('gp-module')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
+  const freeTotal = railModules.filter(x => !x.definition.comingSoon && !isPlanLocked(x)).length
+  const freeDone = railModules.filter(x => !isPlanLocked(x) && isStepDone(x)).length
+  const proStepCount = railModules.filter(x => !x.definition.comingSoon && isPlanLocked(x)).length
+  // The stage playbook card waits until the user has a result or finished a step: on day one it's one thing too many.
+  const showStageCard = bsItemsAll.length > 0 || railDoneCount > 0
   const nextStep = (() => {
     const m = railModules.find(x => !x.definition.comingSoon && !isModuleLocked(x) && (liveScores[x.id] ?? 0) < 80)
-    const freeTotal = railModules.filter(x => !x.definition.comingSoon && !isPlanLocked(x)).length
-    const freeDone = railModules.filter(x => !isPlanLocked(x) && isStepDone(x)).length
     const progress = `${freeDone} of ${freeTotal} steps done`
     if (!m) return { label: 'All caught up', title: 'Every step is at 80% or more', text: 'Keep things there: re-analyse a step after you change your site.', progress, busy: false, cta: null as null | { label: string; run: () => void } }
     if (isPlanLocked(m)) {
@@ -1845,7 +1846,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const analysed = lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt
     const score = liveScores[m.id] ?? 0
     if (reanalyzingMap[m.id]) {
-      return { label: 'Your next step', progress, busy: true, title: `Checking your ${m.name.toLowerCase()}…`, text: 'This takes about a minute. Your checklist appears below when it’s ready — you can leave this page open.', cta: null }
+      return { label: 'Your next step', progress, busy: true, title: `Checking your ${m.name.toLowerCase()}…`, text: 'This usually takes 1–3 minutes. Your checklist appears below when it’s ready, and you can leave this page.', cta: null }
     }
     if (!analysed) {
       return {
@@ -1883,6 +1884,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         </div>
       )
     }
+    const analysedYet = lastAnalyzedAtMap[selectedModule.id] !== undefined ? lastAnalyzedAtMap[selectedModule.id] : selectedModule.lastAnalyzedAt
+    if (!analysedYet) return null // nothing to measure until the first analysis lands
     const next = railModules.slice(selectedIdx + 1).find(p => !p.definition.comingSoon)
     // Mirrors isModuleLocked: the first three modules never gate each other.
     const unlocksNext = !!next && next.order > 3
@@ -1990,7 +1993,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         <div>
           <h1 className="gp-title">Growth Path</h1>
           <div className="gp-sub">
-            {selectedModule ? `Step ${selectedIdx + 1} of ${railModules.length} — ${selectedModule.name}` : brand.name}
+            {brand.websiteUrl
+              ? <a href={brand.websiteUrl} target="_blank" rel="noopener noreferrer" className="gp-sub-link">{brand.websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>
+              : brand.name}
           </div>
         </div>
         <div className="gp-top-actions">
@@ -2026,109 +2031,44 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             {nextStep.cta && <button className="gp-next-cta" onClick={nextStep.cta.run}>{nextStep.cta.label} →</button>}
           </section>
 
-          {/* Website URL + social icons */}
-          <div className="hero-meta gp-meta">
-            {brand.websiteUrl && (
-              <a
-                href={brand.websiteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hero-website-url"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: '#5bc5e8' }}>
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
-                  <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" stroke="currentColor" strokeWidth="2"/>
-                </svg>
-                {brand.websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-              </a>
-            )}
-            {brand.websiteUrl && <div className="hero-meta-divider" />}
-            <div className="hero-social-icons">
-              {([
-                { key: 'facebook', label: 'Facebook', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
-                { key: 'instagram', label: 'Instagram', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" stroke="currentColor" strokeWidth="2"/><circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor"/></svg> },
-                { key: 'linkedin', label: 'LinkedIn', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M7 10v7M7 7v.01M11 17v-4a2 2 0 0 1 4 0v4M11 10v7" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg> },
-                { key: 'youtube', label: 'YouTube', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58 2.78 2.78 0 0 0 1.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.96-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z" stroke="currentColor" strokeWidth="2"/><polygon points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02" fill="currentColor"/></svg> },
-                { key: 'pinterest', label: 'Pinterest', icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 4.24 2.65 7.86 6.39 9.29-.09-.78-.17-1.98.04-2.83.18-.77 1.22-5.17 1.22-5.17s-.31-.62-.31-1.54c0-1.44.84-2.52 1.88-2.52.89 0 1.32.67 1.32 1.47 0 .9-.57 2.24-.87 3.48-.25 1.04.52 1.89 1.54 1.89 1.85 0 3.09-2.37 3.09-5.18 0-2.14-1.44-3.64-3.5-3.64-2.38 0-3.78 1.79-3.78 3.63 0 .72.28 1.49.62 1.91.07.08.08.15.06.24-.06.26-.2.83-.23.95-.04.15-.13.18-.3.11-1.12-.52-1.82-2.17-1.82-3.49 0-2.84 2.06-5.44 5.94-5.44 3.12 0 5.54 2.22 5.54 5.19 0 3.1-1.95 5.59-4.66 5.59-.91 0-1.77-.47-2.06-1.03l-.56 2.1c-.2.78-.75 1.75-1.12 2.34.84.26 1.74.4 2.67.4 5.52 0 10-4.48 10-10S17.52 2 12 2z"/></svg> },
-                { key: 'twitter', label: 'X / Twitter', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> },
-                { key: 'tiktok', label: 'TikTok', icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-2.88 2.5 2.89 2.89 0 0 1-2.89-2.89 2.89 2.89 0 0 1 2.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 0 0-.79-.05 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.33-6.34V8.83a8.16 8.16 0 0 0 4.78 1.52V6.9a4.85 4.85 0 0 1-1.01-.21z"/></svg> },
-              ] as { key: string; label: string; icon: JSX.Element }[])
-              .filter(({ key }) => !!socialLinks[key])
-              .map(({ key, label, icon }) => (
-                <div key={key} className="hero-social-icon-wrap">
-                  <a
-                    href={socialLinks[key]}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hero-social-icon hero-social-icon--connected"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {icon}
-                  </a>
-                  <span className="hero-social-name-tag">{label}</span>
-                </div>
-              ))}
-              {SOCIAL_KEYS.some(k => !socialLinks[k]) && (
-                <Link href="/settings?tab=integrations" className="gp-meta-add">
-                  {SOCIAL_KEYS.some(k => socialLinks[k]) ? '+ Add more' : '+ Add social profiles'}
-                </Link>
-              )}
-            </div>
-          </div>
-
-        {/* Road to 500 users */}
-        <div className="gp-journey">
-          <div className="gp-journey-top">
-            <div className="gp-journey-status">
-              <span className="gp-eyebrow">Road to 500 users</span>
-              {connectedIntegrations['posthog'] ? (
+        {/* Road to 500 users: shown once PostHog is connected (before that it's an empty track). */}
+        {connectedIntegrations['posthog'] && (
+          <div className="gp-journey">
+            <div className="gp-journey-top">
+              <div className="gp-journey-status">
+                <span className="gp-eyebrow">Road to 500 users</span>
                 <span className="gp-count">
                   {posthogLoading ? <span className="count-loading"><span /><span /><span /></span> : userCount.toLocaleString()}
                   <span className="gp-count-label">users · {currentPhase.name}</span>
                 </span>
-              ) : (
-                <span className="gp-journey-hint">Optional: connect PostHog to track your live user count.</span>
-              )}
-            </div>
-            <div className="gp-journey-note">
-              {connectedIntegrations['posthog'] ? (
-                <>
-                  {nextPhase
-                    ? <>{Math.max(nextPhase.min - userCount, 0).toLocaleString()} more to reach <strong>{nextPhase.name}</strong></>
-                    : <>Last stage on the road — keep compounding</>}
-                  {posthogDataStartDate && (
-                    <span className="gp-tracking">
-                      {' '}· since {new Date(posthogDataStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <div className="gp-journey-actions">
-                  <button className="gp-btn-link" onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}>What we track</button>
-                  <button className="gp-btn-ghost" onClick={() => router.push('/settings?tab=integrations')}>Connect PostHog</button>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="gp-bands">
-            {JOURNEY_PHASES.map((p, i) => {
-              const state = !connectedIntegrations['posthog'] ? 'locked'
-                : i < currentPhaseIdx ? 'done'
-                : i === currentPhaseIdx ? 'current'
-                : 'locked'
-              return (
-                <div key={p.range} className={`gp-band gp-band--${state}`} title={`${p.range} users · ${p.name}`}>
-                  <span className="gp-band-bar">
-                    {state === 'current' && <i style={{ width: `${phaseMarkerPct}%` }} />}
+              </div>
+              <div className="gp-journey-note">
+                {nextPhase
+                  ? <>{Math.max(nextPhase.min - userCount, 0).toLocaleString()} more to reach <strong>{nextPhase.name}</strong></>
+                  : <>Last stage on the road — keep compounding</>}
+                {posthogDataStartDate && (
+                  <span className="gp-tracking">
+                    {' '}· since {new Date(posthogDataStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
                   </span>
-                  <span className="gp-band-range">{p.range}</span>
-                  {state === 'current' && <span className="gp-band-name">{p.name}</span>}
-                </div>
-              )
-            })}
+                )}
+              </div>
+            </div>
+            <div className="gp-bands">
+              {JOURNEY_PHASES.map((p, i) => {
+                const state = i < currentPhaseIdx ? 'done' : i === currentPhaseIdx ? 'current' : 'locked'
+                return (
+                  <div key={p.range} className={`gp-band gp-band--${state}`} title={`${p.range} users · ${p.name}`}>
+                    <span className="gp-band-bar">
+                      {state === 'current' && <i style={{ width: `${phaseMarkerPct}%` }} />}
+                    </span>
+                    <span className="gp-band-range">{p.range}</span>
+                    {state === 'current' && <span className="gp-band-name">{p.name}</span>}
+                  </div>
+                )
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Business Stage Modal */}
         {stageModalOpen && (() => {
@@ -2256,7 +2196,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         {/* Module step rail */}
         <div className="gp-rail-head">
           <span className="gp-eyebrow">Your growth path</span>
-          <span className="gp-rail-summary"><b>{railDoneCount}</b> of {railModules.length} modules complete</span>
+          {proStepCount > 0
+            ? <span className="gp-rail-summary"><b>{freeDone}</b> of {freeTotal} free steps done</span>
+            : <span className="gp-rail-summary"><b>{railDoneCount}</b> of {railModules.length} modules complete</span>}
         </div>
         <div className="gp-path">
           {(() => {
@@ -2290,6 +2232,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             const freePhases = phases.filter(p => !p.pro)
             const proPhases = phases.filter(p => p.pro)
             if (proPhases.length === 0) return <div className="gp-phases">{phases.map(renderPhase)}</div>
+            // A single free phase needs no card of its own: its steps are the pills below.
+            if (freePhases.length <= 1) return null
             return (
               <div className="gp-phases gp-phases--split">
                 {freePhases.map(renderPhase)}
@@ -2334,9 +2278,16 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               )
             })}
           </div>
+          {proStepCount > 0 && (
+            <Link href="/pricing" className="gp-pro-strip">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+              <span className="gp-pro-strip-text"><b>{proStepCount} more steps with Pro</b><span className="gp-pro-strip-sub"> · {phases.filter(p => p.pro).map(p => p.name).join(' · ')}</span></span>
+              <span className="gp-pro-strip-cta">See plans →</span>
+            </Link>
+          )}
         </div>
 
-        <div className="gp-main">
+        <div className={`gp-main${showStageCard ? '' : ' gp-main--solo'}`}>
         <div className="gp-col">
 
         {/* Selected module (one at a time) */}
@@ -2407,7 +2358,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <path d="M2 7l10 7 10-7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
                     ) : (
-                      <LevelRing score={liveScore} />
+                      <LevelRing score={liveScore} pending={!effectiveLastAnalyzedAt} />
                     )}
                   </div>
 
@@ -2875,7 +2826,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                                         <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) + '60' }} />
                                         <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) }} />
                                       </div>
-                                      <span className="md-cat-pct" style={{ color: ringColor(stats.pct) }}>{stats.pct}%</span>
+                                      <span className="md-cat-pct" style={{ color: effectiveLastAnalyzedAt ? ringColor(stats.pct) : 'var(--text-faint)' }}>{effectiveLastAnalyzedAt ? `${stats.pct}%` : '—'}</span>
                                       <svg className={`md-chev${isOpenCat ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
                                         <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                                       </svg>
@@ -2934,7 +2885,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                               <div
                                 key={cat.slug}
                                 className={`md-cat${isOpenCat ? ' md-cat-open' : ''}`}
-                                style={{ borderLeftColor: ringColor(stats.pct) }}
+                                style={{ borderLeftColor: effectiveLastAnalyzedAt ? ringColor(stats.pct) : 'var(--line)' }}
                               >
                                 <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => toggleCat(modData.id, cat.slug)}>
                                   <div className="md-cat-hd-left">
@@ -2946,7 +2897,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                                       <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) + '60' }} />
                                       <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) }} />
                                     </div>
-                                    <span className="md-cat-pct" style={{ color: ringColor(stats.pct) }}>{stats.pct}%</span>
+                                    <span className="md-cat-pct" style={{ color: effectiveLastAnalyzedAt ? ringColor(stats.pct) : 'var(--text-faint)' }}>{effectiveLastAnalyzedAt ? `${stats.pct}%` : '—'}</span>
                                     <svg className={`md-chev${isOpenCat ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
                                       <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                                     </svg>
@@ -3048,7 +2999,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         </div>
 
         {/* Growth Stage */}
-        <aside className="gp-stage">
+        {showStageCard && <aside className="gp-stage">
           <span className="gp-stage-tag">Growth Stage</span>
           <h4 className="gp-stage-title">{bsClassItem?.label ?? 'Your stage playbook'}</h4>
           <p className="gp-stage-text">
@@ -3059,7 +3010,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           <button className="gp-stage-cta" onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}>
             {bsItemsAll.length > 0 ? 'View full playbook' : 'Get your playbook'}
           </button>
-        </aside>
+        </aside>}
         </div>
 
       </div>

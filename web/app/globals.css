@@ -6666,9 +6666,25 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .app-shell-main .shell-dup-back { display: none !important; }
 
 /* Sign out: in the app menu (sidebar / phone drawer) and at the bottom of the Settings menu on phones. */
-.app-navitem--btn { width: 100%; background: none; border: none; font: inherit; text-align: left; cursor: pointer; }
+.app-navitem--btn { width: 100%; background: none; border: none; font-family: inherit; text-align: left; cursor: pointer; }
 .app-navitem--btn:disabled { opacity: .6; cursor: default; }
 .st-tab-signout { display: none !important; }
 @media (max-width: 768px) {
   .st-tab-signout { display: flex !important; align-items: center; gap: 10px; margin-top: 12px; padding-top: 14px !important; border-top: 1px solid var(--line) !important; border-radius: 0 !important; color: var(--text-dim); }
+}
+
+/* ── Growth Path, new-user pass: site in the subtitle, free steps + one Pro line, no empty side card ── */
+.gp-sub-link { color: inherit; text-decoration: none; }
+.gp-sub-link:hover { color: var(--accent-foreground); text-decoration: underline; }
+.gp-path > .gp-pills:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+.gp-pro-strip { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--line); color: var(--text-dim); text-decoration: none; font-size: 13px; transition: border-color .15s, background .15s; }
+.gp-pro-strip:hover { border-color: var(--green); background: var(--accent); }
+.gp-pro-strip > svg { flex-shrink: 0; color: var(--text-faint); }
+.gp-pro-strip-text { flex: 1; min-width: 0; }
+.gp-pro-strip-text b { color: var(--text); font-weight: 600; }
+.gp-pro-strip-sub { color: var(--text-faint); }
+.gp-pro-strip-cta { flex-shrink: 0; font-weight: 600; color: var(--accent-foreground); white-space: nowrap; }
+.gp-main--solo { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 760px) {
+  .gp-pro-strip-sub { display: none; }
 }
