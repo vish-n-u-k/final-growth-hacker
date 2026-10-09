@@ -6715,3 +6715,48 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 @media (max-width: 760px) {
   .gp-col .level-body > .gp-progress { margin: 10px 12px 12px !important; }
 }
+
+/* ── Analysing now: the run takes over the top of Growth Path, follows you as a pill, shimmers the checklist ── */
+.gp-live { position: relative; overflow: hidden; margin-bottom: 18px; padding: 20px 22px 18px; border-radius: 16px; border: 1.5px solid var(--green); background: color-mix(in srgb, var(--green) 9%, var(--card)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 12%, transparent); scroll-margin-top: 16px; }
+.gp-live::before { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, color-mix(in srgb, var(--green) 10%, transparent) 50%, transparent 70%); background-size: 250% 100%; animation: gp-sheen 2.6s linear infinite; pointer-events: none; }
+.gp-live > * { position: relative; }
+.gp-live-top { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; }
+.gp-live-label { font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--accent-foreground); }
+.gp-live-time { margin-left: auto; font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--text); letter-spacing: -.3px; }
+.gp-live-title { font-size: 22px; font-weight: 650; letter-spacing: -.3px; line-height: 1.25; color: var(--text); margin: 0 0 14px; }
+.gp-live-bar { height: 8px; border-radius: 99px; background: color-mix(in srgb, var(--green) 15%, var(--line)); overflow: hidden; margin-bottom: 14px; }
+.gp-live-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--green), color-mix(in srgb, var(--green) 65%, #fff)); background-size: 200% 100%; animation: gp-sheen 1.4s linear infinite; transition: width .8s ease; }
+.gp-live-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.gp-live-steps li { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; line-height: 1.35; color: var(--text-faint); }
+.gp-live-steps li .gp-progress-dot { margin-top: 1px; }
+.gp-live-steps li.is-done { color: var(--text-dim); }
+.gp-live-steps li.is-now { color: var(--text); font-weight: 600; }
+.gp-live-steps li.is-done .gp-progress-dot { background: var(--green); border-color: var(--green); }
+.gp-live-steps li.is-now .gp-progress-dot { border-color: var(--green); border-right-color: transparent; animation: md-spin .8s linear infinite; }
+.gp-live-note { margin: 14px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
+.gp-live--ready { border-color: var(--green); }
+.gp-live--ready::before { display: none; }
+.gp-live--ready .gp-next-cta { margin-top: 14px; }
+.gp-live-pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--green); flex-shrink: 0; box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 60%, transparent); animation: gp-pulse 1.6s ease-out infinite; }
+@keyframes gp-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 55%, transparent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+@keyframes gp-sheen { from { background-position: 150% 0; } to { background-position: -100% 0; } }
+
+.gp-live-pill { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 60; display: inline-flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); padding: 11px 18px; border-radius: 99px; border: 1.5px solid var(--green); background: var(--card); color: var(--text); font: inherit; font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; box-shadow: 0 8px 28px rgba(0,0,0,.16); }
+@media (min-width: 901px) { .gp-live-pill { left: calc(50% + 120px); } } /* centre over the content, not the sidebar */
+
+/* First run: the empty checklist shimmers instead of showing a column of dashes. */
+.gp-cats--loading { pointer-events: none; }
+.gp-cats--loading .md-cat { position: relative; overflow: hidden; }
+.gp-cats--loading .md-cat::after { content: ''; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 25%, color-mix(in srgb, var(--green) 9%, transparent) 50%, transparent 75%); background-size: 250% 100%; animation: gp-sheen 1.8s linear infinite; }
+.gp-cats--loading .md-cat-pct, .gp-cats--loading .md-chev, .gp-cats--loading .md-cat-hd-count { visibility: hidden; }
+
+@media (max-width: 760px) {
+  .gp-live { padding: 16px; }
+  .gp-live-title { font-size: 19px; }
+  .gp-live-time { font-size: 19px; }
+  .gp-live-steps { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .gp-live-pill { bottom: 14px; font-size: 13px; padding: 10px 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gp-live::before, .gp-live-bar i, .gp-cats--loading .md-cat::after, .gp-live-pulse { animation: none; }
+}

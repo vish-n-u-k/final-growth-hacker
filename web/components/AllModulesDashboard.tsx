@@ -681,6 +681,15 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   // Progress of running analyses, from the poll: server stage + when the run started.
   const [runInfoMap, setRunInfoMap] = useState<Record<string, { stage: string | null; startedAt: number }>>({})
   const [clock, setClock] = useState(() => Date.now())
+  // "Foundation is ready" notice after a run finishes (also shown in the tab title).
+  const [readyNotice, setReadyNotice] = useState<{ modId: string; name: string } | null>(null)
+  useEffect(() => {
+    if (!readyNotice) return
+    const t = setTimeout(() => setReadyNotice(null), 10_000)
+    // The refresh after a finished run makes Next re-apply the page title; keep ours while the notice shows.
+    const keep = setInterval(() => { document.title = `✓ ${readyNotice.name} is ready – GrowJin` }, 1000)
+    return () => { clearTimeout(t); clearInterval(keep) }
+  }, [readyNotice])
   const anyRunning = Object.values(reanalyzingMap).some(Boolean)
   useEffect(() => {
     if (!anyRunning) return
@@ -723,7 +732,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           const info = data as { stage?: string | null; startedAt?: string }
           setRunInfoMap(prev => ({ ...prev, [modId]: { stage: info.stage ?? null, startedAt: info.startedAt ? Date.parse(info.startedAt) : prev[modId]?.startedAt ?? Date.now() } }))
         }
-        if (data?.state === 'done') { applyAnalysisResult(modId, data); return }
+        if (data?.state === 'done') {
+          applyAnalysisResult(modId, data)
+          setReadyNotice({ modId, name: allModulesData.find(m => m.id === modId)?.name ?? 'Your analysis' })
+          return
+        }
         if (data?.state === 'failed') {
           setSetupErrorMap(prev => ({ ...prev, [modId]: data?.error ?? 'Analysis failed. Please try again.' }))
           return
@@ -1857,8 +1870,32 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       { key: 'save', label: 'Saving your checklist' },
     ]
     const idx = info?.stage ? Math.max(0, steps.findIndex(st => st.key === info.stage)) : elapsed < 15 ? 0 : 1
-    return { steps, idx, elapsed, time: `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`, slow: elapsed > 180 }
+    // Bar: follows the real step; inside the long middle step it eases toward ~88% (never claims done).
+    const pct = idx === 0 ? Math.min(20, 5 + elapsed) : idx === 1 ? Math.round(25 + 63 * (1 - Math.exp(-Math.max(0, elapsed - 10) / 70))) : 95
+    return { steps, idx, elapsed, pct, time: `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`, slow: elapsed > 180 }
   }
+
+  // The analysis in flight (if any) takes over the top of the page.
+  const liveMod = railModules.find(x => reanalyzingMap[x.id] && !isPlanLocked(x)) ?? null
+  const liveRun = liveMod ? runProgress(liveMod) : null
+  const liveRef = useRef<HTMLElement | null>(null)
+  const [liveOnScreen, setLiveOnScreen] = useState(true)
+  useEffect(() => {
+    const el = liveRef.current
+    if (!liveMod || !el) { setLiveOnScreen(true); return }
+    // Counts as on screen while at least half of the panel is visible.
+    const io = new IntersectionObserver(([e]) => setLiveOnScreen(e.intersectionRatio >= 0.5), { threshold: [0, 0.5, 1] })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [liveMod?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const baseTitleRef = useRef<string | null>(null)
+  // Tab title: the timer while a run is going, "✓ ready" for a moment after, then back to normal.
+  useEffect(() => {
+    if (baseTitleRef.current === null) baseTitleRef.current = document.title
+    document.title = liveMod && liveRun ? `${liveRun.time} · Analysing ${liveMod.name} – GrowJin`
+      : readyNotice ? `✓ ${readyNotice.name} is ready – GrowJin`
+      : baseTitleRef.current
+  }, [liveMod?.id, liveRun?.time, readyNotice]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // "Your next step": one plain-language instruction so a new user knows what to do first.
   const goToModule = (m: ModuleData, catSlug?: string) => {
@@ -2074,6 +2111,33 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       </div>
 
       <div className="wrap gp-wrap">
+          {liveMod && liveRun ? (
+            <section className="gp-live" ref={liveRef} role="status" aria-live="polite">
+              <div className="gp-live-top">
+                <span className="gp-live-pulse" aria-hidden="true" />
+                <span className="gp-live-label">Analysing now</span>
+                <span className="gp-live-time">{liveRun.time}</span>
+              </div>
+              <h2 className="gp-live-title">{lastAnalyzedAtMap[liveMod.id] ?? liveMod.lastAnalyzedAt ? 'Re-checking' : 'Checking'} your {liveMod.name.toLowerCase()}</h2>
+              <div className="gp-live-bar" aria-hidden="true"><i style={{ width: `${liveRun.pct}%` }} /></div>
+              <ol className="gp-live-steps">
+                {liveRun.steps.map((st, i) => (
+                  <li key={st.key} className={i < liveRun.idx ? 'is-done' : i === liveRun.idx ? 'is-now' : ''}>
+                    <span className="gp-progress-dot" aria-hidden="true">{i < liveRun.idx ? '✓' : ''}</span>
+                    <span>{st.label}</span>
+                  </li>
+                ))}
+              </ol>
+              <p className="gp-live-note">{liveRun.slow ? 'Taking longer than usual, but still working. ' : 'Usually 1–3 minutes. '}You can leave this page or switch tabs; it keeps going and your checklist appears below when it’s done.</p>
+            </section>
+          ) : readyNotice ? (
+            <section className="gp-live gp-live--ready" role="status" aria-live="polite">
+              <div className="gp-live-top"><span className="gp-live-label">Done</span></div>
+              <h2 className="gp-live-title">✓ {readyNotice.name} is ready</h2>
+              <p className="gp-live-note">Your checklist is below. Start with the sections marked in red.</p>
+              <button className="gp-next-cta" onClick={() => { setReadyNotice(null); document.getElementById('gp-module')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>See my checklist →</button>
+            </section>
+          ) : (
           <section className={`gp-next${nextStep.busy ? ' gp-next--busy' : ''}`} aria-live="polite">
             <div className="gp-next-body">
               <div className="gp-next-label">
@@ -2085,6 +2149,15 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             </div>
             {nextStep.cta && <button className="gp-next-cta" onClick={nextStep.cta.run}>{nextStep.cta.label} →</button>}
           </section>
+          )}
+
+          {/* Scrolled past the panel: keep the run visible as a floating pill. */}
+          {liveMod && liveRun && !liveOnScreen && (
+            <button className="gp-live-pill" onClick={() => liveRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+              <span className="gp-live-pulse" aria-hidden="true" />
+              Analysing {liveMod.name} · Step {liveRun.idx + 1} of 3 · {liveRun.time}
+            </button>
+          )}
 
         {/* Road to 500 users: shown once PostHog is connected (before that it's an empty track). */}
         {connectedIntegrations['posthog'] && (
@@ -2833,7 +2906,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
                     {/* Outside the setup form so it's visible for modules that never show one (e.g. Foundation) */}
                     {setupError && !needsSetup && <p className="md-setup-error gp-run-msg" role="alert">{setupError}</p>}
-                    {reanalyzing && runsDirect && !setupError && (() => {
+                    {/* The top panel + floating pill already show the main run; this covers any other run going at the same time. */}
+                    {reanalyzing && runsDirect && !setupError && liveMod?.id !== modData.id && (() => {
                       const rp = runProgress(modData)
                       return (
                         <div className="gp-progress" role="status" aria-live="polite">
@@ -2854,7 +2928,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       )
                     })()}
 
-                    <div className="md-cats" style={(modData.type === 'business-stage' || modData.type === 'gmail-outreach') ? { display: 'none' } : needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
+                    <div className={`md-cats${reanalyzing && !effectiveLastAnalyzedAt ? ' gp-cats--loading' : ''}`} style={(modData.type === 'business-stage' || modData.type === 'gmail-outreach') ? { display: 'none' } : needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
                       {def.comingSoon ? (
                         <ComingSoon
                           variant="module"
