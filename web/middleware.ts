@@ -59,5 +59,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  // Static files in /public skip auth. fb-widget.js used to get the login page's HTML back
+  // whenever there was no session (login/signup pages), which threw "Unexpected token '<'".
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|js|css|txt|woff2?)$).*)'],
 }

@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { modules, moduleRuns } from '@/lib/db/schema'
-import { and, desc, eq, ne } from 'drizzle-orm'
+import { and, desc, eq, ne, sql } from 'drizzle-orm'
 
 // Bookkeeping for module analysis jobs (drizzle/module_runs.sql).
 // Every function here tolerates the module_runs table not existing yet: reads return
@@ -79,5 +79,26 @@ export async function claimRun(moduleId: string): Promise<{ claimed: boolean; ru
   } catch (err) {
     console.error('[module_runs] insert failed — has drizzle/module_runs.sql been run?', err)
     return { claimed: true, runId: null }
+  }
+}
+
+// ── Progress stage ("fetch" → "analyse" → "save") for the run in flight ──
+// Stored in module_runs.stage (drizzle/module_runs_stage.sql). Deliberately raw SQL and outside the
+// drizzle schema: until that migration runs, writes are skipped and reads return null, and nothing else breaks.
+export type RunStage = 'fetch' | 'analyse' | 'save'
+
+export async function setRunStage(moduleId: string, stage: RunStage): Promise<void> {
+  try {
+    await db.execute(sql`update module_runs set stage = ${stage} where module_id = ${moduleId} and status = 'running'`)
+  } catch { /* stage column not added yet */ }
+}
+
+export async function getRunStage(runId: string): Promise<RunStage | null> {
+  try {
+    const rows = await db.execute(sql`select stage from module_runs where id = ${runId}`)
+    const row = (rows as unknown as { stage: string | null }[])[0]
+    return (row?.stage as RunStage | null) ?? null
+  } catch {
+    return null
   }
 }

@@ -678,6 +678,27 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   // retried (phones drop requests when locked), and a tab coming back to the foreground
   // checks immediately instead of waiting out the interval.
   const pollingRef = useRef<Set<string>>(new Set())
+  // Progress of running analyses, from the poll: server stage + when the run started.
+  const [runInfoMap, setRunInfoMap] = useState<Record<string, { stage: string | null; startedAt: number }>>({})
+  const [clock, setClock] = useState(() => Date.now())
+  const anyRunning = Object.values(reanalyzingMap).some(Boolean)
+  useEffect(() => {
+    if (!anyRunning) return
+    const t = setInterval(() => setClock(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [anyRunning])
+  // Start a local timer for any run the poll hasn't reported yet, and drop finished ones.
+  useEffect(() => {
+    setRunInfoMap(prev => {
+      let changed = false
+      const next = { ...prev }
+      for (const [id, on] of Object.entries(reanalyzingMap)) {
+        if (on && !next[id]) { next[id] = { stage: null, startedAt: Date.now() }; changed = true }
+        if (!on && next[id]) { delete next[id]; changed = true }
+      }
+      return changed ? next : prev
+    })
+  }, [reanalyzingMap])
   const pollAnalysis = async (modId: string, runId: string | null) => {
     if (pollingRef.current.has(modId)) return
     pollingRef.current.add(modId)
@@ -698,6 +719,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           const res = await fetch(`/api/modules/analyze?${qs}`, { cache: 'no-store' })
           if (res.ok) data = await res.json()
         } catch { /* transient — retry */ }
+        if (data?.state === 'running') {
+          const info = data as { stage?: string | null; startedAt?: string }
+          setRunInfoMap(prev => ({ ...prev, [modId]: { stage: info.stage ?? null, startedAt: info.startedAt ? Date.parse(info.startedAt) : prev[modId]?.startedAt ?? Date.now() } }))
+        }
         if (data?.state === 'done') { applyAnalysisResult(modId, data); return }
         if (data?.state === 'failed') {
           setSetupErrorMap(prev => ({ ...prev, [modId]: data?.error ?? 'Analysis failed. Please try again.' }))
@@ -712,6 +737,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     } finally {
       pollingRef.current.delete(modId)
       setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
+      setRunInfoMap(prev => { const next = { ...prev }; delete next[modId]; return next })
     }
   }
 
@@ -1820,6 +1846,20 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     )
   }
 
+  // Where a running analysis is: the server's stage when it reports one, otherwise a guess from elapsed time.
+  const runProgress = (m: ModuleData) => {
+    const info = runInfoMap[m.id]
+    const elapsed = Math.max(0, Math.floor((clock - (info?.startedAt ?? clock)) / 1000))
+    const checks = m.definition.dynamic ? 0 : (m.definition.categories as ModuleCategoryDefinition[]).reduce((n, c) => n + c.subCategories.reduce((k, sc) => k + sc.items.length, 0), 0)
+    const steps = [
+      { key: 'fetch', label: 'Reading your website' },
+      { key: 'analyse', label: checks ? `Checking ${checks} things and writing your fixes` : 'Analysing and writing your fixes' },
+      { key: 'save', label: 'Saving your checklist' },
+    ]
+    const idx = info?.stage ? Math.max(0, steps.findIndex(st => st.key === info.stage)) : elapsed < 15 ? 0 : 1
+    return { steps, idx, elapsed, time: `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`, slow: elapsed > 180 }
+  }
+
   // "Your next step": one plain-language instruction so a new user knows what to do first.
   const goToModule = (m: ModuleData, catSlug?: string) => {
     setOpenModules(new Set([m.id]))
@@ -1846,7 +1886,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const analysed = lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt
     const score = liveScores[m.id] ?? 0
     if (reanalyzingMap[m.id]) {
-      return { label: 'Your next step', progress, busy: true, title: `Checking your ${m.name.toLowerCase()}…`, text: 'This usually takes 1–3 minutes. Your checklist appears below when it’s ready, and you can leave this page.', cta: null }
+      const rp = runProgress(m)
+      return {
+        label: 'Your next step', progress, busy: true,
+        title: `Checking your ${m.name.toLowerCase()}… ${rp.time}`,
+        text: `Step ${rp.idx + 1} of 3: ${rp.steps[rp.idx].label}. ${rp.slow ? 'Taking longer than usual, but still working.' : 'Usually 1–3 minutes.'} You can leave this page.`,
+        cta: null,
+      }
     }
     if (!analysed) {
       return {
@@ -2787,9 +2833,26 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
                     {/* Outside the setup form so it's visible for modules that never show one (e.g. Foundation) */}
                     {setupError && !needsSetup && <p className="md-setup-error gp-run-msg" role="alert">{setupError}</p>}
-                    {reanalyzing && runsDirect && !effectiveLastAnalyzedAt && !setupError && (
-                      <p className="gp-run-msg gp-run-msg--info">Analysing your site — this usually takes 1–3 minutes. You can leave this page; results will be here when you come back.</p>
-                    )}
+                    {reanalyzing && runsDirect && !setupError && (() => {
+                      const rp = runProgress(modData)
+                      return (
+                        <div className="gp-progress" role="status" aria-live="polite">
+                          <div className="gp-progress-hd">
+                            <span>{effectiveLastAnalyzedAt ? 'Re-analysing' : 'Analysing'} your site</span>
+                            <span className="gp-progress-time">{rp.time}</span>
+                          </div>
+                          <ol className="gp-progress-steps">
+                            {rp.steps.map((st, i) => (
+                              <li key={st.key} className={i < rp.idx ? 'is-done' : i === rp.idx ? 'is-now' : ''}>
+                                <span className="gp-progress-dot" aria-hidden="true">{i < rp.idx ? '✓' : ''}</span>
+                                {st.label}
+                              </li>
+                            ))}
+                          </ol>
+                          <p className="gp-progress-note">{rp.slow ? 'Taking longer than usual, but still working. ' : 'Usually 1–3 minutes. '}You can leave this page; results will be here when you come back.</p>
+                        </div>
+                      )
+                    })()}
 
                     <div className="md-cats" style={(modData.type === 'business-stage' || modData.type === 'gmail-outreach') ? { display: 'none' } : needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
                       {def.comingSoon ? (

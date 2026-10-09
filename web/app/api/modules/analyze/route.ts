@@ -2,7 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleCategories, moduleItems, modulePageAudit, brandIntegrations } from '@/lib/db/schema'
-import { claimRun, finishRun, getRun, isStale, failStaleRun, STALE_RUN_ERROR } from '@/lib/modules/runs'
+import { claimRun, finishRun, getRun, getRunStage, setRunStage, isStale, failStaleRun, STALE_RUN_ERROR } from '@/lib/modules/runs'
 import { getAccess, canUseModule } from '@/lib/billing/plan'
 import { getCompetitorUrlsString, storeCompetitors } from '@/lib/modules/competitor-registry'
 import { eq, and } from 'drizzle-orm'
@@ -563,8 +563,10 @@ Key One-Liners: ${pb.keyOneLiners}`
   let foundationResults: ModuleAnalysisResult[] | null = null
   if (mod.type === 'foundation') {
     try {
+      await setRunStage(moduleId, 'fetch')
       const prefetch = await fetchFoundationData(requirements)
       if (!prefetch.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)
+      await setRunStage(moduleId, 'analyse')
 
       const [{ brandColor, results }, playbookResult] = await withAIContext(
         { brandId: brand.id, moduleType: mod.type, websiteUrl: brand.websiteUrl ?? undefined },
@@ -641,6 +643,7 @@ Key One-Liners: ${pb.keyOneLiners}`
     results = foundationResults
   } else {
     try {
+      await setRunStage(moduleId, 'analyse')
       results = await withAIContext(
         { brandId: brand.id, moduleType: mod.type, websiteUrl: brand.websiteUrl ?? undefined },
         () => runAnalysis(mod.type, requirements, brainCtx),
@@ -654,6 +657,8 @@ Key One-Liners: ${pb.keyOneLiners}`
       )
     }
   }
+
+  await setRunStage(moduleId, 'save')
 
   if (def.dynamic) {
     // ── Dynamic module: Claude generates the items themselves ──────────────
@@ -972,7 +977,9 @@ export async function GET(request: NextRequest) {
     await failStaleRun(run)
     return NextResponse.json({ state: 'failed', error: STALE_RUN_ERROR })
   }
-  if (run?.status === 'running') return NextResponse.json({ state: 'running' })
+  if (run?.status === 'running') {
+    return NextResponse.json({ state: 'running', stage: await getRunStage(run.id), startedAt: run.startedAt.toISOString() })
+  }
   if (run?.status === 'failed') return NextResponse.json({ state: 'failed', error: run.error ?? 'Analysis failed. Please try again.' })
   if (!run && mod.status === 'analyzing') {
     // Table missing: the module's own status is all we have. Table present but no run row:
