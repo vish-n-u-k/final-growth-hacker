@@ -6664,3 +6664,11 @@ html.light .rm-outreach-days { color: var(--text-faint); }
    logo bar and back arrow (Settings, Reminders) are duplicates. Sign out lives in Settings → Account. */
 .app-shell-main .shell-dup-header,
 .app-shell-main .shell-dup-back { display: none !important; }
+
+/* Sign out: in the app menu (sidebar / phone drawer) and at the bottom of the Settings menu on phones. */
+.app-navitem--btn { width: 100%; background: none; border: none; font: inherit; text-align: left; cursor: pointer; }
+.app-navitem--btn:disabled { opacity: .6; cursor: default; }
+.st-tab-signout { display: none !important; }
+@media (max-width: 768px) {
+  .st-tab-signout { display: flex !important; align-items: center; gap: 10px; margin-top: 12px; padding-top: 14px !important; border-top: 1px solid var(--line) !important; border-radius: 0 !important; color: var(--text-dim); }
+}
