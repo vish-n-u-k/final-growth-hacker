@@ -1918,13 +1918,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const showStageCard = bsItemsAll.length > 0 || railDoneCount > 0
   const nextStep = (() => {
     const m = railModules.find(x => !x.definition.comingSoon && !isModuleLocked(x) && (liveScores[x.id] ?? 0) < 80)
-    const progress = `${freeDone} of ${freeTotal} steps done`
-    if (!m) return { label: 'All caught up', title: 'Every step is at 80% or more', text: 'Keep things there: re-analyse a step after you change your site.', progress, busy: false, cta: null as null | { label: string; run: () => void } }
+    const progress = `${freeDone} of ${freeTotal} ${proStepCount > 0 ? 'free ' : ''}steps done`
+    if (!m) return { label: 'All caught up', title: 'Every step is at 80% or more', text: 'Re-analyse a step after you change your site.', progress, busy: false, cta: null as null | { label: string; run: () => void } }
     if (isPlanLocked(m)) {
       return {
         label: 'Free steps done', progress, busy: false,
         title: 'You’ve finished the free steps',
-        text: `Next is ${m.name}. GrowJin Pro unlocks it and the rest of the path, plus the daily plan and outreach tools.`,
+        text: `Pro unlocks ${m.name} and the rest of your path.`,
         cta: { label: 'See Pro plans', run: () => router.push('/pricing') },
       }
     }
@@ -1933,7 +1933,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     if (reanalyzingMap[m.id]) {
       const rp = runProgress(m)
       return {
-        label: 'Your next step', progress, busy: true,
+        label: 'Next step', progress, busy: true,
         title: `Checking your ${m.name.toLowerCase()}… ${rp.time}`,
         text: `Step ${rp.idx + 1} of 3: ${rp.steps[rp.idx].label}. ${rp.slow ? 'Taking longer than usual, but still working.' : 'Usually 1–3 minutes.'} You can leave this page.`,
         cta: null,
@@ -1941,21 +1941,19 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     }
     if (!analysed) {
       return {
-        label: 'Your next step', progress, busy: false,
+        label: 'Next step', progress, busy: false,
         title: `Run ${m.name}`,
-        text: `${m.definition.description ? m.definition.description + ' ' : ''}GrowJin checks your site and gives you a checklist of fixes.`,
+        text: 'GrowJin checks your site and gives you a checklist of fixes.',
         cta: { label: `Open ${m.name}`, run: () => goToModule(m) },
       }
     }
     const cats = m.definition.dynamic ? [] : (m.definition.categories as ModuleCategoryDefinition[])
     const firstGap = cats.map(c => ({ c, st: getCatStats(c, statesMap[m.id] ?? {}) })).filter(x => x.st.total > 0 && x.st.done < x.st.total).sort((a, b) => a.st.pct - b.st.pct)[0]
     return {
-      label: 'Your next step', progress, busy: false,
+      label: 'Next step', progress, busy: false,
       title: `Get ${m.name} to 80%`,
-      // The how-to is for someone's first step; after that, the number is enough.
-      text: railDoneCount === 0
-        ? `You’re at ${score}%. Open a section, fix what’s flagged on your site, then tick it off (or hit Re-analyse). At 80% this step is done.`
-        : `You’re at ${score}%, ${Math.max(80 - score, 0)} points to go.`,
+      // The card right below already shows the score and the 80% bar; only a first-timer needs the how-to.
+      text: railDoneCount === 0 ? 'Fix what’s flagged below, then tick it off.' : '',
       cta: { label: firstGap ? `Start with ${firstGap.c.label}` : `Open ${m.name}`, run: () => goToModule(m, firstGap?.c.slug) },
     }
   })()
@@ -2142,13 +2140,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   </li>
                 ))}
               </ol>
-              <p className="gp-live-note">{liveRun.slow ? 'Taking longer than usual, but still working. ' : 'Usually 1–3 minutes. '}You can leave this page or switch tabs; it keeps going and your checklist appears below when it’s done.</p>
+              <p className="gp-live-note">{liveRun.slow ? 'Taking longer than usual, but still working. ' : 'Usually 1–3 minutes. '}You can leave this page; it keeps going.</p>
             </section>
           ) : readyNotice ? (
             <section className="gp-live gp-live--ready" role="status" aria-live="polite">
               <div className="gp-live-top"><span className="gp-live-label">Done</span></div>
               <h2 className="gp-live-title">✓ {readyNotice.name} is ready</h2>
-              <p className="gp-live-note">Your checklist is below. Start with the sections marked in red.</p>
+              <p className="gp-live-note">Start with the sections marked in red.</p>
               <button className="gp-next-cta" onClick={() => { setReadyNotice(null); document.getElementById('gp-module')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>See my checklist →</button>
             </section>
           ) : (
@@ -2159,7 +2157,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 {nextStep.label}<span className="gp-next-progress"> · {nextStep.progress}</span>
               </div>
               <h2 className="gp-next-title">{nextStep.title}</h2>
-              <p className="gp-next-text">{nextStep.text}</p>
+              {nextStep.text && <p className="gp-next-text">{nextStep.text}</p>}
             </div>
             {nextStep.cta && <button className="gp-next-cta" onClick={nextStep.cta.run}>{nextStep.cta.label} →</button>}
           </section>
@@ -2337,12 +2335,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         })()}
 
         {/* Module step rail */}
-        <div className="gp-rail-head">
-          <span className="gp-eyebrow">Your growth path</span>
-          {proStepCount > 0
-            ? <span className="gp-rail-summary"><b>{freeDone}</b> of {freeTotal} free steps done</span>
-            : <span className="gp-rail-summary"><b>{railDoneCount}</b> of {railModules.filter(m => !m.definition.comingSoon).length} steps done</span>}
-        </div>
         <div className="gp-path">
           {(() => {
             const renderPhase = (p: typeof phases[number]) => {
