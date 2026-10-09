@@ -16,7 +16,12 @@ export async function POST(request: NextRequest) {
   if (!brand) return NextResponse.json({ error: 'Brand not found' }, { status: 404 })
 
   const { interval } = await request.json().catch(() => ({})) as { interval?: Interval }
-  const price = priceIdFor(interval === 'year' ? 'year' : 'month')
+  let price: string | undefined
+  try {
+    price = await priceIdFor(interval === 'year' ? 'year' : 'month')
+  } catch (err) {
+    console.error('[billing] could not resolve price', err)
+  }
   if (!price) return NextResponse.json({ error: 'This plan is not configured yet.' }, { status: 500 })
 
   const access = await getAccess(brand.id, user.email)

@@ -15,8 +15,22 @@ export function stripe(): Stripe {
 }
 
 export type Interval = 'month' | 'year'
-export function priceIdFor(interval: Interval): string | undefined {
-  return interval === 'year' ? process.env.STRIPE_PRICE_YEARLY : process.env.STRIPE_PRICE_MONTHLY
+
+// STRIPE_PRICE_MONTHLY / STRIPE_PRICE_YEARLY accept either a price id (price_…) or a product id
+// (prod_…). For a product, its default price is used — the price created with the product in the
+// Stripe dashboard — so changing the amount there needs no env change.
+const resolvedPrices = new Map<string, string>()
+export async function priceIdFor(interval: Interval): Promise<string | undefined> {
+  const raw = (interval === 'year' ? process.env.STRIPE_PRICE_YEARLY : process.env.STRIPE_PRICE_MONTHLY)?.trim()
+  if (!raw || !raw.startsWith('prod_')) return raw || undefined
+  const cached = resolvedPrices.get(raw)
+  if (cached) return cached
+  const product = await stripe().products.retrieve(raw)
+  const def = product.default_price
+  const id = typeof def === 'string' ? def : def?.id
+  if (!id) throw new Error(`Stripe product ${raw} has no default price`)
+  resolvedPrices.set(raw, id)
+  return id
 }
 
 export function trialDays(): number | undefined {
@@ -32,9 +46,9 @@ export async function getPrices(): Promise<PriceInfo[]> {
   if (priceCache && Date.now() - priceCache.at < 10 * 60_000) return priceCache.prices
   const out: PriceInfo[] = []
   for (const interval of ['month', 'year'] as const) {
-    const id = priceIdFor(interval)
-    if (!id) continue
     try {
+      const id = await priceIdFor(interval)
+      if (!id) continue
       const p = await stripe().prices.retrieve(id)
       if (p.unit_amount != null) out.push({ interval, amount: p.unit_amount / 100, currency: p.currency })
     } catch (err) {

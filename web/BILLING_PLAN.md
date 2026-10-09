@@ -29,8 +29,8 @@ later.
 | `BILLING_PRO_EMAILS` | `you@growjin.com,friend@x.com` | Always Pro, no payment (founders, testers). |
 | `STRIPE_SECRET_KEY` | `sk_test_…` / `sk_live_…` | Stripe API key. |
 | `STRIPE_WEBHOOK_SECRET` | `whsec_…` | Signing secret of the webhook endpoint. |
-| `STRIPE_PRICE_MONTHLY` | `price_…` | Pro monthly price. |
-| `STRIPE_PRICE_YEARLY` | `price_…` | Pro yearly price. |
+| `STRIPE_PRICE_MONTHLY` | `price_…` or `prod_…` | Pro monthly price. A product id works too: its default price is used. |
+| `STRIPE_PRICE_YEARLY` | `price_…` or `prod_…` | Pro yearly price. A product id works too: its default price is used. |
 | `STRIPE_TRIAL_DAYS` | `7` | Optional free trial on new subscriptions. Unset means no trial. |
 | `NEXT_PUBLIC_APP_URL` | `https://app.growjin.com` | Where Stripe sends people back. Defaults to the request's origin. |
 
