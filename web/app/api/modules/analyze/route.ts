@@ -74,6 +74,21 @@ async function getFreshModuleState(moduleId: string) {
   }
 }
 
+// Search Console metadata for Foundation's indexing checks ({} when not connected).
+async function getGscMeta(brandId: string | undefined): Promise<Record<string, string>> {
+  if (!brandId) return {}
+  const [gscRow] = await db
+    .select()
+    .from(brandIntegrations)
+    .where(and(
+      eq(brandIntegrations.brandId, brandId),
+      eq(brandIntegrations.provider, 'google_search_console'),
+      eq(brandIntegrations.status, 'connected'),
+    ))
+    .limit(1)
+  return (gscRow?.metadata as Record<string, string> | null) ?? {}
+}
+
 async function runAnalysis(
   moduleType: string,
   requirements: Record<string, string>,
@@ -83,20 +98,7 @@ async function runAnalysis(
     case 'foundation': {
       const data = await fetchFoundationData(requirements)
       if (!data.extracted) throw new Error(`Could not fetch ${requirements['website_url']}`)
-      let gscMeta: Record<string, string> = {}
-      if (requirements['brand_id']) {
-        const [gscRow] = await db
-          .select()
-          .from(brandIntegrations)
-          .where(and(
-            eq(brandIntegrations.brandId, requirements['brand_id']),
-            eq(brandIntegrations.provider, 'google_search_console'),
-            eq(brandIntegrations.status, 'connected'),
-          ))
-          .limit(1)
-        if (gscRow) gscMeta = (gscRow.metadata as Record<string, string> | null) ?? {}
-      }
-      const { results } = await analyzeFoundation(data, gscMeta)
+      const { results } = await analyzeFoundation(data, await getGscMeta(requirements['brand_id']))
       return results
     }
     case 'website': {
@@ -570,10 +572,13 @@ Key One-Liners: ${pb.keyOneLiners}`
 
       const [{ brandColor, results }, playbookResult] = await withAIContext(
         { brandId: brand.id, moduleType: mod.type, websiteUrl: brand.websiteUrl ?? undefined },
-        () => Promise.all([
-          analyzeFoundation(prefetch),
-          generatePlaybook(prefetch, brand.name).catch(() => null),
-        ]),
+        async () => {
+          const gscMeta = await getGscMeta(brand.id)
+          return Promise.all([
+            analyzeFoundation(prefetch, gscMeta),
+            generatePlaybook(prefetch, brand.name).catch(() => null),
+          ])
+        },
       )
       console.log('[Foundation] brandColor from Claude:', brandColor || '(empty)')
       foundationResults = results
@@ -627,14 +632,19 @@ Key One-Liners: ${pb.keyOneLiners}`
       const msg = err instanceof Error ? err.message : 'Analysis failed'
       const isFetchError = msg.startsWith('Could not fetch')
       console.error('[Foundation] prefetch/analysis block threw:', err)
+      await db.update(modules).set({ status: 'pending' }).where(eq(modules.id, moduleId))
       if (isFetchError) {
-        await db.update(modules).set({ status: 'pending' }).where(eq(modules.id, moduleId))
         return NextResponse.json(
           { error: `Unable to reach ${requirements['website_url']}. Make sure the site is publicly accessible and try again.` },
           { status: 400 },
         )
       }
-      foundationResults = null
+      // Don't fall through to runAnalysis: it would re-read the whole site and run the analysis again,
+      // doubling the wait after the AI client has already retried. Fail now with a clear message.
+      return NextResponse.json(
+        { error: 'The analysis didn’t finish this time. Please try again in a minute.' },
+        { status: 502 },
+      )
     }
   }
 

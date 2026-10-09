@@ -2119,7 +2119,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 <span className="gp-live-time">{liveRun.time}</span>
               </div>
               <h2 className="gp-live-title">{lastAnalyzedAtMap[liveMod.id] ?? liveMod.lastAnalyzedAt ? 'Re-checking' : 'Checking'} your {liveMod.name.toLowerCase()}</h2>
-              <div className="gp-live-bar" aria-hidden="true"><i style={{ width: `${liveRun.pct}%` }} /></div>
+              <div className="gp-live-barrow">
+                <div className="gp-live-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={liveRun.pct} aria-label="Estimated progress"><i style={{ width: `${liveRun.pct}%` }} /></div>
+                <span className="gp-live-pct" title="Estimated from the current step and time so far">about {liveRun.pct}%</span>
+              </div>
               <ol className="gp-live-steps">
                 {liveRun.steps.map((st, i) => (
                   <li key={st.key} className={i < liveRun.idx ? 'is-done' : i === liveRun.idx ? 'is-now' : ''}>
@@ -2155,7 +2158,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           {liveMod && liveRun && !liveOnScreen && (
             <button className="gp-live-pill" onClick={() => liveRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
               <span className="gp-live-pulse" aria-hidden="true" />
-              Analysing {liveMod.name} · Step {liveRun.idx + 1} of 3 · {liveRun.time}
+              <span className="gp-live-pill-text">Analysing {liveMod.name} · about {liveRun.pct}% · {liveRun.time}</span>
+              <span className="gp-live-pill-bar" aria-hidden="true"><i style={{ width: `${liveRun.pct}%` }} /></span>
             </button>
           )}
 

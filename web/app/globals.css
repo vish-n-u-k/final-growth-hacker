@@ -6760,3 +6760,11 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 @media (prefers-reduced-motion: reduce) {
   .gp-live::before, .gp-live-bar i, .gp-cats--loading .md-cat::after, .gp-live-pulse { animation: none; }
 }
+/* Progress bar + estimated percentage, in the panel and in the floating pill. */
+.gp-live-barrow { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.gp-live-barrow .gp-live-bar { flex: 1; margin-bottom: 0; height: 10px; }
+.gp-live-pct { flex-shrink: 0; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent-foreground); min-width: 76px; text-align: right; }
+.gp-live-pill { position: fixed; overflow: hidden; padding-bottom: 13px; }
+.gp-live-pill-text { overflow: hidden; text-overflow: ellipsis; }
+.gp-live-pill-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: color-mix(in srgb, var(--green) 15%, var(--line)); }
+.gp-live-pill-bar i { display: block; height: 100%; background: var(--green); transition: width .8s ease; }
