@@ -1906,11 +1906,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   }, [selectedPhase?.name])
 
   // "Your next step": one plain-language instruction so a new user knows what to do first.
-  const goToModule = (m: ModuleData, catSlug?: string) => {
-    setOpenModules(new Set([m.id]))
-    if (catSlug) setOpenCatsMap(prev => ({ ...prev, [m.id]: new Set([catSlug]) }))
-    requestAnimationFrame(() => document.getElementById('gp-module')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-  }
+
   const freeTotal = railModules.filter(x => !x.definition.comingSoon && !isPlanLocked(x)).length
   const freeDone = railModules.filter(x => !isPlanLocked(x) && isStepDone(x)).length
   const proStepCount = railModules.filter(x => !x.definition.comingSoon && isPlanLocked(x)).length
@@ -1944,17 +1940,15 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         label: 'Next step', progress, busy: false,
         title: `Run ${m.name}`,
         text: 'GrowJin checks your site and gives you a checklist of fixes.',
-        cta: { label: `Open ${m.name}`, run: () => goToModule(m) },
+        cta: null,
       }
     }
-    const cats = m.definition.dynamic ? [] : (m.definition.categories as ModuleCategoryDefinition[])
-    const firstGap = cats.map(c => ({ c, st: getCatStats(c, statesMap[m.id] ?? {}) })).filter(x => x.st.total > 0 && x.st.done < x.st.total).sort((a, b) => a.st.pct - b.st.pct)[0]
     return {
       label: 'Next step', progress, busy: false,
       title: `Get ${m.name} to 80%`,
       // The card right below already shows the score and the 80% bar; only a first-timer needs the how-to.
       text: railDoneCount === 0 ? 'Fix what’s flagged below, then tick it off.' : '',
-      cta: { label: firstGap ? `Start with ${firstGap.c.label}` : `Open ${m.name}`, run: () => goToModule(m, firstGap?.c.slug) },
+      cta: null,
     }
   })()
 
