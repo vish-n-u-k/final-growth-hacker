@@ -96,9 +96,11 @@ no code change.
   refuse Pro modules for free brands (402). Admins are exempt in the web route.
 - `components/ProGate.tsx` and a `layout.tsx` in each Pro tool folder show an
   upgrade screen instead of the tool.
-- Growth Path shows Pro badges on the phase cards and pills, a "part of GrowJin
-  Pro" bar, and an upgrade panel on Pro module cards. Clicking Analyse on a Pro
-  module goes to `/pricing`.
+- **Free-plan UI (one Pro section, not badges everywhere):**
+  - The sidebar keeps the free items under "Grow" and moves the Pro tools into one "Pro" group with a single Upgrade link. Pro users see the normal Grow/Work/Insights groups and a "Pro · Your plan" footer link.
+  - On Growth Path, phases made only of Pro modules sit together under one "Unlock with Pro" heading with a "See plans" link. Pro module pills just show a lock.
+  - A Pro module's card shows one upgrade panel, and clicking Analyse on it goes to `/pricing`.
+- A "payment failed" banner is shown at the top of the app when a payment fails.
 - The sidebar puts Pro badges on the tools, adds an "Upgrade to Pro" / "Pro ·
   Your plan" link in the footer, and shows a "payment failed" banner.
 - `/pricing`: Free vs Pro, a monthly/yearly toggle (showing the yearly saving),

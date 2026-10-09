@@ -2183,13 +2183,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           <span className="gp-rail-summary"><b>{railDoneCount}</b> of {railModules.length} modules complete</span>
         </div>
         <div className="gp-path">
-          <div className="gp-phases">
-            {phases.map((p, i) => {
+          {(() => {
+            const renderPhase = (p: typeof phases[number]) => {
               const isSel = p === selectedPhase
               return (
                 <button
                   key={p.name}
-                  className={`gp-phase${p.locked ? ' gp-phase--locked' : ''}${isSel ? ' gp-phase--selected' : ''}`}
+                  className={`gp-phase${p.locked || p.pro ? ' gp-phase--locked' : ''}${isSel ? ' gp-phase--selected' : ''}`}
                   onClick={() => {
                     const target = p.mods.find(m => !m.definition.comingSoon && !isModuleLocked(m) && !isStepDone(m)) ?? p.mods[0]
                     setOpenModules(new Set([target.id]))
@@ -2197,33 +2197,52 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   aria-pressed={isSel}
                 >
                   <span className="gp-phase-top">
-                    <span>{i + 1} · {p.name}</span>
+                    <span>{phases.indexOf(p) + 1} · {p.name}</span>
                     <span className="gp-phase-count">
-                      {p.pro ? <span className="pro-badge">Pro</span> : p.locked ? (
+                      {p.locked || p.pro ? (
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-label="Locked"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
                       ) : `${p.done}/${p.total}`}
                     </span>
                   </span>
                   <span className="gp-phase-blurb">{p.blurb}</span>
-                  <span className="gp-phase-bar"><i style={{ width: `${p.locked ? 0 : p.pct}%` }} /></span>
+                  <span className="gp-phase-bar"><i style={{ width: `${p.locked || p.pro ? 0 : p.pct}%` }} /></span>
                 </button>
               )
-            })}
-          </div>
+            }
+            // Free plan: phases made only of Pro modules sit together under one "Unlock with Pro" heading
+            // instead of each carrying its own badge.
+            const freePhases = phases.filter(p => !p.pro)
+            const proPhases = phases.filter(p => p.pro)
+            if (proPhases.length === 0) return <div className="gp-phases">{phases.map(renderPhase)}</div>
+            return (
+              <div className="gp-phases gp-phases--split">
+                {freePhases.map(renderPhase)}
+                <div className="gp-pro-group" style={{ flexGrow: proPhases.length }}>
+                  <div className="gp-pro-group-hd">
+                    <span className="gp-pro-group-label">Unlock with Pro</span>
+                    <Link href="/pricing" className="gp-pro-group-cta">See plans</Link>
+                  </div>
+                  <div className="gp-pro-group-grid" style={{ gridTemplateColumns: `repeat(${proPhases.length}, minmax(0, 1fr))` }}>
+                    {proPhases.map(renderPhase)}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
           <div className="gp-pills">
             {selectedPhase?.mods.map(m => {
               const locked = isModuleLocked(m)
               const done = isStepDone(m)
               const soon = !!m.definition.comingSoon
-              const state = done ? 'done' : locked || soon ? 'locked' : 'open'
-              const score = liveScores[m.id] ?? 0
               const pro = isPlanLocked(m)
+              const state = done ? 'done' : locked || soon || pro ? 'locked' : 'open'
+              const score = liveScores[m.id] ?? 0
               return (
                 <button
                   key={m.id}
                   className={`gp-pill gp-pill--${state}${m.id === selectedModule?.id ? ' gp-pill--selected' : ''}`}
                   onClick={() => setOpenModules(new Set([m.id]))}
-                  title={locked ? `${m.name} — locked` : `${m.name} — ${score}%`}
+                  title={pro ? `${m.name} — GrowJin Pro` : locked ? `${m.name} — locked` : `${m.name} — ${score}%`}
                 >
                   <span className="gp-pill-dot">
                     {done ? (
@@ -2233,9 +2252,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     ) : railModules.indexOf(m) + 1}
                   </span>
                   {m.name}
-                  {pro ? <span className="pro-badge">Pro</span>
-                    : soon ? <span className="gp-pill-pct">Soon</span>
-                    : !locked && <span className="gp-pill-pct">{(lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt) ? `${score}%` : '—'}</span>}
+                  {soon ? <span className="gp-pill-pct">Soon</span>
+                    : !locked && !pro && <span className="gp-pill-pct">{(lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt) ? `${score}%` : '—'}</span>}
                 </button>
               )
             })}
@@ -2248,16 +2266,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         {/* Unlock progress for the selected step */}
         {selectedModule && !selectedModule.definition.comingSoon && (() => {
           const score = liveScores[selectedModule.id] ?? 0
-          if (isPlanLocked(selectedModule)) {
-            return (
-              <div className="gp-unlock gp-unlock--pro">
-                <div className="gp-unlock-row">
-                  <span><span className="pro-badge">Pro</span> {selectedModule.name} is part of GrowJin Pro</span>
-                  <Link href="/pricing" className="gp-unlock-cta">Upgrade</Link>
-                </div>
-              </div>
-            )
-          }
+          if (isPlanLocked(selectedModule)) return null // the module card's upgrade panel covers it
           if (isModuleLocked(selectedModule)) {
             const prev = [...railModules.slice(0, selectedIdx)].reverse().find(p => !p.definition.comingSoon)
             if (!prev) return null

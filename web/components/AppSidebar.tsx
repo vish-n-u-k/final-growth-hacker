@@ -72,8 +72,15 @@ export default function AppSidebar({
   lockedTypes: string[]
   plan?: { enabled: boolean; pro: boolean }
 }) {
-  // Free users (billing on) see Pro tools tagged; the pages themselves show the upgrade screen.
+  // Free users (billing on): the Pro tools move into one "Pro" group with a single Upgrade link,
+  // rather than a badge on every item. The pages themselves show the upgrade screen.
   const showPro = plan.enabled && !plan.pro
+  const groups: (NavGroup & { pro?: boolean })[] = showPro
+    ? [
+        { label: 'Grow', items: NAV.flatMap(g => g.items).filter(i => !i.pro) },
+        { label: 'Pro', items: NAV.flatMap(g => g.items).filter(i => i.pro), pro: true },
+      ].filter(g => g.items.length > 0)
+    : NAV
   const pathname = usePathname()
   // Phones: the sidebar becomes a slide-in drawer behind a menu button (desktop ignores this state).
   const [open, setOpen] = useState(false)
@@ -130,9 +137,16 @@ export default function AppSidebar({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
         </button>
       </div>
-      {NAV.map((group) => (
-        <div className="app-sidebar-group" key={group.label}>
-          <div className="app-sidebar-glabel">{group.label}</div>
+      {groups.map((group) => (
+        <div className={`app-sidebar-group${'pro' in group && group.pro ? ' app-sidebar-group--pro' : ''}`} key={group.label}>
+          {'pro' in group && group.pro ? (
+            <div className="app-sidebar-glabel app-sidebar-glabel--pro">
+              <span>Pro</span>
+              <Link href="/pricing" className="app-sidebar-upgrade" onClick={closeOnNav}>Upgrade</Link>
+            </div>
+          ) : (
+            <div className="app-sidebar-glabel">{group.label}</div>
+          )}
           {group.items.map((item) => {
             const proTagged = showPro && item.pro
             // Plan beats progress: a Pro tool shows as Pro (clickable → upgrade screen), not padlocked.
@@ -154,16 +168,15 @@ export default function AppSidebar({
               <Link href={item.href} className={`app-navitem${active ? ' active' : ''}`} key={item.href} onClick={closeOnNav} aria-current={active ? 'page' : undefined}>
                 <NavIcon name={item.icon} />
                 {item.label}
-                {proTagged && <span className="pro-badge app-navitem-pro">Pro</span>}
               </Link>
             )
           })}
         </div>
       ))}
       <div className="app-sidebar-foot">
-        {plan.enabled && (
-          <Link href="/pricing" className={`app-plan${plan.pro ? '' : ' app-plan--free'}`} onClick={closeOnNav}>
-            {plan.pro ? <><span className="pro-badge">Pro</span> Your plan</> : <>Upgrade to <span className="pro-badge">Pro</span></>}
+        {plan.enabled && plan.pro && (
+          <Link href="/pricing" className="app-plan" onClick={closeOnNav}>
+            <span className="pro-badge">Pro</span> Your plan
           </Link>
         )}
         <Link href="/settings" className={`app-navitem${pathname.startsWith('/settings') ? ' active' : ''}`} onClick={closeOnNav}>
