@@ -69,6 +69,7 @@ interface Props {
   allModulesData: ModuleData[]
   pendingModuleIds?: string[]
   userEmail: string
+  isAdmin?: boolean // GrowJin team: shows internal tools like Notes
   githubConnected: boolean
   connectedIntegrations: Record<string, boolean>
   socialLinks: Record<string, string>
@@ -293,7 +294,7 @@ function LevelRing({ score }: { score: number }) {
 
 const BILLING_OFF = { enabled: false, pro: true, planLocked: [] as string[] }
 
-export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, githubConnected, connectedIntegrations, socialLinks, conflictLinks = [], billing = BILLING_OFF }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, isAdmin = false, githubConnected, connectedIntegrations, socialLinks, conflictLinks = [], billing = BILLING_OFF }: Props) {
   const isPlanLocked = (m: Pick<ModuleData, 'type'>) => billing.planLocked.includes(m.type)
   const [notesOpen, setNotesOpen] = useState(false)
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
@@ -1994,14 +1995,14 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         </div>
         <div className="gp-top-actions">
           <ThemeToggle />
-          <button className="gp-icon-btn" onClick={() => setNotesOpen(true)} title="Notes">
+          {isAdmin && <button className="gp-icon-btn" onClick={() => setNotesOpen(true)} title="Notes (team only)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <polyline points="14 2 14 8 20 8" />
               <line x1="16" y1="13" x2="8" y2="13" />
               <line x1="16" y1="17" x2="8" y2="17" />
             </svg>
-          </button>
+          </button>}
           <button className="gp-icon-btn mob-hide" onClick={handleLogout} title={`Sign out (${userEmail})`} aria-label="Sign out">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
@@ -3081,7 +3082,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           />
         )
       })()}
-      <NotesDrawer open={notesOpen} onClose={() => setNotesOpen(false)} />
+      {isAdmin && <NotesDrawer open={notesOpen} onClose={() => setNotesOpen(false)} />}
     </>
   )
 }

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { isAdminEmail } from '@/lib/admin'
 import { getAccess, planLockedTypes } from '@/lib/billing/plan'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
@@ -255,6 +256,7 @@ export default async function DashboardPage() {
       allModulesData={allModulesData}
       pendingModuleIds={pendingModuleIds}
       userEmail={user.email ?? ''}
+      isAdmin={isAdminEmail(user.email)}
       githubConnected={githubConnected}
       connectedIntegrations={connectedIntegrations}
       socialLinks={socialLinks}
