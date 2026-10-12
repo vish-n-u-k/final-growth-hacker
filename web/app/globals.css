@@ -6883,3 +6883,11 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   .gp-band-range, .gp-band-name { display: none !important; }
   .gp-band-bar { margin-bottom: 0; height: 4px; }
 }
+/* Words that help on a wide screen but crowd a phone. */
+@media (max-width: 760px) { .gp-wide-only { display: none; } }
+/* Phones: "Analysing now" label + "Checking your foundation" said the same thing twice; keep the title with a pulsing dot. */
+@media (max-width: 760px) {
+  .gp-live:not(.gp-live--ready) .gp-live-top { display: none; }
+  .gp-live:not(.gp-live--ready) .gp-live-title { display: flex; align-items: center; gap: 9px; font-size: 16px; }
+  .gp-live:not(.gp-live--ready):not(.gp-live--compact) .gp-live-title::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--green); flex-shrink: 0; animation: gp-pulse 1.6s ease-out infinite; }
+}

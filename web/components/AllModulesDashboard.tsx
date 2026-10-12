@@ -1865,8 +1865,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const elapsed = Math.max(0, Math.floor((clock - (info?.startedAt ?? clock)) / 1000))
     const checks = m.definition.dynamic ? 0 : (m.definition.categories as ModuleCategoryDefinition[]).reduce((n, c) => n + c.subCategories.reduce((k, sc) => k + sc.items.length, 0), 0)
     const steps = [
-      { key: 'fetch', label: 'Reading your website' },
-      { key: 'analyse', label: checks ? `Checking ${checks} things and writing your fixes` : 'Analysing and writing your fixes' },
+      { key: 'fetch', label: 'Reading your site' },
+      { key: 'analyse', label: checks ? `Checking ${checks} things` : 'Checking your site' },
       { key: 'save', label: 'Saving your checklist' },
     ]
     const idx = info?.stage ? Math.max(0, steps.findIndex(st => st.key === info.stage)) : elapsed < 15 ? 0 : 1
@@ -1963,8 +1963,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       return (
         <div className="gp-unlock gp-unlock--locked">
           <div className="gp-unlock-row">
-            <span>Locked — reach <b>80%</b> on {prev.name} to unlock</span>
-            <b className="gp-unlock-num">{prevScore}% / 80%</b>
+            <span>Unlocks at <b>80%</b> on {prev.name}</span>
+            <b className="gp-unlock-num">{prevScore}%</b>
           </div>
           <div className="gp-unlock-track"><div className="gp-unlock-fill" style={{ width: `${Math.min(prevScore / 80, 1) * 100}%` }} /></div>
         </div>
@@ -1979,7 +1979,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       return (
         <div className="gp-unlock gp-unlock--done">
           <div className="gp-unlock-row">
-            <span>{unlocksNext && isPlanLocked(next) ? <>Step complete — <b>{next.name}</b> is next, with <Link href="/pricing">Pro</Link></> : unlocksNext ? <>Step complete — <b>{next.name}</b> is unlocked</> : <>Step complete</>}</span>
+            <span>{unlocksNext && isPlanLocked(next) ? <>Done · <b>{next.name}</b> is next with <Link href="/pricing">Pro</Link></> : unlocksNext ? <>Done · <b>{next.name}</b> unlocked</> : <>Done</>}</span>
             <b className="gp-unlock-num">{score}%</b>
           </div>
         </div>
@@ -1988,8 +1988,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     return (
       <div className="gp-unlock">
         <div className="gp-unlock-row">
-          <span>Reach <b>80%</b>{unlocksNext ? <> to unlock {next.name}</> : <> to complete this step</>}</span>
-          <b className="gp-unlock-num">{score}% / 80%</b>
+          <span>Goal <b>80%</b>{unlocksNext ? <> · unlocks {next.name}</> : null}</span>
+          <b className="gp-unlock-num">{score}%</b>
         </div>
         <div className="gp-unlock-track"><div className="gp-unlock-fill" style={{ width: `${Math.min(score / 80, 1) * 100}%` }} /></div>
       </div>
@@ -2124,7 +2124,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <h2 className="gp-live-title">{lastAnalyzedAtMap[liveMod.id] ?? liveMod.lastAnalyzedAt ? 'Re-checking' : 'Checking'} your {liveMod.name.toLowerCase()}</h2>
               <div className="gp-live-barrow">
                 <div className="gp-live-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={liveRun.pct} aria-label="Estimated progress"><i style={{ width: `${liveRun.pct}%` }} /></div>
-                <span className="gp-live-pct" title="Estimated from the current step and time so far">about {liveRun.pct}%</span>
+                <span className="gp-live-pct" title="Estimated from the current step and time so far">~{liveRun.pct}%</span>
               </div>
               {/* One-line step status: replaces the step list in the compact version and on phones. */}
               <p className="gp-live-sub">Step {liveRun.idx + 1} of 3 · {liveRun.steps[liveRun.idx].label}{liveRun.slow ? ' · taking longer than usual' : ''}</p>
@@ -2163,7 +2163,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           {liveMod && liveRun && !liveOnScreen && (
             <button className="gp-live-pill" onClick={() => liveRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
               <span className="gp-live-pulse" aria-hidden="true" />
-              <span className="gp-live-pill-text">Analysing {liveMod.name} · about {liveRun.pct}%</span>
+              <span className="gp-live-pill-text">Analysing {liveMod.name} · ~{liveRun.pct}%</span>
               <span className="gp-live-pill-bar" aria-hidden="true"><i style={{ width: `${liveRun.pct}%` }} /></span>
             </button>
           )}
@@ -2176,12 +2176,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 <span className="gp-eyebrow">Road to 500 users</span>
                 <span className="gp-count">
                   {posthogLoading ? <span className="count-loading"><span /><span /><span /></span> : userCount.toLocaleString()}
-                  <span className="gp-count-label">users · {currentPhase.name}</span>
+                  <span className="gp-count-label">users<span className="gp-wide-only"> · {currentPhase.name}</span></span>
                 </span>
               </div>
               <div className="gp-journey-note">
                 {nextPhase
-                  ? <>{Math.max(nextPhase.min - userCount, 0).toLocaleString()} more to reach <strong>{nextPhase.name}</strong></>
+                  ? <>{Math.max(nextPhase.min - userCount, 0).toLocaleString()} more to reach <strong>{nextPhase.min}</strong><span className="gp-wide-only"> · {nextPhase.name}</span></>
                   : <>Last stage on the road — keep compounding</>}
                 {posthogDataStartDate && (
                   <span className="gp-tracking">
@@ -2762,7 +2762,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }} title="Your AI-generated sales playbook: ICP, scripts and objections">Playbook</span>
                           {playbookData
                             ? <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 500, marginLeft: 2 }}>Generated</span>
-                            : <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 2 }}>{reanalyzing ? 'Generating…' : 'Run analysis to generate'}</span>
+                            : reanalyzing && <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 2 }}>Generating…</span>
                           }
                           {playbookData && !playbookEditing && (
                             <button
