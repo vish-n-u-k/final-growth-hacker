@@ -1,27 +1,17 @@
-// HTML for lifecycle emails (welcome, Pro, cancellation). Pure functions: no DB, no sending.
+// HTML for lifecycle emails (welcome, Pro started, Pro ended, account deleted). Pure functions: no DB, no sending.
 // Same look as the daily email: GrowJin green, white card, table layout so it renders in every client.
 
-export type LifecycleKind =
-  | 'welcome'
-  | 'pro_trial_started'
-  | 'pro_welcome'
-  | 'cancel_scheduled'
-  | 'cancel_undone'
-  | 'access_ending'
-  | 'subscription_ended'
-  | 'winback_1'
-  | 'winback_2'
+export type LifecycleKind = 'welcome' | 'pro_welcome' | 'pro_ended' | 'account_deleted'
 
 export interface LifecycleContext {
   firstName: string | null
-  brandName: string
+  brandName: string | null      // null for account_deleted when the brand is already gone
   websiteUrl: string | null
   appUrl: string
   replyAddress: string          // admin Gmail, for "tell us why" mailto links
   price?: string | null         // e.g. "$29/month"
-  periodEnd?: Date | null       // trial end, next billing date, or when access ends
-  wasTrial?: boolean            // pro_welcome: trial converted to paid
-  unsubscribeUrl?: string       // win-back emails only
+  periodEnd?: Date | null       // trial end or next billing date
+  isTrial?: boolean             // pro_welcome: the subscription started as a trial
 }
 
 export interface RenderedEmail { subject: string; html: string }
@@ -44,9 +34,6 @@ const hi = (c: LifecycleContext) => `Hi ${esc(c.firstName ?? 'there')},`
 
 const p = (html: string) =>
   `<p style="margin:0 0 16px;font-size:15px;line-height:1.75;color:${INK};font-family:${FONT};">${html}</p>`
-
-const h1 = (text: string) =>
-  `<h1 style="margin:0 0 14px;font-size:23px;line-height:1.3;color:#0c1d13;font-weight:800;letter-spacing:-0.4px;font-family:${FONT};">${text}</h1>`
 
 function button(text: string, url: string, outline = false): string {
   const style = outline
@@ -87,10 +74,10 @@ function factBox(rows: [string, string][]): string {
   </table>`
 }
 
-function reasonLinks(c: LifecycleContext): string {
+function reasonLinks(c: LifecycleContext, subjectPrefix: string): string {
   const reasons = ['Too expensive', "Didn't see enough results", 'Not using it enough', 'Missing a feature I need', 'Switched to another tool']
   const rows = reasons.map(r => {
-    const href = `mailto:${c.replyAddress}?subject=${encodeURIComponent(`Why I cancelled: ${r}`)}&body=${encodeURIComponent(`Brand: ${c.brandName}\n\nAnything else you'd like to add:\n`)}`
+    const href = `mailto:${c.replyAddress}?subject=${encodeURIComponent(`${subjectPrefix}: ${r}`)}&body=${encodeURIComponent(`${c.brandName ? `Brand: ${c.brandName}\n\n` : ''}Anything else you'd like to add:\n`)}`
     return `<tr><td style="padding:0 0 8px;"><a href="${esc(href)}" style="display:block;padding:11px 14px;border:1px solid #d3ddd7;border-radius:7px;font-size:14px;color:${INK};text-decoration:none;font-family:${FONT};">${esc(r)}</a></td></tr>`
   })
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">${rows.join('')}</table>`
@@ -98,7 +85,7 @@ function reasonLinks(c: LifecycleContext): string {
 
 function shell(
   c: LifecycleContext,
-  opts: { hero?: { eyebrow: string; title: string; subtitle?: string; tone: 'dark' | 'green' }; badge?: string; body: string; footer: string },
+  opts: { hero?: { eyebrow: string; title: string; subtitle?: string; tone: 'dark' | 'green' }; body: string; footer: string },
 ): string {
   const hero = opts.hero
     ? `<tr><td style="background:${opts.hero.tone === 'dark' ? '#0d1a0f' : GREEN};padding:34px 36px;">
@@ -107,14 +94,10 @@ function shell(
         ${opts.hero.subtitle ? `<p style="margin:8px 0 0;font-size:15px;color:${opts.hero.tone === 'dark' ? '#a9c4b3' : '#dff5e8'};font-family:${FONT};">${opts.hero.subtitle}</p>` : ''}
       </td></tr>`
     : ''
-  const badge = opts.badge
-    ? `<span style="float:right;margin-top:5px;font-size:11px;font-weight:700;letter-spacing:1px;color:${GREEN};background:#e6f5ec;padding:4px 10px;border-radius:999px;font-family:${FONT};">${opts.badge}</span>`
-    : ''
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0;padding:32px 16px 40px;background:#f2f4f3;font-family:${FONT};">
 <tr><td align="center">
   <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border:1px solid #e0e8e3;border-radius:10px;overflow:hidden;">
     <tr><td style="padding:22px 36px;border-bottom:1px solid #eef2ef;">
-      ${badge}
       <span style="display:inline-block;width:30px;height:30px;line-height:30px;text-align:center;background:${GREEN};border-radius:7px;color:#fff;font-weight:800;font-size:14px;vertical-align:middle;font-family:${FONT};">G</span>
       <span style="font-size:16px;font-weight:700;color:#0c1d13;vertical-align:middle;margin-left:8px;font-family:${FONT};">GrowJin</span>
     </td></tr>
@@ -133,19 +116,18 @@ function shell(
 // ── Emails ───────────────────────────────────────────────────────────────────
 
 export function renderLifecycleEmail(kind: LifecycleKind, c: LifecycleContext): RenderedEmail {
-  const brand = esc(c.brandName)
+  const brand = c.brandName ? esc(c.brandName) : 'your brand'
   const site = c.websiteUrl ? esc(c.websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')) : brand
   const date = fmtDate(c.periodEnd)
   const app = c.appUrl.replace(/\/$/, '')
   const pricing = `${app}/pricing`
   const dashboard = `${app}/dashboard`
-  const billingFooter = `Manage your plan, card or invoices on the <a href="${esc(pricing)}" style="color:${GREEN};text-decoration:none;">billing page</a>.`
   const signOff = p('The GrowJin Team')
 
   switch (kind) {
     case 'welcome':
       return {
-        subject: `Welcome to GrowJin, ${c.brandName} is all set`,
+        subject: `Welcome to GrowJin, ${c.brandName ?? 'you'}${c.brandName ? ' is all set' : "'re all set"}`,
         html: shell(c, {
           hero: { eyebrow: 'Welcome aboard', title: `Let's grow ${brand}${c.firstName ? `, ${esc(c.firstName)}` : ''}.`, tone: 'dark' },
           body: [
@@ -164,32 +146,12 @@ export function renderLifecycleEmail(kind: LifecycleKind, c: LifecycleContext): 
         }),
       }
 
-    case 'pro_trial_started':
-      return {
-        subject: 'Your GrowJin Pro trial is live',
-        html: shell(c, {
-          badge: 'PRO TRIAL',
-          body: [
-            h1(`${hi(c).replace(/,$/, '')}, your Pro trial has started.`),
-            p(`Everything is unlocked for <b>${brand}</b>${date ? ` until <b>${date}</b>` : ''}. You can cancel anytime before then and won't be charged.`),
-            ...(date || c.price ? [factBox([
-              ...(date ? [['Trial ends', date] as [string, string]] : []),
-              ...(c.price ? [['Then', esc(c.price)] as [string, string]] : []),
-            ])] : []),
-            p('A good way to use the trial: open the modules you couldn\'t use before and work through the top tasks they give you.'),
-            button('Explore Pro →', dashboard),
-            signOff,
-          ].join('\n'),
-          footer: billingFooter,
-        }),
-      }
-
     case 'pro_welcome':
       return {
-        subject: c.wasTrial ? "You're officially on GrowJin Pro" : 'Welcome to GrowJin Pro',
+        subject: c.isTrial ? 'Your GrowJin Pro trial is live' : 'Welcome to GrowJin Pro',
         html: shell(c, {
           hero: {
-            eyebrow: c.wasTrial ? 'Trial converted' : 'Pro unlocked',
+            eyebrow: c.isTrial ? 'Pro trial started' : 'Pro unlocked',
             title: 'Welcome to GrowJin Pro',
             subtitle: `${brand} now has the full growth toolkit.`,
             tone: 'green',
@@ -199,121 +161,52 @@ export function renderLifecycleEmail(kind: LifecycleKind, c: LifecycleContext): 
             checklist([
               'Every GrowJin module unlocked',
               "The daily growth email with today's top tasks",
-              'Full access to new modules as they launch',
             ]),
             factBox([
               ['Plan', c.price ? `Pro, ${esc(c.price)}` : 'Pro'],
-              ...(date ? [['Next billing date', date] as [string, string]] : []),
-              ['Receipt', 'sent separately by Stripe'],
+              ...(date ? [[c.isTrial ? 'Trial ends' : 'Next billing date', date] as [string, string]] : []),
+              ...(c.isTrial ? [['Cancel', "anytime before the trial ends and you won't be charged"] as [string, string]] : [['Receipt', 'sent separately by Stripe'] as [string, string]]),
             ]),
             button('Start using Pro →', dashboard),
             signOff,
           ].join('\n'),
-          footer: billingFooter,
+          footer: `Manage your plan, card or invoices on the <a href="${esc(pricing)}" style="color:${GREEN};text-decoration:none;">billing page</a>.`,
         }),
       }
 
-    case 'cancel_scheduled':
+    case 'pro_ended':
       return {
         subject: `Sorry to see you go${c.firstName ? `, ${c.firstName}` : ''}`,
         html: shell(c, {
           body: [
             p(hi(c)),
-            p(`Your Pro plan for <b>${brand}</b> has been cancelled. We're sad to see you go, and thank you for giving GrowJin a try.`),
-            note(`You keep full Pro access${date ? ` until <b>${date}</b>` : ' until the end of your billing period'}. After that you move to the free plan, and your reports and data stay saved.`),
+            p(`Your Pro plan for <b>${brand}</b> has ended, and you're now on the free plan. We're sad to see you go, and thank you for giving GrowJin Pro a try.`),
+            note("Your reports, playbook and settings are all still saved. You can keep using the free modules, and if you come back to Pro everything is right where you left it."),
             p("<b>One quick question:</b> what was the main reason? Tap one and hit send. It takes a second and helps us a lot."),
-            reasonLinks(c),
-            p('Changed your mind? You can keep Pro from the billing page, and nothing will be lost.'),
-            button('Keep my Pro plan', pricing, true),
-            p('Or just reply and tell us in your own words.'),
+            reasonLinks(c, 'Why I left Pro'),
+            p("If this was a payment problem rather than a choice, you can update your card and reactivate from the billing page."),
+            button('Reactivate Pro', pricing, true),
             signOff,
           ].join('\n'),
           footer: 'This confirms a change to your GrowJin subscription.',
         }),
       }
 
-    case 'cancel_undone':
+    case 'account_deleted':
       return {
-        subject: "Glad you're staying",
+        subject: 'Your GrowJin account has been deleted',
         html: shell(c, {
           body: [
             p(hi(c)),
-            p(`Your cancellation is undone and <b>${brand}</b> stays on GrowJin Pro. Nothing changes${date ? `, and your next billing date is <b>${date}</b>` : ''}.`),
-            p("Thanks for sticking with us. If something made you consider leaving, reply and let us know. We'd love to fix it."),
-            button('Back to my dashboard →', dashboard),
+            p(`Your GrowJin account${c.brandName ? ` and everything for <b>${brand}</b>` : ''} has been deleted. We're sad to see you leave, and thank you for trying GrowJin.`),
+            note("If you had a Pro plan, it's been cancelled and you won't be charged again."),
+            p("<b>One quick question before you go:</b> what was the main reason? Tap one and hit send."),
+            reasonLinks(c, 'Why I deleted my account'),
+            p("You're always welcome back. Signing up again takes a minute. If you didn't ask for this, reply to this email straight away."),
             signOff,
           ].join('\n'),
-          footer: billingFooter,
+          footer: 'This confirms your GrowJin account was deleted. You won\'t get any more emails from us.',
         }),
       }
-
-    case 'access_ending':
-      return {
-        subject: `Your GrowJin Pro access ends ${date ? `on ${date}` : 'soon'}`,
-        html: shell(c, {
-          body: [
-            h1(`${hi(c).replace(/,$/, '')}, a quick heads-up`),
-            p(`Pro access for <b>${brand}</b> ends ${date ? `on <b>${date}</b>` : 'in a couple of days'}. Here's what changes:`),
-            `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;"><tr>
-              <td width="50%" valign="top" style="padding-right:10px;font-family:${FONT};">
-                <p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#b4532a;">You'll lose</p>
-                <p style="margin:0;font-size:14px;line-height:1.8;color:${INK};">Pro-only modules<br>The daily growth email<br>New modules as they launch</p>
-              </td>
-              <td width="50%" valign="top" style="padding-left:10px;font-family:${FONT};">
-                <p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:${GREEN};">You keep</p>
-                <p style="margin:0;font-size:14px;line-height:1.8;color:${INK};">Your past reports<br>Your brand playbook<br>Free-plan modules</p>
-              </td>
-            </tr></table>`,
-            button('Keep Pro →', pricing),
-            signOff,
-          ].join('\n'),
-          footer: "No action needed if you're happy to move to the free plan.",
-        }),
-      }
-
-    case 'subscription_ended':
-      return {
-        subject: "You're now on the GrowJin free plan",
-        html: shell(c, {
-          body: [
-            p(hi(c)),
-            p(`Your Pro plan for <b>${brand}</b> has ended, and you're now on the free plan.`),
-            note('Your reports, playbook and settings are all still saved. If you come back to Pro, everything is right where you left it.'),
-            p('You can keep using the free modules as long as you like.'),
-            button('Open my dashboard →', dashboard),
-            signOff,
-          ].join('\n'),
-          footer: 'This confirms a change to your GrowJin subscription.',
-        }),
-      }
-
-    case 'winback_1':
-    case 'winback_2': {
-      const first = kind === 'winback_1'
-      return {
-        subject: first ? `Still growing ${c.brandName}?` : `Your GrowJin data is still here`,
-        html: shell(c, {
-          body: [
-            p(hi(c)),
-            p(first
-              ? `It's been a couple of weeks since <b>${brand}</b> left Pro. We've kept improving GrowJin since then, and your reports and playbook are saved and ready.`
-              : `One last note from us. <b>${brand}</b>'s reports, playbook and settings are still saved in GrowJin, ready whenever you want them.`),
-            `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;background:#0d1a0f;border-radius:10px;">
-              <tr><td style="padding:24px 26px;text-align:center;font-family:${FONT};">
-                <p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#6fc08d;">Pick up where you left off</p>
-                <p style="margin:0 0 6px;font-size:22px;font-weight:800;color:#ffffff;">Every module, one click away</p>
-                <p style="margin:0 0 16px;font-size:13px;color:#a9c4b3;">Reactivate Pro and your full growth plan comes straight back.</p>
-                <a href="${esc(pricing)}" style="display:inline-block;padding:12px 26px;background:${GREEN};color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:7px;">Reactivate Pro →</a>
-              </td></tr>
-            </table>`,
-            p(first ? 'If something was missing, reply and tell us. It shapes what we build next.' : "We won't email about this again. Thanks for being part of GrowJin."),
-            signOff,
-          ].join('\n'),
-          footer: c.unsubscribeUrl
-            ? `<a href="${esc(c.unsubscribeUrl)}" style="color:#8a9e90;">Unsubscribe from these emails</a>`
-            : "You're receiving this because you had a GrowJin Pro plan.",
-        }),
-      }
-    }
   }
 }

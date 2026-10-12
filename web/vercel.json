@@ -3,7 +3,6 @@
     { "path": "/api/cron/daily-signals",  "schedule": "0 0 * * *" },
     { "path": "/api/cron/daily-email",    "schedule": "30 0 * * *" },
     { "path": "/api/cron/daily-social",   "schedule": "0 6 * * *" },
-    { "path": "/api/cron/send-scheduled", "schedule": "30 10 * * *" },
-    { "path": "/api/cron/lifecycle-emails", "schedule": "0 15 * * *" }
+    { "path": "/api/cron/send-scheduled", "schedule": "30 10 * * *" }
   ]
 }
