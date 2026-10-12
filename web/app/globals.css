@@ -6850,3 +6850,36 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   .an-stat { padding: 14px 14px 12px !important; gap: 6px !important; border-radius: 12px !important; }
   .an-stat .an-stat-top { display: none !important; }
 }
+
+/* ── Analysing panel: compact version (re-checks, and every run on phones) ── */
+.gp-live-sub { display: none; margin: -4px 0 0; font-size: 13px; line-height: 1.45; color: var(--text-dim); }
+.gp-live--compact { padding: 14px 18px; box-shadow: none; border-width: 1px; }
+.gp-live--compact::before { display: none; }
+.gp-live--compact .gp-live-top { display: none; }
+.gp-live--compact .gp-live-title { font-size: 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 9px; }
+.gp-live--compact .gp-live-title::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--green); flex-shrink: 0; animation: gp-pulse 1.6s ease-out infinite; }
+.gp-live--compact .gp-live-barrow { margin-bottom: 10px; }
+.gp-live--compact .gp-live-bar { height: 6px; }
+.gp-live--compact .gp-live-steps, .gp-live--compact .gp-live-note { display: none; }
+.gp-live--compact .gp-live-sub { display: block; }
+
+@media (max-width: 760px) {
+  .gp-live { padding: 14px 16px; box-shadow: none; }
+  .gp-live-top { margin-bottom: 4px; }
+  .gp-live-label { font-size: 11px; }
+  .gp-live-title { font-size: 17px; margin-bottom: 10px; }
+  .gp-live-barrow { margin-bottom: 10px; }
+  .gp-live-pct { font-size: 12.5px; min-width: 0; }
+  .gp-live-steps, .gp-live-note { display: none; }
+  .gp-live-sub { display: block; font-size: 12.5px; }
+
+  /* Road to 500 on phones: the count, the next milestone, and a thin track — no range labels or date. */
+  .gp-journey { padding: 12px 14px; margin-bottom: 18px; }
+  .gp-journey-top { margin-bottom: 10px; gap: 2px 10px; }
+  .gp-journey-status .gp-eyebrow { display: none; }
+  .gp-journey .gp-count { font-size: 18px; }
+  .gp-journey-note { font-size: 12.5px; }
+  .gp-journey-note .gp-tracking { display: none; }
+  .gp-band-range, .gp-band-name { display: none !important; }
+  .gp-band-bar { margin-bottom: 0; height: 4px; }
+}

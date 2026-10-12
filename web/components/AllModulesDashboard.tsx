@@ -2115,7 +2115,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
       <div className="wrap gp-wrap">
           {liveMod && liveRun ? (
-            <section className="gp-live" ref={liveRef} role="status" aria-live="polite">
+            // A re-check (results already there) gets the compact version; a first run gets the full panel.
+            <section className={`gp-live${lastAnalyzedAtMap[liveMod.id] ?? liveMod.lastAnalyzedAt ? ' gp-live--compact' : ''}`} ref={liveRef} role="status" aria-live="polite">
               <div className="gp-live-top">
                 <span className="gp-live-pulse" aria-hidden="true" />
                 <span className="gp-live-label">Analysing now</span>
@@ -2125,6 +2126,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 <div className="gp-live-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={liveRun.pct} aria-label="Estimated progress"><i style={{ width: `${liveRun.pct}%` }} /></div>
                 <span className="gp-live-pct" title="Estimated from the current step and time so far">about {liveRun.pct}%</span>
               </div>
+              {/* One-line step status: replaces the step list in the compact version and on phones. */}
+              <p className="gp-live-sub">Step {liveRun.idx + 1} of 3 · {liveRun.steps[liveRun.idx].label}{liveRun.slow ? ' · taking longer than usual' : ''}</p>
               <ol className="gp-live-steps">
                 {liveRun.steps.map((st, i) => (
                   <li key={st.key} className={i < liveRun.idx ? 'is-done' : i === liveRun.idx ? 'is-now' : ''}>
