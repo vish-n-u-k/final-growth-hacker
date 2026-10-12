@@ -6928,3 +6928,14 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 /* Sidebar: a clicked item highlights at once, with a small spinner until its page arrives. */
 .app-nav-pending { width: 12px; height: 12px; margin-left: auto; flex-shrink: 0; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; opacity: 0; }
 .app-nav-pending.is-pending { opacity: .7; animation: md-spin .7s linear infinite; }
+
+/* Parked tools: "Soon" tag in the sidebar, and the full-page coming-soon screen. */
+.app-navitem-soon { cursor: default; }
+.app-soon-tag { margin-left: auto; flex-shrink: 0; font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-faint); border: 1px solid var(--line); border-radius: 99px; padding: 1px 7px; }
+.cs-page { max-width: 560px; margin: 0 auto; padding: 56px 16px; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center; }
+.cs-page-back { font-size: 13.5px; font-weight: 600; color: var(--accent-foreground); text-decoration: none; }
+.cs-page-back:hover { text-decoration: underline; }
+/* The full-page coming-soon screen should be readable, not faded like an inline placeholder. */
+.cs-page .cs-module { opacity: 1; border-style: solid; background: var(--card); }
+.cs-page .cs-module-title { color: var(--text); font-size: 18px; }
+.cs-page .cs-module-note { color: var(--text-dim); }

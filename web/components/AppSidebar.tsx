@@ -3,6 +3,7 @@
 import Link, { useLinkStatus } from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { isComingSoon } from '@/lib/features'
 import { useEffect, useRef, useState, type JSX } from 'react'
 
 interface NavItem {
@@ -170,6 +171,15 @@ export default function AppSidebar({
             <div className="app-sidebar-glabel">{group.label}</div>
           )}
           {group.items.map((item) => {
+            if (isComingSoon(item.href)) {
+              return (
+                <span className="app-navitem app-navitem-locked app-navitem-soon" key={item.href} title="Coming soon">
+                  <NavIcon name={item.icon} />
+                  {item.label}
+                  <span className="app-soon-tag">Soon</span>
+                </span>
+              )
+            }
             const proTagged = showPro && item.pro
             // Plan beats progress: a Pro tool shows as Pro (clickable → upgrade screen), not padlocked.
             const locked = !proTagged && (item.lockedType ? lockedTypes.includes(item.lockedType) : false)

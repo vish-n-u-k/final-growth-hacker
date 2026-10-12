@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { isComingSoon } from '@/lib/features'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
@@ -37,7 +38,7 @@ export default async function ToolsPage() {
   const tools: Tool[] = [
     {
       href: '/gmail-hub',
-      title: 'Gmail Hub',
+      title: 'Outreach',
       desc: 'Leads, AI drafts and follow-ups.',
       color: '#2563eb',
       glow: 'rgba(37,99,235,0.25)',
@@ -97,7 +98,6 @@ export default async function ToolsPage() {
       desc: 'Create and schedule posts.',
       color: '#db2777',
       glow: 'rgba(219,39,119,0.25)',
-      comingSoon: true,
       icon: (
         <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
           <circle cx="5" cy="10" r="2.2" stroke="currentColor" strokeWidth="1.5"/>
@@ -135,7 +135,7 @@ export default async function ToolsPage() {
         </div>
 
         <div className="tl-grid">
-          {tools.map(tool => {
+          {tools.map(t => ({ ...t, comingSoon: t.comingSoon || isComingSoon(t.href) })).map(tool => {
             const content = (
               <>
                 <div className="tl-card-top">

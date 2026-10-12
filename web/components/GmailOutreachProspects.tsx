@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import type { DBItemFull } from '@/lib/modules/types'
+import { isComingSoon } from '@/lib/features'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -203,8 +204,8 @@ export default function GmailOutreachProspects({
         </button>
       </div>
 
-      {/* Gmail Hub link */}
-      <a
+      {/* Gmail Hub link (hidden while Outreach is parked) */}
+      {!isComingSoon('/gmail-hub') && <a
         href="/gmail-hub"
         style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 20, padding: '9px 16px', borderRadius: 10, background: 'var(--card)', border: '1px solid var(--line)', fontSize: 13, color: 'var(--text-dim)', textDecoration: 'none', transition: 'border-color .15s' }}
         onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--green)')}
@@ -218,7 +219,7 @@ export default function GmailOutreachProspects({
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 2, opacity: 0.5 }}>
           <path d="M7 17L17 7M17 7H7M17 7v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
-      </a>
+      </a>}
 
       {/* Prospect cards */}
       <div className="gop-cards">
