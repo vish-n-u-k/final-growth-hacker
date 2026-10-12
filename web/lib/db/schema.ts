@@ -682,3 +682,22 @@ export const adLaunches = pgTable(
     uniq: unique('ad_launches_unique').on(table.platform, table.campaignId),
   }),
 )
+
+// ── Lifecycle emails (welcome, Pro, cancellation — see drizzle/lifecycle_emails.sql) ──
+// One row per email sent, so retried webhooks and re-run crons never send twice.
+// kind 'unsubscribed' (key 'marketing') records a win-back opt-out instead of a send.
+// Only read/written by lib/email/lifecycle.ts, which tolerates the table being absent.
+export const lifecycleEmails = pgTable(
+  'lifecycle_emails',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),            // 'welcome' | 'pro_trial_started' | 'pro_welcome' | ... | 'unsubscribed'
+    key: text('key').notNull(),              // dedupe key within a kind, e.g. the Stripe subscription id
+    toEmail: text('to_email'),
+    sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    uniq: unique('lifecycle_emails_unique').on(table.brandId, table.kind, table.key),
+  }),
+)

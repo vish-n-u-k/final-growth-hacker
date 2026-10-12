@@ -21,10 +21,11 @@ function encodeAddress(to: string): string {
 
 /** RFC 2822 message as base64url, for Gmail messages.send / drafts.create. */
 export function buildRawMessage(
-  { to, subject, body, inReplyTo }: { to: string; subject: string; body: string; inReplyTo?: string | null },
+  { to, subject, body, inReplyTo, from }: { to: string; subject: string; body: string; inReplyTo?: string | null; from?: string },
 ): string {
   // In-Reply-To/References + threadId make Gmail file a follow-up under the original thread
   const message = [
+    ...(from ? [`From: ${encodeAddress(from)}`] : []),
     `To: ${encodeAddress(to)}`,
     `Subject: ${encodeHeader(subject)}`,
     ...(inReplyTo ? [`In-Reply-To: ${inReplyTo}`, `References: ${inReplyTo}`] : []),

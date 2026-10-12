@@ -2,6 +2,7 @@ import Stripe from 'stripe'
 import { db } from '@/lib/db'
 import { brandSubscriptions } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { onSubscriptionChange } from '@/lib/email/lifecycle'
 
 // STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_MONTHLY, STRIPE_PRICE_YEARLY,
 // optional STRIPE_TRIAL_DAYS. Only used when BILLING_ENABLED=true.
@@ -105,5 +106,10 @@ export async function syncSubscription(sub: Stripe.Subscription, eventCreated: n
   }
   await db.insert(brandSubscriptions).values({ brandId, ...values })
     .onConflictDoUpdate({ target: brandSubscriptions.brandId, set: values })
+
+  // Welcome to Pro / cancellation emails. A different subscription id means a fresh subscription,
+  // so the old row's state isn't "before" for this one. Never throws.
+  const prev = existing && existing.stripeSubscriptionId === sub.id ? existing : null
+  await onSubscriptionChange(brandId, prev, values, sub)
   return 'applied'
 }
