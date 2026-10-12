@@ -524,7 +524,7 @@ export default function RemindersPage({
               </p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6 }}>
+          <div className="rm-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6 }}>
             <button className="rm-btn-ghost" onClick={reseed} disabled={loading}>Reset presets</button>
             <button
               className="rm-btn-suggest"

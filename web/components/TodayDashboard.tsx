@@ -485,9 +485,27 @@ function SocialAnalytics() {
           <div className="td-loading-dots"><span /><span /><span /></div>
         </div>
       ) : (
-        <div className="td-platform-list">
-          {platforms.map(p => <PlatformCard key={p.provider} p={p} />)}
-        </div>
+        <>
+          {platforms.some(p => p.connected) && (
+            <div className="td-platform-list">
+              {platforms.filter(p => p.connected).map(p => <PlatformCard key={p.provider} p={p} />)}
+            </div>
+          )}
+          {/* Not-connected platforms: one row of connect buttons, not a card each. */}
+          {platforms.some(p => !p.connected && PLATFORM_CONNECT[p.provider]) && (
+            <div className="td-connect-row">
+              <span className="td-connect-row-text">{platforms.some(p => p.connected) ? 'Add more:' : 'Connect to see your social stats:'}</span>
+              {platforms.filter(p => !p.connected && PLATFORM_CONNECT[p.provider]).map(p => {
+                const c = PLATFORM_COLORS[p.provider] ?? { bg: '#88888818', color: '#888' }
+                return (
+                  <a key={p.provider} href={`/api/connect/${PLATFORM_CONNECT[p.provider]}?return_to=/today`} className="td-connect-btn" style={{ borderColor: c.color, color: c.color }}>
+                    {p.name}
+                  </a>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   )
@@ -964,7 +982,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
           <div className="td-hero-day">{dayLabel}</div>
           <div className="td-hero-tag">
             {ready && !allGood && cards.length > 0
-              ? `${cards.length} thing${cards.length === 1 ? '' : 's'} need your attention`
+              ? `${cards.length} thing${cards.length === 1 ? ' needs' : 's need'} your attention`
               : ready && allGood ? 'You\'re all caught up'
               : 'Checking your signals...'}
           </div>

@@ -172,7 +172,7 @@ export default function LeadFinder({
                 Gmail connected
               </span>
             )}
-            <Link href="/gmail-hub" className="gh-hbtn gh-hbtn-outline">Open Gmail Hub</Link>
+            <Link href="/gmail-hub" className="gh-hbtn gh-hbtn-outline">Open Outreach</Link>
           </div>
         </div>
 

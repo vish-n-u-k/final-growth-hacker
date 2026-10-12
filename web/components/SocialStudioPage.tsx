@@ -281,6 +281,37 @@ export default function SocialStudioPage({
 
   const locked = !frektoConnected
 
+  // Not connected: one clear card instead of five greyed-out sections each saying "connect Frekto".
+  if (locked) {
+    return (
+      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 16px' }}>
+      {/* Page header */}
+      <div style={{ marginBottom: '28px' }}>
+        <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)', margin: '0 0 4px', fontFamily: 'var(--font-display)' }}>
+          Social Studio
+        </h1>
+        <p style={{ fontSize: '13px', color: 'var(--text-faint)', margin: 0 }}>
+          AI-driven post scheduling powered by Frekto — {brandName}
+        </p>
+      </div>
+
+        <div style={{ ...card, padding: '22px' }}>
+          <div style={sectionTitle}>Connect Frekto to start posting</div>
+          <p style={{ ...sectionSub, marginBottom: '14px' }}>Frekto creates and publishes the posts. Once it&apos;s connected, Social Studio can:</p>
+          <ul style={{ margin: '0 0 18px', paddingLeft: '18px', listStyle: 'disc', fontSize: '13.5px', color: 'var(--text-dim)', lineHeight: 1.8 }}>
+            <li>Suggest one ready-to-post idea per platform from your audit</li>
+            <li>Plan a whole content series</li>
+            <li>Schedule posts and auto-post daily</li>
+            <li>Make one-off images and videos</li>
+          </ul>
+          <a href="/settings?tab=integrations" style={{ display: 'inline-block', padding: '10px 18px', borderRadius: '10px', background: 'var(--green)', color: '#fff', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}>
+            Connect Frekto →
+          </a>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 16px' }}>
 

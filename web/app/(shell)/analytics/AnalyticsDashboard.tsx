@@ -97,18 +97,6 @@ const CHANNEL_COLORS_MAP: Record<string, string> = {
 }
 function chColor(ch: string) { return CHANNEL_COLORS_MAP[ch] ?? '#8aa897' }
 
-/* ── Fallback data (shown while loading or when PostHog not connected) ── */
-const FALLBACK_RETENTION = [
-  { day: 'D0', rate: 100 }, { day: 'D1', rate: 34 }, { day: 'D3', rate: 19 },
-  { day: 'D7', rate: 12 },  { day: 'D14', rate: 9 }, { day: 'D30', rate: 6 },
-]
-
-const FALLBACK_FUNNEL = [
-  { stage: 'Visited site',          value: 1840 },
-  { stage: 'Signed up',             value: 128  },
-  { stage: 'Activated (ran audit)', value: 61   },
-  { stage: 'Became PRO',            value: 4    },
-]
 
 /* ── Helpers ──────────────────────────────────────────── */
 function toneColor(tone: string): string {
@@ -197,14 +185,14 @@ function StatCard({
   const iconColor = toneColor(iconTone)
   const textColor = comingSoon ? '#555f5a' : iconColor
   return (
-    <div style={{
+    <div className="an-stat" style={{
       background: 'var(--card)',
       border: '1px solid var(--line)',
       borderRadius: 16, padding: '20px 22px',
       display: 'flex', flexDirection: 'column', gap: 16,
       opacity: comingSoon ? 0.65 : 1,
     }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+      <div className="an-stat-top" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div style={{
           width: 36, height: 36, borderRadius: 10,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -230,41 +218,6 @@ function StatCard({
         : loading
           ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>loading…</span>
           : <Delta value={deltaValue} invertGood={invertGood} />
-      }
-    </div>
-  )
-}
-
-function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon }: {
-  label: string; value: string; sub: string; source: string
-  delta: number; bad?: boolean; loading?: boolean; comingSoon?: boolean
-}) {
-  return (
-    <div style={{
-      background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 16,
-      padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: 10,
-      opacity: comingSoon ? 0.65 : 1,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)' }}>
-          {label}
-        </span>
-        {comingSoon ? <ComingSoonBadge /> : <SourcePill>{source}</SourcePill>}
-      </div>
-      <div style={{
-        fontSize: 38, fontWeight: 700, letterSpacing: '-1px', lineHeight: 1,
-        color: comingSoon || loading ? 'var(--text-faint)' : 'var(--text)',
-        filter: comingSoon ? 'blur(6px)' : 'none',
-        userSelect: comingSoon ? 'none' : 'auto',
-      }}>
-        {comingSoon ? value : loading ? '—' : value}
-      </div>
-      <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>{sub}</div>
-      {comingSoon
-        ? <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>Connect Stripe to unlock</span>
-        : loading
-          ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>loading…</span>
-          : <Delta value={delta} invertGood={bad} />
       }
     </div>
   )
@@ -543,8 +496,9 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brand.id, phLoading])
 
-  const retentionData = data?.retention ?? FALLBACK_RETENTION
-  const funnelData    = data?.funnel    ?? FALLBACK_FUNNEL
+  // Real PostHog data only: no made-up example numbers when it isn't connected.
+  const retentionData = data?.retention ?? null
+  const funnelData    = data?.funnel    ?? null
   const gsc = data?.gsc
   const ga4 = data?.ga4
 
@@ -685,14 +639,25 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
           <DailySummaryCard />
         </section>
 
-        {/* Last 24 hours */}
+        {/* Last 24 hours — without PostHog these would all read 0, which looks like real data */}
+        {data && !data.posthogConnected ? (
+          <section style={{ marginBottom: 36 }}>
+            <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
+              Signups &amp; active users
+            </h2>
+            <div style={{ background: 'var(--card)', border: '1px dashed var(--line)', borderRadius: 14, padding: '18px 20px', fontSize: 13.5, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+              New signups, sign-ins and daily/monthly active users show here once PostHog is connected.{' '}
+              <a href="/settings?tab=integrations" style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect PostHog →</a>
+            </div>
+          </section>
+        ) : (
         <section style={{ marginBottom: 36 }}>
           <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
             Last 24 hours
           </h2>
           {/* Group 1: activity events */}
           <div className="an-g4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 12 }}>
-            {activityTiles.filter(t => !['dau', 'mau'].includes(t.key)).map((item) => (
+            {activityTiles.filter(t => !t.comingSoon && !['dau', 'mau'].includes(t.key)).map((item) => (
               <StatCard
                 key={item.key}
                 icon={item.icon} iconTone={item.tone}
@@ -722,22 +687,25 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             ))}
           </div>
         </section>
+        )}
 
         {/* Growth & retention KPIs */}
         <section style={{ marginBottom: 36 }}>
           <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
             Growth &amp; retention
           </h2>
-          <div className="an-g4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
-            <KpiCard label="MRR" value="$0" sub="Monthly recurring revenue" source="Stripe" delta={0} comingSoon />
-            <KpiCard label="ARR" value="$0" sub="Annualised run rate" source="Stripe" delta={0} comingSoon />
-            <KpiCard label="Churn rate" value="0%" sub="Paid cancellations, 30d" source="Stripe" delta={0} bad comingSoon />
-            <KpiCard label="Onboarding drop-off" value="0%" sub="Users who don't return after signup" source="Stripe" delta={0} bad comingSoon />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <RetentionCurve data={retentionData} loading={phLoading} />
-            <FunnelCard data={funnelData} loading={phLoading} />
-          </div>
+          {/* MRR / ARR / churn tiles return once Stripe metrics exist; "Coming soon" placeholders were just noise. */}
+          {retentionData || funnelData ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {retentionData && <RetentionCurve data={retentionData} loading={phLoading} />}
+              {funnelData && <FunnelCard data={funnelData} loading={phLoading} />}
+            </div>
+          ) : !phLoading && (
+            <div style={{ background: 'var(--card)', border: '1px dashed var(--line)', borderRadius: 14, padding: '18px 20px', fontSize: 13.5, color: 'var(--text-dim)', lineHeight: 1.5 }}>
+              Retention and your signup funnel appear here once PostHog is connected.{' '}
+              <a href="/settings?tab=integrations" style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect PostHog →</a>
+            </div>
+          )}
         </section>
 
         {/* ── PostHog Web Analytics ── */}

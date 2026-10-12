@@ -6805,3 +6805,48 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   .gp-phases { -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); }
   .gp-phase-top { font-size: 13px; }
 }
+
+/* Today: platforms that aren't connected share one row of connect buttons. */
+.td-connect-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 12px; background: var(--card); }
+.td-connect-row-text { font-size: 13px; color: var(--text-dim); margin-right: 4px; }
+.td-connect-row .td-connect-btn { min-height: 34px; display: inline-flex; align-items: center; }
+
+/* Outreach (Gmail not connected) on phones: the Connect button comes right after the pitch,
+   features and permissions follow, and the decorative inbox mock-up is dropped. */
+@media (max-width: 760px) {
+  .gh-connect-left .gh-connect-btn { order: 1; margin-top: 4px; }
+  .gh-connect-left .gh-connect-note { order: 2; }
+  .gh-connect-left .gh-connect-feats { order: 3; margin-top: 22px; }
+  .gh-connect-left .gh-scopes { order: 4; }
+  .gh-connect-right { display: none; }
+  .gh-connect-h2 { font-size: 24px; }
+  .gh-connect-p { font-size: 14px; }
+}
+
+/* Reminders header on phones: Add and Suggest share a row; "Reset presets" becomes a small text link under them. */
+@media (max-width: 760px) {
+  .rm-actions { display: grid !important; grid-template-columns: auto 1fr; gap: 8px !important; width: 100%; }
+  .rm-actions .rm-btn-primary { grid-column: 1; grid-row: 1; }
+  .rm-actions .rm-btn-suggest { grid-column: 2; grid-row: 1; justify-content: center; }
+  .rm-actions .rm-btn-ghost { grid-column: 1 / -1; grid-row: 2; justify-self: start; border: none !important; background: none !important; padding: 4px 0 !important; font-size: 12.5px; text-decoration: underline; }
+}
+
+/* ── Growth Path on phones: fewer nested boxes ── */
+@media (max-width: 760px) {
+  /* Step pills: one swipeable row (like the phase tabs) instead of wrapping onto two lines. */
+  .gp-path .gp-pills { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  .gp-path .gp-pills::-webkit-scrollbar { display: none; }
+  .gp-path .gp-pill { flex-shrink: 0; }
+  /* The module card loses its outer frame; its sections keep theirs. */
+  .gp-col .level.active, .gp-col .level.done, .gp-col .level.locked { border: none !important; background: transparent !important; box-shadow: none !important; border-radius: 0 !important; }
+  .gp-col .level .level-head { padding: 4px 0 12px !important; }
+  .gp-col .level .gp-unlock { margin: 0 0 12px !important; }
+  .gp-col .level-body > .gp-inset-panel, .gp-col .level-body > .gp-progress { margin: 8px 0 !important; }
+  .gp-col .level-body .md-cats { padding-left: 0 !important; padding-right: 0 !important; }
+}
+
+/* Analytics stat tiles on phones: number + label + change, without the icon/source header that made each ~300px tall. */
+@media (max-width: 760px) {
+  .an-stat { padding: 14px 14px 12px !important; gap: 6px !important; border-radius: 12px !important; }
+  .an-stat .an-stat-top { display: none !important; }
+}

@@ -1872,7 +1872,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const idx = info?.stage ? Math.max(0, steps.findIndex(st => st.key === info.stage)) : elapsed < 15 ? 0 : 1
     // Bar: follows the real step; inside the long middle step it eases toward ~88% (never claims done).
     const pct = idx === 0 ? Math.min(20, 5 + elapsed) : idx === 1 ? Math.round(25 + 63 * (1 - Math.exp(-Math.max(0, elapsed - 10) / 70))) : 95
-    return { steps, idx, elapsed, pct, time: `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`, slow: elapsed > 180 }
+    return { steps, idx, pct, slow: elapsed > 180 }
   }
 
   // The analysis in flight (if any) takes over the top of the page.
@@ -1889,13 +1889,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     return () => io.disconnect()
   }, [liveMod?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const baseTitleRef = useRef<string | null>(null)
-  // Tab title: the timer while a run is going, "✓ ready" for a moment after, then back to normal.
+  // Tab title: "Analysing …" while a run is going, "✓ ready" for a moment after, then back to normal.
   useEffect(() => {
     if (baseTitleRef.current === null) baseTitleRef.current = document.title
-    document.title = liveMod && liveRun ? `${liveRun.time} · Analysing ${liveMod.name} – GrowJin`
+    document.title = liveMod ? `Analysing ${liveMod.name}… – GrowJin`
       : readyNotice ? `✓ ${readyNotice.name} is ready – GrowJin`
       : baseTitleRef.current
-  }, [liveMod?.id, liveRun?.time, readyNotice]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [liveMod?.id, readyNotice]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Phones scroll the phase tabs sideways: keep the selected one in view (scrolls the row only, not the page).
   useEffect(() => {
@@ -1930,7 +1930,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       const rp = runProgress(m)
       return {
         label: 'Next step', progress, busy: true,
-        title: `Checking your ${m.name.toLowerCase()}… ${rp.time}`,
+        title: `Checking your ${m.name.toLowerCase()}…`,
         text: `Step ${rp.idx + 1} of 3: ${rp.steps[rp.idx].label}. ${rp.slow ? 'Taking longer than usual, but still working.' : 'Usually 1–3 minutes.'} You can leave this page.`,
         cta: null,
       }
@@ -2119,7 +2119,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <div className="gp-live-top">
                 <span className="gp-live-pulse" aria-hidden="true" />
                 <span className="gp-live-label">Analysing now</span>
-                <span className="gp-live-time">{liveRun.time}</span>
               </div>
               <h2 className="gp-live-title">{lastAnalyzedAtMap[liveMod.id] ?? liveMod.lastAnalyzedAt ? 'Re-checking' : 'Checking'} your {liveMod.name.toLowerCase()}</h2>
               <div className="gp-live-barrow">
@@ -2161,7 +2160,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           {liveMod && liveRun && !liveOnScreen && (
             <button className="gp-live-pill" onClick={() => liveRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
               <span className="gp-live-pulse" aria-hidden="true" />
-              <span className="gp-live-pill-text">Analysing {liveMod.name} · about {liveRun.pct}% · {liveRun.time}</span>
+              <span className="gp-live-pill-text">Analysing {liveMod.name} · about {liveRun.pct}%</span>
               <span className="gp-live-pill-bar" aria-hidden="true"><i style={{ width: `${liveRun.pct}%` }} /></span>
             </button>
           )}
@@ -2914,7 +2913,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <div className="gp-progress" role="status" aria-live="polite">
                           <div className="gp-progress-hd">
                             <span>{effectiveLastAnalyzedAt ? 'Re-analysing' : 'Analysing'} your site</span>
-                            <span className="gp-progress-time">{rp.time}</span>
                           </div>
                           <ol className="gp-progress-steps">
                             {rp.steps.map((st, i) => (
