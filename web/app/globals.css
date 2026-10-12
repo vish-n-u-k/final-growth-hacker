@@ -6962,3 +6962,35 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
   .gp-col .md-cat-hd-name { font-size: 14.5px; }
   .gp-col .md-cats { gap: 8px !important; }
 }
+
+/* ── Projected MRR (components/ProjectedMrr.tsx): Road to 500, Analytics ── */
+.pmrr { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 14px 16px; }
+.pmrr-main, .pmrr-side { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pmrr-side { align-items: flex-end; text-align: right; }
+.pmrr-eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); }
+.pmrr-value { font-size: 24px; font-weight: 700; letter-spacing: -.5px; color: var(--text); line-height: 1.2; }
+.pmrr-value small { font-size: 13px; font-weight: 500; color: var(--text-dim); margin-left: 2px; letter-spacing: 0; }
+.pmrr-sub { font-size: 12.5px; color: var(--text-dim); margin: 0; line-height: 1.45; }
+.pmrr-goal { font-size: 13px; color: var(--text-dim); }
+.pmrr-goal b { color: var(--text); font-weight: 600; }
+.pmrr-link { background: none; border: none; padding: 0; font: inherit; font-size: 12.5px; color: var(--accent-foreground); font-weight: 600; cursor: pointer; }
+.pmrr-link:hover { text-decoration: underline; }
+.pmrr--empty { align-items: center; }
+.pmrr--edit { flex-direction: column; align-items: stretch; gap: 12px; }
+.pmrr-fields { display: flex; gap: 14px; flex-wrap: wrap; }
+.pmrr-field { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--text-dim); }
+.pmrr-price { display: inline-flex; align-items: center; gap: 6px; }
+.pmrr-price em { font-style: normal; color: var(--text-faint); }
+.pmrr-price select, .pmrr-price input { height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; font-size: 14px; padding: 0 10px; }
+.pmrr-price input { width: 96px; }
+.pmrr-price input:focus, .pmrr-price select:focus { outline: none; border-color: var(--green); }
+.pmrr-error { margin: 0; font-size: 12.5px; color: var(--red, #c0392b); }
+.pmrr-actions { display: flex; gap: 8px; }
+.pmrr-btn { height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.pmrr-btn--primary { background: var(--green); border-color: var(--green); color: #fff; }
+.pmrr-btn:disabled { opacity: .6; cursor: default; }
+.gp-journey .pmrr { margin-top: 18px; }
+@media (max-width: 760px) {
+  .pmrr-side { align-items: flex-start; text-align: left; }
+  .pmrr-price input { width: 84px; }
+}

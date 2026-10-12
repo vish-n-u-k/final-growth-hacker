@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import ProjectedMrr from '@/components/ProjectedMrr'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell,
 } from 'recharts'
@@ -2210,25 +2211,9 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               <RoadToGoalTrack current={data?.totalUsers ?? 0} milestones={[0, 100, 200, 300, 400, 500]} />
             )}
 
-            {/* MRR box */}
-            <div style={{
-              background: MOCK.amberBg, border: '1px solid #E8D5A0',
-              borderRadius: 12, padding: '12px 16px', flexShrink: 0,
-            }}>
-              <div style={{
-                fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-                letterSpacing: '0.08em', color: MOCK.amberText, marginBottom: 6,
-              }}>
-                Projected MRR
-              </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontSize: 22, fontWeight: 800, color: MOCK.amberText, letterSpacing: '-0.5px' }}>
-                  $9.5K
-                </span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: MOCK.amberText, opacity: 0.75 }}>
-                  $19 × 500
-                </span>
-              </div>
+            {/* Projected MRR: the user's own price × live users (components/ProjectedMrr.tsx) */}
+            <div style={{ minWidth: isMobile ? 0 : 260 }}>
+              <ProjectedMrr userCount={data?.totalUsers ?? 0} loading={phLoading} />
             </div>
           </div>
         </div>

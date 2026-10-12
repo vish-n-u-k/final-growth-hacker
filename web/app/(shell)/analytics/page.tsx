@@ -5,6 +5,7 @@ import { brands, modules as modulesTable, moduleItems } from '@/lib/db/schema'
 import { eq, inArray } from 'drizzle-orm'
 import { MODULE_MAP } from '@/lib/modules/registry'
 import AnalyticsDashboard, { type ModuleHealth } from './AnalyticsDashboard'
+import { getMrrSettings } from '@/lib/mrr'
 
 function getModuleSource(type: string): string {
   const aiRules = ['seo', 'geo', 'content-audit', 'social-media', 'brand-audit', 'geo-competitor-gap']
@@ -27,11 +28,10 @@ export default async function AuthAnalyticsPage() {
     .limit(1)
   if (!brand) redirect('/onboarding')
 
-  const allModules = await db
-    .select()
-    .from(modulesTable)
-    .where(eq(modulesTable.brandId, brand.id))
-    .orderBy(modulesTable.order)
+  const [allModules, mrrSettings] = await Promise.all([
+    db.select().from(modulesTable).where(eq(modulesTable.brandId, brand.id)).orderBy(modulesTable.order),
+    getMrrSettings(brand.id),
+  ])
 
   // Fetch all items to extract per-module insights (worst failing item)
   const moduleIds = allModules.map(m => m.id)
@@ -82,6 +82,7 @@ export default async function AuthAnalyticsPage() {
       brand={{ id: brand.id, name: brand.name }}
       modules={moduleHealth}
       dailyEmailEnabled={brand.dailyEmailEnabled ?? false}
+      mrrSettings={mrrSettings}
     />
   )
 }

@@ -18,6 +18,8 @@ import { CONFLICT_GROUPS, SLUG_TOPIC } from '@/lib/modules/conflict-map'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 import FrektoPostingSectionImport from '@/components/FrektoPostingSection'
 import NotesDrawer from '@/components/NotesDrawer'
+import ProjectedMrr from '@/components/ProjectedMrr'
+import type { MrrSettings } from '@/lib/mrr-shared'
 
 function renderMdStep(step: string): React.ReactNode {
   const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
@@ -76,6 +78,7 @@ interface Props {
   conflictLinks?: { itemIdA: string; itemIdB: string }[]
   // Free/Pro (lib/billing/plan.ts). Billing off → { enabled: false, pro: true, planLocked: [] }.
   billing?: { enabled: boolean; pro: boolean; planLocked: string[] }
+  mrrSettings?: MrrSettings | null // Projected MRR price (lib/mrr.ts)
 }
 
 function timeAgo(iso: string | null): string {
@@ -292,7 +295,7 @@ function LevelRing({ score, pending = false }: { score: number; pending?: boolea
 
 const BILLING_OFF = { enabled: false, pro: true, planLocked: [] as string[] }
 
-export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, isAdmin = false, githubConnected, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, isAdmin = false, githubConnected, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF, mrrSettings = null }: Props) {
   const isPlanLocked = (m: Pick<ModuleData, 'type'>) => billing.planLocked.includes(m.type)
   const [notesOpen, setNotesOpen] = useState(false)
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
@@ -684,6 +687,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   // "Foundation is ready" notice after a run finishes (also shown in the tab title).
   const [readyNotice, setReadyNotice] = useState<{ modId: string; name: string } | null>(null)
   const [roadOpen, setRoadOpen] = useState(false)
+  const [mrr, setMrr] = useState(mrrSettings) // kept here so a saved price survives closing the panel
   const [focusModId, setFocusModId] = useState<string | null>(null)
   useEffect(() => {
     if (!readyNotice) return
@@ -2254,6 +2258,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 )
               })}
             </div>
+            <ProjectedMrr userCount={userCount} loading={posthogLoading} initial={mrr} onSaved={setMrr} />
           </div>
         )}
 

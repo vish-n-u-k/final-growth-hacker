@@ -11,6 +11,8 @@ import {
   Zap, ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle,
 } from 'lucide-react'
 import DailySummaryCard from './daily/DailySummaryCard'
+import ProjectedMrr from '@/components/ProjectedMrr'
+import type { MrrSettings } from '@/lib/mrr-shared'
 
 /* ── Types ────────────────────────────────────────────── */
 export interface ModuleHealth {
@@ -420,9 +422,10 @@ interface Props {
   brand: { id: string; name: string }
   modules: ModuleHealth[]
   dailyEmailEnabled: boolean
+  mrrSettings?: MrrSettings | null
 }
 
-export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: initialDailyEmail }: Props) {
+export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: initialDailyEmail, mrrSettings }: Props) {
   const router = useRouter()
   const [view, setView] = useState<'users' | 'website'>('users')
   const [range, setRange] = useState('7d')
@@ -694,7 +697,12 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
           <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
             Growth &amp; retention
           </h2>
-          {/* MRR / ARR / churn tiles return once Stripe metrics exist; "Coming soon" placeholders were just noise. */}
+          {/* Projected from the user's own price × live users. Real MRR / churn need billing data we don't have yet. */}
+          {data?.posthogConnected && (
+            <div style={{ marginBottom: 14 }}>
+              <ProjectedMrr initial={mrrSettings} />
+            </div>
+          )}
           {retentionData || funnelData ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {retentionData && <RetentionCurve data={retentionData} loading={phLoading} />}
