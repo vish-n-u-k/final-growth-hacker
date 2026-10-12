@@ -27,7 +27,7 @@ const NAV: NavGroup[] = [
   { label: 'Work', items: [
     { href: '/gmail-hub', label: 'Outreach', icon: 'mail', lockedType: 'gmail-outreach', pro: true },
     { href: '/social', label: 'Social Studio', icon: 'image', pro: true },
-    { href: '/dashboard/meta-ads/blueprint', label: 'Meta Ads', icon: 'megaphone', lockedType: 'meta-ads', pro: true },
+    { href: '/dashboard/meta-ads/blueprint', label: 'Meta Ads', icon: 'megaphone', pro: true }, // live for everyone (no Growth Path progress lock)
     { href: '/lead-finder', label: 'Lead Finder', icon: 'target', pro: true },
     { href: '/reminders', label: 'Reminders', icon: 'bell', pro: true },
   ]},
