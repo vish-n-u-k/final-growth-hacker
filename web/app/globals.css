@@ -6891,3 +6891,28 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   .gp-live:not(.gp-live--ready) .gp-live-title { display: flex; align-items: center; gap: 9px; font-size: 16px; }
   .gp-live:not(.gp-live--ready):not(.gp-live--compact) .gp-live-title::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--green); flex-shrink: 0; animation: gp-pulse 1.6s ease-out infinite; }
 }
+
+/* ── After an analysis: toast + highlighted card; live users live in the header chip ── */
+.gp-toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 60; display: inline-flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px); padding: 10px 10px 10px 16px; border-radius: 12px; background: var(--text); color: var(--bg); font-size: 13.5px; font-weight: 500; box-shadow: 0 10px 30px rgba(0,0,0,.2); animation: gp-toast-in .25s ease-out; }
+@media (min-width: 901px) { .gp-toast { left: calc(50% + 120px); } }
+.gp-toast-check { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--green); color: #fff; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.gp-toast-x { background: none; border: none; color: inherit; opacity: .6; font-size: 18px; line-height: 1; padding: 2px 6px; cursor: pointer; }
+.gp-toast-x:hover { opacity: 1; }
+@keyframes gp-toast-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+.gp-col .level.gp-focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 45%, transparent) !important; transition: box-shadow .4s ease; }
+#gp-module { scroll-margin-top: 12px; }
+
+button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
+.gp-users-chip-count { color: var(--text) !important; font-variant-numeric: tabular-nums; }
+.gp-users-chip.is-open { border-color: var(--green); background: var(--accent); }
+@media (max-width: 760px) {
+  .gp-toast { bottom: 14px; font-size: 13px; }
+  .gp-col .level.gp-focus { border-radius: 12px !important; }
+  .gp-users-chip .gp-users-chip-label { display: inline; }
+}
+@media (prefers-reduced-motion: reduce) { .gp-toast { animation: none; } }
+/* Toast: centre with margins instead of translate, so it can use the full width before wrapping. */
+.gp-toast { left: 16px; right: 16px; margin: 0 auto; width: fit-content; transform: none; animation-name: gp-toast-up; }
+@media (min-width: 901px) { .gp-toast { left: 256px; right: 16px; } }
+@keyframes gp-toast-up { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }

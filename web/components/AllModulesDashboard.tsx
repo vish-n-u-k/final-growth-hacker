@@ -683,6 +683,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const [clock, setClock] = useState(() => Date.now())
   // "Foundation is ready" notice after a run finishes (also shown in the tab title).
   const [readyNotice, setReadyNotice] = useState<{ modId: string; name: string } | null>(null)
+  const [roadOpen, setRoadOpen] = useState(false)
+  const [focusModId, setFocusModId] = useState<string | null>(null)
   useEffect(() => {
     if (!readyNotice) return
     const t = setTimeout(() => setReadyNotice(null), 10_000)
@@ -1905,6 +1907,42 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     row.scrollLeft = Math.max(0, tab.offsetLeft - row.offsetLeft - 16)
   }, [selectedPhase?.name])
 
+  // Once a step has results, the checklist is the page: the next-step box only shows before the
+  // first analysis, or when the next step needs Pro.
+  const hasAnyAnalysis = railModules.some(m => !!(lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt))
+
+  // Items still to fix in a module (not done, not skipped).
+  const openItemCount = (m: ModuleData) => {
+    if (m.definition.dynamic) return (dynItemsMap[m.id] ?? []).filter(i => !i.aiVerified && !i.userChecked && !(i as { userSkipped?: boolean }).userSkipped).length
+    const st = statesMap[m.id] ?? {}
+    return (m.definition.categories as ModuleCategoryDefinition[])
+      .flatMap(c => c.subCategories.flatMap(sc => sc.items))
+      .filter(i => !st[i.slug]?.aiVerified && !st[i.slug]?.userChecked && !st[i.slug]?.userSkipped).length
+  }
+
+  // A run just finished: bring that module's checklist into focus, with its weakest section open.
+  useEffect(() => {
+    if (!readyNotice) return
+    const m = allModulesData.find(x => x.id === readyNotice.modId)
+    if (!m) return
+    setOpenModules(new Set([m.id]))
+    if (!m.definition.dynamic) {
+      const worst = (m.definition.categories as ModuleCategoryDefinition[])
+        .map(c => ({ c, st: getCatStats(c, statesMap[m.id] ?? {}) }))
+        .filter(x => x.st.total > 0 && x.st.done < x.st.total)
+        .sort((a, b) => a.st.pct - b.st.pct)[0]
+      if (worst) setOpenCatsMap(prev => ({ ...prev, [m.id]: new Set([worst.c.slug]) }))
+    }
+    setFocusModId(m.id)
+    const t = setTimeout(() => setFocusModId(null), 2200)
+    requestAnimationFrame(() => {
+      const card = document.getElementById('gp-module')
+      // Only move the page if the user is still up top; don't yank someone who's reading the checklist.
+      if (card && window.scrollY < 200 && card.getBoundingClientRect().top > 80) card.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+    return () => clearTimeout(t)
+  }, [readyNotice?.modId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // "Your next step": one plain-language instruction so a new user knows what to do first.
 
   const freeTotal = railModules.filter(x => !x.definition.comingSoon && !isPlanLocked(x)).length
@@ -2085,8 +2123,15 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           </div>
         </div>
         <div className="gp-top-actions">
-          {/* Live users from PostHog. Connected: the Road to 500 strip below shows the count; until then, one small prompt. */}
-          {!connectedIntegrations['posthog'] && (
+          {/* Live users from PostHog. Connected: the count, which opens Road to 500; until then, one small prompt. */}
+          {connectedIntegrations['posthog'] ? (
+            <button type="button" className={`gp-users-chip${roadOpen ? ' is-open' : ''}`} onClick={() => setRoadOpen(o => !o)} aria-expanded={roadOpen} title="Road to 500 users">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+              <b className="gp-users-chip-count">{posthogLoading ? '…' : userCount.toLocaleString()}</b>
+              <span className="gp-users-chip-label">users</span>
+              {nextPhase && <span className="gp-users-chip-cta">{Math.max(nextPhase.min - userCount, 0).toLocaleString()} to {nextPhase.min}</span>}
+            </button>
+          ) : (
             <Link href="/settings?tab=integrations" className="gp-users-chip" title="Connect PostHog (read-only) to track your live user count">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
               <span className="gp-users-chip-label">Live users</span>
@@ -2138,14 +2183,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               </ol>
               <p className="gp-live-note">{liveRun.slow ? 'Taking longer than usual, but still working. ' : 'Usually 1–3 minutes. '}You can leave this page; it keeps going.</p>
             </section>
-          ) : readyNotice ? (
-            <section className="gp-live gp-live--ready" role="status" aria-live="polite">
-              <div className="gp-live-top"><span className="gp-live-label">Done</span></div>
-              <h2 className="gp-live-title">✓ {readyNotice.name} is ready</h2>
-              <p className="gp-live-note">Start with the sections marked in red.</p>
-              <button className="gp-next-cta" onClick={() => { setReadyNotice(null); document.getElementById('gp-module')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>See my checklist →</button>
-            </section>
-          ) : (
+          ) : (!hasAnyAnalysis || nextStep.cta) && (
           <section className={`gp-next${nextStep.busy ? ' gp-next--busy' : ''}`} aria-live="polite">
             <div className="gp-next-body">
               <div className="gp-next-label">
@@ -2159,6 +2197,19 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           </section>
           )}
 
+          {/* Finished: a toast that sits over the page (takes no space) while the checklist comes into focus. */}
+          {readyNotice && !liveMod && (() => {
+            const m = allModulesData.find(x => x.id === readyNotice.modId)
+            const left = m ? openItemCount(m) : 0
+            return (
+              <div className="gp-toast" role="status">
+                <span className="gp-toast-check" aria-hidden="true">✓</span>
+                <span>{readyNotice.name} updated{left > 0 ? ` · ${left} thing${left === 1 ? '' : 's'} to fix` : ' · all done'}</span>
+                <button type="button" className="gp-toast-x" onClick={() => setReadyNotice(null)} aria-label="Dismiss">×</button>
+              </div>
+            )
+          })()}
+
           {/* Scrolled past the panel: keep the run visible as a floating pill. */}
           {liveMod && liveRun && !liveOnScreen && (
             <button className="gp-live-pill" onClick={() => liveRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
@@ -2168,8 +2219,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             </button>
           )}
 
-        {/* Road to 500 users: shown once PostHog is connected (before that it's an empty track). */}
-        {connectedIntegrations['posthog'] && (
+        {/* Road to 500 users: opened from the live-users chip in the header. */}
+        {connectedIntegrations['posthog'] && roadOpen && (
           <div className="gp-journey">
             <div className="gp-journey-top">
               <div className="gp-journey-status">
@@ -2469,7 +2520,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     <div className="levels-lock-separator-line" />
                   </div>
                 )}
-              <div className={`level ${stateClass}${isDone ? ' done' : ''}${isOpen ? ' open' : ''}${planLocked ? ' pro-locked' : ''}`}>
+              <div className={`level ${stateClass}${isDone ? ' done' : ''}${isOpen ? ' open' : ''}${planLocked ? ' pro-locked' : ''}${focusModId === modData.id ? ' gp-focus' : ''}`}>
 
                 {/* Level head */}
                 <div className="level-head" onClick={() => toggleModule(modData.id)}>
