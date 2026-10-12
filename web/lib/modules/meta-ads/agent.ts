@@ -180,7 +180,7 @@ export async function analyzeMetaAds(
     system: META_ADS_MODULE.systemPrompt,
     prompt,
     maxTokens: 8000,
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-sonnet-4-6',
   })
 
   let results: DynamicModuleAnalysisResult[]

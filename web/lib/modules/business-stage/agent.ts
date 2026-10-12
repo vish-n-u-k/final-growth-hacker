@@ -128,7 +128,7 @@ export async function analyzeBusinessStage(
     system: BUSINESS_STAGE_MODULE.systemPrompt,
     prompt,
     maxTokens: 12000,
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-sonnet-4-6',
   })
 
   let parsed: unknown[]
