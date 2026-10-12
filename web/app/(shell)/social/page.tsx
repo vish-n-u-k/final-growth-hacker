@@ -1,21 +1,15 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getBrandForUser } from '@/lib/server-session'
 import { db } from '@/lib/db'
-import { brands, brandIntegrations, modules, frektoScheduledPosts } from '@/lib/db/schema'
+import { brandIntegrations, modules, frektoScheduledPosts } from '@/lib/db/schema'
 import { eq, and, desc } from 'drizzle-orm'
 import SocialStudioPage from '@/components/SocialStudioPage'
 
 export default async function SocialPage() {
-  const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  const user = session?.user
+  const user = await getSessionUser()
   if (!user) redirect('/login')
 
-  const [brand] = await db
-    .select()
-    .from(brands)
-    .where(eq(brands.userId, user.id))
-    .limit(1)
+  const brand = await getBrandForUser(user.id)
   if (!brand) redirect('/onboarding')
 
   const [frektoInt] = await db

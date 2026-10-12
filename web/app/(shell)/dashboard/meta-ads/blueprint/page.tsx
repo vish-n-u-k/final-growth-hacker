@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getSessionUser, getBrandForUser } from '@/lib/server-session'
 import { db } from '@/lib/db'
-import { brands, modules, moduleCategories, moduleItems } from '@/lib/db/schema'
+import { modules, moduleCategories, moduleItems } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import NextCampaignBlueprintPage from '@/components/NextCampaignBlueprintPage'
 import type { DBItemFull } from '@/lib/modules/types'
@@ -50,11 +50,10 @@ async function fetchWebsiteData(websiteUrl: string): Promise<{ ogTags: OGTagResu
 }
 
 export default async function BlueprintPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
 
-  const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
+  const brand = await getBrandForUser(user.id)
   if (!brand) redirect('/onboarding')
 
   const [metaMod] = await db

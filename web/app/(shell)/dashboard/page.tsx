@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation'
+import { getSessionUser, getBrandForUser, getAccessCached } from '@/lib/server-session'
 import { isAdminEmail } from '@/lib/admin'
-import { getAccess, planLockedTypes } from '@/lib/billing/plan'
-import { createClient } from '@/lib/supabase/server'
+import { planLockedTypes } from '@/lib/billing/plan'
 import { db } from '@/lib/db'
-import { brands, modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit, analysisRequests, itemLinks } from '@/lib/db/schema'
+import { modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit, analysisRequests, itemLinks } from '@/lib/db/schema'
 import { eq, inArray, and } from 'drizzle-orm'
 import { MODULE_MAP, MODULE_REGISTRY } from '@/lib/modules/registry'
 import AllModulesDashboard, { type ModuleData } from '@/components/AllModulesDashboard'
@@ -11,14 +11,13 @@ import { type DBItemState } from '@/components/ModuleDashboard'
 import type { DBItemFull } from '@/lib/modules/types'
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  const user = session?.user
+  const user = await getSessionUser()
   if (!user) redirect('/login')
 
   // Run brand lookup and pending analysis requests in parallel — both only need user.id
-  const [[brand], pendingRequestsRaw] = await Promise.all([
-    db.select().from(brands).where(eq(brands.userId, user.id)).limit(1),
+  // (the brand lookup is shared with the shell layout for this request)
+  const [brand, pendingRequestsRaw] = await Promise.all([
+    getBrandForUser(user.id),
     db.select({ moduleId: analysisRequests.moduleId })
       .from(analysisRequests)
       .where(and(eq(analysisRequests.userId, user.id), eq(analysisRequests.status, 'pending')))
@@ -27,6 +26,8 @@ export default async function DashboardPage() {
   const pendingModuleIds = pendingRequestsRaw.map(r => r.moduleId)
 
   if (!brand) redirect('/onboarding')
+  // Start the plan check now; it only needs the brand, so it overlaps the module queries below.
+  const accessPromise = getAccessCached(brand.id, user.email)
 
   let allModulesRaw = await db
     .select()
@@ -243,7 +244,7 @@ export default async function DashboardPage() {
   }
   allModulesData.sort((a, b) => a.order - b.order)
 
-  const access = await getAccess(brand.id, user.email)
+  const access = await accessPromise
   const billing = {
     enabled: access.enabled,
     pro: access.pro,

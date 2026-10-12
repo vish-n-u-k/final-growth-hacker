@@ -1,27 +1,21 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { db } from '@/lib/db'
-import { brands } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { getSessionUser, getBrandForUser, getAccessCached } from '@/lib/server-session'
 import { getLockedModuleTypes } from '@/lib/modules/lock-state'
 import AppSidebar from '@/components/AppSidebar'
 import Link from 'next/link'
-import { getAccess } from '@/lib/billing/plan'
 
 // Persistent sidebar shell for every authenticated app route (growth path, the
 // work tools, insights, settings). Pages keep their own auth/brand checks —
 // this layout's redirects are a first line of defense so the shell itself
 // never renders for a signed-out user or one with no brand yet.
 export default async function ShellLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  const user = session?.user
+  const user = await getSessionUser()
   if (!user) redirect('/login')
 
-  const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
+  const brand = await getBrandForUser(user.id)
   if (!brand) redirect('/onboarding')
 
-  const [lockedSet, access] = await Promise.all([getLockedModuleTypes(brand.id), getAccess(brand.id, user.email)])
+  const [lockedSet, access] = await Promise.all([getLockedModuleTypes(brand.id), getAccessCached(brand.id, user.email)])
   const lockedTypes = Array.from(lockedSet)
 
   return (

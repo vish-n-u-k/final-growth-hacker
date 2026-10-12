@@ -84,12 +84,24 @@ export default function AppSidebar({
   // Free users (billing on): the Pro tools move into one "Pro" group with a single Upgrade link,
   // rather than a badge on every item. The pages themselves show the upgrade screen.
   const showPro = plan.enabled && !plan.pro
-  const groups: (NavGroup & { pro?: boolean })[] = showPro
+  const allItems = NAV.flatMap(g => g.items)
+  const baseGroups: (NavGroup & { pro?: boolean })[] = !showPro
+    ? [
+        { label: '', items: allItems.filter(i => i.href === '/dashboard') },
+        { label: 'Tools', items: allItems.filter(i => i.href !== '/dashboard') },
+      ]
+    : showPro
     ? [
         { label: 'Grow', items: NAV.flatMap(g => g.items).filter(i => !i.pro) },
         { label: 'Pro', items: NAV.flatMap(g => g.items).filter(i => i.pro), pro: true },
       ].filter(g => g.items.length > 0)
     : NAV
+  // Parked tools sit together in one quiet group at the bottom instead of between the live ones.
+  const soonItems = NAV.flatMap(g => g.items).filter(i => isComingSoon(i.href))
+  const groups: (NavGroup & { pro?: boolean; soon?: boolean })[] = [
+    ...baseGroups.map(g => ({ ...g, items: g.items.filter(i => !isComingSoon(i.href)) })).filter(g => g.items.length > 0),
+    ...(soonItems.length ? [{ label: 'Coming soon', items: soonItems, soon: true }] : []),
+  ]
   const actualPath = usePathname()
   // The link just clicked counts as active straight away, so the menu reacts before the page arrives.
   const [pendingHref, setPendingHref] = useState<string | null>(null)
@@ -161,22 +173,21 @@ export default function AppSidebar({
         </button>
       </div>
       {groups.map((group) => (
-        <div className={`app-sidebar-group${'pro' in group && group.pro ? ' app-sidebar-group--pro' : ''}`} key={group.label}>
+        <div className={`app-sidebar-group${'pro' in group && group.pro ? ' app-sidebar-group--pro' : ''}${'soon' in group && group.soon ? ' app-sidebar-group--soon' : ''}`} key={group.label}>
           {'pro' in group && group.pro ? (
             <div className="app-sidebar-glabel app-sidebar-glabel--pro">
               <span>Pro</span>
               <Link href="/pricing" className="app-sidebar-upgrade" onClick={closeOnNav}>Upgrade</Link>
             </div>
-          ) : (
+          ) : group.label ? (
             <div className="app-sidebar-glabel">{group.label}</div>
-          )}
+          ) : null}
           {group.items.map((item) => {
             if (isComingSoon(item.href)) {
               return (
                 <span className="app-navitem app-navitem-locked app-navitem-soon" key={item.href} title="Coming soon">
                   <NavIcon name={item.icon} />
                   {item.label}
-                  <span className="app-soon-tag">Soon</span>
                 </span>
               )
             }

@@ -1,20 +1,16 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
-import { db } from '@/lib/db'
-import { brands } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
-import { getAccess } from '@/lib/billing/plan'
+import { getSessionUser, getBrandForUser, getAccessCached } from '@/lib/server-session'
 import { MODULE_MAP } from '@/lib/modules/registry'
 
 // Wraps a Pro-only area (used by the tool folders' layout.tsx). Renders the children unless
 // billing is on and the brand is on Free, in which case it shows an upgrade screen instead.
 export default async function ProGate({ feature, blurb, children }: { feature: string; blurb: string; children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // Shares the layout's user/brand/plan lookups for this request (no extra Auth round trip).
+  const user = await getSessionUser()
   if (!user) return <>{children}</> // the page's own auth check redirects
-  const [brand] = await db.select({ id: brands.id }).from(brands).where(eq(brands.userId, user.id)).limit(1)
+  const brand = await getBrandForUser(user.id)
   if (!brand) return <>{children}</>
-  const access = await getAccess(brand.id, user.email)
+  const access = await getAccessCached(brand.id, user.email)
   if (access.pro) return <>{children}</>
   const freeNames = access.freeModules.map(t => MODULE_MAP[t]?.name ?? t)
 

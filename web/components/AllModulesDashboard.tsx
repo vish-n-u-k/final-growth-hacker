@@ -2027,7 +2027,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       <div className="gp-unlock">
         <div className="gp-unlock-row">
           <span>Goal <b>80%</b>{unlocksNext ? <> · unlocks {next.name}</> : null}</span>
-          <b className="gp-unlock-num">{score}%</b>
         </div>
         <div className="gp-unlock-track"><div className="gp-unlock-fill" style={{ width: `${Math.min(score / 80, 1) * 100}%` }} /></div>
       </div>

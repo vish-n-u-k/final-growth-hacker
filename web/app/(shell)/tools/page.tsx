@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation'
+import { getSessionUser, getBrandForUser } from '@/lib/server-session'
 import Link from 'next/link'
 import { isComingSoon } from '@/lib/features'
-import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands, brandIntegrations } from '@/lib/db/schema'
+import { brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import ToolCardStatus from './ToolCardStatus'
 
@@ -19,11 +19,10 @@ interface Tool {
 }
 
 export default async function ToolsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
 
-  const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
+  const brand = await getBrandForUser(user.id)
   if (!brand) redirect('/onboarding')
 
   const [gmailInteg] = await db
