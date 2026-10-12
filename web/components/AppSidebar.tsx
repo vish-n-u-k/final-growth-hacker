@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link, { useLinkStatus } from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useRef, useState, type JSX } from 'react'
@@ -56,6 +56,12 @@ function NavIcon({ name }: { name: string }) {
   )
 }
 
+// Spinner shown inside a nav link while its page is still loading.
+function PendingHint() {
+  const { pending } = useLinkStatus()
+  return <span aria-hidden="true" className={`app-nav-pending${pending ? ' is-pending' : ''}`} />
+}
+
 // Growth Path owns every /dashboard/* route except the ones other nav items claim
 // for themselves (Meta Ads lives under /dashboard/meta-ads).
 function isActive(pathname: string, href: string): boolean {
@@ -83,7 +89,11 @@ export default function AppSidebar({
         { label: 'Pro', items: NAV.flatMap(g => g.items).filter(i => i.pro), pro: true },
       ].filter(g => g.items.length > 0)
     : NAV
-  const pathname = usePathname()
+  const actualPath = usePathname()
+  // The link just clicked counts as active straight away, so the menu reacts before the page arrives.
+  const [pendingHref, setPendingHref] = useState<string | null>(null)
+  useEffect(() => { setPendingHref(null) }, [actualPath])
+  const pathname = pendingHref ?? actualPath
   const router = useRouter()
   const [signingOut, setSigningOut] = useState(false)
   const handleSignOut = async () => {
@@ -98,7 +108,7 @@ export default function AppSidebar({
   const closeBtnRef = useRef<HTMLButtonElement>(null)
 
   // Close when the route changes (a nav item was tapped).
-  useEffect(() => { setOpen(false) }, [pathname])
+  useEffect(() => { setOpen(false) }, [actualPath])
 
   useEffect(() => {
     if (!open) return
@@ -117,6 +127,7 @@ export default function AppSidebar({
 
   // Tapping the page you're already on doesn't change the route, so close explicitly.
   const closeOnNav = () => setOpen(false)
+  const navTo = (href: string) => () => { setOpen(false); if (href !== actualPath) setPendingHref(href) }
 
   return (
     <>
@@ -176,9 +187,10 @@ export default function AppSidebar({
               )
             }
             return (
-              <Link href={item.href} className={`app-navitem${active ? ' active' : ''}`} key={item.href} onClick={closeOnNav} aria-current={active ? 'page' : undefined}>
+              <Link href={item.href} className={`app-navitem${active ? ' active' : ''}`} key={item.href} onClick={navTo(item.href)} aria-current={active ? 'page' : undefined}>
                 <NavIcon name={item.icon} />
                 {item.label}
+                <PendingHint />
               </Link>
             )
           })}
@@ -190,9 +202,10 @@ export default function AppSidebar({
             <span className="pro-badge">Pro</span> Your plan
           </Link>
         )}
-        <Link href="/settings" className={`app-navitem${pathname.startsWith('/settings') ? ' active' : ''}`} onClick={closeOnNav}>
+        <Link href="/settings" className={`app-navitem${pathname.startsWith('/settings') ? ' active' : ''}`} onClick={navTo('/settings')}>
           <NavIcon name="gear" />
           Settings
+          <PendingHint />
         </Link>
         <button type="button" className="app-navitem app-navitem--btn" onClick={handleSignOut} disabled={signingOut}>
           <NavIcon name="logout" />

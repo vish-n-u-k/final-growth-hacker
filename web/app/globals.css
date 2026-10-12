@@ -6916,3 +6916,15 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .gp-toast { left: 16px; right: 16px; margin: 0 auto; width: fit-content; transform: none; animation-name: gp-toast-up; }
 @media (min-width: 901px) { .gp-toast { left: 256px; right: 16px; } }
 @keyframes gp-toast-up { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
+
+/* ── Page loading inside the app shell ── */
+.shell-loading-top { padding: 22px max(32px, calc((100% - 1140px) / 2 + 36px)); border-bottom: 1px solid var(--line); background: var(--card); }
+.shell-loading-body { display: flex; flex-direction: column; gap: 14px; max-width: 1140px; margin: 0 auto; padding: 24px 36px; }
+@media (max-width: 760px) {
+  .shell-loading-top { padding: 16px; }
+  .shell-loading-body { padding: 16px; }
+}
+
+/* Sidebar: a clicked item highlights at once, with a small spinner until its page arrives. */
+.app-nav-pending { width: 12px; height: 12px; margin-left: auto; flex-shrink: 0; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; opacity: 0; }
+.app-nav-pending.is-pending { opacity: .7; animation: md-spin .7s linear infinite; }
