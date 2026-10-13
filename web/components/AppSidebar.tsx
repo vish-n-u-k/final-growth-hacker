@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { isComingSoon } from '@/lib/features'
 import InstallAppButton from '@/components/InstallAppButton'
+import ThemeToggle from '@/components/ThemeToggle'
 import { useEffect, useRef, useState, type JSX } from 'react'
 
 interface NavItem {
@@ -238,6 +239,7 @@ export default function AppSidebar({
         <div className="app-sidebar-workspace">
           <div className="app-sidebar-avatar">{brandName.slice(0, 1).toUpperCase()}</div>
           <div className="app-sidebar-wsname">{brandName}</div>
+          <span className="app-sidebar-theme"><ThemeToggle /></span>
         </div>
       </div>
     </nav>

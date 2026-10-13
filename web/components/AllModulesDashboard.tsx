@@ -1,15 +1,13 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
+import { Fragment, useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
-import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull } from '@/lib/modules/types'
+import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull, type DynamicModuleCategoryDefinition } from '@/lib/modules/types'
 import ExportPrepModal from '@/components/ExportPrepModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import ThemeToggle from '@/components/ThemeToggle'
 import ComingSoon from '@/components/ComingSoon'
 import { type DBItemState } from './ModuleDashboard'
 import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/registry'
@@ -125,6 +123,44 @@ function getDynamicCatStats(categorySlug: string, items: DBItemFull[]) {
   const doneWeight = catItems.filter((i) => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
   const done = catItems.filter((i) => i.aiVerified || i.userChecked).length
   return { total: catItems.length, done, totalWeight, doneWeight, aiWeight, pct: totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0 }
+}
+
+// A category "needs attention" while it still has open items; otherwise it is passing.
+function catNeedsAttention(stats: { total: number; done: number }) {
+  return stats.total > 0 && stats.done < stats.total
+}
+
+// Summary for the module header: which areas still need work, how many pass, and the single
+// open item worth doing first (highest weight). Read-only: it only looks at the data the cards already use.
+function summarizeCats(def: ModuleDefinition, states: Record<string, DBItemState>, dynItems: DBItemFull[]) {
+  let needs = 0
+  let pass = 0
+  let openItems = 0
+  let first: { catSlug: string; catLabel: string; itemSlug: string; label: string; weight: number } | null = null
+  for (const cat of def.categories as (ModuleCategoryDefinition | DynamicModuleCategoryDefinition)[]) {
+    if (cat.slug === 'next-campaign' || (cat as DynamicModuleCategoryDefinition).comingSoon) continue
+    let open: { slug: string; label: string; weight: number }[]
+    let stats: { total: number; done: number }
+    if (def.dynamic) {
+      stats = getDynamicCatStats(cat.slug, dynItems)
+      open = dynItems
+        .filter(i => i.categorySlug === cat.slug && !i.userSkipped && !i.aiVerified && !i.userChecked)
+        .map(i => ({ slug: i.slug, label: i.label, weight: i.weight }))
+    } else {
+      stats = getCatStats(cat as ModuleCategoryDefinition, states)
+      open = (cat as ModuleCategoryDefinition).subCategories
+        .flatMap(sub => sub.items)
+        .filter(i => !states[i.slug]?.userSkipped && !states[i.slug]?.aiVerified && !states[i.slug]?.userChecked)
+        .map(i => ({ slug: i.slug, label: i.label, weight: i.weight }))
+    }
+    if (catNeedsAttention(stats)) needs++
+    else if (stats.total > 0) pass++
+    openItems += open.length
+    for (const it of open) {
+      if (!first || it.weight > first.weight) first = { catSlug: cat.slug, catLabel: cat.label, itemSlug: it.slug, label: it.label, weight: it.weight }
+    }
+  }
+  return { needs, pass, openItems, first }
 }
 
 function renderMd(text: string, color: string) {
@@ -295,7 +331,7 @@ function LevelRing({ score, pending = false }: { score: number; pending?: boolea
 
 const BILLING_OFF = { enabled: false, pro: true, planLocked: [] as string[] }
 
-export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, isAdmin = false, githubConnected, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF, mrrSettings = null }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], isAdmin = false, githubConnected, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF, mrrSettings = null }: Props) {
   const isPlanLocked = (m: Pick<ModuleData, 'type'>) => billing.planLocked.includes(m.type)
   const [notesOpen, setNotesOpen] = useState(false)
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
@@ -943,11 +979,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     }
   }
 
-  const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
+  // Jump to one open item: opens its category and expands it.
+  const focusItem = (modId: string, catSlug: string, itemSlug: string) => {
+    setOpenCatsMap(prev => ({ ...prev, [modId]: new Set([catSlug]) }))
+    setExpandedItems(new Set([`${modId}:${itemSlug}`]))
+    window.setTimeout(() => {
+      document.querySelector('.gp-col .md-cat-open')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 60)
   }
 
   const downloadModuleMd = (modData: ModuleData, states: Record<string, DBItemState>, dynItems: DBItemFull[]) => {
@@ -1903,14 +1941,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       : baseTitleRef.current
   }, [liveMod?.id, readyNotice]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Phones scroll the phase tabs sideways: keep the selected one in view (scrolls the row only, not the page).
-  useEffect(() => {
-    const tab = document.querySelector<HTMLElement>('.gp-phase--selected')
-    const row = tab?.parentElement
-    if (!tab || !row || row.scrollWidth <= row.clientWidth) return
-    row.scrollLeft = Math.max(0, tab.offsetLeft - row.offsetLeft - 16)
-  }, [selectedPhase?.name])
-
   // Once a step has results, the checklist is the page: the next-step box only shows before the
   // first analysis, or when the next step needs Pro.
   const hasAnyAnalysis = railModules.some(m => !!(lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt))
@@ -2132,7 +2162,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
               <b className="gp-users-chip-count">{posthogLoading ? '…' : userCount.toLocaleString()}</b>
               <span className="gp-users-chip-label">users</span>
-              {nextPhase && <span className="gp-users-chip-cta">{Math.max(nextPhase.min - userCount, 0).toLocaleString()} to {nextPhase.min}</span>}
+              {nextPhase && <span className="gp-users-chip-cta">{Math.max(nextPhase.min - userCount, 0).toLocaleString()} more to reach {nextPhase.min}</span>}
             </button>
           ) : (
             <Link href="/settings?tab=integrations" className="gp-users-chip" title="Connect PostHog (read-only) to track your live user count">
@@ -2142,7 +2172,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <span className="gp-users-chip-cta">Connect PostHog</span>
             </Link>
           )}
-          <ThemeToggle />
           {isAdmin && <button className="gp-icon-btn" onClick={() => setNotesOpen(true)} title="Notes (team only)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -2151,13 +2180,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <line x1="16" y1="17" x2="8" y2="17" />
             </svg>
           </button>}
-          <button className="gp-icon-btn mob-hide" onClick={handleLogout} title={`Sign out (${userEmail})`} aria-label="Sign out">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          </button>
         </div>
       </div>
 
@@ -2385,93 +2407,99 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           )
         })()}
 
-        {/* Module step rail */}
-        <div className="gp-path">
+        {/* Roadmap rail + the selected module. The rail replaces the old stage tabs and step pills:
+            each stage is a group, and the selected stage lists its modules underneath. */}
+        <div className="gp-shell">
+        <nav className="gp-rail" aria-label="Growth roadmap">
+          <div className="gp-rail-title">Your roadmap</div>
           {(() => {
             const renderPhase = (p: typeof phases[number]) => {
               const isSel = p === selectedPhase
+              const gated = p.locked || p.pro
+              const allDone = !gated && p.total > 0 && p.done === p.total
               return (
-                <button
-                  key={p.name}
-                  className={`gp-phase${p.locked || p.pro ? ' gp-phase--locked' : ''}${isSel ? ' gp-phase--selected' : ''}`}
-                  onClick={() => {
-                    const target = p.mods.find(m => !m.definition.comingSoon && !isModuleLocked(m) && !isStepDone(m)) ?? p.mods[0]
-                    setOpenModules(new Set([target.id]))
-                  }}
-                  aria-pressed={isSel}
-                >
-                  <span className="gp-phase-top">
-                    <span>{phases.indexOf(p) + 1} · {p.name}</span>
-                    <span className="gp-phase-count">
-                      {p.locked || p.pro ? (
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-label="Locked"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                      ) : `${p.done}/${p.total}`}
+                <div key={p.name} className={`gp-rstage${isSel ? ' is-sel' : ''}${gated ? ' is-locked' : ''}${allDone ? ' is-done' : ''}`}>
+                  <button
+                    type="button"
+                    className="gp-rstage-hd"
+                    onClick={() => {
+                      const target = p.mods.find(m => !m.definition.comingSoon && !isModuleLocked(m) && !isStepDone(m)) ?? p.mods[0]
+                      setOpenModules(new Set([target.id]))
+                    }}
+                    aria-expanded={isSel}
+                    title={p.blurb}
+                  >
+                    <svg className="gp-rstage-chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    <span className="gp-rstage-name">{phases.indexOf(p) + 1} · {p.name}</span>
+                    <span className="gp-rstage-count">
+                      {gated ? (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-label="Locked"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                      ) : allDone ? '✓' : `${p.done}/${p.total}`}
                     </span>
-                  </span>
-                  <span className="gp-phase-blurb">{p.blurb}</span>
-                  <span className="gp-phase-bar"><i style={{ width: `${p.locked || p.pro ? 0 : p.pct}%` }} /></span>
-                </button>
+                  </button>
+                  {isSel && (
+                    <div className="gp-rstage-mods">
+                      {p.mods.map(m => {
+                        const locked = isModuleLocked(m)
+                        const done = isStepDone(m)
+                        const soon = !!m.definition.comingSoon
+                        const pro = isPlanLocked(m)
+                        const state = done ? 'done' : locked || soon || pro ? 'locked' : 'open'
+                        const score = liveScores[m.id] ?? 0
+                        const analysed = (lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt)
+                        return (
+                          <button
+                            type="button"
+                            key={m.id}
+                            className={`gp-rmod gp-rmod--${state}${m.id === selectedModule?.id ? ' gp-rmod--selected' : ''}`}
+                            onClick={() => setOpenModules(new Set([m.id]))}
+                            aria-current={m.id === selectedModule?.id ? 'page' : undefined}
+                            title={pro ? `${m.name} — GrowJin Pro` : locked ? `${m.name} — locked` : `${m.name} — ${score}%`}
+                          >
+                            <span className="gp-rmod-dot" aria-hidden="true">
+                              {done ? (
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                              ) : state === 'locked' ? (
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2.4" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>
+                              ) : null}
+                            </span>
+                            <span className="gp-rmod-name">{m.name}</span>
+                            {soon ? <span className="gp-rmod-pct">Soon</span>
+                              : !locked && !pro && <span className="gp-rmod-pct">{analysed ? `${score}%` : '—'}</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               )
             }
-            // Free plan: phases made only of Pro modules sit together under one "Unlock with Pro" heading
-            // instead of each carrying its own badge.
+            // Free plan: stages made only of Pro modules sit together under one "Unlock with Pro" heading.
             const freePhases = phases.filter(p => !p.pro)
             const proPhases = phases.filter(p => p.pro)
-            if (proPhases.length === 0) return <div className="gp-phases">{phases.map(renderPhase)}</div>
-            // A single free phase needs no card of its own: its steps are the pills below.
-            if (freePhases.length <= 1) return null
             return (
-              <div className="gp-phases gp-phases--split">
+              <>
                 {freePhases.map(renderPhase)}
-                <div className="gp-pro-group" style={{ flexGrow: proPhases.length }}>
-                  <div className="gp-pro-group-hd">
-                    <span className="gp-pro-group-label">Unlock with Pro</span>
-                    <Link href="/pricing" className="gp-pro-group-cta">See plans</Link>
-                  </div>
-                  <div className="gp-pro-group-grid" style={{ gridTemplateColumns: `repeat(${proPhases.length}, minmax(0, 1fr))` }}>
+                {proPhases.length > 0 && (
+                  <div className="gp-rail-pro">
+                    <div className="gp-rail-pro-hd">
+                      <span>Unlock with Pro</span>
+                      <Link href="/pricing" className="gp-rail-pro-cta">See plans</Link>
+                    </div>
                     {proPhases.map(renderPhase)}
                   </div>
-                </div>
-              </div>
+                )}
+              </>
             )
           })()}
-          <div className="gp-pills">
-            {selectedPhase?.mods.map(m => {
-              const locked = isModuleLocked(m)
-              const done = isStepDone(m)
-              const soon = !!m.definition.comingSoon
-              const pro = isPlanLocked(m)
-              const state = done ? 'done' : locked || soon || pro ? 'locked' : 'open'
-              const score = liveScores[m.id] ?? 0
-              return (
-                <button
-                  key={m.id}
-                  className={`gp-pill gp-pill--${state}${m.id === selectedModule?.id ? ' gp-pill--selected' : ''}`}
-                  onClick={() => setOpenModules(new Set([m.id]))}
-                  title={pro ? `${m.name} — GrowJin Pro` : locked ? `${m.name} — locked` : `${m.name} — ${score}%`}
-                >
-                  <span className="gp-pill-dot">
-                    {done ? (
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    ) : state === 'locked' ? (
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                    ) : railModules.indexOf(m) + 1}
-                  </span>
-                  {m.name}
-                  {soon ? <span className="gp-pill-pct">Soon</span>
-                    : !locked && !pro && <span className="gp-pill-pct">{(lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt) ? `${score}%` : '—'}</span>}
-                </button>
-              )
-            })}
-          </div>
           {proStepCount > 0 && (
             <Link href="/pricing" className="gp-pro-strip">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-              <span className="gp-pro-strip-text"><b>{proStepCount} more steps with Pro</b><span className="gp-pro-strip-sub"> · {phases.filter(p => p.pro).map(p => p.name).join(' · ')}</span></span>
+              <span className="gp-pro-strip-text"><b>{proStepCount} more steps with Pro</b></span>
               <span className="gp-pro-strip-cta">See plans →</span>
             </Link>
           )}
-        </div>
+        </nav>
 
         <div className={`gp-main${showStageCard ? '' : ' gp-main--solo'}`}>
         <div className="gp-col">
@@ -2985,6 +3013,33 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       )
                     })()}
 
+                    {/* What needs doing, at a glance: counts, plus the one item to start with. */}
+                    {!def.comingSoon && !needsSetup && !!effectiveLastAnalyzedAt && modData.type !== 'business-stage' && modData.type !== 'gmail-outreach' && (() => {
+                      const sum = summarizeCats(def, states, dynItems)
+                      if (sum.needs + sum.pass === 0) return null
+                      return (
+                        <div className="gp-sum">
+                          <div className="gp-sum-main">
+                            <div className="gp-sum-eyebrow">Result</div>
+                            <b className="gp-sum-head">
+                              {sum.needs === 0 ? 'Everything here is done' : `${sum.needs} ${sum.needs === 1 ? 'area needs' : 'areas need'} attention`}
+                            </b>
+                            <span className="gp-sum-sub">
+                              {sum.pass} passing{sum.openItems > 0 ? ` · ${sum.openItems} ${sum.openItems === 1 ? 'thing' : 'things'} to fix` : ''}
+                            </span>
+                          </div>
+                          {sum.first && (
+                            <div className="gp-sum-next">
+                              <div className="gp-sum-eyebrow">Fix this first</div>
+                              <b className="gp-sum-head">{sum.first.label}</b>
+                              <span className="gp-sum-sub">{sum.first.catLabel}</span>
+                              <button type="button" className="gp-sum-cta" onClick={() => focusItem(modData.id, sum.first!.catSlug, sum.first!.itemSlug)}>Show me how</button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+
                     <div className={`md-cats${reanalyzing && !effectiveLastAnalyzedAt ? ' gp-cats--loading' : ''}`} style={(modData.type === 'business-stage' || modData.type === 'gmail-outreach') ? { display: 'none' } : needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
                       {def.comingSoon ? (
                         <ComingSoon
@@ -2997,9 +3052,17 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                           {[...def.categories].filter(cat => cat.slug !== 'next-campaign').sort((a, b) => {
                             const aCs = !!(a as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? 1 : 0
                             const bCs = !!(b as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? 1 : 0
-                            return aCs - bCs
-                          }).map((cat) => {
+                            if (aCs !== bCs) return aCs - bCs
+                            // Once analysed, areas that still need work come before the ones that pass.
+                            if (!effectiveLastAnalyzedAt) return 0
+                            return Number(!catNeedsAttention(getDynamicCatStats(a.slug, dynItems))) - Number(!catNeedsAttention(getDynamicCatStats(b.slug, dynItems)))
+                          }).map((cat, ci, arr) => {
                             const stats = getDynamicCatStats(cat.slug, dynItems)
+                            const needsHere = catNeedsAttention(stats)
+                            const prevNeeds = ci > 0 ? catNeedsAttention(getDynamicCatStats(arr[ci - 1].slug, dynItems)) : null
+                            const groupLabel = effectiveLastAnalyzedAt && !(cat as DynamicModuleCategoryDefinition).comingSoon && prevNeeds !== needsHere
+                              ? <div className="gp-catlabel">{needsHere ? 'Needs attention' : 'Passing'}</div> : null
+                            const isPassCat = !!effectiveLastAnalyzedAt && !needsHere && !(cat as DynamicModuleCategoryDefinition).comingSoon
                             const isOpenCat = openCats.has(cat.slug)
                             const catItems = [...dynItems.filter(i => i.categorySlug === cat.slug)].sort((a, b) => {
                               const aKey = a.userSkipped ? 2 : (a.aiVerified || a.userChecked) ? 1 : 0
@@ -3010,9 +3073,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                             {
                               const isCatComingSoon = !!(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon
                               return (
+                              <Fragment key={cat.slug}>
+                              {groupLabel}
                               <div
-                                key={cat.slug}
-                                className={`md-cat${isOpenCat ? ' md-cat-open' : ''}${isCatComingSoon ? ' md-cat-coming-soon' : ''}`}
+                                className={`md-cat${isOpenCat ? ' md-cat-open' : ''}${isCatComingSoon ? ' md-cat-coming-soon' : ''}${isPassCat ? ' md-cat-pass' : ''}`}
                                 style={isCatComingSoon ? undefined : { borderLeftColor: ringColor(stats.pct) }}
                               >
                                 <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => !isCatComingSoon && toggleCat(modData.id, cat.slug)} style={isCatComingSoon ? { cursor: 'default' } : {}}>
@@ -3058,6 +3122,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                                   </div>
                                 )}
                               </div>
+                              </Fragment>
                             )
                             }
                           })}
@@ -3081,13 +3146,22 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                             </a>
                           )}
                         </>
-                        : (def.categories as ModuleCategoryDefinition[]).map((cat) => {
+                        : [...(def.categories as ModuleCategoryDefinition[])].sort((a, b) => {
+                            // Once analysed, areas that still need work come before the ones that pass.
+                            if (!effectiveLastAnalyzedAt) return 0
+                            return Number(!catNeedsAttention(getCatStats(a, states))) - Number(!catNeedsAttention(getCatStats(b, states)))
+                          }).map((cat, ci, arr) => {
                             const stats = getCatStats(cat, states)
                             const isOpenCat = openCats.has(cat.slug)
+                            const needsHere = catNeedsAttention(stats)
+                            const prevNeeds = ci > 0 ? catNeedsAttention(getCatStats(arr[ci - 1], states)) : null
+                            const groupLabel = effectiveLastAnalyzedAt && prevNeeds !== needsHere
+                              ? <div className="gp-catlabel">{needsHere ? 'Needs attention' : 'Passing'}</div> : null
                             return (
+                              <Fragment key={cat.slug}>
+                              {groupLabel}
                               <div
-                                key={cat.slug}
-                                className={`md-cat${isOpenCat ? ' md-cat-open' : ''}`}
+                                className={`md-cat${isOpenCat ? ' md-cat-open' : ''}${effectiveLastAnalyzedAt && !needsHere ? ' md-cat-pass' : ''}`}
                                 style={{ borderLeftColor: effectiveLastAnalyzedAt ? ringColor(stats.pct) : 'var(--line)' }}
                               >
                                 <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => toggleCat(modData.id, cat.slug)}>
@@ -3160,6 +3234,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                                   </div>
                                 )}
                               </div>
+                              </Fragment>
                             )
                           })
                       }
@@ -3214,6 +3289,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             {bsItemsAll.length > 0 ? 'View full playbook' : 'Get your playbook'}
           </button>
         </aside>}
+        </div>
         </div>
 
       </div>
