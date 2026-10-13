@@ -7002,25 +7002,26 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 /* ── Today: "What happened" (components/TodayActivity.tsx) ── */
 .ta { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
 .ta--connect { flex-direction: row; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
-.ta-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.ta-title { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
+.ta-wrap { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.ta-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; }
+.ta-title { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); white-space: nowrap; }
 .ta-toggle { display: inline-flex; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
-.ta-toggle button { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--text-dim); padding: 4px 10px; border-radius: 6px; cursor: pointer; }
+.ta-toggle button { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--text-dim); padding: 4px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
 .ta-toggle button.is-on { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.06); }
 .ta-muted { margin: 0; font-size: 12.5px; color: var(--text-dim); line-height: 1.45; }
 .ta-quiet { font-size: 13.5px; }
 .ta-connect { font-size: 13px; font-weight: 600; color: var(--accent-foreground); text-decoration: none; white-space: nowrap; }
 .ta-dim { opacity: .55; transition: opacity .15s; }
 .ta-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.ta-stat { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--bg-soft); min-height: 52px; box-sizing: border-box; }
+.ta-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 12px; border-radius: 10px; background: var(--bg-soft); min-height: 52px; box-sizing: border-box; }
 .ta-stat--skel { animation: ta-pulse 1.2s ease-in-out infinite; }
 @keyframes ta-pulse { 50% { opacity: .5; } }
-.ta-num { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -.4px; line-height: 1.1; display: flex; align-items: baseline; gap: 6px; }
-.ta-label { font-size: 12px; color: var(--text-dim); }
+.ta-num { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -.4px; line-height: 1.1; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; row-gap: 0; }
+.ta-label { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ta-delta { font-size: 11px; font-weight: 600; letter-spacing: 0; }
 .ta-delta--up { color: var(--accent-foreground); }
 .ta-delta--dn { color: var(--text-faint); }
-.ta-block { margin-top: 14px; }
+.ta-block { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
 .ta-sub { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
 .ta-people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .ta-person { display: flex; align-items: center; gap: 10px; min-width: 0; width: 100%; border: 0; background: none; font: inherit; text-align: left; color: inherit; padding: 6px 8px; margin: -6px -8px; border-radius: 10px; cursor: pointer; box-sizing: content-box; }
@@ -7058,11 +7059,20 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .ta-chip { font-size: 12px; color: var(--text-dim); background: var(--bg-soft); border: 1px solid var(--line); border-radius: 99px; padding: 3px 9px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ta-chip b { color: var(--text); font-weight: 600; margin-left: 3px; }
 @media (max-width: 600px) {
-  .ta { padding: 14px; }
+  .ta { padding: 14px; gap: 12px; }
+  .ta-panel { margin-top: 8px; }
+  .ta-person-main .ta-muted { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
   .ta-stats { gap: 6px; }
   .ta-stat { padding: 8px 10px; }
   .ta-num { font-size: 19px; }
   .ta-bars li { grid-template-columns: 92px 1fr 30px; }
+}
+@media (max-width: 360px) {
+  .ta-num { font-size: 17px; }
+  .ta-delta { font-size: 10px; }
+  .ta-stat { padding: 8px; }
+  .ta-label { font-size: 11px; }
+
 }
 .ta-more-link { align-self: flex-start; font-size: 13px; font-weight: 600; color: var(--accent-foreground); text-decoration: none; }
 .ta-more-link:hover { text-decoration: underline; }

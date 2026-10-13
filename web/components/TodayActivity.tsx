@@ -94,13 +94,15 @@ export default function TodayActivity() {
 
   if (data && !data.connected) {
     return (
-      <section className="ta ta--connect">
-        <div>
-          <div className="ta-title">What happened</div>
-          <p className="ta-muted">See who visits, who signs up and where they come from.</p>
+      <div className="ta-wrap">
+        <div className="ta-head">
+          <div className="ta-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>What happened</div>
         </div>
-        <Link href="/settings?tab=integrations" className="ta-connect">Connect PostHog →</Link>
-      </section>
+        <section className="ta ta--connect">
+          <p className="ta-muted">See who visits, who signs up and where they come from.</p>
+          <Link href="/settings?tab=integrations" className="ta-connect">Connect PostHog →</Link>
+        </section>
+      </div>
     )
   }
 
@@ -108,14 +110,15 @@ export default function TodayActivity() {
   const quiet = data && data.visitors.current === 0 && data.signups.count === 0
 
   return (
-    <section className="ta" aria-busy={loading}>
-      <div className="ta-head">
-        <div className="ta-title">What happened</div>
-        <div className="ta-toggle" role="tablist" aria-label="Period">
-          <button type="button" role="tab" aria-selected={days === 1} className={days === 1 ? 'is-on' : ''} onClick={() => setDays(1)}>24 hours</button>
-          <button type="button" role="tab" aria-selected={days === 7} className={days === 7 ? 'is-on' : ''} onClick={() => setDays(7)}>7 days</button>
-        </div>
+    <div className="ta-wrap">
+    <div className="ta-head">
+      <div className="ta-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>What happened</div>
+      <div className="ta-toggle" role="tablist" aria-label="Period">
+        <button type="button" role="tab" aria-selected={days === 1} className={days === 1 ? 'is-on' : ''} onClick={() => setDays(1)}>24h</button>
+        <button type="button" role="tab" aria-selected={days === 7} className={days === 7 ? 'is-on' : ''} onClick={() => setDays(7)}>7 days</button>
       </div>
+    </div>
+    <section className="ta" aria-busy={loading}>
 
       {loading && !data ? (
         <div className="ta-stats">
@@ -132,7 +135,7 @@ export default function TodayActivity() {
             </div>
             <div className="ta-stat">
               <span className="ta-num">{data.signups.count.toLocaleString()} <Delta current={data.signups.count} prior={data.signups.prior} /></span>
-              <span className="ta-label">new signups</span>
+              <span className="ta-label">signups</span>
             </div>
             <div className="ta-stat">
               <span className="ta-num">{data.returning.toLocaleString()}</span>
@@ -205,5 +208,6 @@ export default function TodayActivity() {
         <Link href="/analytics" className="ta-more-link">See full analytics →</Link>
       )}
     </section>
+    </div>
   )
 }

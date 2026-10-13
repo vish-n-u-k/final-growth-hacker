@@ -247,7 +247,7 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
       )}
 
       {card.type === 'reminder' ? (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="td-card-actions">
           <button
             className="td-cta-btn"
             onClick={handleMarkDone}
@@ -259,12 +259,12 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
               <polyline points="20 6 9 17 4 12"/>
             </svg>
           </button>
-          <a href="/reminders" className="td-cta-btn" style={{ background: 'transparent', color: 'var(--text-dim)', border: '1px solid var(--line)', boxShadow: 'none' }}>
+          <a href="/reminders" className="td-ghost-btn">
             View all
           </a>
         </div>
       ) : (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="td-card-actions">
           {isInline ? (
             <button className="td-cta-btn" onClick={() => { onCta(); onToggleExpand() }}>
               {expanded ? 'Close' : card.type === 'outreach' ? 'Write outreach emails' : card.type === 'blog' ? 'Write the blog post' : 'Create a post'}
@@ -400,7 +400,7 @@ function PlatformCard({ p }: { p: PlatformStats }) {
             <span className="td-platform-name" style={{ opacity: 0.5 }}>{p.name}</span>
           </div>
           {connectProvider && (
-            <a href={`/api/connect/${connectProvider}?return_to=/today`} className="td-connect-btn" style={{ borderColor: c.color, color: c.color }}>
+            <a href={`/api/connect/${connectProvider}?return_to=/today`} className="td-connect-btn">
               Connect
             </a>
           )}
@@ -499,7 +499,8 @@ function SocialAnalytics() {
               {platforms.filter(p => !p.connected && PLATFORM_CONNECT[p.provider]).map(p => {
                 const c = PLATFORM_COLORS[p.provider] ?? { bg: '#88888818', color: '#888' }
                 return (
-                  <a key={p.provider} href={`/api/connect/${PLATFORM_CONNECT[p.provider]}?return_to=/today`} className="td-connect-btn" style={{ borderColor: c.color, color: c.color }}>
+                  <a key={p.provider} href={`/api/connect/${PLATFORM_CONNECT[p.provider]}?return_to=/today`} className="td-connect-btn">
+                    <span className="td-connect-dot" style={{ background: c.color }} aria-hidden="true" />
                     {p.name}
                   </a>
                 )
@@ -1027,7 +1028,8 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
         ) : (
           <>
             {/* Today's focus (current growth bottleneck) */}
-            {focus && (
+            {/* Card #1 is usually this same growth focus; only show the box when it adds something. */}
+            {focus && cards[0]?.type !== 'play' && (
               <div className="td-card-why" style={{ marginBottom: 12 }}>
                 <span className="td-why-label">Today&apos;s focus</span>
                 {focus.summary}
@@ -1332,6 +1334,8 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
           transition: opacity .15s; margin-top: 4px;
         }
         .td-cta-btn:hover { opacity: .88; }
+        .td-card-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+        .td-card-actions .td-cta-btn { margin-top: 0; }
 
         /* ghost button */
         .td-ghost-btn {
@@ -1494,14 +1498,14 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
           font-size: 12px; color: var(--text-faint); margin: 0;
         }
         .td-connect-btn {
-          font-size: 12px; font-weight: 600;
-          padding: 4px 12px; border-radius: 7px;
-          border: 1px solid; background: transparent;
-          text-decoration: none; cursor: pointer;
-          transition: opacity .15s;
-          flex-shrink: 0;
+          display: inline-flex; align-items: center; gap: 7px;
+          font-size: 13px; font-weight: 600; padding: 6px 12px;
+          border-radius: 8px; border: 1px solid var(--line); background: var(--card);
+          color: var(--text); text-decoration: none; white-space: nowrap;
+          transition: border-color .12s, background .12s;
         }
-        .td-connect-btn:hover { opacity: .75; }
+        .td-connect-btn:hover { border-color: var(--green); background: var(--bg-soft); }
+        .td-connect-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
         /* light overrides */
         html.light .td-nav-link--on { background: #d0eadb; color: #179a50; }
@@ -1509,7 +1513,6 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
         html.light .td-cta-btn { background: #179a50; }
         html.light .td-streak-num { color: #179a50; }
         html.light .td-allgood-ring { border-color: #179a50; color: #179a50; }
-        html.light .td-section-label { color: #7aaa8a; }
         html.light .td-feed-status--done { background: #d0eadb; color: #179a50; }
 
         /* weekly blog */
@@ -1619,6 +1622,10 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
           .td-nav { padding: 0 16px; }
           .td-hero-right { flex-wrap: wrap; }
           .td-feed-row { flex-wrap: wrap; gap: 6px; }
+          .td-card, .td-blog-card, .td-impact-card { padding: 18px 16px; }
+          .td-connect-row { padding: 12px 14px; }
+          .td-card-actions .td-cta-btn { flex: 1 1 100%; justify-content: center; }
+          .td-card-actions .td-ghost-btn { flex: 1 1 0; justify-content: center; padding: 9px 10px; }
         }
       `}</style>
     </div>
