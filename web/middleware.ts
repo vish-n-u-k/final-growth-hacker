@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-export async function middleware(request: NextRequest) {
+async function handle(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
   // Without these, createServerClient throws and Vercel shows a bare MIDDLEWARE_INVOCATION_FAILED page.
@@ -71,6 +71,21 @@ export async function middleware(request: NextRequest) {
   }
 
   return supabaseResponse
+}
+
+// Any failure in here (e.g. a malformed Supabase URL) otherwise surfaces only as Vercel's bare
+// MIDDLEWARE_INVOCATION_FAILED page. Log it and show the message so the cause is visible.
+export async function middleware(request: NextRequest) {
+  try {
+    return await handle(request)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[middleware] failed:', err)
+    return new NextResponse(`This deployment couldn't start: ${message}`, {
+      status: 500,
+      headers: { 'content-type': 'text/plain; charset=utf-8' },
+    })
+  }
 }
 
 export const config = {
