@@ -1,8 +1,9 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
 import { cn } from "@/lib/utils";
+import PwaRegister from '@/components/PwaRegister'
 
 // One typeface across the app: Geist for everything (headings, body), Geist Mono only for code-like bits.
 // --font-display / --font-body are mapped onto Geist in globals.css so older rules keep working.
@@ -14,7 +15,14 @@ export const metadata: Metadata = {
   description: 'Your road to 500 users',
   icons: {
     icon: '/growjinlogo.svg',
+    apple: '/icons/apple-touch-icon.png',
   },
+  // iPhone "Add to Home Screen": open full-screen with its own name instead of as a Safari tab.
+  appleWebApp: { capable: true, title: 'GrowJin', statusBarStyle: 'default' },
+}
+
+export const viewport: Viewport = {
+  themeColor: '#f7f7f5',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -29,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         {children}
+        <PwaRegister />
         <Script src="/fb-widget.js" strategy="lazyOnload" />
       </body>
     </html>
