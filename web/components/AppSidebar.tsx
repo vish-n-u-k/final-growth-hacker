@@ -5,7 +5,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { isComingSoon } from '@/lib/features'
 import InstallAppButton from '@/components/InstallAppButton'
-import { useEffect, useRef, useState, type JSX } from 'react'
+import ThemeToggle from '@/components/ThemeToggle'
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
+import { useRoadmap } from '@/components/RoadmapContext'
+import { buildRoadmapPhases, currentRoadmapType, progressColor, roadmapState, type RoadmapModule } from '@/lib/modules/roadmap'
 
 interface NavItem {
   href: string
@@ -74,14 +77,101 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(href + '/')
 }
 
+// Growth Path roadmap: the four stages with their modules. The stage holding the selected module
+// is open; finished stages stay closed until opened. Picking a module while on the Growth Path page
+// switches it in place (no server round trip); from any other page it links to /dashboard?module=...
+function RoadmapNav({ modules, pathname, onNavigate, showUpgrade }: {
+  modules: RoadmapModule[]
+  pathname: string
+  onNavigate: () => void
+  showUpgrade: boolean
+}) {
+  const { live, pickModule } = useRoadmap()
+  const phases = useMemo(() => buildRoadmapPhases(modules, live.scores), [modules, live.scores])
+  const onDashboard = pathname === '/dashboard'
+  const inGrowthPath = isActive(pathname, '/dashboard')
+  const currentType = currentRoadmapType(modules, live.scores)
+  const selectedType = inGrowthPath ? (live.selectedType ?? currentType) : null
+  // Every stage starts closed and only one is open at a time. The stage holding the module you are on
+  // gets an accent colour so you can still tell where you are.
+  const selectedPhase = selectedType ? phases.find(p => p.mods.some(m => m.type === selectedType))?.name ?? null : null
+  const [openStage, setOpenStage] = useState<string | null>(null)
+  const toggle = (name: string) => setOpenStage(prev => (prev === name ? null : name))
+  const hasPro = phases.some(p => p.pro)
+
+  return (
+    <div className="app-rm" role="group" aria-label="Growth Path roadmap">
+      <Link href="/dashboard" className="app-rm-title" onClick={onNavigate}>Your roadmap</Link>
+      {phases.map((p, i) => {
+        const isOpen = openStage === p.name
+        const gated = p.locked || p.pro
+        return (
+          <div key={p.name} className={`app-rm-stage${isOpen ? ' is-open' : ''}${gated ? ' is-locked' : ''}${p.name === selectedPhase ? ' has-selected' : ''}`}>
+            <button type="button" className="app-rm-hd" aria-expanded={isOpen} onClick={() => toggle(p.name)} title={p.blurb}>
+              <svg className="app-rm-chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <span className="app-rm-name">{i + 1} · {p.name}</span>
+              <span className="app-rm-count">
+                {gated ? (
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-label="Locked"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+                ) : `${p.done}/${p.total}`}
+              </span>
+              {!gated && (
+                <span className="app-rm-bar" aria-hidden="true"><i style={{ width: `${p.pct}%`, background: progressColor(p.pct) }} /></span>
+              )}
+            </button>
+            {isOpen && (
+              <div className="app-rm-mods">
+                {p.mods.map(m => {
+                  const st = roadmapState(m, live.scores)
+                  const state = st.done ? 'done' : st.locked || st.soon || st.pro ? 'locked' : 'open'
+                  const selected = m.type === selectedType
+                  return (
+                    <Link
+                      key={m.id}
+                      href={`/dashboard?module=${encodeURIComponent(m.type)}`}
+                      className={`app-rm-mod app-rm-mod--${state}${selected ? ' is-selected' : ''}`}
+                      aria-current={selected ? 'page' : undefined}
+                      title={st.pro ? `${m.name} — GrowJin Pro` : st.locked ? `${m.name} — locked until the module before it is further along` : st.soon ? `${m.name} — coming soon` : `${m.name} — ${st.score}%`}
+                      onClick={e => {
+                        onNavigate()
+                        if (onDashboard) { e.preventDefault(); pickModule(m.type) }
+                      }}
+                    >
+                      <span
+                        className={`app-rm-dot${state !== 'locked' && m.analysed ? ' is-scored' : ''}`}
+                        style={state !== 'locked' && m.analysed ? { background: progressColor(st.score), borderColor: progressColor(st.score) } : undefined}
+                        aria-hidden="true"
+                      >
+                        {state === 'locked' ? (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2.4" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>
+                        ) : null}
+                      </span>
+                      <span className="app-rm-modname">{m.name}</span>
+                      {st.soon ? <span className="app-rm-pct">Soon</span>
+                        : !st.locked && !st.pro && <span className="app-rm-pct">{m.analysed ? `${st.score}%` : '—'}</span>}
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
+      {showUpgrade && hasPro && <Link href="/pricing" className="app-rm-upgrade" onClick={onNavigate}>Unlock more steps with Pro →</Link>}
+    </div>
+  )
+}
+
 export default function AppSidebar({
   brandName,
   lockedTypes,
   plan = { enabled: false, pro: true },
+  roadmap = [],
 }: {
   brandName: string
   lockedTypes: string[]
   plan?: { enabled: boolean; pro: boolean }
+  roadmap?: RoadmapModule[]
 }) {
   // Free users (billing on): the Pro tools move into one "Pro" group with a single Upgrade link,
   // rather than a badge on every item. The pages themselves show the upgrade screen.
@@ -99,9 +189,13 @@ export default function AppSidebar({
       ].filter(g => g.items.length > 0)
     : NAV
   // Parked tools sit together in one quiet group at the bottom instead of between the live ones.
-  const soonItems = NAV.flatMap(g => g.items).filter(i => isComingSoon(i.href))
+  // Today ("what do I do now?") always sits first, above the roadmap, whether it is live or parked.
+  const todayItem = allItems.find(i => i.href === '/today')
+  const notToday = (i: NavItem) => i.href !== '/today'
+  const soonItems = NAV.flatMap(g => g.items).filter(i => isComingSoon(i.href) && notToday(i))
   const groups: (NavGroup & { pro?: boolean; soon?: boolean })[] = [
-    ...baseGroups.map(g => ({ ...g, items: g.items.filter(i => !isComingSoon(i.href)) })).filter(g => g.items.length > 0),
+    ...(todayItem ? [{ label: '', items: [todayItem] }] : []),
+    ...baseGroups.map(g => ({ ...g, items: g.items.filter(i => !isComingSoon(i.href) && notToday(i)) })).filter(g => g.items.length > 0),
     ...(soonItems.length ? [{ label: 'Coming soon', items: soonItems, soon: true }] : []),
   ]
   const actualPath = usePathname()
@@ -174,8 +268,8 @@ export default function AppSidebar({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
         </button>
       </div>
-      {groups.map((group) => (
-        <div className={`app-sidebar-group${'pro' in group && group.pro ? ' app-sidebar-group--pro' : ''}${'soon' in group && group.soon ? ' app-sidebar-group--soon' : ''}`} key={group.label}>
+      {groups.map((group, gi) => (
+        <div className={`app-sidebar-group${'pro' in group && group.pro ? ' app-sidebar-group--pro' : ''}${'soon' in group && group.soon ? ' app-sidebar-group--soon' : ''}`} key={`${group.label}-${gi}`}>
           {'pro' in group && group.pro ? (
             <div className="app-sidebar-glabel app-sidebar-glabel--pro">
               <span>Pro</span>
@@ -185,6 +279,10 @@ export default function AppSidebar({
             <div className="app-sidebar-glabel">{group.label}</div>
           ) : null}
           {group.items.map((item) => {
+            // Growth Path expands into the roadmap (stages and their modules).
+            if (item.href === '/dashboard' && roadmap.length > 0) {
+              return <RoadmapNav key={item.href} modules={roadmap} pathname={pathname} onNavigate={closeOnNav} showUpgrade={showPro} />
+            }
             if (isComingSoon(item.href)) {
               return (
                 <span className="app-navitem app-navitem-locked app-navitem-soon" key={item.href} title="Coming soon">
@@ -238,6 +336,7 @@ export default function AppSidebar({
         <div className="app-sidebar-workspace">
           <div className="app-sidebar-avatar">{brandName.slice(0, 1).toUpperCase()}</div>
           <div className="app-sidebar-wsname">{brandName}</div>
+          <span className="app-sidebar-theme"><ThemeToggle /></span>
         </div>
       </div>
     </nav>

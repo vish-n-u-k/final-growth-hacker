@@ -1,15 +1,15 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
-import { useRouter } from 'next/navigation'
+import { Fragment, useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useRoadmap } from '@/components/RoadmapContext'
+import { progressColor as ringColor, GROWTH_PHASES } from '@/lib/modules/roadmap'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
-import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull } from '@/lib/modules/types'
+import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull, type DynamicModuleCategoryDefinition } from '@/lib/modules/types'
 import ExportPrepModal from '@/components/ExportPrepModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import ThemeToggle from '@/components/ThemeToggle'
 import ComingSoon from '@/components/ComingSoon'
 import { type DBItemState } from './ModuleDashboard'
 import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/registry'
@@ -18,8 +18,7 @@ import { CONFLICT_GROUPS, SLUG_TOPIC } from '@/lib/modules/conflict-map'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 import FrektoPostingSectionImport from '@/components/FrektoPostingSection'
 import NotesDrawer from '@/components/NotesDrawer'
-import ProjectedMrr from '@/components/ProjectedMrr'
-import type { MrrSettings } from '@/lib/mrr-shared'
+import { JOURNEY_PHASES } from '@/lib/journey'
 
 function renderMdStep(step: string): React.ReactNode {
   const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
@@ -78,7 +77,6 @@ interface Props {
   conflictLinks?: { itemIdA: string; itemIdB: string }[]
   // Free/Pro (lib/billing/plan.ts). Billing off → { enabled: false, pro: true, planLocked: [] }.
   billing?: { enabled: boolean; pro: boolean; planLocked: string[] }
-  mrrSettings?: MrrSettings | null // Projected MRR price (lib/mrr.ts)
 }
 
 function timeAgo(iso: string | null): string {
@@ -125,6 +123,53 @@ function getDynamicCatStats(categorySlug: string, items: DBItemFull[]) {
   const doneWeight = catItems.filter((i) => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
   const done = catItems.filter((i) => i.aiVerified || i.userChecked).length
   return { total: catItems.length, done, totalWeight, doneWeight, aiWeight, pct: totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0 }
+}
+
+// One audit category as the list and the detail panel need it.
+type CatRow = {
+  slug: string
+  label: string
+  stats: { total: number; done: number; pct: number }
+  soon: boolean
+  body: React.ReactNode
+}
+
+// A category "needs attention" while it still has open items; otherwise it is passing.
+function catNeedsAttention(stats: { total: number; done: number }) {
+  return stats.total > 0 && stats.done < stats.total
+}
+
+// Summary for the module header: which areas still need work, how many pass, and the single
+// open item worth doing first (highest weight). Read-only: it only looks at the data the cards already use.
+function summarizeCats(def: ModuleDefinition, states: Record<string, DBItemState>, dynItems: DBItemFull[]) {
+  let needs = 0
+  let pass = 0
+  let openItems = 0
+  let first: { catSlug: string; catLabel: string; catPct: number; itemSlug: string; label: string; weight: number } | null = null
+  for (const cat of def.categories as (ModuleCategoryDefinition | DynamicModuleCategoryDefinition)[]) {
+    if (cat.slug === 'next-campaign' || (cat as DynamicModuleCategoryDefinition).comingSoon) continue
+    let open: { slug: string; label: string; weight: number }[]
+    let stats: { total: number; done: number; pct: number }
+    if (def.dynamic) {
+      stats = getDynamicCatStats(cat.slug, dynItems)
+      open = dynItems
+        .filter(i => i.categorySlug === cat.slug && !i.userSkipped && !i.aiVerified && !i.userChecked)
+        .map(i => ({ slug: i.slug, label: i.label, weight: i.weight }))
+    } else {
+      stats = getCatStats(cat as ModuleCategoryDefinition, states)
+      open = (cat as ModuleCategoryDefinition).subCategories
+        .flatMap(sub => sub.items)
+        .filter(i => !states[i.slug]?.userSkipped && !states[i.slug]?.aiVerified && !states[i.slug]?.userChecked)
+        .map(i => ({ slug: i.slug, label: i.label, weight: i.weight }))
+    }
+    if (catNeedsAttention(stats)) needs++
+    else if (stats.total > 0) pass++
+    openItems += open.length
+    for (const it of open) {
+      if (!first || it.weight > first.weight) first = { catSlug: cat.slug, catLabel: cat.label, catPct: stats.pct, itemSlug: it.slug, label: it.label, weight: it.weight }
+    }
+  }
+  return { needs, pass, openItems, first }
 }
 
 function renderMd(text: string, color: string) {
@@ -184,23 +229,6 @@ function renderMd(text: string, color: string) {
   return <div style={{ fontSize: '14.5px' }}>{out}</div>
 }
 
-// Same stage ranges the Business Stage module classifies brands into.
-const JOURNEY_PHASES = [
-  { min: 0,   max: 10,       range: '0–10',    name: 'First customers' },
-  { min: 10,  max: 50,       range: '10–50',   name: 'Early adopters' },
-  { min: 50,  max: 100,      range: '50–100',  name: 'One channel that works' },
-  { min: 100, max: 250,      range: '100–250', name: 'Scaling up' },
-  { min: 250, max: Infinity, range: '250–500', name: 'New markets' },
-]
-
-// Display-only grouping of the module chain (by registry `order`). Locking stays per-module.
-const GROWTH_PHASES = [
-  { maxOrder: 3,        name: 'Get set up',    blurb: 'Foundation, website, SEO' },
-  { maxOrder: 7,        name: 'Get found',     blurb: 'AI search, social, brand' },
-  { maxOrder: 11,       name: 'Win attention', blurb: 'Content, competitors, outreach, ads' },
-  { maxOrder: Infinity, name: 'Scale',         blurb: 'Analytics, email, audience' },
-]
-
 function InlineIntegrationForm({ intDef, onConnected }: { intDef: IntegrationDefinition; onConnected: () => void }) {
   const [values, setValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
@@ -253,12 +281,6 @@ function InlineIntegrationForm({ intDef, onConnected }: { intDef: IntegrationDef
   )
 }
 
-function ringColor(score: number): string {
-  if (score >= 85) return '#4ade80'
-  if (score >= 65) return '#fbbf24'
-  if (score >= 35) return '#fb923c'
-  return '#f43f5e'
-}
 
 function SparkleIcon({ size = 12, style }: { size?: number; style?: React.CSSProperties }) {
   return (
@@ -277,15 +299,14 @@ function LevelRing({ score, pending = false }: { score: number; pending?: boolea
     <svg width="100%" height="100%" viewBox="0 0 46 46" style={{ display: 'block' }}>
       <circle
         cx="23" cy="23" r={r} fill="none"
-        stroke={color} strokeWidth="4" strokeLinecap="round"
+        strokeWidth="4" strokeLinecap="round"
         strokeDasharray={circ}
         strokeDashoffset={score === 0 ? circ : offset}
-        style={{ transform: 'rotate(-90deg)', transformOrigin: '23px 23px', transition: 'stroke-dashoffset .5s ease' }}
+        style={{ stroke: color, transform: 'rotate(-90deg)', transformOrigin: '23px 23px', transition: 'stroke-dashoffset .5s ease' }}
       />
       <text
         x="23" y="23" textAnchor="middle" dominantBaseline="central"
-        fill={color}
-        style={{ fontSize: '12px', fontWeight: 800, fontFamily: 'inherit', letterSpacing: '-0.5px' }}
+        style={{ fill: color, fontSize: '12px', fontWeight: 800, fontFamily: 'inherit', letterSpacing: '-0.5px' }}
       >
         {pending ? '—' : `${score}%`}
       </text>
@@ -295,7 +316,7 @@ function LevelRing({ score, pending = false }: { score: number; pending?: boolea
 
 const BILLING_OFF = { enabled: false, pro: true, planLocked: [] as string[] }
 
-export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], userEmail, isAdmin = false, githubConnected, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF, mrrSettings = null }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], isAdmin = false, githubConnected, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
   const isPlanLocked = (m: Pick<ModuleData, 'type'>) => billing.planLocked.includes(m.type)
   const [notesOpen, setNotesOpen] = useState(false)
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
@@ -322,7 +343,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     return map
   }, [allModulesData])
 
+  const searchParams = useSearchParams()
+  const roadmap = useRoadmap()
   const [openModules, setOpenModules] = useState<Set<string>>(() => {
+    // Linked from the sidebar roadmap while on another page: open that module.
+    const wanted = searchParams.get('module')
+    const linked = wanted ? allModulesData.find(m => m.type === wanted) : undefined
+    if (linked) return new Set([linked.id])
     // Open the first module that isn't locked (previous scored < 80%)
     const sorted = [...allModulesData].sort((a, b) => a.order - b.order)
     const first = sorted.find(m => {
@@ -336,6 +363,16 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     Object.fromEntries(allModulesData.map(m => [m.id, new Set<string>()]))
   )
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  // Phones and tablets show the category list as an accordion and fold the 'Passing' group away.
+  const [narrow, setNarrow] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1000px)')
+    const update = () => setNarrow(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+  const [passOpenMap, setPassOpenMap] = useState<Record<string, boolean>>({})
   const [verifyingItems, setVerifyingItems] = useState<Set<string>>(new Set())
   const [applyingFix, setApplyingFix] = useState<Set<string>>(new Set())
   const [reanalyzingMap, setReanalyzingMap] = useState<Record<string, boolean>>({})
@@ -432,6 +469,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   }
 
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
+  const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null)
   const [prUrlMap, setPrUrlMap] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.agentPrUrl]))
   )
@@ -443,6 +481,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const [competitorPanelOpen, setCompetitorPanelOpen] = useState(false)
   const [exportPrepOpen, setExportPrepOpen] = useState(false)
   const [exportPrepModuleId, setExportPrepModuleId] = useState<string | null>(null)
+  // When set, the export covers just this one issue (its slug) instead of the whole module.
+  const [exportPrepSlug, setExportPrepSlug] = useState<string | null>(null)
   const [exportingMap, setExportingMap] = useState<Record<string, boolean>>({})
   const [resolvedBsModId, setResolvedBsModId] = useState<string | null>(
     () => allModulesData.find((m) => m.type === 'business-stage')?.id ?? null,
@@ -525,27 +565,21 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const isStepDone = (m: ModuleData) => !isModuleLocked(m) && !m.definition.comingSoon && (liveScores[m.id] ?? 0) >= 80
   const railDoneCount = railModules.filter(isStepDone).length
 
-  const phaseIdxOf = (m: ModuleData) => GROWTH_PHASES.findIndex(p => m.order <= p.maxOrder)
-  const phases = GROWTH_PHASES.map((p, i) => {
-    const mods = railModules.filter(m => phaseIdxOf(m) === i)
-    const active = mods.filter(m => !m.definition.comingSoon)
-    return {
-      ...p,
-      mods,
-      total: active.length,
-      done: active.filter(isStepDone).length,
-      locked: active.length > 0 && active.every(isModuleLocked),
-      pro: active.length > 0 && active.every(isPlanLocked),
-      pct: active.length ? Math.round(active.reduce((s, m) => s + Math.min(liveScores[m.id] ?? 0, 100), 0) / active.length) : 0,
-    }
-  }).filter(p => p.mods.length > 0)
-  const selectedPhase = phases.find(p => selectedModule && p.mods.includes(selectedModule)) ?? phases[0]
+  // The sidebar roadmap picks a module through the shared context, and shows this page's live scores.
+  const pickedModule = roadmap.pick
+  useEffect(() => {
+    if (!pickedModule) return
+    const m = allModulesData.find(x => x.type === pickedModule.type)
+    if (m) setOpenModules(new Set([m.id]))
+  }, [pickedModule]) // eslint-disable-line react-hooks/exhaustive-deps
+  const liveScoresKey = JSON.stringify(allModulesData.map(m => [m.type, liveScores[m.id]]))
+  const setRoadmapLive = roadmap.setLive
+  useEffect(() => {
+    setRoadmapLive({ selectedType: selectedModule?.type ?? null, scores: Object.fromEntries(allModulesData.map(m => [m.type, liveScores[m.id] ?? 0])) })
+  }, [selectedModule?.type, liveScoresKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentPhaseIdx = Math.max(0, JOURNEY_PHASES.findIndex(p => userCount < p.max))
-  const currentPhase = JOURNEY_PHASES[currentPhaseIdx]
   const nextPhase = JOURNEY_PHASES[currentPhaseIdx + 1] ?? null
-  const phaseCap = currentPhase.max === Infinity ? 500 : currentPhase.max
-  const phaseMarkerPct = Math.min(Math.max((userCount - currentPhase.min) / (phaseCap - currentPhase.min), 0.04), 0.96) * 100
 
   const bsItemsAll = resolvedBsModId ? (dynItemsMap[resolvedBsModId] ?? []) : []
   const bsClassItem = bsItemsAll.find(i => i.categorySlug === 'classification')
@@ -555,11 +589,19 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
   const toggleModule = (modId: string) => setOpenModules(new Set([modId]))
 
-  const toggleCat = (modId: string, slug: string) =>
-    setOpenCatsMap(prev => {
-      const cats = prev[modId] ?? new Set()
-      return { ...prev, [modId]: cats.has(slug) ? new Set() : new Set([slug]) }
-    })
+  // The category list picks one category at a time; its items show in the detail panel beside it.
+  // On narrow screens tapping the open category closes it (stored as an empty slug), and opening one
+  // scrolls it to the top so its items are in view.
+  const selectCat = (modId: string, slug: string, currentSlug?: string) => {
+    const closing = narrow && currentSlug === slug
+    setOpenCatsMap(prev => ({ ...prev, [modId]: new Set([closing ? '' : slug]) }))
+    if (narrow && !closing) {
+      const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      window.setTimeout(() => {
+        document.getElementById(`gp-cat-${modId}-${slug}`)?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' })
+      }, 60)
+    }
+  }
 
   const toggleExpand = (modId: string, slug: string, e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.md-cb')) return
@@ -686,8 +728,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const [clock, setClock] = useState(() => Date.now())
   // "Foundation is ready" notice after a run finishes (also shown in the tab title).
   const [readyNotice, setReadyNotice] = useState<{ modId: string; name: string } | null>(null)
-  const [roadOpen, setRoadOpen] = useState(false)
-  const [mrr, setMrr] = useState(mrrSettings) // kept here so a saved price survives closing the panel
   const [focusModId, setFocusModId] = useState<string | null>(null)
   useEffect(() => {
     if (!readyNotice) return
@@ -943,11 +983,42 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     }
   }
 
-  const handleLogout = async () => {
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    router.push('/login')
-    router.refresh()
+  // "Copy fix prompt": the finding and the steps as one message to paste into an AI assistant.
+  const buildFixPrompt = (p: { label: string; found?: string | null; why?: string | null; action?: string | null; steps?: string[] }) => {
+    const clean = (t: string) => t.replace(/\*\*/g, '')
+    const lines = [`Please fix this issue${brand.websiteUrl ? ` on ${brand.websiteUrl}` : ' on my website'}.`, '', `Issue: ${clean(p.label)}`]
+    if (p.found) lines.push(`What was found: ${clean(p.found)}`)
+    if (p.why) lines.push(`Why it matters: ${clean(p.why)}`)
+    if (p.action) lines.push(`What to do: ${clean(p.action)}`)
+    if (p.steps?.length) lines.push('', 'Steps:', ...p.steps.map((st, i) => `${i + 1}. ${clean(st).replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')}`))
+    lines.push('', 'Make the change, then tell me exactly what you changed.')
+    return lines.join('\n')
+  }
+  const copyFixPrompt = async (key: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // Older browsers and some app views refuse the clipboard API: fall back to a temporary text box.
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      try { document.execCommand('copy') } catch { /* nothing more to try */ }
+      document.body.removeChild(ta)
+    }
+    setCopiedPrompt(key)
+    window.setTimeout(() => setCopiedPrompt(prev => (prev === key ? null : prev)), 2000)
+  }
+
+  // Jump to one open item: opens its category and expands it.
+  const focusItem = (modId: string, catSlug: string, itemSlug: string) => {
+    setOpenCatsMap(prev => ({ ...prev, [modId]: new Set([catSlug]) }))
+    setExpandedItems(new Set([`${modId}:${itemSlug}`]))
+    window.setTimeout(() => {
+      document.querySelector('.gp-col .gp-detail')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 60)
   }
 
   const downloadModuleMd = (modData: ModuleData, states: Record<string, DBItemState>, dynItems: DBItemFull[]) => {
@@ -1295,7 +1366,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     return lines.join('\n')
   }
 
-  const performDownload = async (modData: ModuleData) => {
+  const performDownload = async (modData: ModuleData, onlySlug?: string) => {
     setExportingMap(prev => ({ ...prev, [modData.id]: true }))
     const states = statesMap[modData.id] ?? {}
     const dynItems = dynItemsMap[modData.id] ?? []
@@ -1313,6 +1384,14 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         .map(defItem => { const s = states[defItem.slug]!; return { slug: defItem.slug, label: defItem.label, aiDetail: s.aiDetail, aiAction: s.aiAction } })
     }
 
+    // One issue only: keep just that one for classification and leave every other item out of the file.
+    const skipIds = new Set<string>()
+    if (onlySlug) {
+      failingItems = failingItems.filter(i => i.slug === onlySlug)
+      if (modData.definition.dynamic) dynItems.forEach(i => { if (i.slug !== onlySlug) skipIds.add(i.id) })
+      else Object.entries(states).forEach(([slug, st]) => { if (slug !== onlySlug && st.id) skipIds.add(st.id) })
+    }
+
     const classifications: Record<string, { exportType: 'auto' | 'needs_choice' | 'skip'; choiceOptions?: string[] }> = {}
     if (failingItems.length > 0) {
       try {
@@ -1328,24 +1407,27 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       } catch { /* non-fatal */ }
     }
 
-    const prompt = buildClaudeCodePrompt(modData, new Set(), classifications)
+    const prompt = buildClaudeCodePrompt(modData, skipIds, classifications)
     const blob = new Blob([prompt], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${brand.name}-${modData.name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-')}-Report-Growjin.md`
+    a.download = onlySlug
+      ? `${brand.name}-${(failingItems[0]?.label ?? onlySlug).replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')}-Fix-Growjin.md`
+      : `${brand.name}-${modData.name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-')}-Report-Growjin.md`
     a.click()
     URL.revokeObjectURL(url)
     setExportingMap(prev => ({ ...prev, [modData.id]: false }))
   }
 
-  const handleTopExport = (modData: ModuleData) => {
+  const handleTopExport = (modData: ModuleData, onlySlug?: string) => {
     const mcpConnected = typeof window !== 'undefined' && localStorage.getItem('growjin_mcp_connected') === 'true'
     if (mcpConnected) {
-      performDownload(modData)
+      performDownload(modData, onlySlug)
       return
     }
     setExportPrepModuleId(modData.id)
+    setExportPrepSlug(onlySlug ?? null)
     setExportPrepOpen(true)
   }
 
@@ -1471,7 +1553,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
                         <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                       </svg>
-                      <span className="md-priority-label">Critical</span>
+                      <span className="md-priority-label">High impact</span>
                     </span>
                   )}
                   {!done && item.weight === 2 && (
@@ -1481,7 +1563,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
                         <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                       </svg>
-                      <span className="md-priority-label">Important</span>
+                      <span className="md-priority-label">Medium</span>
                     </span>
                   )}
                   {aiV && <Badge className="md-tag md-tag-ai" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>AI <SparkleIcon size={11} style={{ color: '#178a4c' }} /></Badge>}
@@ -1528,7 +1610,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               {item.aiNarrative && <p className="sm-narrative">{parseBold(item.aiNarrative)}</p>}
               {item.aiAction && (
                 <div className="sm-action-box">
-                  <span className="sm-action-label">Action</span>
+                  <span className="sm-action-label">What to do</span>
                   <p className="sm-action-text">{parseBold(item.aiAction)}</p>
                   {/https?:\/\/(www\.)?(reddit\.com\/r\/|facebook\.com\/groups\/|linkedin\.com\/groups\/)/i.test(item.aiAction ?? '') && (
                     <button
@@ -1622,6 +1704,29 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   )}
                 </div>
               )}
+              {!done && (
+                <div className="sm-actions">
+                  <button
+                    type="button"
+                    className="sm-act-primary"
+                    onClick={(e) => { e.stopPropagation(); copyFixPrompt(itemKey, buildFixPrompt({ label: item.aiHighlight || item.label, found: item.aiDetail, why: item.aiNarrative, action: item.aiAction })) }}
+                  >
+                    {copiedPrompt === itemKey ? 'Copied ✓' : 'Copy fix prompt'}
+                  </button>
+                  {item.aiAction && (
+                    <button
+                      type="button"
+                      className="sm-act-secondary sm-act-export"
+                      disabled={!!exportingMap[modId]}
+                      onClick={(e) => { e.stopPropagation(); const m = allModulesData.find(x => x.id === modId); if (m) handleTopExport(m, item.slug) }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      {exportingMap[modId] ? 'Exporting…' : 'Export'}
+                    </button>
+                  )}
+                  <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, true, item.id, item.slug, userC, e)}>Mark as done</button>
+                </div>
+              )}
               {/* Skip section — at bottom of expanded body */}
               {!done && (
                 <div className="md-skip-section">
@@ -1708,7 +1813,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
                         <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                       </svg>
-                      <span className="md-priority-label">Critical</span>
+                      <span className="md-priority-label">High impact</span>
                     </span>
                   )}
                   {!done && item.weight === 2 && (
@@ -1718,7 +1823,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
                         <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                       </svg>
-                      <span className="md-priority-label">Important</span>
+                      <span className="md-priority-label">Medium</span>
                     </span>
                   )}
                   {aiV && <span className="md-tag md-tag-ai" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>AI <SparkleIcon size={11} style={{ color: '#178a4c' }} /></span>}
@@ -1765,7 +1870,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               {s?.aiNarrative && <p className="sm-narrative">{parseBold(s.aiNarrative)}</p>}
               {s?.aiAction && (
                 <div className="sm-action-box">
-                  <span className="sm-action-label">Action</span>
+                  <span className="sm-action-label">What to do</span>
                   <p className="sm-action-text">{parseBold(s.aiAction)}</p>
                 </div>
               )}
@@ -1831,6 +1936,29 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       Download Claude Code setup guide
                     </a>
                   )}
+                </div>
+              )}
+              {!done && (
+                <div className="sm-actions">
+                  <button
+                    type="button"
+                    className="sm-act-primary"
+                    onClick={(e) => { e.stopPropagation(); copyFixPrompt(itemKey, buildFixPrompt({ label: s?.aiHighlight || item.label, found: s?.aiDetail, why: s?.aiNarrative, action: s?.aiAction, steps: item.fixGuide })) }}
+                  >
+                    {copiedPrompt === itemKey ? 'Copied ✓' : 'Copy fix prompt'}
+                  </button>
+                  {s?.aiAction && (
+                    <button
+                      type="button"
+                      className="sm-act-secondary sm-act-export"
+                      disabled={!!exportingMap[modId]}
+                      onClick={(e) => { e.stopPropagation(); const m = allModulesData.find(x => x.id === modId); if (m) handleTopExport(m, item.slug) }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      {exportingMap[modId] ? 'Exporting…' : 'Export'}
+                    </button>
+                  )}
+                  <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, false, s?.id ?? '', item.slug, userC, e)}>Mark as done</button>
                 </div>
               )}
               {/* Skip section — at bottom of expanded body */}
@@ -1903,14 +2031,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       : baseTitleRef.current
   }, [liveMod?.id, readyNotice]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Phones scroll the phase tabs sideways: keep the selected one in view (scrolls the row only, not the page).
-  useEffect(() => {
-    const tab = document.querySelector<HTMLElement>('.gp-phase--selected')
-    const row = tab?.parentElement
-    if (!tab || !row || row.scrollWidth <= row.clientWidth) return
-    row.scrollLeft = Math.max(0, tab.offsetLeft - row.offsetLeft - 16)
-  }, [selectedPhase?.name])
-
   // Once a step has results, the checklist is the page: the next-step box only shows before the
   // first analysis, or when the next step needs Pro.
   const hasAnyAnalysis = railModules.some(m => !!(lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt))
@@ -1954,6 +2074,35 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const proStepCount = railModules.filter(x => !x.definition.comingSoon && isPlanLocked(x)).length
   // The stage playbook card waits until the user has a result or finished a step: on day one it's one thing too many.
   const showStageCard = bsItemsAll.length > 0 || railDoneCount > 0
+  const stageCardEl = showStageCard ? (
+    <aside className="gp-stage">
+          <span className="gp-stage-tag">Why this matters now</span>
+          <h4 className="gp-stage-title">{bsClassItem?.label ?? 'Your stage playbook'}</h4>
+          <p className="gp-stage-text">
+            {bsConcernItem?.aiDetail
+              ?? bsClassItem?.aiDetail
+              ?? 'Tactics matched to where you are on the road to 500 users — what to focus on, what to skip, and the red flag to fix first.'}
+          </p>
+          <button className="gp-stage-cta" onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}>
+            {bsItemsAll.length > 0 ? 'Read the full playbook' : 'Get your playbook'} →
+          </button>
+        </aside>
+  ) : null
+
+  // The result summary shows once a module is set up and analysed; the growth-stage note then sits inside it.
+  const bandSummary = (m: ModuleData | undefined) => {
+    if (!m || m.definition.comingSoon || m.type === 'business-stage' || m.type === 'gmail-outreach') return null
+    if (isModuleLocked(m)) return null
+    const def = m.definition
+    const reqValues = reqValuesMap[m.id] ?? {}
+    const dynItems = dynItemsMap[m.id] ?? []
+    const missing = def.requirements.filter(r => r.required !== false && !reqValues[r.key]?.trim())
+    const needsSetup = missing.length > 0 || (!!def.dynamic && dynItems.length === 0 && def.requirements.length > 0)
+    const analysed = lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt
+    if (needsSetup || !analysed) return null
+    const sum = summarizeCats(def, statesMap[m.id] ?? {}, dynItems)
+    return sum.needs + sum.pass > 0 ? sum : null
+  }
   const nextStep = (() => {
     const m = railModules.find(x => !x.definition.comingSoon && !isModuleLocked(x) && (liveScores[x.id] ?? 0) < 80)
     const progress = `${freeDone} of ${freeTotal} ${proStepCount > 0 ? 'free ' : ''}steps done`
@@ -2118,22 +2267,35 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       {/* Growth Path topbar */}
       <div className="gp-topbar">
         <div>
-          <h1 className="gp-title">Growth Path</h1>
-          <div className="gp-sub">
-            {brand.websiteUrl
-              ? <a href={brand.websiteUrl} target="_blank" rel="noopener noreferrer" className="gp-sub-link">{brand.websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>
-              : brand.name}
-          </div>
+          <h1 className="sr-only">Growth Path</h1>
+          <nav className="gp-crumbs" aria-label="Breadcrumb">
+            <span>Roadmap</span>
+            {selectedModule && (() => {
+              const pi = GROWTH_PHASES.findIndex(g => selectedModule.order <= g.maxOrder)
+              return pi >= 0 ? <><span aria-hidden="true">›</span><span>{pi + 1} · {GROWTH_PHASES[pi].name}</span></> : null
+            })()}
+            {selectedModule && <><span aria-hidden="true">›</span><b>{selectedModule.name}</b></>}
+          </nav>
         </div>
         <div className="gp-top-actions">
           {/* Live users from PostHog. Connected: the count, which opens Road to 500; until then, one small prompt. */}
           {connectedIntegrations['posthog'] ? (
-            <button type="button" className={`gp-users-chip${roadOpen ? ' is-open' : ''}`} onClick={() => setRoadOpen(o => !o)} aria-expanded={roadOpen} title="Road to 500 users">
+            <div
+              className="gp-users-chip is-live"
+              title={nextPhase ? `Next milestone: ${nextPhase.min} users (${Math.max(nextPhase.min - userCount, 0).toLocaleString()} to go)` : 'Road to 500 users'}
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-              <b className="gp-users-chip-count">{posthogLoading ? '…' : userCount.toLocaleString()}</b>
-              <span className="gp-users-chip-label">users</span>
-              {nextPhase && <span className="gp-users-chip-cta">{Math.max(nextPhase.min - userCount, 0).toLocaleString()} to go</span>}
-            </button>
+              <span className="gp-users-chip-main">
+                <span className="gp-users-chip-line">
+                  <b className="gp-users-chip-count">{posthogLoading ? '…' : userCount.toLocaleString()}</b>
+                  {nextPhase && <span className="gp-users-chip-of">/ {nextPhase.min.toLocaleString()}</span>}
+                  <span className="gp-users-chip-label">users</span>
+                </span>
+                {nextPhase && !posthogLoading && (
+                  <span className="gp-users-chip-bar" aria-hidden="true"><i style={{ width: `${Math.min(userCount / nextPhase.min, 1) * 100}%` }} /></span>
+                )}
+              </span>
+            </div>
           ) : (
             <Link href="/settings?tab=integrations" className="gp-users-chip" title="Connect PostHog (read-only) to track your live user count">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
@@ -2142,7 +2304,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <span className="gp-users-chip-cta">Connect PostHog</span>
             </Link>
           )}
-          <ThemeToggle />
           {isAdmin && <button className="gp-icon-btn" onClick={() => setNotesOpen(true)} title="Notes (team only)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -2151,13 +2312,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <line x1="16" y1="17" x2="8" y2="17" />
             </svg>
           </button>}
-          <button className="gp-icon-btn mob-hide" onClick={handleLogout} title={`Sign out (${userEmail})`} aria-label="Sign out">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-          </button>
         </div>
       </div>
 
@@ -2221,46 +2375,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <span className="gp-live-pill-bar" aria-hidden="true"><i style={{ width: `${liveRun.pct}%` }} /></span>
             </button>
           )}
-
-        {/* Road to 500 users: opened from the live-users chip in the header. */}
-        {connectedIntegrations['posthog'] && roadOpen && (
-          <div className="gp-journey">
-            <div className="gp-journey-top">
-              <div className="gp-journey-status">
-                <span className="gp-eyebrow">Road to 500 users</span>
-                <span className="gp-count">
-                  {posthogLoading ? <span className="count-loading"><span /><span /><span /></span> : userCount.toLocaleString()}
-                  <span className="gp-count-label">users<span className="gp-wide-only"> · {currentPhase.name}</span></span>
-                </span>
-              </div>
-              <div className="gp-journey-note">
-                {nextPhase
-                  ? <>{Math.max(nextPhase.min - userCount, 0).toLocaleString()} more to reach <strong>{nextPhase.min}</strong><span className="gp-wide-only"> · {nextPhase.name}</span></>
-                  : <>Last stage on the road — keep compounding</>}
-                {posthogDataStartDate && (
-                  <span className="gp-tracking">
-                    {' '}· since {new Date(posthogDataStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="gp-bands">
-              {JOURNEY_PHASES.map((p, i) => {
-                const state = i < currentPhaseIdx ? 'done' : i === currentPhaseIdx ? 'current' : 'locked'
-                return (
-                  <div key={p.range} className={`gp-band gp-band--${state}`} title={`${p.range} users · ${p.name}`}>
-                    <span className="gp-band-bar">
-                      {state === 'current' && <i style={{ width: `${phaseMarkerPct}%` }} />}
-                    </span>
-                    <span className="gp-band-range">{p.range}</span>
-                    {state === 'current' && <span className="gp-band-name">{p.name}</span>}
-                  </div>
-                )
-              })}
-            </div>
-            <ProjectedMrr userCount={userCount} loading={posthogLoading} initial={mrr} onSaved={setMrr} />
-          </div>
-        )}
 
         {/* Business Stage Modal */}
         {stageModalOpen && (() => {
@@ -2385,94 +2499,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           )
         })()}
 
-        {/* Module step rail */}
-        <div className="gp-path">
-          {(() => {
-            const renderPhase = (p: typeof phases[number]) => {
-              const isSel = p === selectedPhase
-              return (
-                <button
-                  key={p.name}
-                  className={`gp-phase${p.locked || p.pro ? ' gp-phase--locked' : ''}${isSel ? ' gp-phase--selected' : ''}`}
-                  onClick={() => {
-                    const target = p.mods.find(m => !m.definition.comingSoon && !isModuleLocked(m) && !isStepDone(m)) ?? p.mods[0]
-                    setOpenModules(new Set([target.id]))
-                  }}
-                  aria-pressed={isSel}
-                >
-                  <span className="gp-phase-top">
-                    <span>{phases.indexOf(p) + 1} · {p.name}</span>
-                    <span className="gp-phase-count">
-                      {p.locked || p.pro ? (
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-label="Locked"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                      ) : `${p.done}/${p.total}`}
-                    </span>
-                  </span>
-                  <span className="gp-phase-blurb">{p.blurb}</span>
-                  <span className="gp-phase-bar"><i style={{ width: `${p.locked || p.pro ? 0 : p.pct}%` }} /></span>
-                </button>
-              )
-            }
-            // Free plan: phases made only of Pro modules sit together under one "Unlock with Pro" heading
-            // instead of each carrying its own badge.
-            const freePhases = phases.filter(p => !p.pro)
-            const proPhases = phases.filter(p => p.pro)
-            if (proPhases.length === 0) return <div className="gp-phases">{phases.map(renderPhase)}</div>
-            // A single free phase needs no card of its own: its steps are the pills below.
-            if (freePhases.length <= 1) return null
-            return (
-              <div className="gp-phases gp-phases--split">
-                {freePhases.map(renderPhase)}
-                <div className="gp-pro-group" style={{ flexGrow: proPhases.length }}>
-                  <div className="gp-pro-group-hd">
-                    <span className="gp-pro-group-label">Unlock with Pro</span>
-                    <Link href="/pricing" className="gp-pro-group-cta">See plans</Link>
-                  </div>
-                  <div className="gp-pro-group-grid" style={{ gridTemplateColumns: `repeat(${proPhases.length}, minmax(0, 1fr))` }}>
-                    {proPhases.map(renderPhase)}
-                  </div>
-                </div>
-              </div>
-            )
-          })()}
-          <div className="gp-pills">
-            {selectedPhase?.mods.map(m => {
-              const locked = isModuleLocked(m)
-              const done = isStepDone(m)
-              const soon = !!m.definition.comingSoon
-              const pro = isPlanLocked(m)
-              const state = done ? 'done' : locked || soon || pro ? 'locked' : 'open'
-              const score = liveScores[m.id] ?? 0
-              return (
-                <button
-                  key={m.id}
-                  className={`gp-pill gp-pill--${state}${m.id === selectedModule?.id ? ' gp-pill--selected' : ''}`}
-                  onClick={() => setOpenModules(new Set([m.id]))}
-                  title={pro ? `${m.name} — GrowJin Pro` : locked ? `${m.name} — locked` : `${m.name} — ${score}%`}
-                >
-                  <span className="gp-pill-dot">
-                    {done ? (
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    ) : state === 'locked' ? (
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                    ) : railModules.indexOf(m) + 1}
-                  </span>
-                  {m.name}
-                  {soon ? <span className="gp-pill-pct">Soon</span>
-                    : !locked && !pro && <span className="gp-pill-pct">{(lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt) ? `${score}%` : '—'}</span>}
-                </button>
-              )
-            })}
-          </div>
-          {proStepCount > 0 && (
-            <Link href="/pricing" className="gp-pro-strip">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-              <span className="gp-pro-strip-text"><b>{proStepCount} more steps with Pro</b><span className="gp-pro-strip-sub"> · {phases.filter(p => p.pro).map(p => p.name).join(' · ')}</span></span>
-              <span className="gp-pro-strip-cta">See plans →</span>
-            </Link>
-          )}
-        </div>
-
         <div className={`gp-main${showStageCard ? '' : ' gp-main--solo'}`}>
         <div className="gp-col">
 
@@ -2505,6 +2531,160 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             // For dynamic modules with no findings yet, always show setup form
             const hasNoFindings = def.dynamic && dynItems.length === 0
             const needsSetup = missingReqs.length > 0 || (hasNoFindings && def.requirements.length > 0)
+
+            // Categories for the list and the detail panel (not for modules that have their own layout).
+            const hasCatList = !def.comingSoon && modData.type !== 'business-stage' && modData.type !== 'gmail-outreach'
+            const catRows: CatRow[] = !hasCatList ? [] : def.dynamic
+              ? [...def.categories].filter(cat => cat.slug !== 'next-campaign').map((cat): CatRow => {
+                  const stats = getDynamicCatStats(cat.slug, dynItems)
+                  const soon = !!(cat as DynamicModuleCategoryDefinition).comingSoon
+                  const catItems = [...dynItems.filter(i => i.categorySlug === cat.slug)].sort((a, b) => {
+                    const aKey = a.userSkipped ? 2 : (a.aiVerified || a.userChecked) ? 1 : 0
+                    const bKey = b.userSkipped ? 2 : (b.aiVerified || b.userChecked) ? 1 : 0
+                    if (aKey !== bKey) return aKey - bKey
+                    return b.weight - a.weight
+                  })
+                  return {
+                    slug: cat.slug, label: cat.label, stats, soon,
+                    body: soon ? (
+                      <ComingSoon title={cat.label} note={(cat as DynamicModuleCategoryDefinition).comingSoonNote} />
+                    ) : catItems.length === 0 ? (
+                      <p className="gp-detail-empty">No issues found in this category.</p>
+                    ) : (
+                      <div className="md-sub">
+                        <div className="md-items">
+                          {catItems.map(item => renderDynamicItem(modData.id, prUrl, item))}
+                        </div>
+                      </div>
+                    ),
+                  }
+                })
+              : (def.categories as ModuleCategoryDefinition[]).map((cat): CatRow => ({
+                  slug: cat.slug, label: cat.label, stats: getCatStats(cat, states), soon: false,
+                  body: (<>
+                    {cat.subCategories.map((sub, si) => {
+                                      const subDone = sub.items.filter(i => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).length
+                                      return (
+                                        <div key={sub.slug} className={`md-sub${si > 0 ? ' md-sub-border' : ''}`}>
+                                          <div className="md-sub-hd">
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                              <span className="md-sub-name">{sub.label}</span>
+                                              {sub.requires && sub.requires.filter((p) => !connectedIntegrations[p]).map((p) => (
+                                                <span
+                                                  key={p}
+                                                  title="Connect this integration in Settings → Integrations for full data"
+                                                  style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px',
+                                                    fontSize: '10px',
+                                                    fontWeight: 600,
+                                                    padding: '2px 7px',
+                                                    borderRadius: '4px',
+                                                    background: 'rgba(231,200,115,0.1)',
+                                                    border: '1px solid rgba(231,200,115,0.35)',
+                                                    color: 'var(--gold)',
+                                                    letterSpacing: '0.02em',
+                                                    cursor: 'default',
+                                                  }}
+                                                >
+                                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                                                    <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2"/>
+                                                    <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                                  </svg>
+                                                  {p === 'gsc_api' ? 'Needs GSC API' : p === 'serpapi' ? 'Needs SerpAPI' : `Needs ${p}`}
+                                                </span>
+                                              ))}
+                                            </span>
+                                            <span className="md-sub-count">{subDone}/{sub.items.length}</span>
+                                          </div>
+                                          <div className="md-items">
+                                            {[...sub.items]
+                                              .sort((a, b) => {
+                                                const aKey = states[a.slug]?.userSkipped ? 2 : (states[a.slug]?.aiVerified || states[a.slug]?.userChecked) ? 1 : 0
+                                                const bKey = states[b.slug]?.userSkipped ? 2 : (states[b.slug]?.aiVerified || states[b.slug]?.userChecked) ? 1 : 0
+                                                if (aKey !== bKey) return aKey - bKey
+                                                return b.weight - a.weight
+                                              })
+                                              .map(item => renderStaticItem(modData.id, prUrl, item, states[item.slug]))}
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                  </>),
+                }))
+            // Once analysed, areas that still need work come first, then the ones that pass.
+            const catsOrdered = [...catRows].sort((a, b) =>
+              (Number(a.soon) - Number(b.soon)) ||
+              (effectiveLastAnalyzedAt ? Number(!catNeedsAttention(a.stats)) - Number(!catNeedsAttention(b.stats)) : 0))
+            const needRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && catNeedsAttention(r.stats)) : []
+            const passRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && !catNeedsAttention(r.stats)) : []
+            const otherRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => r.soon) : catsOrdered
+            const wantedCat = [...openCats][0]
+            // On narrow screens every category can be closed; on wide screens one is always shown.
+            const allClosed = wantedCat === '' && narrow
+            const selCat = allClosed ? undefined : (catsOrdered.find(r => r.slug === wantedCat && !r.soon)
+              ?? needRows[0] ?? catsOrdered.find(r => !r.soon) ?? catsOrdered[0])
+            const passShown = !!passOpenMap[modData.id] || passRows.some(r => r.slug === selCat?.slug)
+            const catBtn = (r: CatRow, passing: boolean) => {
+              const open = r.stats.total - r.stats.done
+              return (
+                <button
+                  type="button"
+                  id={`gp-cat-${modData.id}-${r.slug}`}
+                  role="tab"
+                  aria-selected={r.slug === selCat?.slug}
+                  aria-expanded={narrow ? r.slug === selCat?.slug : undefined}
+                  disabled={r.soon}
+                  className={`gp-cat${passing ? ' gp-cat--pass' : ''}${r.slug === selCat?.slug ? ' is-selected' : ''}`}
+                  onClick={() => selectCat(modData.id, r.slug, selCat?.slug)}
+                >
+                  <span className="gp-cat-l1">
+                    <b>{r.label}</b>
+                    {r.soon ? <span className="cs-badge">Coming Soon</span>
+                      : effectiveLastAnalyzedAt && !passing && open > 0 ? <span className="gp-cat-chip">{open} {open === 1 ? 'issue' : 'issues'}</span>
+                      : effectiveLastAnalyzedAt && passing ? <span className="gp-cat-tick" aria-hidden="true">✓</span>
+                      : <span className="gp-cat-count">{r.stats.done}/{r.stats.total}</span>}
+                    {!r.soon && <span className="gp-cat-pct">{effectiveLastAnalyzedAt ? `${r.stats.pct}%` : '—'}</span>}
+                    {!r.soon && (
+                      <svg className="gp-cat-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </span>
+                  {effectiveLastAnalyzedAt && !passing && !r.soon && (
+                    <span className="gp-cat-bar"><i style={{ width: `${r.stats.pct}%`, background: ringColor(r.stats.pct) }} /></span>
+                  )}
+                </button>
+              )
+            }
+
+            // The detail panel is rendered inside the selected category's group: beside the list on wide
+            // screens (CSS grid) and directly under the category on narrow ones.
+            const detailEl = selCat ? (
+              <div className="gp-detail" role="tabpanel" aria-labelledby={`gp-cat-${modData.id}-${selCat.slug}`}>
+                <div className="gp-detail-hd">
+                  <h3 className="gp-detail-title">{selCat.label}</h3>
+                  {!selCat.soon && effectiveLastAnalyzedAt && (
+                    <span className={`gp-detail-pill${catNeedsAttention(selCat.stats) ? '' : ' is-ok'}`}>
+                      {selCat.stats.done}/{selCat.stats.total} passed{catNeedsAttention(selCat.stats) ? ` · ${selCat.stats.total - selCat.stats.done} to fix` : ''}
+                    </span>
+                  )}
+                </div>
+                {!selCat.soon && (
+                  <p className="gp-detail-sub">
+                    {catNeedsAttention(selCat.stats) ? 'Open an issue to see exactly what to change.' : effectiveLastAnalyzedAt ? 'Nothing to fix here. These checks all passed.' : 'These checks run when you analyse.'}
+                  </p>
+                )}
+                {selCat.body}
+              </div>
+            ) : null
+            const catGroup = (r: CatRow, passing: boolean) => (
+              <div className="gp-catgroup" key={r.slug}>
+                {catBtn(r, passing)}
+                {r.slug === selCat?.slug && detailEl}
+              </div>
+            )
 
             const showSeparator = isLocked && !separatorPlaced
             if (showSeparator) separatorPlaced = true
@@ -2567,8 +2747,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       : !isOpen && <div className="focus">{def.description}</div>
                     }
                     {!isLocked && effectiveLastAnalyzedAt && (
-                      <div style={{ fontSize: 11, color: 'var(--text-faint, #4a6b5c)', marginTop: 3 }}>
-                        Analysed {timeAgo(effectiveLastAnalyzedAt)}
+                      <div className="level-meta">
+                        {brand.websiteUrl ? `${brand.websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')} · ` : ''}Analysed {timeAgo(effectiveLastAnalyzedAt)}
                       </div>
                     )}
                   </div>
@@ -2800,111 +2980,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       </div>
                     )}
 
-                    {/* Playbook — Foundation module only */}
-                    {modData.type === 'foundation' && (
-                      <div className="gp-inset-panel" style={{ margin: '16px 28px 0', background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 10 }}>
-                        <div
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => { if (!playbookEditing) setPlaybookOpen(v => !v) }}
-                          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !playbookEditing && setPlaybookOpen(v => !v)}
-                          style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: '12px 16px', cursor: playbookEditing ? 'default' : 'pointer', userSelect: 'none' }}
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--green)', flexShrink: 0 }}>
-                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }} title="Your AI-generated sales playbook: ICP, scripts and objections">Playbook</span>
-                          {playbookData
-                            ? <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 500, marginLeft: 2 }}>Generated</span>
-                            : reanalyzing && <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 2 }}>Generating…</span>
-                          }
-                          {playbookData && !playbookEditing && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setPlaybookDraft({ ...playbookData }); setPlaybookEditing(true); setPlaybookOpen(true) }}
-                              title="Edit playbook"
-                              aria-label="Edit playbook"
-                              style={{ marginLeft: 'auto', width: 26, height: 26, display: 'grid', placeItems: 'center', flexShrink: 0, padding: 0, borderRadius: 6, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}
-                            >
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-                                <path d="M12 20h9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            </button>
-                          )}
-                          {!playbookEditing && (
-                            <svg style={{ marginLeft: playbookData ? 6 : 'auto', flexShrink: 0, transform: playbookOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s' }} width="14" height="14" viewBox="0 0 24 24" fill="none">
-                              <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                            </svg>
-                          )}
-                        </div>
-                        {playbookOpen && (
-                          <div className="playbook-scroll" style={{ borderTop: '1px solid var(--line)', padding: '16px 10px 16px 16px', maxHeight: 420, overflowY: 'scroll' }}>
-                            {!playbookData ? (
-                              <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, margin: 0 }}>
-                                The AI will read your website and generate your full Sales Playbook — email templates, call scripts, objection handlers, and more — when you run Foundation analysis.
-                              </p>
-                            ) : playbookEditing ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                                {PLAYBOOK_SECTIONS.map((section) => (
-                                  <div key={section.id}>
-                                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>{section.label}</div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                      {section.fields.map((field) => (
-                                        <div key={field.key}>
-                                          <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: 4 }}>{field.label}</label>
-                                          <textarea
-                                            value={playbookDraft[field.key] ?? ''}
-                                            onChange={(e) => setPlaybookDraft(prev => ({ ...prev, [field.key]: e.target.value }))}
-                                            placeholder={field.placeholder}
-                                            rows={field.rows}
-                                            style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--line)', borderRadius: 8, padding: '8px 10px', fontSize: 13, color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box', whiteSpace: 'pre-wrap' }}
-                                          />
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 30 }}>
-                                {PLAYBOOK_SECTIONS.map((section) => (
-                                  <div key={section.id}>
-                                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14, paddingBottom: 8, borderBottom: '1px solid var(--line)' }}>{section.label}</div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-                                      {section.fields.map((field) => (
-                                        <div key={field.key}>
-                                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>{field.label}</div>
-                                          <div style={{ fontSize: 15, color: 'var(--text-dim)', lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>
-                                            {playbookData[field.key] || <span style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>Not generated</span>}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-                                {playbookData.generatedAt && (
-                                  <div style={{ fontSize: 12, color: 'var(--text-dim)', borderTop: '1px solid var(--line)', paddingTop: 10 }}>
-                                    Generated {new Date(playbookData.generatedAt).toLocaleDateString()}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {playbookOpen && playbookEditing && (
-                          <div style={{ display: 'flex', gap: 8, padding: '12px 16px', borderTop: '1px solid var(--line)', background: 'var(--card)' }}>
-                            <button onClick={handlePlaybookSave} disabled={playbookSaving} className="level-reanalyze-btn" style={{ fontSize: 12, padding: '6px 16px' }}>
-                              {playbookSaving ? 'Saving…' : playbookSaved ? 'Saved ✓' : 'Save'}
-                            </button>
-                            <button onClick={() => setPlaybookEditing(false)} style={{ fontSize: 12, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer' }}>
-                              Cancel
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
                     {/* Categories */}
                     {modData.type === 'business-stage' && (
                       <div style={{ padding: '20px 28px 24px' }}>
@@ -2985,6 +3060,151 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       )
                     })()}
 
+                    {/* Result summary and the one item to start with. */}
+                    {!def.comingSoon && !needsSetup && !!effectiveLastAnalyzedAt && (() => {
+                      const sum = bandSummary(modData)
+                      if (!sum) return null
+                      return (
+                        <>
+                          <div className={`gp-sum${stageCardEl ? '' : ' gp-sum--solo'}`}>
+                            <div className="gp-sum-result">
+                              <div className="gp-sum-eyebrow">Result</div>
+                              <div className="gp-sum-score">
+                                <div className="gp-sum-ring" role="img" aria-label={`Score ${liveScore} percent`}><LevelRing score={liveScore} /></div>
+                                <div className="gp-sum-text">
+                                  <b className="gp-sum-head">
+                                    {sum.needs === 0
+                                      ? 'Everything here is done'
+                                      : `${sum.needs} ${sum.needs === 1 ? 'area needs' : 'areas need'} attention, ${sum.pass} ${sum.pass === 1 ? 'is' : 'are'} passing`}
+                                  </b>
+                                  <span className="gp-sum-sub">
+                                    {sum.openItems > 0 ? `${sum.openItems} ${sum.openItems === 1 ? 'thing' : 'things'} to fix` : 'Nothing left to fix'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            {stageCardEl}
+                          </div>
+                          {sum.first && (
+                            <div className="gp-fix">
+                              <div className="gp-fix-body">
+                                <div className="gp-sum-eyebrow">Fix this first</div>
+                                <b className="gp-fix-title">{sum.first.label}</b>
+                                <span className="gp-sum-sub">{sum.first.catLabel} · lifts it from {sum.first.catPct}% toward 100%</span>
+                              </div>
+                              <button type="button" className="gp-fix-cta" onClick={() => focusItem(modData.id, sum.first!.catSlug, sum.first!.itemSlug)}>Show me how</button>
+                            </div>
+                          )}
+                        </>
+                      )
+                    })()}
+
+                    {/* Playbook — Foundation module only: the deliverable the analysis produces, below the summary. */}
+                    {modData.type === 'foundation' && (
+                      <section className={`gp-pb${playbookOpen ? ' is-open' : ''}`} aria-label="Sales playbook">
+                        <div
+                          className="gp-pb-hd"
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={playbookOpen}
+                          onClick={() => { if (!playbookEditing) setPlaybookOpen(v => !v) }}
+                          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !playbookEditing && setPlaybookOpen(v => !v)}
+                        >
+                          <span className="gp-pb-icon" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </span>
+                          <span className="gp-pb-title">
+                            <b>Sales playbook</b>
+                            <span>ICP, email templates, call scripts and objection handlers</span>
+                          </span>
+                          <span className="gp-pb-actions">
+                            {playbookData
+                              ? <span className="gp-pb-chip">Generated{playbookData.generatedAt ? ` · ${new Date(playbookData.generatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}</span>
+                              : reanalyzing
+                                ? <span className="gp-pb-chip is-busy">Generating…</span>
+                                : <span className="gp-pb-chip is-empty">Not generated yet</span>}
+                            {playbookData && !playbookEditing && (
+                              <button
+                                type="button"
+                                className="gp-pb-btn"
+                                onClick={(e) => { e.stopPropagation(); setPlaybookDraft({ ...playbookData }); setPlaybookEditing(true); setPlaybookOpen(true) }}
+                              >
+                                Edit
+                              </button>
+                            )}
+                            {!playbookEditing && (
+                              <span className="gp-pb-toggle">
+                                {playbookOpen ? 'Hide' : 'View'}
+                                <svg className="gp-pb-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                  <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        {playbookOpen && (
+                          <div className="gp-pb-body playbook-scroll">
+                            {!playbookData ? (
+                              <p className="gp-pb-empty">
+                                The AI will read your website and generate your full Sales Playbook — email templates, call scripts, objection handlers, and more — when you run Foundation analysis.
+                              </p>
+                            ) : playbookEditing ? (
+                              <div className="gp-pb-sections">
+                                {PLAYBOOK_SECTIONS.map((section) => (
+                                  <div key={section.id} className="gp-pb-sec">
+                                    <h4 className="gp-pb-sec-title">{section.label}</h4>
+                                    <div className="gp-pb-fields">
+                                      {section.fields.map((field) => (
+                                        <div key={field.key} className="gp-pb-field">
+                                          <label htmlFor={`pb-${field.key}`}>{field.label}</label>
+                                          <textarea
+                                            id={`pb-${field.key}`}
+                                            value={playbookDraft[field.key] ?? ''}
+                                            onChange={(e) => setPlaybookDraft(prev => ({ ...prev, [field.key]: e.target.value }))}
+                                            placeholder={field.placeholder}
+                                            rows={field.rows}
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="gp-pb-sections">
+                                {PLAYBOOK_SECTIONS.map((section) => (
+                                  <div key={section.id} className="gp-pb-sec">
+                                    <h4 className="gp-pb-sec-title">{section.label}</h4>
+                                    <div className="gp-pb-fields">
+                                      {section.fields.map((field) => (
+                                        <div key={field.key} className="gp-pb-field">
+                                          <div className="gp-pb-field-label">{field.label}</div>
+                                          <div className="gp-pb-field-text">
+                                            {playbookData[field.key] || <span className="gp-pb-none">Not generated</span>}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {playbookOpen && playbookEditing && (
+                          <div className="gp-pb-foot">
+                            <button type="button" onClick={handlePlaybookSave} disabled={playbookSaving} className="gp-pb-save">
+                              {playbookSaving ? 'Saving…' : playbookSaved ? 'Saved ✓' : 'Save changes'}
+                            </button>
+                            <button type="button" onClick={() => setPlaybookEditing(false)} className="gp-pb-btn">Cancel</button>
+                          </div>
+                        )}
+                      </section>
+                    )}
+
                     <div className={`md-cats${reanalyzing && !effectiveLastAnalyzedAt ? ' gp-cats--loading' : ''}`} style={(modData.type === 'business-stage' || modData.type === 'gmail-outreach') ? { display: 'none' } : needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
                       {def.comingSoon ? (
                         <ComingSoon
@@ -2992,177 +3212,55 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                           title={def.name}
                           note={def.comingSoonNote ?? 'This module is in active development and will be available in an upcoming update.'}
                         />
-                      ) : def.dynamic
-                        ? <>
-                          {[...def.categories].filter(cat => cat.slug !== 'next-campaign').sort((a, b) => {
-                            const aCs = !!(a as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? 1 : 0
-                            const bCs = !!(b as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? 1 : 0
-                            return aCs - bCs
-                          }).map((cat) => {
-                            const stats = getDynamicCatStats(cat.slug, dynItems)
-                            const isOpenCat = openCats.has(cat.slug)
-                            const catItems = [...dynItems.filter(i => i.categorySlug === cat.slug)].sort((a, b) => {
-                              const aKey = a.userSkipped ? 2 : (a.aiVerified || a.userChecked) ? 1 : 0
-                              const bKey = b.userSkipped ? 2 : (b.aiVerified || b.userChecked) ? 1 : 0
-                              if (aKey !== bKey) return aKey - bKey
-                              return b.weight - a.weight
-                            })
-                            {
-                              const isCatComingSoon = !!(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon
-                              return (
-                              <div
-                                key={cat.slug}
-                                className={`md-cat${isOpenCat ? ' md-cat-open' : ''}${isCatComingSoon ? ' md-cat-coming-soon' : ''}`}
-                                style={isCatComingSoon ? undefined : { borderLeftColor: ringColor(stats.pct) }}
-                              >
-                                <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => !isCatComingSoon && toggleCat(modData.id, cat.slug)} style={isCatComingSoon ? { cursor: 'default' } : {}}>
-                                  <div className="md-cat-hd-left">
-                                    <span className="md-cat-hd-name">{cat.label}</span>
-                                    {isCatComingSoon
-                                      ? <span className="cs-badge" style={{ marginLeft: 4 }}>Coming Soon</span>
-                                      : <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
-                                    }
-                                  </div>
-                                  {!isCatComingSoon && (
-                                    <div className="md-cat-hd-right">
-                                      <div className="md-cat-mini-bar">
-                                        <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) + '60' }} />
-                                        <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) }} />
-                                      </div>
-                                      <span className="md-cat-pct" style={{ color: effectiveLastAnalyzedAt ? ringColor(stats.pct) : 'var(--text-faint)' }}>{effectiveLastAnalyzedAt ? `${stats.pct}%` : '—'}</span>
-                                      <svg className={`md-chev${isOpenCat ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                      </svg>
-                                    </div>
-                                  )}
-                                </div>
-                                {isOpenCat && (
-                                  <div className="md-cat-body">
-                                    {(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? (
-                                      <ComingSoon
-                                        title={cat.label}
-                                        note={(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoonNote}
-                                      />
-                                    ) : catItems.length === 0 ? (
-                                      <p style={{ padding: '16px 20px', color: 'var(--text-faint)', fontSize: '13px' }}>
-                                        No issues found in this category.
-                                      </p>
-                                    ) : (
-                                      <div className="md-sub">
-                                        <div className="md-sub-hd" />
-                                        <div className="md-items">
-                                          {catItems.map(item => renderDynamicItem(modData.id, prUrl, item))}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                            }
-                          })}
-                          {modData.type === 'meta-ads' && (
-                            <a
-                              href="/dashboard/meta-ads/blueprint"
-                              className="ncb-cta-row"
+                      ) : hasCatList && catsOrdered.length > 0 && (
+                        <div className="gp-md" role="tablist" aria-label="Categories">
+                          {needRows.length > 0 && <div className="gp-catlabel">Needs attention</div>}
+                          {needRows.map(r => catGroup(r, false))}
+                          {passRows.length > 0 && (narrow ? (
+                            <button
+                              type="button"
+                              className="gp-catlabel gp-catlabel--toggle"
+                              aria-expanded={passShown}
+                              onClick={() => setPassOpenMap(prev => ({ ...prev, [modData.id]: !passShown }))}
                             >
-                              <span className="ncb-cta-icon">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                                </svg>
-                              </span>
-                              <span className="ncb-cta-text">
-                                <span className="ncb-cta-label">Next Campaign Blueprint</span>
-                                <span className="ncb-cta-sub">AI-generated plan for your next Meta ad campaign</span>
-                              </span>
-                              <svg className="ncb-cta-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                              <span>Passing ({passRows.length})</span>
+                              <svg className="gp-cat-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
-                            </a>
-                          )}
-                        </>
-                        : (def.categories as ModuleCategoryDefinition[]).map((cat) => {
-                            const stats = getCatStats(cat, states)
-                            const isOpenCat = openCats.has(cat.slug)
-                            return (
-                              <div
-                                key={cat.slug}
-                                className={`md-cat${isOpenCat ? ' md-cat-open' : ''}`}
-                                style={{ borderLeftColor: effectiveLastAnalyzedAt ? ringColor(stats.pct) : 'var(--line)' }}
-                              >
-                                <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => toggleCat(modData.id, cat.slug)}>
-                                  <div className="md-cat-hd-left">
-                                    <span className="md-cat-hd-name">{cat.label}</span>
-                                    <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
-                                  </div>
-                                  <div className="md-cat-hd-right">
-                                    <div className="md-cat-mini-bar">
-                                      <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) + '60' }} />
-                                      <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) }} />
-                                    </div>
-                                    <span className="md-cat-pct" style={{ color: effectiveLastAnalyzedAt ? ringColor(stats.pct) : 'var(--text-faint)' }}>{effectiveLastAnalyzedAt ? `${stats.pct}%` : '—'}</span>
-                                    <svg className={`md-chev${isOpenCat ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                    </svg>
-                                  </div>
-                                </div>
-                                {isOpenCat && (
-                                  <div className="md-cat-body">
-                                    {cat.subCategories.map((sub, si) => {
-                                      const subDone = sub.items.filter(i => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).length
-                                      return (
-                                        <div key={sub.slug} className={`md-sub${si > 0 ? ' md-sub-border' : ''}`}>
-                                          <div className="md-sub-hd">
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                                              <span className="md-sub-name">{sub.label}</span>
-                                              {sub.requires && sub.requires.filter((p) => !connectedIntegrations[p]).map((p) => (
-                                                <span
-                                                  key={p}
-                                                  title="Connect this integration in Settings → Integrations for full data"
-                                                  style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '3px',
-                                                    fontSize: '10px',
-                                                    fontWeight: 600,
-                                                    padding: '2px 7px',
-                                                    borderRadius: '4px',
-                                                    background: 'rgba(231,200,115,0.1)',
-                                                    border: '1px solid rgba(231,200,115,0.35)',
-                                                    color: 'var(--gold)',
-                                                    letterSpacing: '0.02em',
-                                                    cursor: 'default',
-                                                  }}
-                                                >
-                                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
-                                                    <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2"/>
-                                                    <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                                                  </svg>
-                                                  {p === 'gsc_api' ? 'Needs GSC API' : p === 'serpapi' ? 'Needs SerpAPI' : `Needs ${p}`}
-                                                </span>
-                                              ))}
-                                            </span>
-                                            <span className="md-sub-count">{subDone}/{sub.items.length}</span>
-                                          </div>
-                                          <div className="md-items">
-                                            {[...sub.items]
-                                              .sort((a, b) => {
-                                                const aKey = states[a.slug]?.userSkipped ? 2 : (states[a.slug]?.aiVerified || states[a.slug]?.userChecked) ? 1 : 0
-                                                const bKey = states[b.slug]?.userSkipped ? 2 : (states[b.slug]?.aiVerified || states[b.slug]?.userChecked) ? 1 : 0
-                                                if (aKey !== bKey) return aKey - bKey
-                                                return b.weight - a.weight
-                                              })
-                                              .map(item => renderStaticItem(modData.id, prUrl, item, states[item.slug]))}
-                                          </div>
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })
-                      }
+                            </button>
+                          ) : <div className="gp-catlabel">Passing ({passRows.length})</div>)}
+                          {(!narrow || passShown) && passRows.map(r => catGroup(r, true))}
+                          {!effectiveLastAnalyzedAt && otherRows.length > 0 && <div className="gp-catlabel">Checks</div>}
+                          {!effectiveLastAnalyzedAt && otherRows.map(r => catGroup(r, false))}
+                          {effectiveLastAnalyzedAt && otherRows.length > 0 && (narrow ? (
+                            <p className="gp-soon-note">{otherRows.length} more {otherRows.length === 1 ? 'area' : 'areas'} coming soon</p>
+                          ) : (
+                            <>
+                              <div className="gp-catlabel">Coming soon</div>
+                              {otherRows.map(r => catGroup(r, false))}
+                            </>
+                          ))}
+                        </div>
+                      )}
+                      {hasCatList && modData.type === 'meta-ads' && (
+                        <a
+                          href="/dashboard/meta-ads/blueprint"
+                          className="ncb-cta-row"
+                        >
+                          <span className="ncb-cta-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                            </svg>
+                          </span>
+                          <span className="ncb-cta-text">
+                            <span className="ncb-cta-label">Next Campaign Blueprint</span>
+                            <span className="ncb-cta-sub">AI-generated plan for your next Meta ad campaign</span>
+                          </span>
+                          <svg className="ncb-cta-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M5 12.5h14M12 5l7 7-7 7"/>
+                          </svg>
+                        </a>
+                      )}
                     </div>
 
                     {/* Frekto Posting — Social Media module only */}
@@ -3201,19 +3299,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         </div>
         </div>
 
-        {/* Growth Stage */}
-        {showStageCard && <aside className="gp-stage">
-          <span className="gp-stage-tag">Growth Stage</span>
-          <h4 className="gp-stage-title">{bsClassItem?.label ?? 'Your stage playbook'}</h4>
-          <p className="gp-stage-text">
-            {bsConcernItem?.aiDetail
-              ?? bsClassItem?.aiDetail
-              ?? 'Tactics matched to where you are on the road to 500 users — what to focus on, what to skip, and the red flag to fix first.'}
-          </p>
-          <button className="gp-stage-cta" onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}>
-            {bsItemsAll.length > 0 ? 'View full playbook' : 'Get your playbook'}
-          </button>
-        </aside>}
+        {/* Growth stage note: inside the result summary once a module is analysed, otherwise above the module. */}
+        {!bandSummary(selectedModule) && stageCardEl}
         </div>
 
       </div>
@@ -3225,11 +3312,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         return (
           <ExportPrepModal
             moduleName={modData.name}
+            singleIssue={!!exportPrepSlug}
             onDownload={async () => {
-              await performDownload(modData)
+              await performDownload(modData, exportPrepSlug ?? undefined)
               setExportPrepOpen(false)
+              setExportPrepSlug(null)
             }}
-            onSkip={() => setExportPrepOpen(false)}
+            onSkip={() => { setExportPrepOpen(false); setExportPrepSlug(null) }}
             onMarkConnected={() => {
               if (typeof window !== 'undefined') localStorage.setItem('growjin_mcp_connected', 'true')
             }}

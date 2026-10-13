@@ -1,5 +1,6 @@
 'use client'
 
+import { progressColor } from '@/lib/modules/roadmap'
 import { useState, useCallback, useEffect } from 'react'
 import type { FixPlan } from '@/lib/modules/seo/fix-agent'
 import { useRouter } from 'next/navigation'
@@ -135,12 +136,11 @@ function userCountToBarPct(count: number): number {
   return Math.min(Math.max(count / 500, 0), 1) * 100
 }
 
-function ringColor(score: number): string {
-  if (score >= 85) return '#4ade80'
-  if (score >= 65) return '#fbbf24'
-  if (score >= 35) return '#fb923c'
-  return '#f43f5e'
-}
+// Same colour scale as the Growth Path page (dark green on light, bright green on dark).
+const ringColor = progressColor
+
+// A softer version of a colour, for the "self-checked" part of a progress bar.
+const soften = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`
 
 function ModuleRing({ score }: { score: number }) {
   const r = 16
@@ -151,15 +151,14 @@ function ModuleRing({ score }: { score: number }) {
     <svg width="44" height="44" viewBox="0 0 44 44" style={{ flexShrink: 0, display: 'block' }}>
       <circle
         cx="22" cy="22" r={r} fill="none"
-        stroke={color} strokeWidth="3" strokeLinecap="round"
+        strokeWidth="3" strokeLinecap="round"
         strokeDasharray={circ}
         strokeDashoffset={score === 0 ? circ : offset}
-        style={{ transform: 'rotate(-90deg)', transformOrigin: '22px 22px', transition: 'stroke-dashoffset .5s ease', filter: `drop-shadow(0 0 3px ${color}80)` }}
+        style={{ stroke: color, transform: 'rotate(-90deg)', transformOrigin: '22px 22px', transition: 'stroke-dashoffset .5s ease', filter: `drop-shadow(0 0 3px ${soften(color, 50)})` }}
       />
       <text
         x="22" y="22" textAnchor="middle" dominantBaseline="central"
-        fill={color}
-        style={{ fontSize: '9.5px', fontWeight: 800, fontFamily: 'inherit' }}
+        style={{ fill: color, fontSize: '9.5px', fontWeight: 800, fontFamily: 'inherit' }}
       >
         {score}
       </text>
@@ -1021,7 +1020,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                       </div>
                       <div className="md-cat-hd-right">
                         <div className="md-cat-mini-bar">
-                          <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) + '60' }} />
+                          <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%`, background: soften(ringColor(stats.pct), 38) }} />
                           <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) }} />
                         </div>
                         <span className="md-cat-pct" style={{ color: ringColor(stats.pct) }}>{stats.pct}%</span>
@@ -1267,7 +1266,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                       </div>
                       <div className="md-cat-hd-right">
                         <div className="md-cat-mini-bar">
-                          <div className="md-cat-mini-self" style={{ width: `${Math.round((stats.doneWeight / stats.totalWeight) * 100)}%`, background: ringColor(stats.pct) + '60' }} />
+                          <div className="md-cat-mini-self" style={{ width: `${Math.round((stats.doneWeight / stats.totalWeight) * 100)}%`, background: soften(ringColor(stats.pct), 38) }} />
                           <div className="md-cat-mini-ai" style={{ width: `${Math.round((stats.aiWeight / stats.totalWeight) * 100)}%`, background: ringColor(stats.pct) }} />
                         </div>
                         <span className="md-cat-pct" style={{ color: ringColor(stats.pct) }}>{stats.pct}%</span>

@@ -1,5 +1,6 @@
 'use client'
 
+import RoadToFiveHundred from '@/components/RoadToFiveHundred'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
@@ -64,6 +65,7 @@ interface Props {
   gmailModuleId: string | null
   socialModuleId: string | null
   frektoConnected: boolean
+  posthogConnected: boolean
   blogData: BlogData
 }
 
@@ -849,7 +851,7 @@ function LoadingState() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function TodayDashboard({ initialData, brandName, gmailConnected, gmailAddress, prospectItems, gmailModuleId, socialModuleId, frektoConnected, blogData }: Props) {
+export default function TodayDashboard({ initialData, brandName, gmailConnected, gmailAddress, prospectItems, gmailModuleId, socialModuleId, frektoConnected, posthogConnected, blogData }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
@@ -960,24 +962,6 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
         </div>
       )}
 
-      {/* Nav */}
-      <nav className="td-nav shell-dup-header">
-        <button className="td-nav-logo" onClick={() => router.push('/dashboard')}>
-          <img src="/growjinlogo.svg" alt="" width={18} height={18} />
-          <span>GrowJin</span>
-        </button>
-        <div className="td-nav-links">
-          <a href="/dashboard" className="td-nav-link">Modules</a>
-          <a href="/today" className="td-nav-link td-nav-link--on">Today</a>
-          <a href="/settings" className="td-nav-icon" title="Settings">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
-            </svg>
-          </a>
-        </div>
-      </nav>
-
       {/* Hero */}
       <div className="td-hero">
         <div className="td-hero-left">
@@ -1002,6 +986,9 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
 
       {/* Body */}
       <div className="td-body">
+        {/* Road to 500 users timeline (needs PostHog) */}
+        {posthogConnected && <div className="td-journey"><RoadToFiveHundred posthogConnected /></div>}
+
         {/* What happened since yesterday (visitors, signups, sources) before what to do */}
         <TodayActivity />
 
@@ -1018,7 +1005,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                   </svg>
                   What&apos;s working
                 </div>
-                {impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}
+                <div className="td-cards">{impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}</div>
               </>
             )}
             <WeeklyBlogSection initialData={blogData} />
@@ -1043,8 +1030,9 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
               </svg>
               Actions for today
             </div>
+            <div className="td-cards">
             {cards.map((card, i) => (
-              <div key={card.id}>
+              <div key={card.id} className={`td-cell${expandedCard === card.id ? ' td-cell--wide' : ''}`}>
                 <ActionCardItem
                   card={card}
                   rank={i + 1}
@@ -1117,6 +1105,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                 )}
               </div>
             ))}
+            </div>
 
             {/* Impact cards */}
             {impacts.length > 0 && (
@@ -1127,7 +1116,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                   </svg>
                   What&apos;s working
                 </div>
-                {impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}
+                <div className="td-cards">{impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}</div>
               </>
             )}
 
@@ -1208,36 +1197,10 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
         }
         .td-oauth-banner-close:hover { opacity: 1; }
 
-        /* nav */
-        .td-nav {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 0 32px; height: 54px;
-          border-bottom: 1px solid var(--line); background: var(--card);
-          position: sticky; top: 0; z-index: 10;
-        }
-        .td-nav-logo {
-          display: flex; align-items: center; gap: 8px;
-          font-weight: 700; font-size: 15px; color: var(--text);
-          background: none; border: none; cursor: pointer; padding: 0;
-        }
-        .td-nav-links { display: flex; align-items: center; gap: 4px; }
-        .td-nav-link {
-          font-size: 13px; font-weight: 500; color: var(--text-dim);
-          text-decoration: none; padding: 5px 12px; border-radius: 7px;
-          transition: background .12s, color .12s;
-        }
-        .td-nav-link:hover { background: var(--bg-soft); color: var(--text); }
-        .td-nav-link--on { background: var(--accent); color: var(--green); font-weight: 600; }
-        .td-nav-icon {
-          display: grid; place-items: center; width: 30px; height: 30px;
-          color: var(--text-dim); border-radius: 7px; transition: background .12s, color .12s;
-        }
-        .td-nav-icon:hover { background: var(--bg-soft); color: var(--text); }
-
         /* hero */
         .td-hero {
           display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
-          padding: 36px 40px 0; max-width: 780px; width: 100%; margin: 0 auto; box-sizing: border-box;
+          padding: 36px clamp(20px, 3.2vw, 48px) 0; max-width: 1680px; width: 100%; margin: 0 auto; box-sizing: border-box;
         }
         .td-hero-day {
           font-family: var(--font-display, serif); font-size: 30px; font-weight: 700;
@@ -1270,10 +1233,20 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
 
         /* body */
         .td-body {
-          max-width: 780px; width: 100%; margin: 0 auto;
-          padding: 24px 40px 80px; box-sizing: border-box;
+          max-width: 1680px; width: 100%; margin: 0 auto;
+          padding: 24px clamp(20px, 3.2vw, 48px) 80px; box-sizing: border-box;
           display: flex; flex-direction: column; gap: 14px;
         }
+
+        .td-journey .gp-journey { margin-bottom: 0; }
+
+        /* action and impact cards: one column on phones, more as the screen widens */
+        .td-cards {
+          display: grid; gap: 16px; align-items: start;
+          grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+        }
+        .td-cell { min-width: 0; }
+        .td-cell--wide { grid-column: 1 / -1; }
 
         /* section label */
         .td-section-label {
@@ -1508,7 +1481,6 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
         .td-connect-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
         /* light overrides */
-        html.light .td-nav-link--on { background: #d0eadb; color: #179a50; }
         html.light .td-analytics-delta--up { background: #d0eadb; color: #179a50; }
         html.light .td-cta-btn { background: #179a50; }
         html.light .td-streak-num { color: #179a50; }
@@ -1616,10 +1588,9 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
 
         /* responsive */
         @media (max-width: 640px) {
-          .td-hero { flex-direction: column; gap: 14px; padding: 24px 20px 0; }
+          .td-hero { flex-direction: column; gap: 14px; padding: 24px 16px 0; }
           .td-hero-day { font-size: 24px; }
-          .td-body { padding: 18px 20px 60px; }
-          .td-nav { padding: 0 16px; }
+          .td-body { padding: 18px 16px 60px; }
           .td-hero-right { flex-wrap: wrap; }
           .td-feed-row { flex-wrap: wrap; gap: 6px; }
           .td-card, .td-blog-card, .td-impact-card { padding: 18px 16px; }

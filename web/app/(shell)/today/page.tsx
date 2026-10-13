@@ -36,7 +36,7 @@ export default async function TodayPage() {
   const blogLimit = BLOG_LIMITS[brand.websiteType ?? ''] ?? DEFAULT_BLOG_LIMIT
 
   // Integrations + module IDs + blog data in parallel
-  const [[gmailInteg], [frektoInteg], [gmailModule], [socialModule], recentBlogs, [blogCountRow]] = await Promise.all([
+  const [[gmailInteg], [frektoInteg], [posthogInteg], [gmailModule], [socialModule], recentBlogs, [blogCountRow]] = await Promise.all([
     db.select({ status: brandIntegrations.status, metadata: brandIntegrations.metadata })
       .from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.provider, 'gmail')))
@@ -44,6 +44,10 @@ export default async function TodayPage() {
     db.select({ status: brandIntegrations.status })
       .from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.provider, 'frekto')))
+      .limit(1),
+    db.select({ status: brandIntegrations.status })
+      .from(brandIntegrations)
+      .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.provider, 'posthog')))
       .limit(1),
     db.select({ id: modules.id })
       .from(modules)
@@ -152,6 +156,7 @@ export default async function TodayPage() {
       gmailModuleId={gmailModule?.id ?? null}
       socialModuleId={socialModule?.id ?? null}
       frektoConnected={frektoConnected}
+      posthogConnected={posthogInteg?.status === 'connected'}
       blogData={{
         blogs: recentBlogs,
         limit: blogLimit,
