@@ -6280,7 +6280,9 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 
 /* ── Growth Path polish (scoped: other pages reuse .level / .md-cat) ── */
 /* Align the topbar with the centered content column below it. */
-.gp-topbar { padding-left: max(32px, calc((100% - 1140px) / 2 + 36px)); padding-right: max(32px, calc((100% - 1140px) / 2 + 36px)); }
+/* Wider than the shared .wrap (1140px) so large screens aren't left mostly empty. */
+.wrap.gp-wrap { max-width: 1560px; }
+.gp-topbar { padding-left: max(32px, calc((100% - 1560px) / 2 + 36px)); padding-right: max(32px, calc((100% - 1560px) / 2 + 36px)); }
 .gp-wrap { padding-bottom: 40px; }
 
 /* Website + social profiles: a quiet row, not a toolbar. */
