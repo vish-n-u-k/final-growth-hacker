@@ -7127,6 +7127,46 @@ html.light { --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft
 .gp-detail .md-item .sm-fix-guide-num, .gp-detail .md-item .sm-setup-step-num { background: var(--card); border: 1px solid var(--line); color: var(--text-dim); }
 .gp-detail .md-item .md-skip-section { border-top: 1px solid var(--line); }
 
+/* Sales playbook card (Foundation): a deliverable, shown below the result summary. */
+.gp-pb { border: 1px solid var(--line); border-radius: 14px; background: var(--card); margin-bottom: 24px; overflow: hidden; }
+.gp-pb-hd { display: flex; align-items: center; gap: 14px; padding: 16px 20px; cursor: pointer; user-select: none; flex-wrap: wrap; }
+.gp-pb-hd:hover { background: var(--bg-soft); }
+.gp-pb-hd:focus-visible { outline: 2px solid var(--green); outline-offset: -2px; }
+.gp-pb-icon { width: 40px; height: 40px; border-radius: 11px; flex: none; display: grid; place-items: center; background: var(--accent); color: var(--accent-foreground); }
+.gp-pb-title { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gp-pb-title b { font-size: 16px; font-weight: 600; color: var(--text); }
+.gp-pb-title span { font-size: 13.5px; color: var(--text-dim); }
+.gp-pb-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-left: auto; }
+.gp-pb-chip { font-size: 12.5px; font-weight: 500; border-radius: 99px; padding: 4px 12px; background: var(--accent); color: var(--accent-foreground); white-space: nowrap; }
+.gp-pb-chip.is-busy, .gp-pb-chip.is-empty { background: var(--bg-soft); color: var(--text-dim); }
+.gp-pb-btn { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 14px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
+.gp-pb-btn:hover { border-color: var(--green); }
+.gp-pb-btn:focus-visible, .gp-pb-save:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.gp-pb-toggle { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; color: var(--text-dim); padding: 7px 4px; }
+.gp-pb-chev { transition: transform .2s; }
+.gp-pb.is-open .gp-pb-chev { transform: rotate(180deg); }
+.gp-pb-body { border-top: 1px solid var(--line); padding: 24px 24px 28px; max-height: min(70vh, 680px); overflow-y: auto; }
+.gp-pb-empty { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-dim); max-width: 70ch; }
+.gp-pb-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 18px; align-items: start; }
+.gp-pb-sec { background: var(--bg-soft); border-radius: 12px; padding: 20px 22px 22px; min-width: 0; }
+.gp-pb-sec-title { font-family: var(--font-display, 'Fraunces', serif); font-size: 19px; font-weight: 600; letter-spacing: -.01em; margin: 0 0 14px; color: var(--text); }
+.gp-pb-fields { display: flex; flex-direction: column; gap: 16px; }
+.gp-pb-field-label, .gp-pb-field label { display: block; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px; }
+.gp-pb-field-text { font-size: 14.5px; line-height: 1.65; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.gp-pb-none { color: var(--text-faint); font-style: italic; }
+.gp-pb-field textarea { width: 100%; box-sizing: border-box; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px; line-height: 1.6; color: var(--text); resize: vertical; }
+.gp-pb-field textarea:focus { outline: 2px solid var(--green); outline-offset: 1px; border-color: transparent; }
+.gp-pb-foot { display: flex; gap: 10px; padding: 14px 24px; border-top: 1px solid var(--line); background: var(--card); }
+.gp-pb-save { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 18px; border-radius: 9px; border: 0; background: var(--green); color: var(--primary-foreground); cursor: pointer; }
+.gp-pb-save:disabled { opacity: .6; cursor: default; }
+@media (max-width: 760px) {
+  .gp-pb-hd { padding: 14px 16px; gap: 12px; }
+  .gp-pb-actions { margin-left: 0; width: 100%; }
+  .gp-pb-body { padding: 16px 14px 20px; }
+  .gp-pb-sec { padding: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .gp-pb-chev { transition: none; } }
+
 .app-sidebar-theme { margin-left: auto; flex-shrink: 0; display: inline-flex; }
 
 @media (max-width: 1000px) {
