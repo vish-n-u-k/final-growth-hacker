@@ -7218,6 +7218,17 @@ button.gp-users-chip, .gp-users-chip.is-live { height: auto; min-height: 38px; p
 .gp-journey-mrr-toggle:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 6px; }
 .gp-journey-mrr-chev { transition: transform .2s; }
 .gp-journey-mrr-toggle[aria-expanded="true"] .gp-journey-mrr-chev { transform: rotate(180deg); }
+/* Wide screens: the detail panel scrolls on its own and stays pinned beside the category list, so reading a long
+   list of checks does not scroll the whole page. Its heading stays at the top of the panel while you scroll. */
+@media (min-width: 1001px) {
+  .gp-catgroup > .gp-detail { position: sticky; top: 16px; align-self: start; max-height: calc(100vh - 32px); overflow-y: auto; overscroll-behavior: auto; scrollbar-width: thin; scrollbar-color: var(--text-faint) transparent; scrollbar-gutter: stable; }
+  .gp-catgroup > .gp-detail::-webkit-scrollbar { width: 10px; }
+  .gp-catgroup > .gp-detail::-webkit-scrollbar-track { background: transparent; }
+  .gp-catgroup > .gp-detail::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; border: 2px solid var(--card); }
+  .gp-catgroup > .gp-detail::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+  .gp-catgroup > .gp-detail .gp-detail-hd { position: sticky; top: -24px; z-index: 2; background: var(--card); margin: -24px -26px 0; padding: 22px 26px 12px; }
+}
+
 .app-sidebar-theme { margin-left: auto; flex-shrink: 0; display: inline-flex; }
 
 @media (max-width: 1000px) {
