@@ -1013,7 +1013,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                   </svg>
                   What&apos;s working
                 </div>
-                {impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}
+                <div className="td-cards">{impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}</div>
               </>
             )}
             <WeeklyBlogSection initialData={blogData} />
@@ -1037,8 +1037,9 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
               </svg>
               Actions for today
             </div>
+            <div className="td-cards">
             {cards.map((card, i) => (
-              <div key={card.id}>
+              <div key={card.id} className={`td-cell${expandedCard === card.id ? ' td-cell--wide' : ''}`}>
                 <ActionCardItem
                   card={card}
                   rank={i + 1}
@@ -1111,6 +1112,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                 )}
               </div>
             ))}
+            </div>
 
             {/* Impact cards */}
             {impacts.length > 0 && (
@@ -1121,7 +1123,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                   </svg>
                   What&apos;s working
                 </div>
-                {impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}
+                <div className="td-cards">{impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}</div>
               </>
             )}
 
@@ -1231,7 +1233,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
         /* hero */
         .td-hero {
           display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
-          padding: 36px 40px 0; max-width: 780px; width: 100%; margin: 0 auto; box-sizing: border-box;
+          padding: 36px clamp(20px, 3.2vw, 48px) 0; max-width: 1680px; width: 100%; margin: 0 auto; box-sizing: border-box;
         }
         .td-hero-day {
           font-family: var(--font-display, serif); font-size: 30px; font-weight: 700;
@@ -1264,10 +1266,18 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
 
         /* body */
         .td-body {
-          max-width: 780px; width: 100%; margin: 0 auto;
-          padding: 24px 40px 80px; box-sizing: border-box;
+          max-width: 1680px; width: 100%; margin: 0 auto;
+          padding: 24px clamp(20px, 3.2vw, 48px) 80px; box-sizing: border-box;
           display: flex; flex-direction: column; gap: 14px;
         }
+
+        /* action and impact cards: one column on phones, more as the screen widens */
+        .td-cards {
+          display: grid; gap: 16px; align-items: start;
+          grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr));
+        }
+        .td-cell { min-width: 0; }
+        .td-cell--wide { grid-column: 1 / -1; }
 
         /* section label */
         .td-section-label {
@@ -1609,9 +1619,9 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
 
         /* responsive */
         @media (max-width: 640px) {
-          .td-hero { flex-direction: column; gap: 14px; padding: 24px 20px 0; }
+          .td-hero { flex-direction: column; gap: 14px; padding: 24px 16px 0; }
           .td-hero-day { font-size: 24px; }
-          .td-body { padding: 18px 20px 60px; }
+          .td-body { padding: 18px 16px 60px; }
           .td-nav { padding: 0 16px; }
           .td-hero-right { flex-wrap: wrap; }
           .td-feed-row { flex-wrap: wrap; gap: 6px; }
