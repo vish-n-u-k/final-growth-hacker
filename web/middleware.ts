@@ -4,9 +4,22 @@ import { NextResponse, type NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
+  // Without these, createServerClient throws and Vercel shows a bare MIDDLEWARE_INVOCATION_FAILED page.
+  // Say which setting is missing instead, so a misconfigured deployment is obvious.
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+  if (!supabaseUrl || !supabaseKey) {
+    const missing = [!supabaseUrl && 'NEXT_PUBLIC_SUPABASE_URL', !supabaseKey && 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'].filter(Boolean).join(', ')
+    console.error(`[middleware] missing environment variables: ${missing}`)
+    return new NextResponse(
+      `This deployment is missing environment variables: ${missing}. Add them in Vercel (Settings → Environment Variables) and redeploy.`,
+      { status: 500, headers: { 'content-type': 'text/plain; charset=utf-8' } },
+    )
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    supabaseUrl,
+    supabaseKey,
     {
       cookies: {
         getAll() {
