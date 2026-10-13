@@ -2038,7 +2038,7 @@ html.light .mlp-btn--locked { background: #f1f1ee; }
 
 /* ── Light mode ─────────────────────────────────────────────────────────── */
 html.light {
-  --bg: #f5f6f4;
+  --bg: #ffffff;
   --bg-soft: #eef1ee;
   --card: #ffffff;
   --card-hi: #eef1eecc;
@@ -2052,7 +2052,7 @@ html.light {
   --text-faint: #7d8a80;
   --gold: #7a5a08;
   --locked: #b4bcb6;
-  --background: #f5f6f4;
+  --background: #ffffff;
   --foreground: #16201a;
   --card-foreground: #16201a;
   --popover: #ffffff;
