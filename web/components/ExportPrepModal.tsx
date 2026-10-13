@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 
 interface Props {
   moduleName: string
+  singleIssue?: boolean // exporting one issue instead of the whole module
   onDownload: () => Promise<void>
   onSkip: () => void
   onMarkConnected: () => void
@@ -11,7 +12,7 @@ interface Props {
 
 const MCP_URL = 'https://app.growjin.com/api/mcp'
 
-export default function ExportPrepModal({ moduleName, onDownload, onSkip, onMarkConnected }: Props) {
+export default function ExportPrepModal({ moduleName, singleIssue = false, onDownload, onSkip, onMarkConnected }: Props) {
   const [mcpOpen, setMcpOpen] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [copiedUrl, setCopiedUrl] = useState(false)
@@ -48,7 +49,7 @@ export default function ExportPrepModal({ moduleName, onDownload, onSkip, onMark
               Export — {moduleName}
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 5, lineHeight: 1.5 }}>
-              Choose how you want to action these items
+              {singleIssue ? 'Choose how you want to action this issue' : 'Choose how you want to action these items'}
             </div>
           </div>
           <button
@@ -155,7 +156,7 @@ export default function ExportPrepModal({ moduleName, onDownload, onSkip, onMark
                 {downloading ? 'Preparing your file…' : 'Download .md file'}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-                {downloading ? 'Running analysis — this takes a few seconds' : 'Full action plan as a Markdown file'}
+                {downloading ? 'Running analysis — this takes a few seconds' : singleIssue ? 'This issue as a Markdown file' : 'Full action plan as a Markdown file'}
               </div>
             </div>
           </button>

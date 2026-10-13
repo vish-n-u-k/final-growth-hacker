@@ -7190,6 +7190,8 @@ html.light { --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft
 .sm-act-primary:hover { filter: brightness(1.08); }
 .sm-act-secondary { border: 1px solid var(--line); background: var(--card); color: var(--text); }
 .sm-act-secondary:hover { border-color: var(--green); }
+.sm-act-export { display: inline-flex; align-items: center; gap: 8px; }
+.sm-act-secondary:disabled { opacity: .6; cursor: default; }
 .sm-act-primary:focus-visible, .sm-act-secondary:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 .gp-detail .md-item .md-skip-section { border-top: 0; padding-top: 0; margin-top: 2px; }
 .gp-detail .md-item .md-skip-section-label { display: none; }

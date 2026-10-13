@@ -492,6 +492,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const [competitorPanelOpen, setCompetitorPanelOpen] = useState(false)
   const [exportPrepOpen, setExportPrepOpen] = useState(false)
   const [exportPrepModuleId, setExportPrepModuleId] = useState<string | null>(null)
+  // When set, the export covers just this one issue (its slug) instead of the whole module.
+  const [exportPrepSlug, setExportPrepSlug] = useState<string | null>(null)
   const [exportingMap, setExportingMap] = useState<Record<string, boolean>>({})
   const [resolvedBsModId, setResolvedBsModId] = useState<string | null>(
     () => allModulesData.find((m) => m.type === 'business-stage')?.id ?? null,
@@ -1380,7 +1382,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     return lines.join('\n')
   }
 
-  const performDownload = async (modData: ModuleData) => {
+  const performDownload = async (modData: ModuleData, onlySlug?: string) => {
     setExportingMap(prev => ({ ...prev, [modData.id]: true }))
     const states = statesMap[modData.id] ?? {}
     const dynItems = dynItemsMap[modData.id] ?? []
@@ -1398,6 +1400,14 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         .map(defItem => { const s = states[defItem.slug]!; return { slug: defItem.slug, label: defItem.label, aiDetail: s.aiDetail, aiAction: s.aiAction } })
     }
 
+    // One issue only: keep just that one for classification and leave every other item out of the file.
+    const skipIds = new Set<string>()
+    if (onlySlug) {
+      failingItems = failingItems.filter(i => i.slug === onlySlug)
+      if (modData.definition.dynamic) dynItems.forEach(i => { if (i.slug !== onlySlug) skipIds.add(i.id) })
+      else Object.entries(states).forEach(([slug, st]) => { if (slug !== onlySlug && st.id) skipIds.add(st.id) })
+    }
+
     const classifications: Record<string, { exportType: 'auto' | 'needs_choice' | 'skip'; choiceOptions?: string[] }> = {}
     if (failingItems.length > 0) {
       try {
@@ -1413,24 +1423,27 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       } catch { /* non-fatal */ }
     }
 
-    const prompt = buildClaudeCodePrompt(modData, new Set(), classifications)
+    const prompt = buildClaudeCodePrompt(modData, skipIds, classifications)
     const blob = new Blob([prompt], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${brand.name}-${modData.name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-')}-Report-Growjin.md`
+    a.download = onlySlug
+      ? `${brand.name}-${(failingItems[0]?.label ?? onlySlug).replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')}-Fix-Growjin.md`
+      : `${brand.name}-${modData.name.split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('-')}-Report-Growjin.md`
     a.click()
     URL.revokeObjectURL(url)
     setExportingMap(prev => ({ ...prev, [modData.id]: false }))
   }
 
-  const handleTopExport = (modData: ModuleData) => {
+  const handleTopExport = (modData: ModuleData, onlySlug?: string) => {
     const mcpConnected = typeof window !== 'undefined' && localStorage.getItem('growjin_mcp_connected') === 'true'
     if (mcpConnected) {
-      performDownload(modData)
+      performDownload(modData, onlySlug)
       return
     }
     setExportPrepModuleId(modData.id)
+    setExportPrepSlug(onlySlug ?? null)
     setExportPrepOpen(true)
   }
 
@@ -1716,6 +1729,17 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   >
                     {copiedPrompt === itemKey ? 'Copied ✓' : 'Copy fix prompt'}
                   </button>
+                  {item.aiAction && (
+                    <button
+                      type="button"
+                      className="sm-act-secondary sm-act-export"
+                      disabled={!!exportingMap[modId]}
+                      onClick={(e) => { e.stopPropagation(); const m = allModulesData.find(x => x.id === modId); if (m) handleTopExport(m, item.slug) }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      {exportingMap[modId] ? 'Exporting…' : 'Export'}
+                    </button>
+                  )}
                   <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, true, item.id, item.slug, userC, e)}>Mark as done</button>
                 </div>
               )}
@@ -1939,6 +1963,17 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   >
                     {copiedPrompt === itemKey ? 'Copied ✓' : 'Copy fix prompt'}
                   </button>
+                  {s?.aiAction && (
+                    <button
+                      type="button"
+                      className="sm-act-secondary sm-act-export"
+                      disabled={!!exportingMap[modId]}
+                      onClick={(e) => { e.stopPropagation(); const m = allModulesData.find(x => x.id === modId); if (m) handleTopExport(m, item.slug) }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      {exportingMap[modId] ? 'Exporting…' : 'Export'}
+                    </button>
+                  )}
                   <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, false, s?.id ?? '', item.slug, userC, e)}>Mark as done</button>
                 </div>
               )}
@@ -3337,11 +3372,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         return (
           <ExportPrepModal
             moduleName={modData.name}
+            singleIssue={!!exportPrepSlug}
             onDownload={async () => {
-              await performDownload(modData)
+              await performDownload(modData, exportPrepSlug ?? undefined)
               setExportPrepOpen(false)
+              setExportPrepSlug(null)
             }}
-            onSkip={() => setExportPrepOpen(false)}
+            onSkip={() => { setExportPrepOpen(false); setExportPrepSlug(null) }}
             onMarkConnected={() => {
               if (typeof window !== 'undefined') localStorage.setItem('growjin_mcp_connected', 'true')
             }}
