@@ -7197,6 +7197,18 @@ html.light { --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft
 .gp-detail .md-item .md-skip-btn:hover { background: none; color: var(--text-dim); }
 @media (max-width: 480px) { .sm-actions > button { flex: 1 1 140px; } }
 
+/* Users chip: "32 / 50 users" with a thin bar towards the next milestone. */
+button.gp-users-chip { height: auto; min-height: 38px; padding: 5px 12px; }
+.gp-users-chip-main { display: flex; flex-direction: column; gap: 4px; min-width: 92px; }
+.gp-users-chip-line { display: flex; align-items: baseline; gap: 4px; }
+.gp-users-chip-of { color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.gp-users-chip-bar { display: block; height: 3px; border-radius: 99px; background: var(--bg-soft); overflow: hidden; }
+.gp-users-chip-bar i { display: block; height: 100%; border-radius: 99px; background: var(--green); transition: width .4s ease; }
+.gp-users-chip-chev { flex: none; color: var(--text-faint); transition: transform .2s; }
+.gp-users-chip.is-open .gp-users-chip-chev { transform: rotate(180deg); }
+.gp-users-chip:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .gp-users-chip-bar i, .gp-users-chip-chev { transition: none; } }
+
 .app-sidebar-theme { margin-left: auto; flex-shrink: 0; display: inline-flex; }
 
 @media (max-width: 1000px) {
