@@ -7072,3 +7072,5 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .app-rm-pct { font-variant-numeric: tabular-nums; font-size: 11px; color: var(--text-faint); }
 .app-rm-upgrade { margin: 6px 10px 2px; font-size: 12px; font-weight: 600; color: var(--accent-foreground); text-decoration: none; }
 .app-rm-upgrade:hover { text-decoration: underline; }
+
+.app-navitem-tag { margin-left: auto; font-size: 10.5px; font-weight: 600; letter-spacing: .02em; padding: 1px 7px; border-radius: 99px; border: 1px solid var(--line); color: var(--text-faint); }

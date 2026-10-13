@@ -186,9 +186,13 @@ export default function AppSidebar({
       ].filter(g => g.items.length > 0)
     : NAV
   // Parked tools sit together in one quiet group at the bottom instead of between the live ones.
-  const soonItems = NAV.flatMap(g => g.items).filter(i => isComingSoon(i.href))
+  // Today ("what do I do now?") always sits first, above the roadmap, whether it is live or still parked.
+  const todayItem = allItems.find(i => i.href === '/today')
+  const notToday = (i: NavItem) => i.href !== '/today'
+  const soonItems = NAV.flatMap(g => g.items).filter(i => isComingSoon(i.href) && notToday(i))
   const groups: (NavGroup & { pro?: boolean; soon?: boolean })[] = [
-    ...baseGroups.map(g => ({ ...g, items: g.items.filter(i => !isComingSoon(i.href)) })).filter(g => g.items.length > 0),
+    ...(todayItem ? [{ label: '', items: [todayItem] }] : []),
+    ...baseGroups.map(g => ({ ...g, items: g.items.filter(i => !isComingSoon(i.href) && notToday(i)) })).filter(g => g.items.length > 0),
     ...(soonItems.length ? [{ label: 'Coming soon', items: soonItems, soon: true }] : []),
   ]
   const actualPath = usePathname()
@@ -261,8 +265,8 @@ export default function AppSidebar({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
         </button>
       </div>
-      {groups.map((group) => (
-        <div className={`app-sidebar-group${'pro' in group && group.pro ? ' app-sidebar-group--pro' : ''}${'soon' in group && group.soon ? ' app-sidebar-group--soon' : ''}`} key={group.label}>
+      {groups.map((group, gi) => (
+        <div className={`app-sidebar-group${'pro' in group && group.pro ? ' app-sidebar-group--pro' : ''}${'soon' in group && group.soon ? ' app-sidebar-group--soon' : ''}`} key={`${group.label}-${gi}`}>
           {'pro' in group && group.pro ? (
             <div className="app-sidebar-glabel app-sidebar-glabel--pro">
               <span>Pro</span>
@@ -281,6 +285,8 @@ export default function AppSidebar({
                 <span className="app-navitem app-navitem-locked app-navitem-soon" key={item.href} title="Coming soon">
                   <NavIcon name={item.icon} />
                   {item.label}
+                  {/* Today sits at the top, outside the "Coming soon" group, so it carries its own tag. */}
+                  {item.href === '/today' && <span className="app-navitem-tag">Soon</span>}
                 </span>
               )
             }
