@@ -7491,11 +7491,14 @@ button.gp-users-chip, .gp-users-chip.is-live { height: auto; min-height: 38px; p
 .ud-colpick-list button { display: block; width: 100%; text-align: left; padding: 6px 10px; font: inherit; font-size: 12.5px; font-weight: 500; color: var(--text); background: none; border: 0; border-radius: 6px; cursor: pointer; }
 .ud-colpick-list button:hover { background: var(--bg-soft); }
 .ud-colpick-list button.is-on { background: var(--accent); color: var(--accent-foreground); font-weight: 700; }
-.ud-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 100; padding: 10px 18px; border-radius: 99px; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,.25); white-space: nowrap; }
+.ud-toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 100; padding: 10px 18px; border-radius: 99px; background: var(--text); color: var(--bg); font-size: 13px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,.25); white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
 .ud-cards { display: none; }
 @media (max-width: 760px) {
   .ud-page { padding: 18px 16px 60px; }
   .ud-title { font-size: 22px; }
+}
+/* Below ~1100px the 10-column table no longer fits beside the sidebar: one card per user instead. */
+@media (max-width: 1100px) {
   .ud-hint { display: none; }
   .ud-bar { justify-content: space-between; }
   .ud-table-wrap { display: none; }
@@ -7503,10 +7506,10 @@ button.gp-users-chip, .gp-users-chip.is-live { height: auto; min-height: 38px; p
   .ud-mcard { padding: 16px; border-top: 1px solid var(--line); }
   .ud-mcard:first-child { border-top: 0; }
   .ud-mcard-name { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; overflow-wrap: anywhere; }
-  .ud-mcard dl { margin: 0; }
-  .ud-mcard dl > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 0; font-size: 13px; }
-  .ud-mcard dt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); flex-shrink: 0; }
-  .ud-mcard dd { margin: 0; color: var(--text); text-align: right; min-width: 0; overflow-wrap: anywhere; }
+  .ud-mcard > dl { margin: 0; }
+  .ud-mcard > dl > div { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 0; font-size: 13px; }
+  .ud-mcard > dl dt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); flex-shrink: 0; }
+  .ud-mcard > dl dd { margin: 0; color: var(--text); text-align: right; min-width: 0; overflow-wrap: anywhere; }
   .ud-mcard .ud-id { max-width: 180px; display: inline-block; vertical-align: middle; }
   .ud-journey-btn { margin-top: 8px; height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
   .ud-mcard .ta-panel { margin: 10px 0 0; }

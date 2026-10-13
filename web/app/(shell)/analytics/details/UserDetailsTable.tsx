@@ -226,7 +226,7 @@ export default function UserDetailsTable({ brandId, type, range: initialRange, s
                 </thead>
                 <tbody>
                   {users.map((u, i) => {
-                    const key = `${u.userId}-${i}`
+                    const key = `t:${u.userId}-${i}`
                     const open = openId === key
                     return (
                       <Fragment key={key}>
@@ -267,7 +267,7 @@ export default function UserDetailsTable({ brandId, type, range: initialRange, s
             {/* Phones: one card per user */}
             <div className="ud-cards">
               {users.map((u, i) => {
-                const key = `${u.userId}-${i}`
+                const key = `c:${u.userId}-${i}`
                 const open = openId === key
                 const rows: [string, React.ReactNode][] = [
                   ['Email', u.email ? <span className="ud-email">{u.email}<button type="button" className="ud-copy" title="Copy email" onClick={() => copy(u.email, `Copied ${u.email}`)}>⧉</button></span> : '—'],
