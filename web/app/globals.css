@@ -7023,7 +7023,24 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .ta-block { margin-top: 14px; }
 .ta-sub { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
 .ta-people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.ta-person { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ta-person { display: flex; align-items: center; gap: 10px; min-width: 0; width: 100%; border: 0; background: none; font: inherit; text-align: left; color: inherit; padding: 6px 8px; margin: -6px -8px; border-radius: 10px; cursor: pointer; box-sizing: content-box; }
+.ta-person:hover { background: var(--bg-soft); }
+.ta-chev { color: var(--text-faint); flex-shrink: 0; transition: transform .15s; }
+.ta-person-wrap.is-open .ta-chev { transform: rotate(180deg); }
+.ta-panel { margin: 10px 0 4px 38px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-soft); }
+.ta-dl { margin: 0; display: grid; gap: 6px; }
+.ta-dl > div { display: grid; grid-template-columns: 140px 1fr; gap: 10px; font-size: 12.5px; }
+.ta-dl dt { color: var(--text-faint); }
+.ta-dl dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.ta-sub--panel { margin: 12px 0 6px; }
+.ta-timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ta-timeline li { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--text-dim); }
+.ta-timeline li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ta-timeline time { color: var(--text-faint); flex-shrink: 0; }
+@media (max-width: 600px) {
+  .ta-panel { margin-left: 0; }
+  .ta-dl > div { grid-template-columns: 1fr; gap: 0; }
+}
 .ta-avatar { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-foreground); font-size: 12px; font-weight: 700; flex-shrink: 0; }
 .ta-person-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .ta-person-main b { font-size: 13.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -7047,3 +7064,5 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
   .ta-num { font-size: 19px; }
   .ta-bars li { grid-template-columns: 92px 1fr 30px; }
 }
+.ta-more-link { align-self: flex-start; font-size: 13px; font-weight: 600; color: var(--accent-foreground); text-decoration: none; }
+.ta-more-link:hover { text-decoration: underline; }

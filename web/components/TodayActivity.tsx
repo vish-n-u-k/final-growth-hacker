@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { TodayActivity as Activity } from '@/app/api/today/activity/route'
+import type { PersonDetail } from '@/app/api/today/person/route'
 
 // "What happened" on Today: visitors, new signups (and where each came from), returning users
 // and top sources for the last 24 hours or 7 days. Data: /api/today/activity (PostHog).
@@ -20,10 +21,63 @@ function Delta({ current, prior }: { current: number; prior: number }) {
   return <span className={`ta-delta ${pct > 0 ? 'ta-delta--up' : 'ta-delta--dn'}`}>{pct > 0 ? '↑' : '↓'}{Math.abs(pct)}%</span>
 }
 
+function when(iso: string): string {
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? '' : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+// Details for one signup: how they found you, location, device and what they did.
+function PersonPanel({ id }: { id: string }) {
+  const [p, setP] = useState<PersonDetail | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/today/person?id=${encodeURIComponent(id)}`)
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(setP)
+      .catch(() => setFailed(true))
+  }, [id])
+
+  if (failed) return <div className="ta-panel"><p className="ta-muted">Couldn&apos;t load this person&apos;s details.</p></div>
+  if (!p) return <div className="ta-panel"><p className="ta-muted">Loading…</p></div>
+
+  const rows: [string, string][] = [
+    ['How they found you', p.foundVia],
+    ['Referring page', p.source.referrer],
+    ['Campaign', [p.source.utmSource, p.source.utmMedium, p.source.utmCampaign].filter(Boolean).join(' · ')],
+    ['First page', p.source.landing],
+    ['Location', [p.location.city, p.location.country].filter(Boolean).join(', ')],
+    ['Device', [p.device.type, p.device.os, p.device.browser].filter(Boolean).join(' · ')],
+    ['Email', p.email],
+    ['Signed up', when(p.signedUpAt)],
+    ['Activity', `${p.activity.sessions} visit${p.activity.sessions === 1 ? '' : 's'} · ${p.activity.pageviews} page${p.activity.pageviews === 1 ? '' : 's'} viewed`],
+    ['Last seen', p.activity.lastSeen ? ago(p.activity.lastSeen) : ''],
+  ]
+
+  return (
+    <div className="ta-panel">
+      <dl className="ta-dl">
+        {rows.filter(([, v]) => v).map(([k, v]) => (
+          <div key={k}><dt>{k}</dt><dd>{v}</dd></div>
+        ))}
+      </dl>
+      {p.recent.length > 0 && (
+        <>
+          <div className="ta-sub ta-sub--panel">Recent activity</div>
+          <ol className="ta-timeline">
+            {p.recent.map((e, i) => <li key={i}><span>{e.label}</span><time>{ago(e.at)}</time></li>)}
+          </ol>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function TodayActivity() {
   const [days, setDays] = useState<1 | 7>(1)
   const [data, setData] = useState<Activity | null>(null)
   const [loading, setLoading] = useState(true)
+  const [openId, setOpenId] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -90,18 +144,25 @@ export default function TodayActivity() {
             <div className="ta-block">
               <div className="ta-sub">New signups</div>
               <ul className="ta-people">
-                {data.signups.people.map((p, i) => (
-                  <li key={i} className="ta-person">
-                    <span className="ta-avatar" aria-hidden="true">{p.name.slice(0, 1).toUpperCase()}</span>
-                    <span className="ta-person-main">
-                      <b>{p.name}</b>
-                      <span className="ta-muted">
-                        from {p.source}{p.country ? ` · ${p.country}` : ''}{p.landing && p.landing !== '/' ? ` · landed on ${p.landing}` : ''}
-                      </span>
-                    </span>
-                    <span className="ta-time">{ago(p.at)}</span>
-                  </li>
-                ))}
+                {data.signups.people.map(p => {
+                  const open = openId === p.id
+                  return (
+                    <li key={p.id} className={`ta-person-wrap${open ? ' is-open' : ''}`}>
+                      <button type="button" className="ta-person" onClick={() => setOpenId(open ? null : p.id)} aria-expanded={open}>
+                        <span className="ta-avatar" aria-hidden="true">{p.name.slice(0, 1).toUpperCase()}</span>
+                        <span className="ta-person-main">
+                          <b>{p.name}</b>
+                          <span className="ta-muted">
+                            from {p.source}{p.country ? ` · ${p.country}` : ''}{p.landing && p.landing !== '/' ? ` · landed on ${p.landing}` : ''}
+                          </span>
+                        </span>
+                        <span className="ta-time">{ago(p.at)}</span>
+                        <svg className="ta-chev" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5" /></svg>
+                      </button>
+                      {open && <PersonPanel id={p.id} />}
+                    </li>
+                  )
+                })}
               </ul>
               {data.signups.count > data.signups.people.length && (
                 <p className="ta-muted ta-more">+{data.signups.count - data.signups.people.length} more</p>
@@ -138,6 +199,10 @@ export default function TodayActivity() {
             </div>
           )}
         </div>
+      )}
+
+      {data?.connected && (
+        <Link href="/analytics" className="ta-more-link">See full analytics →</Link>
       )}
     </section>
   )

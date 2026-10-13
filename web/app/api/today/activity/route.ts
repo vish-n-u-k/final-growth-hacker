@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { db } from '@/lib/db'
-import { brandIntegrations } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
 import { getBrandForUser } from '@/lib/server-session'
 import { buildPostHogFilter } from '@/lib/posthog/filter'
 import { normalizeSource } from '@/lib/posthog/source'
+import { posthogForBrand } from '@/lib/posthog/client'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -19,28 +17,12 @@ export interface TodayActivity {
   signups: {
     count: number
     prior: number
-    people: { name: string; source: string; country: string; landing: string; at: string }[]
+    people: { id: string; name: string; source: string; country: string; landing: string; at: string }[]
   }
   returning: number
   channels: { name: string; visitors: number }[]
   referrers: { domain: string; visitors: number }[]
   pages: { path: string; visitors: number }[]
-}
-
-async function hogqlRows(host: string, projectId: string, apiKey: string, query: string): Promise<unknown[][] | null> {
-  try {
-    const res = await fetch(`${host}/api/projects/${projectId}/query`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: { kind: 'HogQLQuery', query } }),
-      signal: AbortSignal.timeout(12000),
-    })
-    if (!res.ok) return null
-    const data = await res.json() as { results?: unknown[][] }
-    return data.results ?? null
-  } catch {
-    return null
-  }
 }
 
 // Short per-instance cache: Today can be reloaded often and each load is 7 PostHog queries.
@@ -66,22 +48,14 @@ export async function GET(request: NextRequest) {
     returning: 0, channels: [], referrers: [], pages: [],
   }
 
-  const [ph] = await db.select().from(brandIntegrations).where(and(
-    eq(brandIntegrations.brandId, brand.id),
-    eq(brandIntegrations.provider, 'posthog'),
-    eq(brandIntegrations.status, 'connected'),
-  )).limit(1)
-  const meta = (ph?.metadata as Record<string, string> | null) ?? {}
-  const projectId = meta['project_id']
-  if (!ph?.apiKey || !projectId) return NextResponse.json(empty)
+  const ph = await posthogForBrand(brand.id)
+  if (!ph) return NextResponse.json(empty)
 
   const cacheKey = `${brand.id}:${days}`
   const hit = cache.get(cacheKey)
   if (hit && Date.now() - hit.at < CACHE_MS) return NextResponse.json(hit.data)
 
-  const host = (meta['posthog_host'] || 'https://us.posthog.com').replace(/\/$/, '')
-  const key = ph.apiKey
-  const q = (query: string) => hogqlRows(host, projectId, key, query)
+  const { q, meta } = ph
   const f = buildPostHogFilter(meta)
   const personAnd = f.personWhereClause.replace(/^WHERE /, 'AND ')
   const since = `now() - interval ${days} day`
@@ -99,7 +73,7 @@ export async function GET(request: NextRequest) {
        FROM persons WHERE is_identified = 1 AND created_at >= ${priorFrom} ${personAnd}`),
     q(`SELECT coalesce(toString(properties.$name), ''), coalesce(toString(properties.$email), ''), toString(created_at),
               coalesce(toString(properties.$initial_utm_source), ''), coalesce(toString(properties.$initial_referring_domain), ''),
-              coalesce(toString(properties.$geoip_country_name), ''), coalesce(toString(properties.$initial_current_url), '')
+              coalesce(toString(properties.$geoip_country_name), ''), coalesce(toString(properties.$initial_current_url), ''), toString(id)
        FROM persons WHERE is_identified = 1 AND created_at >= ${since} ${personAnd}
        ORDER BY created_at DESC LIMIT 8`),
     q(`SELECT count(DISTINCT person_id) FROM events
@@ -125,6 +99,7 @@ export async function GET(request: NextRequest) {
       count: n(signupCountRows?.[0]?.[0]),
       prior: n(signupCountRows?.[0]?.[1]),
       people: (signupRows ?? []).map(r => ({
+        id: String(r[7]),
         name: String(r[0]) || String(r[1]) || 'Someone',
         at: String(r[2]),
         source: normalizeSource(String(r[3]), String(r[4])),
