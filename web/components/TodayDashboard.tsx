@@ -959,7 +959,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
       )}
 
       {/* Nav */}
-      <nav className="td-nav">
+      <nav className="td-nav shell-dup-header">
         <button className="td-nav-logo" onClick={() => router.push('/dashboard')}>
           <img src="/growjinlogo.svg" alt="" width={18} height={18} />
           <span>GrowJin</span>
