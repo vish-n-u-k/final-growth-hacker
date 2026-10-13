@@ -1,7 +1,8 @@
 'use client'
 
 import { Fragment, useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useRoadmap } from '@/components/RoadmapContext'
 import Link from 'next/link'
 import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull, type DynamicModuleCategoryDefinition } from '@/lib/modules/types'
 import ExportPrepModal from '@/components/ExportPrepModal'
@@ -229,14 +230,6 @@ const JOURNEY_PHASES = [
   { min: 250, max: Infinity, range: '250–500', name: 'New markets' },
 ]
 
-// Display-only grouping of the module chain (by registry `order`). Locking stays per-module.
-const GROWTH_PHASES = [
-  { maxOrder: 3,        name: 'Get set up',    blurb: 'Foundation, website, SEO' },
-  { maxOrder: 7,        name: 'Get found',     blurb: 'AI search, social, brand' },
-  { maxOrder: 11,       name: 'Win attention', blurb: 'Content, competitors, outreach, ads' },
-  { maxOrder: Infinity, name: 'Scale',         blurb: 'Analytics, email, audience' },
-]
-
 function InlineIntegrationForm({ intDef, onConnected }: { intDef: IntegrationDefinition; onConnected: () => void }) {
   const [values, setValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
@@ -358,7 +351,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     return map
   }, [allModulesData])
 
+  const searchParams = useSearchParams()
+  const roadmap = useRoadmap()
   const [openModules, setOpenModules] = useState<Set<string>>(() => {
+    // Linked from the sidebar roadmap while on another page: open that module.
+    const wanted = searchParams.get('module')
+    const linked = wanted ? allModulesData.find(m => m.type === wanted) : undefined
+    if (linked) return new Set([linked.id])
     // Open the first module that isn't locked (previous scored < 80%)
     const sorted = [...allModulesData].sort((a, b) => a.order - b.order)
     const first = sorted.find(m => {
@@ -561,21 +560,18 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const isStepDone = (m: ModuleData) => !isModuleLocked(m) && !m.definition.comingSoon && (liveScores[m.id] ?? 0) >= 80
   const railDoneCount = railModules.filter(isStepDone).length
 
-  const phaseIdxOf = (m: ModuleData) => GROWTH_PHASES.findIndex(p => m.order <= p.maxOrder)
-  const phases = GROWTH_PHASES.map((p, i) => {
-    const mods = railModules.filter(m => phaseIdxOf(m) === i)
-    const active = mods.filter(m => !m.definition.comingSoon)
-    return {
-      ...p,
-      mods,
-      total: active.length,
-      done: active.filter(isStepDone).length,
-      locked: active.length > 0 && active.every(isModuleLocked),
-      pro: active.length > 0 && active.every(isPlanLocked),
-      pct: active.length ? Math.round(active.reduce((s, m) => s + Math.min(liveScores[m.id] ?? 0, 100), 0) / active.length) : 0,
-    }
-  }).filter(p => p.mods.length > 0)
-  const selectedPhase = phases.find(p => selectedModule && p.mods.includes(selectedModule)) ?? phases[0]
+  // The sidebar roadmap picks a module through the shared context, and shows this page's live scores.
+  const pickedModule = roadmap.pick
+  useEffect(() => {
+    if (!pickedModule) return
+    const m = allModulesData.find(x => x.type === pickedModule.type)
+    if (m) setOpenModules(new Set([m.id]))
+  }, [pickedModule]) // eslint-disable-line react-hooks/exhaustive-deps
+  const liveScoresKey = JSON.stringify(allModulesData.map(m => [m.type, liveScores[m.id]]))
+  const setRoadmapLive = roadmap.setLive
+  useEffect(() => {
+    setRoadmapLive({ selectedType: selectedModule?.type ?? null, scores: Object.fromEntries(allModulesData.map(m => [m.type, liveScores[m.id] ?? 0])) })
+  }, [selectedModule?.type, liveScoresKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentPhaseIdx = Math.max(0, JOURNEY_PHASES.findIndex(p => userCount < p.max))
   const currentPhase = JOURNEY_PHASES[currentPhaseIdx]
@@ -2407,100 +2403,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           )
         })()}
 
-        {/* Roadmap rail + the selected module. The rail replaces the old stage tabs and step pills:
-            each stage is a group, and the selected stage lists its modules underneath. */}
-        <div className="gp-shell">
-        <nav className="gp-rail" aria-label="Growth roadmap">
-          <div className="gp-rail-title">Your roadmap</div>
-          {(() => {
-            const renderPhase = (p: typeof phases[number]) => {
-              const isSel = p === selectedPhase
-              const gated = p.locked || p.pro
-              const allDone = !gated && p.total > 0 && p.done === p.total
-              return (
-                <div key={p.name} className={`gp-rstage${isSel ? ' is-sel' : ''}${gated ? ' is-locked' : ''}${allDone ? ' is-done' : ''}`}>
-                  <button
-                    type="button"
-                    className="gp-rstage-hd"
-                    onClick={() => {
-                      const target = p.mods.find(m => !m.definition.comingSoon && !isModuleLocked(m) && !isStepDone(m)) ?? p.mods[0]
-                      setOpenModules(new Set([target.id]))
-                    }}
-                    aria-expanded={isSel}
-                    title={p.blurb}
-                  >
-                    <svg className="gp-rstage-chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    <span className="gp-rstage-name">{phases.indexOf(p) + 1} · {p.name}</span>
-                    <span className="gp-rstage-count">
-                      {gated ? (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-label="Locked"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                      ) : allDone ? '✓' : `${p.done}/${p.total}`}
-                    </span>
-                  </button>
-                  {isSel && (
-                    <div className="gp-rstage-mods">
-                      {p.mods.map(m => {
-                        const locked = isModuleLocked(m)
-                        const done = isStepDone(m)
-                        const soon = !!m.definition.comingSoon
-                        const pro = isPlanLocked(m)
-                        const state = done ? 'done' : locked || soon || pro ? 'locked' : 'open'
-                        const score = liveScores[m.id] ?? 0
-                        const analysed = (lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt)
-                        return (
-                          <button
-                            type="button"
-                            key={m.id}
-                            className={`gp-rmod gp-rmod--${state}${m.id === selectedModule?.id ? ' gp-rmod--selected' : ''}`}
-                            onClick={() => setOpenModules(new Set([m.id]))}
-                            aria-current={m.id === selectedModule?.id ? 'page' : undefined}
-                            title={pro ? `${m.name} — GrowJin Pro` : locked ? `${m.name} — locked` : `${m.name} — ${score}%`}
-                          >
-                            <span className="gp-rmod-dot" aria-hidden="true">
-                              {done ? (
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                              ) : state === 'locked' ? (
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2.4" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>
-                              ) : null}
-                            </span>
-                            <span className="gp-rmod-name">{m.name}</span>
-                            {soon ? <span className="gp-rmod-pct">Soon</span>
-                              : !locked && !pro && <span className="gp-rmod-pct">{analysed ? `${score}%` : '—'}</span>}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
-              )
-            }
-            // Free plan: stages made only of Pro modules sit together under one "Unlock with Pro" heading.
-            const freePhases = phases.filter(p => !p.pro)
-            const proPhases = phases.filter(p => p.pro)
-            return (
-              <>
-                {freePhases.map(renderPhase)}
-                {proPhases.length > 0 && (
-                  <div className="gp-rail-pro">
-                    <div className="gp-rail-pro-hd">
-                      <span>Unlock with Pro</span>
-                      <Link href="/pricing" className="gp-rail-pro-cta">See plans</Link>
-                    </div>
-                    {proPhases.map(renderPhase)}
-                  </div>
-                )}
-              </>
-            )
-          })()}
-          {proStepCount > 0 && (
-            <Link href="/pricing" className="gp-pro-strip">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-              <span className="gp-pro-strip-text"><b>{proStepCount} more steps with Pro</b></span>
-              <span className="gp-pro-strip-cta">See plans →</span>
-            </Link>
-          )}
-        </nav>
-
         <div className={`gp-main${showStageCard ? '' : ' gp-main--solo'}`}>
         <div className="gp-col">
 
@@ -3289,7 +3191,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             {bsItemsAll.length > 0 ? 'View full playbook' : 'Get your playbook'}
           </button>
         </aside>}
-        </div>
         </div>
 
       </div>

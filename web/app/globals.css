@@ -7001,43 +7001,15 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .app-install-hint b { color: var(--text); font-weight: 600; }
 .app-install-hint svg { display: inline-block; vertical-align: -2px; margin: 0 1px; }
 
-/* ── Growth Path redesign: roadmap rail, result summary, grouped categories ── */
-.gp-shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); gap: 24px; align-items: start; }
-.gp-rail { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.gp-rail-title { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); padding: 0 10px 6px; }
-.gp-rstage { display: flex; flex-direction: column; }
-.gp-rstage-hd { appearance: none; background: none; border: 0; font: inherit; color: var(--text-dim); text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border-radius: 9px; font-size: 13.5px; font-weight: 500; }
-.gp-rstage-hd:hover { background: var(--bg-soft); color: var(--text); }
-.gp-rstage-hd:focus-visible, .gp-rmod:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
-.gp-rstage.is-sel .gp-rstage-hd { color: var(--text); font-weight: 600; }
-.gp-rstage.is-locked .gp-rstage-hd { color: var(--text-faint); }
-.gp-rstage-chev { flex: none; color: var(--text-faint); transition: transform .15s; }
-.gp-rstage.is-sel .gp-rstage-chev { transform: rotate(90deg); }
-.gp-rstage-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gp-rstage-count { font-variant-numeric: tabular-nums; font-size: 11.5px; font-weight: 600; color: var(--text-faint); white-space: nowrap; display: inline-flex; align-items: center; }
-.gp-rstage.is-done .gp-rstage-count { color: var(--green); }
-.gp-rstage-mods { display: flex; flex-direction: column; gap: 2px; margin: 2px 0 8px 17px; padding-left: 8px; border-left: 1px solid var(--line); }
-.gp-rmod { appearance: none; background: none; border: 0; font: inherit; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: 8px; font-size: 13px; color: var(--text-dim); }
-.gp-rmod:hover { background: var(--bg-soft); color: var(--text); }
-.gp-rmod--selected, .gp-rmod--selected:hover { background: var(--accent); color: var(--accent-foreground); font-weight: 600; }
-.gp-rmod--locked { color: var(--text-faint); }
-.gp-rmod-dot { width: 16px; height: 16px; border-radius: 50%; flex: none; border: 1.5px solid var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--text-faint); }
-.gp-rmod--open .gp-rmod-dot { border-color: var(--green); }
-.gp-rmod--done .gp-rmod-dot { background: var(--green); border-color: var(--green); color: var(--bg); }
-.gp-rmod-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gp-rmod-pct { font-variant-numeric: tabular-nums; font-size: 11px; color: var(--text-faint); }
-.gp-rail-pro { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
-.gp-rail-pro-hd { display: flex; justify-content: space-between; align-items: center; padding: 0 10px 4px; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); }
-.gp-rail-pro-cta { color: var(--accent-foreground); font-weight: 600; text-decoration: none; letter-spacing: 0; text-transform: none; font-size: 12px; }
-.gp-rail .gp-pro-strip { margin-top: 10px; flex-wrap: wrap; }
+/* ── Growth Path redesign: result summary, grouped categories (roadmap lives in the sidebar) ── */
 
 /* Selected module: the growth-stage note becomes a banner above it instead of a narrow side column. */
-.gp-shell .gp-main { grid-template-columns: minmax(0, 1fr); gap: 16px; }
-.gp-shell .gp-stage { order: -1; position: static; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 20px; row-gap: 2px; align-items: center; padding: 16px 20px; }
-.gp-shell .gp-stage-tag { grid-column: 1; justify-self: start; margin-bottom: 4px; }
-.gp-shell .gp-stage-title { grid-column: 1; margin: 0; }
-.gp-shell .gp-stage-text { grid-column: 1; margin: 4px 0 0; -webkit-line-clamp: 3; }
-.gp-shell .gp-stage-cta { grid-column: 2; grid-row: 1 / span 3; width: auto; padding: 10px 18px; white-space: nowrap; }
+.gp-main { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.gp-stage { order: -1; position: static; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 20px; row-gap: 2px; align-items: center; padding: 16px 20px; }
+.gp-stage-tag { grid-column: 1; justify-self: start; margin-bottom: 4px; }
+.gp-stage-title { grid-column: 1; margin: 0; }
+.gp-stage-text { grid-column: 1; margin: 4px 0 0; -webkit-line-clamp: 3; }
+.gp-stage-cta { grid-column: 2; grid-row: 1 / span 3; width: auto; padding: 10px 18px; white-space: nowrap; }
 
 /* Result summary: counts, plus the one open item to start with. */
 .gp-sum { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 12px; padding: 4px 20px 14px; }
@@ -7063,14 +7035,40 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .app-sidebar-theme { margin-left: auto; flex-shrink: 0; display: inline-flex; }
 
 @media (max-width: 1000px) {
-  .gp-shell { grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  .gp-rail { position: static; }
   .gp-sum { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 760px) {
   .gp-sum { padding: 4px 12px 12px; }
-  .gp-shell .gp-stage { grid-template-columns: minmax(0, 1fr); }
-  .gp-shell .gp-stage-cta { grid-column: 1; grid-row: auto; width: 100%; margin-top: 10px; }
+  .gp-stage { grid-template-columns: minmax(0, 1fr); }
+  .gp-stage-cta { grid-column: 1; grid-row: auto; width: 100%; margin-top: 10px; }
   .gp-col .md-cat-pass .md-cat-hd { padding: 10px 14px; }
 }
-@media (prefers-reduced-motion: reduce) { .gp-rstage-chev { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .app-rm-chev { transition: none; } }
+
+/* Roadmap in the sidebar: stages with their modules (components/AppSidebar.tsx). */
+.app-rm { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 4px; }
+.app-rm-title { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); padding: 4px 10px 6px; text-decoration: none; }
+.app-rm-title:hover { color: var(--text-dim); }
+.app-rm-stage { display: flex; flex-direction: column; }
+.app-rm-hd { appearance: none; background: none; border: 0; font: inherit; color: var(--text-dim); text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border-radius: 9px; font-size: 13.5px; font-weight: 500; }
+.app-rm-hd:hover { background: var(--bg-soft); color: var(--text); }
+.app-rm-hd:focus-visible, .app-rm-mod:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.app-rm-stage.is-open .app-rm-hd { color: var(--text); font-weight: 600; }
+.app-rm-stage.is-locked .app-rm-hd { color: var(--text-faint); }
+.app-rm-chev { flex: none; color: var(--text-faint); transition: transform .15s; }
+.app-rm-stage.is-open .app-rm-chev { transform: rotate(90deg); }
+.app-rm-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-rm-count { font-variant-numeric: tabular-nums; font-size: 11.5px; font-weight: 600; color: var(--text-faint); white-space: nowrap; display: inline-flex; align-items: center; }
+.app-rm-stage.is-done .app-rm-count { color: var(--green); }
+.app-rm-mods { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 6px 17px; padding-left: 8px; border-left: 1px solid var(--line); }
+.app-rm-mod { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 8px; font-size: 13px; color: var(--text-dim); text-decoration: none; }
+.app-rm-mod:hover { background: var(--bg-soft); color: var(--text); }
+.app-rm-mod.is-selected, .app-rm-mod.is-selected:hover { background: var(--accent); color: var(--accent-foreground); font-weight: 600; }
+.app-rm-mod--locked { color: var(--text-faint); }
+.app-rm-dot { width: 16px; height: 16px; border-radius: 50%; flex: none; border: 1.5px solid var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--text-faint); }
+.app-rm-mod--open .app-rm-dot { border-color: var(--green); }
+.app-rm-mod--done .app-rm-dot { background: var(--green); border-color: var(--green); color: var(--bg); }
+.app-rm-modname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-rm-pct { font-variant-numeric: tabular-nums; font-size: 11px; color: var(--text-faint); }
+.app-rm-upgrade { margin: 6px 10px 2px; font-size: 12px; font-weight: 600; color: var(--accent-foreground); text-decoration: none; }
+.app-rm-upgrade:hover { text-decoration: underline; }
