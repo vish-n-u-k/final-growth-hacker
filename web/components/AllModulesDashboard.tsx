@@ -310,15 +310,14 @@ function LevelRing({ score, pending = false }: { score: number; pending?: boolea
     <svg width="100%" height="100%" viewBox="0 0 46 46" style={{ display: 'block' }}>
       <circle
         cx="23" cy="23" r={r} fill="none"
-        stroke={color} strokeWidth="4" strokeLinecap="round"
+        strokeWidth="4" strokeLinecap="round"
         strokeDasharray={circ}
         strokeDashoffset={score === 0 ? circ : offset}
-        style={{ transform: 'rotate(-90deg)', transformOrigin: '23px 23px', transition: 'stroke-dashoffset .5s ease' }}
+        style={{ stroke: color, transform: 'rotate(-90deg)', transformOrigin: '23px 23px', transition: 'stroke-dashoffset .5s ease' }}
       />
       <text
         x="23" y="23" textAnchor="middle" dominantBaseline="central"
-        fill={color}
-        style={{ fontSize: '12px', fontWeight: 800, fontFamily: 'inherit', letterSpacing: '-0.5px' }}
+        style={{ fill: color, fontSize: '12px', fontWeight: 800, fontFamily: 'inherit', letterSpacing: '-0.5px' }}
       >
         {pending ? '—' : `${score}%`}
       </text>

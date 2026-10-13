@@ -7002,8 +7002,8 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .app-install-hint svg { display: inline-block; vertical-align: -2px; margin: 0 1px; }
 
 /* ── Growth Path page: breadcrumb header, result summary, category list + detail panel ── */
-:root { --warn: #f5b351; --warn-soft: #33270f; --crit: #f87b70; --crit-soft: #361a17; }
-html.light { --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft: #fde8e6; }
+:root { --warn: #f5b351; --warn-soft: #33270f; --crit: #f87b70; --crit-soft: #361a17; --progress-good: #4ade80; }
+html.light { --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft: #fde8e6; --progress-good: #15803d; }
 
 .gp-topbar { background: transparent; border-bottom: 0; padding-top: 22px; padding-bottom: 4px; }
 .gp-crumbs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--text-faint); }

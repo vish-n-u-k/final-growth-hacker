@@ -14,7 +14,7 @@ export const GROWTH_PHASES = [
 // One colour scale for progress everywhere (module rings, sidebar dots and bars):
 // red, orange, yellow, then green as the score climbs.
 export function progressColor(score: number): string {
-  if (score >= 85) return '#4ade80'
+  if (score >= 85) return 'var(--progress-good)'  // dark green on light, bright green on dark
   if (score >= 65) return '#fbbf24'
   if (score >= 35) return '#fb923c'
   return '#f43f5e'
