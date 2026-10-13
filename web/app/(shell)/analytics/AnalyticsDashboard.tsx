@@ -11,6 +11,7 @@ import {
   Zap, ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle,
 } from 'lucide-react'
 import DailySummaryCard from './daily/DailySummaryCard'
+import MetricPeople, { type MetricType } from '@/components/MetricPeople'
 import ProjectedMrr from '@/components/ProjectedMrr'
 import type { MrrSettings } from '@/lib/mrr-shared'
 
@@ -70,6 +71,12 @@ interface DashboardData {
   dau: number
   mau: number
   deletedAccounts24h: number
+  // Same counts for the period before (used for the change shown on each card)
+  signupsPrev24h?: number
+  signinsPrev24h?: number
+  dauPrev?: number
+  mauPrev?: number
+  deletedPrev24h?: number
   retention: { day: string; rate: number }[] | null
   funnel: { stage: string; value: number }[] | null
   webAnalytics: WebAnalytics | null
@@ -154,14 +161,14 @@ function SourcePill({ children }: { children: React.ReactNode }) {
   )
 }
 
-function Delta({ value, invertGood = false }: { value: number; invertGood?: boolean }) {
-  // if (value === 0) return <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>— flat vs yesterday</span>
+function Delta({ value, invertGood = false, period = 'yesterday' }: { value: number; invertGood?: boolean; period?: string }) {
+  if (value === 0) return <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>Same as {period}</span>
   const good = invertGood ? value < 0 : value > 0
   const Icon = value > 0 ? TrendingUp : TrendingDown
   return (
-    <span style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500, color: good ? 'var(--green-bright)' : '#f87171' }}>
+    <span style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500, color: good ? 'var(--accent-foreground)' : 'var(--text-dim)' }}>
       <Icon size={13} />
-      {value > 0 ? '+' : ''}{value} vs yesterday
+      {value > 0 ? '+' : ''}{value} vs {period}
     </span>
   )
 }
@@ -179,15 +186,22 @@ function ComingSoonBadge() {
 }
 
 function StatCard({
-  icon: Icon, iconTone, label, value, source, deltaValue, invertGood, loading, comingSoon,
+  icon: Icon, iconTone, label, value, source, deltaValue, invertGood, loading, comingSoon, period, onOpen,
 }: {
   icon: React.ElementType; iconTone: string; label: string; value: string | number
   source: string; deltaValue: number; invertGood?: boolean; loading?: boolean; comingSoon?: boolean
+  period?: string; onOpen?: () => void // opens "View details" (the people behind the number)
 }) {
   const iconColor = toneColor(iconTone)
   const textColor = comingSoon ? '#555f5a' : iconColor
   return (
-    <div className="an-stat" style={{
+    <div
+      className={`an-stat${onOpen ? ' an-stat--open' : ''}`}
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={onOpen}
+      onKeyDown={onOpen ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen() } } : undefined}
+      style={{
       background: 'var(--card)',
       border: '1px solid var(--line)',
       borderRadius: 16, padding: '20px 22px',
@@ -219,7 +233,12 @@ function StatCard({
         ? <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>Connect Stripe to unlock</span>
         : loading
           ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>loading…</span>
-          : <Delta value={deltaValue} invertGood={invertGood} />
+          : (
+            <div className="an-stat-foot">
+              <Delta value={deltaValue} invertGood={invertGood} period={period} />
+              {onOpen && <span className="an-stat-more">View details →</span>}
+            </div>
+          )
       }
     </div>
   )
@@ -428,6 +447,7 @@ interface Props {
 export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: initialDailyEmail, mrrSettings }: Props) {
   const router = useRouter()
   const [view, setView] = useState<'users' | 'website'>('users')
+  const [detail, setDetail] = useState<{ type: MetricType; range: '24h' | '7d' | '30d'; title: string } | null>(null)
   const [range, setRange] = useState('7d')
   const [expandedModule, setExpandedModule] = useState<string | null>(null)
   const [redirectTarget, setRedirectTarget] = useState<string | null>(null)
@@ -510,12 +530,13 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
     key: string; label: string; value: string | number; delta: number
     source: string; icon: React.ElementType; tone: string
     loading?: boolean; comingSoon?: boolean; invertGood?: boolean
+    metric?: MetricType; range?: '24h' | '7d' | '30d'; period?: string
   }[] = [
-    { key: 'signups',  label: 'New signups',         value: data?.signups24h         ?? 0, delta: 0, source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading },
-    { key: 'signins',  label: 'Sign-ins',             value: data?.signins24h         ?? 0, delta: 0, source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading },
-    { key: 'dau',      label: 'Daily active users',   value: data?.dau                ?? 0, delta: 0, source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading },
-    { key: 'mau',      label: 'Monthly active users', value: data?.mau                ?? 0, delta: 0, source: 'PostHog',  icon: Crown,         tone: 'green',   loading: phLoading },
-    { key: 'deleted',  label: 'Deleted account',      value: data?.deletedAccounts24h ?? 0, delta: 0, source: 'PostHog',  icon: Trash2,        tone: 'red',     loading: phLoading, invertGood: true },
+    { key: 'signups',  label: 'New signups',         value: data?.signups24h         ?? 0, delta: (data?.signups24h ?? 0) - (data?.signupsPrev24h ?? data?.signups24h ?? 0), source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading, metric: 'signups', range: '24h' },
+    { key: 'signins',  label: 'Sign-ins',             value: data?.signins24h         ?? 0, delta: (data?.signins24h ?? 0) - (data?.signinsPrev24h ?? data?.signins24h ?? 0), source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading, metric: 'signins', range: '24h' },
+    { key: 'dau',      label: 'Daily active users',   value: data?.dau                ?? 0, delta: (data?.dau ?? 0) - (data?.dauPrev ?? data?.dau ?? 0),                   source: 'PostHog',  icon: Crown,         tone: 'amber',   loading: phLoading, metric: 'dau', range: '24h' },
+    { key: 'mau',      label: 'Monthly active users', value: data?.mau                ?? 0, delta: (data?.mau ?? 0) - (data?.mauPrev ?? data?.mau ?? 0),                   source: 'PostHog',  icon: Crown,         tone: 'green',   loading: phLoading, metric: 'dau', range: '30d', period: 'the 30 days before' },
+    { key: 'deleted',  label: 'Deleted account',      value: data?.deletedAccounts24h ?? 0, delta: (data?.deletedAccounts24h ?? 0) - (data?.deletedPrev24h ?? data?.deletedAccounts24h ?? 0), source: 'PostHog',  icon: Trash2,        tone: 'red',     loading: phLoading, invertGood: true, metric: 'deleted', range: '24h' },
     { key: 'pro',      label: 'Became PRO',           value: 0,                             delta: 0, source: 'Stripe',   icon: Crown,         tone: 'amber',   comingSoon: true },
     { key: 'unsub',    label: 'Unsubscribed',         value: 0,                             delta: 0, source: 'Stripe',   icon: UserMinus,     tone: 'red',     comingSoon: true, invertGood: true },
     { key: 'contact',  label: 'Contacted support',    value: 0,                             delta: 0, source: 'Internal', icon: MessageSquare, tone: 'neutral', comingSoon: true },
@@ -528,6 +549,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
+
+      {detail && (
+        <MetricPeople brandId={brand.id} type={detail.type} range={detail.range} title={detail.title} onClose={() => setDetail(null)} />
+      )}
 
       {redirectTarget && (
         <div style={{
@@ -670,6 +695,8 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 invertGood={item.invertGood}
                 loading={item.loading}
                 comingSoon={item.comingSoon}
+                period={item.period}
+                onOpen={item.metric && data?.posthogConnected ? () => setDetail({ type: item.metric!, range: item.range ?? '24h', title: item.label }) : undefined}
               />
             ))}
           </div>
@@ -687,6 +714,8 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 invertGood={item.invertGood}
                 loading={item.loading}
                 comingSoon={item.comingSoon}
+                period={item.period}
+                onOpen={item.metric && data?.posthogConnected ? () => setDetail({ type: item.metric!, range: item.range ?? '24h', title: item.label }) : undefined}
               />
             ))}
           </div>
@@ -711,8 +740,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             </div>
           ) : !phLoading && (
             <div style={{ background: 'var(--card)', border: '1px dashed var(--line)', borderRadius: 14, padding: '18px 20px', fontSize: 13.5, color: 'var(--text-dim)', lineHeight: 1.5 }}>
-              Retention and your signup funnel appear here once PostHog is connected.{' '}
-              <a href="/settings?tab=integrations" style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect PostHog →</a>
+              {data?.posthogConnected
+                ? 'Retention and your signup funnel appear here once there are a few days of signups to compare.'
+                : <>Retention and your signup funnel appear here once PostHog is connected.{' '}
+                    <a href="/settings?tab=integrations" style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect PostHog →</a></>}
             </div>
           )}
         </section>

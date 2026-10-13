@@ -106,12 +106,7 @@ export default function RemindersPage({
     return () => document.removeEventListener('click', close)
   }, [openMenu])
 
-  useEffect(() => {
-    if (sessionStorage.getItem('reminders_suggested')) return
-    sessionStorage.setItem('reminders_suggested', '1')
-    fetchSuggestions()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // Suggestions run only when the user taps "Suggest" (each run is an AI call).
 
   async function reload() {
     const res = await fetch('/api/reminders')
