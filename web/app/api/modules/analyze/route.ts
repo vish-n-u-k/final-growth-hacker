@@ -60,6 +60,7 @@ function deriveExportType(item: ModuleItemDefinition): 'auto' | 'needs_choice' |
 import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
 import { detectAndStoreConflicts } from '@/lib/brain/conflict-detector'
 import { withAIContext } from '@/lib/ai/client'
+import { moduleScore } from '@/lib/modules/score'
 
 export const maxDuration = 300
 
@@ -513,9 +514,7 @@ Key One-Liners: ${pb.keyOneLiners}`
 
     // Compute score and update module
     const allItems = await db.select().from(moduleItems).where(eq(moduleItems.moduleId, moduleId))
-    const totalWeight = allItems.reduce((s, i) => s + i.weight, 0)
-    const doneWeight = allItems.filter(i => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
-    const score = totalWeight > 0 ? Math.round((doneWeight / totalWeight) * 100) : 0
+    const score = moduleScore(def, allItems)
 
     await db.update(modules)
       .set({ status: 'complete', score, lastAnalyzedAt: new Date() })
@@ -925,9 +924,7 @@ Key One-Liners: ${pb.keyOneLiners}`
 
   // Compute score and update module status
   const allItems = await db.select().from(moduleItems).where(eq(moduleItems.moduleId, moduleId))
-  const totalWeight = allItems.reduce((s, i) => s + i.weight, 0)
-  const doneWeight = allItems.filter((i) => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
-  const score = totalWeight > 0 ? Math.round((doneWeight / totalWeight) * 100) : 0
+  const score = moduleScore(def, allItems)
 
   await db
     .update(modules)

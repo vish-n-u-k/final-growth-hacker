@@ -1,4 +1,6 @@
 import { redirect } from 'next/navigation'
+import { after } from 'next/server'
+import { moduleScore } from '@/lib/modules/score'
 import { getSessionUser, getBrandForUser, getAccessCached } from '@/lib/server-session'
 import { isAdminEmail } from '@/lib/admin'
 import { planLockedTypes } from '@/lib/billing/plan'
@@ -104,6 +106,19 @@ export default async function DashboardPage() {
   for (const item of allItemsRaw) {
     if (!itemsByModule.has(item.moduleId)) itemsByModule.set(item.moduleId, [])
     itemsByModule.get(item.moduleId)!.push(item)
+  }
+
+  // Saved scores used to change only on re-analysis, so ticking items left them behind (and the
+  // sidebar locked the next module). Correct any stale ones after the page is sent.
+  const staleScores = allModulesRaw
+    .map(m => ({ id: m.id, stored: m.score ?? 0, live: moduleScore(MODULE_MAP[m.type], itemsByModule.get(m.id) ?? []) }))
+    .filter(m => m.live !== m.stored && (itemsByModule.get(m.id)?.length ?? 0) > 0)
+  if (staleScores.length > 0) {
+    after(async () => {
+      for (const m of staleScores) {
+        await db.update(modules).set({ score: m.live }).where(eq(modules.id, m.id)).catch(() => {})
+      }
+    })
   }
 
   const catsByModule = new Map<string, typeof allCatsRaw>()

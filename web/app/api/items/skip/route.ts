@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleItems } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { refreshModuleScore } from '@/lib/modules/score'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -32,6 +33,8 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
     })
     .where(eq(moduleItems.id, itemId))
+
+  await refreshModuleScore(item.moduleId)
 
   return NextResponse.json({ ok: true })
 }

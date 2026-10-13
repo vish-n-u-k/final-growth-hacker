@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { brands, modules, moduleItems } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { updateUserResolved } from '@/lib/brain'
+import { refreshModuleScore } from '@/lib/modules/score'
 
 export async function toggleItem(brandId: string, itemId: string, checked: boolean) {
   const [item] = await db.select().from(moduleItems).where(eq(moduleItems.id, itemId)).limit(1)
@@ -22,6 +23,8 @@ export async function toggleItem(brandId: string, itemId: string, checked: boole
       updatedAt: new Date(),
     })
     .where(eq(moduleItems.id, itemId))
+
+  await refreshModuleScore(item.moduleId)
 
   try {
     await updateUserResolved(brand.id, item.slug, checked)

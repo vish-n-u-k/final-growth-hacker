@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { brands, modules, moduleItems } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { updateUserResolved } from '@/lib/brain'
+import { refreshModuleScore } from '@/lib/modules/score'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -34,6 +35,9 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
     })
     .where(eq(moduleItems.id, itemId))
+
+  // Keep the saved score in step with the page (it decides whether the next module is locked)
+  await refreshModuleScore(item.moduleId)
 
   // Update brain memory with user's self-reported resolution
   try {

@@ -4,7 +4,8 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 
 // Lets the sidebar roadmap and the Growth Path page agree without a server round trip:
 // the page publishes which module is selected and its live scores; the sidebar asks the page to switch.
-type Live = { selectedType: string | null; scores: Record<string, number> }
+// locked: module types the page currently treats as locked (same rule as its own lock icons).
+type Live = { selectedType: string | null; scores: Record<string, number>; locked?: string[] }
 type Pick = { type: string; n: number } | null
 
 type Ctx = {

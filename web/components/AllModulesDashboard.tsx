@@ -575,7 +575,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const liveScoresKey = JSON.stringify(allModulesData.map(m => [m.type, liveScores[m.id]]))
   const setRoadmapLive = roadmap.setLive
   useEffect(() => {
-    setRoadmapLive({ selectedType: selectedModule?.type ?? null, scores: Object.fromEntries(allModulesData.map(m => [m.type, liveScores[m.id] ?? 0])) })
+    setRoadmapLive({
+      selectedType: selectedModule?.type ?? null,
+      scores: Object.fromEntries(allModulesData.map(m => [m.type, liveScores[m.id] ?? 0])),
+      // The sidebar's lock icons follow this page, so ticking a module past 80% unlocks the next one there too.
+      locked: allModulesData.filter(m => !m.definition?.comingSoon && isModuleLocked(m)).map(m => m.type),
+    })
   }, [selectedModule?.type, liveScoresKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentPhaseIdx = Math.max(0, JOURNEY_PHASES.findIndex(p => userCount < p.max))

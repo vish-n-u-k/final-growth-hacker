@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { modules, moduleItems } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
+import { refreshModuleScore } from '@/lib/modules/score'
 
 // Drops a checklist item the user says doesn't apply. Skipped items leave
 // today's list and the pending list (same as the Skip button in the app).
@@ -15,6 +16,8 @@ export async function skipItem(brandId: string, itemId: string, reason?: string)
     .update(moduleItems)
     .set({ userSkipped: true, userSkipReason: reason ?? null, updatedAt: new Date() })
     .where(eq(moduleItems.id, itemId))
+
+  await refreshModuleScore(item.moduleId)
 
   return { ok: true, itemId, skipped: true }
 }

@@ -21,6 +21,7 @@ import { getRelevantContext, extractAndMergeFacts } from '@/lib/brain'
 import { withAIContext } from '@/lib/ai/client'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
+import { moduleScore } from '@/lib/modules/score'
 
 async function runModuleAnalysis(
   moduleType: string,
@@ -190,9 +191,7 @@ export async function analyzeModule(brandId: string, moduleType: string) {
   }
 
   const allItems = await db.select().from(moduleItems).where(eq(moduleItems.moduleId, mod.id))
-  const totalWeight = allItems.reduce((s, i) => s + i.weight, 0)
-  const doneWeight = allItems.filter((i) => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
-  const score = totalWeight > 0 ? Math.round((doneWeight / totalWeight) * 100) : 0
+  const score = moduleScore(def, allItems)
 
   await db.update(modules).set({ status: 'complete', score, lastAnalyzedAt: new Date() }).where(eq(modules.id, mod.id))
 

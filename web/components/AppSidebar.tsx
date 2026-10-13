@@ -87,10 +87,17 @@ function RoadmapNav({ modules, pathname, onNavigate, showUpgrade }: {
   showUpgrade: boolean
 }) {
   const { live, pickModule } = useRoadmap()
-  const phases = useMemo(() => buildRoadmapPhases(modules, live.scores), [modules, live.scores])
+  // Once Growth Path has published its live lock state, use it (it updates as items are ticked);
+  // until then the server's lock state, worked out from the saved scores, applies.
+  const liveLocked = live.locked
+  const mods = useMemo(
+    () => liveLocked ? modules.map(m => (m.comingSoon ? m : { ...m, locked: liveLocked.includes(m.type) })) : modules,
+    [modules, liveLocked],
+  )
+  const phases = useMemo(() => buildRoadmapPhases(mods, live.scores), [mods, live.scores])
   const onDashboard = pathname === '/dashboard'
   const inGrowthPath = isActive(pathname, '/dashboard')
-  const currentType = currentRoadmapType(modules, live.scores)
+  const currentType = currentRoadmapType(mods, live.scores)
   const selectedType = inGrowthPath ? (live.selectedType ?? currentType) : null
   // Every stage starts closed and only one is open at a time. The stage holding the module you are on
   // gets an accent colour so you can still tell where you are.

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleItems, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { refreshModuleScore } from '@/lib/modules/score'
 import {
   parseRepoUrl,
   getDefaultBranch,
@@ -40,11 +41,12 @@ function findMainHtmlFile(fileTree: string[]): string | null {
 }
 
 // Mark item as agent-fixed in DB
-async function markFixed(itemId: string) {
+async function markFixed(itemId: string, moduleId: string) {
   await db
     .update(moduleItems)
     .set({ completedBy: 'agent', aiVerified: true, aiVerifiedAt: new Date(), updatedAt: new Date() })
     .where(eq(moduleItems.id, itemId))
+  await refreshModuleScore(moduleId)
 }
 
 export async function POST(request: NextRequest) {
@@ -155,7 +157,7 @@ export async function POST(request: NextRequest) {
 
     t('template — committing')
     await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)
-    await markFixed(itemId)
+    await markFixed(itemId, item.moduleId)
 
     t('done — template (0 AI calls)')
     return NextResponse.json({ ok: true, prUrl: repoHomeUrl })
@@ -214,7 +216,7 @@ export async function POST(request: NextRequest) {
 
     t('value — committing')
     await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)
-    await markFixed(itemId)
+    await markFixed(itemId, item.moduleId)
 
     t('done — value (1 tiny AI call)')
     return NextResponse.json({ ok: true, prUrl: repoHomeUrl })
@@ -339,7 +341,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Patch agent found no changes to apply across any of the target files.' }, { status: 422 })
     }
 
-    await markFixed(itemId)
+    await markFixed(itemId, item.moduleId)
     t(`done — patch (${plan.files_to_read.length} file(s), DOM map only)`)
     return NextResponse.json({ ok: true, prUrl: repoHomeUrl })
   }
@@ -498,7 +500,7 @@ export async function POST(request: NextRequest) {
     console.log(`[apply-fix] committed ${path}`)
   }
 
-  await markFixed(itemId)
+  await markFixed(itemId, item.moduleId)
 
   t('done — legacy (2 AI calls, full file rewrite)')
   return NextResponse.json({ ok: true, prUrl: repoHomeUrl })

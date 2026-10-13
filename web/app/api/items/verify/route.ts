@@ -7,6 +7,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { getAllItems } from '@/lib/modules/types'
 import { FOUNDATION_MODULE } from '@/lib/modules/foundation/definition'
 import { fetchFoundationData } from '@/lib/modules/foundation/fetcher'
+import { refreshModuleScore } from '@/lib/modules/score'
 
 export const maxDuration = 30
 
@@ -99,6 +100,8 @@ No markdown, no extra text.`,
       updatedAt: new Date(),
     })
     .where(eq(moduleItems.id, itemId))
+
+  await refreshModuleScore(item.moduleId)
 
   return NextResponse.json({ canVerify: true, aiVerified: result.verified, detail: result.detail })
 }
