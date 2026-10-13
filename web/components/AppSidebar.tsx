@@ -102,7 +102,7 @@ function RoadmapNav({ modules, pathname, onNavigate, showUpgrade }: {
 
   return (
     <div className="app-rm" role="group" aria-label="Growth Path roadmap">
-      <Link href="/dashboard" className="app-rm-title" onClick={onNavigate}>Growth Path</Link>
+      <Link href="/dashboard" className="app-rm-title" onClick={onNavigate}>Your roadmap</Link>
       {phases.map((p, i) => {
         const isOpen = open.has(p.name)
         const gated = p.locked || p.pro

@@ -3,7 +3,7 @@
 import { Fragment, useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useRoadmap } from '@/components/RoadmapContext'
-import { progressColor as ringColor } from '@/lib/modules/roadmap'
+import { progressColor as ringColor, GROWTH_PHASES } from '@/lib/modules/roadmap'
 import Link from 'next/link'
 import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull, type DynamicModuleCategoryDefinition } from '@/lib/modules/types'
 import ExportPrepModal from '@/components/ExportPrepModal'
@@ -127,6 +127,15 @@ function getDynamicCatStats(categorySlug: string, items: DBItemFull[]) {
   return { total: catItems.length, done, totalWeight, doneWeight, aiWeight, pct: totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0 }
 }
 
+// One audit category as the list and the detail panel need it.
+type CatRow = {
+  slug: string
+  label: string
+  stats: { total: number; done: number; pct: number }
+  soon: boolean
+  body: React.ReactNode
+}
+
 // A category "needs attention" while it still has open items; otherwise it is passing.
 function catNeedsAttention(stats: { total: number; done: number }) {
   return stats.total > 0 && stats.done < stats.total
@@ -138,11 +147,11 @@ function summarizeCats(def: ModuleDefinition, states: Record<string, DBItemState
   let needs = 0
   let pass = 0
   let openItems = 0
-  let first: { catSlug: string; catLabel: string; itemSlug: string; label: string; weight: number } | null = null
+  let first: { catSlug: string; catLabel: string; catPct: number; itemSlug: string; label: string; weight: number } | null = null
   for (const cat of def.categories as (ModuleCategoryDefinition | DynamicModuleCategoryDefinition)[]) {
     if (cat.slug === 'next-campaign' || (cat as DynamicModuleCategoryDefinition).comingSoon) continue
     let open: { slug: string; label: string; weight: number }[]
-    let stats: { total: number; done: number }
+    let stats: { total: number; done: number; pct: number }
     if (def.dynamic) {
       stats = getDynamicCatStats(cat.slug, dynItems)
       open = dynItems
@@ -159,7 +168,7 @@ function summarizeCats(def: ModuleDefinition, states: Record<string, DBItemState
     else if (stats.total > 0) pass++
     openItems += open.length
     for (const it of open) {
-      if (!first || it.weight > first.weight) first = { catSlug: cat.slug, catLabel: cat.label, itemSlug: it.slug, label: it.label, weight: it.weight }
+      if (!first || it.weight > first.weight) first = { catSlug: cat.slug, catLabel: cat.label, catPct: stats.pct, itemSlug: it.slug, label: it.label, weight: it.weight }
     }
   }
   return { needs, pass, openItems, first }
@@ -582,11 +591,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
   const toggleModule = (modId: string) => setOpenModules(new Set([modId]))
 
-  const toggleCat = (modId: string, slug: string) =>
-    setOpenCatsMap(prev => {
-      const cats = prev[modId] ?? new Set()
-      return { ...prev, [modId]: cats.has(slug) ? new Set() : new Set([slug]) }
-    })
+  // The category list picks one category at a time; its items show in the detail panel beside it.
+  const selectCat = (modId: string, slug: string) =>
+    setOpenCatsMap(prev => ({ ...prev, [modId]: new Set([slug]) }))
 
   const toggleExpand = (modId: string, slug: string, e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.md-cb')) return
@@ -975,7 +982,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     setOpenCatsMap(prev => ({ ...prev, [modId]: new Set([catSlug]) }))
     setExpandedItems(new Set([`${modId}:${itemSlug}`]))
     window.setTimeout(() => {
-      document.querySelector('.gp-col .md-cat-open')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      document.querySelector('.gp-col .gp-detail')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     }, 60)
   }
 
@@ -1975,6 +1982,35 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const proStepCount = railModules.filter(x => !x.definition.comingSoon && isPlanLocked(x)).length
   // The stage playbook card waits until the user has a result or finished a step: on day one it's one thing too many.
   const showStageCard = bsItemsAll.length > 0 || railDoneCount > 0
+  const stageCardEl = showStageCard ? (
+    <aside className="gp-stage">
+          <span className="gp-stage-tag">Why this matters now</span>
+          <h4 className="gp-stage-title">{bsClassItem?.label ?? 'Your stage playbook'}</h4>
+          <p className="gp-stage-text">
+            {bsConcernItem?.aiDetail
+              ?? bsClassItem?.aiDetail
+              ?? 'Tactics matched to where you are on the road to 500 users — what to focus on, what to skip, and the red flag to fix first.'}
+          </p>
+          <button className="gp-stage-cta" onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}>
+            {bsItemsAll.length > 0 ? 'Read the full playbook' : 'Get your playbook'} →
+          </button>
+        </aside>
+  ) : null
+
+  // The result summary shows once a module is set up and analysed; the growth-stage note then sits inside it.
+  const bandSummary = (m: ModuleData | undefined) => {
+    if (!m || m.definition.comingSoon || m.type === 'business-stage' || m.type === 'gmail-outreach') return null
+    if (isModuleLocked(m)) return null
+    const def = m.definition
+    const reqValues = reqValuesMap[m.id] ?? {}
+    const dynItems = dynItemsMap[m.id] ?? []
+    const missing = def.requirements.filter(r => r.required !== false && !reqValues[r.key]?.trim())
+    const needsSetup = missing.length > 0 || (!!def.dynamic && dynItems.length === 0 && def.requirements.length > 0)
+    const analysed = lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt
+    if (needsSetup || !analysed) return null
+    const sum = summarizeCats(def, statesMap[m.id] ?? {}, dynItems)
+    return sum.needs + sum.pass > 0 ? sum : null
+  }
   const nextStep = (() => {
     const m = railModules.find(x => !x.definition.comingSoon && !isModuleLocked(x) && (liveScores[x.id] ?? 0) < 80)
     const progress = `${freeDone} of ${freeTotal} ${proStepCount > 0 ? 'free ' : ''}steps done`
@@ -2139,12 +2175,15 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       {/* Growth Path topbar */}
       <div className="gp-topbar">
         <div>
-          <h1 className="gp-title">Growth Path</h1>
-          <div className="gp-sub">
-            {brand.websiteUrl
-              ? <a href={brand.websiteUrl} target="_blank" rel="noopener noreferrer" className="gp-sub-link">{brand.websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')}</a>
-              : brand.name}
-          </div>
+          <h1 className="sr-only">Growth Path</h1>
+          <nav className="gp-crumbs" aria-label="Breadcrumb">
+            <span>Roadmap</span>
+            {selectedModule && (() => {
+              const pi = GROWTH_PHASES.findIndex(g => selectedModule.order <= g.maxOrder)
+              return pi >= 0 ? <><span aria-hidden="true">›</span><span>{pi + 1} · {GROWTH_PHASES[pi].name}</span></> : null
+            })()}
+            {selectedModule && <><span aria-hidden="true">›</span><b>{selectedModule.name}</b></>}
+          </nav>
         </div>
         <div className="gp-top-actions">
           {/* Live users from PostHog. Connected: the count, which opens Road to 500; until then, one small prompt. */}
@@ -2431,6 +2470,124 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             const hasNoFindings = def.dynamic && dynItems.length === 0
             const needsSetup = missingReqs.length > 0 || (hasNoFindings && def.requirements.length > 0)
 
+            // Categories for the list and the detail panel (not for modules that have their own layout).
+            const hasCatList = !def.comingSoon && modData.type !== 'business-stage' && modData.type !== 'gmail-outreach'
+            const catRows: CatRow[] = !hasCatList ? [] : def.dynamic
+              ? [...def.categories].filter(cat => cat.slug !== 'next-campaign').map((cat): CatRow => {
+                  const stats = getDynamicCatStats(cat.slug, dynItems)
+                  const soon = !!(cat as DynamicModuleCategoryDefinition).comingSoon
+                  const catItems = [...dynItems.filter(i => i.categorySlug === cat.slug)].sort((a, b) => {
+                    const aKey = a.userSkipped ? 2 : (a.aiVerified || a.userChecked) ? 1 : 0
+                    const bKey = b.userSkipped ? 2 : (b.aiVerified || b.userChecked) ? 1 : 0
+                    if (aKey !== bKey) return aKey - bKey
+                    return b.weight - a.weight
+                  })
+                  return {
+                    slug: cat.slug, label: cat.label, stats, soon,
+                    body: soon ? (
+                      <ComingSoon title={cat.label} note={(cat as DynamicModuleCategoryDefinition).comingSoonNote} />
+                    ) : catItems.length === 0 ? (
+                      <p className="gp-detail-empty">No issues found in this category.</p>
+                    ) : (
+                      <div className="md-sub">
+                        <div className="md-items">
+                          {catItems.map(item => renderDynamicItem(modData.id, prUrl, item))}
+                        </div>
+                      </div>
+                    ),
+                  }
+                })
+              : (def.categories as ModuleCategoryDefinition[]).map((cat): CatRow => ({
+                  slug: cat.slug, label: cat.label, stats: getCatStats(cat, states), soon: false,
+                  body: (<>
+                    {cat.subCategories.map((sub, si) => {
+                                      const subDone = sub.items.filter(i => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).length
+                                      return (
+                                        <div key={sub.slug} className={`md-sub${si > 0 ? ' md-sub-border' : ''}`}>
+                                          <div className="md-sub-hd">
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                              <span className="md-sub-name">{sub.label}</span>
+                                              {sub.requires && sub.requires.filter((p) => !connectedIntegrations[p]).map((p) => (
+                                                <span
+                                                  key={p}
+                                                  title="Connect this integration in Settings → Integrations for full data"
+                                                  style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: '3px',
+                                                    fontSize: '10px',
+                                                    fontWeight: 600,
+                                                    padding: '2px 7px',
+                                                    borderRadius: '4px',
+                                                    background: 'rgba(231,200,115,0.1)',
+                                                    border: '1px solid rgba(231,200,115,0.35)',
+                                                    color: 'var(--gold)',
+                                                    letterSpacing: '0.02em',
+                                                    cursor: 'default',
+                                                  }}
+                                                >
+                                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                                                    <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2"/>
+                                                    <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                                                  </svg>
+                                                  {p === 'gsc_api' ? 'Needs GSC API' : p === 'serpapi' ? 'Needs SerpAPI' : `Needs ${p}`}
+                                                </span>
+                                              ))}
+                                            </span>
+                                            <span className="md-sub-count">{subDone}/{sub.items.length}</span>
+                                          </div>
+                                          <div className="md-items">
+                                            {[...sub.items]
+                                              .sort((a, b) => {
+                                                const aKey = states[a.slug]?.userSkipped ? 2 : (states[a.slug]?.aiVerified || states[a.slug]?.userChecked) ? 1 : 0
+                                                const bKey = states[b.slug]?.userSkipped ? 2 : (states[b.slug]?.aiVerified || states[b.slug]?.userChecked) ? 1 : 0
+                                                if (aKey !== bKey) return aKey - bKey
+                                                return b.weight - a.weight
+                                              })
+                                              .map(item => renderStaticItem(modData.id, prUrl, item, states[item.slug]))}
+                                          </div>
+                                        </div>
+                                      )
+                                    })}
+                  </>),
+                }))
+            // Once analysed, areas that still need work come first, then the ones that pass.
+            const catsOrdered = [...catRows].sort((a, b) =>
+              (Number(a.soon) - Number(b.soon)) ||
+              (effectiveLastAnalyzedAt ? Number(!catNeedsAttention(a.stats)) - Number(!catNeedsAttention(b.stats)) : 0))
+            const needRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && catNeedsAttention(r.stats)) : []
+            const passRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && !catNeedsAttention(r.stats)) : []
+            const otherRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => r.soon) : catsOrdered
+            const wantedCat = [...openCats][0]
+            const selCat = catsOrdered.find(r => r.slug === wantedCat && !r.soon)
+              ?? needRows[0] ?? catsOrdered.find(r => !r.soon) ?? catsOrdered[0]
+            const catBtn = (r: CatRow, passing: boolean) => {
+              const open = r.stats.total - r.stats.done
+              return (
+                <button
+                  type="button"
+                  key={r.slug}
+                  role="tab"
+                  aria-selected={r.slug === selCat?.slug}
+                  disabled={r.soon}
+                  className={`gp-cat${passing ? ' gp-cat--pass' : ''}${r.slug === selCat?.slug ? ' is-selected' : ''}`}
+                  onClick={() => selectCat(modData.id, r.slug)}
+                >
+                  <span className="gp-cat-l1">
+                    <b>{r.label}</b>
+                    {r.soon ? <span className="cs-badge">Coming Soon</span>
+                      : effectiveLastAnalyzedAt && !passing && open > 0 ? <span className="gp-cat-chip">{open} {open === 1 ? 'issue' : 'issues'}</span>
+                      : effectiveLastAnalyzedAt && passing ? <span className="gp-cat-tick" aria-hidden="true">✓</span>
+                      : <span className="gp-cat-count">{r.stats.done}/{r.stats.total}</span>}
+                    {!r.soon && <span className="gp-cat-pct">{effectiveLastAnalyzedAt ? `${r.stats.pct}%` : '—'}</span>}
+                  </span>
+                  {effectiveLastAnalyzedAt && !passing && !r.soon && (
+                    <span className="gp-cat-bar"><i style={{ width: `${r.stats.pct}%`, background: ringColor(r.stats.pct) }} /></span>
+                  )}
+                </button>
+              )
+            }
+
             const showSeparator = isLocked && !separatorPlaced
             if (showSeparator) separatorPlaced = true
 
@@ -2492,8 +2649,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       : !isOpen && <div className="focus">{def.description}</div>
                     }
                     {!isLocked && effectiveLastAnalyzedAt && (
-                      <div style={{ fontSize: 11, color: 'var(--text-faint, #4a6b5c)', marginTop: 3 }}>
-                        Analysed {timeAgo(effectiveLastAnalyzedAt)}
+                      <div className="level-meta">
+                        {brand.websiteUrl ? `${brand.websiteUrl.replace(/^https?:\/\//, '').replace(/\/$/, '')} · ` : ''}Analysed {timeAgo(effectiveLastAnalyzedAt)}
                       </div>
                     )}
                   </div>
@@ -2910,30 +3067,42 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       )
                     })()}
 
-                    {/* What needs doing, at a glance: counts, plus the one item to start with. */}
-                    {!def.comingSoon && !needsSetup && !!effectiveLastAnalyzedAt && modData.type !== 'business-stage' && modData.type !== 'gmail-outreach' && (() => {
-                      const sum = summarizeCats(def, states, dynItems)
-                      if (sum.needs + sum.pass === 0) return null
+                    {/* Result summary and the one item to start with. */}
+                    {!def.comingSoon && !needsSetup && !!effectiveLastAnalyzedAt && (() => {
+                      const sum = bandSummary(modData)
+                      if (!sum) return null
                       return (
-                        <div className="gp-sum">
-                          <div className="gp-sum-main">
-                            <div className="gp-sum-eyebrow">Result</div>
-                            <b className="gp-sum-head">
-                              {sum.needs === 0 ? 'Everything here is done' : `${sum.needs} ${sum.needs === 1 ? 'area needs' : 'areas need'} attention`}
-                            </b>
-                            <span className="gp-sum-sub">
-                              {sum.pass} passing{sum.openItems > 0 ? ` · ${sum.openItems} ${sum.openItems === 1 ? 'thing' : 'things'} to fix` : ''}
-                            </span>
+                        <>
+                          <div className={`gp-sum${stageCardEl ? '' : ' gp-sum--solo'}`}>
+                            <div className="gp-sum-result">
+                              <div className="gp-sum-eyebrow">Result</div>
+                              <div className="gp-sum-score">
+                                <div className="gp-sum-ring" role="img" aria-label={`Score ${liveScore} percent`}><LevelRing score={liveScore} /></div>
+                                <div className="gp-sum-text">
+                                  <b className="gp-sum-head">
+                                    {sum.needs === 0
+                                      ? 'Everything here is done'
+                                      : `${sum.needs} ${sum.needs === 1 ? 'area needs' : 'areas need'} attention, ${sum.pass} ${sum.pass === 1 ? 'is' : 'are'} passing`}
+                                  </b>
+                                  <span className="gp-sum-sub">
+                                    {sum.openItems > 0 ? `${sum.openItems} ${sum.openItems === 1 ? 'thing' : 'things'} to fix` : 'Nothing left to fix'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            {stageCardEl}
                           </div>
                           {sum.first && (
-                            <div className="gp-sum-next">
-                              <div className="gp-sum-eyebrow">Fix this first</div>
-                              <b className="gp-sum-head">{sum.first.label}</b>
-                              <span className="gp-sum-sub">{sum.first.catLabel}</span>
-                              <button type="button" className="gp-sum-cta" onClick={() => focusItem(modData.id, sum.first!.catSlug, sum.first!.itemSlug)}>Show me how</button>
+                            <div className="gp-fix">
+                              <div className="gp-fix-body">
+                                <div className="gp-sum-eyebrow">Fix this first</div>
+                                <b className="gp-fix-title">{sum.first.label}</b>
+                                <span className="gp-sum-sub">{sum.first.catLabel} · lifts it from {sum.first.catPct}% toward 100%</span>
+                              </div>
+                              <button type="button" className="gp-fix-cta" onClick={() => focusItem(modData.id, sum.first!.catSlug, sum.first!.itemSlug)}>Show me how</button>
                             </div>
                           )}
-                        </div>
+                        </>
                       )
                     })()}
 
@@ -2944,197 +3113,54 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                           title={def.name}
                           note={def.comingSoonNote ?? 'This module is in active development and will be available in an upcoming update.'}
                         />
-                      ) : def.dynamic
-                        ? <>
-                          {[...def.categories].filter(cat => cat.slug !== 'next-campaign').sort((a, b) => {
-                            const aCs = !!(a as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? 1 : 0
-                            const bCs = !!(b as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? 1 : 0
-                            if (aCs !== bCs) return aCs - bCs
-                            // Once analysed, areas that still need work come before the ones that pass.
-                            if (!effectiveLastAnalyzedAt) return 0
-                            return Number(!catNeedsAttention(getDynamicCatStats(a.slug, dynItems))) - Number(!catNeedsAttention(getDynamicCatStats(b.slug, dynItems)))
-                          }).map((cat, ci, arr) => {
-                            const stats = getDynamicCatStats(cat.slug, dynItems)
-                            const needsHere = catNeedsAttention(stats)
-                            const prevNeeds = ci > 0 ? catNeedsAttention(getDynamicCatStats(arr[ci - 1].slug, dynItems)) : null
-                            const groupLabel = effectiveLastAnalyzedAt && !(cat as DynamicModuleCategoryDefinition).comingSoon && prevNeeds !== needsHere
-                              ? <div className="gp-catlabel">{needsHere ? 'Needs attention' : 'Passing'}</div> : null
-                            const isPassCat = !!effectiveLastAnalyzedAt && !needsHere && !(cat as DynamicModuleCategoryDefinition).comingSoon
-                            const isOpenCat = openCats.has(cat.slug)
-                            const catItems = [...dynItems.filter(i => i.categorySlug === cat.slug)].sort((a, b) => {
-                              const aKey = a.userSkipped ? 2 : (a.aiVerified || a.userChecked) ? 1 : 0
-                              const bKey = b.userSkipped ? 2 : (b.aiVerified || b.userChecked) ? 1 : 0
-                              if (aKey !== bKey) return aKey - bKey
-                              return b.weight - a.weight
-                            })
-                            {
-                              const isCatComingSoon = !!(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon
-                              return (
-                              <Fragment key={cat.slug}>
-                              {groupLabel}
-                              <div
-                                className={`md-cat${isOpenCat ? ' md-cat-open' : ''}${isCatComingSoon ? ' md-cat-coming-soon' : ''}${isPassCat ? ' md-cat-pass' : ''}`}
-                                style={isCatComingSoon ? undefined : { borderLeftColor: ringColor(stats.pct) }}
-                              >
-                                <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => !isCatComingSoon && toggleCat(modData.id, cat.slug)} style={isCatComingSoon ? { cursor: 'default' } : {}}>
-                                  <div className="md-cat-hd-left">
-                                    <span className="md-cat-hd-name">{cat.label}</span>
-                                    {isCatComingSoon
-                                      ? <span className="cs-badge" style={{ marginLeft: 4 }}>Coming Soon</span>
-                                      : <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
-                                    }
-                                  </div>
-                                  {!isCatComingSoon && (
-                                    <div className="md-cat-hd-right">
-                                      <div className="md-cat-mini-bar">
-                                        <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) + '60' }} />
-                                        <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) }} />
-                                      </div>
-                                      <span className="md-cat-pct" style={{ color: effectiveLastAnalyzedAt ? ringColor(stats.pct) : 'var(--text-faint)' }}>{effectiveLastAnalyzedAt ? `${stats.pct}%` : '—'}</span>
-                                      <svg className={`md-chev${isOpenCat ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                        <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                      </svg>
-                                    </div>
-                                  )}
-                                </div>
-                                {isOpenCat && (
-                                  <div className="md-cat-body">
-                                    {(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoon ? (
-                                      <ComingSoon
-                                        title={cat.label}
-                                        note={(cat as import('@/lib/modules/types').DynamicModuleCategoryDefinition).comingSoonNote}
-                                      />
-                                    ) : catItems.length === 0 ? (
-                                      <p style={{ padding: '16px 20px', color: 'var(--text-faint)', fontSize: '13px' }}>
-                                        No issues found in this category.
-                                      </p>
-                                    ) : (
-                                      <div className="md-sub">
-                                        <div className="md-sub-hd" />
-                                        <div className="md-items">
-                                          {catItems.map(item => renderDynamicItem(modData.id, prUrl, item))}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                              </Fragment>
-                            )
-                            }
-                          })}
-                          {modData.type === 'meta-ads' && (
-                            <a
-                              href="/dashboard/meta-ads/blueprint"
-                              className="ncb-cta-row"
-                            >
-                              <span className="ncb-cta-icon">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-                                </svg>
-                              </span>
-                              <span className="ncb-cta-text">
-                                <span className="ncb-cta-label">Next Campaign Blueprint</span>
-                                <span className="ncb-cta-sub">AI-generated plan for your next Meta ad campaign</span>
-                              </span>
-                              <svg className="ncb-cta-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M5 12h14M12 5l7 7-7 7"/>
-                              </svg>
-                            </a>
-                          )}
-                        </>
-                        : [...(def.categories as ModuleCategoryDefinition[])].sort((a, b) => {
-                            // Once analysed, areas that still need work come before the ones that pass.
-                            if (!effectiveLastAnalyzedAt) return 0
-                            return Number(!catNeedsAttention(getCatStats(a, states))) - Number(!catNeedsAttention(getCatStats(b, states)))
-                          }).map((cat, ci, arr) => {
-                            const stats = getCatStats(cat, states)
-                            const isOpenCat = openCats.has(cat.slug)
-                            const needsHere = catNeedsAttention(stats)
-                            const prevNeeds = ci > 0 ? catNeedsAttention(getCatStats(arr[ci - 1], states)) : null
-                            const groupLabel = effectiveLastAnalyzedAt && prevNeeds !== needsHere
-                              ? <div className="gp-catlabel">{needsHere ? 'Needs attention' : 'Passing'}</div> : null
-                            return (
-                              <Fragment key={cat.slug}>
-                              {groupLabel}
-                              <div
-                                className={`md-cat${isOpenCat ? ' md-cat-open' : ''}${effectiveLastAnalyzedAt && !needsHere ? ' md-cat-pass' : ''}`}
-                                style={{ borderLeftColor: effectiveLastAnalyzedAt ? ringColor(stats.pct) : 'var(--line)' }}
-                              >
-                                <div className="md-cat-hd" role="button" tabIndex={0} onClick={() => toggleCat(modData.id, cat.slug)}>
-                                  <div className="md-cat-hd-left">
-                                    <span className="md-cat-hd-name">{cat.label}</span>
-                                    <span className="md-cat-hd-count">{stats.done}/{stats.total}</span>
-                                  </div>
-                                  <div className="md-cat-hd-right">
-                                    <div className="md-cat-mini-bar">
-                                      <div className="md-cat-mini-self" style={{ width: `${stats.totalWeight ? Math.round((stats.doneWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) + '60' }} />
-                                      <div className="md-cat-mini-ai" style={{ width: `${stats.totalWeight ? Math.round((stats.aiWeight / stats.totalWeight) * 100) : 0}%`, background: ringColor(stats.pct) }} />
-                                    </div>
-                                    <span className="md-cat-pct" style={{ color: effectiveLastAnalyzedAt ? ringColor(stats.pct) : 'var(--text-faint)' }}>{effectiveLastAnalyzedAt ? `${stats.pct}%` : '—'}</span>
-                                    <svg className={`md-chev${isOpenCat ? ' md-chev-open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none">
-                                      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                                    </svg>
-                                  </div>
-                                </div>
-                                {isOpenCat && (
-                                  <div className="md-cat-body">
-                                    {cat.subCategories.map((sub, si) => {
-                                      const subDone = sub.items.filter(i => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).length
-                                      return (
-                                        <div key={sub.slug} className={`md-sub${si > 0 ? ' md-sub-border' : ''}`}>
-                                          <div className="md-sub-hd">
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                                              <span className="md-sub-name">{sub.label}</span>
-                                              {sub.requires && sub.requires.filter((p) => !connectedIntegrations[p]).map((p) => (
-                                                <span
-                                                  key={p}
-                                                  title="Connect this integration in Settings → Integrations for full data"
-                                                  style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '3px',
-                                                    fontSize: '10px',
-                                                    fontWeight: 600,
-                                                    padding: '2px 7px',
-                                                    borderRadius: '4px',
-                                                    background: 'rgba(231,200,115,0.1)',
-                                                    border: '1px solid rgba(231,200,115,0.35)',
-                                                    color: 'var(--gold)',
-                                                    letterSpacing: '0.02em',
-                                                    cursor: 'default',
-                                                  }}
-                                                >
-                                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
-                                                    <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2"/>
-                                                    <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                                                  </svg>
-                                                  {p === 'gsc_api' ? 'Needs GSC API' : p === 'serpapi' ? 'Needs SerpAPI' : `Needs ${p}`}
-                                                </span>
-                                              ))}
-                                            </span>
-                                            <span className="md-sub-count">{subDone}/{sub.items.length}</span>
-                                          </div>
-                                          <div className="md-items">
-                                            {[...sub.items]
-                                              .sort((a, b) => {
-                                                const aKey = states[a.slug]?.userSkipped ? 2 : (states[a.slug]?.aiVerified || states[a.slug]?.userChecked) ? 1 : 0
-                                                const bKey = states[b.slug]?.userSkipped ? 2 : (states[b.slug]?.aiVerified || states[b.slug]?.userChecked) ? 1 : 0
-                                                if (aKey !== bKey) return aKey - bKey
-                                                return b.weight - a.weight
-                                              })
-                                              .map(item => renderStaticItem(modData.id, prUrl, item, states[item.slug]))}
-                                          </div>
-                                        </div>
-                                      )
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-                              </Fragment>
-                            )
-                          })
-                      }
+                      ) : hasCatList && selCat && (
+                        <div className="gp-md">
+                          <div className="gp-md-list" role="tablist" aria-label="Categories">
+                            {needRows.length > 0 && <div className="gp-catlabel">Needs attention</div>}
+                            {needRows.map(r => catBtn(r, false))}
+                            {passRows.length > 0 && <div className="gp-catlabel">Passing ({passRows.length})</div>}
+                            {passRows.map(r => catBtn(r, true))}
+                            {!effectiveLastAnalyzedAt && otherRows.length > 0 && <div className="gp-catlabel">Checks</div>}
+                            {effectiveLastAnalyzedAt && otherRows.length > 0 && <div className="gp-catlabel">Coming soon</div>}
+                            {otherRows.map(r => catBtn(r, false))}
+                          </div>
+                          <div className="gp-detail" role="tabpanel">
+                            <div className="gp-detail-hd">
+                              <h3 className="gp-detail-title">{selCat.label}</h3>
+                              {!selCat.soon && effectiveLastAnalyzedAt && (
+                                <span className={`gp-detail-pill${catNeedsAttention(selCat.stats) ? '' : ' is-ok'}`}>
+                                  {selCat.stats.done}/{selCat.stats.total} passed{catNeedsAttention(selCat.stats) ? ` · ${selCat.stats.total - selCat.stats.done} to fix` : ''}
+                                </span>
+                              )}
+                            </div>
+                            {!selCat.soon && (
+                              <p className="gp-detail-sub">
+                                {catNeedsAttention(selCat.stats) ? 'Open an issue to see exactly what to change.' : effectiveLastAnalyzedAt ? 'Nothing to fix here. These checks all passed.' : 'These checks run when you analyse.'}
+                              </p>
+                            )}
+                            {selCat.body}
+                          </div>
+                        </div>
+                      )}
+                      {hasCatList && modData.type === 'meta-ads' && (
+                        <a
+                          href="/dashboard/meta-ads/blueprint"
+                          className="ncb-cta-row"
+                        >
+                          <span className="ncb-cta-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                            </svg>
+                          </span>
+                          <span className="ncb-cta-text">
+                            <span className="ncb-cta-label">Next Campaign Blueprint</span>
+                            <span className="ncb-cta-sub">AI-generated plan for your next Meta ad campaign</span>
+                          </span>
+                          <svg className="ncb-cta-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M5 12.5h14M12 5l7 7-7 7"/>
+                          </svg>
+                        </a>
+                      )}
                     </div>
 
                     {/* Frekto Posting — Social Media module only */}
@@ -3173,19 +3199,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         </div>
         </div>
 
-        {/* Growth Stage */}
-        {showStageCard && <aside className="gp-stage">
-          <span className="gp-stage-tag">Growth Stage</span>
-          <h4 className="gp-stage-title">{bsClassItem?.label ?? 'Your stage playbook'}</h4>
-          <p className="gp-stage-text">
-            {bsConcernItem?.aiDetail
-              ?? bsClassItem?.aiDetail
-              ?? 'Tactics matched to where you are on the road to 500 users — what to focus on, what to skip, and the red flag to fix first.'}
-          </p>
-          <button className="gp-stage-cta" onClick={() => { setStageModalTab(0); setStageModalOpen(true) }}>
-            {bsItemsAll.length > 0 ? 'View full playbook' : 'Get your playbook'}
-          </button>
-        </aside>}
+        {/* Growth stage note: inside the result summary once a module is analysed, otherwise above the module. */}
+        {!bandSummary(selectedModule) && stageCardEl}
         </div>
 
       </div>
