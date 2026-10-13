@@ -11,7 +11,6 @@ import {
   Zap, ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle,
 } from 'lucide-react'
 import DailySummaryCard from './daily/DailySummaryCard'
-import MetricPeople, { type MetricType } from '@/components/MetricPeople'
 import ProjectedMrr from '@/components/ProjectedMrr'
 import type { MrrSettings } from '@/lib/mrr-shared'
 
@@ -447,7 +446,6 @@ interface Props {
 export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: initialDailyEmail, mrrSettings }: Props) {
   const router = useRouter()
   const [view, setView] = useState<'users' | 'website'>('users')
-  const [detail, setDetail] = useState<{ type: MetricType; range: '24h' | '7d' | '30d'; title: string } | null>(null)
   const [range, setRange] = useState('7d')
   const [expandedModule, setExpandedModule] = useState<string | null>(null)
   const [redirectTarget, setRedirectTarget] = useState<string | null>(null)
@@ -530,7 +528,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
     key: string; label: string; value: string | number; delta: number
     source: string; icon: React.ElementType; tone: string
     loading?: boolean; comingSoon?: boolean; invertGood?: boolean
-    metric?: MetricType; range?: '24h' | '7d' | '30d'; period?: string
+    metric?: 'signups' | 'signins' | 'dau' | 'deleted'; range?: '24h' | '7d' | '30d'; period?: string
   }[] = [
     { key: 'signups',  label: 'New signups',         value: data?.signups24h         ?? 0, delta: (data?.signups24h ?? 0) - (data?.signupsPrev24h ?? data?.signups24h ?? 0), source: 'PostHog',  icon: UserPlus,      tone: 'green',   loading: phLoading, metric: 'signups', range: '24h' },
     { key: 'signins',  label: 'Sign-ins',             value: data?.signins24h         ?? 0, delta: (data?.signins24h ?? 0) - (data?.signinsPrev24h ?? data?.signins24h ?? 0), source: 'PostHog',  icon: LogIn,         tone: 'green',   loading: phLoading, metric: 'signins', range: '24h' },
@@ -549,10 +547,6 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
-
-      {detail && (
-        <MetricPeople brandId={brand.id} type={detail.type} range={detail.range} title={detail.title} onClose={() => setDetail(null)} />
-      )}
 
       {redirectTarget && (
         <div style={{
@@ -696,7 +690,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 loading={item.loading}
                 comingSoon={item.comingSoon}
                 period={item.period}
-                onOpen={item.metric && data?.posthogConnected ? () => setDetail({ type: item.metric!, range: item.range ?? '24h', title: item.label }) : undefined}
+                onOpen={item.metric && data?.posthogConnected ? () => router.push(`/analytics/details?type=${item.metric}&range=${item.range ?? '24h'}`) : undefined}
               />
             ))}
           </div>
@@ -715,7 +709,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 loading={item.loading}
                 comingSoon={item.comingSoon}
                 period={item.period}
-                onOpen={item.metric && data?.posthogConnected ? () => setDetail({ type: item.metric!, range: item.range ?? '24h', title: item.label }) : undefined}
+                onOpen={item.metric && data?.posthogConnected ? () => router.push(`/analytics/details?type=${item.metric}&range=${item.range ?? '24h'}`) : undefined}
               />
             ))}
           </div>
