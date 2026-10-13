@@ -11,6 +11,15 @@ export const GROWTH_PHASES = [
   { maxOrder: Infinity, name: 'Scale',         blurb: 'Analytics, email, audience' },
 ]
 
+// One colour scale for progress everywhere (module rings, sidebar dots and bars):
+// red, orange, yellow, then green as the score climbs.
+export function progressColor(score: number): string {
+  if (score >= 85) return '#4ade80'
+  if (score >= 65) return '#fbbf24'
+  if (score >= 35) return '#fb923c'
+  return '#f43f5e'
+}
+
 export type RoadmapModule = {
   id: string
   type: string
@@ -29,6 +38,7 @@ export type RoadmapPhase = {
   mods: RoadmapModule[]
   total: number
   done: number
+  pct: number      // average score of the stage's modules
   locked: boolean
   pro: boolean
 }
@@ -56,6 +66,7 @@ export function buildRoadmapPhases(mods: RoadmapModule[], live: Record<string, n
       mods: inPhase,
       total: active.length,
       done: active.filter(m => roadmapState(m, live).done).length,
+      pct: active.length ? Math.round(active.reduce((sum, m) => sum + Math.min(roadmapState(m, live).score, 100), 0) / active.length) : 0,
       locked: active.length > 0 && active.every(m => m.locked),
       pro: active.length > 0 && active.every(m => m.planLocked),
     }

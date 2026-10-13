@@ -7050,7 +7050,7 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .app-rm-title { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); padding: 4px 10px 6px; text-decoration: none; }
 .app-rm-title:hover { color: var(--text-dim); }
 .app-rm-stage { display: flex; flex-direction: column; }
-.app-rm-hd { appearance: none; background: none; border: 0; font: inherit; color: var(--text-dim); text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border-radius: 9px; font-size: 13.5px; font-weight: 500; }
+.app-rm-hd { flex-wrap: wrap; appearance: none; background: none; border: 0; font: inherit; color: var(--text-dim); text-align: left; cursor: pointer; display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; border-radius: 9px; font-size: 13.5px; font-weight: 500; }
 .app-rm-hd:hover { background: var(--bg-soft); color: var(--text); }
 .app-rm-hd:focus-visible, .app-rm-mod:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 .app-rm-stage.is-open .app-rm-hd { color: var(--text); font-weight: 600; }
@@ -7058,16 +7058,17 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .app-rm-chev { flex: none; color: var(--text-faint); transition: transform .15s; }
 .app-rm-stage.is-open .app-rm-chev { transform: rotate(90deg); }
 .app-rm-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-rm-bar { flex-basis: 100%; height: 3px; border-radius: 99px; background: var(--line); overflow: hidden; margin: 3px 0 0 18px; width: calc(100% - 18px); }
+.app-rm-bar i { display: block; height: 100%; border-radius: 99px; transition: width .3s; }
 .app-rm-count { font-variant-numeric: tabular-nums; font-size: 11.5px; font-weight: 600; color: var(--text-faint); white-space: nowrap; display: inline-flex; align-items: center; }
-.app-rm-stage.is-done .app-rm-count { color: var(--green); }
 .app-rm-mods { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 6px 17px; padding-left: 8px; border-left: 1px solid var(--line); }
 .app-rm-mod { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 8px; font-size: 13px; color: var(--text-dim); text-decoration: none; }
 .app-rm-mod:hover { background: var(--bg-soft); color: var(--text); }
 .app-rm-mod.is-selected, .app-rm-mod.is-selected:hover { background: var(--accent); color: var(--accent-foreground); font-weight: 600; }
 .app-rm-mod--locked { color: var(--text-faint); }
 .app-rm-dot { width: 16px; height: 16px; border-radius: 50%; flex: none; border: 1.5px solid var(--line); display: inline-flex; align-items: center; justify-content: center; color: var(--text-faint); }
-.app-rm-mod--open .app-rm-dot { border-color: var(--green); }
-.app-rm-mod--done .app-rm-dot { background: var(--green); border-color: var(--green); color: var(--bg); }
+.app-rm-mod--open .app-rm-dot { border-color: var(--text-faint); }
+.app-rm-dot.is-scored { color: transparent; }
 .app-rm-modname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .app-rm-pct { font-variant-numeric: tabular-nums; font-size: 11px; color: var(--text-faint); }
 .app-rm-upgrade { margin: 6px 10px 2px; font-size: 12px; font-weight: 600; color: var(--accent-foreground); text-decoration: none; }

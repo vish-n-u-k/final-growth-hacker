@@ -3,6 +3,7 @@
 import { Fragment, useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useRoadmap } from '@/components/RoadmapContext'
+import { progressColor as ringColor } from '@/lib/modules/roadmap'
 import Link from 'next/link'
 import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull, type DynamicModuleCategoryDefinition } from '@/lib/modules/types'
 import ExportPrepModal from '@/components/ExportPrepModal'
@@ -282,12 +283,6 @@ function InlineIntegrationForm({ intDef, onConnected }: { intDef: IntegrationDef
   )
 }
 
-function ringColor(score: number): string {
-  if (score >= 85) return '#4ade80'
-  if (score >= 65) return '#fbbf24'
-  if (score >= 35) return '#fb923c'
-  return '#f43f5e'
-}
 
 function SparkleIcon({ size = 12, style }: { size?: number; style?: React.CSSProperties }) {
   return (

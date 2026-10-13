@@ -8,7 +8,7 @@ import InstallAppButton from '@/components/InstallAppButton'
 import ThemeToggle from '@/components/ThemeToggle'
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { useRoadmap } from '@/components/RoadmapContext'
-import { buildRoadmapPhases, currentRoadmapType, roadmapState, type RoadmapModule } from '@/lib/modules/roadmap'
+import { buildRoadmapPhases, currentRoadmapType, progressColor, roadmapState, type RoadmapModule } from '@/lib/modules/roadmap'
 
 interface NavItem {
   href: string
@@ -106,17 +106,19 @@ function RoadmapNav({ modules, pathname, onNavigate, showUpgrade }: {
       {phases.map((p, i) => {
         const isOpen = open.has(p.name)
         const gated = p.locked || p.pro
-        const allDone = !gated && p.total > 0 && p.done === p.total
         return (
-          <div key={p.name} className={`app-rm-stage${isOpen ? ' is-open' : ''}${gated ? ' is-locked' : ''}${allDone ? ' is-done' : ''}`}>
+          <div key={p.name} className={`app-rm-stage${isOpen ? ' is-open' : ''}${gated ? ' is-locked' : ''}`}>
             <button type="button" className="app-rm-hd" aria-expanded={isOpen} onClick={() => toggle(p.name)} title={p.blurb}>
               <svg className="app-rm-chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
               <span className="app-rm-name">{i + 1} · {p.name}</span>
               <span className="app-rm-count">
                 {gated ? (
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-label="Locked"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-                ) : allDone ? '✓' : `${p.done}/${p.total}`}
+                ) : `${p.done}/${p.total}`}
               </span>
+              {!gated && (
+                <span className="app-rm-bar" aria-hidden="true"><i style={{ width: `${p.pct}%`, background: progressColor(p.pct) }} /></span>
+              )}
             </button>
             {isOpen && (
               <div className="app-rm-mods">
@@ -136,10 +138,12 @@ function RoadmapNav({ modules, pathname, onNavigate, showUpgrade }: {
                         if (onDashboard) { e.preventDefault(); pickModule(m.type) }
                       }}
                     >
-                      <span className="app-rm-dot" aria-hidden="true">
-                        {st.done ? (
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7.5" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                        ) : state === 'locked' ? (
+                      <span
+                        className={`app-rm-dot${state !== 'locked' && m.analysed ? ' is-scored' : ''}`}
+                        style={state !== 'locked' && m.analysed ? { background: progressColor(st.score), borderColor: progressColor(st.score) } : undefined}
+                        aria-hidden="true"
+                      >
+                        {state === 'locked' ? (
                           <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2.4" /><path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" /></svg>
                         ) : null}
                       </span>
