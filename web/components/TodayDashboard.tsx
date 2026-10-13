@@ -958,24 +958,6 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
         </div>
       )}
 
-      {/* Nav */}
-      <nav className="td-nav">
-        <button className="td-nav-logo" onClick={() => router.push('/dashboard')}>
-          <img src="/growjinlogo.svg" alt="" width={18} height={18} />
-          <span>GrowJin</span>
-        </button>
-        <div className="td-nav-links">
-          <a href="/dashboard" className="td-nav-link">Modules</a>
-          <a href="/today" className="td-nav-link td-nav-link--on">Today</a>
-          <a href="/settings" className="td-nav-icon" title="Settings">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
-            </svg>
-          </a>
-        </div>
-      </nav>
-
       {/* Hero */}
       <div className="td-hero">
         <div className="td-hero-left">
@@ -1203,32 +1185,6 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
           color: inherit; opacity: 0.6; padding: 0 4px;
         }
         .td-oauth-banner-close:hover { opacity: 1; }
-
-        /* nav */
-        .td-nav {
-          display: flex; align-items: center; justify-content: space-between;
-          padding: 0 32px; height: 54px;
-          border-bottom: 1px solid var(--line); background: var(--card);
-          position: sticky; top: 0; z-index: 10;
-        }
-        .td-nav-logo {
-          display: flex; align-items: center; gap: 8px;
-          font-weight: 700; font-size: 15px; color: var(--text);
-          background: none; border: none; cursor: pointer; padding: 0;
-        }
-        .td-nav-links { display: flex; align-items: center; gap: 4px; }
-        .td-nav-link {
-          font-size: 13px; font-weight: 500; color: var(--text-dim);
-          text-decoration: none; padding: 5px 12px; border-radius: 7px;
-          transition: background .12s, color .12s;
-        }
-        .td-nav-link:hover { background: var(--bg-soft); color: var(--text); }
-        .td-nav-link--on { background: var(--accent); color: var(--green); font-weight: 600; }
-        .td-nav-icon {
-          display: grid; place-items: center; width: 30px; height: 30px;
-          color: var(--text-dim); border-radius: 7px; transition: background .12s, color .12s;
-        }
-        .td-nav-icon:hover { background: var(--bg-soft); color: var(--text); }
 
         /* hero */
         .td-hero {
@@ -1510,7 +1466,6 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
         .td-connect-btn:hover { opacity: .75; }
 
         /* light overrides */
-        html.light .td-nav-link--on { background: #d0eadb; color: #179a50; }
         html.light .td-analytics-delta--up { background: #d0eadb; color: #179a50; }
         html.light .td-cta-btn { background: #179a50; }
         html.light .td-streak-num { color: #179a50; }
@@ -1622,7 +1577,6 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
           .td-hero { flex-direction: column; gap: 14px; padding: 24px 16px 0; }
           .td-hero-day { font-size: 24px; }
           .td-body { padding: 18px 16px 60px; }
-          .td-nav { padding: 0 16px; }
           .td-hero-right { flex-wrap: wrap; }
           .td-feed-row { flex-wrap: wrap; gap: 6px; }
         }
