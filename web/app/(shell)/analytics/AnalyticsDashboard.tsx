@@ -563,8 +563,9 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 <button key={v} onClick={() => setView(v)} style={{
                   fontSize: 12, fontWeight: 600, padding: '5px 16px', borderRadius: 99,
                   border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-                  background: view === v ? 'var(--text)' : 'transparent',
-                  color: view === v ? 'var(--bg)' : 'var(--text-dim)',
+                  background: view === v ? 'var(--card)' : 'transparent',
+                  color: view === v ? 'var(--text)' : 'var(--text-dim)',
+                  boxShadow: view === v ? '0 1px 2px rgba(0,0,0,.08)' : 'none',
                   textTransform: 'capitalize',
                 }}>
                   {v === 'users' ? 'Users' : 'Website'}

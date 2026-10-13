@@ -5506,7 +5506,7 @@ html.light .bp-section-hd { border-bottom-color: #e2e2dd; }
 @media (max-width: 640px) {
   .bp-grid { grid-template-columns: 1fr; padding: 0 16px; }
   .bp-topbar { padding: 12px 16px; gap: 8px; }
-  .bp-topbar-brand, .bp-topbar-updated, .bp-dot:nth-child(4) { display: none; }
+  .bp-topbar-brand, .bp-topbar-updated, .bp-dot { display: none; }
   .bp-content { padding: 16px; gap: 16px; }
 }
 /* ── Pixel status card ───────────────────────────────────────────────────────── */
@@ -6655,7 +6655,8 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   .sp-card { margin: 12px; padding: 18px 16px; gap: 16px; }
   .sp-card-hd { flex-wrap: wrap; gap: 10px; }
   .sp-footer { flex-direction: column; align-items: stretch; }
-  .st-int-group-hd { flex-wrap: wrap; }
+  .st-int-group-hd { flex-wrap: nowrap; }
+  .st-int-group-label { min-width: 0; flex: 1; }
 }
 
 /* Desktop too: inside the app shell the sidebar already carries the logo, so the old page-level
@@ -7076,3 +7077,28 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 }
 .ta-more-link { align-self: flex-start; font-size: 13px; font-weight: 600; color: var(--accent-foreground); text-decoration: none; }
 .ta-more-link:hover { text-decoration: underline; }
+
+/* ── Tools page: one calm style for every tool card ── */
+.tl-card { background: var(--card); border-color: var(--line); }
+.tl-card::before { display: none; }
+.tl-card:hover { border-color: var(--green); box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+.tl-card-icon { background: var(--accent); border-color: transparent; color: var(--accent-foreground); }
+.tl-card--disabled .tl-card-icon { background: var(--bg-soft); color: var(--text-faint); }
+.tl-card--disabled:hover { border-color: var(--line); }
+@media (max-width: 760px) {
+  .gh-inner { padding: 0 16px 60px; }
+}
+
+/* Reminders on phones: the header sits inside .wrap, so the Settings-style header padding doubled
+   the left margin; and its title matches the other pages' 22px headings. */
+@media (max-width: 760px) {
+  .wrap > .st-page-hd { padding-left: 0; padding-right: 0; }
+  .wrap > .st-page-hd .st-page-title { font-size: 22px; font-weight: 700; letter-spacing: -.3px; }
+}
+
+/* Growth Path header on the smallest phones: title on its own line, buttons underneath. */
+@media (max-width: 380px) {
+  .gp-topbar { flex-wrap: wrap; row-gap: 10px; }
+  .gp-topbar > div:first-child { flex: 1 1 100%; min-width: 0; }
+  .gp-top-actions { flex: 1 1 100%; }
+}

@@ -239,7 +239,8 @@ export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, bran
 
   const briefItem = items.find((i) => i.slug === 'next-campaign-brief' && i.aiData)
   const hasBrief = !!briefItem
-  const isLocked = moduleStatus === 'locked'
+  // Meta Ads is open to everyone (no Growth Path progress lock), whatever the module's stored status.
+  const isLocked = false
   const hasAudit = items.some((i) => i.categorySlug !== 'next-campaign')
   const displayItem = demoMode ? DEMO_ITEM : briefItem
 

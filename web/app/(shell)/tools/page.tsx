@@ -108,11 +108,10 @@ export default async function ToolsPage() {
     },
     {
       href: '/today',
-      title: "Today's List",
-      desc: 'Your top tasks for today.',
+      title: 'Today',
+      desc: 'What happened, and what to do next.',
       color: '#d97706',
       glow: 'rgba(217,119,6,0.25)',
-      comingSoon: true,
       icon: (
         <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
           <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5"/>
@@ -134,11 +133,15 @@ export default async function ToolsPage() {
         </div>
 
         <div className="tl-grid">
-          {tools.map(t => ({ ...t, comingSoon: t.comingSoon || isComingSoon(t.href) })).map(tool => {
+          {/* Live tools first; one calm colour for all of them (per-tool rainbow colours read as noise). */}
+          {tools
+            .map(t => ({ ...t, color: 'var(--green)', glow: 'var(--green-glow)', comingSoon: t.comingSoon || isComingSoon(t.href) }))
+            .sort((a, b) => Number(a.comingSoon) - Number(b.comingSoon))
+            .map(tool => {
             const content = (
               <>
                 <div className="tl-card-top">
-                  <div className="tl-card-icon" style={{ background: tool.color, borderColor: tool.color, color: '#fff' }}>{tool.icon}</div>
+                  <div className="tl-card-icon">{tool.icon}</div>
                   {tool.comingSoon ? (
                     <span className="cs-badge">Coming Soon</span>
                   ) : tool.badge && (

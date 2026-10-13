@@ -7,8 +7,8 @@ import type { PriceInfo } from '@/lib/billing/stripe'
 
 const PRO_FEATURES = [
   'Every Growth Path module after the free ones — GEO, competitors, social, brand, content, Meta Ads, outreach, analytics',
-  'Today — your daily action list, plus the daily email',
-  'Outreach inbox, Social Studio, Lead Finder and Reminders',
+  'Today: what happened and what to do next, plus the daily email',
+  'Social Studio, Meta Ads and Reminders (Outreach and Lead Finder coming soon)',
   'Analytics: live users, retention and traffic',
 ]
 
