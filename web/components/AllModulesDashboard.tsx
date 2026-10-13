@@ -374,6 +374,16 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     Object.fromEntries(allModulesData.map(m => [m.id, new Set<string>()]))
   )
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  // Phones and tablets show the category list as an accordion and fold the 'Passing' group away.
+  const [narrow, setNarrow] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1000px)')
+    const update = () => setNarrow(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+  const [passOpenMap, setPassOpenMap] = useState<Record<string, boolean>>({})
   const [verifyingItems, setVerifyingItems] = useState<Set<string>>(new Set())
   const [applyingFix, setApplyingFix] = useState<Set<string>>(new Set())
   const [reanalyzingMap, setReanalyzingMap] = useState<Record<string, boolean>>({})
@@ -591,8 +601,18 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const toggleModule = (modId: string) => setOpenModules(new Set([modId]))
 
   // The category list picks one category at a time; its items show in the detail panel beside it.
-  const selectCat = (modId: string, slug: string) =>
-    setOpenCatsMap(prev => ({ ...prev, [modId]: new Set([slug]) }))
+  // On narrow screens tapping the open category closes it (stored as an empty slug), and opening one
+  // scrolls it to the top so its items are in view.
+  const selectCat = (modId: string, slug: string, currentSlug?: string) => {
+    const closing = narrow && currentSlug === slug
+    setOpenCatsMap(prev => ({ ...prev, [modId]: new Set([closing ? '' : slug]) }))
+    if (narrow && !closing) {
+      const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      window.setTimeout(() => {
+        document.getElementById(`gp-cat-${modId}-${slug}`)?.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' })
+      }, 60)
+    }
+  }
 
   const toggleExpand = (modId: string, slug: string, e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.md-cb')) return
@@ -2558,19 +2578,23 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             const passRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && !catNeedsAttention(r.stats)) : []
             const otherRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => r.soon) : catsOrdered
             const wantedCat = [...openCats][0]
-            const selCat = catsOrdered.find(r => r.slug === wantedCat && !r.soon)
-              ?? needRows[0] ?? catsOrdered.find(r => !r.soon) ?? catsOrdered[0]
+            // On narrow screens every category can be closed; on wide screens one is always shown.
+            const allClosed = wantedCat === '' && narrow
+            const selCat = allClosed ? undefined : (catsOrdered.find(r => r.slug === wantedCat && !r.soon)
+              ?? needRows[0] ?? catsOrdered.find(r => !r.soon) ?? catsOrdered[0])
+            const passShown = !!passOpenMap[modData.id] || passRows.some(r => r.slug === selCat?.slug)
             const catBtn = (r: CatRow, passing: boolean) => {
               const open = r.stats.total - r.stats.done
               return (
                 <button
                   type="button"
-                  key={r.slug}
+                  id={`gp-cat-${modData.id}-${r.slug}`}
                   role="tab"
                   aria-selected={r.slug === selCat?.slug}
+                  aria-expanded={narrow ? r.slug === selCat?.slug : undefined}
                   disabled={r.soon}
                   className={`gp-cat${passing ? ' gp-cat--pass' : ''}${r.slug === selCat?.slug ? ' is-selected' : ''}`}
-                  onClick={() => selectCat(modData.id, r.slug)}
+                  onClick={() => selectCat(modData.id, r.slug, selCat?.slug)}
                 >
                   <span className="gp-cat-l1">
                     <b>{r.label}</b>
@@ -2579,6 +2603,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       : effectiveLastAnalyzedAt && passing ? <span className="gp-cat-tick" aria-hidden="true">✓</span>
                       : <span className="gp-cat-count">{r.stats.done}/{r.stats.total}</span>}
                     {!r.soon && <span className="gp-cat-pct">{effectiveLastAnalyzedAt ? `${r.stats.pct}%` : '—'}</span>}
+                    {!r.soon && (
+                      <svg className="gp-cat-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
                   </span>
                   {effectiveLastAnalyzedAt && !passing && !r.soon && (
                     <span className="gp-cat-bar"><i style={{ width: `${r.stats.pct}%`, background: ringColor(r.stats.pct) }} /></span>
@@ -2586,6 +2615,33 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 </button>
               )
             }
+
+            // The detail panel is rendered inside the selected category's group: beside the list on wide
+            // screens (CSS grid) and directly under the category on narrow ones.
+            const detailEl = selCat ? (
+              <div className="gp-detail" role="tabpanel" aria-labelledby={`gp-cat-${modData.id}-${selCat.slug}`}>
+                <div className="gp-detail-hd">
+                  <h3 className="gp-detail-title">{selCat.label}</h3>
+                  {!selCat.soon && effectiveLastAnalyzedAt && (
+                    <span className={`gp-detail-pill${catNeedsAttention(selCat.stats) ? '' : ' is-ok'}`}>
+                      {selCat.stats.done}/{selCat.stats.total} passed{catNeedsAttention(selCat.stats) ? ` · ${selCat.stats.total - selCat.stats.done} to fix` : ''}
+                    </span>
+                  )}
+                </div>
+                {!selCat.soon && (
+                  <p className="gp-detail-sub">
+                    {catNeedsAttention(selCat.stats) ? 'Open an issue to see exactly what to change.' : effectiveLastAnalyzedAt ? 'Nothing to fix here. These checks all passed.' : 'These checks run when you analyse.'}
+                  </p>
+                )}
+                {selCat.body}
+              </div>
+            ) : null
+            const catGroup = (r: CatRow, passing: boolean) => (
+              <div className="gp-catgroup" key={r.slug}>
+                {catBtn(r, passing)}
+                {r.slug === selCat?.slug && detailEl}
+              </div>
+            )
 
             const showSeparator = isLocked && !separatorPlaced
             if (showSeparator) separatorPlaced = true
@@ -3113,33 +3169,34 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                           title={def.name}
                           note={def.comingSoonNote ?? 'This module is in active development and will be available in an upcoming update.'}
                         />
-                      ) : hasCatList && selCat && (
-                        <div className="gp-md">
-                          <div className="gp-md-list" role="tablist" aria-label="Categories">
-                            {needRows.length > 0 && <div className="gp-catlabel">Needs attention</div>}
-                            {needRows.map(r => catBtn(r, false))}
-                            {passRows.length > 0 && <div className="gp-catlabel">Passing ({passRows.length})</div>}
-                            {passRows.map(r => catBtn(r, true))}
-                            {!effectiveLastAnalyzedAt && otherRows.length > 0 && <div className="gp-catlabel">Checks</div>}
-                            {effectiveLastAnalyzedAt && otherRows.length > 0 && <div className="gp-catlabel">Coming soon</div>}
-                            {otherRows.map(r => catBtn(r, false))}
-                          </div>
-                          <div className="gp-detail" role="tabpanel">
-                            <div className="gp-detail-hd">
-                              <h3 className="gp-detail-title">{selCat.label}</h3>
-                              {!selCat.soon && effectiveLastAnalyzedAt && (
-                                <span className={`gp-detail-pill${catNeedsAttention(selCat.stats) ? '' : ' is-ok'}`}>
-                                  {selCat.stats.done}/{selCat.stats.total} passed{catNeedsAttention(selCat.stats) ? ` · ${selCat.stats.total - selCat.stats.done} to fix` : ''}
-                                </span>
-                              )}
-                            </div>
-                            {!selCat.soon && (
-                              <p className="gp-detail-sub">
-                                {catNeedsAttention(selCat.stats) ? 'Open an issue to see exactly what to change.' : effectiveLastAnalyzedAt ? 'Nothing to fix here. These checks all passed.' : 'These checks run when you analyse.'}
-                              </p>
-                            )}
-                            {selCat.body}
-                          </div>
+                      ) : hasCatList && catsOrdered.length > 0 && (
+                        <div className="gp-md" role="tablist" aria-label="Categories">
+                          {needRows.length > 0 && <div className="gp-catlabel">Needs attention</div>}
+                          {needRows.map(r => catGroup(r, false))}
+                          {passRows.length > 0 && (narrow ? (
+                            <button
+                              type="button"
+                              className="gp-catlabel gp-catlabel--toggle"
+                              aria-expanded={passShown}
+                              onClick={() => setPassOpenMap(prev => ({ ...prev, [modData.id]: !passShown }))}
+                            >
+                              <span>Passing ({passRows.length})</span>
+                              <svg className="gp-cat-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            </button>
+                          ) : <div className="gp-catlabel">Passing ({passRows.length})</div>)}
+                          {(!narrow || passShown) && passRows.map(r => catGroup(r, true))}
+                          {!effectiveLastAnalyzedAt && otherRows.length > 0 && <div className="gp-catlabel">Checks</div>}
+                          {!effectiveLastAnalyzedAt && otherRows.map(r => catGroup(r, false))}
+                          {effectiveLastAnalyzedAt && otherRows.length > 0 && (narrow ? (
+                            <p className="gp-soon-note">{otherRows.length} more {otherRows.length === 1 ? 'area' : 'areas'} coming soon</p>
+                          ) : (
+                            <>
+                              <div className="gp-catlabel">Coming soon</div>
+                              {otherRows.map(r => catGroup(r, false))}
+                            </>
+                          ))}
                         </div>
                       )}
                       {hasCatList && modData.type === 'meta-ads' && (
