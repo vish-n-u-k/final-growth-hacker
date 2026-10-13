@@ -7002,8 +7002,8 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .app-install-hint svg { display: inline-block; vertical-align: -2px; margin: 0 1px; }
 
 /* ── Growth Path page: breadcrumb header, result summary, category list + detail panel ── */
-:root { --warn: #f5b351; --warn-soft: #33270f; }
-html.light { --warn: #b45309; --warn-soft: #fdf0dc; }
+:root { --warn: #f5b351; --warn-soft: #33270f; --crit: #f87b70; --crit-soft: #361a17; }
+html.light { --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft: #fde8e6; }
 
 .gp-topbar { background: transparent; border-bottom: 0; padding-top: 22px; padding-bottom: 4px; }
 .gp-crumbs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--text-faint); }
@@ -7087,6 +7087,45 @@ html.light { --warn: #b45309; --warn-soft: #fdf0dc; }
 .gp-detail-empty { color: var(--text-faint); font-size: 13px; }
 .gp-detail .md-sub { padding: 0; }
 .gp-detail .md-items { padding: 0; }
+
+/* Item cards in the detail panel: a bordered card per check, impact chip on the right, grey panel when open. */
+.gp-detail .md-sub-border { border-top: 0; }
+.gp-detail .md-sub-hd { padding: 20px 0 8px; }
+.gp-detail .md-sub-name { border-left: 0; padding-left: 0; font-size: 11px; font-weight: 600; letter-spacing: .1em; color: var(--text-faint); }
+.gp-detail .md-sub-count { font-size: 12px; font-variant-numeric: tabular-nums; }
+.gp-detail .md-items { gap: 10px; }
+.gp-detail .md-items .md-item { gap: 14px; padding: 16px 18px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+.gp-detail .md-items .md-item:hover { background: var(--card); border-color: var(--text-faint); }
+.gp-detail .md-items .md-item-critical, .gp-detail .md-items .md-item-critical:hover { background: var(--card); border-color: var(--line); }
+.gp-detail .md-items .md-item-done, .gp-detail .md-items .md-item-done:hover { background: var(--bg-soft); border-color: transparent; padding: 12px 18px; }
+.gp-detail .md-item .md-item-lbl { font-size: 15px; font-weight: 600; line-height: 1.35; color: var(--text); }
+.gp-detail .md-item-done .md-item-lbl { font-weight: 500; color: var(--text-dim); }
+.gp-detail .md-item .md-item-detail { font-size: 13px; line-height: 1.5; color: var(--text-faint); margin-top: 3px; }
+.gp-detail .md-item .md-cb { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--text-faint); background: transparent; }
+.gp-detail .md-item .md-cb-ai { background: var(--green); border-color: var(--green); }
+.gp-detail .md-item .md-cb-ai svg path, .gp-detail .md-item .md-cb-self svg path { stroke: var(--primary-foreground); }
+.gp-detail .md-item .md-cb-self { background: var(--green); border: 1.5px dashed var(--green); }
+.gp-detail .md-item .md-priority-icon { padding: 3px 11px; border: 0; border-radius: 99px; font-size: 12px; font-weight: 500; gap: 0; }
+.gp-detail .md-item .md-priority-icon svg { display: none; }
+.gp-detail .md-item .md-priority-label { display: inline; }
+.gp-detail .md-item .md-priority-critical { background: var(--crit-soft); color: var(--crit); }
+.gp-detail .md-item .md-priority-important { background: var(--warn-soft); color: var(--warn); }
+.gp-detail .md-item .md-tag-ai { background: var(--accent); color: var(--accent-foreground); border-color: transparent; font-size: 11.5px; font-weight: 600; }
+.gp-detail .md-item .md-tag-self { background: var(--bg-soft); color: var(--text-dim); border-color: var(--line); }
+.gp-detail .md-item .sm-expand-icon { width: 26px; height: 26px; border-radius: 8px; background: var(--card); border: 1px solid var(--line); color: var(--text-dim); }
+.gp-detail .md-item.sm-item-expanded .sm-expand-icon { background: var(--bg-soft); border-color: var(--text-faint); color: var(--text); }
+.gp-detail .md-item .sm-expanded-body { margin-top: 14px; padding: 16px 18px 18px; gap: 12px; background: var(--bg-soft); border: 0; border-radius: 10px; }
+.gp-detail .md-item .sm-narrative { font-size: 14px; }
+.gp-detail .md-item .sm-current-box, .gp-detail .md-item .sm-action-box { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.gp-detail .md-item .sm-current-label, .gp-detail .md-item .sm-action-label { font-size: 11px; letter-spacing: .1em; color: var(--text-faint); }
+.gp-detail .md-item .sm-current-text { font-size: 14px; line-height: 1.6; }
+.gp-detail .md-item .sm-action-text { font-size: 13px; line-height: 1.6; background: var(--bg-soft); border-left: 3px solid var(--green); }
+.gp-detail .md-item .sm-fix-guide, .gp-detail .md-item .sm-setup-guide { background: transparent; border: 0; border-radius: 0; margin-top: 4px; }
+.gp-detail .md-item .sm-fix-guide-hd, .gp-detail .md-item .sm-setup-guide-hd { background: transparent; border: 0; padding: 0 0 2px; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
+.gp-detail .md-item .sm-fix-guide-steps, .gp-detail .md-item .sm-setup-steps { padding: 0 0 4px; }
+.gp-detail .md-item .sm-fix-guide-step, .gp-detail .md-item .sm-setup-step { font-size: 14px; line-height: 1.55; color: var(--text); }
+.gp-detail .md-item .sm-fix-guide-num, .gp-detail .md-item .sm-setup-step-num { background: var(--card); border: 1px solid var(--line); color: var(--text-dim); }
+.gp-detail .md-item .md-skip-section { border-top: 1px solid var(--line); }
 
 .app-sidebar-theme { margin-left: auto; flex-shrink: 0; display: inline-flex; }
 

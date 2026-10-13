@@ -1507,7 +1507,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
                         <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                       </svg>
-                      <span className="md-priority-label">Critical</span>
+                      <span className="md-priority-label">High impact</span>
                     </span>
                   )}
                   {!done && item.weight === 2 && (
@@ -1517,7 +1517,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
                         <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                       </svg>
-                      <span className="md-priority-label">Important</span>
+                      <span className="md-priority-label">Medium</span>
                     </span>
                   )}
                   {aiV && <Badge className="md-tag md-tag-ai" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>AI <SparkleIcon size={11} style={{ color: '#178a4c' }} /></Badge>}
@@ -1744,7 +1744,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
                         <line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                       </svg>
-                      <span className="md-priority-label">Critical</span>
+                      <span className="md-priority-label">High impact</span>
                     </span>
                   )}
                   {!done && item.weight === 2 && (
@@ -1754,7 +1754,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"/>
                         <line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
                       </svg>
-                      <span className="md-priority-label">Important</span>
+                      <span className="md-priority-label">Medium</span>
                     </span>
                   )}
                   {aiV && <span className="md-tag md-tag-ai" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>AI <SparkleIcon size={11} style={{ color: '#178a4c' }} /></span>}
