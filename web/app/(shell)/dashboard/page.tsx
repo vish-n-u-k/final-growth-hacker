@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getSessionUser, getBrandForUser, getAccessCached } from '@/lib/server-session'
 import { isAdminEmail } from '@/lib/admin'
-import { getMrrSettings } from '@/lib/mrr'
 import { planLockedTypes } from '@/lib/billing/plan'
 import { db } from '@/lib/db'
 import { modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit, analysisRequests, itemLinks } from '@/lib/db/schema'
@@ -29,7 +28,6 @@ export default async function DashboardPage() {
   if (!brand) redirect('/onboarding')
   // Start the plan check now; it only needs the brand, so it overlaps the module queries below.
   const accessPromise = getAccessCached(brand.id, user.email)
-  const mrrPromise = getMrrSettings(brand.id)
 
   let allModulesRaw = await db
     .select()
@@ -246,7 +244,7 @@ export default async function DashboardPage() {
   }
   allModulesData.sort((a, b) => a.order - b.order)
 
-  const [access, mrrSettings] = await Promise.all([accessPromise, mrrPromise])
+  const access = await accessPromise
   const billing = {
     enabled: access.enabled,
     pro: access.pro,
@@ -265,7 +263,6 @@ export default async function DashboardPage() {
       socialLinks={socialLinks}
       conflictLinks={conflictLinks}
       billing={billing}
-      mrrSettings={mrrSettings}
     />
   )
 }

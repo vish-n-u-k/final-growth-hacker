@@ -1,5 +1,6 @@
 'use client'
 
+import RoadToFiveHundred from '@/components/RoadToFiveHundred'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
@@ -63,6 +64,7 @@ interface Props {
   gmailModuleId: string | null
   socialModuleId: string | null
   frektoConnected: boolean
+  posthogConnected: boolean
   blogData: BlogData
 }
 
@@ -847,7 +849,7 @@ function LoadingState() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function TodayDashboard({ initialData, brandName, gmailConnected, gmailAddress, prospectItems, gmailModuleId, socialModuleId, frektoConnected, blogData }: Props) {
+export default function TodayDashboard({ initialData, brandName, gmailConnected, gmailAddress, prospectItems, gmailModuleId, socialModuleId, frektoConnected, posthogConnected, blogData }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
@@ -982,6 +984,8 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
 
       {/* Body */}
       <div className="td-body">
+        {/* Road to 500 users timeline (needs PostHog) */}
+        {posthogConnected && <div className="td-journey"><RoadToFiveHundred posthogConnected /></div>}
         {!ready || (refreshing && cards.length === 0) ? (
           <LoadingState />
         ) : allGood && cards.length === 0 ? (
@@ -1226,6 +1230,8 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
           padding: 24px clamp(20px, 3.2vw, 48px) 80px; box-sizing: border-box;
           display: flex; flex-direction: column; gap: 14px;
         }
+
+        .td-journey .gp-journey { margin-bottom: 0; }
 
         /* action and impact cards: one column on phones, more as the screen widens */
         .td-cards {

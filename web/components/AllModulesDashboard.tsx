@@ -18,8 +18,7 @@ import { CONFLICT_GROUPS, SLUG_TOPIC } from '@/lib/modules/conflict-map'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 import FrektoPostingSectionImport from '@/components/FrektoPostingSection'
 import NotesDrawer from '@/components/NotesDrawer'
-import ProjectedMrr from '@/components/ProjectedMrr'
-import type { MrrSettings } from '@/lib/mrr-shared'
+import { JOURNEY_PHASES } from '@/lib/journey'
 
 function renderMdStep(step: string): React.ReactNode {
   const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
@@ -78,7 +77,6 @@ interface Props {
   conflictLinks?: { itemIdA: string; itemIdB: string }[]
   // Free/Pro (lib/billing/plan.ts). Billing off → { enabled: false, pro: true, planLocked: [] }.
   billing?: { enabled: boolean; pro: boolean; planLocked: string[] }
-  mrrSettings?: MrrSettings | null // Projected MRR price (lib/mrr.ts)
 }
 
 function timeAgo(iso: string | null): string {
@@ -231,15 +229,6 @@ function renderMd(text: string, color: string) {
   return <div style={{ fontSize: '14.5px' }}>{out}</div>
 }
 
-// Same stage ranges the Business Stage module classifies brands into.
-const JOURNEY_PHASES = [
-  { min: 0,   max: 10,       range: '0–10',    name: 'First customers' },
-  { min: 10,  max: 50,       range: '10–50',   name: 'Early adopters' },
-  { min: 50,  max: 100,      range: '50–100',  name: 'One channel that works' },
-  { min: 100, max: 250,      range: '100–250', name: 'Scaling up' },
-  { min: 250, max: Infinity, range: '250–500', name: 'New markets' },
-]
-
 function InlineIntegrationForm({ intDef, onConnected }: { intDef: IntegrationDefinition; onConnected: () => void }) {
   const [values, setValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
@@ -327,7 +316,7 @@ function LevelRing({ score, pending = false }: { score: number; pending?: boolea
 
 const BILLING_OFF = { enabled: false, pro: true, planLocked: [] as string[] }
 
-export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], isAdmin = false, githubConnected, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF, mrrSettings = null }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], isAdmin = false, githubConnected, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
   const isPlanLocked = (m: Pick<ModuleData, 'type'>) => billing.planLocked.includes(m.type)
   const [notesOpen, setNotesOpen] = useState(false)
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
@@ -590,10 +579,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   }, [selectedModule?.type, liveScoresKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentPhaseIdx = Math.max(0, JOURNEY_PHASES.findIndex(p => userCount < p.max))
-  const currentPhase = JOURNEY_PHASES[currentPhaseIdx]
   const nextPhase = JOURNEY_PHASES[currentPhaseIdx + 1] ?? null
-  const phaseCap = currentPhase.max === Infinity ? 500 : currentPhase.max
-  const phaseMarkerPct = Math.min(Math.max((userCount - currentPhase.min) / (phaseCap - currentPhase.min), 0.04), 0.96) * 100
 
   const bsItemsAll = resolvedBsModId ? (dynItemsMap[resolvedBsModId] ?? []) : []
   const bsClassItem = bsItemsAll.find(i => i.categorySlug === 'classification')
@@ -742,8 +728,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const [clock, setClock] = useState(() => Date.now())
   // "Foundation is ready" notice after a run finishes (also shown in the tab title).
   const [readyNotice, setReadyNotice] = useState<{ modId: string; name: string } | null>(null)
-  const [mrrOpen, setMrrOpen] = useState(false)
-  const [mrr, setMrr] = useState(mrrSettings) // kept here so a saved price survives closing the panel
   const [focusModId, setFocusModId] = useState<string | null>(null)
   useEffect(() => {
     if (!readyNotice) return
@@ -2391,50 +2375,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <span className="gp-live-pill-bar" aria-hidden="true"><i style={{ width: `${liveRun.pct}%` }} /></span>
             </button>
           )}
-
-        {/* Road to 500 users: always visible when PostHog is connected; projected MRR sits behind a toggle. */}
-        {connectedIntegrations['posthog'] && (
-          <div className="gp-journey">
-            <div className="gp-journey-top">
-              <div className="gp-journey-status">
-                <span className="gp-eyebrow">Road to 500 users</span>
-                <span className="gp-count">
-                  {posthogLoading ? <span className="count-loading"><span /><span /><span /></span> : userCount.toLocaleString()}
-                  <span className="gp-count-label">users<span className="gp-wide-only"> · {currentPhase.name}</span></span>
-                </span>
-              </div>
-              <div className="gp-journey-note">
-                {nextPhase
-                  ? <>{Math.max(nextPhase.min - userCount, 0).toLocaleString()} more to reach <strong>{nextPhase.min}</strong><span className="gp-wide-only"> · {nextPhase.name}</span></>
-                  : <>Last stage on the road — keep compounding</>}
-                {posthogDataStartDate && (
-                  <span className="gp-tracking">
-                    {' '}· since {new Date(posthogDataStartDate + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}
-                  </span>
-                )}
-              </div>
-            </div>
-            <div className="gp-bands">
-              {JOURNEY_PHASES.map((p, i) => {
-                const state = i < currentPhaseIdx ? 'done' : i === currentPhaseIdx ? 'current' : 'locked'
-                return (
-                  <div key={p.range} className={`gp-band gp-band--${state}`} title={`${p.range} users · ${p.name}`}>
-                    <span className="gp-band-bar">
-                      {state === 'current' && <i style={{ width: `${phaseMarkerPct}%` }} />}
-                    </span>
-                    <span className="gp-band-range">{p.range}</span>
-                    {state === 'current' && <span className="gp-band-name">{p.name}</span>}
-                  </div>
-                )
-              })}
-            </div>
-            <button type="button" className="gp-journey-mrr-toggle" aria-expanded={mrrOpen} onClick={() => setMrrOpen(o => !o)}>
-              Projected MRR
-              <svg className="gp-journey-mrr-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            </button>
-            {mrrOpen && <ProjectedMrr userCount={userCount} loading={posthogLoading} initial={mrr} onSaved={setMrr} />}
-          </div>
-        )}
 
         {/* Business Stage Modal */}
         {stageModalOpen && (() => {
