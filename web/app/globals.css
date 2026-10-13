@@ -7002,8 +7002,8 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .app-install-hint svg { display: inline-block; vertical-align: -2px; margin: 0 1px; }
 
 /* ── Growth Path page: breadcrumb header, result summary, category list + detail panel ── */
-:root { --warn: #f5b351; --warn-soft: #33270f; --crit: #f87b70; --crit-soft: #361a17; --progress-good: #4ade80; }
-html.light { --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft: #fde8e6; --progress-good: #15803d; }
+:root { --warn: #f5b351; --warn-soft: #33270f; --crit: #f87b70; --crit-soft: #361a17; --progress-good: #4ade80; --on-warn: #1a1204; }
+html.light { --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft: #fde8e6; --progress-good: #15803d; --on-warn: #ffffff; }
 
 .gp-topbar { background: transparent; border-bottom: 0; padding-top: 22px; padding-bottom: 4px; }
 .gp-crumbs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--text-faint); }
@@ -7051,13 +7051,15 @@ html.light { --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft
 .gp-sum .gp-stage-cta:hover { background: none; text-decoration: underline; opacity: 1; }
 
 /* Fix this first */
-.gp-fix { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 20px 24px; border-radius: 14px; background: var(--accent); margin-bottom: 24px; }
+/* Amber, not green: green means done, and this is work still to do. */
+.gp-fix { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 20px 24px; border-radius: 14px; background: var(--warn-soft); margin-bottom: 24px; }
 .gp-fix-body { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
-.gp-fix .gp-sum-eyebrow { color: var(--accent-foreground); margin-bottom: 4px; }
+.gp-fix .gp-sum-eyebrow { color: var(--warn); margin-bottom: 4px; }
 .gp-fix-title { font-size: 20px; font-weight: 600; line-height: 1.3; color: var(--text); }
-.gp-fix-cta { padding: 12px 22px; border: 0; border-radius: 10px; background: var(--green); color: var(--primary-foreground); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.gp-fix-cta { padding: 12px 22px; border: 0; border-radius: 10px; background: var(--warn); color: var(--on-warn); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
 .gp-fix-cta:hover { filter: brightness(1.08); }
-.gp-fix-cta:focus-visible, .gp-cat:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.gp-fix-cta:focus-visible { outline: 2px solid var(--warn); outline-offset: 2px; }
+.gp-cat:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
 /* Category list (left) + detail panel (right) */
 .gp-md { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); column-gap: 22px; row-gap: 0; align-items: start; }
@@ -7078,7 +7080,8 @@ html.light { --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft
 .gp-catlabel:first-child { padding-top: 0; }
 .gp-cat { appearance: none; text-align: left; font: inherit; color: var(--text); cursor: pointer; display: flex; flex-direction: column; gap: 10px; width: 100%; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
 .gp-cat:hover { border-color: var(--text-faint); }
-.gp-cat.is-selected, .gp-cat.is-selected:hover { border-color: var(--green); background: var(--accent); }
+/* The open category is marked with a neutral ink outline: green is kept for things that are done. */
+.gp-cat.is-selected, .gp-cat.is-selected:hover { border-color: var(--text); background: var(--bg-soft); }
 .gp-cat:disabled { opacity: .55; cursor: default; }
 .gp-cat-l1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .gp-cat-l1 b { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 15px; }
@@ -7225,7 +7228,7 @@ button.gp-users-chip, .gp-users-chip.is-live { height: auto; min-height: 38px; p
   .gp-cat-chev { display: block; }
   .gp-cat.is-selected .gp-cat-chev, .gp-catlabel--toggle[aria-expanded="true"] .gp-cat-chev { transform: rotate(180deg); }
   .gp-cat.is-selected { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-  .gp-catgroup > .gp-detail { margin-top: -1px; border-color: var(--green); border-top-left-radius: 0; border-top-right-radius: 0; padding: 2px 14px 16px; }
+  .gp-catgroup > .gp-detail { margin-top: -1px; border-color: var(--text); border-top-left-radius: 0; border-top-right-radius: 0; padding: 2px 14px 16px; }
   .gp-detail-hd, .gp-detail-sub { display: none; }
 }
 @media (max-width: 760px) {
