@@ -92,22 +92,21 @@ function RoadmapNav({ modules, pathname, onNavigate, showUpgrade }: {
   const inGrowthPath = isActive(pathname, '/dashboard')
   const currentType = currentRoadmapType(modules, live.scores)
   const selectedType = inGrowthPath ? (live.selectedType ?? currentType) : null
-  const focusPhase = phases.find(p => p.mods.some(m => m.type === (selectedType ?? currentType)))?.name ?? null
-  const [open, setOpen] = useState<Set<string>>(() => new Set(focusPhase ? [focusPhase] : []))
-  useEffect(() => {
-    if (focusPhase) setOpen(prev => (prev.has(focusPhase) ? prev : new Set(prev).add(focusPhase)))
-  }, [focusPhase])
-  const toggle = (name: string) => setOpen(prev => { const n = new Set(prev); if (n.has(name)) n.delete(name); else n.add(name); return n })
+  // Every stage starts closed and only one is open at a time. The stage holding the module you are on
+  // gets an accent colour so you can still tell where you are.
+  const selectedPhase = selectedType ? phases.find(p => p.mods.some(m => m.type === selectedType))?.name ?? null : null
+  const [openStage, setOpenStage] = useState<string | null>(null)
+  const toggle = (name: string) => setOpenStage(prev => (prev === name ? null : name))
   const hasPro = phases.some(p => p.pro)
 
   return (
     <div className="app-rm" role="group" aria-label="Growth Path roadmap">
       <Link href="/dashboard" className="app-rm-title" onClick={onNavigate}>Your roadmap</Link>
       {phases.map((p, i) => {
-        const isOpen = open.has(p.name)
+        const isOpen = openStage === p.name
         const gated = p.locked || p.pro
         return (
-          <div key={p.name} className={`app-rm-stage${isOpen ? ' is-open' : ''}${gated ? ' is-locked' : ''}`}>
+          <div key={p.name} className={`app-rm-stage${isOpen ? ' is-open' : ''}${gated ? ' is-locked' : ''}${p.name === selectedPhase ? ' has-selected' : ''}`}>
             <button type="button" className="app-rm-hd" aria-expanded={isOpen} onClick={() => toggle(p.name)} title={p.blurb}>
               <svg className="app-rm-chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
               <span className="app-rm-name">{i + 1} · {p.name}</span>

@@ -740,7 +740,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const [clock, setClock] = useState(() => Date.now())
   // "Foundation is ready" notice after a run finishes (also shown in the tab title).
   const [readyNotice, setReadyNotice] = useState<{ modId: string; name: string } | null>(null)
-  const [roadOpen, setRoadOpen] = useState(false)
+  const [mrrOpen, setMrrOpen] = useState(false)
   const [mrr, setMrr] = useState(mrrSettings) // kept here so a saved price survives closing the panel
   const [focusModId, setFocusModId] = useState<string | null>(null)
   useEffect(() => {
@@ -2261,12 +2261,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         <div className="gp-top-actions">
           {/* Live users from PostHog. Connected: the count, which opens Road to 500; until then, one small prompt. */}
           {connectedIntegrations['posthog'] ? (
-            <button
-              type="button"
-              className={`gp-users-chip${roadOpen ? ' is-open' : ''}`}
-              onClick={() => setRoadOpen(o => !o)}
-              aria-expanded={roadOpen}
-              title={nextPhase ? `Next milestone: ${nextPhase.min} users (${Math.max(nextPhase.min - userCount, 0).toLocaleString()} to go). Click to see the road to 500.` : 'Road to 500 users'}
+            <div
+              className="gp-users-chip is-live"
+              title={nextPhase ? `Next milestone: ${nextPhase.min} users (${Math.max(nextPhase.min - userCount, 0).toLocaleString()} to go)` : 'Road to 500 users'}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
               <span className="gp-users-chip-main">
@@ -2279,8 +2276,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <span className="gp-users-chip-bar" aria-hidden="true"><i style={{ width: `${Math.min(userCount / nextPhase.min, 1) * 100}%` }} /></span>
                 )}
               </span>
-              <svg className="gp-users-chip-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            </button>
+            </div>
           ) : (
             <Link href="/settings?tab=integrations" className="gp-users-chip" title="Connect PostHog (read-only) to track your live user count">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
@@ -2361,8 +2357,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             </button>
           )}
 
-        {/* Road to 500 users: opened from the live-users chip in the header. */}
-        {connectedIntegrations['posthog'] && roadOpen && (
+        {/* Road to 500 users: always visible when PostHog is connected; projected MRR sits behind a toggle. */}
+        {connectedIntegrations['posthog'] && (
           <div className="gp-journey">
             <div className="gp-journey-top">
               <div className="gp-journey-status">
@@ -2397,7 +2393,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 )
               })}
             </div>
-            <ProjectedMrr userCount={userCount} loading={posthogLoading} initial={mrr} onSaved={setMrr} />
+            <button type="button" className="gp-journey-mrr-toggle" aria-expanded={mrrOpen} onClick={() => setMrrOpen(o => !o)}>
+              Projected MRR
+              <svg className="gp-journey-mrr-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+            {mrrOpen && <ProjectedMrr userCount={userCount} loading={posthogLoading} initial={mrr} onSaved={setMrr} />}
           </div>
         )}
 
