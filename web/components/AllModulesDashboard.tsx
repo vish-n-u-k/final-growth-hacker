@@ -480,6 +480,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   }
 
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
+  const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null)
   const [prUrlMap, setPrUrlMap] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.agentPrUrl]))
   )
@@ -994,6 +995,35 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     } finally {
       setGeneratingDraft(prev => { const n = new Set(prev); n.delete(itemKey); return n })
     }
+  }
+
+  // "Copy fix prompt": the finding and the steps as one message to paste into an AI assistant.
+  const buildFixPrompt = (p: { label: string; found?: string | null; why?: string | null; action?: string | null; steps?: string[] }) => {
+    const clean = (t: string) => t.replace(/\*\*/g, '')
+    const lines = [`Please fix this issue${brand.websiteUrl ? ` on ${brand.websiteUrl}` : ' on my website'}.`, '', `Issue: ${clean(p.label)}`]
+    if (p.found) lines.push(`What was found: ${clean(p.found)}`)
+    if (p.why) lines.push(`Why it matters: ${clean(p.why)}`)
+    if (p.action) lines.push(`What to do: ${clean(p.action)}`)
+    if (p.steps?.length) lines.push('', 'Steps:', ...p.steps.map((st, i) => `${i + 1}. ${clean(st).replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')}`))
+    lines.push('', 'Make the change, then tell me exactly what you changed.')
+    return lines.join('\n')
+  }
+  const copyFixPrompt = async (key: string, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // Older browsers and some app views refuse the clipboard API: fall back to a temporary text box.
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      try { document.execCommand('copy') } catch { /* nothing more to try */ }
+      document.body.removeChild(ta)
+    }
+    setCopiedPrompt(key)
+    window.setTimeout(() => setCopiedPrompt(prev => (prev === key ? null : prev)), 2000)
   }
 
   // Jump to one open item: opens its category and expands it.
@@ -1583,7 +1613,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               {item.aiNarrative && <p className="sm-narrative">{parseBold(item.aiNarrative)}</p>}
               {item.aiAction && (
                 <div className="sm-action-box">
-                  <span className="sm-action-label">Action</span>
+                  <span className="sm-action-label">What to do</span>
                   <p className="sm-action-text">{parseBold(item.aiAction)}</p>
                   {/https?:\/\/(www\.)?(reddit\.com\/r\/|facebook\.com\/groups\/|linkedin\.com\/groups\/)/i.test(item.aiAction ?? '') && (
                     <button
@@ -1675,6 +1705,18 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       {generatingDraft.has(itemKey) ? <><span className="md-spin" />Generating draft…</> : '✦ Generate AI draft'}
                     </button>
                   )}
+                </div>
+              )}
+              {!done && (
+                <div className="sm-actions">
+                  <button
+                    type="button"
+                    className="sm-act-primary"
+                    onClick={(e) => { e.stopPropagation(); copyFixPrompt(itemKey, buildFixPrompt({ label: item.aiHighlight || item.label, found: item.aiDetail, why: item.aiNarrative, action: item.aiAction })) }}
+                  >
+                    {copiedPrompt === itemKey ? 'Copied ✓' : 'Copy fix prompt'}
+                  </button>
+                  <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, true, item.id, item.slug, userC, e)}>Mark as done</button>
                 </div>
               )}
               {/* Skip section — at bottom of expanded body */}
@@ -1820,7 +1862,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               {s?.aiNarrative && <p className="sm-narrative">{parseBold(s.aiNarrative)}</p>}
               {s?.aiAction && (
                 <div className="sm-action-box">
-                  <span className="sm-action-label">Action</span>
+                  <span className="sm-action-label">What to do</span>
                   <p className="sm-action-text">{parseBold(s.aiAction)}</p>
                 </div>
               )}
@@ -1886,6 +1928,18 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       Download Claude Code setup guide
                     </a>
                   )}
+                </div>
+              )}
+              {!done && (
+                <div className="sm-actions">
+                  <button
+                    type="button"
+                    className="sm-act-primary"
+                    onClick={(e) => { e.stopPropagation(); copyFixPrompt(itemKey, buildFixPrompt({ label: s?.aiHighlight || item.label, found: s?.aiDetail, why: s?.aiNarrative, action: s?.aiAction, steps: item.fixGuide })) }}
+                  >
+                    {copiedPrompt === itemKey ? 'Copied ✓' : 'Copy fix prompt'}
+                  </button>
+                  <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, false, s?.id ?? '', item.slug, userC, e)}>Mark as done</button>
                 </div>
               )}
               {/* Skip section — at bottom of expanded body */}

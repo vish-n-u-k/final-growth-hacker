@@ -7179,6 +7179,24 @@ html.light { --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft
 }
 @media (prefers-reduced-motion: reduce) { .gp-pb-chev { transition: none; } }
 
+/* Opened check: what to do, then the two actions, with "not relevant" as a quiet link. */
+.gp-detail .md-item .sm-current-box { display: none; }
+.gp-detail .md-item .sm-narrative { font-size: 14.5px; line-height: 1.6; color: var(--text-dim); }
+.gp-detail .md-item .sm-action-box { background: transparent; border: 0; padding: 0; gap: 6px; }
+.gp-detail .md-item .sm-action-text { font-family: inherit; font-size: 14.5px; line-height: 1.65; color: var(--text); background: transparent; padding: 0; border-left: 0; }
+.sm-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.sm-act-primary, .sm-act-secondary { font: inherit; font-size: 14px; font-weight: 600; min-height: 44px; padding: 10px 20px; border-radius: 10px; cursor: pointer; }
+.sm-act-primary { border: 0; background: var(--green); color: var(--primary-foreground); }
+.sm-act-primary:hover { filter: brightness(1.08); }
+.sm-act-secondary { border: 1px solid var(--line); background: var(--card); color: var(--text); }
+.sm-act-secondary:hover { border-color: var(--green); }
+.sm-act-primary:focus-visible, .sm-act-secondary:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.gp-detail .md-item .md-skip-section { border-top: 0; padding-top: 0; margin-top: 2px; }
+.gp-detail .md-item .md-skip-section-label { display: none; }
+.gp-detail .md-item .md-skip-btn { background: none; border: 0; padding: 6px 0; color: var(--text-faint); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.gp-detail .md-item .md-skip-btn:hover { background: none; color: var(--text-dim); }
+@media (max-width: 480px) { .sm-actions > button { flex: 1 1 140px; } }
+
 .app-sidebar-theme { margin-left: auto; flex-shrink: 0; display: inline-flex; }
 
 @media (max-width: 1000px) {
