@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 import FrektoPostingSection from '@/components/FrektoPostingSection'
+import TodayActivity from '@/components/TodayActivity'
 import type { ActionCard, ImpactCard } from '@/lib/daily/signals'
 import type { PlatformStats } from '@/app/api/social/analytics/route'
 import type { DBItemFull } from '@/lib/modules/types'
@@ -1000,6 +1001,9 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
 
       {/* Body */}
       <div className="td-body">
+        {/* What happened since yesterday (visitors, signups, sources) before what to do */}
+        <TodayActivity />
+
         {!ready || (refreshing && cards.length === 0) ? (
           <LoadingState />
         ) : allGood && cards.length === 0 ? (
