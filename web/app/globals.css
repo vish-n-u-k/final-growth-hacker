@@ -7163,7 +7163,8 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .an-stat--open { cursor: pointer; transition: border-color .15s, box-shadow .15s; }
 .an-stat--open:hover, .an-stat--open:focus-visible { border-color: var(--green) !important; box-shadow: 0 4px 14px rgba(0,0,0,.05); outline: none; }
 .an-stat-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.an-stat-more { font-size: 12.5px; font-weight: 600; color: var(--accent-foreground); white-space: nowrap; }
+.an-stat-more { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--green) 35%, var(--line)); background: var(--accent); color: var(--accent-foreground); font-size: 12.5px; font-weight: 600; white-space: nowrap; transition: background .15s, color .15s, border-color .15s; }
+.an-stat--open:hover .an-stat-more, .an-stat--open:focus-visible .an-stat-more { background: var(--accent-foreground); border-color: var(--accent-foreground); color: #fff; }
 /* ── Growth Path page: breadcrumb header, result summary, category list + detail panel ── */
 :root { --warn: #f5b351; --warn-soft: #33270f; --crit: #f87b70; --crit-soft: #361a17; --progress-good: #4ade80; --on-warn: #1a1204; }
 html.light { --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft: #fde8e6; --progress-good: #15803d; --on-warn: #ffffff; }
