@@ -4,6 +4,7 @@ import Link, { useLinkStatus } from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { isComingSoon } from '@/lib/features'
+import InstallAppButton from '@/components/InstallAppButton'
 import { useEffect, useRef, useState, type JSX } from 'react'
 
 interface NavItem {
@@ -46,6 +47,7 @@ const ICON: Record<string, JSX.Element> = {
   bell: <><path d="M6 7.5a4 4 0 0 1 8 0c0 3.5 1.2 4.7 1.5 5.3H4.5C4.8 12.2 6 11 6 7.5Z" /><path d="M8.3 15.5a1.8 1.8 0 0 0 3.4 0" /></>,
   chart: <path d="M3 16.5h14M5.8 16.5v-5M10 16.5v-9M14.2 16.5V4.5" />,
   logout: <><path d="M8 17.5H5a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 5 2.5h3" /><path d="M13 14l4-4-4-4M17 10H8" /></>,
+  install: <><path d="M10 3v9M6.5 8.5 10 12l3.5-3.5" /><path d="M4 13.5v1.5A1.5 1.5 0 0 0 5.5 16.5h9a1.5 1.5 0 0 0 1.5-1.5v-1.5" /></>,
   gear: <><circle cx="10" cy="10" r="2.6" /><path d="M10 3v2M10 15v2M17 10h-2M5 10H3M14.9 5.1l-1.4 1.4M6.5 13.5l-1.4 1.4M14.9 14.9l-1.4-1.4M6.5 6.5L5.1 5.1" /></>,
 }
 
@@ -228,6 +230,7 @@ export default function AppSidebar({
           Settings
           <PendingHint />
         </Link>
+        <InstallAppButton className="app-navitem app-navitem--btn" icon={<NavIcon name="install" />} />
         <button type="button" className="app-navitem app-navitem--btn" onClick={handleSignOut} disabled={signingOut}>
           <NavIcon name="logout" />
           {signingOut ? 'Signing out…' : 'Sign out'}
