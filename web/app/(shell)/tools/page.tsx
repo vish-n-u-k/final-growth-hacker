@@ -112,7 +112,7 @@ export default async function ToolsPage() {
       desc: 'Your top tasks for today.',
       color: '#d97706',
       glow: 'rgba(217,119,6,0.25)',
-      comingSoon: true,
+      comingSoon: false,
       icon: (
         <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
           <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5"/>

@@ -186,7 +186,7 @@ export default function AppSidebar({
       ].filter(g => g.items.length > 0)
     : NAV
   // Parked tools sit together in one quiet group at the bottom instead of between the live ones.
-  // Today ("what do I do now?") always sits first, above the roadmap, whether it is live or still parked.
+  // Today ("what do I do now?") always sits first, above the roadmap, whether it is live or parked.
   const todayItem = allItems.find(i => i.href === '/today')
   const notToday = (i: NavItem) => i.href !== '/today'
   const soonItems = NAV.flatMap(g => g.items).filter(i => isComingSoon(i.href) && notToday(i))
@@ -285,8 +285,6 @@ export default function AppSidebar({
                 <span className="app-navitem app-navitem-locked app-navitem-soon" key={item.href} title="Coming soon">
                   <NavIcon name={item.icon} />
                   {item.label}
-                  {/* Today sits at the top, outside the "Coming soon" group, so it carries its own tag. */}
-                  {item.href === '/today' && <span className="app-navitem-tag">Soon</span>}
                 </span>
               )
             }
