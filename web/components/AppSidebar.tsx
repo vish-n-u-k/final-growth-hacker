@@ -51,7 +51,8 @@ const ICON: Record<string, JSX.Element> = {
   chart: <path d="M3 16.5h14M5.8 16.5v-5M10 16.5v-9M14.2 16.5V4.5" />,
   logout: <><path d="M8 17.5H5a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 5 2.5h3" /><path d="M13 14l4-4-4-4M17 10H8" /></>,
   install: <><path d="M10 3v9M6.5 8.5 10 12l3.5-3.5" /><path d="M4 13.5v1.5A1.5 1.5 0 0 0 5.5 16.5h9a1.5 1.5 0 0 0 1.5-1.5v-1.5" /></>,
-  gear: <><circle cx="10" cy="10" r="2.6" /><path d="M10 3v2M10 15v2M17 10h-2M5 10H3M14.9 5.1l-1.4 1.4M6.5 13.5l-1.4 1.4M14.9 14.9l-1.4-1.4M6.5 6.5L5.1 5.1" /></>,
+  // Cog (Lucide 'settings', drawn on a 24 grid and scaled to this 20 grid) so it doesn't look like Today's sun.
+  gear: <g transform="scale(0.8333)" strokeWidth="1.9"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></g>,
 }
 
 function NavIcon({ name }: { name: string }) {
