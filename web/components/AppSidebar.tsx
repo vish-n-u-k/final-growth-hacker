@@ -212,6 +212,19 @@ export default function AppSidebar({
   const pathname = pendingHref ?? actualPath
   const router = useRouter()
   const [signingOut, setSigningOut] = useState(false)
+  // Settings, install and sign out live in a menu on the profile row at the bottom.
+  const [profileOpen, setProfileOpen] = useState(false)
+  const profileRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { setProfileOpen(false) }, [actualPath])
+  useEffect(() => {
+    if (!profileOpen) return
+    const onDown = (e: MouseEvent | TouchEvent) => { if (!profileRef.current?.contains(e.target as Node)) setProfileOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setProfileOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('touchstart', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('touchstart', onDown); document.removeEventListener('keydown', onKey) }
+  }, [profileOpen])
   const handleSignOut = async () => {
     setSigningOut(true)
     await createClient().auth.signOut()
@@ -330,20 +343,29 @@ export default function AppSidebar({
             <span className="pro-badge">Pro</span> Your plan
           </Link>
         )}
-        <Link href="/settings" className={`app-navitem${pathname.startsWith('/settings') ? ' active' : ''}`} onClick={navTo('/settings')}>
-          <NavIcon name="gear" />
-          Settings
-          <PendingHint />
-        </Link>
-        <InstallAppButton className="app-navitem app-navitem--btn" icon={<NavIcon name="install" />} />
-        <button type="button" className="app-navitem app-navitem--btn" onClick={handleSignOut} disabled={signingOut}>
-          <NavIcon name="logout" />
-          {signingOut ? 'Signing out…' : 'Sign out'}
-        </button>
-        <div className="app-sidebar-workspace">
-          <div className="app-sidebar-avatar">{brandName.slice(0, 1).toUpperCase()}</div>
-          <div className="app-sidebar-wsname">{brandName}</div>
-          <span className="app-sidebar-theme"><ThemeToggle /></span>
+        <div className="app-profile" ref={profileRef}>
+          {profileOpen && (
+            <div className="app-profile-menu" role="menu" aria-label="Account">
+              <Link href="/settings" role="menuitem" className={`app-navitem${pathname.startsWith('/settings') ? ' active' : ''}`} onClick={() => { setProfileOpen(false); navTo('/settings')() }}>
+                <NavIcon name="gear" />
+                Settings
+                <PendingHint />
+              </Link>
+              <InstallAppButton className="app-navitem app-navitem--btn" icon={<NavIcon name="install" />} />
+              <button type="button" role="menuitem" className="app-navitem app-navitem--btn" onClick={handleSignOut} disabled={signingOut}>
+                <NavIcon name="logout" />
+                {signingOut ? 'Signing out…' : 'Sign out'}
+              </button>
+            </div>
+          )}
+          <div className="app-sidebar-workspace">
+            <button type="button" className="app-profile-btn" onClick={() => setProfileOpen(o => !o)} aria-haspopup="menu" aria-expanded={profileOpen}>
+              <span className="app-sidebar-avatar">{brandName.slice(0, 1).toUpperCase()}</span>
+              <span className="app-sidebar-wsname">{brandName}</span>
+              <svg className="app-profile-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
+            </button>
+            <span className="app-sidebar-theme"><ThemeToggle /></span>
+          </div>
         </div>
       </div>
     </nav>

@@ -6154,7 +6154,20 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .app-navitem-locked { color: var(--text-faint); cursor: default; opacity: .7; }
 .app-navitem-locked:hover { background: transparent; color: var(--text-faint); }
 .app-sidebar-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--line); }
-.app-sidebar-workspace { display: flex; align-items: center; gap: 9px; padding: 10px 10px 2px; }
+.app-sidebar-workspace { display: flex; align-items: center; gap: 6px; padding: 4px 0 0; }
+.app-profile { position: relative; }
+.app-profile-btn {
+  display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; padding: 6px 8px; border: none; border-radius: 8px;
+  background: transparent; cursor: pointer; text-align: left; color: var(--text);
+}
+.app-profile-btn:hover, .app-profile-btn[aria-expanded="true"] { background: var(--card); }
+.app-profile-caret { margin-left: auto; flex-shrink: 0; color: var(--text-faint); transition: transform .15s ease; }
+.app-profile-btn[aria-expanded="true"] .app-profile-caret { transform: rotate(180deg); }
+.app-profile-menu {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 5; padding: 6px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px #0000001f;
+}
+.app-profile-menu .app-navitem:last-child { margin-bottom: 0; }
 .app-sidebar-avatar {
   width: 26px; height: 26px; border-radius: 50%; background: var(--text); color: var(--bg);
   display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;
