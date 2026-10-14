@@ -6,7 +6,7 @@ export const EMAIL_MARKETING_MODULE: ModuleDefinition = {
   name: 'Email Marketing',
   tagline: 'build and optimise your email engine',
   description: 'Turns visitors into subscribers and subscribers into customers.',
-  order: 15,
+  order: 9,
   unlockThreshold: 0,
   dynamic: false,
   requirements: [

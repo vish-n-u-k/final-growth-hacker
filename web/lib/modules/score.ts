@@ -18,7 +18,8 @@ export function moduleScore(def: ModuleDefinition | undefined, items: ItemState[
     const bySlug = new Map(items.map(i => [i.slug, i]))
     list = (def.categories as ModuleCategoryDefinition[])
       .flatMap(c => c.subCategories.flatMap(s => s.items))
-      .filter(i => !bySlug.get(i.slug)?.userSkipped)
+      // Checks added after the last analysis don't count until they've been run (see AllModulesDashboard).
+      .filter(i => (bySlug.size === 0 || bySlug.has(i.slug)) && !bySlug.get(i.slug)?.userSkipped)
       .map(i => {
         const s = bySlug.get(i.slug)
         return { weight: i.weight, done: !!(s?.aiVerified || s?.userChecked) }

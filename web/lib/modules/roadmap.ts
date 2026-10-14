@@ -6,9 +6,9 @@ export const ROADMAP_DONE_AT = 80
 // Grouping of the module chain (by registry `order`).
 export const GROWTH_PHASES = [
   { maxOrder: 3,        name: 'Get set up',    blurb: 'Foundation, website, SEO' },
-  { maxOrder: 7,        name: 'Get found',     blurb: 'AI search, social, brand' },
-  { maxOrder: 11,       name: 'Win attention', blurb: 'Content, competitors, outreach, ads' },
-  { maxOrder: Infinity, name: 'Scale',         blurb: 'Analytics, email, audience' },
+  { maxOrder: 6,        name: 'Get found',     blurb: 'AI search, social, brand' },
+  { maxOrder: 8,        name: 'Win attention', blurb: 'Content, competitors' },
+  { maxOrder: Infinity, name: 'Grow & keep',   blurb: 'Email marketing' },
 ]
 
 // One colour scale for progress everywhere (module rings, sidebar dots and bars):

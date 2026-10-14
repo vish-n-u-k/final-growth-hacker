@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { modules } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { MODULE_MAP } from './registry'
+import { MODULE_MAP, isPathModule } from './registry'
 
 // Mirrors the lock rule in components/AllModulesDashboard.tsx's isModuleLocked:
 // a module is locked if the previous module (by order, skipping comingSoon ones)
@@ -16,8 +16,10 @@ export async function getLockedModuleTypes(brandId: string): Promise<Set<string>
     .from(modules)
     .where(eq(modules.brandId, brandId))
 
+  // Growth Path steps only, in registry order (stored orders can lag behind a reorder).
   const sorted = rows
-    .filter((m) => m.status !== 'not-applicable' && MODULE_MAP[m.type] && !MODULE_MAP[m.type].comingSoon)
+    .filter((m) => m.status !== 'not-applicable' && isPathModule(m.type) && !MODULE_MAP[m.type].comingSoon)
+    .map((m) => ({ ...m, order: MODULE_MAP[m.type].order }))
     .sort((a, b) => a.order - b.order)
 
   const locked = new Set<string>()

@@ -205,6 +205,83 @@ export function buildRuleFindings(data: GeoFetchData) {
   }
 }
 
+// ── Side by side with competitors (geo-gap-*) ───────────────────────────────
+// Deterministic: compares the brand's AI-visibility signals with up to 3 competitor sites.
+// Only returned when at least one competitor loaded; otherwise these checks stay unrun
+// (and don't count toward the score).
+
+type Findings = ReturnType<typeof buildRuleFindings>
+const host = (u: string) => { try { return new URL(u.startsWith('http') ? u : `https://${u}`).hostname.replace(/^www\./, '') } catch { return u } }
+const verb = (list: unknown[], one: string, many: string) => (list.length === 1 ? one : many)
+const names = (list: string[]) => list.length <= 2 ? list.join(' and ') : `${list.slice(0, -1).join(', ')} and ${list.at(-1)}`
+
+export function buildCompetitorGapResults(you: Findings, comps: { url: string; f: Findings }[]): ModuleAnalysisResult[] {
+  const vs = names(comps.map(c => host(c.url)))
+  const out: ModuleAnalysisResult[] = []
+
+  // 1. llms.txt
+  const llmsAhead = comps.filter(c => c.f.llmsPresent && (!you.llmsPresent || c.f.llmsLinkCount >= you.llmsLinkCount + 5))
+  out.push(llmsAhead.length === 0
+    ? re('geo-gap-llms', true, `Compared with ${vs}: your AI guidance file is as good or better.`, 'On par with competitors', 'Competitors have no head start in telling AI engines what their site is about.', '')
+    : you.llmsPresent
+      ? re('geo-gap-llms', false,
+          `**${names(llmsAhead.map(c => host(c.url)))}** ${verb(llmsAhead, 'lists', 'list')} far more pages for AI engines (${llmsAhead.map(c => c.f.llmsLinkCount).join(', ')} links vs your ${you.llmsLinkCount}).`,
+          'Competitors guide AI better', 'AI engines get a fuller map of their site than of yours, so they find more to cite.',
+          'Add your key pages (pricing, features, use cases, comparisons, docs) as links in /llms.txt under ## sections.')
+      : re('geo-gap-llms', false,
+          `**${names(llmsAhead.map(c => host(c.url)))}** ${verb(llmsAhead, 'has', 'have')} an AI guidance file (llms.txt); you don't.`,
+          'Competitors have llms.txt, you don\'t', 'AI engines get a clear summary of their site and have to guess about yours.',
+          'Create /llms.txt with a # site name, a > one-line summary and ## sections linking your key pages.'))
+
+  // 2. Structured data
+  const types: [keyof Findings, string][] = [['hasFaq', 'FAQ'], ['hasOrg', 'Organization'], ['hasWebSite', 'WebSite'], ['hasArticle', 'Article']]
+  const schemaGaps = types
+    .map(([k, label]) => ({ label, who: comps.filter(c => c.f[k] && !you[k]).map(c => host(c.url)) }))
+    .filter(g => g.who.length > 0)
+  out.push(schemaGaps.length === 0
+    ? re('geo-gap-schema', true, `Compared with ${vs}: you have every type of structured data they use.`, 'Structured data on par', 'AI engines can read your facts as easily as your competitors\'.', '')
+    : re('geo-gap-schema', false,
+        schemaGaps.map(g => `**${g.label}** (${names(g.who)})`).join('; ') + ' — competitors have these, you don\'t.',
+        'Competitors have structured data you lack', 'Structured data gives AI engines ready-made facts and answers to quote; competitors hand them over and you don\'t.',
+        `Add JSON-LD for: ${schemaGaps.map(g => g.label === 'FAQ' ? 'FAQPage' : g.label).join(', ')}.`))
+
+  // 3. AI search bots: blocked for you, readable for a competitor
+  const yourBlocked = [...you.tier2.blocked, ...you.tier3.blocked]
+  const botGaps = yourBlocked.filter(bot => comps.some(c => ![...c.f.tier2.blocked, ...c.f.tier3.blocked].includes(bot)))
+  out.push(botGaps.length === 0
+    ? re('geo-gap-bots', true, `Compared with ${vs}: AI search bots can read your site just as freely.`, 'AI search access on par', 'You are not shutting out AI search engines that your competitors let in.', '')
+    : re('geo-gap-bots', false,
+        `Your robots.txt blocks **${names(botGaps)}**, which competitors let in.`,
+        'You block AI bots competitors allow', 'Those AI search engines can read and cite competitors but not you.',
+        `In robots.txt, remove the Disallow rules for ${botGaps.join(', ')} (or add "Allow: /" for them).`))
+
+  // 4. Quotable content on the homepage
+  const statLead = comps.filter(c => c.f.page.statsCount >= Math.max(3, you.page.statsCount * 2))
+  const faqLead = comps.filter(c => c.f.page.hasFaqHeadings && !you.page.hasFaqHeadings)
+  const contentGap = statLead.length > 0 || faqLead.length > 0
+  out.push(!contentGap
+    ? re('geo-gap-content', true, `Compared with ${vs}: your homepage is just as quotable (${you.page.statsCount} concrete numbers${you.page.hasFaqHeadings ? ', FAQ-style answers' : ''}).`, 'As quotable as competitors', 'AI engines find as many concrete facts to quote on your page as on theirs.', '')
+    : re('geo-gap-content', false,
+        [statLead.length ? `**${names(statLead.map(c => host(c.url)))}** ${verb(statLead, 'shows', 'show')} ${statLead.map(c => c.f.page.statsCount).join('/')} concrete numbers vs your ${you.page.statsCount}` : '',
+         faqLead.length ? `**${names(faqLead.map(c => host(c.url)))}** ${verb(faqLead, 'answers', 'answer')} questions in FAQ style; you don't` : ''].filter(Boolean).join('; ') + '.',
+        'Competitors are easier to quote', 'AI answers quote specific numbers and direct answers; competitors give them more of both.',
+        [statLead.length ? 'Add 3–5 specific numbers (customers, results, time saved, prices)' : '', faqLead.length ? 'add a short FAQ with question headings' : ''].filter(Boolean).join(' and ') + ' on your homepage.'))
+
+  // 5. AI-readable files
+  const files: [keyof Findings, string][] = [['aiTxtPresent', '/.well-known/ai.txt'], ['aiSummaryPresent', '/ai/summary.json'], ['aiFaqPresent', '/ai/faq.json'], ['aiServicePresent', '/ai/service.json']]
+  const fileGaps = files
+    .map(([k, path]) => ({ path, who: comps.filter(c => c.f[k] && !you[k]).map(c => host(c.url)) }))
+    .filter(g => g.who.length > 0)
+  out.push(fileGaps.length === 0
+    ? re('geo-gap-discovery', true, `Compared with ${vs}: you have every AI-readable file they have.`, 'AI files on par', 'Competitors give AI engines no extra machine-readable summaries that you lack.', '')
+    : re('geo-gap-discovery', false,
+        fileGaps.map(g => `**${g.path}** (${names(g.who)})`).join('; ') + ' — competitors have these, you don\'t.',
+        'Competitors publish AI files you lack', 'These files give AI engines a structured summary of the business without crawling every page.',
+        `Create ${fileGaps.map(g => g.path).join(', ')} with your product summary, FAQs and services.`))
+
+  return out
+}
+
 // ── Rule-engine results (deterministic items — no Claude needed) ──────────────
 
 const GEO_AI_SLUGS = new Set([
@@ -654,12 +731,16 @@ export async function analyzeGeo(
   data: GeoFetchData,
   brainContext?: string,
   brandName?: string,
+  competitors: { url: string; data: GeoFetchData }[] = [],
 ): Promise<ModuleAnalysisResult[]> {
   const findings = buildRuleFindings(data)
   const allItems = getAllItems(GEO_MODULE)
 
-  // Rule engine handles 23 deterministic items
-  const ruleResults = buildGeoRuleResults(findings)
+  // Rule engine handles the deterministic items, plus the side-by-side checks when competitors loaded
+  const ruleResults = [
+    ...buildGeoRuleResults(findings),
+    ...(competitors.length ? buildCompetitorGapResults(findings, competitors.map(c => ({ url: c.url, f: buildRuleFindings(c.data) }))) : []),
+  ]
   const ruleResultMap = new Map(ruleResults.map(r => [r.slug, r]))
 
   // AI handles 13 judgment items (training knowledge + content quality)
@@ -714,8 +795,9 @@ ${itemList}`,
       .map(r => [r.slug, r as ModuleAnalysisResult]),
   )
 
-  // Merge: rule engine results + AI results, preserving definition order
-  return allItems.map(item => {
+  // Merge: rule engine results + AI results, preserving definition order. Side-by-side checks
+  // without competitors stay unrun.
+  return allItems.filter(item => !item.slug.startsWith('geo-gap-') || ruleResultMap.has(item.slug)).map(item => {
     if (GEO_AI_SLUGS.has(item.slug)) {
       return aiResultMap.get(item.slug) ?? {
         slug: item.slug,

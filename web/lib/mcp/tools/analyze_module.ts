@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { loadGeoCompetitors } from '@/lib/modules/geo/competitors'
 import { getAccess, canUseModule } from '@/lib/billing/plan'
 import { brands, modules, moduleItems, moduleCategories, brandIntegrations } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -66,9 +67,13 @@ async function runModuleAnalysis(
       return analyzeSocialMedia(data, brainCtx)
     }
     case 'geo': {
-      const data = await fetchGeoData(requirements)
+      // Own site and up to 3 competitor sites (for the side-by-side checks), loaded in parallel
+      const [data, competitors] = await Promise.all([
+        fetchGeoData(requirements),
+        loadGeoCompetitors(requirements['brand_id'], requirements, requirements['website_url'] ?? '', brainCtx).catch(() => []),
+      ])
       if ('error' in data) throw new Error(data.error)
-      return analyzeGeo(data, brainCtx, requirements['brand_name'] ?? '')
+      return analyzeGeo(data, brainCtx, requirements['brand_name'] ?? '', competitors)
     }
     case 'business-stage': {
       const data = await fetchBusinessStageData(requirements)

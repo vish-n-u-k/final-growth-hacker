@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { modules, moduleItems, moduleCategories } from '@/lib/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
+import { isPathModule } from '@/lib/modules/registry'
 
 const WEIGHT_LABEL: Record<number, string> = { 3: 'critical', 2: 'important', 1: 'minor' }
 
@@ -14,7 +15,7 @@ export async function getPendingItems(brandId: string, moduleType?: string) {
 
   const targetModules = moduleType
     ? allModules.filter((m) => m.type === moduleType)
-    : allModules.filter((m) => m.status !== 'locked')
+    : allModules.filter((m) => m.status !== 'locked' && isPathModule(m.type))
 
   if (moduleType && targetModules.length === 0) {
     return { error: `Module type "${moduleType}" not found for this brand.` }

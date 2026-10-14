@@ -6,7 +6,8 @@ export const OUTREACH_TARGETS_MODULE: ModuleDefinition = {
   name: 'Outreach Targets',
   tagline: 'get featured on your competitors\' platforms',
   description: 'Serves up high-intent buyers.',
-  order: 13,
+  order: 94,
+  placement: 'hidden',
   unlockThreshold: 80,
   dynamic: true,
   requirements: [

@@ -78,6 +78,7 @@ async function fetchSitemapPageMeta(sitemapUrls: string[], origin: string, max =
 
 export async function fetchGeoData(
   requirements: Record<string, string>,
+  opts: { sitemapMeta?: boolean } = {},
 ): Promise<GeoFetchData | { error: string }> {
   const rawUrl = requirements['website_url']
   if (!rawUrl) return { error: 'Website URL is required.' }
@@ -107,7 +108,8 @@ export async function fetchGeoData(
     ? [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/gi)].map(m => m[1].trim()).slice(0, 200)
     : []
 
-  const sitemapPageMeta = sitemapUrls.length > 0
+  // Competitor fetches skip the per-page sampling (20 extra requests per site)
+  const sitemapPageMeta = sitemapUrls.length > 0 && opts.sitemapMeta !== false
     ? await fetchSitemapPageMeta(sitemapUrls, origin, 20)
     : []
 

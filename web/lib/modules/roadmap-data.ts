@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { modules } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { MODULE_MAP, MODULE_REGISTRY } from './registry'
+import { MODULE_MAP, MODULE_REGISTRY, placementOf } from './registry'
 import type { RoadmapModule } from './roadmap'
 
 // Read-only list of a brand's modules for the sidebar roadmap. Same filters as the Growth Path page:
@@ -21,7 +21,7 @@ export async function getRoadmapModules(brandId: string, lockedTypes: Set<string
   const seen = new Set<string>()
   for (const r of rows) {
     const def = MODULE_MAP[r.type]
-    if (!def || r.status === 'not-applicable' || r.type === 'business-stage') continue
+    if (!def || r.status === 'not-applicable' || placementOf(def) !== 'path') continue
     seen.add(r.type)
     list.push({
       id: r.id, type: r.type, name: r.name, order: def.order, score: r.score ?? 0, analysed: !!r.lastAnalyzedAt,
@@ -29,7 +29,7 @@ export async function getRoadmapModules(brandId: string, lockedTypes: Set<string
     })
   }
   for (const def of MODULE_REGISTRY) {
-    if (def.comingSoon && !seen.has(def.type) && def.type !== 'business-stage') {
+    if (def.comingSoon && !seen.has(def.type) && placementOf(def) === 'path') {
       list.push({ id: `coming-soon-${def.type}`, type: def.type, name: def.name, order: def.order, score: 0, analysed: false, comingSoon: true, locked: false, planLocked: false })
     }
   }

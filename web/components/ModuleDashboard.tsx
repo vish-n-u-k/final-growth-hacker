@@ -64,9 +64,13 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
+// A check counts once it has been run: checks added to a module after its last analysis don't
+// lower the score until the next one (a module never analysed has no states, so everything counts).
+const counts = (slug: string, states: Record<string, DBItemState>) => !!states[slug] || Object.keys(states).length === 0
+
 function getCatStats(cat: ModuleCategoryDefinition, states: Record<string, DBItemState>) {
   const allItems = cat.subCategories.flatMap((s) => s.items)
-  const items = allItems.filter((i) => !states[i.slug]?.userSkipped)
+  const items = allItems.filter((i) => !states[i.slug]?.userSkipped && counts(i.slug, states))
   const totalWeight = items.reduce((sum, i) => sum + i.weight, 0)
   const aiWeight = items.filter((i) => states[i.slug]?.aiVerified).reduce((sum, i) => sum + i.weight, 0)
   const doneWeight = items
@@ -85,7 +89,7 @@ function getCatStats(cat: ModuleCategoryDefinition, states: Record<string, DBIte
 
 function getOverall(def: ModuleDefinition, states: Record<string, DBItemState>) {
   const allItems = (def.categories as ModuleCategoryDefinition[]).flatMap((c) => c.subCategories.flatMap((s) => s.items))
-  const items = allItems.filter((i) => !states[i.slug]?.userSkipped)
+  const items = allItems.filter((i) => !states[i.slug]?.userSkipped && counts(i.slug, states))
   const totalWeight = items.reduce((sum, i) => sum + i.weight, 0)
   const aiWeight = items.filter((i) => states[i.slug]?.aiVerified).reduce((sum, i) => sum + i.weight, 0)
   const doneWeight = items

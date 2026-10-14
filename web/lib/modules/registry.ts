@@ -22,24 +22,33 @@ import type { ModuleDefinition } from './types'
 // The order field on each definition controls the sequence and gating.
 
 export const MODULE_REGISTRY: ModuleDefinition[] = [
-  FOUNDATION_MODULE,              // order: 1
-  WEBSITE_MODULE,                 // order: 2
-  SEO_MODULE,                     // order: 3
-  GEO_MODULE,                     // order: 4
-  GEO_COMPETITOR_GAP_MODULE,      // order: 5
-  SOCIAL_MEDIA_MODULE,            // order: 6
-  BRAND_AUDIT_MODULE,             // order: 7
-  CONTENT_AUDIT_MODULE,           // order: 8
-  COMPETITOR_ANALYSIS_MODULE,     // order: 9
-  GMAIL_OUTREACH_MODULE,          // order: 10
-  META_ADS_MODULE,                // order: 11
-  USER_ANALYTICS_MODULE,          // order: 12
-  OUTREACH_TARGETS_MODULE,        // order: 13
-  BUSINESS_STAGE_MODULE,          // order: 14
-  EMAIL_MARKETING_MODULE,         // order: 15
-  AUDIENCE_DISCOVERY_MODULE,      // order: 16
-  BACKLINKS_MODULE,               // order: 50 — Coming Soon (out of main chain)
+  // Growth Path, in step order
+  FOUNDATION_MODULE,              // 1
+  WEBSITE_MODULE,                 // 2
+  SEO_MODULE,                     // 3
+  GEO_MODULE,                     // 4 (includes the AI competitor gap checks)
+  SOCIAL_MEDIA_MODULE,            // 5
+  BRAND_AUDIT_MODULE,             // 6
+  CONTENT_AUDIT_MODULE,           // 7
+  COMPETITOR_ANALYSIS_MODULE,     // 8
+  EMAIL_MARKETING_MODULE,         // 9
+  // Off the path (see `placement`): kept registered so existing data and lookups keep working
+  BUSINESS_STAGE_MODULE,          // internal: sidebar stage card, diagnosis, red flags
+  META_ADS_MODULE,                // tool: Meta Ads page
+  GMAIL_OUTREACH_MODULE,          // tool: Outreach
+  USER_ANALYTICS_MODULE,          // hidden
+  OUTREACH_TARGETS_MODULE,        // hidden
+  AUDIENCE_DISCOVERY_MODULE,      // hidden
+  BACKLINKS_MODULE,               // hidden
+  GEO_COMPETITOR_GAP_MODULE,      // hidden (merged into GEO Audit)
 ]
+
+/** 'path' unless the definition says otherwise. */
+export const placementOf = (def: ModuleDefinition | undefined) => def?.placement ?? 'path'
+/** Growth Path step (scored, locked in order, shown in the sidebar roadmap). */
+export const isPathModule = (type: string) => placementOf(MODULE_MAP[type]) === 'path' && !!MODULE_MAP[type]
+/** Created for each brand: Growth Path steps plus tools and internal modules (not retired ones). */
+export const SEEDED_MODULES = (): ModuleDefinition[] => MODULE_REGISTRY.filter(d => placementOf(d) !== 'hidden')
 
 export const MODULE_MAP: Record<string, ModuleDefinition> = Object.fromEntries(
   MODULE_REGISTRY.map((m) => [m.type, m]),

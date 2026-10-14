@@ -89,6 +89,10 @@ export interface ModuleDefinition {
   dynamic?: boolean   // true = Claude generates items; false/undefined = items hardcoded
   comingSoon?: boolean     // true = entire module shows Coming Soon state
   comingSoonNote?: string  // optional description shown in the module-level Coming Soon block
+  // Where the module lives. 'path' (default) = a Growth Path step; 'tool' = has its own page in the
+  // sidebar's Tools (Meta Ads, Outreach) but isn't a step; 'internal' = runs behind the scenes
+  // (Growth Stage); 'hidden' = retired: not shown, not created for new users, data kept.
+  placement?: 'path' | 'tool' | 'internal' | 'hidden'
   requirements: ModuleRequirement[]
   categories: (ModuleCategoryDefinition | DynamicModuleCategoryDefinition)[]
   systemPrompt: string

@@ -5,7 +5,8 @@ export const BUSINESS_STAGE_MODULE: ModuleDefinition = {
   name: 'Growth Stage',
   tagline: 'identify your stage and get a phase-matched playbook',
   description: 'Figures out what stage your business is at and gives you a personalised plan — including specific tactics to get your next batch of users — for what to focus on next.',
-  order: 14,
+  order: 90,
+  placement: 'internal',
   unlockThreshold: 0,
   dynamic: true,
   requirements: [

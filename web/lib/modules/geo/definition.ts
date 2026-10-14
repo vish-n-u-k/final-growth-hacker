@@ -15,6 +15,14 @@ export const GEO_MODULE: ModuleDefinition = {
       type: 'url',
       placeholder: 'yourdomain.com',
     },
+    {
+      // Optional: without it GrowJin uses competitors from Competitor Analysis, or suggests some.
+      key: 'competitor_urls',
+      label: 'Competitor websites to compare with (up to 3, optional)',
+      type: 'url_list',
+      placeholder: 'competitor1.com, competitor2.com',
+      required: false,
+    },
   ],
   systemPrompt: `You are a GEO (Generative Engine Optimization) specialist. Your job is to audit how well a website is optimized to be cited and referenced by AI-powered search engines such as ChatGPT, Perplexity, Google AI Overviews, and Claude.
 
@@ -355,7 +363,7 @@ Rules:
     // ── 8. Competitor Citation ────────────────────────────────────────────────
     {
       slug: 'competitor-citation',
-      label: 'Competitor Citation',
+      label: 'Competitors in AI Search',
       order: 8,
       subCategories: [
         {
@@ -385,6 +393,21 @@ Rules:
               order: 3,
               weight: 1,
             },
+          ],
+        },
+        {
+          // Real side-by-side checks: GrowJin loads up to 3 competitor sites and compares the
+          // signals AI engines use (rule engine in geo/agent.ts, buildCompetitorGapResults).
+          slug: 'competitor-gap',
+          label: 'Side by Side with Your Competitors',
+          order: 2,
+          description: 'GrowJin loads up to 3 competitor websites and compares the things AI engines look for. Competitors come from GEO setup, then Competitor Analysis; if there are none, GrowJin suggests likely ones.',
+          items: [
+            { slug: 'geo-gap-llms', label: 'AI guidance file (llms.txt) is as good as competitors\'', prompt: 'Rule engine check.', order: 1, weight: 2 },
+            { slug: 'geo-gap-schema', label: 'Structured data matches what competitors have', prompt: 'Rule engine check.', order: 2, weight: 2 },
+            { slug: 'geo-gap-bots', label: 'AI search bots can read your site where they can read competitors\'', prompt: 'Rule engine check.', order: 3, weight: 2 },
+            { slug: 'geo-gap-content', label: 'Homepage is as quotable as competitors\' (stats, FAQ-style answers)', prompt: 'Rule engine check.', order: 4, weight: 1 },
+            { slug: 'geo-gap-discovery', label: 'AI-readable files competitors have, you have too', prompt: 'Rule engine check.', order: 5, weight: 1 },
           ],
         },
       ],

@@ -7,7 +7,7 @@ import { planLockedTypes } from '@/lib/billing/plan'
 import { db } from '@/lib/db'
 import { modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit, analysisRequests, itemLinks } from '@/lib/db/schema'
 import { eq, inArray, and } from 'drizzle-orm'
-import { MODULE_MAP, MODULE_REGISTRY } from '@/lib/modules/registry'
+import { MODULE_MAP, MODULE_REGISTRY, SEEDED_MODULES, placementOf } from '@/lib/modules/registry'
 import AllModulesDashboard, { type ModuleData } from '@/components/AllModulesDashboard'
 import { type DBItemState } from '@/components/ModuleDashboard'
 import type { DBItemFull } from '@/lib/modules/types'
@@ -41,7 +41,7 @@ export default async function DashboardPage() {
 
   // Seed any modules added to the registry after this user onboarded
   const seededTypes = new Set(allModulesRaw.map(m => m.type))
-  const missingDefs = MODULE_REGISTRY.filter(def => !seededTypes.has(def.type) && !def.comingSoon)
+  const missingDefs = SEEDED_MODULES().filter(def => !seededTypes.has(def.type) && !def.comingSoon)
   if (missingDefs.length > 0) {
     const effectiveType = brand.websiteType ?? 'saas'
     await Promise.all(missingDefs.map(def => {
@@ -142,9 +142,21 @@ export default async function DashboardPage() {
 
   const allModulesData: ModuleData[] = []
 
+  // Keep each row's stored order in step with the registry (the Growth Path was reordered/trimmed);
+  // other server code and older queries sort by modules.order.
+  const misordered = allModulesRaw.filter(m => MODULE_MAP[m.type] && MODULE_MAP[m.type].order !== m.order)
+  if (misordered.length > 0) {
+    after(async () => {
+      for (const m of misordered) {
+        await db.update(modules).set({ order: MODULE_MAP[m.type].order }).where(eq(modules.id, m.id)).catch(() => {})
+      }
+    })
+  }
+
   for (const mod of allModulesRaw) {
     const def = MODULE_MAP[mod.type]
-    if (!def) continue
+    // Growth Path shows its steps plus Growth Stage (sidebar stage card); tools and retired modules live elsewhere.
+    if (!def || placementOf(def) === 'tool' || placementOf(def) === 'hidden') continue
 
     const items = itemsByModule.get(mod.id) ?? []
     const cats = catsByModule.get(mod.id) ?? []
@@ -246,7 +258,7 @@ export default async function DashboardPage() {
   // Inject Coming Soon modules from registry that don't exist in DB yet (for existing users)
   const existingTypes = new Set(allModulesData.map(m => m.type))
   for (const def of MODULE_REGISTRY) {
-    if (def.comingSoon && !existingTypes.has(def.type)) {
+    if (def.comingSoon && placementOf(def) === 'path' && !existingTypes.has(def.type)) {
       allModulesData.push({
         id: `coming-soon-${def.type}`,
         type: def.type,

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { MODULE_REGISTRY } from '@/lib/modules/registry'
+import { MODULE_REGISTRY, placementOf } from '@/lib/modules/registry'
 
 // GET /api/features/existing - Get all existing modules/features in the app
 export async function GET() {
   try {
-    const existingFeatures = MODULE_REGISTRY.map((module) => ({
+    const existingFeatures = MODULE_REGISTRY.filter((m) => placementOf(m) !== 'hidden').map((module) => ({
       id: module.type,
       name: module.name,
       description: module.description,

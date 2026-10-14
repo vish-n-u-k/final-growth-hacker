@@ -6,7 +6,8 @@ export const USER_ANALYTICS_MODULE: ModuleDefinition = {
   name: 'User Analytics',
   tagline: 'see where users drop off and why',
   description: 'Cuts churn, boosts lifetime value.',
-  order: 12,
+  order: 93,
+  placement: 'hidden',
   unlockThreshold: 80,
   dynamic: true,
   requirements: [

@@ -6,7 +6,7 @@ export const COMPETITOR_ANALYSIS_MODULE: ModuleDefinition = {
   name: 'Competitor Analysis',
   tagline: 'find gaps your competitors leave open',
   description: 'Steals their audience and sales.',
-  order: 9,
+  order: 8,
   unlockThreshold: 80,
   dynamic: true,
   requirements: [

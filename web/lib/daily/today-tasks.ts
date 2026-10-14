@@ -19,7 +19,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { getOpenSignals, getSnapshot, saveSnapshot } from '@/lib/signals'
 import { runDiagnosis, type Diagnosis, type GrowthStage } from '@/lib/daily/diagnosis'
 import type { ActionCard, ActionCardType } from '@/lib/daily/signals'
-import { MODULE_MAP } from '@/lib/modules/registry'
+import { MODULE_MAP, isPathModule } from '@/lib/modules/registry'
 
 // How a task gets done:
 //   code    — Claude changes the website codebase (GitHub repo)
@@ -57,15 +57,15 @@ export interface TodayTasks {
 
 const WEIGHT_LABEL: Record<number, TodayTask['priority']> = { 3: 'critical', 2: 'important', 1: 'minor' }
 
-const CODE_MODULES = new Set(['foundation', 'seo', 'geo', 'geo-competitor-gap'])
-const CONTENT_MODULES = new Set(['social-media', 'content-audit', 'community-finder'])
+const CODE_MODULES = new Set(['foundation', 'seo', 'geo'])
+const CONTENT_MODULES = new Set(['social-media', 'content-audit'])
 
 // Checklist modules that help with each bottleneck
 const STAGE_MODULES: Record<GrowthStage, Set<string>> = {
-  awareness: new Set(['seo', 'geo', 'geo-competitor-gap', 'content-audit', 'social-media', 'backlinks']),
-  conversion: new Set(['foundation', 'brand-audit']),
-  retention: new Set(['email-marketing', 'user-analytics']),
-  growth: new Set(['seo', 'social-media', 'backlinks', 'outreach-targets']),
+  awareness: new Set(['seo', 'geo', 'content-audit', 'social-media']),
+  conversion: new Set(['foundation', 'website', 'brand-audit']),
+  retention: new Set(['email-marketing']),
+  growth: new Set(['seo', 'social-media', 'content-audit', 'competitor-analysis']),
   unknown: new Set(['foundation']),
 }
 const CONVERSION_SLUG = /cta|value|proof|testimonial|trust|pricing|headline|hero|h1/i
@@ -166,14 +166,16 @@ export async function getTodayTasks(
   const plays = signals.filter((s) => s.source === 'diagnosis').map(toTask)
 
   // ── Checklist items, boosted when they match the bottleneck ────────────────
-  const moduleIds = activeModules.map((m) => m.id)
+  // Quick wins come from Growth Path steps only (not tools or retired modules).
+  const pathModules = activeModules.filter((m) => isPathModule(m.type))
+  const moduleIds = pathModules.map((m) => m.id)
   const [items, cats] = moduleIds.length
     ? await Promise.all([
         db.select().from(moduleItems).where(inArray(moduleItems.moduleId, moduleIds)),
         db.select().from(moduleCategories).where(inArray(moduleCategories.moduleId, moduleIds)),
       ])
     : [[], []]
-  const modMap = new Map(activeModules.map((m) => [m.id, m]))
+  const modMap = new Map(pathModules.map((m) => [m.id, { ...m, order: MODULE_MAP[m.type]?.order ?? m.order }]))
   const catMap = new Map(cats.map((c) => [c.id, c]))
 
   const matchesStage = (i: (typeof items)[number]) => {

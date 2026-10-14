@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleCategories, moduleItems, reminders } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { MODULE_REGISTRY } from '@/lib/modules/registry'
+import { SEEDED_MODULES } from '@/lib/modules/registry'
 import { type ModuleDefinition, type ModuleCategoryDefinition, isDynamicCategory } from '@/lib/modules/types'
 import { getPresetsForWebsiteType } from '@/lib/reminders/presets'
 
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     // Create all modules from registry (Foundation unlocked, rest locked)
     const createdModules: { id: string; type: string; order: number }[] = []
 
-    for (const def of MODULE_REGISTRY) {
+    for (const def of SEEDED_MODULES()) {
       const brandFields: Record<string, string | null> = {
         website_url: url,
         brand_name: brand.name,

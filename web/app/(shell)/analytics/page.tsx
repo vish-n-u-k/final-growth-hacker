@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules as modulesTable, moduleItems } from '@/lib/db/schema'
 import { eq, inArray } from 'drizzle-orm'
-import { MODULE_MAP } from '@/lib/modules/registry'
+import { MODULE_MAP, isPathModule } from '@/lib/modules/registry'
 import AnalyticsDashboard, { type ModuleHealth } from './AnalyticsDashboard'
 import { getMrrSettings } from '@/lib/mrr'
 
@@ -53,7 +53,7 @@ export default async function AuthAnalyticsPage() {
   }
 
   const moduleHealth: ModuleHealth[] = allModules
-    .filter(m => m.type !== 'business-stage')
+    .filter(m => isPathModule(m.type))
     .flatMap(m => {
       const def = MODULE_MAP[m.type]
       if (!def) return []

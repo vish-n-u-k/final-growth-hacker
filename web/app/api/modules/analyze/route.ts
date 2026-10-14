@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, after } from 'next/server'
+import { loadGeoCompetitors } from '@/lib/modules/geo/competitors'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleCategories, moduleItems, modulePageAudit, brandIntegrations } from '@/lib/db/schema'
@@ -189,9 +190,13 @@ async function runAnalysis(
       return analyzeOutreachTargets(data, brainCtx)
     }
     case 'geo': {
-      const data = await fetchGeoData(requirements)
+      // Own site and up to 3 competitor sites (for the side-by-side checks), loaded in parallel
+      const [data, competitors] = await Promise.all([
+        fetchGeoData(requirements),
+        loadGeoCompetitors(requirements['brand_id'], requirements, requirements['website_url'] ?? '', brainCtx).catch(() => []),
+      ])
       if ('error' in data) throw new Error(data.error)
-      return analyzeGeo(data, brainCtx, requirements['brand_name'] ?? '')
+      return analyzeGeo(data, brainCtx, requirements['brand_name'] ?? '', competitors)
     }
     case 'geo-competitor-gap': {
       const data = await fetchCompetitorGapData(requirements)

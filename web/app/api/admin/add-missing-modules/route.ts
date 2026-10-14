@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleCategories } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { MODULE_REGISTRY } from '@/lib/modules/registry'
+import { SEEDED_MODULES } from '@/lib/modules/registry'
 import { isDynamicCategory, type ModuleDefinition, type ModuleCategoryDefinition } from '@/lib/modules/types'
 
 // Helper to seed module structure
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     const existingTypes = new Set(existingModules.map((m) => m.type))
 
     // Find missing modules
-    const missingModules = MODULE_REGISTRY.filter((mod) => !existingTypes.has(mod.type))
+    const missingModules = SEEDED_MODULES().filter((mod) => !existingTypes.has(mod.type))
 
     if (missingModules.length === 0) {
       return NextResponse.json({ message: 'All modules already exist', addedCount: 0 })

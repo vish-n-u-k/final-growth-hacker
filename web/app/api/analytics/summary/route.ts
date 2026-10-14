@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isPathModule } from '@/lib/modules/registry'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations, modules, moduleItems, moduleCategories } from '@/lib/db/schema'
@@ -412,7 +413,7 @@ export async function GET() {
 
   // ── Module data ─────────────────────────────────────────────────────────────
 
-  const relevantModules = allModules.filter(m => m.type !== 'business-stage')
+  const relevantModules = allModules.filter(m => isPathModule(m.type))
   const analyzed = relevantModules.filter(m => m.status === 'complete')
   const avgScore = analyzed.length ? Math.round(analyzed.reduce((s, m) => s + (m.score ?? 0), 0) / analyzed.length) : 0
   const lowestMod = analyzed.length ? analyzed.reduce((min, cur) => ((cur.score ?? 0) < (min.score ?? 0) ? cur : min), analyzed[0]) : null

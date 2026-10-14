@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit, analysisRequests, itemLinks } from '@/lib/db/schema'
 import { eq, inArray, and, desc } from 'drizzle-orm'
-import { MODULE_MAP, MODULE_REGISTRY } from '@/lib/modules/registry'
+import { MODULE_MAP, MODULE_REGISTRY, placementOf } from '@/lib/modules/registry'
 import AllModulesDashboard, { type ModuleData } from '@/components/AllModulesDashboard'
 import { type DBItemState } from '@/components/ModuleDashboard'
 import type { DBItemFull } from '@/lib/modules/types'
@@ -98,7 +98,7 @@ export default async function AdminViewBrandPage({
 
   for (const mod of allModulesRaw) {
     const def = MODULE_MAP[mod.type]
-    if (!def) continue
+    if (!def || placementOf(def) === 'tool' || placementOf(def) === 'hidden') continue
 
     const items = itemsByModule.get(mod.id) ?? []
     const cats = catsByModule.get(mod.id) ?? []
@@ -197,7 +197,7 @@ export default async function AdminViewBrandPage({
 
   const existingTypes = new Set(allModulesData.map(m => m.type))
   for (const def of MODULE_REGISTRY) {
-    if (def.comingSoon && !existingTypes.has(def.type)) {
+    if (def.comingSoon && placementOf(def) === 'path' && !existingTypes.has(def.type)) {
       allModulesData.push({
         id: `coming-soon-${def.type}`,
         type: def.type,

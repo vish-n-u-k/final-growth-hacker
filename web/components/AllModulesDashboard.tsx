@@ -91,9 +91,13 @@ function timeAgo(iso: string | null): string {
   return `${Math.floor(diff / 86400)}d ago`
 }
 
+// A check counts once it has been run: checks added to a module after its last analysis don't
+// lower the score until the next one (a module never analysed has no states, so everything counts).
+const counts = (slug: string, states: Record<string, DBItemState>) => !!states[slug] || Object.keys(states).length === 0
+
 function getCatStats(cat: ModuleCategoryDefinition, states: Record<string, DBItemState>) {
   const allItems = cat.subCategories.flatMap((s) => s.items)
-  const items = allItems.filter((i) => !states[i.slug]?.userSkipped)
+  const items = allItems.filter((i) => !states[i.slug]?.userSkipped && counts(i.slug, states))
   const totalWeight = items.reduce((sum, i) => sum + i.weight, 0)
   const aiWeight = items.filter((i) => states[i.slug]?.aiVerified).reduce((sum, i) => sum + i.weight, 0)
   const doneWeight = items.filter((i) => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).reduce((sum, i) => sum + i.weight, 0)
@@ -103,7 +107,7 @@ function getCatStats(cat: ModuleCategoryDefinition, states: Record<string, DBIte
 
 function getOverall(def: ModuleDefinition, states: Record<string, DBItemState>) {
   const allItems = (def.categories as ModuleCategoryDefinition[]).flatMap((c) => c.subCategories.flatMap((s) => s.items))
-  const items = allItems.filter((i) => !states[i.slug]?.userSkipped)
+  const items = allItems.filter((i) => !states[i.slug]?.userSkipped && counts(i.slug, states))
   const totalWeight = items.reduce((sum, i) => sum + i.weight, 0)
   const doneWeight = items.filter((i) => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).reduce((sum, i) => sum + i.weight, 0)
   return { pct: totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0 }
@@ -162,7 +166,7 @@ function summarizeCats(def: ModuleDefinition, states: Record<string, DBItemState
       stats = getCatStats(cat as ModuleCategoryDefinition, states)
       open = (cat as ModuleCategoryDefinition).subCategories
         .flatMap(sub => sub.items)
-        .filter(i => !states[i.slug]?.userSkipped && !states[i.slug]?.aiVerified && !states[i.slug]?.userChecked)
+        .filter(i => counts(i.slug, states) && !states[i.slug]?.userSkipped && !states[i.slug]?.aiVerified && !states[i.slug]?.userChecked)
         .map(i => ({ slug: i.slug, label: i.label, weight: i.weight }))
     }
     if (catNeedsAttention(stats)) needs++
@@ -2628,7 +2632,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               (Number(a.soon) - Number(b.soon)) ||
               (effectiveLastAnalyzedAt ? Number(!catNeedsAttention(a.stats)) - Number(!catNeedsAttention(b.stats)) : 0))
             const needRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && catNeedsAttention(r.stats)) : []
-            const passRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && !catNeedsAttention(r.stats)) : []
+            // Fixed-checklist areas whose checks were all added after the last analysis: not run yet, so not "passing".
+            const unrun = (r: CatRow) => !def.dynamic && r.stats.total === 0
+            const passRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && !catNeedsAttention(r.stats) && !unrun(r)) : []
+            const unrunRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && unrun(r)) : []
             const otherRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => r.soon) : catsOrdered
             const wantedCat = [...openCats][0]
             // On narrow screens every category can be closed; on wide screens one is always shown.
@@ -3242,6 +3249,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                           {(!narrow || passShown) && passRows.map(r => catGroup(r, true))}
                           {!effectiveLastAnalyzedAt && otherRows.length > 0 && <div className="gp-catlabel">Checks</div>}
                           {!effectiveLastAnalyzedAt && otherRows.map(r => catGroup(r, false))}
+                          {unrunRows.length > 0 && (
+                            <>
+                              <div className="gp-catlabel">New checks · re-analyse to run them</div>
+                              {unrunRows.map(r => catGroup(r, false))}
+                            </>
+                          )}
                           {effectiveLastAnalyzedAt && otherRows.length > 0 && (narrow ? (
                             <p className="gp-soon-note">{otherRows.length} more {otherRows.length === 1 ? 'area' : 'areas'} coming soon</p>
                           ) : (
