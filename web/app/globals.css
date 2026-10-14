@@ -7544,3 +7544,52 @@ button.gp-users-chip, .gp-users-chip.is-live { height: auto; min-height: 38px; p
   .gp-detail .md-item .sm-actions > .sm-act-primary { flex: 1 1 100%; }
   .gp-detail .md-item .sm-actions > .sm-act-secondary { flex: 1 1 100px; padding: 10px 12px; }
 }
+
+/* ── "Fix with Claude" popup (components/FixWithClaudeModal.tsx). A bottom sheet on phones. ── */
+.fwc-backdrop { position: fixed; inset: 0; z-index: 1000; background: #0000008c; display: grid; place-items: center; padding: 20px; }
+.fwc {
+  width: 100%; max-width: 480px; max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: 0 24px 64px #00000059; padding: 20px; display: flex; flex-direction: column; gap: 12px;
+}
+.fwc-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.fwc-title { font-family: var(--font-display, inherit); font-size: 19px; font-weight: 700; line-height: 1.25; margin: 0; }
+.fwc-sub { font-size: 13px; color: var(--text-dim); margin: 4px 0 0; overflow-wrap: anywhere; }
+.fwc-x { flex: none; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--text-dim); font-size: 20px; line-height: 1; cursor: pointer; }
+.fwc-x:hover { color: var(--text); }
+.fwc-opt { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.fwc-opt--main { border-color: var(--green); background: color-mix(in srgb, var(--green) 6%, var(--card)); }
+.fwc-opt-hd { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fwc-opt-name { font-size: 15px; font-weight: 700; }
+.fwc-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--green); color: var(--primary-foreground); }
+.fwc-text { font-size: 13.5px; line-height: 1.55; color: var(--text-dim); margin: 0; }
+.fwc-ok { font-size: 13px; font-weight: 600; color: var(--green); margin: 0; }
+.fwc-setup { display: flex; flex-direction: column; gap: 8px; }
+.fwc-setup-toggle { align-self: flex-start; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--text); background: none; border: 0; padding: 4px 0; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.fwc-setup-toggle::after { content: ''; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform .15s; }
+.fwc-setup-toggle[aria-expanded="true"]::after { transform: rotate(-135deg) translateY(-1px); }
+.fwc-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+.fwc-steps b { color: var(--text); font-weight: 600; }
+.fwc-url { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.fwc-url code { flex: 1; min-width: 0; font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
+.fwc-url button { flex: none; font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--text-dim); cursor: pointer; }
+.fwc-setup-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.fwc-link-btn { font: inherit; font-size: 12.5px; font-weight: 600; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); text-decoration: none; cursor: pointer; }
+.fwc-link-btn:hover { border-color: var(--green); }
+.fwc-primary, .fwc-secondary { font: inherit; font-size: 14px; font-weight: 600; min-height: 44px; border-radius: 10px; cursor: pointer; margin-top: 4px; }
+.fwc-primary { border: 0; background: var(--green); color: var(--primary-foreground); }
+.fwc-primary:hover { filter: brightness(1.08); }
+.fwc-secondary { border: 1px solid var(--line); background: var(--card); color: var(--text); }
+.fwc-secondary:hover { border-color: var(--text-faint); }
+.fwc button:focus-visible, .fwc a:focus-visible, .fwc input:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.fwc-remember { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim); cursor: pointer; padding: 2px 2px 0; }
+.fwc-remember input { width: 16px; height: 16px; accent-color: var(--green); }
+.sm-claude-change { font: inherit; font-size: inherit; font-weight: 600; color: var(--text-dim); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+.sm-claude-change:hover { color: var(--text); }
+@media (max-width: 560px) {
+  .fwc-backdrop { place-items: end stretch; padding: 0; }
+  .fwc { max-width: none; border-radius: 18px 18px 0 0; max-height: 92dvh; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
+}
+.fwc-steps { list-style: decimal; }
+.fwc-steps > li { display: list-item; padding-left: 2px; }
+.fwc-steps > li::marker { color: var(--green); font-weight: 700; }

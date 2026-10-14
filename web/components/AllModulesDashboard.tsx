@@ -18,6 +18,7 @@ import { CONFLICT_GROUPS, SLUG_TOPIC } from '@/lib/modules/conflict-map'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 import FrektoPostingSectionImport from '@/components/FrektoPostingSection'
 import NotesDrawer from '@/components/NotesDrawer'
+import FixWithClaudeModal, { FIX_CHOICE_KEY, type FixChoice } from '@/components/FixWithClaudeModal'
 import { JOURNEY_PHASES } from '@/lib/journey'
 
 function renderMdStep(step: string): React.ReactNode {
@@ -472,6 +473,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null)
   const [lastFixPrompt, setLastFixPrompt] = useState('')
+  const [lastFixVia, setLastFixVia] = useState<'claude' | 'code'>('claude')
+  const [fixModal, setFixModal] = useState<{ key: string; label: string; plain: string; mcp: string } | null>(null)
+  const lastFixArgs = useRef<{ key: string; label: string; plain: string; mcp: string } | null>(null)
   const [prUrlMap, setPrUrlMap] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.agentPrUrl]))
   )
@@ -1018,18 +1022,56 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     setCopiedPrompt(key)
     window.setTimeout(() => setCopiedPrompt(prev => (prev === key ? null : prev)), 8000)
   }
-  // "Fix with Claude": opens Claude with the fix prompt ready to send. On a computer that's Claude
-  // Code (claude-cli:// deep link, in the connected repo when we know it); on a phone, the Claude
-  // app or claude.ai. The prompt is copied as well, in case Claude Code isn't installed.
+  // "Fix with Claude": a popup offers the GrowJin MCP route first (Claude fixes the check and ticks
+  // it off here) or doing it yourself in Claude Code. The choice can be remembered, after which the
+  // button opens Claude straight away. The prompt is always copied too, in case nothing opens.
   const claudeWebUrl = (text: string) => `https://claude.ai/new?q=${encodeURIComponent(text)}`
-  const fixWithClaude = (key: string, text: string) => {
+  const isPhone = () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+  const readLocal = (k: string) => { try { return localStorage.getItem(k) } catch { return null } }
+  const writeLocal = (k: string, v: string | null) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v) } catch { /* private mode */ } }
+  const mcpConnected = () => !!connectedIntegrations['mcp'] || readLocal('growjin_mcp_connected') === 'true'
+  const buildMcpPrompt = (p: { modId: string; itemId?: string | null; slug: string; label: string; action?: string | null }) => {
+    const mod = allModulesData.find(m => m.id === p.modId)
+    const clean = (t: string) => t.replace(/\*\*/g, '')
+    return [
+      `Use the GrowJin connector to fix one check for ${brand.name}${brand.websiteUrl ? ` (${brand.websiteUrl})` : ''}.`,
+      '',
+      `1. Call get_module_detail with module_type "${mod?.type ?? ''}" and find the check "${clean(p.label)}" (slug ${p.slug}).`,
+      `2. Fix it.${p.action ? ` Suggested fix: ${clean(p.action)}` : ''} If it needs a change to my website code, make it, or give me the exact change to apply.`,
+      `3. When it's fixed, call toggle_item with item_id "${p.itemId ?? ''}" and checked true so GrowJin marks it done.`,
+    ].join('\n')
+  }
+  const runFix = (choice: FixChoice, key: string, plain: string, mcp: string) => {
+    const text = choice === 'mcp' ? mcp : plain
     setLastFixPrompt(text)
     void copyFixPrompt(key, text)
-    if (window.matchMedia('(pointer: coarse)').matches) {
+    if (choice === 'mcp' || isPhone()) {
+      setLastFixVia('claude')
       window.open(claudeWebUrl(text), '_blank', 'noopener')
     } else {
-      window.location.href = `claude-cli://open?q=${encodeURIComponent(text.slice(0, 4900))}${githubRepo ? `&repo=${encodeURIComponent(githubRepo)}` : ''}`
+      setLastFixVia('code')
+      // A link click (not location.href) hands the claude-cli:// URL to the OS without starting a
+      // page navigation, so nothing on this page is interrupted.
+      const a = document.createElement('a')
+      a.href = `claude-cli://open?q=${encodeURIComponent(text.slice(0, 4900))}${githubRepo ? `&repo=${encodeURIComponent(githubRepo)}` : ''}`
+      a.rel = 'noopener'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
     }
+  }
+  const fixWithClaude = (key: string, plain: string, ctx: { modId: string; itemId?: string | null; slug: string; label: string; action?: string | null }) => {
+    const args = { key, label: ctx.label.replace(/\*\*/g, ''), plain, mcp: buildMcpPrompt(ctx) }
+    lastFixArgs.current = args
+    const saved = readLocal(FIX_CHOICE_KEY) as FixChoice | null
+    if (saved === 'code' || (saved === 'mcp' && mcpConnected())) runFix(saved, key, args.plain, args.mcp)
+    else setFixModal(args)
+  }
+  // "Change how I fix": forget the remembered choice and show the popup again for this check.
+  const changeFixChoice = () => {
+    writeLocal(FIX_CHOICE_KEY, null)
+    setCopiedPrompt(null)
+    if (lastFixArgs.current) setFixModal(lastFixArgs.current)
   }
 
   // Jump to one open item: opens its category and expands it.
@@ -1729,7 +1771,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <button
                     type="button"
                     className="sm-act-primary"
-                    onClick={(e) => { e.stopPropagation(); fixWithClaude(itemKey, buildFixPrompt({ label: item.aiHighlight || item.label, found: item.aiDetail, why: item.aiNarrative, action: item.aiAction })) }}
+                    onClick={(e) => { e.stopPropagation(); fixWithClaude(itemKey, buildFixPrompt({ label: item.aiHighlight || item.label, found: item.aiDetail, why: item.aiNarrative, action: item.aiAction }), { modId, itemId: item.id, slug: item.slug, label: item.label, action: item.aiAction }) }}
                   >
                     Fix with Claude
                   </button>
@@ -1749,8 +1791,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               )}
               {copiedPrompt === itemKey && lastFixPrompt && (
                 <p className="sm-claude-hint" role="status">
-                  Prompt copied too. Nothing opened?{' '}
-                  <a href={claudeWebUrl(lastFixPrompt)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>Open it in Claude on the web</a>
+                  Opened {lastFixVia === 'code' ? 'Claude Code' : 'Claude'}, prompt copied too.{' '}
+                  {lastFixVia === 'code' && <>Nothing opened? <a href={claudeWebUrl(lastFixPrompt)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>Use Claude on the web</a>{' · '}</>}
+                  <button type="button" className="sm-claude-change" onClick={(e) => { e.stopPropagation(); changeFixChoice() }}>Change how I fix</button>
                 </p>
               )}
               {/* Skip section — at bottom of expanded body */}
@@ -1970,7 +2013,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <button
                     type="button"
                     className="sm-act-primary"
-                    onClick={(e) => { e.stopPropagation(); fixWithClaude(itemKey, buildFixPrompt({ label: s?.aiHighlight || item.label, found: s?.aiDetail, why: s?.aiNarrative, action: s?.aiAction, steps: item.fixGuide })) }}
+                    onClick={(e) => { e.stopPropagation(); fixWithClaude(itemKey, buildFixPrompt({ label: s?.aiHighlight || item.label, found: s?.aiDetail, why: s?.aiNarrative, action: s?.aiAction, steps: item.fixGuide }), { modId, itemId: s?.id, slug: item.slug, label: item.label, action: s?.aiAction }) }}
                   >
                     Fix with Claude
                   </button>
@@ -1990,8 +2033,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               )}
               {copiedPrompt === itemKey && lastFixPrompt && (
                 <p className="sm-claude-hint" role="status">
-                  Prompt copied too. Nothing opened?{' '}
-                  <a href={claudeWebUrl(lastFixPrompt)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>Open it in Claude on the web</a>
+                  Opened {lastFixVia === 'code' ? 'Claude Code' : 'Claude'}, prompt copied too.{' '}
+                  {lastFixVia === 'code' && <>Nothing opened? <a href={claudeWebUrl(lastFixPrompt)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>Use Claude on the web</a>{' · '}</>}
+                  <button type="button" className="sm-claude-change" onClick={(e) => { e.stopPropagation(); changeFixChoice() }}>Change how I fix</button>
                 </p>
               )}
               {/* Skip section — at bottom of expanded body */}
@@ -3358,6 +3402,20 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           />
         )
       })()}
+      {fixModal && (
+        <FixWithClaudeModal
+          itemLabel={fixModal.label}
+          mcpConnected={mcpConnected()}
+          isPhone={isPhone()}
+          onChoose={(choice, remember) => {
+            if (remember) writeLocal(FIX_CHOICE_KEY, choice)
+            runFix(choice, fixModal.key, fixModal.plain, fixModal.mcp)
+            setFixModal(null)
+          }}
+          onMarkConnected={() => { writeLocal('growjin_mcp_connected', 'true'); setFixModal(m => (m ? { ...m } : m)) }}
+          onClose={() => setFixModal(null)}
+        />
+      )}
       {isAdmin && <NotesDrawer open={notesOpen} onClose={() => setNotesOpen(false)} />}
     </>
   )
