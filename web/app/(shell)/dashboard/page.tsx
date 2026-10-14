@@ -92,6 +92,9 @@ export default async function DashboardPage() {
   }
 
   const githubConnected = allIntegrations.some(i => i.provider === 'github' && i.status === 'connected')
+  // owner/name of the connected repo, so "Fix with Claude" can open Claude Code in the user's clone.
+  const githubRepoUrl = (allIntegrations.find(i => i.provider === 'github' && i.status === 'connected')?.metadata as Record<string, string> | null)?.repo_url ?? ''
+  const githubRepo = githubRepoUrl.match(/github\.com[/:]([\w.-]+\/[\w.-]+?)(?:\.git)?\/?$/)?.[1] ?? null
   const connectedIntegrations: Record<string, boolean> = {}
   const socialLinks: Record<string, string> = {}
   for (const row of allIntegrations) {
@@ -274,6 +277,7 @@ export default async function DashboardPage() {
       userEmail={user.email ?? ''}
       isAdmin={isAdminEmail(user.email)}
       githubConnected={githubConnected}
+      githubRepo={githubRepo}
       connectedIntegrations={connectedIntegrations}
       socialLinks={socialLinks}
       conflictLinks={conflictLinks}

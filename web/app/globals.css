@@ -7521,3 +7521,26 @@ button.gp-users-chip, .gp-users-chip.is-live { height: auto; min-height: 38px; p
 .app-sidebar-brand .app-brand-link { gap: 9px; }
 .app-brand-link:hover { opacity: .85; }
 .app-brand-link:focus-visible { outline: 2px solid var(--green); outline-offset: 3px; }
+
+/* Opened check: the step-by-step guide is folded under "What to do" (a <details>). */
+.gp-detail .md-item details.sm-fix-guide > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 6px; width: fit-content; min-height: 32px; }
+.gp-detail .md-item details.sm-fix-guide > summary::-webkit-details-marker { display: none; }
+.gp-detail .md-item details.sm-fix-guide > summary::after { content: ''; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform .15s; }
+.gp-detail .md-item details.sm-fix-guide[open] > summary::after { transform: rotate(-135deg) translateY(-1px); }
+.gp-detail .md-item details.sm-fix-guide > summary:hover { color: var(--text); }
+.gp-detail .md-item details.sm-fix-guide > summary:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 4px; }
+.sm-claude-hint { font-size: 12.5px; line-height: 1.5; color: var(--text-dim); margin: -2px 0 0; }
+.sm-claude-hint a { color: var(--green); font-weight: 600; }
+/* Long URLs in findings (e.g. Search Console links) must wrap instead of pushing the card wider. */
+.gp-detail .md-item .md-item-body, .gp-detail .md-item .sm-expanded-body { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  /* Use the card's full width: don't indent the opened panel under the checkbox column. */
+  .gp-detail .md-item .sm-expanded-body { margin-left: -32px; padding: 14px 14px 16px; gap: 10px; }
+  .gp-detail .md-item .sm-narrative, .gp-detail .md-item .sm-action-text { font-size: 14px; line-height: 1.55; }
+  .gp-detail .md-item .sm-fix-guide-step, .gp-detail .md-item .sm-setup-step { font-size: 13.5px; line-height: 1.5; }
+}
+@media (max-width: 480px) {
+  /* Primary action on its own row; Export and Mark as done share the next one. */
+  .gp-detail .md-item .sm-actions > .sm-act-primary { flex: 1 1 100%; }
+  .gp-detail .md-item .sm-actions > .sm-act-secondary { flex: 1 1 100px; padding: 10px 12px; }
+}

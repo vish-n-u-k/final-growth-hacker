@@ -72,6 +72,7 @@ interface Props {
   userEmail: string
   isAdmin?: boolean // GrowJin team: shows internal tools like Notes
   githubConnected: boolean
+  githubRepo?: string | null
   connectedIntegrations: Record<string, boolean>
   socialLinks: Record<string, string>
   conflictLinks?: { itemIdA: string; itemIdB: string }[]
@@ -316,7 +317,7 @@ function LevelRing({ score, pending = false }: { score: number; pending?: boolea
 
 const BILLING_OFF = { enabled: false, pro: true, planLocked: [] as string[] }
 
-export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], isAdmin = false, githubConnected, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], isAdmin = false, githubConnected, githubRepo = null, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
   const isPlanLocked = (m: Pick<ModuleData, 'type'>) => billing.planLocked.includes(m.type)
   const [notesOpen, setNotesOpen] = useState(false)
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
@@ -470,6 +471,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null)
+  const [lastFixPrompt, setLastFixPrompt] = useState('')
   const [prUrlMap, setPrUrlMap] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.agentPrUrl]))
   )
@@ -1014,7 +1016,20 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       document.body.removeChild(ta)
     }
     setCopiedPrompt(key)
-    window.setTimeout(() => setCopiedPrompt(prev => (prev === key ? null : prev)), 2000)
+    window.setTimeout(() => setCopiedPrompt(prev => (prev === key ? null : prev)), 8000)
+  }
+  // "Fix with Claude": opens Claude with the fix prompt ready to send. On a computer that's Claude
+  // Code (claude-cli:// deep link, in the connected repo when we know it); on a phone, the Claude
+  // app or claude.ai. The prompt is copied as well, in case Claude Code isn't installed.
+  const claudeWebUrl = (text: string) => `https://claude.ai/new?q=${encodeURIComponent(text)}`
+  const fixWithClaude = (key: string, text: string) => {
+    setLastFixPrompt(text)
+    void copyFixPrompt(key, text)
+    if (window.matchMedia('(pointer: coarse)').matches) {
+      window.open(claudeWebUrl(text), '_blank', 'noopener')
+    } else {
+      window.location.href = `claude-cli://open?q=${encodeURIComponent(text.slice(0, 4900))}${githubRepo ? `&repo=${encodeURIComponent(githubRepo)}` : ''}`
+    }
   }
 
   // Jump to one open item: opens its category and expands it.
@@ -1714,9 +1729,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <button
                     type="button"
                     className="sm-act-primary"
-                    onClick={(e) => { e.stopPropagation(); copyFixPrompt(itemKey, buildFixPrompt({ label: item.aiHighlight || item.label, found: item.aiDetail, why: item.aiNarrative, action: item.aiAction })) }}
+                    onClick={(e) => { e.stopPropagation(); fixWithClaude(itemKey, buildFixPrompt({ label: item.aiHighlight || item.label, found: item.aiDetail, why: item.aiNarrative, action: item.aiAction })) }}
                   >
-                    {copiedPrompt === itemKey ? 'Copied ✓' : 'Copy fix prompt'}
+                    Fix with Claude
                   </button>
                   {item.aiAction && (
                     <button
@@ -1731,6 +1746,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   )}
                   <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, true, item.id, item.slug, userC, e)}>Mark as done</button>
                 </div>
+              )}
+              {copiedPrompt === itemKey && lastFixPrompt && (
+                <p className="sm-claude-hint" role="status">
+                  Prompt copied too. Nothing opened?{' '}
+                  <a href={claudeWebUrl(lastFixPrompt)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>Open it in Claude on the web</a>
+                </p>
               )}
               {/* Skip section — at bottom of expanded body */}
               {!done && (
@@ -1905,8 +1926,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 )
               })()}
               {item.fixGuide?.length && !done && (
-                <div className="sm-fix-guide">
-                  <div className="sm-fix-guide-hd">How to implement this</div>
+                // Steps stay folded when there's already a "What to do" line, to keep the card short.
+                <details className="sm-fix-guide" open={!s?.aiAction}>
+                  <summary className="sm-fix-guide-hd" onClick={(e) => e.stopPropagation()}>Step-by-step ({item.fixGuide.length})</summary>
                   <ol className="sm-fix-guide-steps">
                     {item.fixGuide.map((step, i) => (
                       <li key={i} className="sm-fix-guide-step">
@@ -1941,16 +1963,16 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       Download Claude Code setup guide
                     </a>
                   )}
-                </div>
+                </details>
               )}
               {!done && (
                 <div className="sm-actions">
                   <button
                     type="button"
                     className="sm-act-primary"
-                    onClick={(e) => { e.stopPropagation(); copyFixPrompt(itemKey, buildFixPrompt({ label: s?.aiHighlight || item.label, found: s?.aiDetail, why: s?.aiNarrative, action: s?.aiAction, steps: item.fixGuide })) }}
+                    onClick={(e) => { e.stopPropagation(); fixWithClaude(itemKey, buildFixPrompt({ label: s?.aiHighlight || item.label, found: s?.aiDetail, why: s?.aiNarrative, action: s?.aiAction, steps: item.fixGuide })) }}
                   >
-                    {copiedPrompt === itemKey ? 'Copied ✓' : 'Copy fix prompt'}
+                    Fix with Claude
                   </button>
                   {s?.aiAction && (
                     <button
@@ -1965,6 +1987,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   )}
                   <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, false, s?.id ?? '', item.slug, userC, e)}>Mark as done</button>
                 </div>
+              )}
+              {copiedPrompt === itemKey && lastFixPrompt && (
+                <p className="sm-claude-hint" role="status">
+                  Prompt copied too. Nothing opened?{' '}
+                  <a href={claudeWebUrl(lastFixPrompt)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>Open it in Claude on the web</a>
+                </p>
               )}
               {/* Skip section — at bottom of expanded body */}
               {!done && (
