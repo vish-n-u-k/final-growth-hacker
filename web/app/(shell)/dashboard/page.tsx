@@ -95,6 +95,10 @@ export default async function DashboardPage() {
   // owner/name of the connected repo, so "Fix with Claude" can open Claude Code in the user's clone.
   const githubRepoUrl = (allIntegrations.find(i => i.provider === 'github' && i.status === 'connected')?.metadata as Record<string, string> | null)?.repo_url ?? ''
   const githubRepo = githubRepoUrl.match(/github\.com[/:]([\w.-]+\/[\w.-]+?)(?:\.git)?\/?$/)?.[1] ?? null
+  // When a Claude client last used the GrowJin MCP (null = never connected): drives the
+  // "Fix with Claude" popup's connect steps.
+  const mcpRow = allIntegrations.find(i => i.provider === 'mcp' && i.status === 'connected')
+  const mcpLastUsedAt = mcpRow?.lastUsedAt ? new Date(mcpRow.lastUsedAt).toISOString() : null
   const connectedIntegrations: Record<string, boolean> = {}
   const socialLinks: Record<string, string> = {}
   for (const row of allIntegrations) {
@@ -278,6 +282,7 @@ export default async function DashboardPage() {
       isAdmin={isAdminEmail(user.email)}
       githubConnected={githubConnected}
       githubRepo={githubRepo}
+      mcpLastUsedAt={mcpLastUsedAt}
       connectedIntegrations={connectedIntegrations}
       socialLinks={socialLinks}
       conflictLinks={conflictLinks}

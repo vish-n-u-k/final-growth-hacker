@@ -74,6 +74,7 @@ interface Props {
   isAdmin?: boolean // GrowJin team: shows internal tools like Notes
   githubConnected: boolean
   githubRepo?: string | null
+  mcpLastUsedAt?: string | null
   connectedIntegrations: Record<string, boolean>
   socialLinks: Record<string, string>
   conflictLinks?: { itemIdA: string; itemIdB: string }[]
@@ -318,7 +319,7 @@ function LevelRing({ score, pending = false }: { score: number; pending?: boolea
 
 const BILLING_OFF = { enabled: false, pro: true, planLocked: [] as string[] }
 
-export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], isAdmin = false, githubConnected, githubRepo = null, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], isAdmin = false, githubConnected, githubRepo = null, mcpLastUsedAt = null, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
   const isPlanLocked = (m: Pick<ModuleData, 'type'>) => billing.planLocked.includes(m.type)
   const [notesOpen, setNotesOpen] = useState(false)
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
@@ -475,6 +476,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const [lastFixPrompt, setLastFixPrompt] = useState('')
   const [lastFixVia, setLastFixVia] = useState<'claude' | 'code'>('claude')
   const [fixModal, setFixModal] = useState<{ key: string; label: string; plain: string; mcp: string } | null>(null)
+  const [mcpMarked, setMcpMarked] = useState(false)
   const lastFixArgs = useRef<{ key: string; label: string; plain: string; mcp: string } | null>(null)
   const [prUrlMap, setPrUrlMap] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.agentPrUrl]))
@@ -1029,7 +1031,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const isPhone = () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
   const readLocal = (k: string) => { try { return localStorage.getItem(k) } catch { return null } }
   const writeLocal = (k: string, v: string | null) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v) } catch { /* private mode */ } }
-  const mcpConnected = () => !!connectedIntegrations['mcp'] || readLocal('growjin_mcp_connected') === 'true'
+  // Connected = a Claude client has actually used GrowJin's MCP (or the user just said they connected it).
+  const mcpConnected = () => !!mcpLastUsedAt || mcpMarked
   const buildMcpPrompt = (p: { modId: string; itemId?: string | null; slug: string; label: string; action?: string | null }) => {
     const mod = allModulesData.find(m => m.id === p.modId)
     const clean = (t: string) => t.replace(/\*\*/g, '')
@@ -1042,7 +1045,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     ].join('\n')
   }
   const runFix = (choice: FixChoice, key: string, plain: string, mcp: string) => {
-    const text = choice === 'mcp' ? mcp : plain
+    const text = choice === 'code' ? plain : mcp
     setLastFixPrompt(text)
     void copyFixPrompt(key, text)
     if (choice === 'mcp' || isPhone()) {
@@ -1064,7 +1067,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const args = { key, label: ctx.label.replace(/\*\*/g, ''), plain, mcp: buildMcpPrompt(ctx) }
     lastFixArgs.current = args
     const saved = readLocal(FIX_CHOICE_KEY) as FixChoice | null
-    if (saved === 'code' || (saved === 'mcp' && mcpConnected())) runFix(saved, key, args.plain, args.mcp)
+    if (saved === 'code' || ((saved === 'mcp' || saved === 'mcp-code') && mcpConnected())) runFix(saved, key, args.plain, args.mcp)
     else setFixModal(args)
   }
   // "Change how I fix": forget the remembered choice and show the popup again for this check.
@@ -3406,13 +3409,14 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         <FixWithClaudeModal
           itemLabel={fixModal.label}
           mcpConnected={mcpConnected()}
+          mcpLastUsedAt={mcpLastUsedAt}
           isPhone={isPhone()}
           onChoose={(choice, remember) => {
             if (remember) writeLocal(FIX_CHOICE_KEY, choice)
             runFix(choice, fixModal.key, fixModal.plain, fixModal.mcp)
             setFixModal(null)
           }}
-          onMarkConnected={() => { writeLocal('growjin_mcp_connected', 'true'); setFixModal(m => (m ? { ...m } : m)) }}
+          onMarkConnected={() => setMcpMarked(true)}
           onClose={() => setFixModal(null)}
         />
       )}

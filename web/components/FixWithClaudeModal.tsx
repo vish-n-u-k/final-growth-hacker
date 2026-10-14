@@ -6,13 +6,39 @@ import { useEffect, useRef, useState } from 'react'
 // and ticks it off here), with "do it myself in Claude Code" as the alternative. The choice can be
 // remembered, after which the button opens Claude straight away (see AllModulesDashboard).
 
-export type FixChoice = 'mcp' | 'code'
+// mcp = GrowJin MCP in the Claude app / claude.ai; mcp-code = GrowJin MCP in Claude Code; code = plain prompt in Claude Code.
+export type FixChoice = 'mcp' | 'mcp-code' | 'code'
 export const FIX_CHOICE_KEY = 'growjin_fix_with'
 const MCP_URL = 'https://app.growjin.com/api/mcp'
+const CLAUDE_CODE_CMD = `claude mcp add --transport http growjin ${MCP_URL}`
 
-export default function FixWithClaudeModal({ itemLabel, mcpConnected, isPhone, onChoose, onMarkConnected, onClose }: {
+function agoText(iso: string): string {
+  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+  if (m < 60) return m <= 1 ? 'just now' : `${m} minutes ago`
+  const h = Math.round(m / 60)
+  if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`
+  const d = Math.round(h / 24)
+  return `${d} day${d === 1 ? '' : 's'} ago`
+}
+
+function CopyBox({ text, mono = true }: { text: string; mono?: boolean }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <span className="fwc-url">
+      <code style={mono ? undefined : { fontFamily: 'inherit' }}>{text}</code>
+      <button type="button" onClick={async () => {
+        try { await navigator.clipboard.writeText(text) } catch { /* visible in the box anyway */ }
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), 2000)
+      }}>{copied ? 'Copied' : 'Copy'}</button>
+    </span>
+  )
+}
+
+export default function FixWithClaudeModal({ itemLabel, mcpConnected, mcpLastUsedAt = null, isPhone, onChoose, onMarkConnected, onClose }: {
   itemLabel: string
   mcpConnected: boolean
+  mcpLastUsedAt?: string | null
   isPhone: boolean
   onChoose: (choice: FixChoice, remember: boolean) => void
   onMarkConnected: () => void
@@ -20,7 +46,7 @@ export default function FixWithClaudeModal({ itemLabel, mcpConnected, isPhone, o
 }) {
   const [remember, setRemember] = useState(true)
   const [setupOpen, setSetupOpen] = useState(!mcpConnected)
-  const [copied, setCopied] = useState(false)
+  const [client, setClient] = useState<'app' | 'code'>('app')
   const firstBtn = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -29,12 +55,6 @@ export default function FixWithClaudeModal({ itemLabel, mcpConnected, isPhone, o
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
-
-  const copyUrl = async () => {
-    try { await navigator.clipboard.writeText(MCP_URL) } catch { /* shown in the box anyway */ }
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 2000)
-  }
 
   return (
     <div className="fwc-backdrop" onClick={(e) => { e.stopPropagation(); onClose() }}>
@@ -57,36 +77,57 @@ export default function FixWithClaudeModal({ itemLabel, mcpConnected, isPhone, o
             Connect GrowJin to Claude once. Claude then sees all your checks, makes the fix, and ticks it off here when it&apos;s done. No copying and pasting.
           </p>
 
+          {mcpConnected && !isPhone && (
+            <div className="fwc-tabs" role="tablist" aria-label="Open in">
+              <button type="button" role="tab" aria-selected={client === 'app'} className={client === 'app' ? 'is-on' : ''} onClick={() => setClient('app')}>Claude app / claude.ai</button>
+              <button type="button" role="tab" aria-selected={client === 'code'} className={client === 'code' ? 'is-on' : ''} onClick={() => setClient('code')}>Claude Code</button>
+            </div>
+          )}
           {mcpConnected ? (
-            <p className="fwc-ok">✓ GrowJin is connected to your Claude</p>
+            <p className="fwc-ok">✓ GrowJin is connected to your Claude{mcpLastUsedAt ? ` · last used ${agoText(mcpLastUsedAt)}` : ''}</p>
           ) : (
             <div className="fwc-setup">
               <button type="button" className="fwc-setup-toggle" aria-expanded={setupOpen} onClick={() => setSetupOpen(v => !v)}>
-                One-time setup (1 minute)
+                Not connected yet · one-time setup (1 minute)
               </button>
               {setupOpen && (
                 <>
-                  <ol className="fwc-steps">
-                    <li>In Claude, open <b>Settings → Connectors</b> and click <b>Add custom connector</b></li>
-                    <li>Name it <b>GrowJin</b> and paste this URL:
-                      <span className="fwc-url">
-                        <code>{MCP_URL}</code>
-                        <button type="button" onClick={copyUrl}>{copied ? 'Copied' : 'Copy'}</button>
-                      </span>
-                    </li>
-                    <li>Click <b>Add</b> and log in to GrowJin when asked</li>
-                  </ol>
-                  <div className="fwc-setup-actions">
-                    <a href="https://claude.ai/settings/connectors" target="_blank" rel="noopener noreferrer" className="fwc-link-btn">Open Claude connectors ↗</a>
-                    <button type="button" className="fwc-link-btn" onClick={onMarkConnected}>I&apos;ve connected it</button>
+                  <div className="fwc-tabs" role="tablist" aria-label="Where you use Claude">
+                    <button type="button" role="tab" aria-selected={client === 'app'} className={client === 'app' ? 'is-on' : ''} onClick={() => setClient('app')}>Claude app / claude.ai</button>
+                    <button type="button" role="tab" aria-selected={client === 'code'} className={client === 'code' ? 'is-on' : ''} onClick={() => setClient('code')}>Claude Code</button>
                   </div>
+                  {client === 'app' ? (
+                    <>
+                      <ol className="fwc-steps">
+                        <li>In Claude, open <b>Settings → Connectors</b> and click <b>Add custom connector</b></li>
+                        <li>Name it <b>GrowJin</b> and paste this URL:<CopyBox text={MCP_URL} /></li>
+                        <li>Click <b>Add</b>, then <b>Connect</b>, and log in to GrowJin when asked</li>
+                      </ol>
+                      <p className="fwc-note">Works in the Claude desktop and phone apps too once added.</p>
+                      <div className="fwc-setup-actions">
+                        <a href="https://claude.ai/settings/connectors" target="_blank" rel="noopener noreferrer" className="fwc-link-btn">Open Claude connectors ↗</a>
+                        <button type="button" className="fwc-link-btn" onClick={onMarkConnected}>I&apos;ve connected it</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <ol className="fwc-steps">
+                        <li>In your project folder, run:<CopyBox text={CLAUDE_CODE_CMD} /></li>
+                        <li>Start <b>claude</b>, type <b>/mcp</b>, pick <b>growjin</b> and log in to GrowJin</li>
+                      </ol>
+                      <div className="fwc-setup-actions">
+                        <a href="/settings?tab=claude-code" className="fwc-link-btn">More options in Settings</a>
+                        <button type="button" className="fwc-link-btn" onClick={onMarkConnected}>I&apos;ve connected it</button>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>
           )}
 
-          <button ref={firstBtn} type="button" className="fwc-primary" onClick={() => onChoose('mcp', remember)}>
-            {mcpConnected ? 'Open Claude and fix it' : 'Open Claude'}
+          <button ref={firstBtn} type="button" className="fwc-primary" onClick={() => onChoose(client === 'code' && !isPhone ? 'mcp-code' : 'mcp', remember)}>
+            {`${mcpConnected ? '' : 'Connected? '}Open ${client === 'code' && !isPhone ? 'Claude Code' : 'Claude'} and fix it`}
           </button>
         </section>
 
