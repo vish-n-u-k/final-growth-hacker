@@ -28,7 +28,7 @@ function LoginForm() {
       setError(error.message)
       setLoading(false)
     } else {
-      router.push(next && next.startsWith('/') ? next : '/dashboard')
+      router.push(next && next.startsWith('/') ? next : '/start')
       router.refresh()
     }
   }

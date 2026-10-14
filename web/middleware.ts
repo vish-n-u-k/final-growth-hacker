@@ -66,7 +66,7 @@ async function handle(request: NextRequest) {
     if (next && next.startsWith('/')) {
       return NextResponse.redirect(new URL(next, request.url))
     }
-    url.pathname = '/dashboard'
+    url.pathname = '/start'
     return NextResponse.redirect(url)
   }
 

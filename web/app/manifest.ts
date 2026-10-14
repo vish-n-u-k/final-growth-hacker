@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'GrowJin',
     short_name: 'GrowJin',
     description: 'Your road to 500 users',
-    start_url: '/dashboard',
+    start_url: '/start',
     scope: '/',
     display: 'standalone',
     background_color: '#f7f7f5',

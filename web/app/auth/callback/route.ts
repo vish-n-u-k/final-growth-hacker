@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const cookieNext = cookieStore.get('auth_next')?.value
   const nextParam = searchParams.get('next')
   const rawNext = nextParam ?? (cookieNext ? decodeURIComponent(cookieNext) : null)
-  const redirectTo = rawNext && rawNext.startsWith('/') ? rawNext : '/dashboard'
+  const redirectTo = rawNext && rawNext.startsWith('/') ? rawNext : '/start'
 
   if (code) {
     const supabase = await createClient()
