@@ -33,7 +33,16 @@ export default function PersonPanel({ id }: { id: string }) {
   }, [id])
 
   if (failed) return <div className="ta-panel"><p className="ta-muted">Couldn&apos;t load this person&apos;s details.</p></div>
-  if (!p) return <div className="ta-panel"><p className="ta-muted">Loading…</p></div>
+  // Placeholder shaped like the details (label / value rows), so opening a person doesn't jump.
+  if (!p) return (
+    <div className="ta-panel ta-panel--loading" role="status" aria-label="Loading details">
+      <dl className="ta-dl">
+        {[62, 48, 70, 40, 55].map((w, i) => (
+          <div key={i}><dt><span className="ta-skel ta-skel--label" /></dt><dd><span className="ta-skel" style={{ width: `${w}%` }} /></dd></div>
+        ))}
+      </dl>
+    </div>
+  )
 
   const rows: [string, string][] = [
     ['How they found you', p.foundVia],

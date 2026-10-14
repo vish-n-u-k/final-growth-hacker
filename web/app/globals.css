@@ -7664,3 +7664,7 @@ a.ta-more:hover { color: var(--text); }
 .td-connect-btn, .td-feed-platform { display: inline-flex; align-items: center; gap: 7px; }
 .td-feed-platform { gap: 5px; }
 .ta-chip { display: inline-flex; align-items: center; gap: 5px; }
+/* Person details while loading: grey bars in the same rows as the real details. */
+.ta-skel { display: block; height: 10px; margin: 4px 0; border-radius: 99px; background: var(--line); animation: ta-pulse 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .ta-skel { animation: none; } }
+.ta-skel--label { width: 90px; max-width: 70%; height: 8px; opacity: .7; }
