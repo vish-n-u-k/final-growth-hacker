@@ -17,7 +17,7 @@ export function hostOfUrl(url: string): string {
   try { return new URL(url).hostname.toLowerCase().replace(/^www\./, '') } catch { return '' }
 }
 
-export function classifyChannel(v: { referringDomain: string; utmSource: string; utmMedium: string; paidClick: boolean }, ownRoot: string): string {
+export function classifyChannel(v: { referringDomain: string; utmSource: string; utmMedium: string; paidClick: boolean }, ownRoot: string, ownHost = ''): string {
   const ref = v.referringDomain.toLowerCase().replace(/^www\./, '')
   const medium = v.utmMedium.toLowerCase()
   const source = v.utmSource.toLowerCase()
@@ -30,8 +30,9 @@ export function classifyChannel(v: { referringDomain: string; utmSource: string;
     if (AI.test(source)) return 'AI assistants'
   }
   if (!ref || ref === '$direct') return 'Direct'
-  // Came from the brand's own site (e.g. website → app): internal navigation, not a new source.
-  if (ownRoot && rootDomain(ref) === ownRoot) return 'Your website'
+  // The brand's own domain: from the website (frekto.ai → app) counts as 'Your website'; another
+  // subdomain (moving around inside app.frekto.ai) means they were already in the app: 'Direct'.
+  if (ownRoot && rootDomain(ref) === ownRoot) return !ownHost || ref === ownHost.replace(/^www\./, '') ? 'Your website' : 'Direct'
   if (AI.test(ref)) return 'AI assistants'
   if (SEARCH.test(ref)) return 'Organic search'
   if (SOCIAL.test(ref)) return 'Organic social'

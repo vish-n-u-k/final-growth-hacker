@@ -61,7 +61,7 @@ function channelsFromFirstTouch(rows: unknown[][] | null, websiteUrl: string | n
   const ownRoot = ownHost ? rootDomain(ownHost) : ''
   const acc = new Map<string, { visitors: number; views: number }>()
   for (const r of rows ?? []) {
-    const ch = classifyChannel({ referringDomain: String(r[0] ?? ''), utmSource: String(r[1] ?? ''), utmMedium: String(r[2] ?? ''), paidClick: Number(r[3]) === 1 }, ownRoot)
+    const ch = classifyChannel({ referringDomain: String(r[0] ?? ''), utmSource: String(r[1] ?? ''), utmMedium: String(r[2] ?? ''), paidClick: Number(r[3]) === 1 }, ownRoot, ownHost)
     const cur = acc.get(ch) ?? { visitors: 0, views: 0 }
     cur.visitors += 1
     cur.views += Number(r[4]) || 0

@@ -3,7 +3,6 @@
 import RoadToFiveHundred from '@/components/RoadToFiveHundred'
 import { useClaudeHandoff, type HandoffArgs } from '@/components/useClaudeHandoff'
 import SocialIcon, { socialBrand } from '@/components/SocialIcon'
-import { journeySteps, type JourneyIssue } from '@/components/TodayActivity'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
@@ -248,29 +247,6 @@ function blogHandoff(blog: { id: string; title: string; mdUrl?: string }, c: Sit
     '5. Tell me the live URL so I can mark it published in GrowJin.',
   ].join('\n')
   return { key: `blog:${blog.id}`, label: blog.title, plain, mcp, title: 'Add this post to your website' }
-}
-
-function journeyHandoff(j: JourneyIssue, c: SiteCtx): HandoffArgs {
-  const steps = journeySteps(j).map((st, i) => `${i + 1}. ${st}`)
-  const problem = j.status === 'website-not-tracked'
-    ? `PostHog isn't installed on ${j.websiteHost} (no pageviews in 7 days), so visits before signup on ${j.appHost || 'the app'} are invisible.`
-    : `${j.websiteHost} is tracked, but most signups are first seen on ${j.appHost || 'the app'}, so PostHog treats the website visit and the signup as different people.`
-  const plain = [
-    `Please fix the PostHog tracking for ${c.brandName}${where(c)} so a visitor's website visit and their signup are the same person in PostHog.`,
-    '',
-    `Problem: ${problem}`,
-    '',
-    'Do this:',
-    ...steps,
-    '',
-    'Check both the website and the app code (they may be separate repos or folders). Make the changes, then tell me exactly what you changed and how to verify it in PostHog (Persons → open a new signup → their first event should be a website pageview).',
-  ].join('\n')
-  const mcp = [
-    `Use the GrowJin connector for ${c.brandName}${where(c)}: call get_posthog_users to look at recent signups and their first page.`,
-    '',
-    plain,
-  ].join('\n')
-  return { key: 'journey', label: j.status === 'website-not-tracked' ? `Add PostHog to ${j.websiteHost}` : `Link ${j.websiteHost} visits to signups`, plain, mcp }
 }
 
 // which card types expand inline vs navigate away
@@ -1202,7 +1178,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         {posthogConnected && <div className="td-journey"><RoadToFiveHundred posthogConnected /></div>}
 
         {/* What happened since yesterday (visitors, signups, sources) before what to do */}
-        <TodayActivity onFixJourney={j => handoff.start(journeyHandoff(j, site))} journeyHint={handoff.hint('journey')} />
+        <TodayActivity />
 
         {!ready || (refreshing && cards.length === 0) ? (
           <LoadingState />

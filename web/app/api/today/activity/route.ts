@@ -4,7 +4,10 @@ import { getBrandForUser } from '@/lib/server-session'
 import { buildPostHogFilter } from '@/lib/posthog/filter'
 import { normalizeSource } from '@/lib/posthog/source'
 import { posthogForBrand } from '@/lib/posthog/client'
-import { classifyChannel, hostOfUrl, rootDomain } from '@/lib/posthog/channel'
+import { db } from '@/lib/db'
+import { brandIntegrations } from '@/lib/db/schema'
+import { and, eq, inArray } from 'drizzle-orm'
+import { classifyChannel, rootDomain } from '@/lib/posthog/channel'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -31,10 +34,9 @@ export interface TodayActivity {
   channels: { name: string; visitors: number }[]
   referrers: { domain: string; visitors: number }[]
   pages: { path: string; visitors: number }[]
-  // Are visits to the brand's website joined up with signups in PostHog? 'website-not-tracked' =
-  // no pageviews from the website at all; 'not-linked' = website is tracked but signups are first
-  // seen on another host (e.g. the app), so the visit before signup is lost.
-  journey: { status: 'ok' | 'website-not-tracked' | 'not-linked' | 'unknown'; websiteHost: string; appHost: string; websitePageviews: number; signupsChecked: number; signupsFromWebsite: number }
+  // PostHog covers the app; the website is measured with Google Analytics / Search Console.
+  // 'connect-ga' = Google Analytics isn't connected, so nothing measures the website.
+  website: { status: 'ok' | 'connect-ga'; host: string }
 }
 
 // Short per-instance cache: Today can be reloaded often and each load is 9 PostHog queries.
@@ -59,7 +61,7 @@ export async function GET(request: NextRequest) {
     signups: { count: 0, prior: 0, people: [] },
     signins: { count: 0, prior: 0, people: [] },
     returning: 0, channels: [], referrers: [], pages: [],
-    journey: { status: 'unknown', websiteHost: '', appHost: '', websitePageviews: 0, signupsChecked: 0, signupsFromWebsite: 0 },
+    website: { status: 'ok', host: '' },
   }
 
   const ph = await posthogForBrand(brand.id)
@@ -86,7 +88,7 @@ export async function GET(request: NextRequest) {
   // Sign-ins only count people who already had an account, so they don't repeat the signups.
   const existingUsers = `person_id IN (SELECT id FROM persons WHERE is_identified = 1 AND created_at < ${since} ${personAnd})`
 
-  const [visitorRows, signupCountRows, signupRows, returningRows, channelRows, referrerRows, pageRows, websiteRows, signinCountRows, signinRows] = await Promise.all([
+  const [visitorRows, signupCountRows, signupRows, returningRows, channelRows, referrerRows, pageRows, gaRows, signinCountRows, signinRows] = await Promise.all([
     q(`SELECT count(DISTINCT if(timestamp >= ${since}, person_id, null)), count(DISTINCT if(timestamp < ${since}, person_id, null))
        FROM events WHERE event = '$pageview' AND timestamp >= ${priorFrom}`),
     q(`SELECT count(DISTINCT if(created_at >= ${since}, ${personKey}, null)), count(DISTINCT if(created_at < ${since}, ${personKey}, null))
@@ -111,11 +113,10 @@ export async function GET(request: NextRequest) {
     q(`SELECT properties.$pathname, count(DISTINCT person_id) FROM events
        WHERE event = '$pageview' AND timestamp >= ${since} AND properties.$pathname IS NOT NULL AND properties.$pathname != ''
        GROUP BY 1 ORDER BY 2 DESC LIMIT 4`),
-    // Website pageviews in the last 7 days (the journey check below)
-    ownHost
-      ? q(`SELECT count() FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 7 day
-           AND (properties.$host = '${ownHost}' OR properties.$host = 'www.${ownHost}')`)
-      : Promise.resolve(null),
+    // Is Google Analytics (the website's tracker) connected?
+    db.select({ id: brandIntegrations.id }).from(brandIntegrations)
+      .where(and(eq(brandIntegrations.brandId, brand.id), inArray(brandIntegrations.provider, ['ga4_api', 'google_analytics']), eq(brandIntegrations.status, 'connected')))
+      .limit(1).catch(() => []),
     q(`SELECT count(DISTINCT if(timestamp >= ${since}, person_id, null)), count(DISTINCT if(timestamp < ${since}, person_id, null))
        FROM events WHERE event = '$identify' AND timestamp >= ${priorFrom} AND ${existingUsers}`),
     q(`SELECT toString(person_id), toString(max(timestamp)), count(),
@@ -144,24 +145,19 @@ export async function GET(request: NextRequest) {
 
   const channelCounts = new Map<string, number>()
   for (const r of channelRows ?? []) {
-    const ch = classifyChannel({ referringDomain: String(r[0] ?? ''), utmSource: String(r[1] ?? ''), utmMedium: String(r[2] ?? ''), paidClick: n(r[3]) === 1 }, ownRoot)
+    const ch = classifyChannel({ referringDomain: String(r[0] ?? ''), utmSource: String(r[1] ?? ''), utmMedium: String(r[2] ?? ''), paidClick: n(r[3]) === 1 }, ownRoot, ownHost)
     channelCounts.set(ch, (channelCounts.get(ch) ?? 0) + 1)
   }
   const channels = [...channelCounts].map(([name, visitors]) => ({ name, visitors })).sort((a, b) => b.visitors - a.visitors).slice(0, 6)
 
-  // Journey check: where were signups first seen, and does the website send pageviews at all?
-  const firstHosts = signupPeople.map(r => hostOfUrl(String(r[6]))).filter(Boolean)
-  const fromWebsite = firstHosts.filter(h => h === ownHost).length
-  const otherHosts = firstHosts.filter(h => h !== ownHost)
-  const appHost = otherHosts.sort((a, b) => otherHosts.filter(x => x === b).length - otherHosts.filter(x => x === a).length)[0] ?? ''
-  const websitePageviews = n(websiteRows?.[0]?.[0])
-  const journey: TodayActivity['journey'] = {
-    status: !ownHost || firstHosts.length < 2 || !websiteRows
-      ? 'unknown'
-      : fromWebsite / firstHosts.length >= 0.4 ? 'ok'
-      : websitePageviews === 0 ? 'website-not-tracked'
-      : 'not-linked',
-    websiteHost: ownHost, appHost, websitePageviews, signupsChecked: firstHosts.length, signupsFromWebsite: fromWebsite,
+  const website: TodayActivity['website'] = { status: ownHost && (gaRows as unknown[]).length === 0 ? 'connect-ga' : 'ok', host: ownHost }
+
+  // Where a person first came from, in words: their own website or the app itself rather than a raw domain.
+  const sourceFor = (utm: string, refDomain: string) => {
+    const ref = refDomain.toLowerCase().replace(/^www\./, '')
+    if (!utm && ownHost && ref === ownHost) return 'your website'
+    if (!utm && ownRoot && ref && ref !== '$direct' && rootDomain(ref) === ownRoot) return 'the app'
+    return normalizeSource(utm, refDomain)
   }
 
   const data: TodayActivity = {
@@ -175,7 +171,7 @@ export async function GET(request: NextRequest) {
         id: String(r[7]),
         name: String(r[0]) || String(r[1]) || 'Someone',
         at: String(r[2]),
-        source: normalizeSource(String(r[3]), String(r[4])),
+        source: sourceFor(String(r[3]), String(r[4])),
         country: String(r[5]),
         landing: pathOf(String(r[6])),
       })),
@@ -188,7 +184,7 @@ export async function GET(request: NextRequest) {
         at: String(r[1]),
         times: n(r[2]),
         name: String(r[3]) || String(r[4]) || 'Someone',
-        source: normalizeSource(String(r[5]), String(r[6])),
+        source: sourceFor(String(r[5]), String(r[6])),
         country: String(r[7]),
         device: String(r[8]),
       })),
@@ -197,7 +193,7 @@ export async function GET(request: NextRequest) {
     channels,
     referrers: (referrerRows ?? []).map(r => ({ domain: String(r[0]).replace(/^www\./, ''), visitors: n(r[1]) })),
     pages: (pageRows ?? []).map(r => ({ path: String(r[0]), visitors: n(r[1]) })),
-    journey,
+    website,
   }
   cache.set(cacheKey, { at: Date.now(), data })
   return NextResponse.json(data)
