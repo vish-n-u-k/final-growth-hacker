@@ -262,6 +262,11 @@ export default function AppSidebar({
     <>
     {/* Settings has its own section menu and a back arrow on phones, so the GrowJin bar is left out there. */}
     {!pathname.startsWith('/settings') && <header className="app-mobilebar">
+      <span className="app-mobilebar-brand">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/growjinlogo.svg" alt="" width={24} height={24} className="app-sidebar-logo" />
+        GrowJin
+      </span>
       <button
         ref={menuBtnRef}
         className="app-mobilebar-btn"
@@ -272,11 +277,6 @@ export default function AppSidebar({
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
       </button>
-      <span className="app-mobilebar-brand">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/growjinlogo.svg" alt="" width={24} height={24} className="app-sidebar-logo" />
-        GrowJin
-      </span>
     </header>}
     <div className={`app-drawer-backdrop${open ? ' open' : ''}`} onClick={() => setOpen(false)} aria-hidden="true" />
     <nav id="app-sidebar" className={`app-sidebar${open ? ' open' : ''}`} aria-label="Main">

@@ -6182,7 +6182,7 @@ html.light .rm-outreach-days { color: var(--text-faint); }
   .app-shell { flex-direction: column; }
   .app-mobilebar {
     /* Not sticky: several pages pin their own headers at top:0 and would slide under it */
-    display: flex; align-items: center; justify-content: flex-start; gap: 10px; position: relative; z-index: 60;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; position: relative; z-index: 60;
     height: 52px; padding: 0 12px; background: var(--card); border-bottom: 1px solid var(--line);
   }
   .app-mobilebar-btn {
@@ -6194,10 +6194,10 @@ html.light .rm-outreach-days { color: var(--text-faint); }
     font-family: var(--font-display, 'Fraunces', serif); font-weight: 700; font-size: 16px; color: var(--text);
   }
   .app-sidebar {
-    position: fixed; top: 0; left: 0; bottom: 0; z-index: 80; height: 100dvh;
+    position: fixed; top: 0; right: 0; bottom: 0; left: auto; z-index: 80; height: 100dvh;
     width: min(84vw, 300px); padding: 14px 12px calc(14px + env(safe-area-inset-bottom));
     box-shadow: 0 10px 40px #00000040;
-    transform: translateX(-102%); visibility: hidden;
+    transform: translateX(102%); visibility: hidden; border-right: 0; border-left: 1px solid var(--line);
     transition: transform .25s ease, visibility 0s linear .25s;
   }
   .app-sidebar.open { transform: none; visibility: visible; transition: transform .25s ease; }
