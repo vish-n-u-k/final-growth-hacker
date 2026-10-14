@@ -7593,3 +7593,10 @@ button.gp-users-chip, .gp-users-chip.is-live { height: auto; min-height: 38px; p
 .fwc-steps { list-style: decimal; }
 .fwc-steps > li { display: list-item; padding-left: 2px; }
 .fwc-steps > li::marker { color: var(--green); font-weight: 700; }
+
+/* Today: four stats (visitors, signups, signed in, came back); 2×2 on phones. */
+.ta-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 560px) { .ta-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ta-avatar--in { background: var(--bg-soft); color: var(--text-dim); border: 1px solid var(--line); }
+a.ta-more { display: inline-block; text-decoration: none; }
+a.ta-more:hover { color: var(--text); }

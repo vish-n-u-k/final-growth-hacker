@@ -79,6 +79,10 @@ export default function TodayActivity() {
               <span className="ta-label">signups</span>
             </div>
             <div className="ta-stat">
+              <span className="ta-num">{(data.signins?.count ?? 0).toLocaleString()} <Delta current={data.signins?.count ?? 0} prior={data.signins?.prior ?? 0} /></span>
+              <span className="ta-label">signed in</span>
+            </div>
+            <div className="ta-stat">
               <span className="ta-num">{data.returning.toLocaleString()}</span>
               <span className="ta-label">came back</span>
             </div>
@@ -110,6 +114,38 @@ export default function TodayActivity() {
               </ul>
               {data.signups.count > data.signups.people.length && (
                 <p className="ta-muted ta-more">+{data.signups.count - data.signups.people.length} more</p>
+              )}
+            </div>
+          )}
+
+          {(data.signins?.people.length ?? 0) > 0 && (
+            <div className="ta-block">
+              <div className="ta-sub">Signed in</div>
+              <ul className="ta-people">
+                {data.signins.people.map(p => {
+                  const key = `in:${p.id}`
+                  const open = openId === key
+                  const device = p.device ? ` · ${p.device.toLowerCase()}` : ''
+                  return (
+                    <li key={key} className={`ta-person-wrap${open ? ' is-open' : ''}`}>
+                      <button type="button" className="ta-person" onClick={() => setOpenId(open ? null : key)} aria-expanded={open}>
+                        <span className="ta-avatar ta-avatar--in" aria-hidden="true">{p.name.slice(0, 1).toUpperCase()}</span>
+                        <span className="ta-person-main">
+                          <b>{p.name}</b>
+                          <span className="ta-muted">
+                            {p.times > 1 ? `signed in ${p.times}×` : 'signed in'}{p.country ? ` · ${p.country}` : ''}{device} · first came from {p.source}
+                          </span>
+                        </span>
+                        <span className="ta-time">{ago(p.at)}</span>
+                        <svg className="ta-chev" width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5" /></svg>
+                      </button>
+                      {open && <PersonPanel id={p.id} />}
+                    </li>
+                  )
+                })}
+              </ul>
+              {data.signins.count > data.signins.people.length && (
+                <Link href={`/analytics/details?type=signins&range=${days === 1 ? '24h' : '7d'}`} className="ta-muted ta-more">+{data.signins.count - data.signins.people.length} more →</Link>
               )}
             </div>
           )}

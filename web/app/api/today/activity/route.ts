@@ -19,13 +19,19 @@ export interface TodayActivity {
     prior: number
     people: { id: string; name: string; source: string; country: string; landing: string; at: string }[]
   }
+  // Existing users who logged in during the period (PostHog $identify), newest first.
+  signins: {
+    count: number
+    prior: number
+    people: { id: string; name: string; source: string; country: string; device: string; times: number; at: string }[]
+  }
   returning: number
   channels: { name: string; visitors: number }[]
   referrers: { domain: string; visitors: number }[]
   pages: { path: string; visitors: number }[]
 }
 
-// Short per-instance cache: Today can be reloaded often and each load is 7 PostHog queries.
+// Short per-instance cache: Today can be reloaded often and each load is 9 PostHog queries.
 const cache = new Map<string, { at: number; data: TodayActivity }>()
 const CACHE_MS = 5 * 60_000
 
@@ -45,6 +51,7 @@ export async function GET(request: NextRequest) {
     connected: false, days,
     visitors: { current: 0, prior: 0 },
     signups: { count: 0, prior: 0, people: [] },
+    signins: { count: 0, prior: 0, people: [] },
     returning: 0, channels: [], referrers: [], pages: [],
   }
 
@@ -66,7 +73,10 @@ export async function GET(request: NextRequest) {
   })()
   const notOwn = ownHost ? `AND properties.$referring_domain NOT ILIKE '%${ownHost}%'` : ''
 
-  const [visitorRows, signupCountRows, signupRows, returningRows, channelRows, referrerRows, pageRows] = await Promise.all([
+  // Sign-ins only count people who already had an account, so they don't repeat the signups.
+  const existingUsers = `person_id IN (SELECT id FROM persons WHERE is_identified = 1 AND created_at < ${since} ${personAnd})`
+
+  const [visitorRows, signupCountRows, signupRows, returningRows, channelRows, referrerRows, pageRows, signinCountRows, signinRows] = await Promise.all([
     q(`SELECT count(DISTINCT if(timestamp >= ${since}, person_id, null)), count(DISTINCT if(timestamp < ${since}, person_id, null))
        FROM events WHERE event = '$pageview' AND timestamp >= ${priorFrom}`),
     q(`SELECT countIf(created_at >= ${since}), countIf(created_at < ${since})
@@ -88,6 +98,14 @@ export async function GET(request: NextRequest) {
     q(`SELECT properties.$pathname, count(DISTINCT person_id) FROM events
        WHERE event = '$pageview' AND timestamp >= ${since} AND properties.$pathname IS NOT NULL AND properties.$pathname != ''
        GROUP BY 1 ORDER BY 2 DESC LIMIT 4`),
+    q(`SELECT count(DISTINCT if(timestamp >= ${since}, person_id, null)), count(DISTINCT if(timestamp < ${since}, person_id, null))
+       FROM events WHERE event = '$identify' AND timestamp >= ${priorFrom} AND ${existingUsers}`),
+    q(`SELECT toString(person_id), toString(max(timestamp)), count(),
+              any(coalesce(toString(person.properties.$name), '')), any(coalesce(toString(person.properties.$email), '')),
+              any(coalesce(toString(person.properties.$initial_utm_source), '')), any(coalesce(toString(person.properties.$initial_referring_domain), '')),
+              any(coalesce(toString(properties.$geoip_country_name), '')), any(coalesce(toString(properties.$device_type), ''))
+       FROM events WHERE event = '$identify' AND timestamp >= ${since} AND ${existingUsers}
+       GROUP BY person_id ORDER BY max(timestamp) DESC LIMIT 8`),
   ])
 
   const n = (v: unknown) => Number(v ?? 0) || 0
@@ -105,6 +123,19 @@ export async function GET(request: NextRequest) {
         source: normalizeSource(String(r[3]), String(r[4])),
         country: String(r[5]),
         landing: pathOf(String(r[6])),
+      })),
+    },
+    signins: {
+      count: n(signinCountRows?.[0]?.[0]),
+      prior: n(signinCountRows?.[0]?.[1]),
+      people: (signinRows ?? []).map(r => ({
+        id: String(r[0]),
+        at: String(r[1]),
+        times: n(r[2]),
+        name: String(r[3]) || String(r[4]) || 'Someone',
+        source: normalizeSource(String(r[5]), String(r[6])),
+        country: String(r[7]),
+        device: String(r[8]),
       })),
     },
     returning: n(returningRows?.[0]?.[0]),
