@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { brands, brandBlogs } from '@/lib/db/schema'
 import { eq, and, ne, count } from 'drizzle-orm'
 import Anthropic from '@anthropic-ai/sdk'
+import { generateFrektoBlog, getFrektoKey, slugify, type FrektoBlogMode } from '@/lib/frekto/blog'
 
 export const maxDuration = 60
 
@@ -25,6 +26,11 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}))
   const replaceId: string | null = body.replaceId ?? null
+  // Optional topic (e.g. one of the ideas from /api/blogs/topics); empty = let the writer pick.
+  const topic: string = typeof body.topic === 'string' ? body.topic.trim().slice(0, 300) : ''
+  // via 'frekto': Frekto writes it (and, for linkedin/blog, schedules it for tomorrow).
+  const via: 'growjin' | 'frekto' = body.via === 'frekto' ? 'frekto' : 'growjin'
+  const frektoMode: FrektoBlogMode = body.frektoMode === 'linkedin' || body.frektoMode === 'blog' ? body.frektoMode : 'draft'
 
   const [brand] = await db.select({
     id: brands.id,
@@ -62,6 +68,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ atLimit: true, limit, blogs: existing })
   }
 
+  if (via === 'frekto') {
+    const apiKey = await getFrektoKey(brand.id)
+    if (!apiKey) return NextResponse.json({ error: 'Frekto is not connected. Add your Frekto API key in Settings → Integrations.' }, { status: 400 })
+    const article = await generateFrektoBlog(
+      apiKey,
+      topic || `A useful article for ${brand.targetAudience || 'our customers'} about ${brand.keywords || brand.name}`,
+      frektoMode,
+    )
+    if ('error' in article) return NextResponse.json({ error: article.error }, { status: 502 })
+    // Only retire the old post once the new one exists.
+    if (replaceId) {
+      await db.update(brandBlogs).set({ status: 'replaced' }).where(and(eq(brandBlogs.id, replaceId), eq(brandBlogs.brandId, brand.id)))
+    }
+    const tags = article.hashtags.length ? `\n\n${article.hashtags.join(' ')}` : ''
+    const [blog] = await db.insert(brandBlogs).values({
+      brandId: brand.id,
+      title: article.heading,
+      slug: slugify(article.heading),
+      metaDescription: article.metaDescription || null,
+      targetKeyword: article.primaryKeyword || null,
+      content: `${article.body}${article.platform === 'linkedin' ? tags : ''}`,
+      status: article.scheduled ? 'scheduled' : 'draft',
+      frektoJobId: article.jobId || null,
+    }).returning({
+      id: brandBlogs.id,
+      title: brandBlogs.title,
+      slug: brandBlogs.slug,
+      metaTitle: brandBlogs.metaTitle,
+      metaDescription: brandBlogs.metaDescription,
+      targetKeyword: brandBlogs.targetKeyword,
+      content: brandBlogs.content,
+      status: brandBlogs.status,
+      createdAt: brandBlogs.createdAt,
+    })
+    return NextResponse.json({ blog: { ...blog, via: 'frekto', destination: article.scheduled ? article.platform : null } })
+  }
+
   // Mark replaced blog
   if (replaceId) {
     await db.update(brandBlogs)
@@ -75,6 +118,7 @@ export async function POST(req: NextRequest) {
   const userPrompt = `Generate a complete SEO blog post for ${brand.name} (${brand.websiteUrl}).
 ${brand.targetAudience ? `Target audience: ${brand.targetAudience}` : ''}
 ${brand.keywords ? `Brand keywords: ${brand.keywords}` : ''}
+${topic ? `Topic: ${topic}` : ''}
 
 Output STRICT JSON only — no markdown fences, no explanation:
 {

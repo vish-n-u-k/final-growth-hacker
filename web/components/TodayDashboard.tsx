@@ -529,12 +529,100 @@ interface GeneratedBlog {
   verificationStatus?: string | null
   liveUrl?: string | null
   createdAt: string | null
+  via?: 'frekto'
+  destination?: 'linkedin' | 'blog_mcp' | null
 }
 
-function WeeklyBlogSection({ initialData }: { initialData: BlogData }) {
+type BlogMode = 'draft' | 'linkedin' | 'blog'
+const BLOG_MODES: { key: BlogMode; label: string; hint: string }[] = [
+  { key: 'draft', label: 'Just write it', hint: 'Nothing is posted. Review and copy it here.' },
+  { key: 'linkedin', label: 'Post on LinkedIn', hint: 'Frekto schedules it on LinkedIn for tomorrow.' },
+  { key: 'blog', label: 'Publish on my blog', hint: 'Frekto publishes it tomorrow to the blog you connected in Frekto (Settings → Integrations).' },
+]
+
+// Topic box, ideas from Search Console / brand keywords, and (with Frekto) where the article goes.
+function BlogComposer({ frektoConnected, generating, topic, setTopic, mode, setMode, onWrite }: {
+  frektoConnected: boolean
+  generating: false | 'frekto' | 'growjin'
+  topic: string
+  setTopic: (t: string) => void
+  mode: BlogMode
+  setMode: (m: BlogMode) => void
+  onWrite: (via: 'frekto' | 'growjin') => void
+}) {
+  const [ideas, setIdeas] = useState<{ topic: string; why: string }[] | null>(null)
+  useEffect(() => {
+    let alive = true
+    fetch('/api/blogs/topics').then(r => r.ok ? r.json() : null).then(d => { if (alive) setIdeas(d?.ideas ?? []) }).catch(() => { if (alive) setIdeas([]) })
+    return () => { alive = false }
+  }, [])
+  const busy = generating !== false
+
+  return (
+    <div className="td-blog-compose">
+      <label className="td-blog-compose-label" htmlFor="td-blog-topic">What should it be about?</label>
+      <input
+        id="td-blog-topic"
+        className="td-blog-topic"
+        value={topic}
+        maxLength={300}
+        onChange={e => setTopic(e.target.value)}
+        placeholder="Leave empty and we'll pick a topic for you"
+      />
+      {ideas === null ? (
+        <p className="td-blog-ideas-note">Finding topic ideas…</p>
+      ) : ideas.length > 0 && (
+        <div className="td-blog-ideas">
+          {ideas.map(i => (
+            <button key={i.topic} type="button" className={`td-blog-idea${topic === i.topic ? ' is-on' : ''}`} onClick={() => setTopic(i.topic)} title={i.why}>
+              <span>{i.topic}</span>
+              <small>{i.why}</small>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {frektoConnected ? (
+        <>
+          <div className="td-blog-modes" role="radiogroup" aria-label="What to do with it">
+            {BLOG_MODES.map(m => (
+              <label key={m.key} className={`td-blog-mode${mode === m.key ? ' is-on' : ''}`}>
+                <input type="radio" name="td-blog-mode" checked={mode === m.key} onChange={() => setMode(m.key)} />
+                <span><b>{m.label}</b><small>{m.hint}</small></span>
+              </label>
+            ))}
+          </div>
+          <div className="td-blog-compose-actions">
+            <button className="td-cta-btn" onClick={() => onWrite('frekto')} disabled={busy}>
+              {generating === 'frekto' ? <><span className="td-btn-spinner" />Frekto is writing… (up to a minute)</> : mode === 'draft' ? 'Write with Frekto' : mode === 'linkedin' ? 'Write and schedule on LinkedIn' : 'Write and publish on my blog'}
+            </button>
+            <button className="td-ghost-btn" onClick={() => onWrite('growjin')} disabled={busy}>
+              {generating === 'growjin' ? <><span className="td-btn-spinner td-btn-spinner--dark" />Writing…</> : 'Longer SEO post instead'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="td-blog-compose-actions">
+            <button className="td-cta-btn" onClick={() => onWrite('growjin')} disabled={busy}>
+              {generating ? <><span className="td-btn-spinner" />Writing…</> : 'Write the blog post'}
+            </button>
+          </div>
+          <p className="td-blog-ideas-note">Connect Frekto in <a href="/settings?tab=integrations">Settings → Integrations</a> to post articles to LinkedIn or your blog automatically.</p>
+        </>
+      )}
+    </div>
+  )
+}
+
+function WeeklyBlogSection({ initialData, frektoConnected = false }: { initialData: BlogData; frektoConnected?: boolean }) {
   const [data, setData] = useState<BlogData>(initialData)
-  const [generating, setGenerating] = useState(false)
+  const [generating, setGenerating] = useState<false | 'frekto' | 'growjin'>(false)
   const [generatedBlog, setGeneratedBlog] = useState<GeneratedBlog | null>(null)
+  const [topic, setTopic] = useState('')
+  const [mode, setMode] = useState<BlogMode>('draft')
+  const [via, setVia] = useState<'frekto' | 'growjin'>(frektoConnected ? 'frekto' : 'growjin')
+  const [composeOpen, setComposeOpen] = useState(false)
   const [replaceId, setReplaceId] = useState<string | null>(null)
   const [markingId, setMarkingId] = useState<string | null>(null)
   const [verifyingId, setVerifyingId] = useState<string | null>(null)
@@ -542,14 +630,15 @@ function WeeklyBlogSection({ initialData }: { initialData: BlogData }) {
   const [showContent, setShowContent] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const generate = async (rid?: string) => {
-    setGenerating(true)
+  const generate = async (rid?: string, writer: 'frekto' | 'growjin' = via) => {
+    setVia(writer)
+    setGenerating(writer)
     setError(null)
     try {
       const res = await fetch('/api/blogs/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ replaceId: rid ?? replaceId ?? undefined }),
+        body: JSON.stringify({ replaceId: rid ?? replaceId ?? undefined, topic: topic || undefined, via: writer, frektoMode: mode }),
       })
       const json = await res.json()
       if (json.atLimit) {
@@ -661,6 +750,11 @@ function WeeklyBlogSection({ initialData }: { initialData: BlogData }) {
               {generatedBlog.status}
             </span>
           </div>
+          {generatedBlog.status === 'scheduled' && (
+            <div className="td-blog-scheduled-note">
+              Frekto will {generatedBlog.destination === 'blog_mcp' ? 'publish this on your blog' : 'post this on LinkedIn'} tomorrow. You can change or cancel it in Frekto.
+            </div>
+          )}
           {generatedBlog.metaDescription && (
             <div className="td-blog-meta-desc">{generatedBlog.metaDescription}</div>
           )}
@@ -743,7 +837,7 @@ function WeeklyBlogSection({ initialData }: { initialData: BlogData }) {
           <button
             className="td-cta-btn"
             onClick={() => replaceId && generate(replaceId)}
-            disabled={!replaceId || generating}
+            disabled={!replaceId || generating !== false}
             style={{ marginTop: 12 }}
           >
             {generating ? (
@@ -766,13 +860,7 @@ function WeeklyBlogSection({ initialData }: { initialData: BlogData }) {
                   ? `No blog this week — last post was ${daysSince} day${daysSince === 1 ? '' : 's'} ago.`
                   : 'No blogs generated yet.'}
               </p>
-              <button className="td-cta-btn" onClick={() => generate()} disabled={generating}>
-                {generating ? (
-                  <><span className="td-btn-spinner" />Generating...</>
-                ) : (
-                  'Generate this week\'s blog'
-                )}
-              </button>
+              <BlogComposer frektoConnected={frektoConnected} generating={generating} topic={topic} setTopic={setTopic} mode={mode} setMode={setMode} onWrite={w => generate(undefined, w)} />
               {error && <p className="td-blog-error">{error}</p>}
             </>
           ) : (
@@ -811,6 +899,14 @@ function WeeklyBlogSection({ initialData }: { initialData: BlogData }) {
                     )
                   )}
                 </div>
+              )}
+              {composeOpen ? (
+                <>
+                  <BlogComposer frektoConnected={frektoConnected} generating={generating} topic={topic} setTopic={setTopic} mode={mode} setMode={setMode} onWrite={w => generate(undefined, w)} />
+                  {error && <p className="td-blog-error">{error}</p>}
+                </>
+              ) : (
+                <button className="td-ghost-btn td-ghost-btn--sm td-blog-write-now" onClick={() => setComposeOpen(true)}>Write one now</button>
               )}
             </>
           )}
@@ -1008,7 +1104,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                 <div className="td-cards">{impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}</div>
               </>
             )}
-            <WeeklyBlogSection initialData={blogData} />
+            <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} />
             <SocialAnalytics />
             <SocialFeed posts={recentPosts} />
           </>
@@ -1099,7 +1195,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                       <button className="td-inline-panel-close" onClick={() => setExpandedCard(null)}>×</button>
                     </div>
                     <div style={{ padding: '8px 0' }}>
-                      <WeeklyBlogSection initialData={blogData} />
+                      <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} />
                     </div>
                   </div>
                 )}
@@ -1121,7 +1217,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
             )}
 
             {/* Weekly blog */}
-            <WeeklyBlogSection initialData={blogData} />
+            <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} />
 
             {/* Social analytics + post feed */}
             <SocialAnalytics />
