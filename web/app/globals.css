@@ -7668,3 +7668,11 @@ a.ta-more:hover { color: var(--text); }
 .ta-skel { display: block; height: 10px; margin: 4px 0; border-radius: 99px; background: var(--line); animation: ta-pulse 1.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .ta-skel { animation: none; } }
 .ta-skel--label { width: 90px; max-width: 70%; height: 8px; opacity: .7; }
+/* Today › What happened: website isn't joined up with signups in PostHog. */
+.ta-journey { margin: 14px 0 4px; padding: 12px 14px; border-radius: 10px; border: 1px solid color-mix(in srgb, #d97706 45%, var(--line)); background: color-mix(in srgb, #d97706 8%, var(--card)); }
+.ta-journey-title { font-size: 13.5px; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.ta-journey-body { font-size: 12.5px; line-height: 1.5; color: var(--text-dim); margin: 4px 0 6px; overflow-wrap: anywhere; }
+.ta-journey-steps summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--text); padding: 2px 0; }
+.ta-journey-steps ol { margin: 6px 0 4px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); overflow-wrap: anywhere; }
+.ta-journey-btn { margin-top: 8px; font: inherit; font-size: 13px; font-weight: 600; min-height: 36px; padding: 6px 14px; border-radius: 9px; border: 0; background: var(--green); color: var(--primary-foreground); cursor: pointer; }
+.ta-journey-btn:focus-visible, .ta-journey-steps summary:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }

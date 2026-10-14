@@ -26,7 +26,47 @@ const socialFromDomain = (d: string) => SOCIAL_DOMAINS.find(([re]) => re.test(d.
 // Each list shows the latest few; "View all" opens the full table (Analytics › details) for the same period.
 const SHOWN = 3
 
-export default function TodayActivity() {
+export type JourneyIssue = Activity['journey']
+
+// Plain-English fix steps for a website that isn't joined up with signups (shared with the Claude prompt).
+export function journeySteps(j: JourneyIssue): string[] {
+  const site = j.websiteHost || 'your website'
+  const app = j.appHost || 'your app'
+  return j.status === 'website-not-tracked'
+    ? [
+        `Install PostHog on ${site} with the same project API key as ${app} (PostHog → Settings → Project → Project API key, starts with phc_).`,
+        `Use cross_subdomain_cookie: true in posthog.init on both, so a visitor keeps the same ID when they move from ${site} to ${app}.`,
+        `In ${app}, call posthog.identify(<permanent user id>) once after signup/login, and posthog.reset() only on logout.`,
+      ]
+    : [
+        `Use the same PostHog project API key on ${site} and ${app}.`,
+        `Turn on cross_subdomain_cookie: true in posthog.init on both (they share the root domain), so the visitor keeps one ID across them.`,
+        `If they are on different root domains, pass the visitor's ID in signup links (posthog.get_distinct_id()) and bootstrap it in ${app}.`,
+        `In ${app}, call posthog.identify(<permanent user id>) once after signup/login, and posthog.reset() only on logout — never on page load.`,
+      ]
+}
+
+function JourneyNotice({ j, onFix, fixHint }: { j: JourneyIssue; onFix?: () => void; fixHint?: React.ReactNode }) {
+  const site = j.websiteHost
+  const title = j.status === 'website-not-tracked' ? `${site} isn't sending visits to PostHog` : `Visits to ${site} aren't linked to signups`
+  const body = j.status === 'website-not-tracked'
+    ? `Your signups are first seen on ${j.appHost || 'your app'} and ${site} sent no pageviews in the last 7 days, so you can't see which page or source brought people in.`
+    : `${site} is tracked, but ${j.signupsChecked - j.signupsFromWebsite} of ${j.signupsChecked} recent signups were first seen on ${j.appHost || 'another site'}. PostHog sees the website visit and the signup as different people, so their source and landing page are lost.`
+  return (
+    <div className="ta-journey" role="note">
+      <div className="ta-journey-title">{title}</div>
+      <p className="ta-journey-body">{body}</p>
+      <details className="ta-journey-steps">
+        <summary>How to fix it</summary>
+        <ol>{journeySteps(j).map((st, i) => <li key={i}>{st}</li>)}</ol>
+      </details>
+      {onFix && <button type="button" className="ta-journey-btn" onClick={onFix}>Fix with Claude</button>}
+      {fixHint}
+    </div>
+  )
+}
+
+export default function TodayActivity({ onFixJourney, journeyHint }: { onFixJourney?: (j: JourneyIssue) => void; journeyHint?: React.ReactNode } = {}) {
   const [days, setDays] = useState<1 | 7>(1)
   const [data, setData] = useState<Activity | null>(null)
   const [loading, setLoading] = useState(true)
@@ -100,6 +140,10 @@ export default function TodayActivity() {
               <span className="ta-label">came back</span>
             </div>
           </div>
+
+          {(data.journey?.status === 'website-not-tracked' || data.journey?.status === 'not-linked') && (
+            <JourneyNotice j={data.journey} onFix={onFixJourney ? () => onFixJourney(data.journey) : undefined} fixHint={journeyHint} />
+          )}
 
           {data.signups.people.length > 0 && (
             <div className="ta-block">

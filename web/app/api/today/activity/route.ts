@@ -4,6 +4,7 @@ import { getBrandForUser } from '@/lib/server-session'
 import { buildPostHogFilter } from '@/lib/posthog/filter'
 import { normalizeSource } from '@/lib/posthog/source'
 import { posthogForBrand } from '@/lib/posthog/client'
+import { classifyChannel, hostOfUrl, rootDomain } from '@/lib/posthog/channel'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -29,6 +30,10 @@ export interface TodayActivity {
   channels: { name: string; visitors: number }[]
   referrers: { domain: string; visitors: number }[]
   pages: { path: string; visitors: number }[]
+  // Are visits to the brand's website joined up with signups in PostHog? 'website-not-tracked' =
+  // no pageviews from the website at all; 'not-linked' = website is tracked but signups are first
+  // seen on another host (e.g. the app), so the visit before signup is lost.
+  journey: { status: 'ok' | 'website-not-tracked' | 'not-linked' | 'unknown'; websiteHost: string; appHost: string; websitePageviews: number; signupsChecked: number; signupsFromWebsite: number }
 }
 
 // Short per-instance cache: Today can be reloaded often and each load is 9 PostHog queries.
@@ -53,6 +58,7 @@ export async function GET(request: NextRequest) {
     signups: { count: 0, prior: 0, people: [] },
     signins: { count: 0, prior: 0, people: [] },
     returning: 0, channels: [], referrers: [], pages: [],
+    journey: { status: 'unknown', websiteHost: '', appHost: '', websitePageviews: 0, signupsChecked: 0, signupsFromWebsite: 0 },
   }
 
   const ph = await posthogForBrand(brand.id)
@@ -72,25 +78,31 @@ export async function GET(request: NextRequest) {
     try { return new URL(brand.websiteUrl).hostname.replace(/^www\./, '').replace(/[^a-z0-9.-]/gi, '') } catch { return '' }
   })()
   const notOwn = ownHost ? `AND properties.$referring_domain NOT ILIKE '%${ownHost}%'` : ''
+  const ownRoot = ownHost ? rootDomain(ownHost) : ''
+  // One person = one email: the same human can end up as several PostHog persons.
+  const personKey = `coalesce(nullIf(toString(properties.$email), ''), toString(id))`
 
   // Sign-ins only count people who already had an account, so they don't repeat the signups.
   const existingUsers = `person_id IN (SELECT id FROM persons WHERE is_identified = 1 AND created_at < ${since} ${personAnd})`
 
-  const [visitorRows, signupCountRows, signupRows, returningRows, channelRows, referrerRows, pageRows, signinCountRows, signinRows] = await Promise.all([
+  const [visitorRows, signupCountRows, signupRows, returningRows, channelRows, referrerRows, pageRows, websiteRows, signinCountRows, signinRows] = await Promise.all([
     q(`SELECT count(DISTINCT if(timestamp >= ${since}, person_id, null)), count(DISTINCT if(timestamp < ${since}, person_id, null))
        FROM events WHERE event = '$pageview' AND timestamp >= ${priorFrom}`),
-    q(`SELECT countIf(created_at >= ${since}), countIf(created_at < ${since})
+    q(`SELECT count(DISTINCT if(created_at >= ${since}, ${personKey}, null)), count(DISTINCT if(created_at < ${since}, ${personKey}, null))
        FROM persons WHERE is_identified = 1 AND created_at >= ${priorFrom} ${personAnd}`),
     q(`SELECT coalesce(toString(properties.$name), ''), coalesce(toString(properties.$email), ''), toString(created_at),
               coalesce(toString(properties.$initial_utm_source), ''), coalesce(toString(properties.$initial_referring_domain), ''),
               coalesce(toString(properties.$geoip_country_name), ''), coalesce(toString(properties.$initial_current_url), ''), toString(id)
        FROM persons WHERE is_identified = 1 AND created_at >= ${since} ${personAnd}
-       ORDER BY created_at DESC LIMIT 8`),
+       ORDER BY created_at DESC LIMIT 40`),
     q(`SELECT count(DISTINCT person_id) FROM events
        WHERE timestamp >= ${since}
        AND person_id IN (SELECT id FROM persons WHERE is_identified = 1 AND created_at < ${since} ${personAnd})`),
-    q(`SELECT coalesce(properties.$channel_type, 'Unknown'), count(DISTINCT person_id) FROM events
-       WHERE event = '$pageview' AND timestamp >= ${since} GROUP BY 1 ORDER BY 2 DESC LIMIT 5`),
+    q(`SELECT argMin(coalesce(toString(properties.$referring_domain), ''), timestamp),
+              argMin(coalesce(toString(properties.utm_source), ''), timestamp),
+              argMin(coalesce(toString(properties.utm_medium), ''), timestamp),
+              argMin(if(isNotNull(properties.gclid) OR isNotNull(properties.fbclid) OR isNotNull(properties.msclkid), 1, 0), timestamp)
+       FROM events WHERE event = '$pageview' AND timestamp >= ${since} GROUP BY person_id LIMIT 20000`),
     q(`SELECT properties.$referring_domain, count(DISTINCT person_id) FROM events
        WHERE event = '$pageview' AND timestamp >= ${since}
        AND properties.$referring_domain IS NOT NULL AND properties.$referring_domain NOT IN ('', '$direct') ${notOwn}
@@ -98,6 +110,11 @@ export async function GET(request: NextRequest) {
     q(`SELECT properties.$pathname, count(DISTINCT person_id) FROM events
        WHERE event = '$pageview' AND timestamp >= ${since} AND properties.$pathname IS NOT NULL AND properties.$pathname != ''
        GROUP BY 1 ORDER BY 2 DESC LIMIT 4`),
+    // Website pageviews in the last 7 days (the journey check below)
+    ownHost
+      ? q(`SELECT count() FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 7 day
+           AND (properties.$host = '${ownHost}' OR properties.$host = 'www.${ownHost}')`)
+      : Promise.resolve(null),
     q(`SELECT count(DISTINCT if(timestamp >= ${since}, person_id, null)), count(DISTINCT if(timestamp < ${since}, person_id, null))
        FROM events WHERE event = '$identify' AND timestamp >= ${priorFrom} AND ${existingUsers}`),
     q(`SELECT toString(person_id), toString(max(timestamp)), count(),
@@ -109,6 +126,40 @@ export async function GET(request: NextRequest) {
   ])
 
   const n = (v: unknown) => Number(v ?? 0) || 0
+
+  // Newest first, one row per email (duplicates of the same person are dropped).
+  const seenPeople = new Set<string>()
+  const signupPeople = (signupRows ?? []).filter(r => {
+    const email = String(r[1]).toLowerCase()
+    const id = `id:${String(r[7])}`
+    if (seenPeople.has(id) || (email && seenPeople.has(email))) return false
+    seenPeople.add(id)
+    if (email) seenPeople.add(email)
+    return true
+  })
+
+  const channelCounts = new Map<string, number>()
+  for (const r of channelRows ?? []) {
+    const ch = classifyChannel({ referringDomain: String(r[0] ?? ''), utmSource: String(r[1] ?? ''), utmMedium: String(r[2] ?? ''), paidClick: n(r[3]) === 1 }, ownRoot)
+    channelCounts.set(ch, (channelCounts.get(ch) ?? 0) + 1)
+  }
+  const channels = [...channelCounts].map(([name, visitors]) => ({ name, visitors })).sort((a, b) => b.visitors - a.visitors).slice(0, 6)
+
+  // Journey check: where were signups first seen, and does the website send pageviews at all?
+  const firstHosts = signupPeople.map(r => hostOfUrl(String(r[6]))).filter(Boolean)
+  const fromWebsite = firstHosts.filter(h => h === ownHost).length
+  const otherHosts = firstHosts.filter(h => h !== ownHost)
+  const appHost = otherHosts.sort((a, b) => otherHosts.filter(x => x === b).length - otherHosts.filter(x => x === a).length)[0] ?? ''
+  const websitePageviews = n(websiteRows?.[0]?.[0])
+  const journey: TodayActivity['journey'] = {
+    status: !ownHost || firstHosts.length < 2 || !websiteRows
+      ? 'unknown'
+      : fromWebsite / firstHosts.length >= 0.4 ? 'ok'
+      : websitePageviews === 0 ? 'website-not-tracked'
+      : 'not-linked',
+    websiteHost: ownHost, appHost, websitePageviews, signupsChecked: firstHosts.length, signupsFromWebsite: fromWebsite,
+  }
+
   const data: TodayActivity = {
     connected: true,
     days,
@@ -116,7 +167,7 @@ export async function GET(request: NextRequest) {
     signups: {
       count: n(signupCountRows?.[0]?.[0]),
       prior: n(signupCountRows?.[0]?.[1]),
-      people: (signupRows ?? []).map(r => ({
+      people: signupPeople.slice(0, 8).map(r => ({
         id: String(r[7]),
         name: String(r[0]) || String(r[1]) || 'Someone',
         at: String(r[2]),
@@ -139,9 +190,10 @@ export async function GET(request: NextRequest) {
       })),
     },
     returning: n(returningRows?.[0]?.[0]),
-    channels: (channelRows ?? []).map(r => ({ name: String(r[0]), visitors: n(r[1]) })).filter(c => c.visitors > 0),
+    channels,
     referrers: (referrerRows ?? []).map(r => ({ domain: String(r[0]).replace(/^www\./, ''), visitors: n(r[1]) })),
     pages: (pageRows ?? []).map(r => ({ path: String(r[0]), visitors: n(r[1]) })),
+    journey,
   }
   cache.set(cacheKey, { at: Date.now(), data })
   return NextResponse.json(data)

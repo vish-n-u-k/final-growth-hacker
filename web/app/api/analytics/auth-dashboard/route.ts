@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { classifyChannel, hostOfUrl, rootDomain } from '@/lib/posthog/channel'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
@@ -54,6 +55,20 @@ async function hogqlRows(host: string, projectId: string, apiKey: string, query:
 }
 
 // ── Route handler ──────────────────────────────────────────────────────────────
+
+function channelsFromFirstTouch(rows: unknown[][] | null, websiteUrl: string | null): { channel: string; visitors: number; views: number }[] {
+  const ownHost = websiteUrl ? hostOfUrl(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`) : ''
+  const ownRoot = ownHost ? rootDomain(ownHost) : ''
+  const acc = new Map<string, { visitors: number; views: number }>()
+  for (const r of rows ?? []) {
+    const ch = classifyChannel({ referringDomain: String(r[0] ?? ''), utmSource: String(r[1] ?? ''), utmMedium: String(r[2] ?? ''), paidClick: Number(r[3]) === 1 }, ownRoot)
+    const cur = acc.get(ch) ?? { visitors: 0, views: 0 }
+    cur.visitors += 1
+    cur.views += Number(r[4]) || 0
+    acc.set(ch, cur)
+  }
+  return [...acc].map(([channel, v]) => ({ channel, ...v })).sort((a, b) => b.visitors - a.visitors).slice(0, 8)
+}
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -205,8 +220,9 @@ export async function GET(request: NextRequest) {
         hogqlRows(host, projectId, key, `SELECT toDate(timestamp), count(DISTINCT person_id) FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 30 day GROUP BY 1 ORDER BY 1 ASC`),
         // Top paths
         hogqlRows(host, projectId, key, `SELECT properties.$pathname, count(DISTINCT person_id), count() FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 28 day AND properties.$pathname IS NOT NULL AND properties.$pathname != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10`),
-        // Channels
-        hogqlRows(host, projectId, key, `SELECT coalesce(properties.$channel_type, 'Unknown'), count(DISTINCT person_id), count() FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 28 day GROUP BY 1 ORDER BY 2 DESC LIMIT 8`),
+        // Channels: each visitor's first pageview in 28 days, classified below ($channel_type is
+        // a session property, so properties.$channel_type on events is always empty)
+        hogqlRows(host, projectId, key, `SELECT argMin(coalesce(toString(properties.$referring_domain), ''), timestamp), argMin(coalesce(toString(properties.utm_source), ''), timestamp), argMin(coalesce(toString(properties.utm_medium), ''), timestamp), argMin(if(isNotNull(properties.gclid) OR isNotNull(properties.fbclid) OR isNotNull(properties.msclkid), 1, 0), timestamp), count() FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 28 day GROUP BY person_id LIMIT 50000`),
         // Devices
         hogqlRows(host, projectId, key, `SELECT coalesce(properties.$device_type, 'Unknown'), count(DISTINCT person_id), count() FROM events WHERE event = '$pageview' AND timestamp >= now() - interval 28 day GROUP BY 1 ORDER BY 2 DESC`),
         // Countries
@@ -277,7 +293,7 @@ export async function GET(request: NextRequest) {
         bounceRatePrior: sessP?.[2] != null ? Number(sessP[2]) : null,
         visitorsChart: (visitorsChartRows ?? []).map(r => ({ date: String(r[0]), visitors: Number(r[1]) })),
         topPaths:  (topPathsRows  ?? []).map(r => ({ path: String(r[0]), visitors: Number(r[1]), views: Number(r[2]) })),
-        channels:  (channelsRows  ?? []).map(r => ({ channel: String(r[0]), visitors: Number(r[1]), views: Number(r[2]) })),
+        channels:  channelsFromFirstTouch(channelsRows, brand.websiteUrl),
         devices:   (devicesRows   ?? []).map(r => ({ device: String(r[0]), visitors: Number(r[1]), views: Number(r[2]) })),
         countries: (countriesRows ?? []).map(r => ({ country: String(r[0]), visitors: Number(r[1]) })),
         activeHours: (activeHoursRows ?? []).map(r => ({ dow: Number(r[0]), hour: Number(r[1]), users: Number(r[2]) })),
