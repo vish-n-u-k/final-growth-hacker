@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
+import ArrowIcon from '@/components/ArrowIcon'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useRoadmap } from '@/components/RoadmapContext'
 import { progressColor as ringColor, GROWTH_PHASES } from '@/lib/modules/roadmap'
@@ -2364,7 +2365,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <h2 className="gp-next-title">{nextStep.title}</h2>
               {nextStep.text && <p className="gp-next-text">{nextStep.text}</p>}
             </div>
-            {nextStep.cta && <button className="gp-next-cta" onClick={nextStep.cta.run}>{nextStep.cta.label} →</button>}
+            {nextStep.cta && <button className="gp-next-cta" onClick={nextStep.cta.run}>{nextStep.cta.label} <ArrowIcon /></button>}
           </section>
           )}
 
@@ -3707,7 +3708,7 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
                             {p.topic && <p style={{ fontSize: '13px', color: 'var(--text-dim)', margin: '0 0 6px', lineHeight: 1.4 }}>{p.topic}</p>}
                             {p.outputUrl ? (
                               <a href={p.outputUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: '12px', fontWeight: 600, color: mMeta.color, textDecoration: 'none' }}>
-                                {mBrief?.outputFormat === 'mp4' ? 'Watch video →' : 'View full image →'}
+                                {mBrief?.outputFormat === 'mp4' ? 'Watch video' : 'View full image'} <ArrowIcon size={12} />
                               </a>
                             ) : (
                               <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}>Rendering…</span>

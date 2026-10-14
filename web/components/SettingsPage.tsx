@@ -680,6 +680,11 @@ function IntegrationsSection({
 
   const [openGroup, setOpenGroup] = useState<string | null>(null)
   const [openItem, setOpenItem] = useState<string | null>(null)
+  // Connected-but-broken data sources, so a group shows "1 not working" without opening it.
+  const [brokenProviders, setBrokenProviders] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    loadHealth().then(list => setBrokenProviders(new Set(list.filter(h => h.status === 'error').map(h => h.provider))))
+  }, [])
   const toggleGroup = (key: string) => {
     setOpenGroup((prev) => (prev === key ? null : key))
     setOpenItem(null)
@@ -697,6 +702,7 @@ function IntegrationsSection({
         const isOpen = openGroup === groupKey
         const connectedCount = (defs ?? []).filter((def) => connected[def.provider]?.status === 'connected').length
         const notConnectedCount = (defs?.length ?? 0) - connectedCount
+        const brokenCount = (defs ?? []).filter((def) => connected[def.provider]?.status === 'connected' && brokenProviders.has(def.provider)).length
         return (
           <div key={groupKey} className="st-int-group">
             <button
@@ -716,6 +722,9 @@ function IntegrationsSection({
                 {groupMeta.label}
                 {connectedCount > 0 && (
                   <span className="st-int-group-count">{connectedCount} connected</span>
+                )}
+                {brokenCount > 0 && (
+                  <span className="st-int-group-count st-int-group-count-error">{brokenCount} not working</span>
                 )}
                 {notConnectedCount > 0 && (
                   <span className="st-int-group-count st-int-group-count-muted">{notConnectedCount} not connected</span>
@@ -776,6 +785,44 @@ const PROVIDER_ICON_DOMAIN: Record<string, string> = {
   meta_ads: 'business.facebook.com',
   frekto: 'frekto.ai',
   tiktok: 'tiktok.com',
+}
+
+// Live "is this connection really working?" line for data sources (lib/integrations/health.ts).
+// One request per page load is shared by every card; "Test again" re-runs the checks.
+type Health = { provider: string; status: 'ok' | 'no-data' | 'error'; detail: string }
+const HEALTH_PROVIDERS = new Set(['posthog', 'ga4_api', 'gsc_api', 'frekto'])
+let healthPromise: Promise<Health[]> | null = null
+function loadHealth(fresh = false): Promise<Health[]> {
+  if (!healthPromise || fresh) {
+    healthPromise = fetch(`/api/integrations/health${fresh ? '?fresh=1' : ''}`)
+      .then(r => (r.ok ? r.json() : { integrations: [] }))
+      .then((d: { integrations?: Health[] }) => d.integrations ?? [])
+      .catch(() => [])
+  }
+  return healthPromise
+}
+
+function HealthLine({ provider, onStatus, silent = false }: { provider: string; onStatus?: (s: Health['status'] | null) => void; silent?: boolean }) {
+  const [h, setH] = useState<Health | null | undefined>(undefined)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    let alive = true
+    loadHealth().then(list => { if (!alive) return; const x = list.find(i => i.provider === provider) ?? null; setH(x); onStatus?.(x?.status ?? null) })
+    return () => { alive = false }
+  }, [provider]) // eslint-disable-line react-hooks/exhaustive-deps
+  const retest = async () => {
+    setBusy(true)
+    const x = (await loadHealth(true)).find(i => i.provider === provider) ?? null
+    setH(x); onStatus?.(x?.status ?? null); setBusy(false)
+  }
+  if (!HEALTH_PROVIDERS.has(provider) || silent) return null
+  const label = h === undefined || busy ? 'Checking the connection…' : !h ? 'Not checked' : h.status === 'ok' ? `Working. ${h.detail}` : h.status === 'no-data' ? `Connected, but no data. ${h.detail}` : `Not working. ${h.detail}`
+  return (
+    <div className={`st-health st-health--${busy || h === undefined ? 'checking' : h?.status ?? 'none'}`} role="status">
+      <span>{label}</span>
+      <button type="button" className="st-health-retest" onClick={retest} disabled={busy}>Test again</button>
+    </div>
+  )
 }
 
 function ProviderIcon({ provider }: { provider: string }) {
@@ -950,6 +997,7 @@ function IntegrationCard({
   const router = useRouter()
 
   const isConnected = !!connected && connected.status === 'connected'
+  const [healthStatus, setHealthStatus] = useState<'ok' | 'no-data' | 'error' | null>(null)
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1002,14 +1050,19 @@ function IntegrationCard({
         <ProviderIcon provider={def.provider} />
         <span className="st-int-provider-name">{def.name}</span>
         <span
-          className={`st-int-badge-dot${isConnected ? ' st-int-badge-dot-connected' : ''}`}
-          title={isConnected ? 'Connected' : 'Not connected'}
+          className={`st-int-badge-dot${isConnected ? ' st-int-badge-dot-connected' : ''}${isConnected && healthStatus === 'error' ? ' st-int-badge-dot-error' : ''}${isConnected && healthStatus === 'no-data' ? ' st-int-badge-dot-warn' : ''}`}
+          title={!isConnected ? 'Not connected' : healthStatus === 'error' ? 'Connected but not working' : healthStatus === 'no-data' ? 'Connected, no data yet' : 'Connected'}
         />
       </button>
+      {isConnected && HEALTH_PROVIDERS.has(def.provider) && !isOpen && healthStatus === 'error' && (
+        <p className="st-health-inline">Not working: open to see why</p>
+      )}
+      {isConnected && HEALTH_PROVIDERS.has(def.provider) && !isOpen && <HealthLine provider={def.provider} onStatus={setHealthStatus} silent />}
 
       {isOpen && (
       <div className="st-int-card-body">
       <p className="st-int-desc">{def.description}</p>
+      {isConnected && <HealthLine provider={def.provider} onStatus={setHealthStatus} />}
       {isConnected && !editing ? (
         <div className="st-int-actions">
           <button className="st-btn-ghost" onClick={() => setEditing(true)}>Edit credentials</button>

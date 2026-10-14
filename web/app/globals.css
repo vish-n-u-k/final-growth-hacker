@@ -7676,3 +7676,33 @@ a.ta-more:hover { color: var(--text); }
 .ta-journey-steps ol { margin: 6px 0 4px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); overflow-wrap: anywhere; }
 .ta-journey-btn { margin-top: 8px; font: inherit; font-size: 13px; font-weight: 600; min-height: 36px; padding: 6px 14px; border-radius: 9px; border: 0; background: var(--green); color: var(--primary-foreground); cursor: pointer; }
 .ta-journey-btn:focus-visible, .ta-journey-steps summary:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+/* "View details" on bad-news cards (deleted accounts, cancellations): neutral, not the green "good" style. */
+.an-stat-more--neutral { background: var(--card); color: var(--text); border-color: var(--line); }
+.an-stat--open:hover .an-stat-more--neutral, .an-stat--open:focus-visible .an-stat-more--neutral { background: var(--bg-soft); border-color: var(--text-faint); color: var(--text); }
+.ta-view-all, .ta-more-link, .ta-connect { display: inline-flex; align-items: center; gap: 5px; }
+.ta-view-all { display: flex; }
+/* Analytics header: each data source with its live status (lib/integrations/health.ts). */
+.an-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 4px; font-size: 12px; color: var(--text-faint); }
+.an-src { display: inline-flex; align-items: center; gap: 5px; }
+.an-src i { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); }
+.an-src--ok i { background: var(--progress-good); }
+.an-src--no-data { color: var(--warn); }
+.an-src--no-data i { background: var(--warn); }
+.an-src--error { color: var(--crit); font-weight: 600; }
+.an-src--error i { background: var(--crit); }
+.an-broken { margin: 0 0 16px; padding: 12px 14px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--crit) 40%, var(--line)); background: var(--crit-soft); color: var(--text); font-size: 13px; line-height: 1.5; }
+.an-broken ul { margin: 6px 0 8px; padding-left: 18px; color: var(--text-dim); overflow-wrap: anywhere; }
+.an-broken a { color: var(--crit); font-weight: 600; text-decoration: none; }
+/* Settings › Integrations: live connection check. */
+.st-health { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 8px 0 12px; padding: 9px 12px; border-radius: 9px; font-size: 12.5px; line-height: 1.45; border: 1px solid var(--line); background: var(--bg-soft); color: var(--text-dim); overflow-wrap: anywhere; }
+.st-health span { flex: 1 1 220px; min-width: 0; }
+.st-health--ok { border-color: color-mix(in srgb, var(--progress-good) 40%, var(--line)); color: var(--text); }
+.st-health--no-data { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); background: var(--warn-soft); color: var(--text); }
+.st-health--error { border-color: color-mix(in srgb, var(--crit) 45%, var(--line)); background: var(--crit-soft); color: var(--text); }
+.st-health-retest { flex: none; font: inherit; font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 7px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; }
+.st-health-retest:disabled { opacity: .6; cursor: default; }
+.st-int-badge-dot-error { background: var(--crit) !important; }
+.st-int-badge-dot-warn { background: var(--warn) !important; }
+.st-health-inline { margin: -4px 0 8px 40px; font-size: 12px; font-weight: 600; color: var(--crit); }
+.an-broken a { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.st-int-group-count-error { background: var(--crit-soft) !important; color: var(--crit) !important; border-color: color-mix(in srgb, var(--crit) 40%, transparent) !important; }

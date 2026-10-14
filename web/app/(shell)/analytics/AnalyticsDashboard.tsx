@@ -9,6 +9,7 @@ import {
   RefreshCw, UserPlus, LogIn, Crown, UserMinus,
   Trash2, MessageSquare, Star, TrendingDown, TrendingUp,
   Zap, ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle,
+  ArrowUp, ArrowDown,
 } from 'lucide-react'
 import DailySummaryCard from './daily/DailySummaryCard'
 import ProjectedMrr from '@/components/ProjectedMrr'
@@ -162,11 +163,12 @@ function SourcePill({ children }: { children: React.ReactNode }) {
 
 function Delta({ value, invertGood = false, period = 'yesterday' }: { value: number; invertGood?: boolean; period?: string }) {
   if (value === 0) return <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>Same as {period}</span>
+  // Green when the change is good, red when it's bad (for deletions and churn, up is bad).
   const good = invertGood ? value < 0 : value > 0
-  const Icon = value > 0 ? TrendingUp : TrendingDown
+  const Icon = value > 0 ? ArrowUp : ArrowDown
   return (
-    <span style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500, color: good ? 'var(--accent-foreground)' : 'var(--text-dim)' }}>
-      <Icon size={13} />
+    <span style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500, color: good ? 'var(--accent-foreground)' : 'var(--crit)' }}>
+      <Icon size={13} aria-hidden="true" />
       {value > 0 ? '+' : ''}{value} vs {period}
     </span>
   )
@@ -185,8 +187,9 @@ function ComingSoonBadge() {
 }
 
 function StatCard({
-  icon: Icon, iconTone, label, value, source, deltaValue, invertGood, loading, comingSoon, period, onOpen,
+  icon: Icon, iconTone, label, value, source, deltaValue, invertGood, loading, comingSoon, period, onOpen, broken,
 }: {
+  broken?: boolean // the source isn't working: show a dash instead of a misleading 0
   icon: React.ElementType; iconTone: string; label: string; value: string | number
   source: string; deltaValue: number; invertGood?: boolean; loading?: boolean; comingSoon?: boolean
   period?: string; onOpen?: () => void // opens "View details" (the people behind the number)
@@ -224,18 +227,20 @@ function StatCard({
           filter: comingSoon ? 'blur(6px)' : 'none',
           userSelect: comingSoon ? 'none' : 'auto',
         }}>
-          {comingSoon ? '—' : loading ? '—' : typeof value === 'number' ? fmt(value) : value}
+          {comingSoon || loading || broken ? '—' : typeof value === 'number' ? fmt(value) : value}
         </div>
         <div style={{ fontSize: 14, marginTop: 6, color: 'var(--text-dim)' }}>{label}</div>
       </div>
       {comingSoon
         ? <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>Connect Stripe to unlock</span>
+        : broken
+          ? <span style={{ fontSize: 13, color: 'var(--crit)' }}>{source} isn&apos;t working</span>
         : loading
           ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>loading…</span>
           : (
             <div className="an-stat-foot">
               <Delta value={deltaValue} invertGood={invertGood} period={period} />
-              {onOpen && <span className="an-stat-more">View details →</span>}
+              {onOpen && <span className={`an-stat-more${invertGood ? ' an-stat-more--neutral' : ''}`}>View details <ArrowRight size={13} aria-hidden="true" /></span>}
             </div>
           )
       }
@@ -451,6 +456,16 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   const [redirectTarget, setRedirectTarget] = useState<string | null>(null)
   const [data, setData] = useState<DashboardData | null>(null)
   const [phLoading, setPhLoading] = useState(true)
+  // Is each connected source really working? Broken ones are flagged and their numbers hidden.
+  const [health, setHealth] = useState<{ provider: string; name: string; status: 'ok' | 'no-data' | 'error'; detail: string }[] | null>(null)
+  useEffect(() => {
+    // Only the sources this page reads from (Frekto etc. are checked in Settings)
+    fetch('/api/integrations/health').then(r => r.ok ? r.json() : null)
+      .then(d => setHealth(((d?.integrations ?? []) as { provider: string; name: string; status: 'ok' | 'no-data' | 'error'; detail: string }[]).filter(h => ['posthog', 'ga4_api', 'gsc_api'].includes(h.provider))))
+      .catch(() => setHealth([]))
+  }, [])
+  const broken = (health ?? []).filter(h => h.status === 'error')
+  const phBroken = broken.some(h => h.provider === 'posthog')
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [trafficData, setTrafficData] = useState<TrafficData | null>(null)
@@ -570,9 +585,18 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               }}>
                 User Analytics
               </h1>
-              <p style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 2 }}>
-                {brand.name} · {[data?.posthogConnected && 'PostHog', gsc?.connected && 'GSC', ga4?.connected && 'GA4'].filter(Boolean).join(' · ') || 'No integrations connected'}
-              </p>
+              <div className="an-sources">
+                <span>{brand.name}</span>
+                {health === null
+                  ? <span className="an-src an-src--checking">Checking connections…</span>
+                  : health.length === 0
+                    ? <span className="an-src">No integrations connected</span>
+                    : health.map(h => (
+                        <span key={h.provider} className={`an-src an-src--${h.status}`} title={h.detail}>
+                          <i aria-hidden="true" />{h.name}{h.status === 'error' ? ': not working' : h.status === 'no-data' ? ': no data' : ''}
+                        </span>
+                      ))}
+              </div>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
@@ -587,7 +611,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                   boxShadow: view === v ? '0 1px 2px rgba(0,0,0,.08)' : 'none',
                   textTransform: 'capitalize',
                 }}>
-                  {v === 'users' ? 'Users' : 'Website'}
+                  {v === 'users' ? 'App' : 'Website'}
                 </button>
               ))}
             </div>
@@ -659,7 +683,14 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
           <h2 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-faint)', marginBottom: 14 }}>
             Yesterday
           </h2>
-          <DailySummaryCard />
+          {broken.length > 0 && (
+            <div className="an-broken" role="alert">
+              <strong>{broken.map(b => b.name).join(', ')} {broken.length === 1 ? 'isn\'t' : 'aren\'t'} working, so {broken.length === 1 ? 'its' : 'their'} numbers are hidden below.</strong>
+              <ul>{broken.map(b => <li key={b.provider}><b>{b.name}:</b> {b.detail}</li>)}</ul>
+              <a href="/settings?tab=integrations">Fix in Settings <ArrowRight size={12} aria-hidden="true" style={{ verticalAlign: '-2px' }} /></a>
+            </div>
+          )}
+          <DailySummaryCard hidePosthog={phBroken} />
         </section>
 
         {/* Last 24 hours — without PostHog these would all read 0, which looks like real data */}
@@ -670,7 +701,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             </h2>
             <div style={{ background: 'var(--card)', border: '1px dashed var(--line)', borderRadius: 14, padding: '18px 20px', fontSize: 13.5, color: 'var(--text-dim)', lineHeight: 1.5 }}>
               New signups, sign-ins and daily/monthly active users show here once PostHog is connected.{' '}
-              <a href="/settings?tab=integrations" style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect PostHog →</a>
+              <a href="/settings?tab=integrations" style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect PostHog <ArrowRight size={12} aria-hidden="true" style={{ verticalAlign: '-2px' }} /></a>
             </div>
           </section>
         ) : (
@@ -688,6 +719,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 source={item.source} deltaValue={item.delta}
                 invertGood={item.invertGood}
                 loading={item.loading}
+                broken={phBroken && item.source === 'PostHog'}
                 comingSoon={item.comingSoon}
                 period={item.period}
                 onOpen={item.metric && data?.posthogConnected ? () => router.push(`/analytics/details?type=${item.metric}&range=${item.range ?? '24h'}`) : undefined}
@@ -707,6 +739,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 source={item.source} deltaValue={item.delta}
                 invertGood={item.invertGood}
                 loading={item.loading}
+                broken={phBroken && item.source === 'PostHog'}
                 comingSoon={item.comingSoon}
                 period={item.period}
                 onOpen={item.metric && data?.posthogConnected ? () => router.push(`/analytics/details?type=${item.metric}&range=${item.range ?? '24h'}`) : undefined}
@@ -737,7 +770,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               {data?.posthogConnected
                 ? 'Retention and your signup funnel appear here once there are a few days of signups to compare.'
                 : <>Retention and your signup funnel appear here once PostHog is connected.{' '}
-                    <a href="/settings?tab=integrations" style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect PostHog →</a></>}
+                    <a href="/settings?tab=integrations" style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect PostHog <ArrowRight size={12} aria-hidden="true" style={{ verticalAlign: '-2px' }} /></a></>}
             </div>
           )}
         </section>

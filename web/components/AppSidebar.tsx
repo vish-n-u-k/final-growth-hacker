@@ -1,6 +1,7 @@
 'use client'
 
 import Link, { useLinkStatus } from 'next/link'
+import ArrowIcon from '@/components/ArrowIcon'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { isComingSoon } from '@/lib/features'
@@ -165,7 +166,7 @@ function RoadmapNav({ modules, pathname, onNavigate, showUpgrade }: {
           </div>
         )
       })}
-      {showUpgrade && hasPro && <Link href="/pricing" className="app-rm-upgrade" onClick={onNavigate}>Unlock more steps with Pro →</Link>}
+      {showUpgrade && hasPro && <Link href="/pricing" className="app-rm-upgrade" onClick={onNavigate}>Unlock more steps with Pro <ArrowIcon size={12} /></Link>}
     </div>
   )
 }

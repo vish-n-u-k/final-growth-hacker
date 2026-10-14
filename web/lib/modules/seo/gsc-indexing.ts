@@ -46,7 +46,7 @@ async function gscFetch<T>(token: string, url: string, init?: RequestInit): Prom
 
 // Picks the Search Console property that covers this URL: the longest URL-prefix property it
 // starts with, else a domain property (sc-domain:example.com) for its host.
-function pickProperty(entries: { siteUrl: string; permissionLevel: string }[], pageUrl: string): string | null {
+export function pickProperty(entries: { siteUrl: string; permissionLevel: string }[], pageUrl: string): string | null {
   const usable = entries.filter(e => e.permissionLevel !== 'siteUnverifiedUser')
   const prefix = usable
     .filter(e => !e.siteUrl.startsWith('sc-domain:') && pageUrl.startsWith(e.siteUrl))

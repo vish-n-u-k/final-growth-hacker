@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import ArrowIcon from '@/components/ArrowIcon'
 import Link from 'next/link'
 import PersonPanel, { ago } from '@/components/PersonPanel'
 
@@ -96,7 +97,7 @@ function Funnel({ data }: { data: ApiResponse }) {
       )}
       {missing.length > 0 && (
         <p className="aj-muted aj-missing">
-          Connect {missing.join(', ')} to see the full path. <Link href="/settings?tab=integrations">Integrations →</Link>
+          Connect {missing.join(', ')} to see the full path. <Link href="/settings?tab=integrations">Integrations <ArrowIcon size={12} /></Link>
         </p>
       )}
     </section>
@@ -256,7 +257,7 @@ export default function AuthNewDashboard({ brand }: { brand: { id: string; name:
         <section className="aj-card">
           <h2 className="aj-h2">Connect your analytics</h2>
           <p className="aj-muted">Connect PostHog, Google Analytics or Search Console to see how people find you and who signs up.</p>
-          <Link href="/settings?tab=integrations" className="aj-cta">Go to Integrations →</Link>
+          <Link href="/settings?tab=integrations" className="aj-cta">Go to Integrations <ArrowIcon /></Link>
         </section>
       ) : data && (
         <div className={`aj-stack${loading ? ' ta-dim' : ''}`}>

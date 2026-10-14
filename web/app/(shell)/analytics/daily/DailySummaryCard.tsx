@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Globe, UserPlus, KeyRound, Crown, UserMinus, BarChart2, Flame, AlertTriangle, RefreshCw, Loader2 } from 'lucide-react'
+import { Globe, UserPlus, KeyRound, Crown, UserMinus, BarChart2, Flame, AlertTriangle, RefreshCw, Loader2, ArrowUp, ArrowDown } from 'lucide-react'
 
 interface Channel { name: string; sessions: number }
 interface TopPage { page: string; sessions: number; engagementRate: number | null }
@@ -34,25 +34,26 @@ interface DailySummary {
   flags: string[]
 }
 
-// delta_pct: null means no prior baseline → show → with no %
-// prior === 0 treated as no baseline per spec
-function Delta({ current, prior }: { current: number; prior: number }) {
-  if (prior === 0) {
-    return <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>→</span>
-  }
+// Change vs the day before. Nothing is shown when there's no change or no earlier number to
+// compare with (a bare arrow next to 0 read as "something happened"). Green = good, red = bad;
+// for metrics where up is bad (cancellations), pass invertGood.
+function Delta({ current, prior, invertGood = false }: { current: number; prior: number; invertGood?: boolean }) {
+  if (prior === 0) return null
   const pct = Math.round(((current - prior) / prior) * 100)
-  if (pct === 0) return <span style={{ fontSize: 12, color: 'var(--text-faint)', fontWeight: 500 }}>→ 0%</span>
+  if (pct === 0) return null
   const up = pct > 0
+  const good = invertGood ? !up : up
+  const Icon = up ? ArrowUp : ArrowDown
   return (
-    <span style={{ fontSize: 12, color: up ? 'var(--green-bright)' : '#f87171', fontWeight: 500 }}>
-      {up ? '↑' : '↓'} {Math.abs(pct)}%
+    <span style={{ fontSize: 12, color: good ? 'var(--accent-foreground)' : 'var(--crit)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+      <Icon size={12} aria-hidden="true" />{Math.abs(pct)}%
     </span>
   )
 }
 
 const Divider = () => <div style={{ height: 1, background: 'var(--line)' }} />
 
-export default function DailySummaryCard() {
+export default function DailySummaryCard({ hidePosthog = false }: { hidePosthog?: boolean } = {}) {
   const [data, setData]       = useState<DailySummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
@@ -85,8 +86,12 @@ export default function DailySummaryCard() {
     </div>
   )
 
-  const { traffic, users, engagement } = data
-  const flags = data.flags ?? []
+  const { traffic } = data
+  // PostHog failing its health check: hide its numbers rather than show zeros that look real.
+  const users = hidePosthog ? null : data.users
+  const engagement = hidePosthog ? null : data.engagement
+  // Warnings are worked out from the numbers; with PostHog down they'd be based on fake zeros.
+  const flags = hidePosthog ? [] : (data.flags ?? [])
 
   return (
     <div style={{
@@ -151,23 +156,24 @@ export default function DailySummaryCard() {
             { icon: <UserPlus size={13} color='var(--text-dim)' />, label: 'New signups',   current: users.signups,      prior: users.signupsPrior },
             { icon: <KeyRound  size={13} color='var(--text-dim)' />, label: 'Sign-ins',      current: users.signins,      prior: users.signinsPrior },
             { icon: <Crown     size={13} color='var(--gold)'     />, label: 'Became PRO',   current: users.becamePro,    prior: users.becameProPrior },
-            { icon: <UserMinus size={13} color='var(--text-dim)' />, label: 'Unsubscribed', current: users.unsubscribed, prior: null as number | null },
-          ].map(({ icon, label, current, prior }) => (
+            { icon: <UserMinus size={13} color={users.unsubscribed > 0 ? 'var(--crit)' : 'var(--text-dim)'} />, label: 'Unsubscribed', current: users.unsubscribed, prior: null as number | null, bad: true },
+          ].map(({ icon, label, current, prior, bad }) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                 {icon}
                 <span style={{ fontSize: 13, color: 'var(--text)' }}>{label}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{current}</span>
-                {prior !== null && <Delta current={current} prior={prior} />}
+                {/* Bad-news counts (cancellations) are red when there are any */}
+                <span style={{ fontSize: 14, fontWeight: 600, color: bad && current > 0 ? 'var(--crit)' : 'var(--text)' }}>{current}</span>
+                {prior !== null && <Delta current={current} prior={prior} invertGood={bad} />}
               </div>
             </div>
           ))}
         </div>
       ) : (
         <div style={{ padding: '12px 18px', fontSize: 12, color: 'var(--text-faint)' }}>
-          Connect PostHog to see user metrics.
+          {hidePosthog ? 'PostHog isn\'t working right now, so user numbers are hidden.' : 'Connect PostHog to see user metrics.'}
         </div>
       )}
 
@@ -187,7 +193,7 @@ export default function DailySummaryCard() {
             </div>
           </div>
         ) : (
-          <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>Connect PostHog to see engagement.</span>
+          <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>{hidePosthog ? 'PostHog isn\'t working right now.' : 'Connect PostHog to see engagement.'}</span>
         )}
 
         {traffic?.topPage && (

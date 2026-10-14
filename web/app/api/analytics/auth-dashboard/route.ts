@@ -294,8 +294,8 @@ export async function GET(request: NextRequest) {
         visitorsChart: (visitorsChartRows ?? []).map(r => ({ date: String(r[0]), visitors: Number(r[1]) })),
         topPaths:  (topPathsRows  ?? []).map(r => ({ path: String(r[0]), visitors: Number(r[1]), views: Number(r[2]) })),
         channels:  channelsFromFirstTouch(channelsRows, brand.websiteUrl),
-        devices:   (devicesRows   ?? []).map(r => ({ device: String(r[0]), visitors: Number(r[1]), views: Number(r[2]) })),
-        countries: (countriesRows ?? []).map(r => ({ country: String(r[0]), visitors: Number(r[1]) })),
+        devices:   (devicesRows   ?? []).filter(r => r[0] != null && r[1] != null).map(r => ({ device: String(r[0]), visitors: Number(r[1]), views: Number(r[2]) || 0 })),
+        countries: (countriesRows ?? []).filter(r => r[0] != null && r[1] != null).map(r => ({ country: String(r[0]), visitors: Number(r[1]) })),
         activeHours: (activeHoursRows ?? []).map(r => ({ dow: Number(r[0]), hour: Number(r[1]), users: Number(r[2]) })),
       }
 

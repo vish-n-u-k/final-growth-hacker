@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { TodayActivity as Activity } from '@/app/api/today/activity/route'
 import PersonPanel, { ago } from '@/components/PersonPanel'
 import SocialIcon from '@/components/SocialIcon'
+import { ArrowRight } from 'lucide-react'
 
 // "What happened" on Today: visitors, new signups (and where each came from), returning users
 // and top sources for the last 24 hours or 7 days. Data: /api/today/activity (PostHog).
@@ -93,7 +94,21 @@ export default function TodayActivity({ onFixJourney, journeyHint }: { onFixJour
         </div>
         <section className="ta ta--connect">
           <p className="ta-muted">See who visits, who signs up and where they come from.</p>
-          <Link href="/settings?tab=integrations" className="ta-connect">Connect PostHog →</Link>
+          <Link href="/settings?tab=integrations" className="ta-connect">Connect PostHog <ArrowRight size={13} aria-hidden="true" /></Link>
+        </section>
+      </div>
+    )
+  }
+
+  if (data?.error) {
+    return (
+      <div className="ta-wrap">
+        <div className="ta-head">
+          <div className="ta-title">What happened</div>
+        </div>
+        <section className="ta ta--connect">
+          <p className="ta-muted">{data.error}</p>
+          <Link href="/settings?tab=integrations" className="ta-connect">Open Integrations <ArrowRight size={13} aria-hidden="true" /></Link>
         </section>
       </div>
     )
@@ -170,7 +185,7 @@ export default function TodayActivity({ onFixJourney, journeyHint }: { onFixJour
                 })}
               </ul>
               {data.signups.count > SHOWN && (
-                <Link href={`/analytics/details?type=signups&range=${range}`} className="ta-view-all">View all {data.signups.count} signups →</Link>
+                <Link href={`/analytics/details?type=signups&range=${range}`} className="ta-view-all">View all {data.signups.count} signups <ArrowRight size={14} aria-hidden="true" /></Link>
               )}
             </div>
           )}
@@ -202,7 +217,7 @@ export default function TodayActivity({ onFixJourney, journeyHint }: { onFixJour
                 })}
               </ul>
               {data.signins.count > SHOWN && (
-                <Link href={`/analytics/details?type=signins&range=${range}`} className="ta-view-all">View all {data.signins.count} sign-ins →</Link>
+                <Link href={`/analytics/details?type=signins&range=${range}`} className="ta-view-all">View all {data.signins.count} sign-ins <ArrowRight size={14} aria-hidden="true" /></Link>
               )}
             </div>
           )}
@@ -239,7 +254,7 @@ export default function TodayActivity({ onFixJourney, journeyHint }: { onFixJour
       )}
 
       {data?.connected && (
-        <Link href="/analytics" className="ta-more-link">See full analytics →</Link>
+        <Link href="/analytics" className="ta-more-link">See full analytics <ArrowRight size={13} aria-hidden="true" /></Link>
       )}
     </section>
     </div>

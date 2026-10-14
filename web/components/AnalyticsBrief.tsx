@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import ArrowIcon from '@/components/ArrowIcon'
 import { useRouter } from 'next/navigation'
 import type { OverviewResponse, StatusBoardItem } from '@/app/api/analytics/summary/route'
 
@@ -95,7 +96,7 @@ function LockedCard({ title, sub, href = '/settings?tab=integrations' }: { title
           <div className="ov-locked-sub">{sub}</div>
         </div>
       </div>
-      <button className="ov-connect-btn" onClick={() => router.push(href)}>Connect →</button>
+      <button className="ov-connect-btn" onClick={() => router.push(href)}>Connect <ArrowIcon size={13} /></button>
     </div>
   )
 }
@@ -320,7 +321,7 @@ export default function AnalyticsBrief({ brand, connectedProviders: _ }: Props) 
             {data && data.stats.moduleAnalysed < data.stats.moduleTotal * 0.6 && (
               <div className="ov-insight">{data.stats.moduleTotal - data.stats.moduleAnalysed} modules still unanalysed. Coverage matters as much as score — the average will move a lot once the rest are scanned.</div>
             )}
-            <button className="ov-goto-btn" onClick={() => router.push('/dashboard')}>View modules →</button>
+            <button className="ov-goto-btn" onClick={() => router.push('/dashboard')}>View modules <ArrowIcon size={13} /></button>
           </div>
 
           {/* Search Performance */}

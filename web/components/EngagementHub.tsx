@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import ArrowIcon from '@/components/ArrowIcon'
 import { useSmartBack } from '@/lib/useSmartBack'
 
 interface Platform {
@@ -313,7 +314,7 @@ export default function EngagementHub({ brandName }: { brandName: string }) {
                 </div>
 
                 <div className="eh-feed-footer">
-                  <span>View all 23 interactions →</span>
+                  <span>View all 23 interactions <ArrowIcon /></span>
                 </div>
               </div>
             </div>

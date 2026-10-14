@@ -13,6 +13,7 @@ export const maxDuration = 30
 
 export interface TodayActivity {
   connected: boolean
+  error?: string // connected, but PostHog didn't answer (bad key, wrong project): don't show zeros as real
   days: number
   visitors: { current: number; prior: number }
   signups: {
@@ -126,6 +127,9 @@ export async function GET(request: NextRequest) {
   ])
 
   const n = (v: unknown) => Number(v ?? 0) || 0
+  if (visitorRows === null && signupCountRows === null && pageRows === null) {
+    return NextResponse.json({ ...empty, connected: true, error: 'PostHog isn\'t responding, so this can\'t be shown. Check the PostHog key and project in Settings → Integrations.' })
+  }
 
   // Newest first, one row per email (duplicates of the same person are dropped).
   const seenPeople = new Set<string>()
