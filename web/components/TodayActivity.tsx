@@ -14,6 +14,9 @@ function Delta({ current, prior }: { current: number; prior: number }) {
   return <span className={`ta-delta ${pct > 0 ? 'ta-delta--up' : 'ta-delta--dn'}`}>{pct > 0 ? '↑' : '↓'}{Math.abs(pct)}%</span>
 }
 
+// Each list shows the latest few; "View all" opens the full table (Analytics › details) for the same period.
+const SHOWN = 3
+
 export default function TodayActivity() {
   const [days, setDays] = useState<1 | 7>(1)
   const [data, setData] = useState<Activity | null>(null)
@@ -48,6 +51,7 @@ export default function TodayActivity() {
   }
 
   const period = days === 1 ? 'the last 24 hours' : 'the last 7 days'
+  const range = days === 1 ? '24h' : '7d'
   const quiet = data && data.visitors.current === 0 && data.signups.count === 0
 
   return (
@@ -92,7 +96,7 @@ export default function TodayActivity() {
             <div className="ta-block">
               <div className="ta-sub">New signups</div>
               <ul className="ta-people">
-                {data.signups.people.map(p => {
+                {data.signups.people.slice(0, SHOWN).map(p => {
                   const open = openId === p.id
                   return (
                     <li key={p.id} className={`ta-person-wrap${open ? ' is-open' : ''}`}>
@@ -112,8 +116,8 @@ export default function TodayActivity() {
                   )
                 })}
               </ul>
-              {data.signups.count > data.signups.people.length && (
-                <p className="ta-muted ta-more">+{data.signups.count - data.signups.people.length} more</p>
+              {data.signups.count > SHOWN && (
+                <Link href={`/analytics/details?type=signups&range=${range}`} className="ta-view-all">View all {data.signups.count} signups →</Link>
               )}
             </div>
           )}
@@ -122,7 +126,7 @@ export default function TodayActivity() {
             <div className="ta-block">
               <div className="ta-sub">Signed in</div>
               <ul className="ta-people">
-                {data.signins.people.map(p => {
+                {data.signins.people.slice(0, SHOWN).map(p => {
                   const key = `in:${p.id}`
                   const open = openId === key
                   const device = p.device ? ` · ${p.device.toLowerCase()}` : ''
@@ -144,8 +148,8 @@ export default function TodayActivity() {
                   )
                 })}
               </ul>
-              {data.signins.count > data.signins.people.length && (
-                <Link href={`/analytics/details?type=signins&range=${days === 1 ? '24h' : '7d'}`} className="ta-muted ta-more">+{data.signins.count - data.signins.people.length} more →</Link>
+              {data.signins.count > SHOWN && (
+                <Link href={`/analytics/details?type=signins&range=${range}`} className="ta-view-all">View all {data.signins.count} sign-ins →</Link>
               )}
             </div>
           )}

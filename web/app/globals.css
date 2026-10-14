@@ -7656,3 +7656,7 @@ a.ta-more:hover { color: var(--text); }
   .td-blog-latest .td-blog-latest-title { flex: 1 1 calc(100% - 90px); min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; }
   .td-blog-latest .td-ghost-btn { flex: 1 1 100%; justify-content: center; }
 }
+/* Today › What happened: "View all" under the signups / sign-ins lists. */
+.ta-view-all { display: flex; align-items: center; justify-content: center; margin-top: 10px; min-height: 40px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 13px; font-weight: 600; text-decoration: none; }
+.ta-view-all:hover { border-color: var(--green); color: var(--green); }
+.ta-view-all:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
