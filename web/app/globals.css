@@ -7635,3 +7635,11 @@ a.ta-more:hover { color: var(--text); }
 .fwc-tabs button.is-on { background: var(--card); color: var(--text); box-shadow: 0 1px 2px #0000001a; }
 .fwc-note { font-size: 12px; color: var(--text-faint); margin: 0; }
 .fwc-steps .fwc-url { margin-top: 6px; }
+.td-blog-add-btn { border-color: var(--green); color: var(--green); }
+.td-card .sm-claude-hint, .td-blog-section .sm-claude-hint { margin: 10px 0 0; }
+/* Latest blog row: keep the title readable when the action buttons wrap. */
+.td-blog-latest { flex-wrap: wrap; row-gap: 8px; }
+@media (max-width: 640px) {
+  .td-blog-latest .td-blog-latest-title { flex: 1 1 calc(100% - 90px); min-width: 0; white-space: normal; overflow: visible; text-overflow: clip; }
+  .td-blog-latest .td-ghost-btn { flex: 1 1 100%; justify-content: center; }
+}

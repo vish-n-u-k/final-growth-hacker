@@ -1,6 +1,7 @@
 'use client'
 
 import RoadToFiveHundred from '@/components/RoadToFiveHundred'
+import { useClaudeHandoff, type HandoffArgs } from '@/components/useClaudeHandoff'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
@@ -25,6 +26,7 @@ interface RecentPost {
 
 interface BlogEntry {
   id: string
+  mdUrl?: string
   title: string
   slug: string
   status: string
@@ -59,6 +61,9 @@ interface Props {
     cachedAt: string
   }
   brandName: string
+  websiteUrl?: string | null
+  mcpLastUsedAt?: string | null
+  githubRepo?: string | null
   gmailConnected: boolean
   gmailAddress: string | null
   prospectItems: DBItemFull[]
@@ -183,13 +188,75 @@ function AnalyticsBar() {
   )
 }
 
+// ── "Do it with Claude" prompts ─────────────────────────────────────────────────
+// Each website task gets two prompts: one that uses the GrowJin MCP (Claude reads the task, does it
+// and marks it done here) and a plain one for Claude Code without the MCP.
+
+interface SiteCtx { brandName: string; websiteUrl: string | null; githubRepo: string | null }
+const where = (c: SiteCtx) => `${c.websiteUrl ? ` (${c.websiteUrl})` : ''}`
+const codebase = (c: SiteCtx) => `my website codebase${c.githubRepo ? ` (${c.githubRepo})` : ''}`
+
+function taskHandoff(card: ActionCard, c: SiteCtx): HandoffArgs {
+  const d = card.data ?? {}
+  const kind = String(d.taskKind ?? 'item')
+  const id = String(d.taskId ?? '')
+  const action = typeof d.action === 'string' ? d.action : ''
+  const finding = typeof d.finding === 'string' ? d.finding : card.reason
+  const done = kind === 'item'
+    ? `call toggle_item with item_id "${id}" and checked true`
+    : `call resolve_signal with signal_id "${id}" and status "done"`
+  const mcp = [
+    `Use the GrowJin connector to do one of today's growth tasks for ${c.brandName}${where(c)}.`,
+    '',
+    `1. Call get_today_tasks and find the task "${card.headline}" (id ${id}).`,
+    `2. Do it in ${codebase(c)}.${action ? ` Suggested fix: ${action}` : ''} If it needs real data from me (stats, quotes, prices), ask instead of inventing it.`,
+    '3. Ship it the way this repo usually ships changes (open a pull request if that is the norm) and tell me exactly what changed.',
+    `4. When it's done, ${done} so GrowJin marks it complete.`,
+  ].join('\n')
+  const plain = [
+    `Please make this change on my website${where(c)}, in ${codebase(c)}.`,
+    '',
+    `Task: ${card.headline}`,
+    finding ? `Why: ${finding}` : '',
+    action ? `What to do: ${action}` : '',
+    '',
+    'If it needs real data from me (stats, quotes, prices), ask instead of inventing it. Make the change, then tell me exactly what you changed.',
+  ].filter((l, i, a) => l !== '' || a[i - 1] !== '').join('\n')
+  return { key: `task:${card.id}`, label: card.headline, plain, mcp }
+}
+
+function blogHandoff(blog: { id: string; title: string; mdUrl?: string }, c: SiteCtx): HandoffArgs {
+  const steps = [
+    `2. Add it to ${codebase(c)} the way the site already publishes posts (same folder, format and layout). If there is no blog yet, add a simple /blog section with an index page that lists posts.`,
+    '3. Use the slug for the URL, set the page title and meta description, add the post to the sitemap and link it from the blog index.',
+    '4. Ship it the way this repo usually ships changes (open a pull request if that is the norm) and tell me the URL it will be live at.',
+  ]
+  const mcp = [
+    `Use the GrowJin connector to publish a blog post on my website${where(c)}.`,
+    '',
+    `1. Call get_blog_post with blog_id "${blog.id}" to get the article (markdown) with its slug, meta title and meta description.`,
+    ...steps,
+    `5. Once it's live, call mark_blog_published with blog_id "${blog.id}" and the live_url.`,
+  ].join('\n')
+  const plain = [
+    `Please publish this blog post on my website${where(c)}: "${blog.title}".`,
+    '',
+    `1. Download the post (markdown with front matter: title, slug, meta title, meta description) from ${blog.mdUrl ?? 'GrowJin (Today › Weekly blog › Copy markdown)'}`,
+    ...steps,
+    '5. Tell me the live URL so I can mark it published in GrowJin.',
+  ].join('\n')
+  return { key: `blog:${blog.id}`, label: blog.title, plain, mcp, title: 'Add this post to your website' }
+}
+
 // which card types expand inline vs navigate away
 const INLINE_TYPES: Set<string> = new Set(['outreach', 'social', 'blog'])
 
 // ── Action card ───────────────────────────────────────────────────────────────
 
-function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, onComplete }: {
+function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, onComplete, onClaude, claudeHint }: {
   card: ActionCard
+  onClaude?: () => void
+  claudeHint?: React.ReactNode
   rank: number
   onCta: () => void
   expanded: boolean
@@ -274,6 +341,11 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
                 <path d="M5 12h14M12 5l7 7-7 7"/>
               </svg>
             </button>
+          ) : onClaude ? (
+            <>
+              <button className="td-cta-btn" onClick={() => { onCta(); onClaude() }}>Fix with Claude</button>
+              <a href={card.ctaUrl} className="td-ghost-btn" onClick={onCta}>{card.cta}</a>
+            </>
           ) : (
             <a href={card.ctaUrl} className="td-cta-btn" onClick={onCta}>
               {card.cta}
@@ -294,6 +366,7 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
           )}
         </div>
       )}
+      {claudeHint}
     </div>
   )
 }
@@ -531,6 +604,7 @@ interface GeneratedBlog {
   createdAt: string | null
   via?: 'frekto'
   destination?: 'linkedin' | 'blog_mcp' | null
+  mdUrl?: string
 }
 
 type BlogMode = 'draft' | 'linkedin' | 'blog'
@@ -615,7 +689,12 @@ function BlogComposer({ frektoConnected, generating, topic, setTopic, mode, setM
   )
 }
 
-function WeeklyBlogSection({ initialData, frektoConnected = false }: { initialData: BlogData; frektoConnected?: boolean }) {
+function WeeklyBlogSection({ initialData, frektoConnected = false, onAddToSite, addHint }: {
+  initialData: BlogData
+  frektoConnected?: boolean
+  onAddToSite?: (blog: { id: string; title: string; mdUrl?: string }) => void
+  addHint?: (blogId: string) => React.ReactNode
+}) {
   const [data, setData] = useState<BlogData>(initialData)
   const [generating, setGenerating] = useState<false | 'frekto' | 'growjin'>(false)
   const [generatedBlog, setGeneratedBlog] = useState<GeneratedBlog | null>(null)
@@ -765,9 +844,12 @@ function WeeklyBlogSection({ initialData, frektoConnected = false }: { initialDa
             <button className="td-ghost-btn" onClick={() => setShowContent(s => !s)}>
               {showContent ? 'Hide content' : 'Preview content'}
             </button>
+            {generatedBlog.status === 'draft' && onAddToSite && (
+              <button className="td-cta-btn" onClick={() => onAddToSite(generatedBlog)}>Add to my website with Claude</button>
+            )}
             {generatedBlog.status === 'draft' && (
               <button
-                className="td-cta-btn"
+                className={onAddToSite ? 'td-ghost-btn' : 'td-cta-btn'}
                 onClick={() => markPublished(generatedBlog.id)}
                 disabled={markingId === generatedBlog.id}
               >
@@ -775,6 +857,7 @@ function WeeklyBlogSection({ initialData, frektoConnected = false }: { initialDa
               </button>
             )}
           </div>
+          {addHint?.(generatedBlog.id)}
 
           {/* Verification status */}
           {generatedBlog.status === 'published' && (
@@ -873,6 +956,9 @@ function WeeklyBlogSection({ initialData, frektoConnected = false }: { initialDa
                   <span className="td-blog-latest-label">Latest:</span>
                   <span className="td-blog-latest-title">&ldquo;{latestBlog.title}&rdquo;</span>
                   <span className={`td-blog-status td-blog-status--${latestBlog.status}`}>{latestBlog.status}</span>
+                  {latestBlog.status === 'draft' && onAddToSite && (
+                    <button className="td-ghost-btn td-ghost-btn--sm td-blog-add-btn" onClick={() => onAddToSite(latestBlog)}>Add to my website with Claude</button>
+                  )}
                   {latestBlog.status === 'draft' && (
                     <button
                       className="td-ghost-btn td-ghost-btn--sm"
@@ -900,6 +986,7 @@ function WeeklyBlogSection({ initialData, frektoConnected = false }: { initialDa
                   )}
                 </div>
               )}
+              {latestBlog && addHint?.(latestBlog.id)}
               {composeOpen ? (
                 <>
                   <BlogComposer frektoConnected={frektoConnected} generating={generating} topic={topic} setTopic={setTopic} mode={mode} setMode={setMode} onWrite={w => generate(undefined, w)} />
@@ -947,10 +1034,13 @@ function LoadingState() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function TodayDashboard({ initialData, brandName, gmailConnected, gmailAddress, prospectItems, gmailModuleId, socialModuleId, frektoConnected, posthogConnected, blogData }: Props) {
+export default function TodayDashboard({ initialData, brandName, websiteUrl = null, mcpLastUsedAt = null, githubRepo = null, gmailConnected, gmailAddress, prospectItems, gmailModuleId, socialModuleId, frektoConnected, posthogConnected, blogData }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
+  const handoff = useClaudeHandoff({ mcpLastUsedAt, githubRepo })
+  const site: SiteCtx = { brandName, websiteUrl, githubRepo }
+  const addBlogToSite = (b: { id: string; title: string; mdUrl?: string }) => handoff.start(blogHandoff(b, site))
   const [analyzing, setAnalyzing] = useState(false)
 
   const runOutreachAnalysis = useCallback(async () => {
@@ -1104,7 +1194,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                 <div className="td-cards">{impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}</div>
               </>
             )}
-            <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} />
+            <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
             <SocialAnalytics />
             <SocialFeed posts={recentPosts} />
           </>
@@ -1137,6 +1227,8 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                   onToggleExpand={() => setExpandedCard(expandedCard === card.id ? null : card.id)}
                   onDone={card.type === 'reminder' ? () => setCards(prev => prev.filter(c => c.id !== card.id)) : undefined}
                   onComplete={card.data?.taskKind ? (status) => completeTask(card, status) : undefined}
+                  onClaude={card.data?.route === 'code' && !INLINE_TYPES.has(card.type) ? () => handoff.start(taskHandoff(card, site)) : undefined}
+                  claudeHint={handoff.hint(`task:${card.id}`)}
                 />
                 {/* Inline outreach panel */}
                 {card.type === 'outreach' && expandedCard === card.id && (
@@ -1195,7 +1287,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
                       <button className="td-inline-panel-close" onClick={() => setExpandedCard(null)}>×</button>
                     </div>
                     <div style={{ padding: '8px 0' }}>
-                      <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} />
+                      <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
                     </div>
                   </div>
                 )}
@@ -1217,7 +1309,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
             )}
 
             {/* Weekly blog */}
-            <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} />
+            <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
 
             {/* Social analytics + post feed */}
             <SocialAnalytics />
@@ -1695,6 +1787,7 @@ export default function TodayDashboard({ initialData, brandName, gmailConnected,
           .td-card-actions .td-ghost-btn { flex: 1 1 0; justify-content: center; padding: 9px 10px; }
         }
       `}</style>
+      {handoff.modal}
     </div>
   )
 }

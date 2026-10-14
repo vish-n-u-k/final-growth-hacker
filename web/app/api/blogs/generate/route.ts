@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { brands, brandBlogs } from '@/lib/db/schema'
 import { eq, and, ne, count } from 'drizzle-orm'
 import Anthropic from '@anthropic-ai/sdk'
+import { blogMarkdownUrl } from '@/lib/blog-share'
 import { generateFrektoBlog, getFrektoKey, slugify, type FrektoBlogMode } from '@/lib/frekto/blog'
 
 export const maxDuration = 60
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
       status: brandBlogs.status,
       createdAt: brandBlogs.createdAt,
     })
-    return NextResponse.json({ blog: { ...blog, via: 'frekto', destination: article.scheduled ? article.platform : null } })
+    return NextResponse.json({ blog: { ...blog, mdUrl: blogMarkdownUrl((process.env.NEXT_PUBLIC_APP_URL || 'https://app.growjin.com'), blog.id), via: 'frekto', destination: article.scheduled ? article.platform : null } })
   }
 
   // Mark replaced blog
@@ -183,5 +184,5 @@ Rules:
     createdAt: brandBlogs.createdAt,
   })
 
-  return NextResponse.json({ blog })
+  return NextResponse.json({ blog: { ...blog, mdUrl: blogMarkdownUrl((process.env.NEXT_PUBLIC_APP_URL || 'https://app.growjin.com'), blog.id) } })
 }

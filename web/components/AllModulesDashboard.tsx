@@ -18,7 +18,7 @@ import { CONFLICT_GROUPS, SLUG_TOPIC } from '@/lib/modules/conflict-map'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 import FrektoPostingSectionImport from '@/components/FrektoPostingSection'
 import NotesDrawer from '@/components/NotesDrawer'
-import FixWithClaudeModal, { FIX_CHOICE_KEY, type FixChoice } from '@/components/FixWithClaudeModal'
+import { useClaudeHandoff } from '@/components/useClaudeHandoff'
 import { JOURNEY_PHASES } from '@/lib/journey'
 
 function renderMdStep(step: string): React.ReactNode {
@@ -472,12 +472,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   }
 
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null)
-  const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null)
-  const [lastFixPrompt, setLastFixPrompt] = useState('')
-  const [lastFixVia, setLastFixVia] = useState<'claude' | 'code'>('claude')
-  const [fixModal, setFixModal] = useState<{ key: string; label: string; plain: string; mcp: string } | null>(null)
-  const [mcpMarked, setMcpMarked] = useState(false)
-  const lastFixArgs = useRef<{ key: string; label: string; plain: string; mcp: string } | null>(null)
+  const handoff = useClaudeHandoff({ mcpLastUsedAt, githubRepo })
   const [prUrlMap, setPrUrlMap] = useState<Record<string, string | null>>(() =>
     Object.fromEntries(allModulesData.map(m => [m.id, m.agentPrUrl]))
   )
@@ -1007,32 +1002,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     lines.push('', 'Make the change, then tell me exactly what you changed.')
     return lines.join('\n')
   }
-  const copyFixPrompt = async (key: string, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      // Older browsers and some app views refuse the clipboard API: fall back to a temporary text box.
-      const ta = document.createElement('textarea')
-      ta.value = text
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      try { document.execCommand('copy') } catch { /* nothing more to try */ }
-      document.body.removeChild(ta)
-    }
-    setCopiedPrompt(key)
-    window.setTimeout(() => setCopiedPrompt(prev => (prev === key ? null : prev)), 8000)
-  }
-  // "Fix with Claude": a popup offers the GrowJin MCP route first (Claude fixes the check and ticks
-  // it off here) or doing it yourself in Claude Code. The choice can be remembered, after which the
-  // button opens Claude straight away. The prompt is always copied too, in case nothing opens.
-  const claudeWebUrl = (text: string) => `https://claude.ai/new?q=${encodeURIComponent(text)}`
-  const isPhone = () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
-  const readLocal = (k: string) => { try { return localStorage.getItem(k) } catch { return null } }
-  const writeLocal = (k: string, v: string | null) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v) } catch { /* private mode */ } }
-  // Connected = a Claude client has actually used GrowJin's MCP (or the user just said they connected it).
-  const mcpConnected = () => !!mcpLastUsedAt || mcpMarked
+  // "Fix with Claude": the GrowJin MCP route first (Claude fixes the check and ticks it off here)
+  // or Claude Code with the plain prompt; see components/useClaudeHandoff.tsx.
   const buildMcpPrompt = (p: { modId: string; itemId?: string | null; slug: string; label: string; action?: string | null }) => {
     const mod = allModulesData.find(m => m.id === p.modId)
     const clean = (t: string) => t.replace(/\*\*/g, '')
@@ -1044,37 +1015,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       `3. When it's fixed, call toggle_item with item_id "${p.itemId ?? ''}" and checked true so GrowJin marks it done.`,
     ].join('\n')
   }
-  const runFix = (choice: FixChoice, key: string, plain: string, mcp: string) => {
-    const text = choice === 'code' ? plain : mcp
-    setLastFixPrompt(text)
-    void copyFixPrompt(key, text)
-    if (choice === 'mcp' || isPhone()) {
-      setLastFixVia('claude')
-      window.open(claudeWebUrl(text), '_blank', 'noopener')
-    } else {
-      setLastFixVia('code')
-      // A link click (not location.href) hands the claude-cli:// URL to the OS without starting a
-      // page navigation, so nothing on this page is interrupted.
-      const a = document.createElement('a')
-      a.href = `claude-cli://open?q=${encodeURIComponent(text.slice(0, 4900))}${githubRepo ? `&repo=${encodeURIComponent(githubRepo)}` : ''}`
-      a.rel = 'noopener'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-    }
-  }
   const fixWithClaude = (key: string, plain: string, ctx: { modId: string; itemId?: string | null; slug: string; label: string; action?: string | null }) => {
-    const args = { key, label: ctx.label.replace(/\*\*/g, ''), plain, mcp: buildMcpPrompt(ctx) }
-    lastFixArgs.current = args
-    const saved = readLocal(FIX_CHOICE_KEY) as FixChoice | null
-    if (saved === 'code' || ((saved === 'mcp' || saved === 'mcp-code') && mcpConnected())) runFix(saved, key, args.plain, args.mcp)
-    else setFixModal(args)
-  }
-  // "Change how I fix": forget the remembered choice and show the popup again for this check.
-  const changeFixChoice = () => {
-    writeLocal(FIX_CHOICE_KEY, null)
-    setCopiedPrompt(null)
-    if (lastFixArgs.current) setFixModal(lastFixArgs.current)
+    handoff.start({ key, label: ctx.label.replace(/\*\*/g, ''), plain, mcp: buildMcpPrompt(ctx) })
   }
 
   // Jump to one open item: opens its category and expands it.
@@ -1792,13 +1734,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, true, item.id, item.slug, userC, e)}>Mark as done</button>
                 </div>
               )}
-              {copiedPrompt === itemKey && lastFixPrompt && (
-                <p className="sm-claude-hint" role="status">
-                  Opened {lastFixVia === 'code' ? 'Claude Code' : 'Claude'}, prompt copied too.{' '}
-                  {lastFixVia === 'code' && <>Nothing opened? <a href={claudeWebUrl(lastFixPrompt)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>Use Claude on the web</a>{' · '}</>}
-                  <button type="button" className="sm-claude-change" onClick={(e) => { e.stopPropagation(); changeFixChoice() }}>Change how I fix</button>
-                </p>
-              )}
+              {handoff.hint(itemKey)}
               {/* Skip section — at bottom of expanded body */}
               {!done && (
                 <div className="md-skip-section">
@@ -2034,13 +1970,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, false, s?.id ?? '', item.slug, userC, e)}>Mark as done</button>
                 </div>
               )}
-              {copiedPrompt === itemKey && lastFixPrompt && (
-                <p className="sm-claude-hint" role="status">
-                  Opened {lastFixVia === 'code' ? 'Claude Code' : 'Claude'}, prompt copied too.{' '}
-                  {lastFixVia === 'code' && <>Nothing opened? <a href={claudeWebUrl(lastFixPrompt)} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>Use Claude on the web</a>{' · '}</>}
-                  <button type="button" className="sm-claude-change" onClick={(e) => { e.stopPropagation(); changeFixChoice() }}>Change how I fix</button>
-                </p>
-              )}
+              {handoff.hint(itemKey)}
               {/* Skip section — at bottom of expanded body */}
               {!done && (
                 <div className="md-skip-section">
@@ -3405,21 +3335,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           />
         )
       })()}
-      {fixModal && (
-        <FixWithClaudeModal
-          itemLabel={fixModal.label}
-          mcpConnected={mcpConnected()}
-          mcpLastUsedAt={mcpLastUsedAt}
-          isPhone={isPhone()}
-          onChoose={(choice, remember) => {
-            if (remember) writeLocal(FIX_CHOICE_KEY, choice)
-            runFix(choice, fixModal.key, fixModal.plain, fixModal.mcp)
-            setFixModal(null)
-          }}
-          onMarkConnected={() => setMcpMarked(true)}
-          onClose={() => setFixModal(null)}
-        />
-      )}
+      {handoff.modal}
       {isAdmin && <NotesDrawer open={notesOpen} onClose={() => setNotesOpen(false)} />}
     </>
   )

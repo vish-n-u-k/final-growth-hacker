@@ -1199,6 +1199,8 @@ const MCP_TOOLS = [
   { name: 'toggle_item', desc: 'Mark a checklist item as done or undone' },
   { name: 'get_brand_info', desc: 'Brand profile: name, website, industry, USP, playbook summary' },
   { name: 'get_pending_items', desc: 'All incomplete items sorted by priority — optionally scoped to a module' },
+  { name: 'get_blog_post', desc: 'A blog post written in GrowJin, ready to add to your website' },
+  { name: 'mark_blog_published', desc: 'Mark a blog post as live on your website' },
 ]
 
 const MCP_URL = 'https://app.growjin.com/api/mcp'

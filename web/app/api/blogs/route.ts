@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandBlogs } from '@/lib/db/schema'
 import { eq, and, ne, desc, count } from 'drizzle-orm'
+import { blogMarkdownUrl } from '@/lib/blog-share'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,5 +61,6 @@ export async function GET() {
 
   const weeklyDue = daysSinceLast === null || daysSinceLast >= 7
 
-  return NextResponse.json({ blogs, limit, activeCount, weeklyDue })
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://app.growjin.com')
+  return NextResponse.json({ blogs: blogs.map(b => ({ ...b, mdUrl: blogMarkdownUrl(appUrl, b.id) })), limit, activeCount, weeklyDue })
 }

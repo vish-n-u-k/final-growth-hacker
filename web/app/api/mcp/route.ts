@@ -21,6 +21,7 @@ import { getPosthogChurnedUsers } from '@/lib/mcp/tools/get_posthog_churned_user
 import { getPosthogProUsers } from '@/lib/mcp/tools/get_posthog_pro_users'
 import { getTodayTasks, buildTodayPrompt } from '@/lib/daily/today-tasks'
 import { resolveSignal } from '@/lib/signals'
+import { getBlogPost, markBlogPublished } from '@/lib/mcp/tools/blog_posts'
 import { logActivity, touchMcp } from '@/lib/activity'
 import { createSocialPost, getSocialPostStatus, scheduleSocialPost } from '@/lib/frekto/posts'
 
@@ -76,6 +77,12 @@ async function dispatch(
 
     case 'toggle_item':
       return toggleItem(brandId, String(args['item_id'] ?? ''), Boolean(args['checked']))
+
+    case 'get_blog_post':
+      return getBlogPost(brandId, args['blog_id'] ? String(args['blog_id']) : undefined)
+
+    case 'mark_blog_published':
+      return markBlogPublished(brandId, String(args['blog_id'] ?? ''), args['live_url'] ? String(args['live_url']) : undefined)
 
     case 'skip_item':
       return skipItem(brandId, String(args['item_id'] ?? ''), args['reason'] ? String(args['reason']) : undefined)

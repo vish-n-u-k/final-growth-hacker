@@ -35,7 +35,8 @@ function CopyBox({ text, mono = true }: { text: string; mono?: boolean }) {
   )
 }
 
-export default function FixWithClaudeModal({ itemLabel, mcpConnected, mcpLastUsedAt = null, isPhone, onChoose, onMarkConnected, onClose }: {
+export default function FixWithClaudeModal({ title = 'Fix this with Claude', itemLabel, mcpConnected, mcpLastUsedAt = null, isPhone, onChoose, onMarkConnected, onClose }: {
+  title?: string
   itemLabel: string
   mcpConnected: boolean
   mcpLastUsedAt?: string | null
@@ -61,7 +62,7 @@ export default function FixWithClaudeModal({ itemLabel, mcpConnected, mcpLastUse
       <div className="fwc" role="dialog" aria-modal="true" aria-labelledby="fwc-title" onClick={(e) => e.stopPropagation()}>
         <div className="fwc-hd">
           <div>
-            <h2 id="fwc-title" className="fwc-title">Fix this with Claude</h2>
+            <h2 id="fwc-title" className="fwc-title">{title}</h2>
             <p className="fwc-sub">{itemLabel}</p>
           </div>
           <button type="button" className="fwc-x" onClick={onClose} aria-label="Close">×</button>

@@ -69,6 +69,30 @@ export const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: 'get_blog_post',
+    description:
+      'Returns a blog post written in GrowJin (title, slug, meta title/description, target keyword and the full article as markdown) so you can add it to the user\'s website. Without blog_id it returns the newest unpublished post. After the post is live, call mark_blog_published.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        blog_id: { type: 'string', description: 'UUID of the blog post. Omit for the newest unpublished post.' },
+      },
+    },
+  },
+  {
+    name: 'mark_blog_published',
+    description:
+      'Marks a GrowJin blog post as published once it is live on the user\'s website, so GrowJin tracks it (and checks it is live and indexed).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        blog_id: { type: 'string', description: 'UUID of the blog post (from get_blog_post).' },
+        live_url: { type: 'string', description: 'Full URL where the post is live, e.g. https://example.com/blog/my-post.' },
+      },
+      required: ['blog_id'],
+    },
+  },
+  {
     name: 'skip_item',
     description:
       'Drops a checklist item (a kind="item" task from get_today_tasks) that the user says does not apply or will not do. It leaves today\'s list and the pending list. Only call after the user agrees to drop it.',

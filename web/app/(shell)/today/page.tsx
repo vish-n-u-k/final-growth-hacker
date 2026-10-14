@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation'
+import { blogMarkdownUrl } from '@/lib/blog-share'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations, modules, moduleItems, moduleCategories, brandBlogs } from '@/lib/db/schema'
-import { eq, and, ne, desc, count } from 'drizzle-orm'
+import { eq, and, ne, desc, count, inArray } from 'drizzle-orm'
 import TodayDashboard from '@/components/TodayDashboard'
 import type { ActionCard } from '@/lib/daily/signals'
 import type { DBItemFull } from '@/lib/modules/types'
@@ -25,6 +26,7 @@ export default async function TodayPage() {
     id: brands.id,
     name: brands.name,
     websiteType: brands.websiteType,
+    websiteUrl: brands.websiteUrl,
     dailyStreak: brands.dailyStreak,
     lastActionDate: brands.lastActionDate,
     dailySignalsCache: brands.dailySignalsCache,
@@ -146,10 +148,22 @@ export default async function TodayPage() {
     }
   }
 
+  // For the "do it with Claude" hand-off: GrowJin MCP status and the connected GitHub repo.
+  const handoffRows = await db.select({ provider: brandIntegrations.provider, status: brandIntegrations.status, lastUsedAt: brandIntegrations.lastUsedAt, metadata: brandIntegrations.metadata })
+    .from(brandIntegrations)
+    .where(and(eq(brandIntegrations.brandId, brand.id), inArray(brandIntegrations.provider, ['mcp', 'github'])))
+    .catch(() => [] as { provider: string; status: string; lastUsedAt: Date | null; metadata: unknown }[])
+  const mcpRow = handoffRows.find(r => r.provider === 'mcp' && r.status === 'connected')
+  const repoUrl = (handoffRows.find(r => r.provider === 'github' && r.status === 'connected')?.metadata as Record<string, string> | null)?.repo_url ?? ''
+  const githubRepo = repoUrl.match(/github\.com[/:]([\w.-]+\/[\w.-]+?)(?:\.git)?\/?$/)?.[1] ?? null
+
   return (
     <TodayDashboard
       initialData={{ cards, impacts: [], focus, streak, allGood, cachedAt }}
       brandName={brand.name}
+      websiteUrl={brand.websiteUrl ?? null}
+      mcpLastUsedAt={mcpRow?.lastUsedAt ? new Date(mcpRow.lastUsedAt).toISOString() : null}
+      githubRepo={githubRepo}
       gmailConnected={gmailConnected}
       gmailAddress={gmailAddress}
       prospectItems={prospectItems}
@@ -158,7 +172,7 @@ export default async function TodayPage() {
       frektoConnected={frektoConnected}
       posthogConnected={posthogInteg?.status === 'connected'}
       blogData={{
-        blogs: recentBlogs,
+        blogs: recentBlogs.map(b => ({ ...b, mdUrl: blogMarkdownUrl((process.env.NEXT_PUBLIC_APP_URL || 'https://app.growjin.com'), b.id) })),
         limit: blogLimit,
         activeCount: blogActiveCount,
         weeklyDue: blogWeeklyDue,
