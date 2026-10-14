@@ -463,6 +463,7 @@ function indexFix(p: InspectedUrl): string {
   if (p.robotsTxtState === 'DISALLOWED') return `Your robots.txt blocks this page. Remove the Disallow rule for it, then in ${where} click Request Indexing.`
   if (p.googleCanonical && p.userCanonical && p.googleCanonical !== p.userCanonical) return `Google picked ${p.googleCanonical} as the main version instead. Make the canonical tags and internal links point to one URL, then request indexing.`
   const isHome = pathOf(p.url) === '/'
+  if (/discovered - currently not indexed/i.test(p.coverageState)) return `Google knows this page exists but hasn't visited it yet, usually because few pages link to it. ${isHome ? '' : 'Link to it from your homepage or menu, then '}in ${where} click Request Indexing.`
   if (/crawled - currently not indexed/i.test(p.coverageState)) return `Google saw the page but didn't think it was worth indexing yet. Add more unique, useful content${isHome ? '' : ' and link to it from your homepage'}, then request indexing in ${where}.`
   return `In ${where}, click Request Indexing.${isHome ? '' : ' Linking to the page from your homepage also helps Google find it.'}`
 }
@@ -495,17 +496,27 @@ export function indexingResults(
   if (data.pages.length === 0) {
     out.push({ slug: 'idx.pages', detail: 'No other pages were found in your sitemap to check, so only the homepage matters for now.', narrative: '', action: '', verified: true, isFail: false })
   } else {
-    const missing = data.pages.filter(p => !p.indexed)
-    const indexed = data.pages.length - missing.length
-    const ok = indexed / data.pages.length >= 0.8
+    // A sitemap URL that redirects (e.g. /features → /features/) isn't a page problem: Google
+    // indexes the destination. Leave it out of the count and just suggest tidying the sitemap.
+    const redirects = data.pages.filter(p => !p.indexed && /redirect/i.test(p.coverageState))
+    const checked = data.pages.filter(p => !redirects.includes(p))
+    const missing = checked.filter(p => !p.indexed)
+    const indexed = checked.length - missing.length
+    const ok = checked.length === 0 || indexed / checked.length >= 0.8
     const list = missing.slice(0, 5).map(p => `${pathOf(p.url)} (${p.coverageState})`).join('; ')
+    const redirectNote = redirects.length
+      ? ` Your sitemap also lists ${redirects.map(p => pathOf(p.url)).join(', ')}, which redirect${redirects.length === 1 ? 's' : ''} to another URL; that's fine, but list the final URL in your sitemap instead.`
+      : ''
+    const redirectFix = redirects.map(p => `${pathOf(p.url)}: this URL redirects${p.googleCanonical && p.googleCanonical !== p.url ? ` to ${p.googleCanonical}` : ''}. Put the final URL in your sitemap and internal links instead.`)
     out.push({
       slug: 'idx.pages',
-      detail: missing.length === 0
-        ? `All ${data.pages.length} pages we checked from your sitemap are indexed on Google.`
-        : `${indexed} of ${data.pages.length} pages we checked are indexed on Google. Not indexed: ${list}.`,
+      detail: (checked.length === 0
+        ? 'No other pages in your sitemap could be checked.'
+        : missing.length === 0
+          ? `All ${checked.length} pages we checked from your sitemap are indexed on Google.`
+          : `${indexed} of ${checked.length} pages we checked are indexed on Google. Not indexed: ${list}.`) + redirectNote,
       narrative: '',
-      action: missing.length ? missing.slice(0, 5).map(p => `${pathOf(p.url)}: ${indexFix(p)}`).join('\n') : '',
+      action: [...missing.slice(0, 5).map(p => `${pathOf(p.url)}: ${indexFix(p)}`), ...redirectFix].join('\n'),
       verified: ok,
       isFail: !ok,
     })
