@@ -176,7 +176,7 @@ function parseGscPrivateKey(raw: string) {
   )
 }
 
-async function getGscAccessToken(clientEmail: string, privateKey: string): Promise<string> {
+export async function getGscAccessToken(clientEmail: string, privateKey: string): Promise<string> {
   const now = Math.floor(Date.now() / 1000)
   const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
   const payload = base64url(JSON.stringify({

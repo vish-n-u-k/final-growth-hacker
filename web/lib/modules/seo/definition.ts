@@ -351,9 +351,43 @@ export const SEO_MODULE: ModuleDefinition = {
           ],
         },
         {
+          slug: 'google-indexing',
+          label: 'Google Indexing',
+          order: 5,
+          requires: ['gsc_api'],
+          description: 'Checked with Google Search Console: whether Google has actually indexed your pages. Needs the Google Search Console API connected in Settings → Integrations.',
+          items: [
+            {
+              slug: 'idx.homepage', label: 'Homepage indexed on Google', prompt: 'Search Console check.', order: 1, weight: 2, exportType: 'external',
+              fixGuide: [
+                'Open Google Search Console → URL Inspection and paste your homepage URL',
+                'If it says "URL is not on Google", click Request Indexing',
+                'Make sure the page has no noindex tag and is not blocked in robots.txt',
+                'Indexing usually takes a few days. Re-analyse after that',
+              ],
+            },
+            {
+              slug: 'idx.pages', label: 'Key pages indexed on Google', prompt: 'Search Console check.', order: 2, weight: 1, exportType: 'external',
+              fixGuide: [
+                'For each page listed as not indexed, open Search Console → URL Inspection and click Request Indexing',
+                'Link to those pages from your homepage or menu so Google finds them',
+                'Thin or duplicate pages often stay "Crawled - currently not indexed": add unique content to them',
+              ],
+            },
+            {
+              slug: 'idx.sitemap', label: 'Sitemap submitted to Google', prompt: 'Search Console check.', order: 3, weight: 1, exportType: 'external',
+              fixGuide: [
+                'Open Google Search Console → Sitemaps',
+                'Enter sitemap.xml (or your sitemap path) and click Submit',
+                'Check back in a day that the status says Success',
+              ],
+            },
+          ],
+        },
+        {
           slug: 'http-errors',
           label: 'HTTP Errors',
-          order: 5,
+          order: 6,
           items: [
             { slug: 'http.4xx', label: '4xx errors in links',               prompt: 'Rule engine check.', order: 1, weight: 2 },
             { slug: 'http.5xx', label: 'Server errors (5xx)',               prompt: 'Rule engine check.', order: 2, weight: 3 },
@@ -362,7 +396,7 @@ export const SEO_MODULE: ModuleDefinition = {
         {
           slug: 'performance',
           label: 'Performance',
-          order: 6,
+          order: 7,
           items: [
             { slug: 'perf.render_blocking', label: 'Render-blocking scripts',                       prompt: 'Rule engine check.', order: 1, weight: 2 },
             { slug: 'perf.images',          label: 'Responsive images (srcset)',                    prompt: 'Rule engine check.', order: 2, weight: 1 },

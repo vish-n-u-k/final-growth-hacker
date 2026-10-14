@@ -398,7 +398,7 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
   {
     provider: 'gsc_api',
     name: 'Google Search Console API',
-    description: 'Unlocks real ranking data — top queries, click-through rates, and keyword positions — in the Keyword Research module. Uses a Service Account key, no OAuth flow needed.',
+    description: 'Unlocks real ranking data (top queries, click-through rates, keyword positions) and Google indexing checks (is each page indexed, is your sitemap submitted) in the SEO module. Uses a Service Account key, no OAuth flow needed.',
     type: 'api_key',
     group: 'analytics',
     docsUrl: 'https://developers.google.com/webmaster-tools/v1/api_reference_index',

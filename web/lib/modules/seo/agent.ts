@@ -12,6 +12,7 @@ import {
   fetchSerpApiPAA,
   fetchGscTopQueries,
 } from './keyword-fetchers'
+import { fetchGscIndexing, type GscIndexingResult, type InspectedUrl } from './gsc-indexing'
 
 export interface SeoIntegrations {
   serpApiKey?: string
@@ -444,6 +445,112 @@ async function generateKeywordResearchContent(
   return resultMap
 }
 
+// ── Google indexing (idx.*) — Search Console URL Inspection + Sitemaps ───────
+
+function fmtDay(iso: string): string {
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function pathOf(url: string): string {
+  try { return new URL(url).pathname || '/' } catch { return url }
+}
+
+// What to do about a page Google hasn't indexed, based on why.
+function indexFix(p: InspectedUrl): string {
+  const where = `Search Console → URL Inspection → ${p.url}`
+  if (p.indexingState.startsWith('BLOCKED_BY')) return `Remove the noindex ${p.indexingState === 'BLOCKED_BY_HTTP_HEADER' ? 'X-Robots-Tag header' : 'meta tag'} from this page, then in ${where} click Request Indexing.`
+  if (p.robotsTxtState === 'DISALLOWED') return `Your robots.txt blocks this page. Remove the Disallow rule for it, then in ${where} click Request Indexing.`
+  if (p.googleCanonical && p.userCanonical && p.googleCanonical !== p.userCanonical) return `Google picked ${p.googleCanonical} as the main version instead. Make the canonical tags and internal links point to one URL, then request indexing.`
+  const isHome = pathOf(p.url) === '/'
+  if (/crawled - currently not indexed/i.test(p.coverageState)) return `Google saw the page but didn't think it was worth indexing yet. Add more unique, useful content${isHome ? '' : ' and link to it from your homepage'}, then request indexing in ${where}.`
+  return `In ${where}, click Request Indexing.${isHome ? '' : ' Linking to the page from your homepage also helps Google find it.'}`
+}
+
+export function indexingResults(
+  data: GscIndexingResult | null,
+  sitemapPath: string,
+): (ModuleAnalysisResult & { isFail: boolean })[] {
+  // Not connected or Search Console unreachable: say what to do, no AI narrative.
+  const unavailable = (detail: string, action: string) => ['idx.homepage', 'idx.pages', 'idx.sitemap'].map(slug => ({
+    slug, detail, narrative: '', action, verified: false, isFail: false,
+  }))
+  if (!data) return unavailable('Not checked yet: Google Search Console isn\'t connected.', 'Connect the Google Search Console API in Settings → Integrations so GrowJin can check this with Google\'s own data, then re-analyse.')
+  if (!data.ok) return unavailable('Not checked: GrowJin couldn\'t read your Search Console data.', data.reason)
+
+  const out: (ModuleAnalysisResult & { isFail: boolean })[] = []
+
+  // Homepage
+  const h = data.homepage
+  if (!h) {
+    out.push({ slug: 'idx.homepage', detail: 'Search Console didn\'t return a result for your homepage. Re-analyse to try again.', narrative: '', action: '', verified: false, isFail: false })
+  } else if (h.indexed) {
+    const crawled = fmtDay(h.lastCrawlTime)
+    out.push({ slug: 'idx.homepage', detail: `Google has indexed your homepage (${h.coverageState}).${crawled ? ` Last crawled ${crawled}.` : ''}`, narrative: '', action: '', verified: true, isFail: false })
+  } else {
+    out.push({ slug: 'idx.homepage', detail: `Your homepage is not on Google yet. Search Console says: "${h.coverageState}".`, narrative: '', action: indexFix(h), verified: false, isFail: true })
+  }
+
+  // Other pages from the sitemap
+  if (data.pages.length === 0) {
+    out.push({ slug: 'idx.pages', detail: 'No other pages were found in your sitemap to check, so only the homepage matters for now.', narrative: '', action: '', verified: true, isFail: false })
+  } else {
+    const missing = data.pages.filter(p => !p.indexed)
+    const indexed = data.pages.length - missing.length
+    const ok = indexed / data.pages.length >= 0.8
+    const list = missing.slice(0, 5).map(p => `${pathOf(p.url)} (${p.coverageState})`).join('; ')
+    out.push({
+      slug: 'idx.pages',
+      detail: missing.length === 0
+        ? `All ${data.pages.length} pages we checked from your sitemap are indexed on Google.`
+        : `${indexed} of ${data.pages.length} pages we checked are indexed on Google. Not indexed: ${list}.`,
+      narrative: '',
+      action: missing.length ? missing.slice(0, 5).map(p => `${pathOf(p.url)}: ${indexFix(p)}`).join('\n') : '',
+      verified: ok,
+      isFail: !ok,
+    })
+  }
+
+  // Sitemap submitted in Search Console
+  const sm = data.sitemaps
+  if (sm === null) {
+    out.push({ slug: 'idx.sitemap', detail: 'Couldn\'t read your sitemaps from Search Console. Re-analyse to try again.', narrative: '', action: '', verified: false, isFail: false })
+  } else if (sm.length === 0) {
+    out.push({
+      slug: 'idx.sitemap',
+      detail: 'No sitemap has been submitted to Google Search Console, so Google has to find your pages on its own.',
+      narrative: '',
+      action: `In Search Console → Sitemaps, enter ${sitemapPath} and click Submit.`,
+      verified: false,
+      isFail: true,
+    })
+  } else {
+    const broken = sm.filter(s => s.errors > 0)
+    const s0 = sm[0]
+    if (broken.length) {
+      out.push({
+        slug: 'idx.sitemap',
+        detail: `Your sitemap ${broken[0].path} has ${broken[0].errors} error${broken[0].errors === 1 ? '' : 's'} in Search Console.`,
+        narrative: '',
+        action: `Open Search Console → Sitemaps → ${broken[0].path} to see the errors, fix them, then resubmit.`,
+        verified: false,
+        isFail: true,
+      })
+    } else {
+      const read = s0.isPending ? 'Google hasn\'t read it yet' : s0.lastDownloaded ? `last read by Google ${fmtDay(s0.lastDownloaded)}` : ''
+      out.push({
+        slug: 'idx.sitemap',
+        detail: `Sitemap submitted to Google: ${s0.path}${s0.urls ? ` (${s0.urls} URLs)` : ''}${read ? `, ${read}` : ''}.`,
+        narrative: '',
+        action: '',
+        verified: true,
+        isFail: false,
+      })
+    }
+  }
+  return out
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export async function analyzeSeo(
@@ -459,7 +566,14 @@ export async function analyzeSeo(
   // Separate AI-generated items from rule-engine items
   const lbItems = allItems.filter((item) => item.slug.startsWith('lb-'))
   const kwItems = allItems.filter((item) => item.slug.startsWith('kw-') || item.slug.startsWith('gsc-'))
-  const ruleItems = allItems.filter((item) => !item.slug.startsWith('lb-') && !item.slug.startsWith('kw-') && !item.slug.startsWith('gsc-'))
+  const ruleItems = allItems.filter((item) => !item.slug.startsWith('lb-') && !item.slug.startsWith('kw-') && !item.slug.startsWith('gsc-') && !item.slug.startsWith('idx.'))
+
+  // Google indexing runs alongside the page fetch (Search Console calls take a few seconds).
+  const homepageUrl = audit.finalUrl || audit.url
+  const indexingPromise = integrations.gscClientEmail && integrations.gscPrivateKey
+    ? fetchGscIndexing(integrations.gscClientEmail, integrations.gscPrivateKey, homepageUrl, (audit.discoveredUrls?.urls ?? []).map((u) => u.url))
+        .catch((): GscIndexingResult => ({ ok: false, reason: 'Could not reach Google Search Console right now. Re-analyse to try again.' }))
+    : Promise.resolve(null)
 
   // Fetch page content once at the top (skip if no keyword items)
   const pageContent = kwItems.length > 0 || lbItems.length > 0 ? await fetchPageContent(websiteUrl) : { title: '', description: '', h1: '', headings: [], bodyText: '', urlPath: '', internalLinks: [] }
@@ -489,6 +603,9 @@ export async function analyzeSeo(
       isFail: !verified,
     }
   })
+
+  const sitemapPath = (() => { try { return new URL('/sitemap.xml', homepageUrl).href } catch { return 'sitemap.xml' } })()
+  baseResults.push(...indexingResults(await indexingPromise, sitemapPath))
 
   // Generate narratives for failing items in one batch call
   const failedItems = baseResults
