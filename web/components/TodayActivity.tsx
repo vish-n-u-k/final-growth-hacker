@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { TodayActivity as Activity } from '@/app/api/today/activity/route'
 import PersonPanel, { ago } from '@/components/PersonPanel'
+import SocialIcon from '@/components/SocialIcon'
 
 // "What happened" on Today: visitors, new signups (and where each came from), returning users
 // and top sources for the last 24 hours or 7 days. Data: /api/today/activity (PostHog).
@@ -13,6 +14,14 @@ function Delta({ current, prior }: { current: number; prior: number }) {
   const pct = Math.round(((current - prior) / prior) * 100)
   return <span className={`ta-delta ${pct > 0 ? 'ta-delta--up' : 'ta-delta--dn'}`}>{pct > 0 ? '↑' : '↓'}{Math.abs(pct)}%</span>
 }
+
+// Referrer domain → social platform (for its logo); '' when it isn't a social network.
+const SOCIAL_DOMAINS: [RegExp, string][] = [
+  [/(^|\.)linkedin\.com$|^lnkd\.in$/, 'linkedin'], [/(^|\.)facebook\.com$|^fb\.me$/, 'facebook'], [/(^|\.)instagram\.com$/, 'instagram'],
+  [/^(t\.co|x\.com|twitter\.com)$/, 'x'], [/(^|\.)reddit\.com$/, 'reddit'], [/(^|\.)youtube\.com$|^youtu\.be$/, 'youtube'],
+  [/(^|\.)pinterest\./, 'pinterest'], [/(^|\.)tiktok\.com$/, 'tiktok'], [/(^|\.)threads\.net$/, 'threads'],
+]
+const socialFromDomain = (d: string) => SOCIAL_DOMAINS.find(([re]) => re.test(d.replace(/^www\./, '')))?.[1] ?? ''
 
 // Each list shows the latest few; "View all" opens the full table (Analytics › details) for the same period.
 const SHOWN = 3
@@ -168,7 +177,7 @@ export default function TodayActivity() {
               </ul>
               {data.referrers.length > 0 && (
                 <div className="ta-chips">
-                  {data.referrers.map(r => <span key={r.domain} className="ta-chip">{r.domain} <b>{r.visitors}</b></span>)}
+                  {data.referrers.map(r => <span key={r.domain} className="ta-chip"><SocialIcon platform={socialFromDomain(r.domain)} size={13} />{r.domain} <b>{r.visitors}</b></span>)}
                 </div>
               )}
             </div>

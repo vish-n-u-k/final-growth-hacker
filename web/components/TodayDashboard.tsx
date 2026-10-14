@@ -2,6 +2,7 @@
 
 import RoadToFiveHundred from '@/components/RoadToFiveHundred'
 import { useClaudeHandoff, type HandoffArgs } from '@/components/useClaudeHandoff'
+import SocialIcon, { socialBrand } from '@/components/SocialIcon'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
@@ -414,6 +415,7 @@ function SocialFeed({ posts }: { posts: RecentPost[] }) {
           return (
             <div key={i} className="td-feed-row">
               <span className="td-feed-platform" style={{ background: color + '18', color }}>
+                <SocialIcon platform={post.platform} size={13} />
                 {label}
               </span>
               <span className="td-feed-topic">{post.topic}</span>
@@ -471,7 +473,7 @@ function PlatformCard({ p }: { p: PlatformStats }) {
       <div className="td-platform-card td-platform-card--dim">
         <div className="td-platform-header">
           <div className="td-platform-name-wrap">
-            <span className="td-platform-dot" style={{ background: c.color, opacity: 0.4 }} />
+            {socialBrand(p.provider) ? <span style={{ opacity: 0.5 }}><SocialIcon platform={p.provider} size={16} /></span> : <span className="td-platform-dot" style={{ background: c.color, opacity: 0.4 }} />}
             <span className="td-platform-name" style={{ opacity: 0.5 }}>{p.name}</span>
           </div>
           {connectProvider && (
@@ -489,7 +491,7 @@ function PlatformCard({ p }: { p: PlatformStats }) {
     <div className="td-platform-card">
       <div className="td-platform-header">
         <div className="td-platform-name-wrap">
-          <span className="td-platform-dot" style={{ background: c.color }} />
+          {socialBrand(p.provider) ? <SocialIcon platform={p.provider} size={16} /> : <span className="td-platform-dot" style={{ background: c.color }} />}
           <span className="td-platform-name">{p.name}</span>
           {p.handle && <span className="td-platform-handle">{p.handle}</span>}
         </div>
@@ -575,7 +577,7 @@ function SocialAnalytics() {
                 const c = PLATFORM_COLORS[p.provider] ?? { bg: '#88888818', color: '#888' }
                 return (
                   <a key={p.provider} href={`/api/connect/${PLATFORM_CONNECT[p.provider]}?return_to=/today`} className="td-connect-btn">
-                    <span className="td-connect-dot" style={{ background: c.color }} aria-hidden="true" />
+                    {socialBrand(p.provider) ? <SocialIcon platform={p.provider} size={16} /> : <span className="td-connect-dot" style={{ background: c.color }} aria-hidden="true" />}
                     {p.name}
                   </a>
                 )
@@ -662,7 +664,7 @@ function BlogComposer({ frektoConnected, generating, topic, setTopic, mode, setM
             {BLOG_MODES.map(m => (
               <label key={m.key} className={`td-blog-mode${mode === m.key ? ' is-on' : ''}`}>
                 <input type="radio" name="td-blog-mode" checked={mode === m.key} onChange={() => setMode(m.key)} />
-                <span><b>{m.label}</b><small>{m.hint}</small></span>
+                <span><b style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{m.key === 'linkedin' && <SocialIcon platform="linkedin" size={14} />}{m.label}</b><small>{m.hint}</small></span>
               </label>
             ))}
           </div>

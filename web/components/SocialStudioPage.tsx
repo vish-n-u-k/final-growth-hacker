@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import SocialIcon, { socialBrand } from '@/components/SocialIcon'
 import FrektoPostingSection from '@/components/FrektoPostingSection'
 
 export interface ScheduledPost {
@@ -62,9 +63,11 @@ function PlatformPill({ platform, size = 'sm' }: { platform: string; size?: 'sm'
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
       padding: pad, borderRadius: '99px', fontSize: fs, fontWeight: 700,
       background: `${color}18`, color, border: `1px solid ${color}40`,
-      letterSpacing: '0.02em', textTransform: 'uppercase',
+      letterSpacing: '0.02em', textTransform: socialBrand(platform) ? 'none' : 'uppercase', gap: 5,
     }}>
-      {PLATFORM_ICONS[platform] ?? platform.slice(0, 2).toUpperCase()}
+      {socialBrand(platform)
+        ? <><SocialIcon platform={platform} size={size === 'md' ? 13 : 11} />{socialBrand(platform)!.name}</>
+        : PLATFORM_ICONS[platform] ?? platform.slice(0, 2).toUpperCase()}
     </span>
   )
 }

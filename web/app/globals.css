@@ -7660,3 +7660,7 @@ a.ta-more:hover { color: var(--text); }
 .ta-view-all { display: flex; align-items: center; justify-content: center; margin-top: 10px; min-height: 40px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 13px; font-weight: 600; text-decoration: none; }
 .ta-view-all:hover { border-color: var(--green); color: var(--green); }
 .ta-view-all:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+/* Social platform logos (components/SocialIcon.tsx) next to platform names. */
+.td-connect-btn, .td-feed-platform { display: inline-flex; align-items: center; gap: 7px; }
+.td-feed-platform { gap: 5px; }
+.ta-chip { display: inline-flex; align-items: center; gap: 5px; }

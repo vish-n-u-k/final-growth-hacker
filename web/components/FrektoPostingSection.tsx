@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import SocialIcon from '@/components/SocialIcon'
 
 const FREKTO_PLATFORMS = [
   { key: 'instagram', label: 'Instagram', format: '4:5' },
@@ -159,7 +160,7 @@ export default function FrektoPostingSection({
           {/* Platform pills */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
             {FREKTO_PLATFORMS.map((p) => (
-              <button key={p.key} onClick={() => selectPlatform(p)} style={pill(platform === p.key)}>{p.label}</button>
+              <button key={p.key} onClick={() => selectPlatform(p)} style={{ ...pill(platform === p.key), display: 'inline-flex', alignItems: 'center', gap: 6 }}><SocialIcon platform={p.key} size={14} />{p.label}</button>
             ))}
           </div>
 
