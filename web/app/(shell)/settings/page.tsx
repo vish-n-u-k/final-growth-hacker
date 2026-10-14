@@ -6,7 +6,8 @@ import { eq } from 'drizzle-orm'
 import SettingsPage from '@/components/SettingsPage'
 import { INTEGRATION_MAP, INTEGRATION_REGISTRY } from '@/lib/integrations/registry'
 
-const VALID_TABS = ['brand', 'playbook', 'integrations', 'claude-code', 'account'] as const
+// The sales playbook lives on the Foundation module only (old ?tab=playbook links open Brand).
+const VALID_TABS = ['brand', 'integrations', 'claude-code', 'account'] as const
 type Tab = typeof VALID_TABS[number]
 
 // Matches metadata keys that hold a secret even when a provider's own field

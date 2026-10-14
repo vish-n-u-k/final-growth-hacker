@@ -6,7 +6,6 @@ import { useSmartBack } from '@/lib/useSmartBack'
 import { createClient } from '@/lib/supabase/client'
 import type { IntegrationDefinition } from '@/lib/integrations/registry'
 import { INTEGRATION_GROUPS } from '@/lib/integrations/registry'
-import { PLAYBOOK_FIELDS, PLAYBOOK_SECTIONS } from '@/lib/playbook/fields'
 import ThemeToggle from '@/components/ThemeToggle'
 
 interface ConnectedIntegration {
@@ -28,7 +27,7 @@ interface Props {
   initialTab?: Tab
 }
 
-type Tab = 'brand' | 'playbook' | 'integrations' | 'claude-code' | 'account'
+type Tab = 'brand' | 'integrations' | 'claude-code' | 'account'
 
 export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations, mcpKeyPrefix, dailyEmailEnabled, frektoAutoPostEnabled, initialTab }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab ?? 'brand')
@@ -154,7 +153,6 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
         <nav className="st-tabs">
           {([
             { key: 'brand', label: 'Brand', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
-            { key: 'playbook', label: 'Sales Playbook', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
             { key: 'integrations', label: 'Integrations', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
             { key: 'claude-code', label: 'Connect Claude', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M8 12l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
             { key: 'account', label: 'Account', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
@@ -178,7 +176,6 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
         {/* Content */}
         <div className="st-content">
           {tab === 'brand' && <BrandSection brand={brand} />}
-          {tab === 'playbook' && <PlaybookSection playbook={playbook} />}
           {tab === 'integrations' && (
             <>
               <IntegrationsSection
@@ -195,143 +192,6 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
         </div>
       </div>
     </>
-  )
-}
-
-// ── Playbook Section ──────────────────────────────────────────────────────────
-
-function PlaybookSection({ playbook }: { playbook: Record<string, string> | null }) {
-  const isStale = !!(playbook as Record<string, unknown> | null)?._stale
-  const [values, setValues] = useState<Record<string, string>>(() => {
-    const init: Record<string, string> = {}
-    for (const f of PLAYBOOK_FIELDS) init[f.key] = playbook?.[f.key] ?? ''
-    return init
-  })
-  const [openSections, setOpenSections] = useState<Set<string>>(new Set([PLAYBOOK_SECTIONS[0]?.id ?? '']))
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [regenerating, setRegenerating] = useState(false)
-  const [error, setError] = useState('')
-  const router = useRouter()
-
-  const handleRegenerate = async () => {
-    setRegenerating(true)
-    setError('')
-    const res = await fetch('/api/settings/playbook', { method: 'POST' })
-    if (res.ok) {
-      router.refresh()
-    } else {
-      setError('Regeneration failed — try again')
-    }
-    setRegenerating(false)
-  }
-
-  const toggleSection = (id: string) => setOpenSections(prev => {
-    const next = new Set(prev)
-    next.has(id) ? next.delete(id) : next.add(id)
-    return next
-  })
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setSaving(true)
-    setError('')
-    const res = await fetch('/api/settings/playbook', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...values, generatedAt: playbook?.generatedAt ?? new Date().toISOString() }),
-    })
-    if (res.ok) {
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2500)
-      router.refresh()
-    } else {
-      setError('Failed to save')
-    }
-    setSaving(false)
-  }
-
-  return (
-    <div className="st-section">
-      <div className="st-section-hd">
-        <h2 className="st-section-title">Sales Playbook</h2>
-        <p className="st-section-desc">
-          Your full sales playbook — generated from your website when Foundation runs. Edit any section to sharpen the AI&apos;s output. Used to enrich every module&apos;s analysis.
-        </p>
-      </div>
-      {!playbook ? (
-        <div className="st-card">
-          <p style={{ fontSize: 13, color: 'var(--text-dim)', lineHeight: 1.6, margin: 0 }}>
-            Run Foundation analysis on the dashboard to auto-generate your full Sales Playbook. The AI will read your website and produce email templates, call scripts, objection handlers, outreach sequences, and more.
-          </p>
-        </div>
-      ) : (
-        <form onSubmit={handleSave}>
-          {isStale && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 14px', marginBottom: 16, borderRadius: 8, border: '1px solid var(--gold)', background: 'rgba(231,200,115,0.07)' }}>
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--gold)', lineHeight: 1.5 }}>
-                New module data is available. Regenerate to update your playbook with richer brand intelligence.
-              </p>
-              <button
-                type="button"
-                onClick={handleRegenerate}
-                disabled={regenerating}
-                style={{ flexShrink: 0, fontSize: 12, padding: '6px 14px', borderRadius: 6, border: '1px solid var(--gold)', background: 'transparent', color: 'var(--gold)', cursor: regenerating ? 'not-allowed' : 'pointer', opacity: regenerating ? 0.6 : 1 }}
-              >
-                {regenerating ? 'Regenerating…' : 'Regenerate'}
-              </button>
-            </div>
-          )}
-          {PLAYBOOK_SECTIONS.map((section) => {
-            const isOpen = openSections.has(section.id)
-            return (
-              <div key={section.id} className="st-card" style={{ marginBottom: 12, padding: 0, overflow: 'hidden' }}>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => toggleSection(section.id)}
-                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleSection(section.id)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', cursor: 'pointer', userSelect: 'none' }}
-                >
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{section.label}</span>
-                  <svg style={{ transform: isOpen ? 'rotate(180deg)' : undefined, transition: 'transform 0.2s', flexShrink: 0 }} width="14" height="14" viewBox="0 0 24 24" fill="none">
-                    <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                </div>
-                {isOpen && (
-                  <div style={{ borderTop: '1px solid var(--line)', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    {section.fields.map((field) => (
-                      <div key={field.key} className="st-field" style={{ marginBottom: 0 }}>
-                        <label className="st-label">{field.label}</label>
-                        <textarea
-                          className="st-input"
-                          value={values[field.key] ?? ''}
-                          onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                          placeholder={field.placeholder}
-                          rows={field.rows}
-                          style={{ resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-          {playbook.generatedAt && (
-            <p style={{ fontSize: 11, color: 'var(--text-dim)', margin: '4px 0 12px' }}>
-              Last generated: {new Date(playbook.generatedAt).toLocaleDateString()}
-            </p>
-          )}
-          {error && <p className="st-error">{error}</p>}
-          <div className="st-form-submit">
-            <button type="submit" disabled={saving} className="st-btn-primary">
-              {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save changes'}
-            </button>
-          </div>
-        </form>
-      )}
-    </div>
   )
 }
 
