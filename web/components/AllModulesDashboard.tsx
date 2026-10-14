@@ -21,6 +21,7 @@ import FrektoPostingSectionImport from '@/components/FrektoPostingSection'
 import NotesDrawer from '@/components/NotesDrawer'
 import { useClaudeHandoff } from '@/components/useClaudeHandoff'
 import { JOURNEY_PHASES } from '@/lib/journey'
+import ElementEvidence, { isElementEvidence, describeElements } from '@/components/ElementEvidence'
 
 function renderMdStep(step: string): React.ReactNode {
   const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
@@ -866,6 +867,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           exportType: item.exportType ?? null,
           choiceOptions: item.choiceOptions ?? null,
           userChoice: item.userChoice ?? null,
+          aiData: item.aiData ?? null,
         }
       }
       setStatesMap(prev => ({ ...prev, [modId]: itemStates }))
@@ -997,12 +999,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   }
 
   // "Copy fix prompt": the finding and the steps as one message to paste into an AI assistant.
-  const buildFixPrompt = (p: { label: string; found?: string | null; why?: string | null; action?: string | null; steps?: string[] }) => {
+  const buildFixPrompt = (p: { label: string; found?: string | null; why?: string | null; action?: string | null; steps?: string[]; data?: unknown }) => {
     const clean = (t: string) => t.replace(/\*\*/g, '')
     const lines = [`Please fix this issue${brand.websiteUrl ? ` on ${brand.websiteUrl}` : ' on my website'}.`, '', `Issue: ${clean(p.label)}`]
     if (p.found) lines.push(`What was found: ${clean(p.found)}`)
     if (p.why) lines.push(`Why it matters: ${clean(p.why)}`)
     if (p.action) lines.push(`What to do: ${clean(p.action)}`)
+    if (isElementEvidence(p.data)) lines.push('', 'The elements (from Google Lighthouse, phone view):', ...describeElements(p.data))
     if (p.steps?.length) lines.push('', 'Steps:', ...p.steps.map((st, i) => `${i + 1}. ${clean(st).replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')}`))
     lines.push('', 'Make the change, then tell me exactly what you changed.')
     return lines.join('\n')
@@ -1880,6 +1883,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <p className="sm-current-text">{parseBold(s.aiDetail)}</p>
                 </div>
               )}
+              {!done && <ElementEvidence data={s?.aiData} brandId={brand.id} />}
               {s?.aiNarrative && <p className="sm-narrative">{parseBold(s.aiNarrative)}</p>}
               {s?.aiAction && (
                 <div className="sm-action-box">
@@ -1957,7 +1961,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <button
                     type="button"
                     className="sm-act-primary"
-                    onClick={(e) => { e.stopPropagation(); fixWithClaude(itemKey, buildFixPrompt({ label: s?.aiHighlight || item.label, found: s?.aiDetail, why: s?.aiNarrative, action: s?.aiAction, steps: item.fixGuide }), { modId, itemId: s?.id, slug: item.slug, label: item.label, action: s?.aiAction }) }}
+                    onClick={(e) => { e.stopPropagation(); fixWithClaude(itemKey, buildFixPrompt({ label: s?.aiHighlight || item.label, found: s?.aiDetail, why: s?.aiNarrative, action: s?.aiAction, steps: item.fixGuide, data: s?.aiData }), { modId, itemId: s?.id, slug: item.slug, label: item.label, action: s?.aiAction }) }}
                   >
                     Fix with Claude
                   </button>

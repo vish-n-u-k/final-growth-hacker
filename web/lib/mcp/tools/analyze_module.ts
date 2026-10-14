@@ -188,6 +188,7 @@ export async function analyzeModule(brandId: string, moduleType: string) {
             aiVerifiedAt: r.verified ? new Date() : null,
             completedBy: r.verified ? 'ai' : null,
             fixable: !!(defItemMap.get(r.slug)?.fixable),
+            ...(r.aiData !== undefined ? { aiData: r.aiData } : {}),
             updatedAt: new Date(),
           })
           .where(and(eq(moduleItems.moduleId, mod.id), eq(moduleItems.slug, r.slug))),

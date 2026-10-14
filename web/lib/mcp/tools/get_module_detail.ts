@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { modules, moduleItems, moduleCategories } from '@/lib/db/schema'
+import { isElementEvidence } from '@/lib/audit/elements'
 import { and, eq } from 'drizzle-orm'
 
 export async function getModuleDetail(brandId: string, moduleType: string) {
@@ -42,6 +43,8 @@ export async function getModuleDetail(brandId: string, moduleType: string) {
       aiDetail: item.aiDetail,
       aiNarrative: item.aiNarrative,
       aiAction: item.aiAction,
+      // Website Audit: the exact failing elements (selector, text, colours and a passing colour)
+      ...(isElementEvidence(item.aiData) ? { elements: item.aiData.elements.map(({ rect: _r, ...el }) => el) } : {}),
     })
   }
 

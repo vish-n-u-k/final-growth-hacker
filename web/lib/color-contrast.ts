@@ -45,3 +45,39 @@ export function evaluateContrast(hex1: string, hex2: string): WcagResult | null 
     aaaNormal: ratio >= 7,
   }
 }
+
+function toHex([r, g, b]: [number, number, number]): string {
+  return '#' + [r, g, b].map((c) => Math.round(Math.max(0, Math.min(255, c))).toString(16).padStart(2, '0')).join('')
+}
+
+// Mixes `hex` toward black or white in small steps until it reaches `need` against `other`.
+function mixUntil(hex: string, other: string, toward: 'black' | 'white', need: number): { color: string; ratio: number } | null {
+  const rgb = hexToRgb(hex)
+  if (!rgb) return null
+  const target = toward === 'black' ? 0 : 255
+  for (let t = 0.02; t <= 1.0001; t += 0.02) {
+    const mixed = toHex(rgb.map((c) => c + (target - c) * t) as [number, number, number])
+    const ratio = contrastRatio(mixed, other)
+    if (ratio !== null && ratio >= need) return { color: mixed, ratio }
+  }
+  return null
+}
+
+// The smallest colour change that makes text pass, keeping the brand tint as far as possible:
+// dark text on a light background → darken the text; light text on a coloured button or
+// banner → darken the background (keeping white text white). Falls back to the other side.
+export function suggestContrastFix(fg: string, bg: string, need = 4.5): { fg?: string; bg?: string; ratio: number } | null {
+  const fgRgb = hexToRgb(fg)
+  const bgRgb = hexToRgb(bg)
+  if (!fgRgb || !bgRgb) return null
+  if (relativeLuminance(fgRgb) > relativeLuminance(bgRgb)) {
+    const b = mixUntil(bg, fg, 'black', need)
+    if (b) return { bg: b.color, ratio: b.ratio }
+    const f = mixUntil(fg, bg, 'white', need)
+    return f ? { fg: f.color, ratio: f.ratio } : null
+  }
+  const f = mixUntil(fg, bg, 'black', need)
+  if (f) return { fg: f.color, ratio: f.ratio }
+  const b = mixUntil(bg, fg, 'white', need)
+  return b ? { bg: b.color, ratio: b.ratio } : null
+}

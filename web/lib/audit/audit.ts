@@ -11,6 +11,7 @@
 
 import * as cheerio from 'cheerio'
 import { fetchPsiAccessibility } from '@/lib/psi'
+import { extractElements, extractScreenshot, type AuditElement, type PageScreenshot } from '@/lib/audit/elements'
 import { connect as tlsConnect } from 'tls'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -27,6 +28,7 @@ export interface Finding {
   text: string
   fix?: string
   code?: string
+  elements?: { total: number; elements: AuditElement[] } // the failing page elements (Lighthouse checks)
 }
 
 export interface AuditSection {
@@ -45,6 +47,9 @@ export interface AuditResult {
   overall: number
   action_count: number
   sections: AuditSection[]
+  // Lighthouse's full-page phone screenshot (the failing elements' positions are on it).
+  // Replaced by its saved size and time once lib/audit/screenshot.ts has stored it.
+  screenshot?: PageScreenshot | { w: number; h: number; at: string } | null
 }
 
 export interface AuditError {
@@ -153,6 +158,8 @@ export interface A11yData {
   fontSizePass: boolean | null
   tapTargetsPass: boolean | null
   accessibleNamesPass: boolean | null
+  elements: Record<string, { total: number; elements: AuditElement[] }> // finding key → failing elements
+  screenshot: PageScreenshot | null
 }
 
 async function fetchPsiA11y(url: string): Promise<A11yData | null> {
@@ -175,6 +182,19 @@ async function fetchPsiA11y(url: string): Promise<A11yData | null> {
       ? null
       : (buttonName ?? true) && (linkName ?? true)
 
+    // Lighthouse 10+ replaced tap-targets with the accessibility audit target-size
+    const tapAudit = audits?.['tap-targets'] ? 'tap-targets' : 'target-size'
+    const elementsFor: Record<string, string[]> = {
+      'color-contrast': ['color-contrast'],
+      'tap-targets': [tapAudit],
+      'accessible-names': ['button-name', 'link-name'],
+    }
+    const elements: A11yData['elements'] = {}
+    for (const [key, ids] of Object.entries(elementsFor)) {
+      const found = extractElements(lhr, ids)
+      if (found) elements[key] = found
+    }
+
     const colorContrastItems = audits?.['color-contrast']?.details?.items
     const colorContrastFailCount = Array.isArray(colorContrastItems) ? colorContrastItems.length : null
 
@@ -183,8 +203,10 @@ async function fetchPsiA11y(url: string): Promise<A11yData | null> {
       colorContrastPass: auditPass('color-contrast'),
       colorContrastFailCount,
       fontSizePass: auditPass('font-size'),
-      tapTargetsPass: auditPass('tap-targets'),
+      tapTargetsPass: auditPass(tapAudit),
       accessibleNamesPass,
+      elements,
+      screenshot: Object.keys(elements).length > 0 ? extractScreenshot(lhr) : null,
     }
   } catch {
     return null
@@ -287,6 +309,10 @@ function auditUX($: cheerio.CheerioAPI, a11yData: A11yData | null): Finding[] {
         'Add descriptive text, aria-label, or aria-labelledby to every button and link.'))
     } else if (accessibleNamesPass === true) {
       findings.push(f('accessible-names', 'good', 'All buttons and links have accessible names for screen readers.'))
+    }
+
+    for (const fi of findings) {
+      if (fi.level !== 'good' && a11yData.elements[fi.key]) fi.elements = a11yData.elements[fi.key]
     }
   }
 
@@ -928,5 +954,6 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
     overall,
     action_count: actionCount,
     sections,
+    screenshot: a11yData?.screenshot ?? null,
   }
 }

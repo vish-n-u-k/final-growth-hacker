@@ -109,6 +109,7 @@ export interface ModuleAnalysisResult {
   verified: boolean
   exportType?: 'auto' | 'needs_choice' | 'external'
   choiceOptions?: string[]  // 2-3 ready-to-use values for needs_choice items
+  aiData?: Record<string, unknown> | object | null  // structured payload (website: ElementEvidence); undefined = leave as is
 }
 
 // ── Analysis result — dynamic modules (Claude generates the items themselves) ──

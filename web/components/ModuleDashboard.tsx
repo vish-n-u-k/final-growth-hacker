@@ -30,6 +30,7 @@ export interface DBItemState {
   exportType: string | null
   choiceOptions: string[] | null
   userChoice: string | null
+  aiData?: unknown | null   // e.g. the failing page elements for a Website Audit check
 }
 
 interface ModuleSummary {

@@ -920,6 +920,7 @@ Key One-Liners: ${pb.keyOneLiners}`
             fixIntegrationProvider: defItem?.assistedInput?.integrationProvider ?? (defItem?.upgradeInput ? 'brand_assets' : null),
             exportType: (r as ModuleAnalysisResult).exportType ?? (defItem ? deriveExportType(defItem) : null),
             choiceOptions: (r as ModuleAnalysisResult).choiceOptions ?? null,
+            ...(r.aiData !== undefined ? { aiData: r.aiData } : {}),
             updatedAt: new Date(),
           })
           .where(and(eq(moduleItems.moduleId, moduleId), eq(moduleItems.slug, r.slug)))

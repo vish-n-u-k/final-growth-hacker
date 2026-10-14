@@ -173,6 +173,7 @@ export async function GET(
           exportType: (item.exportType as string | null) ?? null,
           choiceOptions: (item.choiceOptions as string[] | null) ?? null,
           userChoice: (item.userChoice as string | null) ?? null,
+          aiData: item.aiData ?? null,
         }
       }
 
