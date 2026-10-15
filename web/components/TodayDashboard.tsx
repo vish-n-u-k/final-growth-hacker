@@ -8,6 +8,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 import FrektoPostingSection from '@/components/FrektoPostingSection'
 import TodayActivity from '@/components/TodayActivity'
+import ElementEvidence from '@/components/ElementEvidence'
+import PagePreview from '@/components/PagePreview'
 import type { ActionCard, ImpactCard } from '@/lib/daily/signals'
 import type { PlatformStats } from '@/app/api/social/analytics/route'
 import type { DBItemFull } from '@/lib/modules/types'
@@ -253,6 +255,9 @@ function blogHandoff(blog: { id: string; title: string; mdUrl?: string }, c: Sit
   return { key: `blog:${blog.id}`, label: blog.title, plain, mcp, title: 'Add this post to your website' }
 }
 
+// "**bold**" from the AI's wording, shown as bold instead of literal asterisks
+const withBold = (text: string) => text.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part))
+
 // which card types expand inline vs navigate away
 const INLINE_TYPES: Set<string> = new Set(['outreach', 'social', 'blog'])
 
@@ -306,12 +311,20 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
       </div>
 
       <h3 className="td-card-headline">{card.headline}</h3>
-      <p className="td-card-reason">{card.reason}</p>
+      <p className="td-card-reason">{withBold(card.reason)}</p>
+
+      {/* The module check's picture: the failing elements on the page, or the Google / share preview */}
+      {card.data?.visual != null && (
+        <div className="td-card-visual">
+          <ElementEvidence data={card.data.visual} shown={1} />
+          <PagePreview data={card.data.visual} options={card.data.choiceOptions as string[] | null} slug={String(card.data.slug ?? '')} />
+        </div>
+      )}
 
       {action ? (
         <div className="td-card-why">
           <span className="td-why-label">What to do</span>
-          {action}
+          {withBold(action)}
         </div>
       ) : TYPE_WHY[card.type] && (
         <div className="td-card-why">

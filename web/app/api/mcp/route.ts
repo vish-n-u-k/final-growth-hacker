@@ -98,7 +98,8 @@ async function dispatch(
       const today = await getTodayTasks(brandId, limit)
       if (!today) return { error: 'Brand not found.' }
       if (today.tasks.length === 0) return { ...today, message: 'Nothing pending today. Suggest re-running analyze_module on SEO or GEO to find new work.' }
-      return today
+      // The card pictures are for the app; Claude gets the details from get_module_detail
+      return { ...today, tasks: today.tasks.map(({ visual: _v, choiceOptions: _c, ...t }) => t) }
     }
 
     case 'create_social_post':

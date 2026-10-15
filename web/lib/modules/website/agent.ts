@@ -1,6 +1,6 @@
 import { callAI } from '@/lib/ai/client'
 import type { AuditResult, Finding } from '@/lib/audit/audit'
-import type { ElementEvidence } from '@/lib/audit/elements'
+import { NOT_CHECKED_DETAIL, type ElementEvidence } from '@/lib/audit/elements'
 import { previewFor } from '@/lib/audit/page-preview'
 import type { ModuleAnalysisResult } from '../types'
 import { WEBSITE_MODULE } from './definition'
@@ -92,7 +92,7 @@ export async function analyzeWebsite(
       // have Claude guess (it can't see the rendered page either)
       return {
         slug: item.slug,
-        detail: 'Couldn\'t check this time: Google\'s page scan didn\'t respond. Re-analyse to try again.',
+        detail: NOT_CHECKED_DETAIL,
         narrative: '',
         action: '',
         verified: false,

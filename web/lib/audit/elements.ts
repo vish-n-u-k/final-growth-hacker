@@ -31,6 +31,9 @@ export interface ElementEvidence {
   url?: string  // the page that was audited (for "See it on your site" links)
 }
 
+// Detail stored on a Lighthouse-only check when Google's scan didn't answer (not a real finding)
+export const NOT_CHECKED_DETAIL = 'Couldn\'t check this time: Google\'s page scan didn\'t respond. Re-analyse to try again.'
+
 export function isElementEvidence(d: unknown): d is ElementEvidence {
   return !!d && typeof d === 'object' && (d as ElementEvidence).kind === 'elements' && Array.isArray((d as ElementEvidence).elements)
 }

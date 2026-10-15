@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { isElementEvidence, type AuditElement, type ElementEvidence as Evidence } from '@/lib/audit/elements'
 
 // The failing page elements behind a Website Audit check: where each one is on the page
@@ -57,6 +57,21 @@ function isBlank(img: HTMLImageElement, shotW: number, sx: number, sy: number, s
 function Crop({ el, shot, src }: { el: AuditElement; shot: NonNullable<Evidence['shot']>; src: string }) {
   const [state, setState] = useState<'loading' | 'ok' | 'failed' | 'blank'>('loading')
   const r = el.rect
+  const onLoaded = useCallback((img: HTMLImageElement) => {
+    if (!r) return
+    const clampV = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
+    const cw = clampV(r.width + 2 * PAD, Math.min(MIN_W, shot.w), shot.w)
+    const ch = clampV(r.height + 2 * PAD, Math.min(MIN_H, shot.h), Math.min(MAX_H, shot.h))
+    const cl = clampV(r.left + r.width / 2 - cw / 2, 0, shot.w - cw)
+    const ct = clampV(r.top + r.height / 2 - ch / 2, 0, shot.h - ch)
+    setState(isBlank(img, shot.w, cl, ct, cw, ch) ? 'blank' : 'ok')
+  }, [r, shot.w, shot.h])
+  // A server-rendered page can finish loading the image before React attaches onLoad
+  const checkLoaded = useCallback((img: HTMLImageElement | null) => {
+    if (!img?.complete) return
+    if (img.naturalWidth > 0) onLoaded(img)
+    else setState('failed') // it already failed to load
+  }, [onLoaded])
   if (!r || state === 'failed' || r.top >= shot.h || r.left >= shot.w) return null
   if (state === 'blank') return <p className="ee-note ee-noshot">Not visible in Google&apos;s screenshot of your page (usually a scroll animation).</p>
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
@@ -72,7 +87,8 @@ function Crop({ el, shot, src }: { el: AuditElement; shot: NonNullable<Evidence[
       <img
         src={src}
         alt=""
-        onLoad={(e) => setState(isBlank(e.currentTarget, shot.w, left, top, w, h) ? 'blank' : 'ok')}
+        ref={checkLoaded}
+        onLoad={(e) => onLoaded(e.currentTarget)}
         onError={() => setState('failed')}
         style={{ width: pct(shot.w, w), left: pct(-left, w), top: pct(-top, h) }}
       />
@@ -131,12 +147,12 @@ const pxText = (fontSize?: string) => {
   return px ? `${Math.round(parseFloat(px))}px` : fontSize
 }
 
-export default function ElementEvidence({ data, brandId, pageUrl }: { data: unknown; brandId?: string; pageUrl?: string }) {
+export default function ElementEvidence({ data, brandId, pageUrl, shown = SHOWN }: { data: unknown; brandId?: string; pageUrl?: string; shown?: number }) {
   const [all, setAll] = useState(false)
   if (!isElementEvidence(data) || data.elements.length === 0) return null
   const { elements, total, shot } = data
   const src = shot ? `/api/brands/screenshot?v=${encodeURIComponent(shot.at)}${shot.name && shot.name !== 'website' ? `&name=${shot.name}` : ''}${brandId ? `&brandId=${brandId}` : ''}` : ''
-  const list = all ? elements : elements.slice(0, SHOWN)
+  const list = all ? elements : elements.slice(0, shown)
 
   return (
     <div className="ee" onClick={(e) => e.stopPropagation()}>
@@ -191,7 +207,7 @@ export default function ElementEvidence({ data, brandId, pageUrl }: { data: unkn
           </li>
         ))}
       </ul>
-      {elements.length > SHOWN && (
+      {elements.length > shown && (
         <button type="button" className="ee-more" onClick={(e) => { e.stopPropagation(); setAll(v => !v) }}>
           {all ? 'Show fewer' : `Show all ${elements.length}`}
         </button>

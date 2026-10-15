@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio'
 import { previewFor } from '@/lib/audit/page-preview'
-import type { ElementEvidence } from '@/lib/audit/elements'
+import { NOT_CHECKED_DETAIL, type ElementEvidence } from '@/lib/audit/elements'
 import { callAI } from '@/lib/ai/client'
 import type { SeoAuditResult } from '@/lib/audit/seo-audit'
 import type { ModuleAnalysisResult, ModuleItemDefinition } from '../types'
@@ -604,7 +604,7 @@ export async function analyzeSeo(
       // Measured only by Google's page scan, which didn't answer this time: say so, don't guess
       return {
         slug: item.slug,
-        detail: 'Couldn\'t check this time: Google\'s page scan didn\'t respond. Re-analyse to try again.',
+        detail: NOT_CHECKED_DETAIL,
         narrative: '',
         action: '',
         verified: false,

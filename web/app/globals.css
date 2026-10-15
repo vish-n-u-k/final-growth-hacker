@@ -7711,7 +7711,7 @@ a.ta-more:hover { color: var(--text); }
 .ta-ga-note a { display: inline-flex; align-items: center; gap: 3px; color: var(--accent-foreground); font-weight: 600; text-decoration: none; white-space: nowrap; }
 
 /* ── Failing elements on a check (components/ElementEvidence.tsx) ─────────── */
-.ee { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; background: var(--card); }
+.ee { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; background: var(--card); container-type: inline-size; }
 .ee-hd { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .ee-note { font-size: 11.5px; color: var(--text-faint); margin: 0; }
 .ee-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
@@ -7784,3 +7784,8 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
   .pp-serp { padding: 12px; }
   .pp-serp-title { font-size: 18px; }
 }
+
+/* Today action card: the module check's picture */
+.td-card-visual { margin: 4px 0 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+/* Narrow box (phones, Today cards): picture above the details */
+@container (max-width: 600px) { .ee-item { grid-template-columns: minmax(0, 1fr); gap: 10px; } }

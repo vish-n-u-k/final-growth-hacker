@@ -20,6 +20,9 @@ import { getOpenSignals, getSnapshot, saveSnapshot } from '@/lib/signals'
 import { runDiagnosis, type Diagnosis, type GrowthStage } from '@/lib/daily/diagnosis'
 import type { ActionCard, ActionCardType } from '@/lib/daily/signals'
 import { MODULE_MAP, isPathModule } from '@/lib/modules/registry'
+import { getAllItems } from '@/lib/modules/types'
+import { isElementEvidence, NOT_CHECKED_DETAIL } from '@/lib/audit/elements'
+import { isPagePreview } from '@/lib/audit/page-preview'
 
 // How a task gets done:
 //   code    — Claude changes the website codebase (GitHub repo)
@@ -45,6 +48,10 @@ export interface TodayTask {
   daysPending: number // days since this task was first shown (0 = new today)
   overdue: boolean // daysPending >= OVERDUE_DAYS; priority already bumped one level
   askToDrop: boolean // daysPending >= DROP_ASK_DAYS; ask the user to do it now or drop it
+  // The check's picture (failing elements on the page screenshot, or a Google / share preview) and its
+  // suggested wordings, for the Today card. Left out of the MCP get_today_tasks response.
+  visual?: unknown
+  choiceOptions?: string[] | null
 }
 
 export interface TodayTasks {
@@ -193,8 +200,15 @@ export async function getTodayTasks(
     return !MODULE_MAP[type]?.dynamic || !!i.fixable || i.exportType === 'auto' || i.exportType === 'needs_choice'
   }
 
-  // Pending = not verified, not checked, not skipped, actually analysed, and concrete
-  const pending = items.filter((i) => !i.aiVerified && !i.userChecked && !i.userSkipped && i.aiDetail && isConcrete(i))
+  // Checks still in the module's definition (a check removed later keeps its old saved row)
+  const defined = (i: (typeof items)[number]) => {
+    const def = MODULE_MAP[modMap.get(i.moduleId)?.type ?? '']
+    return !def || def.dynamic || getAllItems(def).some((d) => d.slug === i.slug)
+  }
+
+  // Pending = not verified, not checked, not skipped, actually analysed (and really checked: not a
+  // "couldn't check this time"), concrete, and still a check in its module
+  const pending = items.filter((i) => !i.aiVerified && !i.userChecked && !i.userSkipped && i.aiDetail && i.aiDetail !== NOT_CHECKED_DETAIL && isConcrete(i) && defined(i))
   pending.sort((a, b) =>
     score(b) - score(a) ||
     (modMap.get(a.moduleId)?.order ?? 99) - (modMap.get(b.moduleId)?.order ?? 99) ||
@@ -216,6 +230,9 @@ export async function getTodayTasks(
       finding: item.aiDetail ?? null,
       action: item.aiAction ?? null,
       needsUserInput: item.exportType === 'needs_choice' && !item.userChoice,
+      ...(isElementEvidence(item.aiData) || isPagePreview(item.aiData)
+        ? { visual: item.aiData, choiceOptions: (item.choiceOptions as string[] | null) ?? null }
+        : {}),
     }
   })
 
@@ -279,7 +296,7 @@ export function tasksToCards(today: TodayTasks): ActionCard[] {
       cta: t.moduleId ? `Open ${t.module}` : PLAY_SETTINGS.has(t.key) ? 'Open settings' : 'Open modules',
       ctaUrl,
       sourceModule: t.moduleId ?? undefined,
-      data: { taskKind: t.kind, taskId: t.id, action: t.action, route: t.route, moduleType: t.moduleType, finding: t.finding, daysPending: t.daysPending, overdue: t.overdue },
+      data: { taskKind: t.kind, taskId: t.id, slug: t.key, action: t.action, route: t.route, moduleType: t.moduleType, finding: t.finding, daysPending: t.daysPending, overdue: t.overdue, visual: t.visual ?? null, choiceOptions: t.choiceOptions ?? null },
     }
   })
 }
