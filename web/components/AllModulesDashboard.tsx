@@ -1039,6 +1039,20 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     }, 60)
   }
 
+  // Linked to one check (?module=seo&item=title.length, e.g. from Today): open its category and expand it
+  useEffect(() => {
+    const itemSlug = searchParams.get('item')
+    const mod = itemSlug ? allModulesData.find(m => m.type === searchParams.get('module')) : undefined
+    if (!itemSlug || !mod) return
+    const catSlug = mod.definition.dynamic
+      ? mod.fullItems.find(i => i.slug === itemSlug)?.categorySlug
+      : (mod.definition.categories as ModuleCategoryDefinition[]).find(c => c.subCategories.some(sc => sc.items.some(i => i.slug === itemSlug)))?.slug
+    if (!catSlug) return
+    focusItem(mod.id, catSlug, itemSlug)
+    // Then bring the check itself into view once it has rendered expanded
+    window.setTimeout(() => document.querySelector('.sm-item-expanded')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 400)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const downloadModuleMd = (modData: ModuleData, states: Record<string, DBItemState>, dynItems: DBItemFull[]) => {
     const lines: string[] = []
     const score = computeLiveScore(modData, states, dynItems)

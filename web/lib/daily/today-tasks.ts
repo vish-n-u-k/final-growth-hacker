@@ -286,7 +286,10 @@ export function tasksToCards(today: TodayTasks): ActionCard[] {
     else if (t.key === 'outreach-batch') type = 'outreach'
     else if (t.key === 'blog-weekly' || t.key.startsWith('blog-query:')) type = 'blog'
 
-    const ctaUrl = t.moduleId ? `/dashboard/${t.moduleId}` : PLAY_SETTINGS.has(t.key) ? '/settings' : '/dashboard'
+    // Open that module on Growth Path, with a checklist item's check expanded
+    const ctaUrl = t.moduleId
+      ? `/dashboard?module=${encodeURIComponent(t.moduleType)}${t.kind === 'item' ? `&item=${encodeURIComponent(t.key)}` : ''}`
+      : PLAY_SETTINGS.has(t.key) ? '/settings' : '/dashboard'
     return {
       id: `${t.kind}-${t.id}`,
       type,

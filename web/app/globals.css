@@ -7789,3 +7789,6 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
 .td-card-visual { margin: 4px 0 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 /* Narrow box (phones, Today cards): picture above the details */
 @container (max-width: 600px) { .ee-item { grid-template-columns: minmax(0, 1fr); gap: 10px; } }
+
+/* Opening a check from a link (e.g. Today) scrolls it below the sticky panel header */
+.gp-detail .md-item { scroll-margin-top: 96px; }
