@@ -13,6 +13,7 @@ import PagePreview from '@/components/PagePreview'
 import type { ActionCard, ImpactCard } from '@/lib/daily/signals'
 import type { PlatformStats } from '@/app/api/social/analytics/route'
 import type { DBItemFull } from '@/lib/modules/types'
+import { connectUrl } from '@/lib/integrations/connect-url'
 
 interface TrafficData {
   visits: number
@@ -701,7 +702,7 @@ function BlogComposer({ frektoConnected, generating, topic, setTopic, mode, setM
               {generating ? <><span className="td-btn-spinner" />Writing…</> : 'Write the blog post'}
             </button>
           </div>
-          <p className="td-blog-ideas-note">Connect Frekto in <a href="/settings?tab=integrations">Settings → Integrations</a> to post articles to LinkedIn or your blog automatically.</p>
+          <p className="td-blog-ideas-note">Connect Frekto in <a href={connectUrl('frekto')}>Settings → Integrations</a> to post articles to LinkedIn or your blog automatically.</p>
         </>
       )}
     </div>

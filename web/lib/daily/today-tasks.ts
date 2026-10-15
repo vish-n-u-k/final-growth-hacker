@@ -23,6 +23,7 @@ import { MODULE_MAP, isPathModule, isScoredItem } from '@/lib/modules/registry'
 import { isElementEvidence } from '@/lib/audit/elements'
 import { isNotChecked } from '@/lib/modules/types'
 import { isPagePreview } from '@/lib/audit/page-preview'
+import { connectUrl } from '@/lib/integrations/connect-url'
 
 // How a task gets done:
 //   code    — Claude changes the website codebase (GitHub repo)
@@ -275,7 +276,8 @@ export async function getTodayTasks(
 
 // Cards for the in-app /today page. Plays the page can act on inline (outreach,
 // social post, blog) keep those card types so the existing inline panels open.
-const PLAY_SETTINGS = new Set(['connect-ga4', 'fix-ga4-tracking'])
+// Plays fixed in Settings → the integration they need
+const PLAY_SETTINGS: Record<string, string> = { 'connect-ga4': 'ga4_api', 'fix-ga4-tracking': 'ga4_api' }
 
 export function tasksToCards(today: TodayTasks): ActionCard[] {
   return today.tasks.map((t, i): ActionCard => {
@@ -287,14 +289,14 @@ export function tasksToCards(today: TodayTasks): ActionCard[] {
     // Open that module on Growth Path, with a checklist item's check expanded
     const ctaUrl = t.moduleId
       ? `/dashboard?module=${encodeURIComponent(t.moduleType)}${t.kind === 'item' ? `&item=${encodeURIComponent(t.key)}` : ''}`
-      : PLAY_SETTINGS.has(t.key) ? '/settings' : '/dashboard'
+      : PLAY_SETTINGS[t.key] ? connectUrl(PLAY_SETTINGS[t.key]) : '/dashboard'
     return {
       id: `${t.kind}-${t.id}`,
       type,
       priority: i,
       headline: t.label,
       reason: (t.overdue ? `Overdue: waiting ${t.daysPending} days. ` : '') + (t.finding ?? ''),
-      cta: t.moduleId ? `Open ${t.module}` : PLAY_SETTINGS.has(t.key) ? 'Open settings' : 'Open modules',
+      cta: t.moduleId ? `Open ${t.module}` : PLAY_SETTINGS[t.key] ? 'Open Google Analytics settings' : 'Open modules',
       ctaUrl,
       sourceModule: t.moduleId ?? undefined,
       data: { taskKind: t.kind, taskId: t.id, slug: t.key, action: t.action, route: t.route, moduleType: t.moduleType, finding: t.finding, daysPending: t.daysPending, overdue: t.overdue, visual: t.visual ?? null, choiceOptions: t.choiceOptions ?? null },

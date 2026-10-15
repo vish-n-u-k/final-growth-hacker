@@ -8,6 +8,7 @@ import type { DBItemFull } from '@/lib/modules/types'
 import MetaAdLaunchPanel from '@/components/MetaAdLaunchPanel'
 import type { CampaignBrief } from '@/components/MetaAdLaunchPanel'
 import type { OGTagResult, PixelStatus } from '@/app/(shell)/dashboard/meta-ads/blueprint/page'
+import { connectUrl } from '@/lib/integrations/connect-url'
 
 const AUDIT_CATEGORIES = [
   { slug: 'campaign-performance', label: 'Campaigns' },
@@ -313,7 +314,7 @@ export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, bran
         <div className="bp-analyse-error">
           {analyseError}
           {isCredentialError(analyseError) && (
-            <Link href="/settings" className="bp-error-settings-link">Update credentials</Link>
+            <Link href={connectUrl('meta_ads')} className="bp-error-settings-link">Update credentials</Link>
           )}
         </div>
       )}

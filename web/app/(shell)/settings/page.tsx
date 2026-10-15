@@ -44,7 +44,10 @@ function maskSecrets(
 
 export default async function Settings({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const params = await searchParams
-  const initialTab = VALID_TABS.includes(params.tab as Tab) ? (params.tab as Tab) : undefined
+  // ?connect=posthog opens that integration on the Integrations tab
+  const initialConnect = INTEGRATION_REGISTRY.some((def) => def.provider === params.connect) ? params.connect : undefined
+  const initialGroup = ['developer', 'analytics', 'social'].includes(params.group) ? params.group : undefined
+  const initialTab = initialConnect || initialGroup ? 'integrations' : VALID_TABS.includes(params.tab as Tab) ? (params.tab as Tab) : undefined
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
   const user = session?.user
@@ -94,6 +97,8 @@ export default async function Settings({ searchParams }: { searchParams: Promise
       dailyEmailEnabled={brand.dailyEmailEnabled ?? false}
       frektoAutoPostEnabled={brand.frektoAutoPostEnabled ?? false}
       initialTab={initialTab}
+      initialConnect={initialConnect}
+      initialGroup={initialGroup}
     />
   )
 }

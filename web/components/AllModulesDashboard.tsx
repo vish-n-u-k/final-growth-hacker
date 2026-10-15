@@ -24,6 +24,7 @@ import { JOURNEY_PHASES } from '@/lib/journey'
 import ElementEvidence, { isElementEvidence, describeElements } from '@/components/ElementEvidence'
 import PagePreview from '@/components/PagePreview'
 import { isPagePreview } from '@/lib/audit/page-preview'
+import { connectUrl } from '@/lib/integrations/connect-url'
 
 function renderMdStep(step: string): React.ReactNode {
   const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
@@ -2352,7 +2353,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               </span>
             </div>
           ) : (
-            <Link href="/settings?tab=integrations" className="gp-users-chip" title="Connect PostHog (read-only) to track your live user count">
+            <Link href={connectUrl('posthog')} className="gp-users-chip" title="Connect PostHog (read-only) to track your live user count">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
               <span className="gp-users-chip-label">Live users</span>
               <b>—</b>
@@ -2627,9 +2628,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                                               <span className="md-sub-name">{sub.label}</span>
                                               {sub.requires && sub.requires.filter((p) => !connectedIntegrations[p]).map((p) => (
-                                                <span
+                                                <Link
                                                   key={p}
-                                                  title="Connect this integration in Settings → Integrations for full data"
+                                                  href={connectUrl(p)}
+                                                  title={`Connect ${INTEGRATION_MAP[p]?.name ?? p} for full data`}
                                                   style={{
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
@@ -2642,15 +2644,15 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                                                     border: '1px solid rgba(231,200,115,0.35)',
                                                     color: 'var(--gold)',
                                                     letterSpacing: '0.02em',
-                                                    cursor: 'default',
+                                                    textDecoration: 'none',
                                                   }}
                                                 >
                                                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
                                                     <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2"/>
                                                     <path d="M8 11V7a4 4 0 1 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                                                   </svg>
-                                                  {p === 'gsc_api' ? 'Needs GSC API' : p === 'serpapi' ? 'Needs SerpAPI' : `Needs ${p}`}
-                                                </span>
+                                                  {p === 'gsc_api' ? 'Needs GSC API' : p === 'serpapi' ? 'Needs SerpAPI' : `Needs ${INTEGRATION_MAP[p]?.name ?? p}`}
+                                                </Link>
                                               ))}
                                             </span>
                                             <span className="md-sub-count">{subChecks.length > 0 ? `${subDone}/${subChecks.length}` : `${sub.items.length} ${sub.items.length === 1 ? 'idea' : 'ideas'}`}</span>
@@ -3597,14 +3599,14 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
     <div style={{ padding: '24px 28px', borderTop: '1px solid var(--line)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
         <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>Content Scheduler</span>
-        {!connected && <a href="/settings?tab=integrations" style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '5px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
+        {!connected && <a href={connectUrl('frekto')} style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '5px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
       </div>
       <p style={{ fontSize: '14px', color: 'var(--text-faint)', marginBottom: '20px', lineHeight: 1.55 }}>
         Generates a full content series for Instagram, LinkedIn, and X — AI plans the posts, Frekto renders and auto-schedules them.
       </p>
 
       {!connected ? (
-        <a href="/settings?tab=integrations" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}>
+        <a href={connectUrl('frekto')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 18px', borderRadius: '8px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}>
           Go to Settings → Integrations
         </a>
       ) : (
@@ -3940,13 +3942,13 @@ function SmartScheduler({ moduleId, brandId, connected }: { moduleId: string; br
     <div style={{ padding: '20px 28px', borderTop: '1px solid var(--line)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
         <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>Smart Scheduler</span>
-        {!connected && <a href="/settings?tab=integrations" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
+        {!connected && <a href={connectUrl('frekto')} style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
       </div>
       <p style={{ fontSize: '12px', color: 'var(--text-faint)', marginBottom: '16px', lineHeight: 1.5 }}>
         Analyzes your brand and audit findings to suggest what to post, where, and when — then generates and schedules content via Frekto.
       </p>
       {!connected ? (
-        <a href="/settings?tab=integrations" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>Go to Settings → Integrations</a>
+        <a href={connectUrl('frekto')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--green)', color: 'var(--green-bright)', fontSize: '12px', fontWeight: 600, textDecoration: 'none' }}>Go to Settings → Integrations</a>
       ) : (
         <>
           <button onClick={handleGenerate} disabled={generating} style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '8px 20px', borderRadius: '7px', fontSize: '12.5px', fontWeight: 600, cursor: generating ? 'not-allowed' : 'pointer', border: 'none', background: generating ? 'rgba(47,191,113,0.25)' : 'var(--green)', color: generating ? 'var(--text-dim)' : '#ffffff', marginBottom: '16px' }}>
@@ -4138,7 +4140,7 @@ function _unusedFrektoSection({ moduleId, brandName, connected }: { moduleId: st
             Connected
           </span>
         ) : (
-          <a href="/settings?tab=integrations" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>
+          <a href={connectUrl('frekto')} style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>
             Connect Frekto in Settings
           </a>
         )}

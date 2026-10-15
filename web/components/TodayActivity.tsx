@@ -6,6 +6,7 @@ import type { TodayActivity as Activity } from '@/app/api/today/activity/route'
 import PersonPanel, { ago } from '@/components/PersonPanel'
 import SocialIcon from '@/components/SocialIcon'
 import { ArrowRight } from 'lucide-react'
+import { connectUrl } from '@/lib/integrations/connect-url'
 
 // "What happened" on Today: visitors, new signups (and where each came from), returning users
 // and top sources for the last 24 hours or 7 days. Data: /api/today/activity (PostHog).
@@ -54,7 +55,7 @@ export default function TodayActivity() {
         </div>
         <section className="ta ta--connect">
           <p className="ta-muted">See who visits, who signs up and where they come from.</p>
-          <Link href="/settings?tab=integrations" className="ta-connect">Connect PostHog <ArrowRight size={13} aria-hidden="true" /></Link>
+          <Link href={connectUrl('posthog')} className="ta-connect">Connect PostHog <ArrowRight size={13} aria-hidden="true" /></Link>
         </section>
       </div>
     )
@@ -68,7 +69,7 @@ export default function TodayActivity() {
         </div>
         <section className="ta ta--connect">
           <p className="ta-muted">{data.error}</p>
-          <Link href="/settings?tab=integrations" className="ta-connect">Open Integrations <ArrowRight size={13} aria-hidden="true" /></Link>
+          <Link href={connectUrl('posthog')} className="ta-connect">Open Integrations <ArrowRight size={13} aria-hidden="true" /></Link>
         </section>
       </div>
     )
@@ -213,7 +214,7 @@ export default function TodayActivity() {
       {data?.website?.status === 'connect-ga' && (
         <p className="ta-ga-note">
           These numbers are for the app (PostHog). Visits to {data.website.host} come from Google Analytics, which isn&apos;t connected.{' '}
-          <Link href="/settings?tab=integrations">Connect it <ArrowRight size={12} aria-hidden="true" /></Link>
+          <Link href={connectUrl('ga4_api')}>Connect it <ArrowRight size={12} aria-hidden="true" /></Link>
         </p>
       )}
       {data?.connected && (

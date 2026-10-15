@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import SocialIcon, { socialBrand } from '@/components/SocialIcon'
 import FrektoPostingSection from '@/components/FrektoPostingSection'
+import { connectUrl } from '@/lib/integrations/connect-url'
 
 export interface ScheduledPost {
   id: string
@@ -307,7 +308,7 @@ export default function SocialStudioPage({
             <li>Schedule posts and auto-post daily</li>
             <li>Make one-off images and videos</li>
           </ul>
-          <a href="/settings?tab=integrations" style={{ display: 'inline-block', padding: '10px 18px', borderRadius: '10px', background: 'var(--green)', color: '#fff', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}>
+          <a href={connectUrl('frekto')} style={{ display: 'inline-block', padding: '10px 18px', borderRadius: '10px', background: 'var(--green)', color: '#fff', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}>
             Connect Frekto →
           </a>
         </div>
@@ -334,7 +335,7 @@ export default function SocialStudioPage({
           <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
             Connect Frekto to get started.
           </span>
-          <a href="/settings?tab=integrations" style={{ marginLeft: 'auto', fontSize: '12px', fontWeight: 600, color: 'var(--green)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+          <a href={connectUrl('frekto')} style={{ marginLeft: 'auto', fontSize: '12px', fontWeight: 600, color: 'var(--green)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
             Settings → Integrations →
           </a>
         </div>
@@ -357,7 +358,7 @@ export default function SocialStudioPage({
             )}
             {!frektoConnected && (
               <p style={{ fontSize: '12px', color: 'var(--text-faint)', margin: '6px 0 0' }}>
-                <a href="/settings?tab=integrations" style={{ color: 'var(--green)', textDecoration: 'none' }}>
+                <a href={connectUrl('frekto')} style={{ color: 'var(--green)', textDecoration: 'none' }}>
                   Connect Frekto in Settings → Integrations
                 </a>
               </p>

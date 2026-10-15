@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import ArrowIcon from '@/components/ArrowIcon'
 import Link from 'next/link'
 import PersonPanel, { ago } from '@/components/PersonPanel'
+import { connectUrl } from '@/lib/integrations/connect-url'
 
 // Acquisition & Journeys: how people find you, which channels and pages turn visitors into
 // signups, and every signed-up person with their full journey one tap away.
@@ -67,10 +68,10 @@ function Funnel({ data }: { data: ApiResponse }) {
   ].filter(s => s.on && s.value != null) as { label: string; value: number }[]
   const max = Math.max(1, ...steps.map(s => s.value))
   const missing = [
-    !data.gsc.connected && 'Search Console (Google searches and clicks)',
-    !data.ga4.connected && 'Google Analytics (site visits)',
-    !data.posthog.connected && 'PostHog (signups and activity)',
-  ].filter(Boolean)
+    !data.gsc.connected && { label: 'Search Console', what: 'Google searches and clicks', provider: 'gsc_api' },
+    !data.ga4.connected && { label: 'Google Analytics', what: 'site visits', provider: 'ga4_api' },
+    !data.posthog.connected && { label: 'PostHog', what: 'signups and activity', provider: 'posthog' },
+  ].filter((m): m is { label: string; what: string; provider: string } => !!m)
 
   return (
     <section className="aj-card">
@@ -97,7 +98,9 @@ function Funnel({ data }: { data: ApiResponse }) {
       )}
       {missing.length > 0 && (
         <p className="aj-muted aj-missing">
-          Connect {missing.join(', ')} to see the full path. <Link href="/settings?tab=integrations">Integrations <ArrowIcon size={12} /></Link>
+          Connect {missing.map((m, i) => (
+            <span key={m.provider}>{i > 0 ? (i === missing.length - 1 ? ' and ' : ', ') : ''}<Link href={connectUrl(m.provider)}>{m.label}</Link> ({m.what})</span>
+          ))} to see the full path.
         </p>
       )}
     </section>
@@ -257,7 +260,7 @@ export default function AuthNewDashboard({ brand }: { brand: { id: string; name:
         <section className="aj-card">
           <h2 className="aj-h2">Connect your analytics</h2>
           <p className="aj-muted">Connect PostHog, Google Analytics or Search Console to see how people find you and who signs up.</p>
-          <Link href="/settings?tab=integrations" className="aj-cta">Go to Integrations <ArrowIcon /></Link>
+          <Link href="/settings?tab=integrations&group=analytics" className="aj-cta">Go to Integrations <ArrowIcon /></Link>
         </section>
       ) : data && (
         <div className={`aj-stack${loading ? ' ta-dim' : ''}`}>

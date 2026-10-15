@@ -25,11 +25,13 @@ interface Props {
   dailyEmailEnabled: boolean
   frektoAutoPostEnabled: boolean
   initialTab?: Tab
+  initialConnect?: string // provider to open on the Integrations tab (?connect=posthog)
+  initialGroup?: string   // integration group to open (?group=analytics)
 }
 
 type Tab = 'brand' | 'integrations' | 'claude-code' | 'account'
 
-export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations, mcpKeyPrefix, dailyEmailEnabled, frektoAutoPostEnabled, initialTab }: Props) {
+export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations, mcpKeyPrefix, dailyEmailEnabled, frektoAutoPostEnabled, initialTab, initialConnect, initialGroup }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab ?? 'brand')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [oauthToast, setOauthToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
@@ -181,6 +183,8 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
               <IntegrationsSection
                 registry={integrationRegistry}
                 connected={connectedIntegrations}
+                focus={initialConnect}
+                focusGroup={initialGroup}
               />
               {connectedIntegrations['posthog']?.status === 'connected' && (
                 <PostHogSettingsSection connected={connectedIntegrations['posthog']} />
@@ -401,7 +405,7 @@ function SocialProfilesCard({ connected }: { connected: ConnectedIntegration | n
   }
 
   return (
-    <div className={`sp-card${activeCount > 0 ? ' sp-card-connected' : ''}`}>
+    <div id="int-social_profiles" className={`sp-card${activeCount > 0 ? ' sp-card-connected' : ''}`}>
       <div className="sp-card-hd">
         <div className="sp-card-info">
           <span className="sp-card-title">
@@ -505,9 +509,13 @@ function renderStep(step: string): React.ReactNode {
 function IntegrationsSection({
   registry,
   connected,
+  focus,
+  focusGroup,
 }: {
   registry: IntegrationDefinition[]
   connected: Record<string, ConnectedIntegration>
+  focus?: string
+  focusGroup?: string
 }) {
   const [query, setQuery] = useState('')
 
@@ -538,8 +546,23 @@ function IntegrationsSection({
 
   const groupOrder = ['developer', 'analytics', 'social']
 
-  const [openGroup, setOpenGroup] = useState<string | null>(null)
-  const [openItem, setOpenItem] = useState<string | null>(null)
+  // Opened from a "Connect X" button: open X's group and card, then scroll to it and highlight it
+  const focusDef = focus ? registry.find((def) => def.provider === focus) : undefined
+  const [openGroup, setOpenGroup] = useState<string | null>(focusDef ? (focusDef.group ?? 'developer') : focusGroup ?? null)
+  const [openItem, setOpenItem] = useState<string | null>(focusDef && !focusDef.customUI ? focusDef.provider : null)
+  useEffect(() => {
+    if (!focusDef) return
+    let clear: ReturnType<typeof setTimeout> | undefined
+    const t = setTimeout(() => {
+      const el = document.getElementById(`int-${focusDef.provider}`)
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      el.classList.add('st-int-focus')
+      clear = setTimeout(() => el.classList.remove('st-int-focus'), 2600)
+    }, 150)
+    return () => { clearTimeout(t); if (clear) clearTimeout(clear) }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // Connected-but-broken data sources, so a group shows "1 not working" without opening it.
   const [brokenProviders, setBrokenProviders] = useState<Set<string>>(new Set())
   useEffect(() => {
@@ -790,7 +813,7 @@ function OAuthCard({
   }
 
   return (
-    <div className="st-oauth-card">
+    <div id={`int-${def.provider}`} className="st-oauth-card">
       <div className="st-oauth-card-left">
         <div className="st-oauth-icon" style={{ color: meta.color }}>{meta.icon}</div>
         <div>
@@ -893,7 +916,7 @@ function IntegrationCard({
   }
 
   return (
-    <div className="st-int-card">
+    <div id={`int-${def.provider}`} className="st-int-card">
       <button
         type="button"
         className="st-int-card-hd"

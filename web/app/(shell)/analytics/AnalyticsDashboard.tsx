@@ -14,6 +14,7 @@ import {
 import DailySummaryCard from './daily/DailySummaryCard'
 import ProjectedMrr from '@/components/ProjectedMrr'
 import type { MrrSettings } from '@/lib/mrr-shared'
+import { connectUrl } from '@/lib/integrations/connect-url'
 
 /* ── Types ────────────────────────────────────────────── */
 export interface ModuleHealth {
@@ -687,7 +688,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             <div className="an-broken" role="alert">
               <strong>{broken.map(b => b.name).join(', ')} {broken.length === 1 ? 'isn\'t' : 'aren\'t'} working, so {broken.length === 1 ? 'its' : 'their'} numbers are hidden below.</strong>
               <ul>{broken.map(b => <li key={b.provider}><b>{b.name}:</b> {b.detail}</li>)}</ul>
-              <a href="/settings?tab=integrations">Fix in Settings <ArrowRight size={12} aria-hidden="true" style={{ verticalAlign: '-2px' }} /></a>
+              <a href={connectUrl(broken[0].provider)}>Fix {broken.length === 1 ? broken[0].name : 'it'} in Settings <ArrowRight size={12} aria-hidden="true" style={{ verticalAlign: '-2px' }} /></a>
             </div>
           )}
           <DailySummaryCard hidePosthog={phBroken} />
@@ -701,7 +702,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             </h2>
             <div style={{ background: 'var(--card)', border: '1px dashed var(--line)', borderRadius: 14, padding: '18px 20px', fontSize: 13.5, color: 'var(--text-dim)', lineHeight: 1.5 }}>
               New signups, sign-ins and daily/monthly active users show here once PostHog is connected.{' '}
-              <a href="/settings?tab=integrations" style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect PostHog <ArrowRight size={12} aria-hidden="true" style={{ verticalAlign: '-2px' }} /></a>
+              <a href={connectUrl('posthog')} style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect PostHog <ArrowRight size={12} aria-hidden="true" style={{ verticalAlign: '-2px' }} /></a>
             </div>
           </section>
         ) : (
@@ -770,7 +771,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               {data?.posthogConnected
                 ? 'Retention and your signup funnel appear here once there are a few days of signups to compare.'
                 : <>Retention and your signup funnel appear here once PostHog is connected.{' '}
-                    <a href="/settings?tab=integrations" style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect PostHog <ArrowRight size={12} aria-hidden="true" style={{ verticalAlign: '-2px' }} /></a></>}
+                    <a href={connectUrl('posthog')} style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect PostHog <ArrowRight size={12} aria-hidden="true" style={{ verticalAlign: '-2px' }} /></a></>}
             </div>
           )}
         </section>

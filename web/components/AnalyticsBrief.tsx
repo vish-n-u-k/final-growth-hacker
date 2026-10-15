@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import ArrowIcon from '@/components/ArrowIcon'
 import { useRouter } from 'next/navigation'
 import type { OverviewResponse, StatusBoardItem } from '@/app/api/analytics/summary/route'
+import { connectUrl } from '@/lib/integrations/connect-url'
 
 interface Props {
   brand: { id: string; name: string; websiteUrl: string }
@@ -83,7 +84,7 @@ function StatusRow({ item }: { item: StatusBoardItem }) {
 }
 
 // Locked card body
-function LockedCard({ title, sub, href = '/settings?tab=integrations' }: { title: string; sub: string; href?: string }) {
+function LockedCard({ title, sub, href }: { title: string; sub: string; href?: string }) {
   const router = useRouter()
   return (
     <div className="ov-locked-body">
@@ -96,7 +97,7 @@ function LockedCard({ title, sub, href = '/settings?tab=integrations' }: { title
           <div className="ov-locked-sub">{sub}</div>
         </div>
       </div>
-      <button className="ov-connect-btn" onClick={() => router.push(href)}>Connect <ArrowIcon size={13} /></button>
+      {href ? <button className="ov-connect-btn" onClick={() => router.push(href)}>Connect <ArrowIcon size={13} /></button> : <span className="ov-locked-sub">Coming soon</span>}
     </div>
   )
 }
@@ -292,7 +293,7 @@ export default function AnalyticsBrief({ brand, connectedProviders: _ }: Props) 
           <div className="ov-card">
             <div className="ov-card-head"><h4>User Activity</h4><span className="ov-badge">PostHog</span></div>
             {!data?.posthog.connected && !loading ? (
-              <LockedCard title="Connect PostHog to unlock user activity" sub="DAU, MAU, new signups, and session data" />
+              <LockedCard title="Connect PostHog to unlock user activity" sub="DAU, MAU, new signups, and session data" href={connectUrl('posthog')} />
             ) : (
               <>
                 <div className="ov-row"><span className="ov-rlabel">Daily active users</span><span className="ov-rval">{fmt(data?.posthog.dau)}<span className="ov-rperiod">today</span></span></div>
@@ -328,7 +329,7 @@ export default function AnalyticsBrief({ brand, connectedProviders: _ }: Props) 
           <div className="ov-card">
             <div className="ov-card-head"><h4>Search Performance</h4><span className="ov-badge">GSC API</span></div>
             {data?.gsc.connectionStatus === 'locked' ? (
-              <LockedCard title="Connect Google Search Console API" sub="Clicks, impressions, CTR, and keyword positions" />
+              <LockedCard title="Connect Google Search Console API" sub="Clicks, impressions, CTR, and keyword positions" href={connectUrl('gsc_api')} />
             ) : (
               <>
                 <div className="ov-row"><span className="ov-rlabel">Clicks</span><span className="ov-rval" style={data?.gsc.clicks7d == null ? { color: 'var(--text-faint)' } : {}}>{fmt(data?.gsc.clicks7d)}<span className="ov-rperiod">7 days</span></span></div>
@@ -358,7 +359,7 @@ export default function AnalyticsBrief({ brand, connectedProviders: _ }: Props) 
           <div className="ov-card">
             <div className="ov-card-head"><h4>Google Analytics</h4><span className="ov-badge">GA4</span></div>
             {!data?.ga4.connected && !loading ? (
-              <LockedCard title="Connect ga4_api to unlock" sub="Traffic sources, conversion paths, retention cohorts" />
+              <LockedCard title="Connect Google Analytics to unlock" sub="Traffic sources, conversion paths, retention cohorts" href={connectUrl('ga4_api')} />
             ) : (
               <div className="ov-metrics">
                 <div className="ov-row"><span className="ov-rlabel">Sessions</span><span className="ov-rval">{fmt(data?.ga4.sessions7d)}<span className="ov-rperiod">7 days</span></span></div>
@@ -373,7 +374,7 @@ export default function AnalyticsBrief({ brand, connectedProviders: _ }: Props) 
           <div className="ov-card">
             <div className="ov-card-head"><h4>Page Speed</h4><span className="ov-badge">PSI</span></div>
             {!data?.psi.connected && !loading ? (
-              <LockedCard title="Connect PageSpeed Insights to unlock" sub="Core Web Vitals, load time, mobile score" />
+              <LockedCard title="Connect PageSpeed Insights to unlock" sub="Core Web Vitals, load time, mobile score" href={connectUrl('google_psi')} />
             ) : (
               <div className="ov-psi-scores">
                 {(['mobile', 'desktop'] as const).map(type => {
@@ -396,7 +397,7 @@ export default function AnalyticsBrief({ brand, connectedProviders: _ }: Props) 
           {/* Revenue — always locked */}
           <div className="ov-card">
             <div className="ov-card-head"><h4>Customer Economics</h4><span className="ov-badge">Billing</span></div>
-            <LockedCard title="Connect billing to unlock CAC, churn & ARPU" sub="Calculated automatically from spend + signups + revenue events" />
+            <LockedCard title="Customer economics: CAC, churn & ARPU" sub="Calculated automatically from spend + signups + revenue events" />
           </div>
 
         </div>

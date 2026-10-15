@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import SocialIcon from '@/components/SocialIcon'
+import { connectUrl } from '@/lib/integrations/connect-url'
 
 const FREKTO_PLATFORMS = [
   { key: 'instagram', label: 'Instagram', format: '4:5' },
@@ -142,7 +143,7 @@ export default function FrektoPostingSection({
             Connected
           </span>
         ) : (
-          <a href="/settings?tab=integrations" style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'var(--bg-soft)', border: '1px solid var(--line)', color: 'var(--text-dim)', textDecoration: 'none' }}>
+          <a href={connectUrl('frekto')} style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'var(--bg-soft)', border: '1px solid var(--line)', color: 'var(--text-dim)', textDecoration: 'none' }}>
             Connect Frekto in Settings →
           </a>
         )}

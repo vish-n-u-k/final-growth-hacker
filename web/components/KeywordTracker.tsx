@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import type { GscKeywordRow, SuggestionRow, TrackedWithGsc } from '@/app/api/keywords/route'
+import { connectUrl } from '@/lib/integrations/connect-url'
 
 function timeAgo(iso: string | null): string {
   if (!iso) return 'Never'
@@ -124,7 +125,7 @@ function GscConnectForm({ onConnected }: { onConnected: () => void }) {
           <button type="submit" disabled={saving} style={{ padding: '9px 22px', borderRadius: 8, border: 'none', background: 'var(--green)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: 'inherit' }}>
             {saving ? 'Connecting…' : 'Connect GSC'}
           </button>
-          <a href="/settings?tab=integrations" style={{ fontSize: 12.5, color: 'var(--text-dim)', textDecoration: 'none' }}>Manage in Settings →</a>
+          <a href={connectUrl('gsc_api')} style={{ fontSize: 12.5, color: 'var(--text-dim)', textDecoration: 'none' }}>Manage in Settings →</a>
         </div>
       </form>
     </div>
@@ -188,7 +189,7 @@ function GoogleAdsConnectForm({ onConnected }: { onConnected: () => void }) {
           <button type="submit" disabled={saving} style={{ padding: '9px 22px', borderRadius: 8, border: 'none', background: 'var(--green)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: 'inherit' }}>
             {saving ? 'Connecting…' : 'Connect Google Ads'}
           </button>
-          <a href="/settings?tab=integrations" style={{ fontSize: 12.5, color: 'var(--text-dim)', textDecoration: 'none' }}>Manage in Settings →</a>
+          <a href={connectUrl('google_ads')} style={{ fontSize: 12.5, color: 'var(--text-dim)', textDecoration: 'none' }}>Manage in Settings →</a>
         </div>
       </form>
     </div>

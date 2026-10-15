@@ -13,6 +13,7 @@ import {
   Plus, X, X as XIcon, Pencil,
   AlertTriangle, Check,
 } from 'lucide-react'
+import { connectUrl } from '@/lib/integrations/connect-url'
 
 /* ── Types ────────────────────────────────────────────── */
 export interface ModuleHealth {
@@ -2013,7 +2014,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
       {showPostHogModal && (
         <PostHogBenefitsModal
           onClose={() => setShowPostHogModal(false)}
-          onConnect={() => router.push('/settings')}
+          onConnect={() => router.push(connectUrl('posthog'))}
         />
       )}
 
@@ -2150,7 +2151,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 See what you&rsquo;ll unlock
               </button>
               <button
-                onClick={() => router.push('/settings')}
+                onClick={() => router.push(connectUrl('posthog'))}
                 style={{ background: MOCK.green, color: '#ffffff', fontSize: 12.5, fontWeight: 700, padding: '9px 18px', borderRadius: 99, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
               >
                 Connect PostHog

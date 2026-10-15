@@ -324,7 +324,8 @@ export async function GET(
   const state = searchParams.get('state')
   const errorParam = searchParams.get('error')
 
-  const settingsUrl = `${APP_URL}/settings?tab=integrations`
+  // Back to this provider's card in Settings → Integrations
+  const settingsUrl = `${APP_URL}/settings?tab=integrations&connect=${encodeURIComponent(provider)}`
 
   if (errorParam) {
     return NextResponse.redirect(`${settingsUrl}&oauth_error=${encodeURIComponent(errorParam)}`)
