@@ -38,6 +38,18 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               fixType: 'patch',
             },
             {
+              slug: 'content-without-js',
+              label: 'Content visible without JavaScript',
+              prompt: 'Checked by rule engine.',
+              order: 0,
+              weight: 3,
+              fixGuide: [
+                'If your site is a React / Vue / Vite single-page app, its HTML is an empty shell until JavaScript runs',
+                'Server-render or pre-render the pages (Next.js, Nuxt, Astro, Remix, or a prerendering service) so the HTML already contains the text, links and buttons',
+                'Check: open the page, View Source (Ctrl+U) — your headline and copy should be there, not just <div id="root"></div>',
+              ],
+            },
+            {
               slug: 'has-h1',
               label: 'H1 heading',
               prompt: 'Checked by rule engine.',

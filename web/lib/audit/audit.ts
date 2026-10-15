@@ -13,6 +13,7 @@ import * as cheerio from 'cheerio'
 import { fetchPsiAccessibility } from '@/lib/psi'
 import { extractElements, extractScreenshot, type AuditElement, type PageScreenshot } from '@/lib/audit/elements'
 import { readPagePreview, type PagePreviewData } from '@/lib/audit/page-preview'
+import { isJsShell, JS_SHELL_SKIP } from '@/lib/audit/js-shell'
 import { connect as tlsConnect } from 'tls'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -21,7 +22,8 @@ const execFileAsync = promisify(execFile)
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type FindingLevel = 'good' | 'ok' | 'bad' | 'info'
+// skip = couldn't check this time (text starts "Couldn't check"): neither passed nor failed
+export type FindingLevel = 'good' | 'ok' | 'bad' | 'info' | 'skip'
 
 export interface Finding {
   key: string
@@ -496,7 +498,7 @@ function auditSpeed(
 
 // ── 4. Mobile Friendliness ────────────────────────────────────────────────────
 
-function auditMobile($: cheerio.CheerioAPI): Finding[] {
+async function auditMobile($: cheerio.CheerioAPI, pageUrl: string): Promise<Finding[]> {
   const findings: Finding[] = []
 
   // viewport-configured
@@ -514,7 +516,8 @@ function auditMobile($: cheerio.CheerioAPI): Finding[] {
   let fixedWidthCount = 0
   $('[style]').each((_, el) => {
     const style = $(el).attr('style') ?? ''
-    const matches = style.match(/width\s*:\s*(\d+)px/gi) ?? []
+    // Only a real fixed `width`, not max-width / min-width (max-width is the responsive way)
+    const matches = style.match(/(?<![-\w])width\s*:\s*(\d+)px/gi) ?? []
     for (const m of matches) {
       const px = parseInt(m.replace(/\D/g, ''))
       if (px > 320) fixedWidthCount++
@@ -532,16 +535,28 @@ function auditMobile($: cheerio.CheerioAPI): Finding[] {
     findings.push(f('no-fixed-width', 'good', 'No fixed-width elements detected in inline styles.'))
   }
 
-  // has-media-queries — check inline <style> tags
-  let hasMediaQueries = false
-  $('style').each((_, el) => {
-    if (($(el).html() ?? '').includes('@media')) hasMediaQueries = true
-  })
+  // has-media-queries — inline <style> tags, then the page's stylesheet files
+  let hasMediaQueries = $('style').toArray().some((el) => ($(el).html() ?? '').includes('@media'))
+  let sheetsRead = 0
+  if (!hasMediaQueries) {
+    const hrefs = $('link[rel~="stylesheet"]').toArray().map((el) => $(el).attr('href') ?? '').filter(Boolean)
+      .map((h) => { try { return new URL(h, pageUrl).href } catch { return '' } }).filter(Boolean).slice(0, 6)
+    const css = await Promise.all(hrefs.map(async (h) => {
+      try {
+        const r = await fetch(h, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(6000) })
+        return r.ok ? await r.text() : null
+      } catch { return null }
+    }))
+    sheetsRead = css.filter((c) => c !== null).length
+    hasMediaQueries = css.some((c) => !!c && c.includes('@media'))
+  }
   if (hasMediaQueries) {
-    findings.push(f('has-media-queries', 'good', 'Responsive @media queries found in inline styles.'))
+    findings.push(f('has-media-queries', 'good', 'Responsive @media rules found in the page\'s CSS.'))
+  } else if (sheetsRead > 0 || $('link[rel~="stylesheet"]').length === 0) {
+    findings.push(f('has-media-queries', 'ok', 'No responsive @media rules found in the page\'s CSS — the layout may not adapt to phone screens.',
+      'Add CSS media queries (or use a responsive framework) so the layout adapts below ~768px.'))
   } else {
-    findings.push(f('has-media-queries', 'info',
-      'No @media queries in inline styles — responsive CSS may be in external files (could not be verified).'))
+    findings.push(f('has-media-queries', 'skip', 'Couldn\'t check: the page\'s stylesheet files couldn\'t be loaded.'))
   }
 
   return findings
@@ -617,10 +632,12 @@ async function auditTrust(
   }
 
   // has-contact-page
+  // A contact page, support / help link, email or phone link all give visitors a way to reach you
+  const contactWords = /contact|support|help|get in touch|talk to|book a (call|demo)/
   const hasContact = $('a').toArray().some((el) => {
     const href = ($(el).attr('href') ?? '').toLowerCase()
     const text = $(el).text().toLowerCase()
-    return href.includes('contact') || text.includes('contact')
+    return href.startsWith('mailto:') || href.startsWith('tel:') || contactWords.test(href) || contactWords.test(text)
   })
   if (!hasContact) {
     findings.push(f('has-contact-page', 'ok',
@@ -636,7 +653,7 @@ async function auditTrust(
 
 // ── 6. Conversion (CRO) ───────────────────────────────────────────────────────
 
-function auditCRO($: cheerio.CheerioAPI, html: string): Finding[] {
+function auditCRO($: cheerio.CheerioAPI): Finding[] {
   const findings: Finding[] = []
 
   const actionPattern = /\b(get|start|try|sign up|signup|join|buy|shop|order|book|download|subscribe|claim|access|request|schedule|apply|register)\b/i
@@ -672,9 +689,17 @@ function auditCRO($: cheerio.CheerioAPI, html: string): Finding[] {
     findings.push(f('cta-action-language', 'info', 'No CTAs found to evaluate.'))
   }
 
-  // above-fold-cta — proxy: check if action language appears in first 6000 chars of HTML
-  const aboveFold = html.slice(0, 6000)
-  if (!actionPattern.test(aboveFold)) {
+  // above-fold-cta — how much visible text comes before the first call-to-action: in the page's
+  // reading order, a CTA within roughly the first screen of text (~700 characters, nav included)
+  const bodyHtml = ($('body').html() ?? '')
+    .replace(/<(script|style|noscript|svg|template)\b[\s\S]*?<\/\1>/gi, '')
+  const visible = (h: string) => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  const firstCta = ctaEls.length > 0 ? bodyHtml.indexOf($.html(ctaEls[0]).slice(0, 80)) : -1
+  const textBefore = firstCta >= 0
+    ? visible(bodyHtml.slice(0, firstCta)).length
+    // couldn't locate its markup: fall back to where its text first appears
+    : ctaEls.length > 0 ? Math.max(0, visible(bodyHtml).indexOf($(ctaEls[0]).text().trim().replace(/\s+/g, ' '))) : Infinity
+  if (textBefore > 700) {
     findings.push(f('above-fold-cta', 'ok',
       'No CTA detected in the first section of the page — visitors may miss it without scrolling.',
       'Place at least one CTA button in the hero section, above the fold.'))
@@ -683,13 +708,18 @@ function auditCRO($: cheerio.CheerioAPI, html: string): Finding[] {
   }
 
   // social-proof
-  const bodyText = $('body').text().toLowerCase()
+  // Whole words only: "star" must not match "start", "rated" not "integrated", "review" not "preview"
+  const proofBody = $('body').clone()
+  proofBody.find('script, style, noscript, template').remove()
+  const bodyText = proofBody.text().toLowerCase().replace(/\s+/g, ' ')
   const proofPatterns = [
-    /testimonial/, /review/, /trusted by/, /rated/,
-    /\d[\d,]+\s*(users|clients|customers|businesses|companies)/,
-    /case stud/, /stars?/, /award/,
+    /\btestimonials?\b/, /\b(customer|user|client)? ?reviews?\b/, /\b(trusted|loved|used) by\b/,
+    /\brated\s+[\d.]+/, /\b[1-5](\.\d)?\s*(\/\s*5|out of 5|stars?)\b/, /★/,
+    /\b\d[\d,.]*\s*k?\+?\s*(happy\s+)?(users|clients|customers|businesses|companies|teams|founders|creators)\b/,
+    /\bcase stud(y|ies)\b/, /\bawards?\b|\baward-winning\b/, /\bas (seen|featured) (in|on)\b/,
   ]
-  const hasProof = proofPatterns.some((p) => p.test(bodyText))
+  const hasProof = proofPatterns.some((p) => p.test(bodyText)) ||
+    $('blockquote, [class*="testimonial" i], [class*="review" i]').length > 0
   if (!hasProof) {
     findings.push(f('social-proof', 'bad',
       'No social proof signals detected (testimonials, reviews, customer counts, ratings).',
@@ -903,6 +933,14 @@ function auditTech($: cheerio.CheerioAPI, robotsStatus: number, sitemapStatus: n
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
+// Checks that read the page's body content: not judgeable on a page built by JavaScript
+const WEBSITE_BODY_CHECKS = new Set([
+  'has-h1', 'has-nav-landmark', 'internal-links', 'descriptive-link-text', 'external-link-safety',
+  'has-privacy-page', 'has-contact-page', 'has-cta', 'cta-action-language', 'above-fold-cta', 'social-proof',
+  'form-labels', 'form-not-too-long', 'submit-button', 'placeholder-not-label', 'image-alt-text', 'image-dimensions',
+  'no-fixed-width', 'has-media-queries',
+])
+
 export async function runAudit(url: string): Promise<AuditResult | AuditError> {
   const normalizedUrl = normalizeUrl(url)
 
@@ -955,12 +993,26 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
     { name: 'UX & UI Analysis',      key: 'ux',     findings: auditUX($, a11yData),                               score: 0 },
     { name: 'Navigation & Structure', key: 'nav',    findings: auditNav($, finalUrl),                             score: 0 },
     { name: 'Page Speed',             key: 'speed',  findings: auditSpeed(headers, responseTimeMs, bodySize, $, lighthouseData), score: 0 },
-    { name: 'Mobile Friendliness',    key: 'mobile', findings: auditMobile($),                                    score: 0 },
+    { name: 'Mobile Friendliness',    key: 'mobile', findings: await auditMobile($, finalUrl),                    score: 0 },
     { name: 'Trust Signals',          key: 'trust',  findings: trustFindings,                                     score: 0 },
-    { name: 'Conversion (CRO)',       key: 'cro',    findings: auditCRO($, html),                                 score: 0 },
+    { name: 'Conversion (CRO)',       key: 'cro',    findings: auditCRO($),                                 score: 0 },
     { name: 'Forms & CTAs',           key: 'forms',  findings: auditForms($),                                     score: 0 },
     { name: 'Technical Health',       key: 'tech',   findings: auditTech($, robotsStatus, sitemapStatus),         score: 0 },
   ]
+
+  // A page whose HTML is an empty shell built by JavaScript: say so (AI crawlers and many bots see it
+  // empty too) and don't fail the body checks we can't see; Google's scan below still fills in what
+  // it finds on the rendered page.
+  const jsShell = isJsShell($)
+  sections[0].findings.unshift(jsShell
+    ? f('content-without-js', 'bad', 'The page\'s HTML is nearly empty: its content is built by JavaScript in the browser. Google can usually still render it, but AI assistants (ChatGPT, Perplexity, Claude) and many crawlers only see the empty HTML.',
+        'Pre-render or server-render the page (SSR / static generation, e.g. Next.js, Astro, or a prerendering service) so the content is in the HTML.')
+    : f('content-without-js', 'good', 'The page\'s content is in its HTML, readable without running JavaScript.'))
+  if (jsShell) {
+    for (const section of sections) {
+      section.findings = section.findings.map((fi) => WEBSITE_BODY_CHECKS.has(fi.key) ? f(fi.key, 'skip', JS_SHELL_SKIP) : fi)
+    }
+  }
 
   // Attach the failing elements Google's scan found (with their spot on the screenshot). For checks
   // also made from the raw HTML, the scan sees the page after JavaScript runs, so it can find
@@ -974,7 +1026,7 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
     section.findings = section.findings.map((fi) => {
       const found = scanned[fi.key]
       if (!found) return fi
-      if (fi.level !== 'good' && fi.level !== 'info') return { ...fi, elements: found }
+      if (fi.level === 'bad' || fi.level === 'ok') return { ...fi, elements: found }
       const t = scanText[fi.key]
       if (!t) return fi
       return { ...f(fi.key, 'bad', `${found.total} ${found.total === 1 ? t[0] : t[1]} (found by Google's scan of the rendered page).`, t[2]), elements: found }

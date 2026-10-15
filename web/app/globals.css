@@ -7797,3 +7797,4 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
 .md-cb.md-cb-idea { border-color: transparent; background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); cursor: default; display: grid; place-items: center; }
 .md-cb.md-cb-idea svg { width: 13px; height: 13px; }
 .md-tag-idea { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 4px; background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
+.md-tag-unchecked { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 4px; background: var(--bg-soft); color: var(--text-faint); border: 1px solid var(--line); }

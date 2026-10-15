@@ -2,13 +2,13 @@ import { db } from '@/lib/db'
 import { modules, moduleItems } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { MODULE_MAP } from './registry'
-import type { ModuleCategoryDefinition, ModuleDefinition } from './types'
+import { isNotChecked, type ModuleCategoryDefinition, type ModuleDefinition } from './types'
 
 // A module's score, the same way the Growth Path page shows it live: weighted share of items that
 // are AI-verified or ticked by the user, leaving out skipped items. Static modules take the item
 // list and weights from their definition; dynamic modules from their stored items.
 
-type ItemState = { slug: string; weight: number; aiVerified: boolean | null; userChecked: boolean | null; userSkipped: boolean | null }
+type ItemState = { slug: string; weight: number; aiVerified: boolean | null; userChecked: boolean | null; userSkipped: boolean | null; aiDetail?: string | null }
 
 export function moduleScore(def: ModuleDefinition | undefined, items: ItemState[]): number {
   let list: { weight: number; done: boolean }[]
@@ -19,8 +19,8 @@ export function moduleScore(def: ModuleDefinition | undefined, items: ItemState[
     list = (def.categories as ModuleCategoryDefinition[])
       .flatMap(c => c.subCategories.flatMap(s => s.items))
       // Checks added after the last analysis don't count until they've been run (see AllModulesDashboard).
-      // Insights (ideas, not pass/fail checks) never count.
-      .filter(i => !i.insight && (bySlug.size === 0 || bySlug.has(i.slug)) && !bySlug.get(i.slug)?.userSkipped)
+      // Insights (ideas) and checks that couldn't run this time never count.
+      .filter(i => !i.insight && (bySlug.size === 0 || bySlug.has(i.slug)) && !bySlug.get(i.slug)?.userSkipped && !isNotChecked(bySlug.get(i.slug)?.aiDetail))
       .map(i => {
         const s = bySlug.get(i.slug)
         return { weight: i.weight, done: !!(s?.aiVerified || s?.userChecked) }
@@ -41,7 +41,7 @@ export async function refreshModuleScore(moduleId: string): Promise<number | nul
     const [mod] = await db.select({ type: modules.type }).from(modules).where(eq(modules.id, moduleId)).limit(1)
     if (!mod) return null
     const items = await db
-      .select({ slug: moduleItems.slug, weight: moduleItems.weight, aiVerified: moduleItems.aiVerified, userChecked: moduleItems.userChecked, userSkipped: moduleItems.userSkipped })
+      .select({ slug: moduleItems.slug, weight: moduleItems.weight, aiVerified: moduleItems.aiVerified, userChecked: moduleItems.userChecked, userSkipped: moduleItems.userSkipped, aiDetail: moduleItems.aiDetail })
       .from(moduleItems)
       .where(eq(moduleItems.moduleId, moduleId))
     const score = moduleScore(MODULE_MAP[mod.type], items)

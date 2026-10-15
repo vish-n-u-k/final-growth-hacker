@@ -174,3 +174,8 @@ export function getAllItems(mod: ModuleDefinition): ModuleItemDefinition[] {
 export function getTotalWeight(mod: ModuleDefinition): number {
   return getAllItems(mod).reduce((sum, i) => sum + i.weight, 0)
 }
+
+// A check that couldn't run this time (Google's scan down, page built by JavaScript…). Its saved
+// detail starts with this; it counts as neither passed nor failed and stays out of Today.
+export const NOT_CHECKED_PREFIX = 'Couldn\'t check'
+export const isNotChecked = (detail: string | null | undefined): boolean => !!detail && detail.startsWith(NOT_CHECKED_PREFIX)

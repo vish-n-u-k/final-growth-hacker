@@ -20,7 +20,8 @@ import { getOpenSignals, getSnapshot, saveSnapshot } from '@/lib/signals'
 import { runDiagnosis, type Diagnosis, type GrowthStage } from '@/lib/daily/diagnosis'
 import type { ActionCard, ActionCardType } from '@/lib/daily/signals'
 import { MODULE_MAP, isPathModule, isScoredItem } from '@/lib/modules/registry'
-import { isElementEvidence, NOT_CHECKED_DETAIL } from '@/lib/audit/elements'
+import { isElementEvidence } from '@/lib/audit/elements'
+import { isNotChecked } from '@/lib/modules/types'
 import { isPagePreview } from '@/lib/audit/page-preview'
 
 // How a task gets done:
@@ -205,7 +206,7 @@ export async function getTodayTasks(
 
   // Pending = not verified, not checked, not skipped, actually analysed (and really checked: not a
   // "couldn't check this time"), concrete, and still a check in its module
-  const pending = items.filter((i) => !i.aiVerified && !i.userChecked && !i.userSkipped && i.aiDetail && i.aiDetail !== NOT_CHECKED_DETAIL && isConcrete(i) && defined(i))
+  const pending = items.filter((i) => !i.aiVerified && !i.userChecked && !i.userSkipped && i.aiDetail && !isNotChecked(i.aiDetail) && isConcrete(i) && defined(i))
   pending.sort((a, b) =>
     score(b) - score(a) ||
     (modMap.get(a.moduleId)?.order ?? 99) - (modMap.get(b.moduleId)?.order ?? 99) ||

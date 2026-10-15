@@ -108,7 +108,6 @@ export const SEO_MODULE: ModuleDefinition = {
             { slug: 'hierarchy.skipped',     label: 'Heading level order (no skips)',          prompt: 'Rule engine check.', order: 1, weight: 2 },
             { slug: 'hierarchy.h2_exists',   label: 'H2 heading structure',                   prompt: 'Rule engine check.', order: 2, weight: 2 },
             { slug: 'hierarchy.descriptive', label: 'Descriptive heading text',               prompt: 'Rule engine check.', order: 3, weight: 2 },
-            { slug: 'hierarchy.nesting',     label: 'Heading nesting logic',                  prompt: 'Rule engine check.', order: 4, weight: 1 },
           ],
         },
         {
@@ -116,9 +115,6 @@ export const SEO_MODULE: ModuleDefinition = {
           label: 'Content Outline',
           order: 3,
           items: [
-            { slug: 'outline.coverage',       label: 'Subtopic coverage in headings',                    prompt: 'Rule engine check.', order: 1, weight: 1 },
-            { slug: 'outline.questions',      label: 'Question-based headings',                          prompt: 'Rule engine check.', order: 2, weight: 1 },
-            { slug: 'outline.lsi',            label: 'Related topic words in headings',                  prompt: 'Rule engine check.', order: 3, weight: 1 },
             { slug: 'outline.length_balance', label: 'Heading length (under 120 chars)',                 prompt: 'Rule engine check.', order: 4, weight: 1 },
           ],
         },
@@ -138,12 +134,9 @@ export const SEO_MODULE: ModuleDefinition = {
           items: [
             { slug: 'alt.present',          label: 'Alt attributes on images',                         prompt: 'Rule engine check.', order: 1, weight: 3, fixable: true, fixType: 'template' },
             { slug: 'alt.not_empty',        label: 'Descriptive alt text on content images',           prompt: 'Rule engine check.', order: 2, weight: 2, fixable: true, fixType: 'patch' },
-            { slug: 'alt.decorative',       label: 'Empty alt on decorative images',                   prompt: 'Rule engine check.', order: 3, weight: 1 },
             { slug: 'alt.filename',         label: 'Alt text format (no filenames)',                    prompt: 'Rule engine check.', order: 4, weight: 2 },
-            { slug: 'alt.descriptive',      label: 'Alt text accuracy',                                prompt: 'Rule engine check.', order: 5, weight: 1 },
             { slug: 'alt.length',           label: 'Alt text length (5–125 chars)',                    prompt: 'Rule engine check.', order: 6, weight: 1 },
             { slug: 'alt.keyword_stuffing', label: 'Alt text keyword stuffing',                        prompt: 'Rule engine check.', order: 7, weight: 2 },
-            { slug: 'alt.context',          label: 'Alt text context',                                 prompt: 'Rule engine check.', order: 8, weight: 1 },
           ],
         },
         {
@@ -171,7 +164,6 @@ export const SEO_MODULE: ModuleDefinition = {
           label: 'Link Structure',
           order: 1,
           items: [
-            { slug: 'links.orphan',         label: 'Orphan pages check',                       prompt: 'Rule engine check.', order: 1, weight: 2 },
             { slug: 'links.depth',          label: 'Page depth (within 3 clicks)',             prompt: 'Rule engine check.', order: 2, weight: 2 },
             { slug: 'links.homepage_links', label: 'Internal links on homepage',               prompt: 'Rule engine check.', order: 3, weight: 2 },
             { slug: 'links.broken',         label: 'Broken internal links',                    prompt: 'Rule engine check.', order: 4, weight: 3 },
@@ -184,9 +176,7 @@ export const SEO_MODULE: ModuleDefinition = {
           label: 'Anchor Text',
           order: 2,
           items: [
-            { slug: 'anchor.diversity',    label: 'Anchor text diversity',                     prompt: 'Rule engine check.', order: 1, weight: 1 },
             { slug: 'anchor.descriptive',  label: 'Descriptive anchor text',                  prompt: 'Rule engine check.', order: 2, weight: 2 },
-            { slug: 'anchor.exact_match',  label: 'Exact-match anchor usage',                 prompt: 'Rule engine check.', order: 3, weight: 1 },
             { slug: 'anchor.branded',      label: 'Brand name in anchor text',                prompt: 'Rule engine check.', order: 4, weight: 1 },
           ],
         },
@@ -195,10 +185,8 @@ export const SEO_MODULE: ModuleDefinition = {
           label: 'Page Authority Flow',
           order: 3,
           items: [
-            { slug: 'pagerank.deep',        label: 'Internal links to deep pages',              prompt: 'Rule engine check.', order: 1, weight: 1 },
             { slug: 'pagerank.nav',         label: 'Navigation page coverage',                  prompt: 'Rule engine check.', order: 2, weight: 2 },
             { slug: 'pagerank.contextual',  label: 'Contextual internal links',                 prompt: 'Rule engine check.', order: 3, weight: 2 },
-            { slug: 'pagerank.injection',   label: 'Internal link injection plan',              prompt: 'Rule engine check.', order: 4, weight: 1 },
           ],
         },
       ],
@@ -350,6 +338,7 @@ export const SEO_MODULE: ModuleDefinition = {
             { slug: 'robots.no_block', label: 'robots.txt CSS/JS rules',               prompt: 'Rule engine check.', order: 2, weight: 3 },
             { slug: 'sitemap.exists',  label: 'sitemap.xml accessibility',             prompt: 'Rule engine check.', order: 3, weight: 2 },
             { slug: 'sitemap.valid',   label: 'Sitemap URL validity',                  prompt: 'Rule engine check.', order: 4, weight: 1 },
+            { slug: 'render.no_js',    label: 'Content readable without JavaScript',   prompt: 'Rule engine check.', order: 5, weight: 3 },
           ],
         },
         {

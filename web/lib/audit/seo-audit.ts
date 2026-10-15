@@ -8,6 +8,7 @@
 
 import * as cheerio from 'cheerio'
 import { readPagePreview, type PagePreviewData } from '@/lib/audit/page-preview'
+import { isJsShell, JS_SHELL_SKIP } from '@/lib/audit/js-shell'
 import { fetchPsiAccessibility } from '@/lib/psi'
 import { extractElements, extractScreenshot, type AuditElement, type PageScreenshot } from '@/lib/audit/elements'
 import { connect as tlsConnect } from 'tls'
@@ -19,7 +20,8 @@ const execFileAsync = promisify(execFile)
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type SeoFindingLevel = 'good' | 'ok' | 'bad' | 'info'
+// skip = couldn't check this time (text starts "Couldn't check"): neither passed nor failed
+export type SeoFindingLevel = 'good' | 'ok' | 'bad' | 'info' | 'skip'
 
 export interface SeoFinding {
   key: string
@@ -44,6 +46,21 @@ export interface SeoAuditError {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+export interface SeoAuditOptions {
+  brandName?: string     // the brand as saved in GrowJin (better than guessing from the domain)
+  brandKeywords?: string // comma-separated main keywords (Settings → Brand)
+}
+
+/** The brand to look for in titles / links: the saved name, else the domain's main word. */
+function brandOf(pageUrl: string, opts: SeoAuditOptions): { brand: string; hasBrand: (text: string) => boolean } {
+  const labels = new URL(pageUrl).hostname.replace(/^www\./, '').split('.')
+  const generic = new Set(['app', 'my', 'get', 'try', 'use', 'go', 'join', 'hello'])
+  const domainWord = (labels.length > 2 && generic.has(labels[0]) ? labels[1] : labels[0]) ?? ''
+  const brand = opts.brandName?.trim() || domainWord
+  const terms = [brand, brand.replace(/\s+/g, ''), domainWord].map((t) => t.toLowerCase()).filter((t) => t.length > 1)
+  return { brand, hasBrand: (text: string) => { const t = text.toLowerCase(); return terms.some((x) => t.includes(x)) } }
+}
 
 function f(key: string, level: SeoFindingLevel, text: string, fix?: string): SeoFinding {
   const out: SeoFinding = { key, level, text }
@@ -125,11 +142,11 @@ async function checkMetaTags(
   $: cheerio.CheerioAPI,
   pageUrl: string,
   canonicalHref: string | null,
+  opts: SeoAuditOptions = {},
 ): Promise<SeoFinding[]> {
   const findings: SeoFinding[] = []
+  const { brand, hasBrand } = brandOf(pageUrl, opts)
   const hostname = new URL(pageUrl).hostname
-  const domainParts = hostname.replace('www.', '').split('.')
-  const brand = domainParts[0] ?? ''
 
   // Derive primary keyword from H1 — skip generic stop words and marketing verbs,
   // take first 3 meaningful content words so we don't surface "turn", "get", "build" etc.
@@ -146,7 +163,15 @@ async function checkMetaTags(
   ])
   const h1Text = $('h1').first().text().trim().toLowerCase()
   const h1Words = h1Text.split(/\s+/).filter((w) => w.length > 2 && !STOP_WORDS.has(w))
-  const primaryKeyword = h1Words.slice(0, 3).join(' ')
+  // The brand's own keyword (Settings → Brand) when saved; otherwise a guess from the H1
+  const savedKeyword = (opts.brandKeywords ?? '').split(',').map((k) => k.trim().toLowerCase()).find(Boolean) ?? ''
+  const primaryKeyword = savedKeyword || h1Words.slice(0, 3).join(' ')
+  const kwWords = savedKeyword
+    ? savedKeyword.split(/\s+/).filter((w) => w.length > 2 && !STOP_WORDS.has(w))
+    : primaryKeyword.split(' ').slice(0, 1)
+  // Word stems, so "scheduling" matches "schedule" and "teams" matches "team"
+  const stem = (w: string) => w.slice(0, Math.max(4, w.length - 3))
+  const hasKeyword = (text: string) => kwWords.length > 0 && kwWords.every((w) => text.toLowerCase().includes(stem(w)))
 
   // ── Title ──
   const title = $('title').first().text().trim()
@@ -172,29 +197,21 @@ async function checkMetaTags(
     }
 
     // title.keyword
-    if (primaryKeyword && title.toLowerCase().includes(primaryKeyword.split(' ')[0])) {
+    if (primaryKeyword && hasKeyword(title)) {
       findings.push(f('title.keyword', 'good', `Primary keyword ("${primaryKeyword}") appears in title.`))
     } else if (primaryKeyword) {
       findings.push(f('title.keyword', 'ok', `Primary keyword ("${primaryKeyword}") not detected in title tag.`,
         'Naturally include your primary keyword near the start of the title.'))
     } else {
-      findings.push(f('title.keyword', 'info', 'Could not determine primary keyword — check manually that title includes your target term.'))
+      findings.push(f('title.keyword', 'skip', 'Couldn\'t check: no target keyword is known. Add your main keywords in Settings → Brand.'))
     }
 
-    // title.unique (needs full crawl)
-    findings.push(f('title.unique', 'info', 'Duplicate title check requires a full site crawl — run with a crawler for multi-page analysis.'))
+    // title.unique: checked against the site's other pages in runSeoAudit (checkSitePages)
 
     // title.brand
-    const titleLower = title.toLowerCase()
-    if (titleLower.includes(brand.toLowerCase())) {
-      const hasSeparator = /[|\-–—:]/.test(title)
-      const brandAtEnd = titleLower.lastIndexOf(brand.toLowerCase()) > title.length / 2
-      if (hasSeparator && brandAtEnd) {
-        findings.push(f('title.brand', 'good', `Brand "${brand}" appears at end of title with proper separator.`))
-      } else {
-        findings.push(f('title.brand', 'ok', `Brand found in title but may be poorly positioned — ideal is "Page Topic | Brand" format.`,
-          'Move brand to end of title with a separator: "Your Page Title | Brand Name".'))
-      }
+    if (hasBrand(title)) {
+      // Brand first ("Acme – Social media scheduling") is normal on a homepage; either end is fine
+      findings.push(f('title.brand', 'good', `Brand "${brand}" appears in the title.`))
     } else {
       findings.push(f('title.brand', 'ok', `Brand name ("${brand}") not found in title — homepage and key pages should include it.`,
         'Append your brand name at the end: "Your Page Title | Brand Name".'))
@@ -203,7 +220,6 @@ async function checkMetaTags(
     // No title — mark dependent checks as info
     findings.push(f('title.length', 'info', 'Cannot check title length — no title found.'))
     findings.push(f('title.keyword', 'info', 'Cannot check title keyword — no title found.'))
-    findings.push(f('title.unique', 'info', 'Cannot check title uniqueness — no title found.'))
     findings.push(f('title.brand', 'info', 'Cannot check title brand — no title found.'))
   }
 
@@ -231,7 +247,7 @@ async function checkMetaTags(
     }
 
     // description.keyword
-    if (primaryKeyword && metaDesc.toLowerCase().includes(primaryKeyword.split(' ')[0])) {
+    if (primaryKeyword && hasKeyword(metaDesc)) {
       findings.push(f('description.keyword', 'good', `Primary keyword found in meta description.`))
     } else {
       findings.push(f('description.keyword', 'ok', 'Primary keyword not detected in meta description — include it naturally.',
@@ -245,12 +261,10 @@ async function checkMetaTags(
       : f('description.cta', 'ok', 'Meta description lacks a call to action — action language improves click-through rate.',
           'End the description with an action phrase like "Learn more", "Get started free", or "See how it works".'))
 
-    findings.push(f('description.unique', 'info', 'Duplicate description check requires full site crawl.'))
   } else {
     findings.push(f('description.length', 'info', 'Cannot check description length — none found.'))
     findings.push(f('description.keyword', 'info', 'Cannot check description keyword — none found.'))
     findings.push(f('description.cta', 'info', 'Cannot check description CTA — none found.'))
-    findings.push(f('description.unique', 'info', 'Cannot check description uniqueness — none found.'))
   }
 
   // ── Canonical ──
@@ -287,7 +301,7 @@ async function checkMetaTags(
           'If consolidating duplicate pages, this is correct. Otherwise update canonical to match page URL.'))
       }
     } catch {
-      findings.push(f('canonical.self', 'info', 'Could not compare canonical to page URL.'))
+      findings.push(f('canonical.self', 'skip', 'Couldn\'t check: the canonical URL couldn\'t be compared with the page URL.'))
     }
 
     // canonical.resolves — HEAD request to check it returns 200
@@ -490,26 +504,11 @@ function checkHeadings($: cheerio.CheerioAPI, title: string): SeoFinding[] {
     : f('hierarchy.descriptive', 'good', 'All headings have descriptive, specific text.'))
 
   // hierarchy.nesting — semantic judgment
-  findings.push(f('hierarchy.nesting', 'info', 'Heading content nesting requires manual review — ensure H2 sections are followed by relevant content before the next H2.'))
 
   // outline.coverage — semantic
-  findings.push(f('outline.coverage', 'info', 'Topic coverage check requires semantic analysis — verify headings cover main subtopics of your target keyword.'))
 
-  // outline.questions — check for question-based headings
-  const questionHeadings = allHeadings.filter((h) =>
-    /^(how|what|why|when|where|who|which|can|is|does|do|should|will|are)\b/i.test(h.text))
-  if (allHeadings.length >= 3) {
-    const questionPct = questionHeadings.length / allHeadings.length
-    findings.push(questionPct >= 0.3
-      ? f('outline.questions', 'good', `${questionHeadings.length} of ${allHeadings.length} headings are question-based — good for informational content.`)
-      : f('outline.questions', 'ok', `Only ${questionHeadings.length} of ${allHeadings.length} headings are question-based.`,
-          'For informational content (guides, blog posts), phrase more headings as questions your audience asks.'))
-  } else {
-    findings.push(f('outline.questions', 'info', 'Too few headings to evaluate question coverage.'))
-  }
 
   // outline.lsi — semantic
-  findings.push(f('outline.lsi', 'info', 'LSI/semantic keyword check requires manual review — ensure headings include related terms beyond the primary keyword.'))
 
   // outline.length_balance
   const longHeadings = allHeadings.filter((h) => h.text.length > 120)
@@ -578,7 +577,6 @@ async function checkImageAlt($: cheerio.CheerioAPI, pageUrl: string): Promise<Se
   }
 
   // alt.decorative
-  findings.push(f('alt.decorative', 'info', 'Decorative image classification requires visual review — icons and spacers should use alt="".'))
 
   // alt.filename — check if alt text looks like a filename
   const altsWithAlt = images.filter((img) => img.alt !== undefined && img.alt.trim() !== '')
@@ -590,7 +588,6 @@ async function checkImageAlt($: cheerio.CheerioAPI, pageUrl: string): Promise<Se
     : f('alt.filename', 'good', 'No filename-style alt text detected.'))
 
   // alt.descriptive
-  findings.push(f('alt.descriptive', 'info', 'ALT descriptiveness requires visual review — ensure alt text accurately describes what is shown in each image.'))
 
   // alt.length
   const invalidLength = altsWithAlt.filter((img) => {
@@ -615,7 +612,6 @@ async function checkImageAlt($: cheerio.CheerioAPI, pageUrl: string): Promise<Se
     : f('alt.keyword_stuffing', 'good', 'No keyword stuffing detected in alt text.'))
 
   // alt.context
-  findings.push(f('alt.context', 'info', 'Alt text context check requires visual review — ensure alt complements surrounding caption or paragraph text.'))
 
   // image.filesize — HEAD requests to first 8 images with same-origin or absolute src
   const sampled = images
@@ -631,7 +627,7 @@ async function checkImageAlt($: cheerio.CheerioAPI, pageUrl: string): Promise<Se
   const warnImages = sizeChecks.filter((r) => r && r.contentLength > 500_000 && r.contentLength <= 1_000_000)
   const checkedCount = sizeChecks.filter(Boolean).length
   if (checkedCount === 0) {
-    findings.push(f('image.filesize', 'info', 'Could not check image file sizes — images may use relative paths or external CDN.'))
+    findings.push(f('image.filesize', 'skip', 'Couldn\'t check: none of the images\' file sizes could be read.'))
   } else if (largImages.length > 0) {
     findings.push(f('image.filesize', 'bad', `${largImages.length} image(s) over 1MB detected — severely impacts Core Web Vitals.`,
       'Compress images to under 500KB. Use WebP format and serve responsive sizes.'))
@@ -675,7 +671,7 @@ async function checkImageAlt($: cheerio.CheerioAPI, pageUrl: string): Promise<Se
   } else if (modernFormat.length > 0) {
     findings.push(f('image.format', 'good', `${modernFormat.length} images use modern WebP/AVIF format.`))
   } else {
-    findings.push(f('image.format', 'info', 'Could not determine image formats from paths.'))
+    findings.push(f('image.format', 'skip', 'Couldn\'t check: image formats couldn\'t be told from their file names.'))
   }
 
   return findings
@@ -683,10 +679,10 @@ async function checkImageAlt($: cheerio.CheerioAPI, pageUrl: string): Promise<Se
 
 // ── 4. Internal Links ─────────────────────────────────────────────────────────
 
-function checkInternalLinks($: cheerio.CheerioAPI, pageUrl: string, discoveredUrls?: UrlDiscoveryResult): SeoFinding[] {
+function checkInternalLinks($: cheerio.CheerioAPI, pageUrl: string, discoveredUrls?: UrlDiscoveryResult, opts: SeoAuditOptions = {}): SeoFinding[] {
   const findings: SeoFinding[] = []
   const hostname = new URL(pageUrl).hostname
-  const brand = hostname.replace('www.', '').split('.')[0] ?? ''
+  const { brand, hasBrand } = brandOf(pageUrl, opts)
 
   const allLinks = $('a[href]').toArray()
   const internalLinks = allLinks.filter((el) => {
@@ -697,17 +693,6 @@ function checkInternalLinks($: cheerio.CheerioAPI, pageUrl: string, discoveredUr
     const href = $(el).attr('href') ?? ''
     return href.startsWith('http') && !href.includes(hostname)
   })
-
-  // links.orphan
-  if (discoveredUrls && discoveredUrls.totalDiscovered > 0) {
-    const source = discoveredUrls.crawlUsed ? 'crawl' : 'sitemap'
-    findings.push(f(
-      'links.orphan', 'info',
-      `${discoveredUrls.totalDiscovered} pages discovered via ${source}. True orphan detection (pages with zero inbound links) requires a full crawl with link graph analysis — use Screaming Frog or Ahrefs for definitive results.`,
-    ))
-  } else {
-    findings.push(f('links.orphan', 'info', 'Orphan page check requires a full site crawl — cannot determine inbound links from a single page.'))
-  }
 
   // links.depth
   if (discoveredUrls && discoveredUrls.crawlUsed && discoveredUrls.totalDiscovered > 0) {
@@ -740,7 +725,7 @@ function checkInternalLinks($: cheerio.CheerioAPI, pageUrl: string, discoveredUr
       : f('links.depth', 'good',
           `Sitemap URL structure shows all ${discoveredUrls.totalDiscovered} pages within 3 path levels — good for crawl discoverability.`))
   } else {
-    findings.push(f('links.depth', 'info', 'Click depth check requires a full site crawl — cannot calculate from homepage alone.'))
+    findings.push(f('links.depth', 'skip', 'Couldn\'t check: no other pages were found (no sitemap and the crawl found nothing).'))
   }
 
   // links.homepage_links
@@ -755,11 +740,8 @@ function checkInternalLinks($: cheerio.CheerioAPI, pageUrl: string, discoveredUr
     findings.push(f('links.homepage_links', 'good', `${internalCount} internal links — good distribution.`))
   }
 
-  // links.broken (sampling — just check up to 5 internal links is too slow; mark as info)
-  findings.push(f('links.broken', 'info', 'Broken link check requires fetching each URL — run a dedicated crawler tool for full link validation.'))
+  // links.broken: the homepage's links are fetched in runSeoAudit (checkBrokenLinks)
 
-  // anchor.diversity (needs multiple pages)
-  findings.push(f('anchor.diversity', 'info', 'Anchor text diversity per target page requires multi-page crawl analysis.'))
 
   // anchor.descriptive
   const genericTexts = new Set(['click here', 'read more', 'here', 'more', 'link', 'this', 'learn more', 'details', 'more info'])
@@ -772,41 +754,41 @@ function checkInternalLinks($: cheerio.CheerioAPI, pageUrl: string, discoveredUr
     : f('anchor.descriptive', 'bad', `${genericLinks.length} internal links use generic anchor text — hurts both SEO and accessibility.`,
         'Replace all "click here", "read more", and "here" anchor text with descriptive labels.'))
 
-  // anchor.exact_match (needs multiple pages)
-  findings.push(f('anchor.exact_match', 'info', 'Exact-match keyword anchor analysis requires multi-page crawl data.'))
 
   // anchor.branded
-  const brandedLinks = allLinks.filter((el) => $(el).text().toLowerCase().includes(brand.toLowerCase()))
+  const brandedLinks = allLinks.filter((el) => hasBrand($(el).text()) || hasBrand($(el).find('img').attr('alt') ?? ''))
   findings.push(brandedLinks.length > 0
     ? f('anchor.branded', 'good', `Brand name appears in ${brandedLinks.length} link(s).`)
     : f('anchor.branded', 'ok', `Brand name ("${brand}") not found in any link anchor text.`,
         'Include brand name in some internal link anchors, especially in the site header or footer.'))
 
-  // pagerank.deep (needs full crawl)
-  findings.push(f('pagerank.deep', 'info', 'Deep page equity check requires full crawl with link graph analysis.'))
 
   // pagerank.nav — check if key pages are in nav
   const navLinks = $('nav a, header a').toArray()
   const navHrefs = navLinks.map((el) => $(el).attr('href')?.toLowerCase() ?? '')
   const keyPageGroups: Record<string, string[]> = {
     pricing: ['pricing', 'price', 'plans'],
-    product: ['product'],
-    feature: ['feature'],
+    'features / product': ['feature', 'product', 'solution', 'how-it-works', 'platform'],
     about: ['about'],
-    blog: ['blog'],
-    contact: ['contact'],
+    blog: ['blog', 'resources', 'guides'],
+    contact: ['contact', 'support'],
   }
-  const missingNav = Object.entries(keyPageGroups)
+  // Only expect nav links to key pages the site actually has (from its sitemap / crawl)
+  const sitePaths = (discoveredUrls?.urls ?? []).map((u) => { try { return new URL(u.url).pathname.toLowerCase() } catch { return '' } })
+  const existing = Object.entries(keyPageGroups).filter(([, kws]) => sitePaths.some((p) => kws.some((kw) => p.includes(kw))))
+  const missingNav = existing
     .filter(([, keywords]) => !navHrefs.some((href) => keywords.some((kw) => href.includes(kw))))
     .map(([label]) => label)
-  if (missingNav.length === 0) {
+  if (existing.length === 0) {
+    findings.push(f('pagerank.nav', 'skip', 'Couldn\'t check: no key pages (pricing, features, about, blog, contact) were found on the site to compare the navigation with.'))
+  } else if (missingNav.length === 0) {
     findings.push(f('pagerank.nav', 'good', 'Navigation links cover all key page types.'))
   } else if (missingNav.length <= 2) {
     findings.push(f('pagerank.nav', 'ok', `Navigation may be missing links to: ${missingNav.join(', ')}.`,
       `Add links to your ${missingNav.join(' and ')} page(s) in the main navigation.`))
   } else {
     findings.push(f('pagerank.nav', 'bad', `Navigation appears sparse — missing common key pages: ${missingNav.slice(0, 3).join(', ')}.`,
-      'Ensure your main navigation includes links to Pricing, Features/Product, About, Blog, and Contact.'))
+      `Link these pages from your main navigation: ${missingNav.join(', ')}.`))
   }
 
   // pagerank.contextual — count links inside main content area
@@ -818,17 +800,15 @@ function checkInternalLinks($: cheerio.CheerioAPI, pageUrl: string, discoveredUr
       break
     }
   }
-  if (contextualLinks >= 3) {
+  if (contextualLinks >= 2) {
     findings.push(f('pagerank.contextual', 'good', `${contextualLinks} contextual link(s) found within main content area.`))
   } else if (contextualLinks > 0) {
     findings.push(f('pagerank.contextual', 'ok', `Only ${contextualLinks} contextual link(s) in main content — add more internal links within body copy.`,
-      'Add 3+ internal links within your main content pointing to related pages.'))
+      'Add a few internal links within your main content pointing to related pages.'))
   } else {
-    findings.push(f('pagerank.contextual', 'info', 'Could not identify main content area to count contextual links — check manually.'))
+    findings.push(f('pagerank.contextual', 'skip', 'Couldn\'t check: the page has no <main> or <article> area to count links in.'))
   }
 
-  // pagerank.injection
-  findings.push(f('pagerank.injection', 'info', 'Link injection plan requires review of your existing content — see action suggestions for underlinked pages.'))
 
   return findings
 }
@@ -1071,61 +1051,64 @@ async function checkTechnical(
     : f('sitemap.exists', 'ok', 'sitemap.xml not found at /sitemap.xml.',
         'Generate and submit a sitemap.xml to Google Search Console.'))
 
-  // sitemap.valid — real URL count when discovery succeeded
-  if (discoveredUrls && discoveredUrls.sitemapFound && discoveredUrls.totalDiscovered > 0) {
-    const prefixes = Object.entries(discoveredUrls.urlsByPrefix)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([p, n]) => `${p} (${n})`)
-      .join(', ')
-    const sitemapLabel = discoveredUrls.sitemapCount > 1
-      ? `${discoveredUrls.sitemapCount} child sitemaps`
-      : 'sitemap.xml'
-    findings.push(f('sitemap.valid', 'good',
-      `Sitemap contains ${discoveredUrls.totalDiscovered} URL${discoveredUrls.totalDiscovered !== 1 ? 's' : ''} across ${sitemapLabel}.${prefixes ? ` Top sections: ${prefixes}.` : ''}`))
-  } else if (discoveredUrls && discoveredUrls.sitemapFound && discoveredUrls.totalDiscovered === 0) {
+  // Status of a sample of the site's pages (sitemap or crawl): for 404s, 5xx errors and
+  // whether the sitemap lists pages that actually load
+  const sampleUrls = (discoveredUrls?.urls ?? []).slice(0, 25).map(u => u.url)
+  const headResults = await Promise.all(sampleUrls.map(async (u) => {
+    const once = async (method: 'HEAD' | 'GET') => {
+      const r = await fetch(u, { method, headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(5000), redirect: 'follow' })
+      if (method === 'GET') r.body?.cancel().catch(() => {})
+      return { url: u, status: r.status, redirected: r.redirected }
+    }
+    try {
+      const r = await once('HEAD')
+      // Some servers don't answer HEAD properly: ask again with GET
+      return r.status === 405 || r.status === 501 || r.status === 403 ? await once('GET') : r
+    } catch {
+      return { url: u, status: 0, redirected: false }
+    }
+  }))
+  const checked = headResults.filter(r => r.status > 0)
+  const pathOf = (u: string) => { try { return new URL(u).pathname } catch { return u } }
+
+  // sitemap.valid — the sitemap's URLs load directly (no 404s, errors or redirects)
+  if (discoveredUrls?.sitemapFound && discoveredUrls.totalDiscovered === 0) {
     findings.push(f('sitemap.valid', 'ok', 'Sitemap found but contains no valid same-origin URLs.',
       'Ensure your sitemap.xml lists absolute URLs matching your domain (e.g. https://yourdomain.com/page).'))
+  } else if (discoveredUrls?.sitemapFound && !discoveredUrls.crawlUsed && checked.length > 0) {
+    const broken = checked.filter(r => r.status >= 400)
+    const moved = checked.filter(r => r.status < 400 && r.redirected)
+    findings.push(broken.length > 0
+      ? f('sitemap.valid', 'bad', `${broken.length} of ${checked.length} sampled sitemap URLs don't load (e.g. ${broken.slice(0, 3).map(r => `${pathOf(r.url)} → ${r.status}`).join(', ')}).`,
+          'Remove dead URLs from the sitemap, or fix / redirect those pages.')
+      : moved.length > 0
+      ? f('sitemap.valid', 'ok', `${moved.length} of ${checked.length} sampled sitemap URLs redirect (e.g. ${moved.slice(0, 3).map(r => pathOf(r.url)).join(', ')}).`,
+          'List the final URLs in the sitemap, not ones that redirect.')
+      : f('sitemap.valid', 'good', `All ${checked.length} sampled sitemap URLs load directly (${discoveredUrls.totalDiscovered} URLs listed).`))
+  } else if (discoveredUrls?.sitemapFound) {
+    findings.push(f('sitemap.valid', 'skip', 'Couldn\'t check: none of the sitemap\'s pages answered when we tested them.'))
   } else {
-    findings.push(f('sitemap.valid', 'info', 'Sitemap URL validation requires fetching each URL — run a crawler for full sitemap audit.'))
+    findings.push(f('sitemap.valid', 'skip', 'Couldn\'t check: no sitemap.xml was found (see "sitemap.xml present").'))
   }
 
-  // http.4xx + http.5xx — HEAD-check a sample of discovered pages
-  if (discoveredUrls && discoveredUrls.totalDiscovered > 0) {
-    const sampleUrls = discoveredUrls.urls.slice(0, 20).map(u => u.url)
-    const headResults = await Promise.all(
-      sampleUrls.map(async (u) => {
-        try {
-          const r = await fetch(u, {
-            method: 'HEAD',
-            headers: { 'User-Agent': UA },
-            signal: AbortSignal.timeout(4000),
-            redirect: 'follow',
-          })
-          return { url: u, status: r.status }
-        } catch {
-          return { url: u, status: 0 }
-        }
-      }),
-    )
-    const checked = headResults.filter(r => r.status > 0)
-    const notFound = checked.filter(r => r.status === 404)
+  // http.4xx + http.5xx
+  if (checked.length > 0) {
+    const notFound = checked.filter(r => r.status === 404 || r.status === 410)
     const serverErrors = checked.filter(r => r.status >= 500)
-
     findings.push(notFound.length > 0
       ? f('http.4xx', 'bad',
           `${notFound.length} of ${checked.length} sampled pages returned 404 — broken URLs hurt both users and rankings.`,
-          `Set up 301 redirects or fix these URLs: ${notFound.slice(0, 3).map(r => new URL(r.url).pathname).join(', ')}`)
+          `Set up 301 redirects or fix these URLs: ${notFound.slice(0, 3).map(r => pathOf(r.url)).join(', ')}`)
       : f('http.4xx', 'good', `All ${checked.length} sampled pages returned valid status codes — no 404 errors detected.`))
-
     findings.push(serverErrors.length > 0
       ? f('http.5xx', 'bad',
           `${serverErrors.length} of ${checked.length} sampled pages returned 5xx server errors — search engines stop indexing pages that return errors.`,
           'Check server logs immediately and resolve the underlying errors.')
       : f('http.5xx', 'good', `No 5xx server errors detected across ${checked.length} sampled pages.`))
   } else {
-    findings.push(f('http.4xx', 'info', '4xx error detection requires crawling all internal URLs — use a crawler tool for full analysis.'))
-    findings.push(f('http.5xx', 'info', '5xx error detection requires crawling all internal URLs — monitor via server logs or uptime tools.'))
+    const why = sampleUrls.length === 0 ? 'no other pages were found to test' : 'none of the sampled pages answered'
+    findings.push(f('http.4xx', 'skip', `Couldn't check: ${why}.`))
+    findings.push(f('http.5xx', 'skip', `Couldn't check: ${why}.`))
   }
 
   // ── Performance Analysis ──
@@ -1151,11 +1134,11 @@ async function checkTechnical(
         'Implement srcset for responsive images and serve WebP format to modern browsers.'))
 
   // perf.js_size
-  findings.push(f('perf.js_size', 'info', 'JavaScript bundle size check requires fetching all JS files — use Lighthouse or WebPageTest for accurate measurement.'))
+  // perf.js_size: measured in runSeoAudit (checkJsSize)
 
   // perf.ttfb
   findings.push(ttfb < 0
-    ? f('perf.ttfb', 'info', 'TTFB could not be measured — site blocked direct scanning (content fetched via Jina Reader).')
+    ? f('perf.ttfb', 'skip', 'Couldn\'t check: the site blocked direct scanning, so response time couldn\'t be measured.')
     : ttfb < 200
     ? f('perf.ttfb', 'good', `Server responds in ${ttfb}ms (TTFB) — excellent.`)
     : ttfb < 600
@@ -1246,7 +1229,90 @@ function applyScan(findings: SeoFinding[], lhr: Record<string, unknown>): PageSc
   return any ? extractScreenshot(lhr) : null
 }
 
-export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAuditError> {
+// ── Checks across the site's pages ──────────────────────────────────────────────
+
+/** Duplicate titles / descriptions among the homepage and the sampled pages (title.unique, description.unique). */
+function checkSitePages($: cheerio.CheerioAPI, pageUrl: string, discovered?: UrlDiscoveryResult): SeoFinding[] {
+  const home = { url: pageUrl, title: $('title').first().text().trim(), metaDescription: $('meta[name="description"]').attr('content')?.trim() ?? '' }
+  const norm = (u: string) => { try { const x = new URL(u); return x.origin + x.pathname.replace(/\/$/, '') } catch { return u } }
+  const pages = [home, ...(discovered?.urls ?? []).filter((u) => (u.status ?? 200) < 400 && norm(u.url) !== norm(pageUrl))]
+  const sampled = pages.filter((p) => p.title || p.metaDescription)
+  const pathOf = (u: string) => { try { return new URL(u).pathname } catch { return u } }
+  const dupes = (field: 'title' | 'metaDescription') => {
+    const by = new Map<string, string[]>()
+    for (const p of sampled) {
+      const v = (p[field] ?? '').trim().toLowerCase()
+      if (v) by.set(v, [...(by.get(v) ?? []), pathOf(p.url)])
+    }
+    return [...by.values()].filter((paths) => paths.length > 1)
+  }
+  const out: SeoFinding[] = []
+  for (const [key, field, word] of [['title.unique', 'title', 'title'], ['description.unique', 'metaDescription', 'meta description']] as const) {
+    if (sampled.length < 2) {
+      out.push(f(key, 'skip', `Couldn't check: only the homepage could be read, so there are no other pages to compare its ${word} with.`))
+      continue
+    }
+    const groups = dupes(field)
+    const shared = groups.reduce((n, g) => n + g.length, 0)
+    out.push(groups.length === 0
+      ? f(key, 'good', `Every one of the ${sampled.length} pages checked has its own ${word}.`)
+      : f(key, shared >= 4 ? 'bad' : 'ok',
+          `${shared} of ${sampled.length} pages checked share a ${word} (e.g. ${groups[0].slice(0, 3).join(', ')}).`,
+          `Give each page its own ${word} that says what that page is about.`))
+  }
+  return out
+}
+
+/** links.broken: the homepage's internal links that don't load (404 / 410 / 5xx). */
+async function checkBrokenLinks($: cheerio.CheerioAPI, pageUrl: string): Promise<SeoFinding> {
+  const origin = new URL(pageUrl).origin
+  const targets = [...new Set($('a[href]').toArray().map((el) => $(el).attr('href') ?? '')
+    .filter((h) => h && !/^(#|mailto:|tel:|javascript:)/i.test(h))
+    .map((h) => { try { const u = new URL(h, pageUrl); u.hash = ''; return u.origin === origin ? u.href : '' } catch { return '' } })
+    .filter(Boolean))].slice(0, 30)
+  if (targets.length === 0) return f('links.broken', 'skip', 'Couldn\'t check: the homepage has no internal links to test.')
+  const results = await Promise.all(targets.map(async (u) => {
+    const r = await headRequest(u)
+    if (r && (r.status === 405 || r.status === 501 || r.status === 403)) {
+      try {
+        const g = await fetch(u, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(5000), redirect: 'follow' })
+        g.body?.cancel().catch(() => {})
+        return { u, status: g.status }
+      } catch { return { u, status: 0 } }
+    }
+    return { u, status: r?.status ?? 0 }
+  }))
+  const answered = results.filter((r) => r.status > 0)
+  if (answered.length === 0) return f('links.broken', 'skip', 'Couldn\'t check: none of the homepage\'s links answered when we tested them.')
+  const broken = answered.filter((r) => r.status === 404 || r.status === 410 || r.status >= 500)
+  const pathOf = (u: string) => { try { return new URL(u).pathname } catch { return u } }
+  return broken.length === 0
+    ? f('links.broken', 'good', `All ${answered.length} internal links on the homepage work.`)
+    : f('links.broken', 'bad', `${broken.length} of ${answered.length} internal links on the homepage are broken: ${broken.slice(0, 4).map((r) => `${pathOf(r.u)} (${r.status})`).join(', ')}.`,
+        'Fix or remove these links, or redirect the old URLs to the right pages.')
+}
+
+/** perf.js_size: total size of the page's script files (from their Content-Length). */
+async function checkJsSize($: cheerio.CheerioAPI, pageUrl: string): Promise<SeoFinding> {
+  const srcs = [...new Set($('script[src]').toArray().map((el) => $(el).attr('src') ?? '').filter(Boolean)
+    .map((s) => { try { return new URL(s, pageUrl).href } catch { return '' } }).filter(Boolean))].slice(0, 20)
+  if (srcs.length === 0) return f('perf.js_size', 'good', 'The page loads no external JavaScript files.')
+  const sizes = await Promise.all(srcs.map(async (u) => (await headRequest(u))?.contentLength ?? 0))
+  const known = sizes.filter((n) => n > 0)
+  if (known.length === 0) return f('perf.js_size', 'skip', 'Couldn\'t check: the script files didn\'t report their size.')
+  const kb = Math.round(known.reduce((a, b) => a + b, 0) / 1024)
+  const of = known.length < srcs.length ? ` (${known.length} of ${srcs.length} files measured)` : ''
+  return kb > 1000
+    ? f('perf.js_size', 'bad', `${kb} KB of JavaScript${of} — slows the page down on phones.`, 'Split the bundle, lazy-load what isn\'t needed for the first view, and drop unused libraries.')
+    : kb > 500
+    ? f('perf.js_size', 'ok', `${kb} KB of JavaScript${of} — on the heavy side.`, 'Lazy-load scripts that aren\'t needed for the first view.')
+    : f('perf.js_size', 'good', `${kb} KB of JavaScript${of}.`)
+}
+
+// Checks that read the page's body content: not judgeable on a page built by JavaScript
+const BODY_CHECK = /^(h1\.|hierarchy\.|outline\.|alt\.|image\.|anchor\.|pagerank\.|links\.homepage_links$|links\.broken$)/
+
+export async function runSeoAudit(url: string, opts: SeoAuditOptions = {}): Promise<SeoAuditResult | SeoAuditError> {
   const normalizedUrl = url.startsWith('http') ? url : `https://${url}`
 
   let html = ''
@@ -1283,7 +1349,8 @@ export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAudi
       .then(r => r.ok ? r.text() : null),
     fetch(`${origin}/sitemap.xml`, { signal: AbortSignal.timeout(5_000) })
       .then(r => r.status),
-    discoverAllUrls(finalUrl, html, { maxUrls: 300, maxCrawlDepth: 2 }),
+    // Sample 25 pages' titles, descriptions and status for the site-wide checks
+    discoverAllUrls(finalUrl, html, { maxUrls: 300, maxCrawlDepth: 2, enrichMeta: 25 }),
   ])
   const robotsTxt = robotsTxtResult.status === 'fulfilled' ? robotsTxtResult.value : null
   const sitemapStatus = sitemapStatusResult.status === 'fulfilled' ? sitemapStatusResult.value ?? 0 : 0
@@ -1294,15 +1361,17 @@ export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAudi
   const lighthouseData = hasLighthouse ? await runLighthouse(finalUrl) : null
 
   // Run all sections in parallel where possible
-  const [metaFindings, imageFindings, technicalFindings] = await Promise.all([
-    checkMetaTags($, finalUrl, canonicalHref),
+  const [metaFindings, imageFindings, technicalFindings, brokenLinks, jsSize] = await Promise.all([
+    checkMetaTags($, finalUrl, canonicalHref, opts),
     checkImageAlt($, finalUrl),
     checkTechnical($, finalUrl, headers, ttfb, robotsTxt, sitemapStatus, Buffer.byteLength(html, 'utf8'), lighthouseData, discoveredUrls),
+    checkBrokenLinks($, finalUrl),
+    checkJsSize($, finalUrl),
   ])
 
   const title = $('title').first().text().trim()
   const headingFindings = checkHeadings($, title)
-  const linkFindings = [...checkInternalLinks($, finalUrl, discoveredUrls), checkUrlSlugs(finalUrl, discoveredUrls)]
+  const linkFindings = [...checkInternalLinks($, finalUrl, discoveredUrls, opts), checkUrlSlugs(finalUrl, discoveredUrls), brokenLinks]
   const schemaFindings = checkSchema($, finalUrl)
 
   const findings = [
@@ -1312,7 +1381,24 @@ export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAudi
     ...linkFindings,
     ...schemaFindings,
     ...technicalFindings,
+    ...checkSitePages($, finalUrl, discoveredUrls),
+    jsSize,
   ]
+
+  // A page whose HTML is an empty shell filled in by JavaScript: say so (AI crawlers and many
+  // bots see it empty too), and don't fail body checks we can't see. Google's scan below still
+  // overrides with what it finds on the rendered page.
+  const jsShell = isJsShell($)
+  findings.push(jsShell
+    ? f('render.no_js', 'bad', 'The page\'s HTML is nearly empty: its content is built by JavaScript in the browser. Google can usually still render it, but AI assistants (ChatGPT, Perplexity, Claude) and many crawlers read the empty HTML.',
+        'Pre-render or server-render the page (SSR / static generation, e.g. Next.js, Astro, or a prerendering service) so the content is in the HTML.')
+    : f('render.no_js', 'good', 'The page\'s content is in its HTML, readable without running JavaScript.'))
+  if (jsShell) {
+    for (let i = 0; i < findings.length; i++) {
+      if (BODY_CHECK.test(findings[i].key)) findings[i] = f(findings[i].key, 'skip', JS_SHELL_SKIP)
+    }
+  }
+
   const scan = await scanPromise
   const screenshot = scan?.ok ? applyScan(findings, scan.lhr) : null
 

@@ -114,6 +114,10 @@ export async function analyzeWebsite(
       }
     }
 
+    if (finding.level === 'skip') {
+      // Couldn't be checked this time: saved as "not checked", not failed and not sent to the AI
+      return { slug: item.slug, detail: finding.text, narrative: '', action: '', verified: false, aiData: null, isFail: false }
+    }
     const verified = finding.level === 'good' || finding.level === 'info'
     return {
       slug: item.slug,

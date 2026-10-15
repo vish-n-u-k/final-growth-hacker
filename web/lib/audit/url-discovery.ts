@@ -16,6 +16,8 @@ export interface DiscoveredUrl {
   title?: string        // page <title> (populated by enrichUrlsWithMeta)
   metaDescription?: string // <meta name="description"> content
   h1?: string           // first <h1> text
+  status?: number       // HTTP status when sampled (enrichUrlsWithMeta); 0 = didn't answer
+  redirected?: boolean  // the URL redirected somewhere else
 }
 
 export interface UrlDiscoveryResult {
@@ -68,10 +70,11 @@ export async function enrichUrlsWithMeta(
 
   const enriched = await Promise.all(
     sample.map(async (item) => {
-      const html = await safeFetchText(item.url, 4000)
-      if (!html) return item
+      const res = await fetchPage(item.url, 6000)
+      const html = res.ok ? res.html : null
+      if (!html) return { ...item, status: res.status, redirected: res.redirected }
       const { title, metaDescription, h1 } = extractPageMeta(html)
-      const extra: Partial<DiscoveredUrl> = {}
+      const extra: Partial<DiscoveredUrl> = { status: res.status, redirected: res.redirected }
       if (title) extra.title = title
       if (metaDescription) extra.metaDescription = metaDescription
       if (h1) extra.h1 = h1
@@ -84,6 +87,17 @@ export async function enrichUrlsWithMeta(
 }
 
 // ── Fetch helpers ─────────────────────────────────────────────────────────────
+
+/** Status, redirect and HTML (when OK) of one page; status 0 = no answer. */
+async function fetchPage(url: string, timeoutMs: number): Promise<{ ok: boolean; status: number; redirected: boolean; html: string | null }> {
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(timeoutMs), redirect: 'follow' })
+    const html = res.ok ? await res.text() : null
+    return { ok: res.ok, status: res.status, redirected: res.redirected, html }
+  } catch {
+    return { ok: false, status: 0, redirected: false, html: null }
+  }
+}
 
 async function safeFetchText(url: string, timeoutMs = 7000): Promise<string | null> {
   try {

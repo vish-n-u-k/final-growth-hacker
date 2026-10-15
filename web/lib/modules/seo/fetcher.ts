@@ -7,7 +7,8 @@ export type { SeoAuditResult, SeoAuditError }
 export async function fetchSeoData(requirements: Record<string, string>): Promise<SeoAuditResult | SeoAuditError> {
   const rawUrl = requirements['website_url'] ?? ''
   const url = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`
-  const audit = await runSeoAudit(url)
+  // The brand as saved in GrowJin: brand-in-title / keyword checks use these instead of guessing
+  const audit = await runSeoAudit(url, { brandName: requirements['brand_name'], brandKeywords: requirements['brand_keywords'] })
   // Store the page screenshot (for boxing failing elements) and keep only its size on the result
   if (!('error' in audit) && audit.screenshot && 'data' in audit.screenshot) {
     audit.screenshot = await saveScreenshot(requirements['brand_id'] ?? '', audit.screenshot, 'seo')

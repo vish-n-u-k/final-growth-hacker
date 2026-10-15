@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { modules, moduleItems, moduleCategories } from '@/lib/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { isPathModule, isScoredItem } from '@/lib/modules/registry'
+import { isNotChecked } from '@/lib/modules/types'
 
 const WEIGHT_LABEL: Record<number, string> = { 3: 'critical', 2: 'important', 1: 'minor' }
 
@@ -35,7 +36,7 @@ export async function getPendingItems(brandId: string, moduleType?: string) {
 
   // Filter to pending only (not verified by AI and not checked by user)
   // (real checks only: not insights, not checks since removed from their module)
-  const pending = allItems.filter((item) => !item.aiVerified && !item.userChecked && isScoredItem(modMap.get(item.moduleId)?.type ?? '', item.slug))
+  const pending = allItems.filter((item) => !item.aiVerified && !item.userChecked && !isNotChecked(item.aiDetail) && isScoredItem(modMap.get(item.moduleId)?.type ?? '', item.slug))
 
   // Sort: weight desc (critical first), then by module order
   pending.sort((a, b) => {

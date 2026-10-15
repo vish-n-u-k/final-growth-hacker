@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useRoadmap } from '@/components/RoadmapContext'
 import { progressColor as ringColor, GROWTH_PHASES } from '@/lib/modules/roadmap'
 import Link from 'next/link'
-import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull, type DynamicModuleCategoryDefinition } from '@/lib/modules/types'
+import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull, type DynamicModuleCategoryDefinition, isNotChecked } from '@/lib/modules/types'
 import ExportPrepModal from '@/components/ExportPrepModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -97,7 +97,8 @@ function timeAgo(iso: string | null): string {
 
 // A check counts once it has been run: checks added to a module after its last analysis don't
 // lower the score until the next one (a module never analysed has no states, so everything counts).
-const counts = (slug: string, states: Record<string, DBItemState>) => !!states[slug] || Object.keys(states).length === 0
+// Checks that couldn't run this time ("Couldn't check…") count as neither passed nor failed.
+const counts = (slug: string, states: Record<string, DBItemState>) => (!!states[slug] || Object.keys(states).length === 0) && !isNotChecked(states[slug]?.aiDetail)
 
 function getCatStats(cat: ModuleCategoryDefinition, states: Record<string, DBItemState>) {
   const allItems = cat.subCategories.flatMap((s) => s.items)
@@ -1802,7 +1803,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     // An insight is an idea, not a check: no checkbox, impact badges, done or skip
     const idea = !!item.insight
     const done = !idea && (aiV || userC)
-    const needsAttention = s && !idea && !aiV && !userC && !skipped
+    const notChecked = !idea && !done && isNotChecked(s?.aiDetail)
+    const needsAttention = s && !idea && !notChecked && !aiV && !userC && !skipped
     const itemKey = `${modId}:${item.slug}`
     const isExpanded = expandedItems.has(itemKey)
     const hasDetail = !skipped && !!(s?.aiDetail || s?.aiHighlight || s?.aiNarrative || s?.aiAction || item.fixGuide?.length)
@@ -1850,7 +1852,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               ) : (
                 <>
                   {idea && <span className="md-tag md-tag-idea">Idea</span>}
-                  {!done && !idea && item.weight === 3 && (
+                  {notChecked && <span className="md-tag md-tag-unchecked">Not checked</span>}
+                  {!done && !idea && !notChecked && item.weight === 3 && (
                     <span className="md-priority-icon md-priority-critical">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1860,7 +1863,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       <span className="md-priority-label">High impact</span>
                     </span>
                   )}
-                  {!done && !idea && item.weight === 2 && (
+                  {!done && !idea && !notChecked && item.weight === 2 && (
                     <span className="md-priority-icon md-priority-important">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.2"/>
@@ -2616,7 +2619,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   ideas: cat.subCategories.flatMap(sub => sub.items).filter(i => i.insight && states[i.slug]?.aiDetail).length,
                   body: (<>
                     {cat.subCategories.map((sub, si) => {
-                                      const subChecks = sub.items.filter(i => !i.insight)
+                                      const subChecks = sub.items.filter(i => !i.insight && !isNotChecked(states[i.slug]?.aiDetail))
                                       const subDone = subChecks.filter(i => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).length
                                       return (
                                         <div key={sub.slug} className={`md-sub${si > 0 ? ' md-sub-border' : ''}`}>
