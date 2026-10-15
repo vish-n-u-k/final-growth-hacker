@@ -68,102 +68,38 @@ export const SOCIAL_MEDIA_MODULE: ModuleDefinition = {
   ],
   systemPrompt: `You are a senior social media strategist embedded in a growth audit tool. Your tone is direct, specific, and consultant-like.
 
-You receive data in three tiers based on what information is available:
-- Tier 1 (Website Detection): social links automatically found on the brand's homepage — no user input required
-- Tier 2 (Profile Analysis): data from user-provided profile URLs — handle names extracted, some public page titles fetched
-- Tier 3 (Metrics): API-connected platform data with full metrics (followers, engagement, posting frequency, bio)
+GrowJin has already checked the facts (website links, profile links, handles, posting and engagement from connected accounts). Your job is only to write ideas: a content strategy, a growth playbook and ready-to-use post suggestions.
 
 Rules:
-1. Only report what you can verify from the provided data. Never fabricate metrics or findings.
-2. Every finding must cite specific platform names, handles, or numbers. No generic advice.
-3. For Tier 2 data (URL-provided, no API): only assess what is knowable — handle name, URL format, brand name consistency. Never guess follower counts or engagement rates.
-4. Slug format: {category-slug}-{short-descriptor} e.g. website-detection-no-instagram-link
-5. Weight: 3 = directly costs followers, reach, or leads | 2 = measurably hurts performance | 1 = nice-to-have improvement
-6. verified: true = this check passes | verified: false = gap exists, action needed
-7. fixable: true ONLY for website code changes (adding social meta tags, adding social links to site header/footer). false for everything else.
-8. Plain language: Write label, detail, highlight, and narrative in plain English that a non-technical business owner can understand — no jargon or acronyms. Save technical specifics for the action field only.`,
+1. Use only the facts provided. Never invent follower counts, engagement rates or posting dates.
+2. Every idea must name a specific platform and content format, tied to the brand's industry and audience. No generic advice.
+3. Slug format: {category-slug}-{short-descriptor}, e.g. content-strategy-linkedin-carousels.
+4. Weight is priority: 3 = do this first, 2 = next, 1 = later.
+5. Plain language: write label, detail, highlight and narrative in plain English a non-technical business owner understands. Technical specifics go in action only.`,
   categories: [
     {
       slug: 'website-detection',
       label: 'Website Social Presence',
       order: 1,
-      prompt: `Analyse what was automatically detected on the brand's homepage. This section requires no user input.
-
-Using the "Homepage Social Links Detected" data:
-- Which platforms are linked from the homepage?
-- Are social links in prominent positions (header/footer) or absent entirely?
-- Is the platform mix appropriate for the stated industry and audience?
-- Which critical platforms are missing from the homepage (not linked at all)?
-- Social meta tags: is og:see_also or Schema.org sameAs present? (infer from overall SEO quality if not explicitly stated)
-
-Pass condition: links to ≥3 relevant platforms visible on homepage.
-Fail condition: no social links on homepage, or missing the single most important platform for the industry.
-
-Weight 3: zero social links found on homepage.
-Weight 2: missing 1–2 key platform links from homepage.
-Weight 1: social meta tags absent, or minor platform gap for a secondary channel.
-
-Generate 3–5 findings. Include at least one passing finding if the brand has good homepage social presence.`,
+      prompt: 'Rule engine check (see social-media/agent.ts).',
     },
     {
       slug: 'profile-analysis',
       label: 'Profile & Brand Consistency',
       order: 2,
-      prompt: `Assess social profiles for handle consistency and brand quality. Use handles from ALL tiers — Tier 2 (profile URLs provided), Tier 3 (API-connected), and Tier 1 (homepage-detected links). Never guess metrics.
-
-Handle sources to use:
-- Tier 3 "API-Connected Platforms": use the Handle field returned by the API
-- Tier 2 "User-Provided Profile URLs": use the handle extracted from the URL
-- Tier 1 "Homepage Social Links Detected": platform is present but handle unknown
-- Also use the "Cross-Platform Handle Consistency" pre-computed summary above
-
-Checks to run across all available handles:
-- Is the handle/username consistent across platforms? Same brand name, no extra numbers or underscores?
-- Do handles match the brand name exactly or closely?
-- For Tier 2 platforms where a public page title was fetched: does the page name match the brand?
-- Is the handle format professional? (random numbers like brand123 are a red flag)
-- Which key platforms have no presence at all (not in any tier)?
-- Are all critical platforms for this industry covered across all tiers combined?
-
-IMPORTANT: Only generate the "no-urls" fallback finding if the brand has ZERO handles available across ALL tiers (no Tier 2 URLs, no Tier 3 API connections, and no homepage links detected):
-  slug: "profile-analysis-no-urls"
-  label: "No profile URLs added yet"
-  weight: 1, verified: false
-  detail: "No social handles are available from any source — handle consistency and profile auditing cannot run."
-  narrative: "Adding your social profile URLs unlocks brand name consistency checks, handle quality audit, and full platform coverage analysis across Instagram, LinkedIn, YouTube, Twitter, Facebook, and TikTok."
-  action: "Click 'Set up module' above and paste each platform profile URL. No tokens or logins required — just the public URLs."
-  fixable: false
-
-Otherwise generate 3–5 findings using whatever handle data is available across all tiers.`,
+      prompt: 'Rule engine check (see social-media/agent.ts).',
     },
     {
       slug: 'metrics-analysis',
       label: 'Performance Metrics',
       order: 3,
-      prompt: `Analyse social media performance using API-connected platform data with real metrics.
-
-For each platform in "API-Connected Platforms" with real data:
-- Follower count in context (strong/weak for the industry and brand stage)
-- Engagement rate vs benchmarks: Instagram ≥3% good, 1–3% average, <1% poor | Facebook ≥1% good | LinkedIn ≥2% good | TikTok ≥5% good
-- Posting consistency: last post <14 days = active | 15–30 days = at risk | 30+ days = inactive
-- Bio quality: is it specific and benefit-driven? Website URL present? CTA present?
-- Follower/following ratio: heavy following-to-followers suggests aggressive follow-back tactics
-
-IMPORTANT: If fewer than 2 platforms have real API metrics (followerCount not null), generate exactly one finding:
-  slug: "metrics-analysis-no-api"
-  label: "API tokens not connected — metrics unavailable"
-  weight: 2, verified: false
-  detail: "No platform API tokens are connected. Real metrics (followers, engagement rate, posting frequency, bio text) are unavailable."
-  narrative: "Without API tokens, this section cannot assess growth trajectory, content performance, or engagement health — the most actionable metrics for social media improvement. Profile URLs alone (Tier 2) confirm you exist on a platform but cannot reveal how well you're performing."
-  action: "Go to Settings → Integrations and connect Instagram, Facebook, or LinkedIn to unlock full metrics analysis. Instagram and Facebook provide the most complete data."
-  fixable: false
-
-Otherwise generate 3–6 findings citing specific numbers for every claim.`,
+      prompt: 'Rule engine check (see social-media/agent.ts).',
     },
     {
       slug: 'content-strategy',
       label: 'Content Strategy',
       order: 4,
+      insight: true, // ideas, not scored
       prompt: `Generate a platform-specific content strategy for this brand based on their industry, target audience, and social presence data already provided above.
 
 For each platform where the brand has ANY presence (Tier 1, 2, or 3 — skip "none" platforms entirely):
@@ -200,6 +136,7 @@ Generate 4–6 findings. Every finding must cite the specific platform and the s
       slug: 'growth-playbook',
       label: 'Growth Playbook',
       order: 5,
+      insight: true, // ideas, not scored
       prompt: `Assess the brand's social media maturity and generate a prioritised growth playbook based on their industry, audience, and current presence data.
 
 First, determine the brand's stage using available signals:
@@ -237,6 +174,7 @@ Generate exactly 5 findings in priority order (most impactful first). Every find
       slug: 'post-suggestions',
       label: 'Post Suggestions',
       order: 6,
+      insight: true, // ideas, not scored
       prompt: `Generate one ready-to-use post suggestion for each platform where the brand has ANY presence (Tier 1, 2, or 3). Skip platforms marked as "Not detected anywhere".
 
 Use the content-strategy and growth-playbook findings already generated above as the foundation — each suggestion must map to one of those pillars.
@@ -246,7 +184,6 @@ For each active platform, generate one item:
 - detail: platform name · format · which content pillar this maps to (one line, plain English)
 - narrative: one sentence explaining exactly why this post will resonate with the brand's target audience on this platform
 - action: a ready-to-use caption hook — the opening line only (first 1–2 sentences that stop the scroll). Make it specific to the brand's industry and audience. No generic openers.
-- verified: false (these are suggestions, not checks)
 - weight: 2
 
 Format rules per platform:

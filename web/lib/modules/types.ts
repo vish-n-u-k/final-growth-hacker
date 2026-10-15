@@ -60,6 +60,7 @@ export interface DynamicModuleCategoryDefinition {
   prompt: string   // instructions for Claude for this category
   comingSoon?: boolean   // true = show Coming Soon block instead of items
   comingSoonNote?: string  // optional description shown in the Coming Soon block
+  insight?: boolean   // ideas, not pass/fail checks: shown as ideas and never scored
 }
 
 // Type guard
@@ -178,4 +179,13 @@ export function getTotalWeight(mod: ModuleDefinition): number {
 // A check that couldn't run this time (Google's scan down, page built by JavaScript…). Its saved
 // detail starts with this; it counts as neither passed nor failed and stays out of Today.
 export const NOT_CHECKED_PREFIX = 'Couldn\'t check'
+/**
+ * Dynamic modules: whether an item belongs to an ideas-only category (its slug or category slug
+ * starts with the category slug). Ideas are shown but never scored or listed as to-dos.
+ */
+export function isDynamicIdea(def: ModuleDefinition | undefined, slugOrCategory: string): boolean {
+  if (!def?.dynamic) return false
+  return (def.categories as DynamicModuleCategoryDefinition[]).some(c => c.insight && (slugOrCategory === c.slug || slugOrCategory.startsWith(`${c.slug}-`)))
+}
+
 export const isNotChecked = (detail: string | null | undefined): boolean => !!detail && detail.startsWith(NOT_CHECKED_PREFIX)

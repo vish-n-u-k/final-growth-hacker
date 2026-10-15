@@ -700,6 +700,8 @@ Key One-Liners: ${pb.keyOneLiners}`
     }
 
     const userCheckedSlugs = new Set(existingItems.filter((i) => i.userChecked).map((i) => i.slug))
+    // Skips carry over to the same item (same slug) on the next run
+    const skippedBySlug = new Map(existingItems.filter((i) => i.userSkipped).map((i) => [i.slug, i]))
     // Normalize label for fuzzy matching (handles slug drift between runs)
     const normalizeLabel = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim()
     const checkedByLabel = new Map(
@@ -756,6 +758,8 @@ Key One-Liners: ${pb.keyOneLiners}`
             aiVerifiedAt: r.verified ? new Date() : null,
             userChecked: wasChecked,
             userCheckedAt: wasChecked ? new Date() : null,
+            userSkipped: skippedBySlug.has(r.slug),
+            userSkipReason: skippedBySlug.get(r.slug)?.userSkipReason ?? null,
             completedBy: r.verified ? 'ai' : wasChecked ? 'user' : null,
             fixable: (r as DynamicModuleAnalysisResult).fixable ?? false,
             exportType: (r as DynamicModuleAnalysisResult).exportType ?? null,

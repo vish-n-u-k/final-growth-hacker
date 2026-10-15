@@ -15,7 +15,7 @@ import { USER_ANALYTICS_MODULE } from './user-analytics/definition'
 import { BUSINESS_STAGE_MODULE } from './business-stage/definition'
 import { EMAIL_MARKETING_MODULE } from './email-marketing/definition'
 import { AUDIENCE_DISCOVERY_MODULE } from './audience-discovery/definition'
-import type { ModuleDefinition, ModuleCategoryDefinition, ModuleItemDefinition } from './types'
+import { isDynamicIdea, type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition } from './types'
 
 // ── Module Registry ───────────────────────────────────────────────────────────
 // To add a new module: import its definition and add it to this array.
@@ -72,6 +72,7 @@ function itemDefs(type: string): Map<string, ModuleItemDefinition> | null {
  * later keeps its old row) and not an insight. Dynamic modules' items always count.
  */
 export function isScoredItem(moduleType: string, slug: string): boolean {
+  if (MODULE_MAP[moduleType]?.dynamic) return !isDynamicIdea(MODULE_MAP[moduleType], slug)
   const defs = itemDefs(moduleType)
   if (!defs) return true
   const d = defs.get(slug)

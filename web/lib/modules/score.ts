@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { modules, moduleItems } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { MODULE_MAP } from './registry'
-import { isNotChecked, type ModuleCategoryDefinition, type ModuleDefinition } from './types'
+import { isNotChecked, isDynamicIdea, type ModuleCategoryDefinition, type ModuleDefinition } from './types'
 
 // A module's score, the same way the Growth Path page shows it live: weighted share of items that
 // are AI-verified or ticked by the user, leaving out skipped items. Static modules take the item
@@ -13,7 +13,9 @@ type ItemState = { slug: string; weight: number; aiVerified: boolean | null; use
 export function moduleScore(def: ModuleDefinition | undefined, items: ItemState[]): number {
   let list: { weight: number; done: boolean }[]
   if (!def || def.dynamic) {
-    list = items.filter(i => !i.userSkipped).map(i => ({ weight: i.weight, done: !!(i.aiVerified || i.userChecked) }))
+    // Ideas and checks that couldn't run this time never count
+    list = items.filter(i => !i.userSkipped && !isDynamicIdea(def, i.slug) && !isNotChecked(i.aiDetail))
+      .map(i => ({ weight: i.weight, done: !!(i.aiVerified || i.userChecked) }))
   } else {
     const bySlug = new Map(items.map(i => [i.slug, i]))
     list = (def.categories as ModuleCategoryDefinition[])

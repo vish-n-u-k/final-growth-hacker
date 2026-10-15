@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useRoadmap } from '@/components/RoadmapContext'
 import { progressColor as ringColor, GROWTH_PHASES } from '@/lib/modules/roadmap'
 import Link from 'next/link'
-import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull, type DynamicModuleCategoryDefinition, isNotChecked } from '@/lib/modules/types'
+import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDefinition, type DBItemFull, type DynamicModuleCategoryDefinition, isNotChecked, isDynamicIdea } from '@/lib/modules/types'
 import ExportPrepModal from '@/components/ExportPrepModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -120,9 +120,12 @@ function getOverall(def: ModuleDefinition, states: Record<string, DBItemState>) 
   return { pct: totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0 }
 }
 
+// Dynamic modules: items that count as checks (not ideas, not "Couldn't check")
+const dynCounts = (def: ModuleDefinition, i: DBItemFull) => !isDynamicIdea(def, i.categorySlug) && !isNotChecked(i.aiDetail)
+
 function computeLiveScore(modData: ModuleData, states: Record<string, DBItemState>, dynItems: DBItemFull[]): number {
   if (modData.definition.dynamic) {
-    const active = dynItems.filter(i => !i.userSkipped)
+    const active = dynItems.filter(i => !i.userSkipped && dynCounts(modData.definition, i))
     const totalWeight = active.reduce((s, i) => s + i.weight, 0)
     const doneWeight = active.filter(i => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
     return totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0
@@ -130,8 +133,8 @@ function computeLiveScore(modData: ModuleData, states: Record<string, DBItemStat
   return getOverall(modData.definition, states).pct
 }
 
-function getDynamicCatStats(categorySlug: string, items: DBItemFull[]) {
-  const catItems = items.filter((i) => i.categorySlug === categorySlug && !i.userSkipped)
+function getDynamicCatStats(def: ModuleDefinition, categorySlug: string, items: DBItemFull[]) {
+  const catItems = items.filter((i) => i.categorySlug === categorySlug && !i.userSkipped && dynCounts(def, i))
   const totalWeight = catItems.reduce((s, i) => s + i.weight, 0)
   const aiWeight = catItems.filter((i) => i.aiVerified).reduce((s, i) => s + i.weight, 0)
   const doneWeight = catItems.filter((i) => i.aiVerified || i.userChecked).reduce((s, i) => s + i.weight, 0)
@@ -166,9 +169,9 @@ function summarizeCats(def: ModuleDefinition, states: Record<string, DBItemState
     let open: { slug: string; label: string; weight: number }[]
     let stats: { total: number; done: number; pct: number }
     if (def.dynamic) {
-      stats = getDynamicCatStats(cat.slug, dynItems)
+      stats = getDynamicCatStats(def, cat.slug, dynItems)
       open = dynItems
-        .filter(i => i.categorySlug === cat.slug && !i.userSkipped && !i.aiVerified && !i.userChecked)
+        .filter(i => i.categorySlug === cat.slug && dynCounts(def, i) && !i.userSkipped && !i.aiVerified && !i.userChecked)
         .map(i => ({ slug: i.slug, label: i.label, weight: i.weight }))
     } else {
       stats = getCatStats(cat as ModuleCategoryDefinition, states)
@@ -1197,7 +1200,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const skipItems: { label: string; aiAction: string }[] = []
 
     if (modData.definition.dynamic) {
-      dynItems.filter(i => !i.aiVerified && !i.userChecked && !i.userSkipped && (i.aiAction || i.aiDetail)).forEach(item => {
+      dynItems.filter(i => dynCounts(modData.definition, i) && !i.aiVerified && !i.userChecked && !i.userSkipped && (i.aiAction || i.aiDetail)).forEach(item => {
         if (skippedIds.has(item.id)) return
         const et = classifications[item.slug]?.exportType
         if (et === 'skip') {
@@ -1411,7 +1414,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     let failingItems: { slug: string; label: string; aiDetail: string | null; aiAction: string | null }[] = []
     if (modData.definition.dynamic) {
       failingItems = dynItems
-        .filter(i => !i.aiVerified && !i.userChecked && !i.userSkipped && (i.aiDetail || i.aiAction))
+        .filter(i => dynCounts(modData.definition, i) && !i.aiVerified && !i.userChecked && !i.userSkipped && (i.aiDetail || i.aiAction))
         .map(i => ({ slug: i.slug, label: i.label, aiDetail: i.aiDetail, aiAction: i.aiAction }))
     } else {
       const allDefItems = (modData.definition.categories as ModuleCategoryDefinition[]).flatMap(c => c.subCategories.flatMap(s => s.items))
@@ -1543,8 +1546,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const aiV = item.aiVerified
     const userC = item.userChecked
     const skipped = item.userSkipped
-    const done = aiV || userC
-    const needsAttention = !aiV && !userC && !skipped
+    // Ideas (e.g. post suggestions) aren't checks: no checkbox, impact badges, done or skip
+    const idea = isDynamicIdea(allModulesData.find(m => m.id === modId)?.definition, item.categorySlug)
+    const done = !idea && (aiV || userC)
+    const notChecked = !idea && !done && isNotChecked(item.aiDetail)
+    const needsAttention = !idea && !notChecked && !aiV && !userC && !skipped
     const itemKey = `${modId}:${item.slug}`
     const isExpanded = expandedItems.has(itemKey)
     const hasDetail = !skipped && !!(item.aiDetail || item.aiHighlight || item.aiNarrative || item.aiAction)
@@ -1560,6 +1566,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         }}
         style={{ cursor: hasDetail ? 'pointer' : 'default' }}
       >
+        {idea ? (
+          <span className="md-cb md-cb-idea" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </span>
+        ) : (
         <span
           className={`md-cb${aiV ? ' md-cb-ai' : userC ? ' md-cb-self' : ''}`}
           onClick={(e) => !skipped && toggleItem(modId, true, item.id, item.slug, userC, e)}
@@ -1571,6 +1582,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             </svg>
           )}
         </span>
+        )}
         <div className="md-item-body">
           <div className="md-item-top">
             <span className="md-item-lbl">{item.aiHighlight || item.label}</span>
@@ -1582,7 +1594,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 </>
               ) : (
                 <>
-                  {!done && item.weight === 3 && (
+                  {idea && <span className="md-tag md-tag-idea">Idea</span>}
+                  {notChecked && <span className="md-tag md-tag-unchecked">Not checked</span>}
+                  {!done && !idea && !notChecked && item.weight === 3 && (
                     <span className="md-priority-icon md-priority-critical">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1592,7 +1606,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       <span className="md-priority-label">High impact</span>
                     </span>
                   )}
-                  {!done && item.weight === 2 && (
+                  {!done && !idea && !notChecked && item.weight === 2 && (
                     <span className="md-priority-icon md-priority-important">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.2"/>
@@ -1614,7 +1628,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           )}
           {!skipped && item.aiDetail && <p className="md-item-detail" style={isExpanded ? { display: 'block', overflow: 'visible', WebkitLineClamp: 'unset' } : {}}>{parseBold(item.aiDetail)}</p>}
           {/* Fallback skip button for items with no expandable content */}
-          {!skipped && !done && !hasDetail && (
+          {!skipped && !done && !idea && !hasDetail && (
             <div className="md-skip-control" onClick={(e) => e.stopPropagation()}>
               {isSkipPrompting ? (
                 <div className="md-skip-form">
@@ -1639,7 +1653,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             <div className="sm-expanded-body" onClick={(e) => e.stopPropagation()}>
               {item.aiDetail && (
                 <div className="sm-current-box">
-                  <span className="sm-current-label">Current state</span>
+                  <span className="sm-current-label">{idea ? 'The idea' : 'Current state'}</span>
                   <p className="sm-current-text">{parseBold(item.aiDetail)}</p>
                 </div>
               )}
@@ -1740,7 +1754,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   )}
                 </div>
               )}
-              {!done && (
+              {!done && !idea && (
                 <div className="sm-actions">
                   <button
                     type="button"
@@ -1765,7 +1779,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               )}
               {handoff.hint(itemKey)}
               {/* Skip section — at bottom of expanded body */}
-              {!done && (
+              {!done && !idea && (
                 <div className="md-skip-section">
                   <span className="md-skip-section-label">Skip this check</span>
                   {isSkipPrompting ? (
@@ -2092,7 +2106,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
   // Items still to fix in a module (not done, not skipped).
   const openItemCount = (m: ModuleData) => {
-    if (m.definition.dynamic) return (dynItemsMap[m.id] ?? []).filter(i => !i.aiVerified && !i.userChecked && !(i as { userSkipped?: boolean }).userSkipped).length
+    if (m.definition.dynamic) return (dynItemsMap[m.id] ?? []).filter(i => dynCounts(m.definition, i) && !i.aiVerified && !i.userChecked && !(i as { userSkipped?: boolean }).userSkipped).length
     const st = statesMap[m.id] ?? {}
     return (m.definition.categories as ModuleCategoryDefinition[])
       .flatMap(c => c.subCategories.flatMap(sc => sc.items))
@@ -2591,9 +2605,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             // Categories for the list and the detail panel (not for modules that have their own layout).
             const hasCatList = !def.comingSoon && modData.type !== 'business-stage' && modData.type !== 'gmail-outreach'
             const catRows: CatRow[] = !hasCatList ? [] : def.dynamic
-              ? [...def.categories].filter(cat => cat.slug !== 'next-campaign').map((cat): CatRow => {
-                  const stats = getDynamicCatStats(cat.slug, dynItems)
+              // (an ideas section with no ideas this run isn't shown)
+              ? [...def.categories].filter(cat => cat.slug !== 'next-campaign' && !(isDynamicIdea(def, cat.slug) && effectiveLastAnalyzedAt && !dynItems.some(i => i.categorySlug === cat.slug))).map((cat): CatRow => {
+                  const stats = getDynamicCatStats(def, cat.slug, dynItems)
                   const soon = !!(cat as DynamicModuleCategoryDefinition).comingSoon
+                  const ideaCat = isDynamicIdea(def, cat.slug)
                   const catItems = [...dynItems.filter(i => i.categorySlug === cat.slug)].sort((a, b) => {
                     const aKey = a.userSkipped ? 2 : (a.aiVerified || a.userChecked) ? 1 : 0
                     const bKey = b.userSkipped ? 2 : (b.aiVerified || b.userChecked) ? 1 : 0
@@ -2601,7 +2617,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     return b.weight - a.weight
                   })
                   return {
-                    slug: cat.slug, label: cat.label, stats, ideas: 0, soon,
+                    slug: cat.slug, label: cat.label, stats, soon,
+                    ideas: ideaCat ? dynItems.filter(i => i.categorySlug === cat.slug).length : 0,
                     body: soon ? (
                       <ComingSoon title={cat.label} note={(cat as DynamicModuleCategoryDefinition).comingSoonNote} />
                     ) : catItems.length === 0 ? (
@@ -2679,9 +2696,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             const needRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && catNeedsAttention(r.stats)) : []
             // Fixed-checklist areas whose checks were all added after the last analysis: not run yet, so not "passing".
             // Areas made only of ideas (e.g. Keyword Research) are their own group, never "passing".
-            const ideasOnly = (r: CatRow) => !def.dynamic && r.stats.total === 0 && r.ideas > 0
+            const ideasOnly = (r: CatRow) => r.stats.total === 0 && r.ideas > 0
             const unrun = (r: CatRow) => !def.dynamic && r.stats.total === 0 && r.ideas === 0
-            const passRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && !catNeedsAttention(r.stats) && !unrun(r) && !ideasOnly(r)) : []
+            // Dynamic areas where nothing could be checked this time (every item "Couldn't check")
+            const uncheckedOnly = (r: CatRow) => !!def.dynamic && r.stats.total === 0 && r.ideas === 0 && dynItems.some(i => i.categorySlug === r.slug)
+            const passRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && !catNeedsAttention(r.stats) && !unrun(r) && !ideasOnly(r) && !uncheckedOnly(r)) : []
+            const uncheckedRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && uncheckedOnly(r)) : []
             const ideaRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && ideasOnly(r)) : []
             const unrunRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && unrun(r)) : []
             const otherRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => r.soon) : catsOrdered
@@ -3305,6 +3325,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                             <>
                               <div className="gp-catlabel">Ideas · not scored</div>
                               {ideaRows.map(r => catGroup(r, false))}
+                            </>
+                          )}
+                          {uncheckedRows.length > 0 && (
+                            <>
+                              <div className="gp-catlabel">Not checked this time</div>
+                              {uncheckedRows.map(r => catGroup(r, false))}
                             </>
                           )}
                           {unrunRows.length > 0 && (
