@@ -9,12 +9,25 @@ import { isPagePreview, type PagePreview as Preview } from '@/lib/audit/page-pre
 // For title/description checks, the AI's suggested wordings can be swapped in to compare.
 
 const hostOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url } }
+// Google's second line: the full address, then the path as breadcrumbs ("https://site.com › blog › post")
 const crumbs = (url: string) => {
   try {
     const u = new URL(url)
-    return [u.hostname.replace(/^www\./, ''), ...u.pathname.split('/').filter(Boolean)].join(' › ')
+    return [`${u.protocol}//${u.hostname}`, ...u.pathname.split('/').filter(Boolean)].join(' › ')
   } catch { return url }
 }
+
+// Roughly where Google cuts them off (it measures pixels; these are the usual character limits)
+const TITLE_MAX = 60
+const DESC_MAX = 158
+/** Cuts at the last word break before the limit, with "…", the way Google shows a long description. */
+const cut = (text: string, max: number) => {
+  if (text.length <= max) return text
+  const head = text.slice(0, max)
+  const sp = head.lastIndexOf(' ')
+  return `${(sp > max * 0.6 ? head.slice(0, sp) : head).replace(/[\s,.;:–—-]+$/, '')} …`
+}
+const fits = (n: number, max: number) => n > 0 && n <= max
 
 function Favicon({ src, name }: { src: string; name: string }) {
   const [bad, setBad] = useState(!src)
@@ -24,8 +37,25 @@ function Favicon({ src, name }: { src: string; name: string }) {
     : <img className="pp-fav" src={src} alt="" onError={() => setBad(true)} />
 }
 
+function CopyText({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      className="ee-copy"
+      onClick={(e) => {
+        e.stopPropagation()
+        navigator.clipboard?.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) }).catch(() => {})
+      }}
+    >
+      {copied ? 'Copied' : 'Copy this'}
+    </button>
+  )
+}
+
 function GooglePreview({ d, options, slug }: { d: Preview; options?: string[] | null; slug: string }) {
   const swaps = slug.startsWith('description') || slug === 'meta-description' ? 'description' : 'title'
+  const max = swaps === 'title' ? TITLE_MAX : DESC_MAX
   const choices = (options ?? []).filter(Boolean).slice(0, 3)
   const [pick, setPick] = useState(-1) // -1 = the page as it is now
   const title = swaps === 'title' && pick >= 0 ? choices[pick] : d.title
@@ -36,8 +66,10 @@ function GooglePreview({ d, options, slug }: { d: Preview; options?: string[] | 
       {choices.length > 0 && (
         <div className="pp-tabs" role="tablist" aria-label="Compare">
           <button type="button" role="tab" aria-selected={pick < 0} className={pick < 0 ? 'is-on' : ''} onClick={() => setPick(-1)}>Now</button>
-          {choices.map((_, i) => (
-            <button key={i} type="button" role="tab" aria-selected={pick === i} className={pick === i ? 'is-on' : ''} onClick={() => setPick(i)}>Suggestion {i + 1}</button>
+          {choices.map((c, i) => (
+            <button key={i} type="button" role="tab" aria-selected={pick === i} className={pick === i ? 'is-on' : ''} onClick={() => setPick(i)}>
+              Suggestion {i + 1} <span className={fits(c.length, max) ? 'pp-ok' : 'pp-over'}>{c.length}</span>
+            </button>
           ))}
         </div>
       )}
@@ -50,15 +82,19 @@ function GooglePreview({ d, options, slug }: { d: Preview; options?: string[] | 
           </span>
         </div>
         {title
-          ? <div className="pp-serp-title">{title}</div>
+          ? <div className="pp-serp-title">{cut(title, TITLE_MAX)}</div>
           : <div className="pp-serp-title pp-missing">No title: Google will make one up from your page</div>}
         {description
-          ? <p className="pp-serp-desc">{description}</p>
+          ? <p className="pp-serp-desc">{cut(description, DESC_MAX)}</p>
           : <p className="pp-serp-desc pp-missing">No description: Google will pick some text from your page</p>}
       </div>
-      <p className="pp-note">
-        Title {title.length} characters (Google shows about 60) · Description {description.length} characters (about 155)
-      </p>
+      <div className="pp-foot">
+        <p className="pp-note">
+          Title <span className={fits(title.length, TITLE_MAX) ? 'pp-ok' : 'pp-over'}>{title.length}</span> characters (Google shows about {TITLE_MAX})
+          {' · '}Description <span className={fits(description.length, DESC_MAX) ? 'pp-ok' : 'pp-over'}>{description.length}</span> characters (about {DESC_MAX - 3})
+        </p>
+        {pick >= 0 && <CopyText text={choices[pick]} />}
+      </div>
     </>
   )
 }

@@ -23,6 +23,7 @@ import { useClaudeHandoff, repoLine } from '@/components/useClaudeHandoff'
 import { JOURNEY_PHASES } from '@/lib/journey'
 import ElementEvidence, { isElementEvidence, describeElements } from '@/components/ElementEvidence'
 import PagePreview from '@/components/PagePreview'
+import { isPagePreview } from '@/lib/audit/page-preview'
 
 function renderMdStep(step: string): React.ReactNode {
   const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
@@ -1891,7 +1892,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               {s?.aiAction && (
                 <div className="sm-action-box">
                   <span className="sm-action-label">What to do</span>
-                  <p className="sm-action-text">{parseBold(s.aiAction)}</p>
+                  {/* The suggestions are already tabs in the Google preview above: don't list them twice */}
+                  <p className="sm-action-text">{!done && isPagePreview(s.aiData) && s.aiData.show === 'google' && (s.choiceOptions?.length ?? 0) > 0
+                    ? 'Pick a suggestion above to see it as Google would show it, then copy the one you like into your page.'
+                    : parseBold(s.aiAction)}</p>
                 </div>
               )}
               {(() => {

@@ -7761,10 +7761,16 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
 .pp-serp-names { display: flex; flex-direction: column; min-width: 0; }
 .pp-serp-name { font-size: 14px; color: var(--serp-name); line-height: 1.3; }
 .pp-serp-url { font-size: 12px; color: var(--serp-text); line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pp-serp-title { font-size: 20px; line-height: 1.3; color: var(--serp-link); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 600px; }
-.pp-serp-desc { margin: 4px 0 0; font-size: 14px; line-height: 1.58; color: var(--serp-text); max-width: 600px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Cut by Google's character limits in PagePreview.tsx, not by lines, so the preview matches the counts */
+.pp-serp-title { font-size: 20px; line-height: 1.3; color: var(--serp-link); max-width: 600px; overflow-wrap: anywhere; }
+.pp-serp-desc { margin: 4px 0 0; font-size: 14px; line-height: 1.58; color: var(--serp-text); max-width: 600px; overflow-wrap: anywhere; }
 .pp-missing { font-style: italic; opacity: .75; }
 .pp-note { margin: 0; font-size: 11.5px; color: var(--text-faint); }
+.pp-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.pp-ok { color: var(--green); font-weight: 700; }
+.pp-over { color: var(--crit); font-weight: 700; }
+.pp-tabs button .pp-ok, .pp-tabs button .pp-over { margin-left: 4px; font-size: 11px; }
+.pp-tabs button.is-on .pp-ok, .pp-tabs button.is-on .pp-over { color: inherit; opacity: .85; }
 .pp-card { max-width: 420px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--bg-soft); }
 .pp-card-img { display: block; width: 100%; aspect-ratio: 1.91 / 1; object-fit: cover; background: var(--line); }
 .pp-card-img--none { display: flex; align-items: center; justify-content: center; font-size: 12.5px; color: var(--text-faint); }
@@ -7776,6 +7782,5 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
 @media (max-width: 640px) {
   .pp { padding: 12px; }
   .pp-serp { padding: 12px; }
-  /* Google's mobile results wrap the title instead of cutting it to one line */
-  .pp-serp-title { font-size: 18px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .pp-serp-title { font-size: 18px; }
 }
