@@ -116,14 +116,19 @@ function CopyChip({ text, children }: { text: string; children: React.ReactNode 
   )
 }
 
-function Sample({ fg, bg, ratio, pass, show = 'fg' }: { fg: string; bg: string; ratio?: number; pass: boolean; show?: 'fg' | 'bg' | 'both' }) {
+function Swatch({ fg, bg, ratio, pass }: { fg: string; bg: string; ratio?: number; pass: boolean }) {
   return (
     <span className="ee-sample">
       <span className="ee-swatch" style={{ color: fg, background: bg }}>Aa</span>
-      <span className="ee-hex">{show === 'fg' ? `text ${fg}` : show === 'bg' ? `background ${bg}` : `${fg} on ${bg}`}</span>
       {ratio !== undefined && <span className={pass ? 'ee-pass' : 'ee-fail'}>{ratio.toFixed(1)}:1 {pass ? '✓' : '✗'}</span>}
     </span>
   )
+}
+
+// "11.0pt (14.72px)" → "15px"
+const pxText = (fontSize?: string) => {
+  const px = /\(([\d.]+)px\)/.exec(fontSize ?? '')?.[1]
+  return px ? `${Math.round(parseFloat(px))}px` : fontSize
 }
 
 export default function ElementEvidence({ data, brandId, pageUrl }: { data: unknown; brandId?: string; pageUrl?: string }) {
@@ -145,21 +150,31 @@ export default function ElementEvidence({ data, brandId, pageUrl }: { data: unkn
             {shot && <Crop el={el} shot={shot} src={src} />}
             <div className="ee-info">
               {el.label && <p className="ee-label">&ldquo;{el.label}&rdquo;</p>}
-              {el.fg && el.bg && (
-                <div className="ee-colours">
-                  <span className="ee-cr"><span className="ee-k">Now</span><span className="ee-v"><Sample fg={el.fg} bg={el.bg} ratio={el.ratio} pass={false} show="both" /></span></span>
-                  {(el.suggestFg || el.suggestBg) && (
-                    <span className="ee-cr">
-                      <span className="ee-k">Fix</span>
-                      <span className="ee-v">
-                        <Sample fg={el.suggestFg ?? el.fg} bg={el.suggestBg ?? el.bg} ratio={el.suggestRatio} pass show={el.suggestBg ? 'bg' : 'fg'} />
-                        <CopyChip text={(el.suggestFg ?? el.suggestBg)!}>Copy colour</CopyChip>
-                      </span>
-                    </span>
-                  )}
-                  <span className="ee-need">Needs {el.need ?? 4.5}:1{el.fontSize ? ` for ${el.fontSize} text` : ''}</span>
-                </div>
-              )}
+              {el.fg && el.bg && (() => {
+                const fixFg = el.suggestFg ?? el.fg
+                const fixBg = el.suggestBg ?? el.bg
+                const fixed = !!(el.suggestFg || el.suggestBg)
+                return (
+                  <div className="ee-colours">
+                    {/* Now → Fix on one line; the colour that changes, with Copy, on the next */}
+                    <div className="ee-cmp">
+                      <Swatch fg={el.fg} bg={el.bg} ratio={el.ratio} pass={false} />
+                      {fixed && <><span className="ee-arrow" aria-label="becomes">→</span><Swatch fg={fixFg} bg={fixBg} ratio={el.suggestRatio} pass /></>}
+                    </div>
+                    <div className="ee-change">
+                      {fixed ? (
+                        <>
+                          <span>{el.suggestBg ? 'Background' : 'Text'} <code>{el.suggestBg ? el.bg : el.fg}</code> → <code>{el.suggestBg ?? el.suggestFg}</code></span>
+                          <CopyChip text={(el.suggestBg ?? el.suggestFg)!}>Copy</CopyChip>
+                        </>
+                      ) : (
+                        <span>Text <code>{el.fg}</code> on <code>{el.bg}</code></span>
+                      )}
+                    </div>
+                    <span className="ee-need">Needs {el.need ?? 4.5}:1{el.fontSize ? ` · ${pxText(el.fontSize)} text` : ''}</span>
+                  </div>
+                )
+              })()}
               {el.selector && (
                 <span className="ee-row ee-sel">
                   <code title={el.snippet}>{el.selector}</code>

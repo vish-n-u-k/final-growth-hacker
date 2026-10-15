@@ -15,8 +15,16 @@ export async function GET(request: NextRequest) {
   const brandId = asked && admins.includes(user.email ?? '') ? asked : (await getBrandForUser(user.id))?.id
   if (!brandId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  // Reading the private bucket needs the service-role key; say so plainly when it's missing
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('[screenshot] SUPABASE_SERVICE_ROLE_KEY is not set')
+    return NextResponse.json({ error: 'Screenshot storage is not configured (SUPABASE_SERVICE_ROLE_KEY missing)' }, { status: 500 })
+  }
   const { data, error } = await createAdminClient().storage.from(SHOT_BUCKET).download(shotKey(brandId))
-  if (error || !data) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (error || !data) {
+    console.error('[screenshot] download failed:', error?.message ?? 'no data', brandId)
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
   return new NextResponse(data, {
     headers: {
       'Content-Type': data.type || 'image/webp',

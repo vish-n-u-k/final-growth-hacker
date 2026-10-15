@@ -7723,16 +7723,17 @@ a.ta-more:hover { color: var(--text); }
 .ee-info { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .ee-label { margin: 0; font-size: 13px; color: var(--text); line-height: 1.5; overflow-wrap: anywhere; }
 .ee-colours { display: flex; flex-direction: column; gap: 6px; }
+.ee-cmp { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ee-arrow { color: var(--text-faint); font-size: 14px; }
+.ee-change { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--text); min-width: 0; }
+.ee-change code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 .ee-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-.ee-cr { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: start; gap: 8px; }
-.ee-v { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
-.ee-k { line-height: 24px; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); min-width: 34px; white-space: nowrap; }
 .ee-sample { display: inline-flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; font-size: 12.5px; min-width: 0; }
 .ee-swatch { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 24px; border-radius: 6px; border: 1px solid var(--line); font-size: 13px; font-weight: 600; }
-.ee-hex { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--text); }
 .ee-pass { color: var(--green); font-weight: 600; }
 .ee-fail { color: var(--crit); font-weight: 600; }
 .ee-need { font-size: 11.5px; color: var(--text-faint); }
+.ee-sel { flex-wrap: nowrap; align-items: flex-start; justify-content: space-between; }
 .ee-sel code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; color: var(--text); background: var(--bg-soft); border-radius: 6px; padding: 3px 7px; overflow-wrap: anywhere; min-width: 0; }
 .ee-copy { font-size: 11.5px; font-weight: 600; color: var(--text); border: 1px solid var(--line); background: transparent; border-radius: 6px; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
 .ee-copy:hover { border-color: var(--text-faint); }

@@ -18,6 +18,7 @@ function ensureBucket(storage: ReturnType<typeof createAdminClient>['storage']) 
 export async function saveScreenshot(brandId: string, shot: PageScreenshot): Promise<{ w: number; h: number; at: string } | null> {
   const m = /^data:(image\/[a-z]+);base64,(.+)$/i.exec(shot.data)
   if (!brandId || !m) return null
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) { console.error('[screenshot] SUPABASE_SERVICE_ROLE_KEY is not set: not saving'); return null }
   try {
     const { storage } = createAdminClient()
     await ensureBucket(storage)
