@@ -2091,8 +2091,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   const freeTotal = railModules.filter(x => !x.definition.comingSoon && !isPlanLocked(x)).length
   const freeDone = railModules.filter(x => !isPlanLocked(x) && isStepDone(x)).length
   const proStepCount = railModules.filter(x => !x.definition.comingSoon && isPlanLocked(x)).length
-  // The stage playbook card waits until the user has a result or finished a step: on day one it's one thing too many.
-  const showStageCard = bsItemsAll.length > 0 || railDoneCount > 0
+  // The stage playbook card lives on Foundation only, and waits until the user has a result or
+  // finished a step: on day one it's one thing too many.
+  const showStageCard = selectedModule?.type === 'foundation' && (bsItemsAll.length > 0 || railDoneCount > 0)
   const stageCardEl = showStageCard ? (
     <aside className="gp-stage">
           <span className="gp-stage-tag">Why this matters now</span>
