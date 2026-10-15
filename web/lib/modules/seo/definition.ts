@@ -175,6 +175,7 @@ export const SEO_MODULE: ModuleDefinition = {
             { slug: 'links.depth',          label: 'Page depth (within 3 clicks)',             prompt: 'Rule engine check.', order: 2, weight: 2 },
             { slug: 'links.homepage_links', label: 'Internal links on homepage',               prompt: 'Rule engine check.', order: 3, weight: 2 },
             { slug: 'links.broken',         label: 'Broken internal links',                    prompt: 'Rule engine check.', order: 4, weight: 3 },
+            { slug: 'links.crawlable',      label: 'Links Google can follow',                  prompt: 'Checked by rule engine (Google Lighthouse crawlable-anchors).', order: 5, weight: 2 },
           ],
         },
         {

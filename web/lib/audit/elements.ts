@@ -27,7 +27,7 @@ export interface ElementEvidence {
   kind: 'elements'
   total: number
   elements: AuditElement[]
-  shot?: { w: number; h: number; at: string }
+  shot?: { w: number; h: number; at: string; name?: string } // name: which audit's screenshot
   url?: string  // the page that was audited (for "See it on your site" links)
 }
 

@@ -5,7 +5,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { PageScreenshot } from '@/lib/audit/elements'
 
 export const SHOT_BUCKET = 'page-shots'
-export const shotKey = (brandId: string) => `${brandId}/website`
+// One image per brand and audit ('website' | 'seo'): each audit's element positions match its own run.
+export const shotKey = (brandId: string, name = 'website') => `${brandId}/${name}`
 
 let bucketReady: Promise<void> | null = null
 function ensureBucket(storage: ReturnType<typeof createAdminClient>['storage']) {
@@ -15,20 +16,20 @@ function ensureBucket(storage: ReturnType<typeof createAdminClient>['storage']) 
 }
 
 /** Uploads the screenshot; returns its size and time, or null when storing failed. */
-export async function saveScreenshot(brandId: string, shot: PageScreenshot): Promise<{ w: number; h: number; at: string } | null> {
+export async function saveScreenshot(brandId: string, shot: PageScreenshot, name = 'website'): Promise<{ w: number; h: number; at: string; name: string } | null> {
   const m = /^data:(image\/[a-z]+);base64,(.+)$/i.exec(shot.data)
   if (!brandId || !m) return null
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) { console.error('[screenshot] SUPABASE_SERVICE_ROLE_KEY is not set: not saving'); return null }
   try {
     const { storage } = createAdminClient()
     await ensureBucket(storage)
-    const { error } = await storage.from(SHOT_BUCKET).upload(shotKey(brandId), Buffer.from(m[2], 'base64'), {
+    const { error } = await storage.from(SHOT_BUCKET).upload(shotKey(brandId, name), Buffer.from(m[2], 'base64'), {
       contentType: m[1],
       upsert: true,
       cacheControl: '60',
     })
     if (error) { console.error('[screenshot] upload failed:', error.message); return null }
-    return { w: shot.w, h: shot.h, at: new Date().toISOString() }
+    return { w: shot.w, h: shot.h, at: new Date().toISOString(), name }
   } catch (err) {
     console.error('[screenshot] upload failed:', err)
     return null

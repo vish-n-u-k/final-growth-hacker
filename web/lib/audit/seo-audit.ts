@@ -8,6 +8,8 @@
 
 import * as cheerio from 'cheerio'
 import { readPagePreview, type PagePreviewData } from '@/lib/audit/page-preview'
+import { fetchPsiAccessibility } from '@/lib/psi'
+import { extractElements, extractScreenshot, type AuditElement, type PageScreenshot } from '@/lib/audit/elements'
 import { connect as tlsConnect } from 'tls'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -24,6 +26,7 @@ export interface SeoFinding {
   level: SeoFindingLevel
   text: string
   fix?: string
+  elements?: { total: number; elements: AuditElement[] } // failing page elements from Google's scan
 }
 
 export interface SeoAuditResult {
@@ -32,6 +35,8 @@ export interface SeoAuditResult {
   findings: SeoFinding[]
   discoveredUrls?: UrlDiscoveryResult
   preview?: PagePreviewData // title, description and share tags, for the Google / share previews
+  // Lighthouse's full-page phone screenshot; replaced by its saved size once stored (lib/audit/screenshot.ts)
+  screenshot?: PageScreenshot | { w: number; h: number; at: string; name?: string } | null
 }
 
 export interface SeoAuditError {
@@ -1174,6 +1179,41 @@ async function checkTechnical(
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
+// ── Google's page scan: element boxes ───────────────────────────────────────────
+// Which Lighthouse audits back which SEO checks. The scan sees the page after JavaScript runs,
+// so when it finds problems the HTML check missed, the check fails with the scan's count.
+const SCAN_CHECKS: Record<string, { audits: string[]; one?: string; many?: string; fix?: string }> = {
+  'hierarchy.skipped': { audits: ['heading-order'], one: 'heading skips a level', many: 'headings skip a level', fix: 'Use headings in order (H1 → H2 → H3); style them with CSS rather than picking a level for its size.' },
+  'alt.present': { audits: ['image-alt', 'input-image-alt'], one: 'image has no alt text', many: 'images have no alt text', fix: 'Add a short alt="…" description to each image (alt="" for purely decorative ones).' },
+  'links.crawlable': { audits: ['crawlable-anchors'] },
+}
+
+/** Attaches the scan's failing elements to findings (adding links.crawlable); returns the screenshot. */
+function applyScan(findings: SeoFinding[], lhr: Record<string, unknown>): PageScreenshot | null {
+  const audits = lhr.audits as Record<string, { score?: number | null }> | undefined
+  let any = false
+  for (const [key, spec] of Object.entries(SCAN_CHECKS)) {
+    const found = extractElements(lhr, spec.audits)
+    const i = findings.findIndex((fi) => fi.key === key)
+    if (key === 'links.crawlable') {
+      const score = audits?.['crawlable-anchors']?.score
+      if (score === null || score === undefined) continue
+      findings.push(found
+        ? { ...f(key, 'bad', `${found.total} link${found.total === 1 ? '' : 's'} can't be followed by Google (no real href, or a javascript: link), so the pages ${found.total === 1 ? 'it points' : 'they point'} to may never be found.`, 'Use <a href="/real-page"> for navigation; keep JavaScript click handlers for buttons, not links.'), elements: found }
+        : f(key, 'good', 'Every link on the page can be followed by Google.'))
+      if (found) any = true
+      continue
+    }
+    if (!found || i < 0) continue
+    any = true
+    const fi = findings[i]
+    findings[i] = fi.level === 'bad' || fi.level === 'ok'
+      ? { ...fi, elements: found }
+      : { ...f(key, 'bad', `${found.total} ${found.total === 1 ? spec.one : spec.many} (found by Google's scan of the rendered page).`, spec.fix), elements: found }
+  }
+  return any ? extractScreenshot(lhr) : null
+}
+
 export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAuditError> {
   const normalizedUrl = url.startsWith('http') ? url : `https://${url}`
 
@@ -1198,6 +1238,11 @@ export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAudi
   }
   const $ = cheerio.load(html)
   const canonicalHref = $('link[rel="canonical"]').attr('href') ?? null
+
+  // Google's page scan (Lighthouse via PageSpeed Insights, shared with the Website Audit and
+  // cached for a few minutes): runs alongside everything below, for the checks that box the
+  // offending elements on a screenshot of the page.
+  const scanPromise = fetchPsiAccessibility(finalUrl).catch(() => null)
 
   // Fetch robots.txt, sitemap status, and run URL discovery in parallel
   const origin = new URL(finalUrl).origin
@@ -1228,18 +1273,23 @@ export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAudi
   const linkFindings = checkInternalLinks($, finalUrl, discoveredUrls)
   const schemaFindings = checkSchema($, finalUrl)
 
+  const findings = [
+    ...metaFindings,
+    ...headingFindings,
+    ...imageFindings,
+    ...linkFindings,
+    ...schemaFindings,
+    ...technicalFindings,
+  ]
+  const scan = await scanPromise
+  const screenshot = scan?.ok ? applyScan(findings, scan.lhr) : null
+
   return {
     url: normalizedUrl,
     finalUrl,
-    findings: [
-      ...metaFindings,
-      ...headingFindings,
-      ...imageFindings,
-      ...linkFindings,
-      ...schemaFindings,
-      ...technicalFindings,
-    ],
+    findings,
     discoveredUrls,
     preview: readPagePreview($, finalUrl),
+    screenshot,
   }
 }

@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio'
 import { previewFor } from '@/lib/audit/page-preview'
+import type { ElementEvidence } from '@/lib/audit/elements'
 import { callAI } from '@/lib/ai/client'
 import type { SeoAuditResult } from '@/lib/audit/seo-audit'
 import type { ModuleAnalysisResult, ModuleItemDefinition } from '../types'
@@ -107,10 +108,11 @@ async function fetchPageContent(websiteUrl: string): Promise<{
   }
 }
 
-function buildFindingMap(audit: SeoAuditResult): Map<string, { text: string; level: string; fix?: string }> {
-  const map = new Map<string, { text: string; level: string; fix?: string }>()
+type FindingEntry = { text: string; level: string; fix?: string; elements?: SeoAuditResult['findings'][number]['elements'] }
+function buildFindingMap(audit: SeoAuditResult): Map<string, FindingEntry> {
+  const map = new Map<string, FindingEntry>()
   for (const finding of audit.findings) {
-    map.set(finding.key, { text: finding.text, level: finding.level, fix: finding.fix })
+    map.set(finding.key, { text: finding.text, level: finding.level, fix: finding.fix, elements: finding.elements })
   }
   return map
 }
@@ -590,8 +592,26 @@ export async function analyzeSeo(
   // Fetch page content once at the top (skip if no keyword items)
   const pageContent = kwItems.length > 0 || lbItems.length > 0 ? await fetchPageContent(websiteUrl) : { title: '', description: '', h1: '', headings: [], bodyText: '', urlPath: '', internalLinks: [] }
 
+  // Failing page elements from Google's scan, boxed on the saved screenshot
+  const shot = audit.screenshot && !('data' in audit.screenshot) ? audit.screenshot : undefined
+  const evidenceFor = (els: SeoAuditResult['findings'][number]['elements']): ElementEvidence | null =>
+    els ? { kind: 'elements', ...els, ...(shot ? { shot } : {}), url: audit.finalUrl } : null
+
   const baseResults: (ModuleAnalysisResult & { isFail: boolean })[] = ruleItems.map((item) => {
     const finding = findingMap.get(item.slug)
+
+    if (!finding && item.prompt.includes('Google Lighthouse')) {
+      // Measured only by Google's page scan, which didn't answer this time: say so, don't guess
+      return {
+        slug: item.slug,
+        detail: 'Couldn\'t check this time: Google\'s page scan didn\'t respond. Re-analyse to try again.',
+        narrative: '',
+        action: '',
+        verified: false,
+        aiData: null,
+        isFail: false,
+      }
+    }
 
     if (!finding) {
       // Rule engine didn't cover this item — send to Claude for best-effort judgment
@@ -613,7 +633,7 @@ export async function analyzeSeo(
       action: finding.fix ?? '',
       verified,
       // How the page looks in Google / as a shared link, on failing title, description and share checks
-      aiData: verified ? null : previewFor(item.slug, audit.preview),
+      aiData: verified ? null : (evidenceFor(finding.elements) ?? previewFor(item.slug, audit.preview)),
       isFail: !verified,
     }
   })

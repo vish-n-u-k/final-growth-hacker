@@ -135,7 +135,7 @@ export default function ElementEvidence({ data, brandId, pageUrl }: { data: unkn
   const [all, setAll] = useState(false)
   if (!isElementEvidence(data) || data.elements.length === 0) return null
   const { elements, total, shot } = data
-  const src = shot ? `/api/brands/screenshot?v=${encodeURIComponent(shot.at)}${brandId ? `&brandId=${brandId}` : ''}` : ''
+  const src = shot ? `/api/brands/screenshot?v=${encodeURIComponent(shot.at)}${shot.name && shot.name !== 'website' ? `&name=${shot.name}` : ''}${brandId ? `&brandId=${brandId}` : ''}` : ''
   const list = all ? elements : elements.slice(0, SHOWN)
 
   return (

@@ -15,6 +15,7 @@ async function runPsi(url: string, timeoutMs: number): Promise<PsiResult> {
   const key = process.env.GOOGLE_PSI_API_KEY
   const params = new URLSearchParams({ url, strategy: 'mobile' })
   params.append('category', 'accessibility')
+  params.append('category', 'seo') // crawlable-anchors etc., for the SEO Health Audit
   if (key) params.set('key', key)
   const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params.toString()}`
 

@@ -20,7 +20,8 @@ export async function GET(request: NextRequest) {
     console.error('[screenshot] SUPABASE_SERVICE_ROLE_KEY is not set')
     return NextResponse.json({ error: 'Screenshot storage is not configured (SUPABASE_SERVICE_ROLE_KEY missing)' }, { status: 500 })
   }
-  const { data, error } = await createAdminClient().storage.from(SHOT_BUCKET).download(shotKey(brandId))
+  const name = request.nextUrl.searchParams.get('name') === 'seo' ? 'seo' : 'website'
+  const { data, error } = await createAdminClient().storage.from(SHOT_BUCKET).download(shotKey(brandId, name))
   if (error || !data) {
     console.error('[screenshot] download failed:', error?.message ?? 'no data', brandId)
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
