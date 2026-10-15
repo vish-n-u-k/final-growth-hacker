@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { isPathModule } from '@/lib/modules/registry'
+import { isPathModule, isScoredItem } from '@/lib/modules/registry'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations, modules, moduleItems, moduleCategories } from '@/lib/db/schema'
@@ -433,10 +433,10 @@ export async function GET() {
     const cats = await db.select({ id: moduleCategories.id, label: moduleCategories.label })
       .from(moduleCategories).where(eq(moduleCategories.moduleId, topPriorityMod.id))
     const catLabelMap = new Map(cats.map(c => [c.id, c.label]))
-    const rows = await db.select({ label: moduleItems.label, weight: moduleItems.weight, aiDetail: moduleItems.aiDetail, categoryId: moduleItems.categoryId, aiVerified: moduleItems.aiVerified, userChecked: moduleItems.userChecked, userSkipped: moduleItems.userSkipped })
+    const rows = await db.select({ slug: moduleItems.slug, label: moduleItems.label, weight: moduleItems.weight, aiDetail: moduleItems.aiDetail, categoryId: moduleItems.categoryId, aiVerified: moduleItems.aiVerified, userChecked: moduleItems.userChecked, userSkipped: moduleItems.userSkipped })
       .from(moduleItems).where(eq(moduleItems.moduleId, topPriorityMod.id))
     lowestFailingItems = rows
-      .filter(r => !r.aiVerified && !r.userChecked && !r.userSkipped)
+      .filter(r => !r.aiVerified && !r.userChecked && !r.userSkipped && isScoredItem(topPriorityMod.type, r.slug))
       .sort((a, b) => (b.weight ?? 1) - (a.weight ?? 1))
       .slice(0, 3)
       .map(r => ({ label: r.label, weight: r.weight ?? 1, aiDetail: r.aiDetail, categoryLabel: catLabelMap.get(r.categoryId) ?? null }))

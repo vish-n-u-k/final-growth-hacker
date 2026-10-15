@@ -56,7 +56,7 @@ async function runModuleAnalysis(
         gscClientEmail: gscMeta['client_email'],
         gscPrivateKey: gscMeta['private_key'],
       }
-      return analyzeSeo(data, requirements['website_url'] ?? '', brainCtx, seoIntegrations, requirements['brand_name'])
+      return analyzeSeo(data, requirements['website_url'] ?? '', brainCtx, seoIntegrations, requirements['brand_name'], requirements['brand_keywords'])
     }
     case 'brand-audit': {
       const data = await fetchBrandAuditData(requirements)
@@ -123,6 +123,7 @@ export async function analyzeModule(brandId: string, moduleType: string) {
     ...baseRequirements,
     brand_id: brand.id,
     brand_name: brand.name,
+    brand_keywords: brand.keywords ?? '',
     ...(brand.websiteUrl && !baseRequirements['website_url'] ? { website_url: brand.websiteUrl } : {}),
   }
 

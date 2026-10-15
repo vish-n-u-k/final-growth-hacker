@@ -362,6 +362,7 @@ async function generateKeywordResearchContent(
   integrations: SeoIntegrations,
   pageContent: Awaited<ReturnType<typeof fetchPageContent>>,
   brainContext?: string,
+  seedHint?: { brandName?: string; brandKeywords?: string },
 ): Promise<Map<string, { detail: string; narrative: string; action: string }>> {
   if (items.length === 0) return new Map()
 
@@ -379,8 +380,11 @@ async function generateKeywordResearchContent(
   const urlPath = pageContent.urlPath
   const urlLine = urlPath ? `URL slug: ${urlPath}` : `URL: homepage (${websiteUrl}) — no slug present`
 
-  // Ultimate fallback: derive seed from URL hostname when page is JS-rendered and cheerio gets nothing
-  const seed = extractSeedKeyword(title, h1) || (() => {
+  // Research seed: the brand's own keywords (Settings → Brand) describe the market people search
+  // for; else the page's title / H1 with the brand name taken out (a brand name only returns
+  // "<brand> for…" suggestions). Last resort: the domain, when the page is JS-rendered.
+  const brandKeyword = (seedHint?.brandKeywords ?? '').split(',').map((k) => k.trim().toLowerCase()).find(Boolean) ?? ''
+  const seed = brandKeyword || extractSeedKeyword(title, h1, seedHint?.brandName) || (() => {
     try {
       const hostname = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).hostname
       return hostname.replace(/^www\./, '').split('.')[0]
@@ -573,6 +577,7 @@ export async function analyzeSeo(
   brainContext?: string,
   integrations: SeoIntegrations = {},
   brandName?: string,
+  brandKeywords?: string,
 ): Promise<ModuleAnalysisResult[]> {
   const findingMap = buildFindingMap(audit)
   const allItems = getAllItems(SEO_MODULE)
@@ -677,7 +682,7 @@ export async function analyzeSeo(
   // Generate personalised content for lb-* and kw-* items in parallel
   const [lbContentMap, kwContentMap] = await Promise.all([
     generateLinkBuildingContent(websiteUrl, lbItems, brainContext),
-    generateKeywordResearchContent(websiteUrl, kwItems, audit, integrations, pageContent, brainContext),
+    generateKeywordResearchContent(websiteUrl, kwItems, audit, integrations, pageContent, brainContext, { brandName, brandKeywords }),
   ])
 
   const lbResults: ModuleAnalysisResult[] = lbItems.map((item) => {

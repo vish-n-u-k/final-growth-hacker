@@ -1179,6 +1179,38 @@ async function checkTechnical(
 
 // ── Main entry point ──────────────────────────────────────────────────────────
 
+// ── Descriptive page URLs ───────────────────────────────────────────────────────
+// Across the site's pages (sitemap / crawl), not just the homepage, which has no slug.
+function checkUrlSlugs(pageUrl: string, discovered?: UrlDiscoveryResult): SeoFinding {
+  let origin = ''
+  try { origin = new URL(pageUrl).origin } catch { /* keep '' */ }
+  const paths = (discovered?.urls ?? [])
+    .map((u) => { try { const x = new URL(u.url); return x.origin === origin ? x.pathname + x.search : null } catch { return null } })
+    .filter((p): p is string => !!p && p !== '/')
+  if (paths.length === 0) {
+    return f('links.url_slugs', 'info', 'Only the homepage was found, so there are no page URLs to check yet.')
+  }
+  // Hard to read for people and search engines: IDs, query strings, underscores, capitals, very long
+  const why = (p: string): string | null => {
+    if (p.includes('?')) return 'query string'
+    const segs = p.split('/').filter(Boolean)
+    if (segs.some((s) => /^\d{4,}$/.test(s) || /^[0-9a-f]{12,}$/i.test(s) || /^[0-9a-f-]{32,}$/i.test(s))) return 'ID instead of words'
+    if (/_/.test(p)) return 'underscores'
+    if (/[A-Z]/.test(p)) return 'capital letters'
+    if (p.length > 90) return 'very long'
+    return null
+  }
+  const bad = paths.map((p) => ({ p, r: why(p) })).filter((x): x is { p: string; r: string } => !!x.r)
+  const share = bad.length / paths.length
+  if (bad.length === 0 || (share < 0.1 && bad.length <= 2)) {
+    return f('links.url_slugs', 'good', `${paths.length} page URL${paths.length === 1 ? '' : 's'} checked: readable, descriptive slugs.`)
+  }
+  const examples = bad.slice(0, 3).map((x) => `${x.p} (${x.r})`).join(', ')
+  return f('links.url_slugs', share >= 0.3 ? 'bad' : 'ok',
+    `${bad.length} of ${paths.length} page URLs aren't descriptive, e.g. ${examples}.`,
+    'Use short, lowercase, hyphenated words that say what the page is (/pricing, /blog/how-to-get-first-users); redirect the old URLs.')
+}
+
 // ── Google's page scan: element boxes ───────────────────────────────────────────
 // Which Lighthouse audits back which SEO checks. The scan sees the page after JavaScript runs,
 // so when it finds problems the HTML check missed, the check fails with the scan's count.
@@ -1270,7 +1302,7 @@ export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAudi
 
   const title = $('title').first().text().trim()
   const headingFindings = checkHeadings($, title)
-  const linkFindings = checkInternalLinks($, finalUrl, discoveredUrls)
+  const linkFindings = [...checkInternalLinks($, finalUrl, discoveredUrls), checkUrlSlugs(finalUrl, discoveredUrls)]
   const schemaFindings = checkSchema($, finalUrl)
 
   const findings = [

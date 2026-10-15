@@ -7792,3 +7792,8 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
 
 /* Opening a check from a link (e.g. Today) scrolls it below the sticky panel header */
 .gp-detail .md-item { scroll-margin-top: 96px; }
+
+/* Insight items (ideas, not pass/fail checks): bulb instead of a checkbox, "Idea" tag */
+.md-cb.md-cb-idea { border-color: transparent; background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); cursor: default; display: grid; place-items: center; }
+.md-cb.md-cb-idea svg { width: 13px; height: 13px; }
+.md-tag-idea { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 4px; background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }

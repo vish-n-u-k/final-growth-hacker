@@ -19,8 +19,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { getOpenSignals, getSnapshot, saveSnapshot } from '@/lib/signals'
 import { runDiagnosis, type Diagnosis, type GrowthStage } from '@/lib/daily/diagnosis'
 import type { ActionCard, ActionCardType } from '@/lib/daily/signals'
-import { MODULE_MAP, isPathModule } from '@/lib/modules/registry'
-import { getAllItems } from '@/lib/modules/types'
+import { MODULE_MAP, isPathModule, isScoredItem } from '@/lib/modules/registry'
 import { isElementEvidence, NOT_CHECKED_DETAIL } from '@/lib/audit/elements'
 import { isPagePreview } from '@/lib/audit/page-preview'
 
@@ -200,11 +199,9 @@ export async function getTodayTasks(
     return !MODULE_MAP[type]?.dynamic || !!i.fixable || i.exportType === 'auto' || i.exportType === 'needs_choice'
   }
 
-  // Checks still in the module's definition (a check removed later keeps its old saved row)
-  const defined = (i: (typeof items)[number]) => {
-    const def = MODULE_MAP[modMap.get(i.moduleId)?.type ?? '']
-    return !def || def.dynamic || getAllItems(def).some((d) => d.slug === i.slug)
-  }
+  // Real checks only: still in the module's definition (a removed check keeps its old saved row)
+  // and not an insight (keyword ideas etc. are suggestions, not things to fix)
+  const defined = (i: (typeof items)[number]) => isScoredItem(modMap.get(i.moduleId)?.type ?? '', i.slug)
 
   // Pending = not verified, not checked, not skipped, actually analysed (and really checked: not a
   // "couldn't check this time"), concrete, and still a check in its module

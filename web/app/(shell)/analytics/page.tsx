@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules as modulesTable, moduleItems } from '@/lib/db/schema'
 import { eq, inArray } from 'drizzle-orm'
-import { MODULE_MAP, isPathModule } from '@/lib/modules/registry'
+import { MODULE_MAP, isPathModule, isScoredItem } from '@/lib/modules/registry'
 import AnalyticsDashboard, { type ModuleHealth } from './AnalyticsDashboard'
 import { getMrrSettings } from '@/lib/mrr'
 
@@ -38,6 +38,7 @@ export default async function AuthAnalyticsPage() {
   const allItems = moduleIds.length > 0
     ? await db.select({
         moduleId: moduleItems.moduleId,
+        slug: moduleItems.slug,
         weight: moduleItems.weight,
         aiDetail: moduleItems.aiDetail,
         aiVerified: moduleItems.aiVerified,
@@ -63,7 +64,7 @@ export default async function AuthAnalyticsPage() {
 
       // Find worst failing item with an insight to show
       const failingItems = items
-        .filter(i => !i.aiVerified && !i.userChecked && i.aiDetail)
+        .filter(i => !i.aiVerified && !i.userChecked && i.aiDetail && isScoredItem(m.type, i.slug))
         .sort((a, b) => b.weight - a.weight)
       const insight = failingItems[0]?.aiDetail ?? null
 

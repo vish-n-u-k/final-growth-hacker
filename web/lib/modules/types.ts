@@ -27,6 +27,9 @@ export interface ModuleItemDefinition {
     setupInstructions: string // tooltip explaining what to save and where
   }
   partialFix?: string  // fix always runs but is inherently incomplete — this string explains the gap
+  // An idea / research result, not a pass-fail check: shown without a checkbox and left out of
+  // scores, issue counts, Today and pending lists (e.g. SEO keyword research)
+  insight?: boolean
 }
 
 export interface ModuleSubCategoryDefinition {

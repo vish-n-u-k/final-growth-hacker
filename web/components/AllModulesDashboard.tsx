@@ -101,7 +101,8 @@ const counts = (slug: string, states: Record<string, DBItemState>) => !!states[s
 
 function getCatStats(cat: ModuleCategoryDefinition, states: Record<string, DBItemState>) {
   const allItems = cat.subCategories.flatMap((s) => s.items)
-  const items = allItems.filter((i) => !states[i.slug]?.userSkipped && counts(i.slug, states))
+  // Insights (ideas, not pass/fail checks) never count toward scores or issue counts
+  const items = allItems.filter((i) => !i.insight && !states[i.slug]?.userSkipped && counts(i.slug, states))
   const totalWeight = items.reduce((sum, i) => sum + i.weight, 0)
   const aiWeight = items.filter((i) => states[i.slug]?.aiVerified).reduce((sum, i) => sum + i.weight, 0)
   const doneWeight = items.filter((i) => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).reduce((sum, i) => sum + i.weight, 0)
@@ -111,7 +112,7 @@ function getCatStats(cat: ModuleCategoryDefinition, states: Record<string, DBIte
 
 function getOverall(def: ModuleDefinition, states: Record<string, DBItemState>) {
   const allItems = (def.categories as ModuleCategoryDefinition[]).flatMap((c) => c.subCategories.flatMap((s) => s.items))
-  const items = allItems.filter((i) => !states[i.slug]?.userSkipped && counts(i.slug, states))
+  const items = allItems.filter((i) => !i.insight && !states[i.slug]?.userSkipped && counts(i.slug, states))
   const totalWeight = items.reduce((sum, i) => sum + i.weight, 0)
   const doneWeight = items.filter((i) => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).reduce((sum, i) => sum + i.weight, 0)
   return { pct: totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0 }
@@ -141,6 +142,7 @@ type CatRow = {
   slug: string
   label: string
   stats: { total: number; done: number; pct: number }
+  ideas: number // insight items with results (shown as ideas, not counted as checks)
   soon: boolean
   body: React.ReactNode
 }
@@ -170,7 +172,7 @@ function summarizeCats(def: ModuleDefinition, states: Record<string, DBItemState
       stats = getCatStats(cat as ModuleCategoryDefinition, states)
       open = (cat as ModuleCategoryDefinition).subCategories
         .flatMap(sub => sub.items)
-        .filter(i => counts(i.slug, states) && !states[i.slug]?.userSkipped && !states[i.slug]?.aiVerified && !states[i.slug]?.userChecked)
+        .filter(i => !i.insight && counts(i.slug, states) && !states[i.slug]?.userSkipped && !states[i.slug]?.aiVerified && !states[i.slug]?.userChecked)
         .map(i => ({ slug: i.slug, label: i.label, weight: i.weight }))
     }
     if (catNeedsAttention(stats)) needs++
@@ -1797,8 +1799,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const aiV = s?.aiVerified ?? false
     const userC = s?.userChecked ?? false
     const skipped = s?.userSkipped ?? false
-    const done = aiV || userC
-    const needsAttention = s && !aiV && !userC && !skipped
+    // An insight is an idea, not a check: no checkbox, impact badges, done or skip
+    const idea = !!item.insight
+    const done = !idea && (aiV || userC)
+    const needsAttention = s && !idea && !aiV && !userC && !skipped
     const itemKey = `${modId}:${item.slug}`
     const isExpanded = expandedItems.has(itemKey)
     const hasDetail = !skipped && !!(s?.aiDetail || s?.aiHighlight || s?.aiNarrative || s?.aiAction || item.fixGuide?.length)
@@ -1815,6 +1819,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         }}
         style={{ cursor: hasDetail ? 'pointer' : 'default' }}
       >
+        {idea ? (
+          <span className="md-cb md-cb-idea" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </span>
+        ) : (
         <span
           className={`md-cb${aiV ? ' md-cb-ai' : userC ? ' md-cb-self' : ''}`}
           onClick={(e) => !skipped && toggleItem(modId, false, s?.id ?? '', item.slug, userC, e)}
@@ -1828,6 +1837,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             </svg>
           ) : null}
         </span>
+        )}
         <div className="md-item-body">
           <div className="md-item-top">
             <span className="md-item-lbl">{s?.aiHighlight || item.label}</span>
@@ -1839,7 +1849,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 </>
               ) : (
                 <>
-                  {!done && item.weight === 3 && (
+                  {idea && <span className="md-tag md-tag-idea">Idea</span>}
+                  {!done && !idea && item.weight === 3 && (
                     <span className="md-priority-icon md-priority-critical">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                         <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -1849,7 +1860,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       <span className="md-priority-label">High impact</span>
                     </span>
                   )}
-                  {!done && item.weight === 2 && (
+                  {!done && !idea && item.weight === 2 && (
                     <span className="md-priority-icon md-priority-important">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
                         <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.2"/>
@@ -1871,7 +1882,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           )}
           {!skipped && s?.aiDetail && <p className="md-item-detail" style={isExpanded ? { display: 'block', overflow: 'visible', WebkitLineClamp: 'unset' } : {}}>{parseBold(s.aiDetail)}</p>}
           {/* Fallback skip for items with no expandable content */}
-          {!skipped && !done && !hasDetail && (
+          {!skipped && !done && !idea && !hasDetail && (
             <div className="md-skip-control" onClick={(e) => e.stopPropagation()}>
               {isSkipPrompting ? (
                 <div className="md-skip-form">
@@ -1896,7 +1907,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             <div className="sm-expanded-body" onClick={(e) => e.stopPropagation()}>
               {s?.aiDetail && (
                 <div className="sm-current-box">
-                  <span className="sm-current-label">Current state</span>
+                  <span className="sm-current-label">{idea ? 'What we found' : 'Current state'}</span>
                   <p className="sm-current-text">{parseBold(s.aiDetail)}</p>
                 </div>
               )}
@@ -1997,12 +2008,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       {exportingMap[modId] ? 'Exporting…' : 'Export'}
                     </button>
                   )}
-                  <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, false, s?.id ?? '', item.slug, userC, e)}>Mark as done</button>
+                  {!idea && <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, false, s?.id ?? '', item.slug, userC, e)}>Mark as done</button>}
                 </div>
               )}
               {handoff.hint(itemKey)}
               {/* Skip section — at bottom of expanded body */}
-              {!done && (
+              {!done && !idea && (
                 <div className="md-skip-section">
                   <span className="md-skip-section-label">Skip this check</span>
                   {isSkipPrompting ? (
@@ -2586,7 +2597,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     return b.weight - a.weight
                   })
                   return {
-                    slug: cat.slug, label: cat.label, stats, soon,
+                    slug: cat.slug, label: cat.label, stats, ideas: 0, soon,
                     body: soon ? (
                       <ComingSoon title={cat.label} note={(cat as DynamicModuleCategoryDefinition).comingSoonNote} />
                     ) : catItems.length === 0 ? (
@@ -2602,9 +2613,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 })
               : (def.categories as ModuleCategoryDefinition[]).map((cat): CatRow => ({
                   slug: cat.slug, label: cat.label, stats: getCatStats(cat, states), soon: false,
+                  ideas: cat.subCategories.flatMap(sub => sub.items).filter(i => i.insight && states[i.slug]?.aiDetail).length,
                   body: (<>
                     {cat.subCategories.map((sub, si) => {
-                                      const subDone = sub.items.filter(i => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).length
+                                      const subChecks = sub.items.filter(i => !i.insight)
+                                      const subDone = subChecks.filter(i => states[i.slug]?.aiVerified || states[i.slug]?.userChecked).length
                                       return (
                                         <div key={sub.slug} className={`md-sub${si > 0 ? ' md-sub-border' : ''}`}>
                                           <div className="md-sub-hd">
@@ -2637,7 +2650,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                                                 </span>
                                               ))}
                                             </span>
-                                            <span className="md-sub-count">{subDone}/{sub.items.length}</span>
+                                            <span className="md-sub-count">{subChecks.length > 0 ? `${subDone}/${subChecks.length}` : `${sub.items.length} ${sub.items.length === 1 ? 'idea' : 'ideas'}`}</span>
                                           </div>
                                           <div className="md-items">
                                             {[...sub.items]
@@ -2660,8 +2673,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               (effectiveLastAnalyzedAt ? Number(!catNeedsAttention(a.stats)) - Number(!catNeedsAttention(b.stats)) : 0))
             const needRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && catNeedsAttention(r.stats)) : []
             // Fixed-checklist areas whose checks were all added after the last analysis: not run yet, so not "passing".
-            const unrun = (r: CatRow) => !def.dynamic && r.stats.total === 0
-            const passRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && !catNeedsAttention(r.stats) && !unrun(r)) : []
+            // Areas made only of ideas (e.g. Keyword Research) are their own group, never "passing".
+            const ideasOnly = (r: CatRow) => !def.dynamic && r.stats.total === 0 && r.ideas > 0
+            const unrun = (r: CatRow) => !def.dynamic && r.stats.total === 0 && r.ideas === 0
+            const passRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && !catNeedsAttention(r.stats) && !unrun(r) && !ideasOnly(r)) : []
+            const ideaRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && ideasOnly(r)) : []
             const unrunRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => !r.soon && unrun(r)) : []
             const otherRows = effectiveLastAnalyzedAt ? catsOrdered.filter(r => r.soon) : catsOrdered
             const wantedCat = [...openCats][0]
@@ -2686,17 +2702,18 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <span className="gp-cat-l1">
                     <b>{r.label}</b>
                     {r.soon ? <span className="cs-badge">Coming Soon</span>
+                      : effectiveLastAnalyzedAt && r.stats.total === 0 && r.ideas > 0 ? <span className="gp-cat-count">{r.ideas} {r.ideas === 1 ? 'idea' : 'ideas'}</span>
                       : effectiveLastAnalyzedAt && !passing && open > 0 ? <span className="gp-cat-chip">{open} {open === 1 ? 'issue' : 'issues'}</span>
                       : effectiveLastAnalyzedAt && passing ? <span className="gp-cat-tick" aria-hidden="true">✓</span>
                       : <span className="gp-cat-count">{r.stats.done}/{r.stats.total}</span>}
-                    {!r.soon && <span className="gp-cat-pct">{effectiveLastAnalyzedAt ? `${r.stats.pct}%` : '—'}</span>}
+                    {!r.soon && !(r.stats.total === 0 && r.ideas > 0) && <span className="gp-cat-pct">{effectiveLastAnalyzedAt ? `${r.stats.pct}%` : '—'}</span>}
                     {!r.soon && (
                       <svg className="gp-cat-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                         <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     )}
                   </span>
-                  {effectiveLastAnalyzedAt && !passing && !r.soon && (
+                  {effectiveLastAnalyzedAt && !passing && !r.soon && r.stats.total > 0 && (
                     <span className="gp-cat-bar"><i style={{ width: `${r.stats.pct}%`, background: ringColor(r.stats.pct) }} /></span>
                   )}
                 </button>
@@ -2709,7 +2726,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               <div className="gp-detail" role="tabpanel" aria-labelledby={`gp-cat-${modData.id}-${selCat.slug}`}>
                 <div className="gp-detail-hd">
                   <h3 className="gp-detail-title">{selCat.label}</h3>
-                  {!selCat.soon && effectiveLastAnalyzedAt && (
+                  {!selCat.soon && effectiveLastAnalyzedAt && selCat.stats.total === 0 && selCat.ideas > 0 && (
+                    <span className="gp-detail-pill is-ok">Ideas · not scored</span>
+                  )}
+                  {!selCat.soon && effectiveLastAnalyzedAt && selCat.stats.total > 0 && (
                     <span className={`gp-detail-pill${catNeedsAttention(selCat.stats) ? '' : ' is-ok'}`}>
                       {selCat.stats.done}/{selCat.stats.total} passed{catNeedsAttention(selCat.stats) ? ` · ${selCat.stats.total - selCat.stats.done} to fix` : ''}
                     </span>
@@ -2717,7 +2737,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 </div>
                 {!selCat.soon && (
                   <p className="gp-detail-sub">
-                    {catNeedsAttention(selCat.stats) ? 'Open an issue to see exactly what to change.' : effectiveLastAnalyzedAt ? 'Nothing to fix here. These checks all passed.' : 'These checks run when you analyse.'}
+                    {selCat.stats.total === 0 && selCat.ideas > 0 ? 'Research and ideas from your site and search data. They don\'t affect your score.' : catNeedsAttention(selCat.stats) ? 'Open an issue to see exactly what to change.' : effectiveLastAnalyzedAt ? 'Nothing to fix here. These checks all passed.' : 'These checks run when you analyse.'}
                   </p>
                 )}
                 {selCat.body}
@@ -3276,6 +3296,12 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                           {(!narrow || passShown) && passRows.map(r => catGroup(r, true))}
                           {!effectiveLastAnalyzedAt && otherRows.length > 0 && <div className="gp-catlabel">Checks</div>}
                           {!effectiveLastAnalyzedAt && otherRows.map(r => catGroup(r, false))}
+                          {ideaRows.length > 0 && (
+                            <>
+                              <div className="gp-catlabel">Ideas · not scored</div>
+                              {ideaRows.map(r => catGroup(r, false))}
+                            </>
+                          )}
                           {unrunRows.length > 0 && (
                             <>
                               <div className="gp-catlabel">New checks · re-analyse to run them</div>

@@ -126,7 +126,7 @@ async function runAnalysis(
         gscClientEmail: gscMeta['client_email'],
         gscPrivateKey: gscMeta['private_key'],
       }
-      return analyzeSeo(data, url, brainCtx, seoIntegrations, requirements['brand_name'])
+      return analyzeSeo(data, url, brainCtx, seoIntegrations, requirements['brand_name'], requirements['brand_keywords'])
     }
     case 'competitor-audit': {
       if (!requirements['competitor_urls']) {
@@ -359,6 +359,7 @@ Key One-Liners: ${pb.keyOneLiners}`
     ...baseRequirements,
     brand_id: brand.id,
     brand_name: brand.name,
+    brand_keywords: brand.keywords ?? '',
     website_type: brand.websiteType ?? 'saas',
     ...(brand.websiteUrl && !baseRequirements['website_url'] ? { website_url: brand.websiteUrl } : {}),
   }
