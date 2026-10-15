@@ -69,7 +69,7 @@ export const WEBSITE_MODULE: ModuleDefinition = {
               order: 1,
               weight: 2,
               fixGuide: [
-                'This score summarises every accessibility check Lighthouse ran on the page — fix the individual findings below (contrast, font size, tap targets, accessible names) and the score will rise automatically',
+                'This score summarises every accessibility check Lighthouse ran on the page — fix the individual findings below (contrast, tap targets, accessible names) and the score will rise automatically',
               ],
             },
             {
@@ -82,18 +82,6 @@ export const WEBSITE_MODULE: ModuleDefinition = {
                 'Find the low-contrast text — usually light gray text on a white/light background, or light text on a light-colored button',
                 'Body text needs at least a 4.5:1 contrast ratio against its background; large text (18px+, or 14px+ bold) needs at least 3:1',
                 'Darken the text color or lighten the background until the ratio passes — small adjustments are usually enough',
-              ],
-            },
-            {
-              slug: 'font-size',
-              label: 'Legible font sizes',
-              prompt: 'Checked by rule engine (Google Lighthouse SEO/mobile-friendliness audit).',
-              order: 3,
-              weight: 2,
-              fixGuide: [
-                'Set a base body font size of at least 16px in your CSS (e.g. html { font-size: 16px; })',
-                'Avoid any text below 12px anywhere on the page, especially in footers, captions, and mobile nav menus',
-                'Check the page on an actual mobile viewport (or Chrome DevTools device mode) — text that looks fine on desktop can be too small on mobile',
               ],
             },
             {

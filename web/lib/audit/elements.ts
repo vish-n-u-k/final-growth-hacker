@@ -69,7 +69,10 @@ const CONTRAST_RE = /contrast of ([\d.]+) \(foreground color: (#[0-9a-f]{3,8}), 
 const EXPECTED_RE = /Expected contrast ratio of ([\d.]+):1/i
 
 function toElement(node: LhNode, nodes: Record<string, ElementRect> | undefined): AuditElement {
-  const r = node.boundingRect ?? (node.lhId ? nodes?.[node.lhId] : undefined)
+  // Prefer the position Lighthouse measured while taking the full-page screenshot: it stretches the
+  // viewport to the page height first, which moves fixed banners and 100vh sections, so the
+  // element's normal-view boundingRect can point at the wrong spot on the image.
+  const r = (node.lhId ? nodes?.[node.lhId] : undefined) ?? node.boundingRect
   const el: AuditElement = {}
   if (node.selector) el.selector = node.selector
   if (node.snippet) el.snippet = node.snippet.slice(0, 300)
