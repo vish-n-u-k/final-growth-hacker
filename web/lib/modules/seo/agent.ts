@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio'
+import { previewFor } from '@/lib/audit/page-preview'
 import { callAI } from '@/lib/ai/client'
 import type { SeoAuditResult } from '@/lib/audit/seo-audit'
 import type { ModuleAnalysisResult, ModuleItemDefinition } from '../types'
@@ -611,6 +612,8 @@ export async function analyzeSeo(
       narrative: '',
       action: finding.fix ?? '',
       verified,
+      // How the page looks in Google / as a shared link, on failing title, description and share checks
+      aiData: verified ? null : previewFor(item.slug, audit.preview),
       isFail: !verified,
     }
   })

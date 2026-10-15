@@ -1,6 +1,7 @@
 import { callAI } from '@/lib/ai/client'
 import type { AuditResult, Finding } from '@/lib/audit/audit'
 import type { ElementEvidence } from '@/lib/audit/elements'
+import { previewFor } from '@/lib/audit/page-preview'
 import type { ModuleAnalysisResult } from '../types'
 import { WEBSITE_MODULE } from './definition'
 import { getAllItems } from '../types'
@@ -106,7 +107,7 @@ export async function analyzeWebsite(
       narrative: '',
       action: finding.fix ?? '',
       verified,
-      aiData: verified ? null : evidenceFor(finding),
+      aiData: verified ? null : (evidenceFor(finding) ?? previewFor(item.slug, audit.preview)),
       isFail: !verified,
     }
   })

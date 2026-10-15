@@ -22,6 +22,7 @@ import NotesDrawer from '@/components/NotesDrawer'
 import { useClaudeHandoff } from '@/components/useClaudeHandoff'
 import { JOURNEY_PHASES } from '@/lib/journey'
 import ElementEvidence, { isElementEvidence, describeElements } from '@/components/ElementEvidence'
+import PagePreview from '@/components/PagePreview'
 
 function renderMdStep(step: string): React.ReactNode {
   const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
@@ -1884,6 +1885,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 </div>
               )}
               {!done && <ElementEvidence data={s?.aiData} brandId={brand.id} pageUrl={brand.websiteUrl} />}
+              {!done && <PagePreview data={s?.aiData} options={s?.choiceOptions} slug={item.slug} />}
               {s?.aiNarrative && <p className="sm-narrative">{parseBold(s.aiNarrative)}</p>}
               {s?.aiAction && (
                 <div className="sm-action-box">

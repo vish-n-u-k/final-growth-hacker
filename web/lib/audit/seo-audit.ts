@@ -7,6 +7,7 @@
  */
 
 import * as cheerio from 'cheerio'
+import { readPagePreview, type PagePreviewData } from '@/lib/audit/page-preview'
 import { connect as tlsConnect } from 'tls'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -30,6 +31,7 @@ export interface SeoAuditResult {
   finalUrl: string
   findings: SeoFinding[]
   discoveredUrls?: UrlDiscoveryResult
+  preview?: PagePreviewData // title, description and share tags, for the Google / share previews
 }
 
 export interface SeoAuditError {
@@ -1238,5 +1240,6 @@ export async function runSeoAudit(url: string): Promise<SeoAuditResult | SeoAudi
       ...technicalFindings,
     ],
     discoveredUrls,
+    preview: readPagePreview($, finalUrl),
   }
 }

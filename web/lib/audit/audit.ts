@@ -12,6 +12,7 @@
 import * as cheerio from 'cheerio'
 import { fetchPsiAccessibility } from '@/lib/psi'
 import { extractElements, extractScreenshot, type AuditElement, type PageScreenshot } from '@/lib/audit/elements'
+import { readPagePreview, type PagePreviewData } from '@/lib/audit/page-preview'
 import { connect as tlsConnect } from 'tls'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -50,6 +51,7 @@ export interface AuditResult {
   // Lighthouse's full-page phone screenshot (the failing elements' positions are on it).
   // Replaced by its saved size and time once lib/audit/screenshot.ts has stored it.
   screenshot?: PageScreenshot | { w: number; h: number; at: string } | null
+  preview?: PagePreviewData // title, description and share tags, for the Google / share previews
 }
 
 export interface AuditError {
@@ -955,5 +957,6 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
     action_count: actionCount,
     sections,
     screenshot: a11yData?.screenshot ?? null,
+    preview: readPagePreview($, finalUrl),
   }
 }
