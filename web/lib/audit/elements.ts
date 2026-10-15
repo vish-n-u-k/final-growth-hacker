@@ -28,6 +28,7 @@ export interface ElementEvidence {
   total: number
   elements: AuditElement[]
   shot?: { w: number; h: number; at: string }
+  url?: string  // the page that was audited (for "See it on your site" links)
 }
 
 export function isElementEvidence(d: unknown): d is ElementEvidence {

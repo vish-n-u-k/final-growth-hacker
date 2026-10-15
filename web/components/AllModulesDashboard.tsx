@@ -1883,7 +1883,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <p className="sm-current-text">{parseBold(s.aiDetail)}</p>
                 </div>
               )}
-              {!done && <ElementEvidence data={s?.aiData} brandId={brand.id} />}
+              {!done && <ElementEvidence data={s?.aiData} brandId={brand.id} pageUrl={brand.websiteUrl} />}
               {s?.aiNarrative && <p className="sm-narrative">{parseBold(s.aiNarrative)}</p>}
               {s?.aiAction && (
                 <div className="sm-action-box">

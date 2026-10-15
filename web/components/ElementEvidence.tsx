@@ -29,11 +29,36 @@ const MIN_H = 130
 const MAX_H = 360
 const MIN_W = 220   // never zoom in further than this many page px across
 
+// True when the crop is one flat colour: Google's screenshot didn't capture anything there
+// (scroll animations and loading overlays often leave sections invisible in it).
+function isBlank(img: HTMLImageElement, shotW: number, sx: number, sy: number, sw: number, sh: number): boolean {
+  try {
+    const k = img.naturalWidth / shotW
+    const c = document.createElement('canvas')
+    c.width = 120
+    c.height = Math.max(1, Math.round((120 * sh) / sw))
+    const ctx = c.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return false
+    ctx.drawImage(img, sx * k, sy * k, sw * k, sh * k, 0, 0, c.width, c.height)
+    const d = ctx.getImageData(0, 0, c.width, c.height).data
+    let lo = 255, hi = 0
+    for (let i = 0; i < d.length; i += 4) {
+      const l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]
+      if (l < lo) lo = l
+      if (l > hi) hi = l
+    }
+    return hi - lo < 10
+  } catch {
+    return false
+  }
+}
+
 // A window onto the page screenshot around the element (zoomed so it's readable), element boxed.
 function Crop({ el, shot, src }: { el: AuditElement; shot: NonNullable<Evidence['shot']>; src: string }) {
-  const [failed, setFailed] = useState(false)
+  const [state, setState] = useState<'loading' | 'ok' | 'failed' | 'blank'>('loading')
   const r = el.rect
-  if (!r || failed || r.top >= shot.h || r.left >= shot.w) return null
+  if (!r || state === 'failed' || r.top >= shot.h || r.left >= shot.w) return null
+  if (state === 'blank') return <p className="ee-note ee-noshot">Not visible in Google&apos;s screenshot of your page (usually a scroll animation). Use “See it on your site” below.</p>
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
   const w = clamp(r.width + 2 * PAD, Math.min(MIN_W, shot.w), shot.w)
   const left = clamp(r.left + r.width / 2 - w / 2, 0, shot.w - w)
@@ -42,19 +67,36 @@ function Crop({ el, shot, src }: { el: AuditElement; shot: NonNullable<Evidence[
   const pct = (v: number, of: number) => `${(v / of) * 100}%`
   const boxTop = Math.max(r.top, top)
   return (
-    <div className="ee-crop" style={{ aspectRatio: `${w} / ${h}` }}>
+    <div className={`ee-crop${state === 'loading' ? ' is-loading' : ''}`} style={{ aspectRatio: `${w} / ${h}` }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} style={{ width: pct(shot.w, w), left: pct(-left, w), top: pct(-top, h) }} />
-      <span
-        className="ee-box"
-        style={{
-          left: pct(Math.max(r.left, left) - left, w), top: pct(boxTop - top, h),
-          width: pct(Math.min(r.left + r.width, left + w) - Math.max(r.left, left), w),
-          height: pct(Math.min(r.top + r.height, top + h) - boxTop, h),
-        }}
+      <img
+        src={src}
+        alt=""
+        onLoad={(e) => setState(isBlank(e.currentTarget, shot.w, left, top, w, h) ? 'blank' : 'ok')}
+        onError={() => setState('failed')}
+        style={{ width: pct(shot.w, w), left: pct(-left, w), top: pct(-top, h) }}
       />
+      {state === 'ok' && (
+        <span
+          className="ee-box"
+          style={{
+            left: pct(Math.max(r.left, left) - left, w), top: pct(boxTop - top, h),
+            width: pct(Math.min(r.left + r.width, left + w) - Math.max(r.left, left), w),
+            height: pct(Math.min(r.top + r.height, top + h) - boxTop, h),
+          }}
+        />
+      )}
     </div>
   )
+}
+
+// Opens the page with this text highlighted (a URL text fragment; Chrome, Edge and Safari).
+function textLink(pageUrl: string, text: string): string | null {
+  const words = text.replace(/\s+/g, ' ').trim().split(' ').filter(Boolean)
+  if (!pageUrl || words.length === 0 || text.length > 300) return null
+  const enc = (t: string) => encodeURIComponent(t).replace(/-/g, '%2D')
+  const frag = words.length > 8 ? `${enc(words.slice(0, 4).join(' '))},${enc(words.slice(-4).join(' '))}` : enc(words.join(' '))
+  return `${pageUrl.split('#')[0]}#:~:text=${frag}`
 }
 
 function CopyChip({ text, children }: { text: string; children: React.ReactNode }) {
@@ -84,7 +126,7 @@ function Sample({ fg, bg, ratio, pass, show = 'fg' }: { fg: string; bg: string; 
   )
 }
 
-export default function ElementEvidence({ data, brandId }: { data: unknown; brandId?: string }) {
+export default function ElementEvidence({ data, brandId, pageUrl }: { data: unknown; brandId?: string; pageUrl?: string }) {
   const [all, setAll] = useState(false)
   if (!isElementEvidence(data) || data.elements.length === 0) return null
   const { elements, total, shot } = data
@@ -124,6 +166,10 @@ export default function ElementEvidence({ data, brandId }: { data: unknown; bran
                   <CopyChip text={el.selector}>Copy</CopyChip>
                 </span>
               )}
+              {(() => {
+                const href = el.label ? textLink(data.url ?? pageUrl ?? '', el.label) : null
+                return href ? <a className="ee-see" href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>See it on your site ↗</a> : null
+              })()}
             </div>
           </li>
         ))}

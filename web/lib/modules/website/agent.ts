@@ -80,7 +80,7 @@ export async function analyzeWebsite(
   const shot = audit.screenshot && !('data' in audit.screenshot) ? audit.screenshot : undefined
   // The failing elements behind a Lighthouse check (null clears last run's when it now passes)
   const evidenceFor = (finding: Finding): ElementEvidence | null =>
-    finding.elements ? { kind: 'elements', ...finding.elements, ...(shot ? { shot } : {}) } : null
+    finding.elements ? { kind: 'elements', ...finding.elements, ...(shot ? { shot } : {}), url: audit.final_url } : null
 
   // Map every static item to its rule-engine finding
   const baseResults: (ModuleAnalysisResult & { isFail: boolean })[] = allItems.map((item) => {
