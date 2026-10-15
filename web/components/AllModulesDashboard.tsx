@@ -19,7 +19,7 @@ import { CONFLICT_GROUPS, SLUG_TOPIC } from '@/lib/modules/conflict-map'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 import FrektoPostingSectionImport from '@/components/FrektoPostingSection'
 import NotesDrawer from '@/components/NotesDrawer'
-import { useClaudeHandoff } from '@/components/useClaudeHandoff'
+import { useClaudeHandoff, repoLine } from '@/components/useClaudeHandoff'
 import { JOURNEY_PHASES } from '@/lib/journey'
 import ElementEvidence, { isElementEvidence, describeElements } from '@/components/ElementEvidence'
 import PagePreview from '@/components/PagePreview'
@@ -1002,7 +1002,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   // "Copy fix prompt": the finding and the steps as one message to paste into an AI assistant.
   const buildFixPrompt = (p: { label: string; found?: string | null; why?: string | null; action?: string | null; steps?: string[]; data?: unknown }) => {
     const clean = (t: string) => t.replace(/\*\*/g, '')
-    const lines = [`Please fix this issue${brand.websiteUrl ? ` on ${brand.websiteUrl}` : ' on my website'}.`, '', `Issue: ${clean(p.label)}`]
+    const lines = [`Please fix this issue${brand.websiteUrl ? ` on ${brand.websiteUrl}` : ' on my website'}.`, repoLine(githubRepo), '', `Issue: ${clean(p.label)}`]
     if (p.found) lines.push(`What was found: ${clean(p.found)}`)
     if (p.why) lines.push(`Why it matters: ${clean(p.why)}`)
     if (p.action) lines.push(`What to do: ${clean(p.action)}`)
@@ -1018,6 +1018,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const clean = (t: string) => t.replace(/\*\*/g, '')
     return [
       `Use the GrowJin connector to fix one check for ${brand.name}${brand.websiteUrl ? ` (${brand.websiteUrl})` : ''}.`,
+      repoLine(githubRepo),
       '',
       `1. Call get_module_detail with module_type "${mod?.type ?? ''}" and find the check "${clean(p.label)}" (slug ${p.slug}).`,
       `2. Fix it.${p.action ? ` Suggested fix: ${clean(p.action)}` : ''} If it needs a change to my website code, make it, or give me the exact change to apply.`,

@@ -1,7 +1,7 @@
 'use client'
 
 import RoadToFiveHundred from '@/components/RoadToFiveHundred'
-import { useClaudeHandoff, type HandoffArgs } from '@/components/useClaudeHandoff'
+import { useClaudeHandoff, repoLine, type HandoffArgs } from '@/components/useClaudeHandoff'
 import SocialIcon, { socialBrand } from '@/components/SocialIcon'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -208,6 +208,7 @@ function taskHandoff(card: ActionCard, c: SiteCtx): HandoffArgs {
     : `call resolve_signal with signal_id "${id}" and status "done"`
   const mcp = [
     `Use the GrowJin connector to do one of today's growth tasks for ${c.brandName}${where(c)}.`,
+    repoLine(c.githubRepo),
     '',
     `1. Call get_today_tasks and find the task "${card.headline}" (id ${id}).`,
     `2. Do it in ${codebase(c)}.${action ? ` Suggested fix: ${action}` : ''} If it needs real data from me (stats, quotes, prices), ask instead of inventing it.`,
@@ -216,6 +217,7 @@ function taskHandoff(card: ActionCard, c: SiteCtx): HandoffArgs {
   ].join('\n')
   const plain = [
     `Please make this change on my website${where(c)}, in ${codebase(c)}.`,
+    repoLine(c.githubRepo),
     '',
     `Task: ${card.headline}`,
     finding ? `Why: ${finding}` : '',
@@ -234,6 +236,7 @@ function blogHandoff(blog: { id: string; title: string; mdUrl?: string }, c: Sit
   ]
   const mcp = [
     `Use the GrowJin connector to publish a blog post on my website${where(c)}.`,
+    repoLine(c.githubRepo),
     '',
     `1. Call get_blog_post with blog_id "${blog.id}" to get the article (markdown) with its slug, meta title and meta description.`,
     ...steps,
@@ -241,6 +244,7 @@ function blogHandoff(blog: { id: string; title: string; mdUrl?: string }, c: Sit
   ].join('\n')
   const plain = [
     `Please publish this blog post on my website${where(c)}: "${blog.title}".`,
+    repoLine(c.githubRepo),
     '',
     `1. Download the post (markdown with front matter: title, slug, meta title, meta description) from ${blog.mdUrl ?? 'GrowJin (Today › Weekly blog › Copy markdown)'}`,
     ...steps,

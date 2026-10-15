@@ -17,6 +17,12 @@ export interface HandoffArgs {
   title?: string // popup title; defaults to "Fix this with Claude"
 }
 
+// Which repo to work in: people often have many GitHub repos connected to Claude, so name the
+// website's (from GrowJin's GitHub integration) or have Claude ask rather than guess.
+export const repoLine = (githubRepo: string | null | undefined) => githubRepo
+  ? `My website's code is in the GitHub repo ${githubRepo}. Make changes in that repo only.`
+  : 'If you can\'t tell which repo or folder holds my website\'s code, ask me before changing anything.'
+
 const claudeWebUrl = (text: string) => `https://claude.ai/new?q=${encodeURIComponent(text)}`
 const isPhone = () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
 const readLocal = (k: string) => { try { return localStorage.getItem(k) } catch { return null } }
