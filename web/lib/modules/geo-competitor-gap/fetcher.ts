@@ -25,7 +25,7 @@ export async function fetchCompetitorGapData(
 
   const [yourResult, ...competitorResults] = await Promise.all([
     fetchGeoData({ website_url: websiteUrl }),
-    ...competitorUrls.map((url) => fetchGeoData({ website_url: url })),
+    ...competitorUrls.map((url) => fetchGeoData({ website_url: url }, { light: true })),
   ])
 
   if ('error' in yourResult) return { error: `Could not fetch your site: ${yourResult.error}` }

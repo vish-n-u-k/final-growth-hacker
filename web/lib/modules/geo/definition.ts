@@ -35,7 +35,6 @@ Rules:
 - Actions must be concrete but brief: 1–2 sentences max. Technical file names, bot names, and code snippets go in a only.
 - Never invent data not present in the pre-computed findings or page content.
 - For brand sentiment checks (geo-sentiment-*): use your own training knowledge about the brand name provided. Be honest — if you don't recognise the brand, say so clearly (verified: false). Do not invent knowledge you don't have.
-- For entity knowledge checks (geo-entity-wikipedia): use your own training knowledge to assess whether this brand has a Wikipedia or Wikidata entry. Be honest — if you don't recognise the brand, verified=false.
 - For competitor citation checks (geo-competitor-share): use your own training knowledge to assess whether AI engines tend to cite this brand for its core use-case. Be honest.`,
   categories: [
     // ── 1. AI Discovery & llms.txt ────────────────────────────────────────────
@@ -46,9 +45,9 @@ Rules:
       subCategories: [
         {
           slug: 'llms-txt-checks',
-          label: 'LLMs.txt & AI Endpoints',
+          label: 'AI Guidance File (llms.txt)',
           order: 1,
-          description: 'The file AI engines read to understand your site — equivalent to leaving a clear signpost for ChatGPT, Claude, and Perplexity at your front door. Also covers emerging AI-specific JSON endpoints that let AI engines understand your product without crawling every page.',
+          description: 'The file AI engines read to understand your site — equivalent to leaving a clear signpost for ChatGPT, Claude, and Perplexity at your front door.',
           items: [
             {
               slug: 'geo-llms-present',
@@ -92,34 +91,6 @@ Rules:
               order: 6,
               weight: 1,
             },
-            {
-              slug: 'geo-discovery-aitxt',
-              label: 'AI policy file (ai.txt) is present',
-              prompt: 'Check the pre-computed finding for whether the AI policy file exists. In d state plainly whether it was found or missing. In n explain that this file tells AI systems how the site wants to be interacted with and cited. In a give the exact file path to create.',
-              order: 7,
-              weight: 1,
-            },
-            {
-              slug: 'geo-discovery-summary',
-              label: 'AI-readable site summary file exists',
-              prompt: 'Check the pre-computed finding for whether an AI-readable site summary file exists. In d state plainly whether it was found. In n explain that this file lets AI understand the product without crawling every page. In a give the exact file path to create.',
-              order: 8,
-              weight: 1,
-            },
-            {
-              slug: 'geo-discovery-faq',
-              label: 'AI-readable FAQ file exists',
-              prompt: 'Check the pre-computed finding for whether an AI-readable FAQ file exists. In d state plainly whether it was found. In n explain that a structured FAQ lets AI answer questions about the product directly without guessing from page content. In a give the exact file path to create.',
-              order: 9,
-              weight: 1,
-            },
-            {
-              slug: 'geo-discovery-service',
-              label: 'AI-readable product description file exists',
-              prompt: 'Check the pre-computed finding for whether an AI-readable product description file exists. In d state plainly whether it was found. In n explain that this file lets AI accurately describe the product category, pricing, and audience without guessing. In a give the exact file path to create.',
-              order: 10,
-              weight: 1,
-            },
           ],
         },
       ],
@@ -160,6 +131,28 @@ Rules:
             },
           ],
         },
+        {
+          slug: 'bot-readability',
+          label: 'What AI Bots Actually See',
+          order: 2,
+          description: 'robots.txt is only half the story. AI crawlers don\'t run JavaScript, and many firewalls and CDNs turn them away before they reach your page. These checks load your site the way AI crawlers do.',
+          items: [
+            {
+              slug: 'geo-content-no-js',
+              label: 'AI bots can read your page without JavaScript',
+              prompt: 'Rule engine check.',
+              order: 1,
+              weight: 3,
+            },
+            {
+              slug: 'geo-bots-firewall',
+              label: 'Your server or firewall lets AI bots in',
+              prompt: 'Rule engine check.',
+              order: 2,
+              weight: 3,
+            },
+          ],
+        },
       ],
     },
 
@@ -177,7 +170,7 @@ Rules:
           items: [
             {
               slug: 'geo-schema-faq',
-              label: 'FAQ structured data is added to the page',
+              label: 'FAQ structured data on your homepage or FAQ page',
               prompt: 'Check the pre-computed schema findings for whether FAQ structured data is present. In d state plainly whether it was found and whether it has actual question and answer content. In n explain that FAQ structured data is the most valuable markup for getting cited in AI answers — without using schema type names. In a give the exact code to add it.',
               order: 1,
               weight: 3,
@@ -223,28 +216,28 @@ Rules:
             {
               slug: 'geo-entity-wikipedia',
               label: 'Brand has a Wikipedia or Wikidata entry',
-              prompt: 'Using your own training knowledge, does this brand have a Wikipedia or similar knowledge base entry? In d state plainly whether you recognise the brand and whether it has a public knowledge entry. In n explain that brands without public knowledge entries are treated as unknown by AI — without mentioning Wikipedia or Wikidata by name. In a tell them to create a Wikipedia article or Wikidata entry.',
+              prompt: 'Rule engine check.',
               order: 1,
               weight: 3,
             },
             {
               slug: 'geo-entity-sameas-depth',
               label: 'Company profile links to authoritative directories (Wikipedia, Crunchbase)',
-              prompt: 'From the pre-computed findings, check whether the company structured data links to authoritative directories. In d state plainly whether high-authority directory links were found or only social profiles. In n explain that social profiles alone are weak — AI uses authoritative directories to confirm a brand is a real established entity. In a list the specific directories to add links to (Wikipedia, Crunchbase, LinkedIn company page).',
+              prompt: 'Rule engine check.',
               order: 2,
               weight: 2,
             },
             {
               slug: 'geo-entity-nap',
               label: 'Brand name is spelled consistently across title, headings, and markup',
-              prompt: 'From the pre-computed page signals, check whether the brand name is spelled and capitalised consistently across the page title, main heading, and structured data. In d state plainly whether it matches everywhere or where a mismatch was found. In n explain that inconsistent spelling makes AI treat them as different brands. verified=true if consistent everywhere.',
+              prompt: 'Rule engine check.',
               order: 3,
               weight: 2,
             },
             {
               slug: 'geo-entity-about',
               label: 'About page with brand story linked from site',
-              prompt: 'From the page headings, navigation, and body content, check for a link to an About or Company page. In d state plainly whether one was found and referenced. In n explain that an About page with the brand story helps AI build an accurate profile of the business. verified=true if clearly linked.',
+              prompt: 'Rule engine check.',
               order: 4,
               weight: 1,
             },
@@ -274,8 +267,8 @@ Rules:
             },
             {
               slug: 'geo-content-citations',
-              label: 'External authoritative citations present',
-              prompt: 'Evaluate whether the page content links to or references external authoritative sources (studies, reports, well-known publications, industry data). AI models trust and cite content that itself cites reputable sources — it signals factual grounding. Check for any outbound links or source references.',
+              label: 'Blog posts cite outside sources',
+              prompt: 'Rule engine check.',
               order: 2,
               weight: 2,
             },
@@ -378,11 +371,12 @@ Rules:
               prompt: 'Using your own training knowledge, when users ask AI engines about this brand\'s core use-case (as described on the homepage), is this brand mentioned as a leading or recommended solution? Or do AI responses default entirely to competitors? verified=true if this brand is commonly cited for its own primary use-case. verified=false if AI tends to route users to competitors instead.',
               order: 1,
               weight: 3,
+              insight: true,
             },
             {
               slug: 'geo-competitor-compare',
-              label: 'Content directly addresses comparison with named competitors',
-              prompt: 'Evaluate whether the page content or headings directly address comparison with named competitors (e.g. "vs Competitor X", "how we compare", "alternative to X"). Comparison content is heavily cited by AI when users ask "X vs Y" queries. Absence means missing an entire category of AI citation opportunities.',
+              label: 'Site has comparison pages (vs / alternatives)',
+              prompt: 'Rule engine check.',
               order: 2,
               weight: 2,
             },
@@ -407,7 +401,6 @@ Rules:
             { slug: 'geo-gap-schema', label: 'Structured data matches what competitors have', prompt: 'Rule engine check.', order: 2, weight: 2 },
             { slug: 'geo-gap-bots', label: 'AI search bots can read your site where they can read competitors\'', prompt: 'Rule engine check.', order: 3, weight: 2 },
             { slug: 'geo-gap-content', label: 'Homepage is as quotable as competitors\' (stats, FAQ-style answers)', prompt: 'Rule engine check.', order: 4, weight: 1 },
-            { slug: 'geo-gap-discovery', label: 'AI-readable files competitors have, you have too', prompt: 'Rule engine check.', order: 5, weight: 1 },
           ],
         },
       ],
@@ -423,7 +416,7 @@ Rules:
           slug: 'ai-perception',
           label: 'AI Brand Perception',
           order: 1,
-          description: 'What AI engines currently say about your brand when users ask — evaluated against Claude\'s training knowledge. Checks whether AI accurately describes what you do, whether the framing is positive, and whether it recommends competitors instead of you for your own core use-case.',
+          description: 'Ideas, not scored: what an AI model\'s training knowledge says about your brand. It has a cutoff date and isn\'t a live measurement, so treat it as a hint. Covers whether AI knows what you do, how it frames you, and which use-cases it links to you.',
           items: [
             {
               slug: 'geo-sentiment-known',
@@ -431,6 +424,7 @@ Rules:
               prompt: 'Using your own training knowledge, do you recognise this brand by name? Can you describe what it does, who it serves, and its primary value proposition? If you have little or no knowledge of this brand, verified=false — that itself is the key finding: the brand is not visible in AI training data and is unlikely to be cited in AI-generated answers.',
               order: 1,
               weight: 3,
+              insight: true,
             },
             {
               slug: 'geo-sentiment-framing',
@@ -438,6 +432,7 @@ Rules:
               prompt: 'Based on your training knowledge of this brand and the homepage content provided, how do AI engines currently frame this brand? Is there any negative framing (e.g. "expensive", "limited", "only for X niche", "outdated")? Compare the AI framing against what the homepage actually says. verified=true only if the AI description is accurate and not negatively framed.',
               order: 2,
               weight: 2,
+              insight: true,
             },
             {
               slug: 'geo-sentiment-use-cases',
@@ -445,13 +440,7 @@ Rules:
               prompt: 'Based on your training knowledge and the homepage content provided, does what AI engines know about this brand\'s use-cases match what the brand actually offers? Identify any use-cases prominent on the homepage that are absent from AI knowledge. verified=false if major use-cases are missing from AI understanding.',
               order: 3,
               weight: 2,
-            },
-            {
-              slug: 'geo-sentiment-competitors',
-              label: 'AI does not default to competitors for this brand\'s core use-case',
-              prompt: 'Based on your training knowledge, when users ask AI engines about this brand\'s core use-case (as described on the homepage), does AI tend to prominently recommend competitors as alternatives instead? verified=false if competitors are consistently cited ahead of this brand for its own stated core use-case.',
-              order: 4,
-              weight: 1,
+              insight: true,
             },
           ],
         },
