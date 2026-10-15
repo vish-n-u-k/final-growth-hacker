@@ -17,6 +17,9 @@ export interface GeoFetchData {
   aiServiceJson: string | null // /ai/service.json
   sitemapUrls: string[]        // <loc> URLs extracted from /sitemap.xml
   sitemapPageMeta: SitemapPageMeta[] // title/meta/h1 for sampled sitemap pages
+  // One real blog post / article page (from the sitemap or homepage links), for the Article
+  // schema check; null when the site has none. html null = found but couldn't be loaded.
+  articlePage: { url: string; html: string | null } | null
 }
 
 async function fetchText(url: string, timeoutMs = 8000): Promise<string | null> {
@@ -45,6 +48,32 @@ function extractPageMeta(html: string): { title: string; metaDescription: string
   const h1 = h1Match?.[1]?.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() ?? ''
 
   return { title, metaDescription, h1 }
+}
+
+// Blog posts / articles: a content section followed by a post slug (not listings, tags or pages 2+)
+const POST_PATH = /\/(blog|blogs|posts?|articles?|news|insights|guides?|resources|learn|journal|stories|updates)\/(?!(tag|tags|category|categories|author|authors|page|feed)\b)[^/?#]+/i
+
+/** The first blog post URL on the site: from the sitemap, else from links on the homepage. */
+function findPostUrl(sitemapUrls: string[], html: string, origin: string): string | null {
+  const isPost = (u: string) => { try { const x = new URL(u, origin); return x.origin === origin && POST_PATH.test(x.pathname) } catch { return false } }
+  const fromSitemap = sitemapUrls.find(isPost)
+  if (fromSitemap) return fromSitemap
+  for (const m of html.matchAll(/<a\s[^>]*href=["']([^"'#]+)["']/gi)) {
+    if (isPost(m[1])) return new URL(m[1], origin).href
+  }
+  return null
+}
+
+const locs = (xml: string) => [...xml.matchAll(/<loc>([^<]+)<\/loc>/gi)].map(m => m[1].trim())
+
+/** Page URLs from /sitemap.xml, following a sitemap index into up to 4 child sitemaps (posts first). */
+async function sitemapPageUrls(sitemapXml: string | null): Promise<string[]> {
+  if (!sitemapXml) return []
+  const entries = locs(sitemapXml)
+  if (!/<sitemapindex/i.test(sitemapXml)) return entries.slice(0, 200)
+  const children = [...entries].sort((a, b) => Number(/post|blog|article/i.test(b)) - Number(/post|blog|article/i.test(a))).slice(0, 4)
+  const xmls = await Promise.all(children.map(u => fetchText(u, 6000)))
+  return xmls.flatMap(x => (x ? locs(x) : [])).slice(0, 200)
 }
 
 async function fetchSitemapPageMeta(sitemapUrls: string[], origin: string, max = 20): Promise<SitemapPageMeta[]> {
@@ -104,9 +133,11 @@ export async function fetchGeoData(
 
   if (!html) return { error: `Could not fetch ${url}` }
 
-  const sitemapUrls = sitemapXml
-    ? [...sitemapXml.matchAll(/<loc>([^<]+)<\/loc>/gi)].map(m => m[1].trim()).slice(0, 200)
-    : []
+  const sitemapUrls = await sitemapPageUrls(sitemapXml)
+
+  // A real blog post, for the Article schema check (the homepage is never an article)
+  const postUrl = findPostUrl(sitemapUrls, html, origin)
+  const articlePage = postUrl ? { url: postUrl, html: await fetchText(postUrl, 8000) } : null
 
   // Competitor fetches skip the per-page sampling (20 extra requests per site)
   const sitemapPageMeta = sitemapUrls.length > 0 && opts.sitemapMeta !== false
@@ -124,5 +155,6 @@ export async function fetchGeoData(
     aiServiceJson,
     sitemapUrls,
     sitemapPageMeta,
+    articlePage,
   }
 }

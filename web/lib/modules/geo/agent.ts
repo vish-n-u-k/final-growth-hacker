@@ -70,8 +70,15 @@ function extractSchemas(html: string): object[] {
     try {
       const text = $(el).html() ?? ''
       const parsed = JSON.parse(text)
-      if (Array.isArray(parsed)) schemas.push(...parsed)
-      else schemas.push(parsed)
+      // Items can be a list, or bundled in an "@graph" (Yoast, Rank Math, many Next.js sites)
+      const add = (o: unknown) => {
+        if (Array.isArray(o)) return o.forEach(add)
+        if (!o || typeof o !== 'object') return
+        schemas.push(o)
+        const graph = (o as Record<string, unknown>)['@graph']
+        if (Array.isArray(graph)) graph.forEach(add)
+      }
+      add(parsed)
     } catch { /* ignore malformed */ }
   })
   return schemas
@@ -166,7 +173,15 @@ export function buildRuleFindings(data: GeoFetchData) {
   const schemas = extractSchemas(data.html)
   const hasFaq = schemaHasType(schemas, 'FAQPage')
   const hasWebSite = schemaHasType(schemas, 'WebSite')
-  const hasArticle = schemaHasType(schemas, 'Article') || schemaHasType(schemas, 'BlogPosting')
+  // Article markup belongs on blog posts, so check a real post (found by the fetcher), not the homepage
+  const isArticle = (list: ReturnType<typeof extractSchemas>) =>
+    ['Article', 'BlogPosting', 'NewsArticle', 'TechArticle'].some(t => schemaHasType(list, t))
+  const post = data.articlePage ?? null
+  const postHasArticle = post?.html ? isArticle(extractSchemas(post.html)) : null
+  const hasArticle = postHasArticle === true || isArticle(schemas)
+  const articleCheck: { status: 'yes' | 'no' | 'unreachable' | 'no-blog'; url: string } = !post
+    ? { status: isArticle(schemas) ? 'yes' : 'no-blog', url: data.url }
+    : { status: postHasArticle === null ? 'unreachable' : postHasArticle ? 'yes' : 'no', url: post.url }
   const orgSchema = getSchemaByType(schemas, 'Organization')
   const hasOrg = !!orgSchema
   const hasSameAs = hasOrg && Array.isArray((orgSchema as Record<string, unknown>)['sameAs']) && ((orgSchema as Record<string, unknown>)['sameAs'] as unknown[]).length > 0
@@ -189,7 +204,7 @@ export function buildRuleFindings(data: GeoFetchData) {
 
   return {
     tier1, tier2, tier3,
-    hasFaq, hasWebSite, hasArticle, hasOrg, hasSameAs,
+    hasFaq, hasWebSite, hasArticle, articleCheck, hasOrg, hasSameAs,
     llmsPresent, llmsH1, llmsBlockquote, llmsSections, llmsLinks,
     llmsDepth, llmsLinkCount, llmsSectionCount,
     llmsTxtContent: data.llmsTxt?.slice(0, 500) ?? null,
@@ -537,17 +552,31 @@ function buildGeoRuleResults(f: ReturnType<typeof buildRuleFindings>): ModuleAna
         'Add a WebSite JSON-LD block with name and url fields inside your homepage <head>.')
   )
 
-  results.push(f.hasArticle
-    ? re('geo-schema-article', true,
-        '**Article or BlogPosting schema** found on the page.',
-        'Article schema is present',
-        'Blog posts are marked as citable sources for AI engines.',
-        '')
-    : re('geo-schema-article', false,
-        '**No Article or BlogPosting schema** detected.',
-        'No article schema on content pages',
-        '**Without article markup blog posts are treated as generic pages** — not as citable sources.',
-        'Add an Article JSON-LD block to each blog post with headline, datePublished, dateModified, and author.')
+  const postPath = (() => { try { return new URL(f.articleCheck.url).pathname } catch { return f.articleCheck.url } })()
+  results.push(
+    f.articleCheck.status === 'yes'
+      ? re('geo-schema-article', true,
+          `**Article or BlogPosting schema** found on your blog post (${postPath}).`,
+          'Article schema is present',
+          'Blog posts are marked as citable sources for AI engines.',
+          '')
+    : f.articleCheck.status === 'no-blog'
+      ? re('geo-schema-article', true,
+          'No blog posts found on the site (checked the sitemap and homepage links), so there are no articles to mark up yet.',
+          'No blog posts to mark up yet',
+          'When you start publishing posts, give each one Article markup so AI engines can cite it.',
+          '')
+    : f.articleCheck.status === 'unreachable'
+      ? re('geo-schema-article', false,
+          `Couldn't load your blog post (${postPath}) to check its markup. Re-analyse to try again.`,
+          'Couldn\'t check a blog post',
+          'The post didn\'t load for our checker this time, so its article markup couldn\'t be verified.',
+          '')
+      : re('geo-schema-article', false,
+          `**No Article or BlogPosting schema** on your blog post (${postPath}).`,
+          'No article schema on blog posts',
+          '**Without article markup blog posts are treated as generic pages** — not as citable sources.',
+          'Add an Article JSON-LD block to your blog post template with headline, datePublished, dateModified, and author.')
   )
 
   // ── freshness signals ──
