@@ -58,7 +58,7 @@ function Crop({ el, shot, src }: { el: AuditElement; shot: NonNullable<Evidence[
   const [state, setState] = useState<'loading' | 'ok' | 'failed' | 'blank'>('loading')
   const r = el.rect
   if (!r || state === 'failed' || r.top >= shot.h || r.left >= shot.w) return null
-  if (state === 'blank') return <p className="ee-note ee-noshot">Not visible in Google&apos;s screenshot of your page (usually a scroll animation). Use “See it on your site” below.</p>
+  if (state === 'blank') return <p className="ee-note ee-noshot">Not visible in Google&apos;s screenshot of your page (usually a scroll animation).</p>
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
   const w = clamp(r.width + 2 * PAD, Math.min(MIN_W, shot.w), shot.w)
   const left = clamp(r.left + r.width / 2 - w / 2, 0, shot.w - w)
@@ -182,7 +182,9 @@ export default function ElementEvidence({ data, brandId, pageUrl }: { data: unkn
                 </span>
               )}
               {(() => {
-                const href = el.label ? textLink(data.url ?? pageUrl ?? '', el.label) : null
+                // Text links only: images and form fields have no text to highlight on the page
+                const isText = !/^<(img|input|select|textarea|svg|video|iframe|object)\b/i.test(el.snippet ?? '')
+                const href = el.label && isText ? textLink(data.url ?? pageUrl ?? '', el.label) : null
                 return href ? <a className="ee-see" href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>See it on your site ↗</a> : null
               })()}
             </div>

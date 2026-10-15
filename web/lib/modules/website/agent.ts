@@ -87,6 +87,20 @@ export async function analyzeWebsite(
   const baseResults: (ModuleAnalysisResult & { isFail: boolean })[] = allItems.map((item) => {
     const finding = findingMap.get(item.slug)
 
+    if (!finding && item.prompt.includes('Google Lighthouse')) {
+      // Measured only by Google's page scan, which didn't answer this time: say so rather than
+      // have Claude guess (it can't see the rendered page either)
+      return {
+        slug: item.slug,
+        detail: 'Couldn\'t check this time: Google\'s page scan didn\'t respond. Re-analyse to try again.',
+        narrative: '',
+        action: '',
+        verified: false,
+        aiData: null,
+        isFail: false,
+      }
+    }
+
     if (!finding) {
       // Rule engine didn't cover this item — send to Claude for best-effort judgment
       return {

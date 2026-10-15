@@ -108,6 +108,28 @@ export const WEBSITE_MODULE: ModuleDefinition = {
                 'Never leave a button or link with no visible text and no aria-label — screen reader users will hear nothing useful',
               ],
             },
+            {
+              slug: 'heading-order',
+              label: 'Headings in a logical order',
+              prompt: 'Checked by rule engine (Google Lighthouse accessibility audit, heading-order).',
+              order: 6,
+              weight: 1,
+              fixGuide: [
+                'Use one H1 for the page title, H2 for its main sections, H3 inside those — never jump from H1 straight to H4',
+                'If a heading level looks too big or small, change its CSS rather than picking a different level',
+              ],
+            },
+            {
+              slug: 'link-in-text-block',
+              label: 'Links stand out from text',
+              prompt: 'Checked by rule engine (Google Lighthouse accessibility audit, WCAG 1.4.1).',
+              order: 7,
+              weight: 1,
+              fixGuide: [
+                'Underline links that sit inside paragraphs (e.g. p a { text-decoration: underline; })',
+                'Colour alone isn\'t enough: about 1 in 12 men can\'t tell the link colour from the text colour',
+              ],
+            },
           ],
         },
       ],

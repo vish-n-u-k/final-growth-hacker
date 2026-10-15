@@ -160,6 +160,8 @@ export interface A11yData {
   fontSizePass: boolean | null
   tapTargetsPass: boolean | null
   accessibleNamesPass: boolean | null
+  headingOrderPass: boolean | null
+  linkInTextPass: boolean | null
   elements: Record<string, { total: number; elements: AuditElement[] }> // finding key → failing elements
   screenshot: PageScreenshot | null
 }
@@ -190,6 +192,11 @@ async function fetchPsiA11y(url: string): Promise<A11yData | null> {
       'color-contrast': ['color-contrast'],
       'tap-targets': [tapAudit],
       'accessible-names': ['button-name', 'link-name'],
+      'heading-order': ['heading-order'],
+      'link-in-text-block': ['link-in-text-block'],
+      // Also checked from the HTML (see auditTech / auditForms); Google's scan adds where they are
+      'image-alt-text': ['image-alt', 'input-image-alt'],
+      'form-labels': ['label', 'select-name'],
     }
     const elements: A11yData['elements'] = {}
     for (const [key, ids] of Object.entries(elementsFor)) {
@@ -207,6 +214,8 @@ async function fetchPsiA11y(url: string): Promise<A11yData | null> {
       fontSizePass: auditPass('font-size'),
       tapTargetsPass: auditPass(tapAudit),
       accessibleNamesPass,
+      headingOrderPass: auditPass('heading-order'),
+      linkInTextPass: auditPass('link-in-text-block'),
       elements,
       screenshot: Object.keys(elements).length > 0 ? extractScreenshot(lhr) : null,
     }
@@ -313,8 +322,21 @@ function auditUX($: cheerio.CheerioAPI, a11yData: A11yData | null): Finding[] {
       findings.push(f('accessible-names', 'good', 'All buttons and links have accessible names for screen readers.'))
     }
 
-    for (const fi of findings) {
-      if (fi.level !== 'good' && a11yData.elements[fi.key]) fi.elements = a11yData.elements[fi.key]
+    const n = (key: string) => a11yData.elements[key]?.total ?? 0
+    if (a11yData.headingOrderPass === false) {
+      findings.push(f('heading-order', 'ok',
+        `${n('heading-order') || 'Some'} heading${n('heading-order') === 1 ? '' : 's'} skip${n('heading-order') === 1 ? 's' : ''} a level (e.g. an H1 followed by an H4), which confuses screen readers and search engines about the page outline.`,
+        'Use headings in order (H1 → H2 → H3) and style them with CSS instead of picking a heading level for its size.'))
+    } else if (a11yData.headingOrderPass === true) {
+      findings.push(f('heading-order', 'good', 'Headings follow a logical order.'))
+    }
+
+    if (a11yData.linkInTextPass === false) {
+      findings.push(f('link-in-text-block', 'ok',
+        `${n('link-in-text-block') || 'Some'} link${n('link-in-text-block') === 1 ? ' is' : 's are'} only told apart from the surrounding text by colour, so people with colour blindness can miss ${n('link-in-text-block') === 1 ? 'it' : 'them'}.`,
+        'Underline links inside paragraphs (or give them another non-colour cue such as bold weight).'))
+    } else if (a11yData.linkInTextPass === true) {
+      findings.push(f('link-in-text-block', 'good', 'Links inside text stand out without relying on colour alone.'))
     }
   }
 
@@ -940,7 +962,23 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
     { name: 'Technical Health',       key: 'tech',   findings: auditTech($, robotsStatus, sitemapStatus),         score: 0 },
   ]
 
+  // Attach the failing elements Google's scan found (with their spot on the screenshot). For checks
+  // also made from the raw HTML, the scan sees the page after JavaScript runs, so it can find
+  // problems the HTML check missed: then the check fails with the scan's count.
+  const scanned = a11yData?.elements ?? {}
+  const scanText: Record<string, [string, string, string]> = {
+    'image-alt-text': ['image has no alt text', 'images have no alt text', 'Add a short alt="…" description to each image (alt="" for purely decorative ones).'],
+    'form-labels': ['form field has no label', 'form fields have no label', 'Give every field a <label for="…"> (or an aria-label) that says what to enter.'],
+  }
   for (const section of sections) {
+    section.findings = section.findings.map((fi) => {
+      const found = scanned[fi.key]
+      if (!found) return fi
+      if (fi.level !== 'good' && fi.level !== 'info') return { ...fi, elements: found }
+      const t = scanText[fi.key]
+      if (!t) return fi
+      return { ...f(fi.key, 'bad', `${found.total} ${found.total === 1 ? t[0] : t[1]} (found by Google's scan of the rendered page).`, t[2]), elements: found }
+    })
     section.score = calcScore(section.findings)
   }
 
