@@ -14,6 +14,7 @@ import type { ActionCard, ImpactCard } from '@/lib/daily/signals'
 import type { PlatformStats } from '@/app/api/social/analytics/route'
 import type { DBItemFull } from '@/lib/modules/types'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import { Spinner } from '@/components/ui/spinner'
 
 interface TrafficData {
   visits: number
@@ -346,7 +347,7 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
             disabled={marking}
             style={{ opacity: marking ? 0.6 : 1 }}
           >
-            {marking ? 'Marking…' : 'Mark done'}
+            {marking ? <><Spinner />Marking…</> : 'Mark done'}
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 5 }}>
               <polyline points="20 6 9 17 4 12"/>
             </svg>
@@ -379,12 +380,12 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
           )}
           {onComplete && (
             <button className="td-ghost-btn" onClick={() => handleComplete('done')} disabled={completing !== null}>
-              {completing === 'done' ? 'Marking…' : 'Mark done'}
+              {completing === 'done' ? <><Spinner />Marking…</> : 'Mark done'}
             </button>
           )}
           {onComplete && taskKind !== 'item' && (
             <button className="td-ghost-btn" onClick={() => handleComplete('dismissed')} disabled={completing !== null}>
-              {completing === 'dismissed' ? 'Hiding…' : 'Not relevant'}
+              {completing === 'dismissed' ? <><Spinner />Hiding…</> : 'Not relevant'}
             </button>
           )}
         </div>
@@ -669,7 +670,7 @@ function BlogComposer({ frektoConnected, generating, topic, setTopic, mode, setM
         placeholder="Leave empty and we'll pick a topic for you"
       />
       {ideas === null ? (
-        <p className="td-blog-ideas-note">Finding topic ideas…</p>
+        <p className="td-blog-ideas-note"><Spinner size={11} />Finding topic ideas…</p>
       ) : ideas.length > 0 && (
         <div className="td-blog-ideas">
           {ideas.map(i => (
@@ -878,7 +879,7 @@ function WeeklyBlogSection({ initialData, frektoConnected = false, onAddToSite, 
                 onClick={() => markPublished(generatedBlog.id)}
                 disabled={markingId === generatedBlog.id}
               >
-                {markingId === generatedBlog.id ? 'Saving...' : 'Mark as published'}
+                {markingId === generatedBlog.id ? <><Spinner />Saving...</> : 'Mark as published'}
               </button>
             )}
           </div>
@@ -990,7 +991,7 @@ function WeeklyBlogSection({ initialData, frektoConnected = false, onAddToSite, 
                       onClick={() => markPublished(latestBlog.id)}
                       disabled={markingId === latestBlog.id}
                     >
-                      {markingId === latestBlog.id ? 'Saving...' : 'Mark as published'}
+                      {markingId === latestBlog.id ? <><Spinner />Saving...</> : 'Mark as published'}
                     </button>
                   )}
                   {latestBlog.status === 'published' && (
@@ -1042,7 +1043,7 @@ function AllGoodState({ cachedAt, onRefresh, refreshing }: { cachedAt: string; o
       <p className="td-allgood-headline">All signals clear</p>
       <p className="td-allgood-sub">No action needed today.{time ? ` Checked at ${time}.` : ''}</p>
       <button className="td-ghost-btn" onClick={onRefresh} disabled={refreshing}>
-        {refreshing ? 'Checking...' : 'Refresh'}
+        {refreshing ? <><Spinner />Checking...</> : 'Refresh'}
       </button>
     </div>
   )
@@ -1200,7 +1201,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
             {ready && !allGood && cards.length > 0
               ? `${cards.length} thing${cards.length === 1 ? ' needs' : 's need'} your attention`
               : ready && allGood ? 'You\'re all caught up'
-              : 'Checking your signals...'}
+              : <><Spinner size={12} />Checking your signals…</>}
           </div>
         </div>
         <div className="td-hero-right">
@@ -1302,7 +1303,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
                           onClick={runOutreachAnalysis}
                           disabled={analyzing}
                         >
-                          {analyzing ? 'Finding prospects…' : 'Find prospects now'}
+                          {analyzing ? <><Spinner />Finding prospects…</> : 'Find prospects now'}
                         </button>
                       </div>
                     ) : (
@@ -1348,7 +1349,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
             <SocialFeed posts={recentPosts} />
 
             <button className="td-recheck" onClick={fetchSignals} disabled={refreshing}>
-              {refreshing ? 'Refreshing...' : `Last updated ${cachedAt ? new Date(cachedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'} · Refresh`}
+              {refreshing ? <><Spinner />Refreshing...</> : `Last updated ${cachedAt ? new Date(cachedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'} · Refresh`}
             </button>
           </>
         )}

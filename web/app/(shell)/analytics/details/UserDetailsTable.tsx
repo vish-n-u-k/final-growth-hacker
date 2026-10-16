@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import PersonPanel from '@/components/PersonPanel'
 import { normalizeSource } from '@/lib/posthog/source'
+import { LoadingState, Spinner } from '@/components/ui/spinner'
 
 // "View details" for an Analytics card: the full user table (restored from the earlier analytics
 // page). Data: /api/analytics/users. Column headers with ▼ can be mapped to any PostHog property,
@@ -184,7 +185,7 @@ export default function UserDetailsTable({ brandId, type, range: initialRange, s
         <Link href="/analytics" className="ud-back" aria-label="Back to Analytics">←</Link>
         <div>
           <h1 className="ud-title">{TITLE[type]}</h1>
-          <p className="ud-count">{loading ? 'Loading…' : `${users.length}${users.length === 100 ? '+' : ''} result${users.length === 1 ? '' : 's'}`}</p>
+          <p className="ud-count">{loading ? <><Spinner />Loading…</> : `${users.length}${users.length === 100 ? '+' : ''} result${users.length === 1 ? '' : 's'}`}</p>
         </div>
       </div>
 
@@ -202,7 +203,7 @@ export default function UserDetailsTable({ brandId, type, range: initialRange, s
 
       <div className="ud-card">
         {loading ? (
-          <p className="ud-empty">Loading users…</p>
+          <LoadingState>Loading users…</LoadingState>
         ) : users.length === 0 ? (
           <p className="ud-empty">No users in this time range.</p>
         ) : (

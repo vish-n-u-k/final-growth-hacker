@@ -6,6 +6,7 @@ import { useSmartBack } from '@/lib/useSmartBack'
 import ThemeToggle from '@/components/ThemeToggle'
 import { connectUrl } from '@/lib/integrations/connect-url'
 import { REMINDER_CATEGORIES, type ReminderCategory, type ReminderPreset } from '@/lib/reminders/presets'
+import { Spinner } from '@/components/ui/spinner'
 
 interface Reminder {
   id: string
@@ -363,7 +364,7 @@ export default function RemindersPage({
               onClick={() => draftFollowup(r.id)}
               disabled={draft?.loading || draft?.sending || isDoing}
             >
-              {draft?.loading ? 'Drafting…' : 'Draft Follow-Up'}
+              {draft?.loading ? <><Spinner />Drafting…</> : 'Draft Follow-Up'}
             </button>
             <button
               className="rm-btn-got-reply"
@@ -378,7 +379,7 @@ export default function RemindersPage({
           {draft?.open && (
             <div className="rm-compose">
               {draft.loading && (
-                <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>Generating draft…</span>
+                <span style={{ fontSize: 13, color: 'var(--text-faint)' }}><Spinner />Generating draft…</span>
               )}
               {!draft.loading && (
                 <>
@@ -430,7 +431,7 @@ export default function RemindersPage({
                       onClick={() => sendFollowup(r.id)}
                       disabled={draft.sending || !draft.to.trim() || !draft.body.trim()}
                     >
-                      {draft.sending ? 'Sending…' : 'Send'}
+                      {draft.sending ? <><Spinner />Sending…</> : 'Send'}
                     </button>
                     <button
                       className="rm-btn-ghost"

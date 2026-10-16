@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { ArrowLeft, RefreshCw, Info } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 
 type Period = '7d' | '30d' | '90d'
 const PERIODS: { key: Period; label: string; desc: string }[] = [
@@ -152,10 +153,12 @@ export default function TrafficDashboard({ brandId, brandName }: { brandId: stri
   const [err, setErr] = useState<string | null>(null)
   const [aiInsights, setAiInsights] = useState<AiInsights | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
+  const [aiFailed, setAiFailed] = useState(false)
   const [sortPageBy, setSortPageBy] = useState<'views' | 'users' | 'time'>('views')
 
   const fetchAi = useCallback(async (d: InsightsData) => {
     setAiLoading(true)
+    setAiFailed(false)
     setAiInsights(null)
     try {
       const topChannels = d.channels.slice(0, 3).map(c => ({ channel: c.channel, sessions: c.sessions, pct: c.pct, conversions: c.conversions }))
@@ -180,7 +183,8 @@ export default function TrafficDashboard({ brandId, brandName }: { brandId: stri
         body: JSON.stringify({ brandId, period, summary }),
       })
       if (res.ok) setAiInsights(await res.json() as AiInsights)
-    } catch { /* AI is non-blocking */ } finally {
+      else setAiFailed(true)
+    } catch { setAiFailed(true) /* AI is non-blocking */ } finally {
       setAiLoading(false)
     }
   }, [brandId, period])
@@ -315,7 +319,9 @@ export default function TrafficDashboard({ brandId, brandName }: { brandId: stri
             </div>
           )}
           {!aiLoading && !aiInsights && (
-            <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>Generating insights...</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
+              {aiFailed ? 'Couldn\'t generate insights right now. Try another period or refresh.' : <><Spinner />Generating insights…</>}
+            </div>
           )}
           {aiInsights && (
             <>

@@ -14,6 +14,7 @@ import {
   AlertTriangle, Check,
 } from 'lucide-react'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import { LoadingState, Spinner } from '@/components/ui/spinner'
 
 /* ── Types ────────────────────────────────────────────── */
 export interface ModuleHealth {
@@ -424,7 +425,7 @@ function RetentionCurve({ data, loading, onViewDetails }: { data: { day: string;
           </div>
           <p style={{ fontSize: 13.5, color: MOCK.muted, marginTop: 3 }}>
             Share of signed-up users still active N days after signup.
-            {loading && <span style={{ color: MOCK.muted2, marginLeft: 6 }}>Loading…</span>}
+            {loading && <span style={{ color: MOCK.muted2, marginLeft: 6 }}><Spinner size={11} />Loading…</span>}
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
@@ -475,7 +476,7 @@ function FunnelCard({ data, loading, onViewDetails }: { data: { stage: string; v
           </div>
           <p style={{ fontSize: 13.5, color: MOCK.muted, marginTop: 3 }}>
             Where users fall off between arriving and paying.
-            {loading && <span style={{ color: MOCK.muted2, marginLeft: 6 }}>Loading…</span>}
+            {loading && <span style={{ color: MOCK.muted2, marginLeft: 6 }}><Spinner size={11} />Loading…</span>}
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
@@ -534,7 +535,7 @@ function ActivationFunnelCard({ data, loading, onViewDetails }: { data: { stage:
           </div>
           <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 3 }}>
             Signup → brand setup → first post → social → publish · last 90 days
-            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
+            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}><Spinner size={11} />Loading…</span>}
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
@@ -596,7 +597,7 @@ function WauChart({ data, loading, onViewDetails }: { data: { week: string; user
           </h3>
           <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 3 }}>
             Unique identified users per day — last 30 days
-            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
+            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}><Spinner size={11} />Loading…</span>}
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
@@ -651,7 +652,7 @@ function PmfCard({ data, loading, onViewDetails }: { data: { event: string; labe
           </h3>
           <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 3 }}>
             Avg events per user — retained vs churned · last 90 days
-            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
+            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}><Spinner size={11} />Loading…</span>}
           </p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, flexShrink: 0 }}>
@@ -858,7 +859,7 @@ function DetailView({
           </h1>
           {(type === 'signups' || type === 'signins' || type === 'dau' || type === 'deleted' || type === 'custom') && (
             <p style={{ fontSize: 13.5, fontWeight: 600, color: MOCK.green, marginTop: 4 }}>
-              {loading ? 'Loading...' : `${users.length} result${users.length === 1 ? '' : 's'}`}
+              {loading ? <><Spinner />Loading...</> : `${users.length} result${users.length === 1 ? '' : 's'}`}
             </p>
           )}
         </div>
@@ -996,7 +997,7 @@ function DetailView({
 
           <div style={{ background: MOCK.card, border: `1px solid ${MOCK.border}`, boxShadow: MOCK.shadow, borderRadius: 14, overflow: 'hidden' }}>
             {loading ? (
-              <div style={{ padding: '40px 24px', textAlign: 'center', color: MOCK.muted2, fontSize: 14 }}>Loading users…</div>
+              <LoadingState>Loading users…</LoadingState>
             ) : users.length === 0 ? (
               <div style={{ padding: '40px 24px', textAlign: 'center', color: MOCK.muted2, fontSize: 14 }}>No users found for this time range</div>
             ) : isMobile ? (
@@ -1838,7 +1839,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               />
               <div style={{ maxHeight: 200, overflowY: 'auto', border: `1px solid ${MOCK.border}`, borderTop: 'none', borderRadius: '0 0 10px 10px' }}>
                 {eventsLoading ? (
-                  <div style={{ padding: '14px 16px', color: MOCK.muted, fontSize: 13 }}>Loading events from PostHog...</div>
+                  <LoadingState compact>Loading events from PostHog…</LoadingState>
                 ) : phEvents.filter(e => !eventSearch || e.event.toLowerCase().includes(eventSearch.toLowerCase())).length === 0 ? (
                   <div style={{ padding: '14px 16px', color: MOCK.muted, fontSize: 13 }}>No events found</div>
                 ) : (
@@ -1927,7 +1928,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 fontSize: 14, fontWeight: 700, opacity: savingMetric ? 0.7 : 1,
               }}
             >
-              {savingMetric ? 'Saving...' : editingCustomId ? 'Save changes' : 'Add metric'}
+              {savingMetric ? <><Spinner />Saving...</> : editingCustomId ? 'Save changes' : 'Add metric'}
             </button>
           </div>
         </div>
@@ -1995,7 +1996,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 fontSize: 14, fontWeight: 700, opacity: savingBuiltinEdit ? 0.7 : 1,
               }}
             >
-              {savingBuiltinEdit ? 'Saving...' : 'Save changes'}
+              {savingBuiltinEdit ? <><Spinner />Saving...</> : 'Save changes'}
             </button>
           </div>
         </div>

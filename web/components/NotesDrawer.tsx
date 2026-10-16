@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Spinner } from '@/components/ui/spinner'
 
 interface Note {
   id: string
@@ -230,7 +231,7 @@ export default function NotesDrawer({ open, onClose }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>Notes</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {saving && <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>Saving…</span>}
+            {saving && <span style={{ fontSize: 11, color: 'var(--text-faint)' }}><Spinner size={10} />Saving…</span>}
             <button style={S.iconBtn()} onClick={onClose} title="Close">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
@@ -409,7 +410,7 @@ export default function NotesDrawer({ open, onClose }: Props) {
                 disabled={saving || (!draft.title && !draft.content)}
                 style={{ flex: 1, padding: '7px 16px', background: saving || (!draft.title && !draft.content) ? 'rgba(47,191,113,0.3)' : 'var(--green)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 12.5, fontWeight: 600, cursor: saving || (!draft.title && !draft.content) ? 'not-allowed' : 'pointer' }}
               >
-                {saving ? 'Saving…' : 'Save'}
+                {saving ? <><Spinner />Saving…</> : 'Save'}
               </button>
               {selected && (
                 <button

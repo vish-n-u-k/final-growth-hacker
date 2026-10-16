@@ -15,6 +15,7 @@ import DailySummaryCard from './daily/DailySummaryCard'
 import ProjectedMrr from '@/components/ProjectedMrr'
 import type { MrrSettings } from '@/lib/mrr-shared'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import { LoadingState, Spinner } from '@/components/ui/spinner'
 
 /* ── Types ────────────────────────────────────────────── */
 export interface ModuleHealth {
@@ -237,7 +238,7 @@ function StatCard({
         : broken
           ? <span style={{ fontSize: 13, color: 'var(--crit)' }}>{source} isn&apos;t working</span>
         : loading
-          ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}>loading…</span>
+          ? <span style={{ fontSize: 13, color: 'var(--text-faint)' }}><Spinner size={11} />Loading…</span>
           : (
             <div className="an-stat-foot">
               <Delta value={deltaValue} invertGood={invertGood} period={period} />
@@ -259,7 +260,7 @@ function RetentionCurve({ data, loading }: { data: { day: string; rate: number }
           </h3>
           <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 3 }}>
             Share of signed-up users still active N days after signup.
-            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
+            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}><Spinner size={11} />Loading…</span>}
           </p>
         </div>
         <SourcePill>PostHog</SourcePill>
@@ -300,7 +301,7 @@ function FunnelCard({ data, loading }: { data: { stage: string; value: number }[
           </h3>
           <p style={{ fontSize: 13, color: 'var(--text-dim)', marginTop: 3 }}>
             Where users fall off between arriving and paying.
-            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}>Loading…</span>}
+            {loading && <span style={{ color: 'var(--text-faint)', marginLeft: 6 }}><Spinner size={11} />Loading…</span>}
           </p>
         </div>
         <SourcePill>PostHog</SourcePill>
@@ -589,7 +590,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               <div className="an-sources">
                 <span>{brand.name}</span>
                 {health === null
-                  ? <span className="an-src an-src--checking">Checking connections…</span>
+                  ? <span className="an-src an-src--checking"><Spinner size={10} />Checking connections…</span>
                   : health.length === 0
                     ? <span className="an-src">No integrations connected</span>
                     : health.map(h => (
@@ -1242,7 +1243,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                   <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Check your service account key in Settings → Integrations</p>
                 </>
               ) : trafficLoading ? (
-                <p style={{ fontSize: 13, color: 'var(--text-faint)' }}>Loading…</p>
+                <LoadingState compact>Loading…</LoadingState>
               ) : (
                 <>
                   <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Connect Google Analytics 4</p>
