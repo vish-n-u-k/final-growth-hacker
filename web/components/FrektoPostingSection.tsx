@@ -135,7 +135,7 @@ export default function FrektoPostingSection({
   return (
     <div style={{ padding: '20px 24px' }}>
       {/* Connected status */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
         <span style={{ fontSize: '13px', color: 'var(--text-dim)' }}>
           {brandName} · Frekto post generator
         </span>
@@ -144,7 +144,7 @@ export default function FrektoPostingSection({
             Connected
           </span>
         ) : (
-          <a href={connectUrl('frekto')} style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'var(--bg-soft)', border: '1px solid var(--line)', color: 'var(--text-dim)', textDecoration: 'none' }}>
+          <a href={connectUrl('frekto')} style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'var(--bg-soft)', border: '1px solid var(--line)', color: 'var(--text-dim)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
             Connect Frekto in Settings →
           </a>
         )}

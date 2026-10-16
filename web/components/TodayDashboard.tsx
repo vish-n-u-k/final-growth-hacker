@@ -1911,7 +1911,10 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           .td-card, .td-blog-card, .td-impact-card { padding: 18px 16px; }
           .td-connect-row { padding: 12px 14px; }
           .td-card-actions .td-cta-btn { flex: 1 1 100%; justify-content: center; }
-          .td-card-actions .td-ghost-btn { flex: 1 1 0; justify-content: center; padding: 9px 10px; }
+          /* two per row; a third takes the full row instead of squeezing all three */
+          .td-card-actions .td-ghost-btn { flex: 1 1 calc(50% - 4px); justify-content: center; padding: 9px 10px; white-space: nowrap; }
+          .td-analytics-bar { flex-wrap: wrap; row-gap: 2px; border-radius: 14px; }
+          .td-analytics-bar > * { white-space: nowrap; }
         }
       `}</style>
       {handoff.modal}

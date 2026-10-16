@@ -558,9 +558,10 @@ export default function SocialStudioPage({
 
   const postRow = (p: ScheduledPost, compact = false) => (
     <div key={p.id} style={{ padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--line)', background: 'var(--bg)' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+      {/* On a phone the actions wrap under the post instead of squeezing its text */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flexWrap: 'wrap' }}>
         <Preview post={p} size={compact ? 44 : 56} onOpen={p.outputUrl ? () => setOpenPost(p) : undefined} />
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: '1 1 120px', minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 3 }}>
             <PlatformPill platform={p.platform} />
             <StatusPill post={p} now={now} />
@@ -579,14 +580,14 @@ export default function SocialStudioPage({
           {p.status === 'failed' && p.error && <div style={{ fontSize: '11px', color: '#dc2626', marginTop: 2 }}>{p.error}</div>}
         </div>
         {!compact && p.status === 'scheduled' && reschedulingId !== p.id && (
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 'auto' }}>
             {p.canManage ? (
               <>
                 <button style={ghostBtn} disabled={busyPost === p.id} onClick={() => { setReschedulingId(p.id); setPostError(null) }}>Reschedule</button>
                 <button style={ghostBtn} disabled={busyPost === p.id} onClick={() => cancelPost(p)}>{busyPost === p.id ? '…' : 'Cancel'}</button>
               </>
             ) : (
-              <a href="https://app.frekto.ai" target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text-faint)' }}>Manage in Frekto ↗</a>
+              <a href="https://app.frekto.ai" target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text-faint)', whiteSpace: 'nowrap' }}>Manage in Frekto ↗</a>
             )}
           </div>
         )}

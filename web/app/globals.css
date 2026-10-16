@@ -5843,6 +5843,13 @@ html.light .bp-audit-action { border-color: #e2e2dd; border-left-color: var(--gr
   background: var(--card); border: 1px solid var(--line); border-radius: 16px;
   padding: 28px; width: 100%; max-width: 440px;
   box-shadow: 0 24px 64px rgba(0,0,0,.5);
+  max-height: calc(100dvh - 32px); overflow-y: auto; /* short phones: scroll inside instead of cutting off */
+}
+@media (max-width: 480px) {
+  .rm-overlay { padding: 16px; }
+  .rm-modal { padding: 22px 20px; }
+  .rm-field-row { flex-wrap: wrap; }
+  .rm-field-row > .rm-field { flex: 1 1 140px !important; width: auto !important; }
 }
 .rm-modal-hd {
   font-size: 17px; font-weight: 600; color: var(--text); margin-bottom: 20px;
@@ -7237,7 +7244,8 @@ html.light { --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft
 .gp-cat.is-selected, .gp-cat.is-selected:hover { border-color: var(--text); background: var(--bg-soft); }
 .gp-cat:disabled { opacity: .55; cursor: default; }
 .gp-cat-l1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.gp-cat-l1 b { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 15px; }
+.gp-cat-l1 b { flex: 1 1 0; min-width: 0; font-weight: 600; font-size: 15px; } /* long names wrap; chips and the arrow stay on the line */
+.gp-cat-l1 > :not(b) { flex-shrink: 0; }
 .gp-cat-chip { font-size: 12px; border-radius: 99px; padding: 2px 10px; background: var(--warn-soft); color: var(--warn); white-space: nowrap; }
 .gp-cat-count, .gp-cat-pct { font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
 .gp-cat-tick { color: var(--green); font-weight: 700; }
@@ -7407,6 +7415,8 @@ button.gp-users-chip, .gp-users-chip.is-live { height: auto; min-height: 38px; p
   .gp-detail .md-items .md-item { padding: 14px; gap: 12px; }
   .gp-detail .md-item-top { flex-direction: column; align-items: stretch; gap: 8px; }
   .gp-detail .md-item-top > div { justify-content: space-between; width: 100%; }
+  /* the expand button stays on the right even when there is no impact tag before it */
+  .gp-detail .md-item-top > div > :last-child { margin-left: auto; }
   .gp-detail .md-item .md-item-detail { display: -webkit-box; -webkit-line-clamp: 2; font-size: 13px; }
   .gp-detail .md-item .md-cb, .gp-detail .md-item .sm-expand-icon { position: relative; }
   .gp-detail .md-item .md-cb::after, .gp-detail .md-item .sm-expand-icon::after { content: ''; position: absolute; inset: -10px; }
