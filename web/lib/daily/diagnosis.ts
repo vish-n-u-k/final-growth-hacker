@@ -278,20 +278,23 @@ function socialPlay(m: DiagnosisMetrics, reason: string, priority: 1 | 2 | 3 = 2
   // Only when real accounts were checked — never claim "nothing posted" from GrowJin's own table
   if (!m.social.canSee) return null
   if (m.social.daysSinceLast !== null && m.social.daysSinceLast < SOCIAL_GAP_DAYS) return null
-  const cap = (a: string) => a[0].toUpperCase() + a.slice(1)
-  const accounts = m.social.accounts.map(cap).join(', ')
-  const unseen = m.social.unreadable.map(cap).join(', ')
-  const caveat = unseen ? ` GrowJin can't read ${unseen} yet, so if you posted there recently, mark this not relevant.` : ''
-  const platform = m.social.lastPlatform && m.social.lastPlatform !== 'growjin'
-    ? m.social.lastPlatform[0].toUpperCase() + m.social.lastPlatform.slice(1)
-    : null
+  const NAMES: Record<string, string> = { linkedin: 'LinkedIn', youtube: 'YouTube', twitter: 'X', tiktok: 'TikTok', instagram: 'Instagram', facebook: 'Facebook', pinterest: 'Pinterest' }
+  const cap = (a: string) => NAMES[a] ?? a[0].toUpperCase() + a.slice(1)
+  const list = (xs: string[], last = 'and') => xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} ${last} ${xs.at(-1)}`
+  const accounts = list(m.social.accounts.map(cap))
+  const seen = m.social.accounts.filter(a => !m.social.unreadable.includes(a)).map(cap)
+  const unseen = list(m.social.unreadable.map(cap), 'or')
+  const caveat = unseen ? ` (We can only see ${list(seen) || 'some of your accounts'}. If you've posted on ${unseen} since, choose "Not relevant".)` : ''
+  const platform = m.social.lastPlatform && m.social.lastPlatform !== 'growjin' ? cap(m.social.lastPlatform) : null
   return {
     signalKey: 'social-post',
     title: 'Post on social media today',
     detail: `${reason} ${m.social.daysSinceLast === null
       ? `No posts found on ${accounts || 'your connected accounts'}.`
       : `Your last post${platform ? ` on ${platform}` : ''} was ${m.social.daysSinceLast} days ago.`}${caveat}`,
-    action: `Draft one post about a customer problem you solve, with a link back to your site, and ${m.socialConnected ? 'schedule it through Frekto' : `post it${platform ? ` on ${platform}` : ''}`}.`,
+    action: m.socialConnected
+      ? 'Click "Create a post": pick an idea, check the preview, then post it now or schedule it.'
+      : `Write one post about a customer problem you solve, with a link back to your site, and post it${platform ? ` on ${platform}` : ''}.`,
     route: 'content',
     priority: unseen ? 1 : priority,
     cooldownDays: 2,

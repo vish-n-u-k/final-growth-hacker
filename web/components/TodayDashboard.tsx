@@ -265,7 +265,7 @@ const INLINE_TYPES: Set<string> = new Set(['outreach', 'social', 'blog'])
 
 // ── Action card ───────────────────────────────────────────────────────────────
 
-function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, onComplete, onClaude, claudeHint }: {
+function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, onComplete, onClaude, claudeHint, composer }: {
   card: ActionCard
   onClaude?: () => void
   claudeHint?: React.ReactNode
@@ -275,6 +275,8 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
   onToggleExpand: () => void
   onDone?: () => void
   onComplete?: (status: TaskStatus) => Promise<void>
+  // Shown inside the card in place of its text and buttons while expanded (e.g. "Create a post")
+  composer?: React.ReactNode
 }) {
   const [marking, setMarking] = useState(false)
   const [completing, setCompleting] = useState<TaskStatus | null>(null)
@@ -323,6 +325,7 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
         </div>
       )}
 
+      {expanded && composer ? composer : <>
       {action ? (
         <div className="td-card-why">
           <span className="td-why-label">What to do</span>
@@ -386,6 +389,7 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
           )}
         </div>
       )}
+      </>}
       {claudeHint}
     </div>
   )
@@ -1269,6 +1273,15 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
                   onComplete={card.data?.taskKind ? (status) => completeTask(card, status) : undefined}
                   onClaude={card.data?.route === 'code' && !INLINE_TYPES.has(card.type) ? () => handoff.start(taskHandoff(card, site)) : undefined}
                   claudeHint={handoff.hint(`task:${card.id}`)}
+                  composer={card.type === 'social' ? (
+                    <TodaySocialPost
+                      connected={frektoConnected}
+                      ideas={postIdeas}
+                      defaultPlatform={frektoDefaultPlatform}
+                      onPublished={() => publishedSocial(card)}
+                      onCancel={() => closeSocialPanel(card)}
+                    />
+                  ) : undefined}
                 />
                 {/* Inline outreach panel */}
                 {card.type === 'outreach' && expandedCard === card.id && (
@@ -1295,22 +1308,6 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
                     ) : (
                       <GmailOutreachProspects items={prospectItems} gmailConnected={gmailConnected} />
                     )}
-                  </div>
-                )}
-
-                {/* Inline social post panel: make → preview → post now / schedule */}
-                {card.type === 'social' && expandedCard === card.id && (
-                  <div className="td-inline-panel">
-                    <div className="td-inline-panel-header">
-                      <span className="td-inline-panel-title">Create a post</span>
-                      <button className="td-inline-panel-close" aria-label="Close" onClick={() => closeSocialPanel(card)}>×</button>
-                    </div>
-                    <TodaySocialPost
-                      connected={frektoConnected}
-                      ideas={postIdeas}
-                      defaultPlatform={frektoDefaultPlatform}
-                      onPublished={() => publishedSocial(card)}
-                    />
                   </div>
                 )}
 
@@ -1396,53 +1393,84 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         }
         .td-inline-panel-close:hover { color: var(--text); }
 
-        /* "Create a post" panel (TodaySocialPost) */
-        .tsp { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
-        .tsp-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-        .tsp-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); }
-        .tsp-row { display: flex; gap: 20px; flex-wrap: wrap; }
-        .tsp-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-        .tsp-chip {
-          display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
-          padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line);
-          background: var(--card); color: var(--text-dim); font-size: 12.5px; cursor: pointer; text-align: left;
+        /* "Create a post" steps inside the social card (TodaySocialPost) */
+        .tsp { display: flex; flex-direction: column; gap: 18px; margin-top: 4px; }
+        .tsp-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; flex-wrap: wrap; counter-reset: tsp; }
+        .tsp-steps li {
+          counter-increment: tsp; display: inline-flex; align-items: center; gap: 7px;
+          font-size: 12.5px; color: var(--text-faint); padding: 4px 10px 4px 4px; border-radius: 999px; background: var(--bg-soft);
         }
-        .tsp-chip:hover:not(:disabled) { border-color: var(--green); color: var(--text); }
+        .tsp-steps li::before {
+          content: counter(tsp); width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+          font-size: 11px; font-weight: 700; background: var(--line); color: var(--text-dim);
+        }
+        .tsp-steps li.is-on { color: var(--text); font-weight: 600; }
+        .tsp-steps li.is-on::before { background: var(--green); color: #fff; }
+        .tsp-steps li.is-done::before { content: '✓'; background: rgba(23,154,80,.15); color: var(--green); }
+        .tsp-q { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        .tsp-q legend { font-size: 14.5px; font-weight: 700; color: var(--text); margin-bottom: 8px; padding: 0; }
+        .tsp-q:disabled { opacity: .6; }
+        .tsp-opt {
+          display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 10px;
+          border: 1px solid var(--line); background: var(--card); cursor: pointer; font-size: 14px; color: var(--text);
+        }
+        .tsp-opt:hover { border-color: rgba(23,154,80,.5); }
+        .tsp-opt.is-on { border-color: var(--green); background: rgba(23,154,80,.06); }
+        .tsp-opt input { accent-color: var(--green); margin: 0; flex: none; }
+        .tsp-opt span { flex: 1; min-width: 0; line-height: 1.4; }
+        .tsp-opt em { font-style: normal; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-faint); flex: none; }
+        .tsp-skel { display: flex; flex-direction: column; gap: 8px; }
+        .tsp-skel i { height: 44px; border-radius: 10px; background: var(--bg-soft); animation: tsp-pulse 1.2s ease-in-out infinite; }
+        @keyframes tsp-pulse { 50% { opacity: .5; } }
+        .tsp-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .tsp-chips--small .tsp-chip { padding: 5px 11px; font-size: 12.5px; }
+        .tsp-chip {
+          display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 999px;
+          border: 1px solid var(--line); background: var(--card); color: var(--text-dim); font-size: 13px; cursor: pointer;
+        }
+        .tsp-chip:hover { border-color: var(--green); color: var(--text); }
         .tsp-chip.is-on { border-color: var(--green); background: rgba(23,154,80,.1); color: var(--green); font-weight: 600; }
-        .tsp-chip:disabled { opacity: .55; cursor: default; }
         .tsp-input {
-          width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px;
+          width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px;
           border: 1px solid var(--line); background: var(--card); color: var(--text);
-          font: inherit; font-size: 13.5px; line-height: 1.5; resize: vertical; outline: none;
+          font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; outline: none;
         }
         .tsp-input:focus { border-color: var(--green); }
-        .tsp-input--small { width: auto; padding: 5px 9px; font-size: 12.5px; }
+        .tsp-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
         .tsp-btn {
-          align-self: flex-start; display: inline-flex; align-items: center; gap: 8px;
-          padding: 10px 20px; border-radius: 9px; border: none; background: var(--green); color: #fff;
-          font-size: 13.5px; font-weight: 600; cursor: pointer; text-decoration: none;
+          display: inline-flex; align-items: center; gap: 8px; padding: 11px 22px; border-radius: 10px; border: none;
+          background: var(--green); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none;
         }
-        .tsp-btn:disabled { opacity: .7; cursor: default; }
-        .tsp-ghost {
-          padding: 10px 16px; border-radius: 9px; border: 1px solid var(--line); background: var(--card);
-          color: var(--text-dim); font-size: 13px; cursor: pointer;
-        }
-        .tsp-ghost:hover:not(:disabled) { color: var(--text); }
-        .tsp-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-        .tsp-muted { margin: -6px 0 0; font-size: 12.5px; color: var(--text-faint); line-height: 1.5; }
-        .tsp-error { margin: 0; font-size: 13px; color: #dc2626; }
-        .tsp-spin {
-          width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
-          animation: tsp-spin .8s linear infinite;
-        }
+        .tsp-btn:disabled { opacity: .6; cursor: default; }
+        .tsp-ghost { padding: 10px 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text-dim); font-size: 13.5px; cursor: pointer; }
+        .tsp-link { background: none; border: none; padding: 6px 2px; color: var(--text-dim); font-size: 13.5px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+        .tsp-link:hover { color: var(--text); }
+        .tsp-hint { font-size: 12.5px; color: var(--text-faint); margin: 0; }
+        .tsp-error { margin: 0; font-size: 13.5px; color: #dc2626; }
+        .tsp-progress { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-radius: 10px; background: var(--bg-soft); }
+        .tsp-progress b { font-size: 14px; color: var(--text); }
+        .tsp-progress p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-faint); }
+        .tsp-progress .tsp-spin { border-color: var(--line); border-top-color: var(--green); }
+        .tsp-spin { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; animation: tsp-spin .8s linear infinite; }
         @keyframes tsp-spin { to { transform: rotate(360deg); } }
+        .tsp-review { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+        @media (max-width: 760px) { .tsp-review { grid-template-columns: 1fr; } }
+        .tsp-review-side { display: flex; flex-direction: column; gap: 14px; }
+        .tsp-meta { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; font-weight: 600; color: var(--text-dim); }
+        .tsp-topic { margin: 0; font-size: 15px; color: var(--text); line-height: 1.45; }
+        .tsp-when { display: flex; gap: 8px; }
+        .tsp-when .tsp-input { width: auto; }
         .tsp-preview { border: 1px solid var(--line); border-radius: 12px; background: var(--bg-soft); padding: 12px; display: flex; justify-content: center; }
         .tsp-preview img, .tsp-preview video { max-width: 100%; max-height: 460px; border-radius: 8px; display: block; }
         .tsp-slides { display: flex; gap: 8px; overflow-x: auto; }
         .tsp-slides img { height: 320px; width: auto; flex: none; }
-        .tsp-done { display: flex; gap: 12px; align-items: flex-start; padding: 6px 0; font-size: 14px; color: var(--text); }
-        .tsp-done > span { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--green); color: #fff; display: grid; place-items: center; font-weight: 700; }
-        .tsp-done .tsp-muted { margin: 4px 0 0; }
+        .tsp-note { padding: 14px 16px; border-radius: 10px; background: var(--bg-soft); }
+        .tsp-note b { font-size: 14.5px; color: var(--text); }
+        .tsp-note p { margin: 4px 0 0; font-size: 13.5px; color: var(--text-dim); line-height: 1.5; }
+        .tsp-done { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: 10px; background: rgba(23,154,80,.07); }
+        .tsp-done > span { width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--green); color: #fff; display: grid; place-items: center; font-weight: 700; }
+        .tsp-done b { font-size: 14.5px; color: var(--text); }
+        .tsp-done p { margin: 3px 0 0; font-size: 13px; color: var(--text-dim); }
         .td-inline-analyze {
           padding: 32px 24px; display: flex; flex-direction: column; align-items: center; gap: 14px;
         }
