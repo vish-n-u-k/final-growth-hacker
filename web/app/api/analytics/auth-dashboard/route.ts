@@ -93,7 +93,9 @@ export async function GET(request: NextRequest) {
 
   // Return cached snapshot if available, not forced, and contains new fields
   const snap = brand.analyticsSnapshot as Record<string, unknown> | null
+  // Reused for an hour at most; connecting or changing an integration clears analyticsSnapshotAt
   const snapIsFresh = snap && snap['_v'] === 12 && 'proUsers' in snap
+    && !!brand.analyticsSnapshotAt && Date.now() - brand.analyticsSnapshotAt.getTime() < 60 * 60 * 1000
   if (!force && snapIsFresh && brand.analyticsSnapshotAt) {
     return NextResponse.json({
       ...snap,

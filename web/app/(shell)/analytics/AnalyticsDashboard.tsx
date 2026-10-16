@@ -188,6 +188,18 @@ function ComingSoonBadge() {
   )
 }
 
+// A source GrowJin can read once it's connected: links straight to that integration in Settings
+function NotConnectedBadge({ provider }: { provider: string }) {
+  return (
+    <a href={connectUrl(provider)} style={{
+      fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', textDecoration: 'none',
+      padding: '3px 9px', borderRadius: 99, color: 'var(--text-dim)', background: 'var(--bg-soft)', border: '1px solid var(--line)',
+    }}>
+      Not connected · Connect
+    </a>
+  )
+}
+
 function StatCard({
   icon: Icon, iconTone, label, value, source, deltaValue, invertGood, loading, comingSoon, period, onOpen, broken,
 }: {
@@ -539,6 +551,8 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   const funnelData    = data?.funnel    ?? null
   const gsc = data?.gsc
   const ga4 = data?.ga4
+  // First load: don't say Search Console / GA4 aren't connected before we know
+  const sourcesLoading = phLoading && !data
 
   // Build activity tiles — real PostHog data + Stripe (coming soon)
   const activityTiles: {
@@ -643,7 +657,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               <ArrowRight size={12} /> <span style={{ whiteSpace: 'nowrap' }}>Acquisition &amp; Journeys</span>
             </button>
             <button
-              onClick={() => { setPhLoading(true); fetch(`/api/analytics/auth-dashboard?brandId=${brand.id}`).then(r => r.json()).then((d: DashboardData) => setData(d)).finally(() => setPhLoading(false)) }}
+              onClick={() => { setPhLoading(true); fetch(`/api/analytics/auth-dashboard?brandId=${brand.id}&force=true`).then(r => r.json()).then((d: DashboardData) => setData(d)).finally(() => setPhLoading(false)) }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
                 padding: '7px 14px', borderRadius: 99, border: '1px solid var(--line)',
@@ -925,9 +939,9 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 Search Console
               </h2>
             </div>
-            {!gsc?.connected && <ComingSoonBadge />}
+            {!sourcesLoading && !gsc?.connected && <NotConnectedBadge provider="gsc_api" />}
           </div>
-          <div style={{ position: 'relative', opacity: gsc?.connected && !gsc?.error ? 1 : 0.55 }}>
+          <div style={{ position: 'relative', opacity: gsc?.connected && !gsc?.error && !sourcesLoading ? 1 : 0.55 }}>
             {/* KPI row */}
             <div className="an-g4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
               {[
@@ -992,9 +1006,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             </div>
 
             {/* Not connected / error overlay */}
-            {(!gsc?.connected || gsc?.error) && (
+            {(sourcesLoading || !gsc?.connected || gsc?.error) && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 14 }}>
                 <div style={{ textAlign: 'center', padding: '20px 28px', background: 'var(--card)', border: `1px solid ${gsc?.error ? '#f8717140' : 'var(--line)'}`, borderRadius: 14 }}>
+                  {sourcesLoading ? <LoadingState compact>Loading Search Console…</LoadingState> : <>
                   <Search size={22} style={{ color: gsc?.error ? '#f87171' : 'var(--text-faint)', marginBottom: 10 }} />
                   {gsc?.error ? (
                     <>
@@ -1004,9 +1019,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                   ) : (
                     <>
                       <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Connect Search Console</p>
-                      <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Go to Settings → Integrations → GSC API</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-dim)' }}><a href={connectUrl('gsc_api')} style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect it in Settings →</a></p>
                     </>
                   )}
+                  </>}
                 </div>
               </div>
             )}
@@ -1023,7 +1039,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               </h2>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {!ga4?.connected && <ComingSoonBadge />}
+              {!sourcesLoading && !ga4?.connected && <NotConnectedBadge provider="ga4_api" />}
               {ga4?.connected && (
                 <button
                   onClick={() => router.push('/analytics/traffic')}
@@ -1242,12 +1258,12 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                   <p style={{ fontSize: 14, fontWeight: 600, color: '#f87171', marginBottom: 4 }}>GA4 auth failed</p>
                   <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Check your service account key in Settings → Integrations</p>
                 </>
-              ) : trafficLoading ? (
-                <LoadingState compact>Loading…</LoadingState>
+              ) : trafficLoading || sourcesLoading ? (
+                <LoadingState compact>Loading Google Analytics…</LoadingState>
               ) : (
                 <>
                   <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Connect Google Analytics 4</p>
-                  <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>Go to Settings → Integrations → GA4 API</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-dim)' }}><a href={connectUrl('ga4_api')} style={{ color: 'var(--accent-foreground)', fontWeight: 600, textDecoration: 'none' }}>Connect it in Settings →</a></p>
                 </>
               )}
             </div>
