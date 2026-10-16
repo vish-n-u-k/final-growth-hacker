@@ -35,7 +35,7 @@ async function checkPosthog(apiKey: string, meta: Record<string, string>): Promi
   return events > 0 ? ['ok', `${events.toLocaleString()} events in the last 7 days.`] : ['no-data', 'Connected, but no events in the last 7 days. Is PostHog installed on your site and app?']
 }
 
-async function checkGa4(meta: Record<string, string>): Promise<[HealthStatus, string]> {
+export async function checkGa4(meta: Record<string, string>): Promise<[HealthStatus, string]> {
   if (!meta.client_email || !meta.private_key || !meta.property_id) return ['error', 'Service account email, key or property ID is missing.']
   const token = await getServiceToken(meta.client_email, meta.private_key, 'https://www.googleapis.com/auth/analytics.readonly')
   if (!token) return ['error', 'Google rejected the service account key.']

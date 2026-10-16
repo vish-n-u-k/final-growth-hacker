@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { invalidateToday } from '@/lib/daily/invalidate'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
@@ -49,6 +50,7 @@ async function upsertIntegration(
       connectedAt: new Date(),
     })
   }
+  await invalidateToday(brandId)
 }
 
 // ── Meta ──────────────────────────────────────────────────────────────────────

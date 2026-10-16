@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { invalidateToday } from '@/lib/daily/invalidate'
 
 export async function POST() {
   const supabase = await createClient()
@@ -45,6 +46,7 @@ export async function POST() {
         eq(brandIntegrations.provider, 'gmail'),
       )
     )
+  await invalidateToday(brand.id)
 
   return NextResponse.json({ ok: true })
 }

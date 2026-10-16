@@ -277,7 +277,7 @@ export async function getTodayTasks(
 // Cards for the in-app /today page. Plays the page can act on inline (outreach,
 // social post, blog) keep those card types so the existing inline panels open.
 // Plays fixed in Settings → the integration they need
-const PLAY_SETTINGS: Record<string, string> = { 'connect-ga4': 'ga4_api', 'fix-ga4-tracking': 'ga4_api' }
+const PLAY_SETTINGS: Record<string, string> = { 'connect-ga4': 'ga4_api', 'fix-ga4-tracking': 'ga4_api', 'fix-ga4-access': 'ga4_api' }
 
 export function tasksToCards(today: TodayTasks): ActionCard[] {
   return today.tasks.map((t, i): ActionCard => {

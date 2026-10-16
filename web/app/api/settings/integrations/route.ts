@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { INTEGRATION_MAP } from '@/lib/integrations/registry'
+import { invalidateToday } from '@/lib/daily/invalidate'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
@@ -78,6 +79,7 @@ export async function POST(request: NextRequest) {
         connectedAt: new Date(),
       },
     })
+  await invalidateToday(brand.id)
 
   return NextResponse.json({ ok: true })
 }
@@ -95,6 +97,7 @@ export async function DELETE(request: NextRequest) {
   await db
     .delete(brandIntegrations)
     .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.provider, provider)))
+  await invalidateToday(brand.id)
 
   return NextResponse.json({ ok: true })
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { brandIntegrations } from '@/lib/db/schema'
 import { storeAdminGmailTokens } from '@/lib/gmail/admin-token'
+import { invalidateToday } from '@/lib/daily/invalidate'
 
 export async function GET(req: NextRequest) {
   const origin      = req.nextUrl.origin
@@ -92,6 +93,7 @@ export async function GET(req: NextRequest) {
         lastUsedAt:     new Date(),
       },
     })
+  await invalidateToday(brandId)
 
   return NextResponse.redirect(`${origin}/gmail-hub?connected=1`)
 }

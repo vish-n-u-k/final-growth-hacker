@@ -18,6 +18,7 @@ import { getGscData } from '@/lib/mcp/tools/get_gsc_data'
 import { getPosthogSegments } from '@/lib/mcp/tools/get_posthog_segments'
 import { openSignal, clearSignals, getOpenSignals, saveSnapshot, type SignalInput } from '@/lib/signals'
 import { getActivity } from '@/lib/signals/activity'
+import { checkGa4 } from '@/lib/integrations/health'
 
 export type GrowthStage = 'awareness' | 'conversion' | 'retention' | 'growth' | 'unknown'
 
@@ -39,6 +40,8 @@ export interface DiagnosisMetrics {
     channels: { channel: string; sessions: number; pct: number }[]
     landingPages: { page: string; sessions: number; conversions: number }[]
   } | null
+  // Google Analytics is connected but GrowJin can't read it (bad key, no access, wrong property ID): the reason
+  gaProblem?: string | null
   search: { opportunities: { query: string; impressions: number; clicks: number; position: number }[] } | null
   // returnPct: % of users active 15–30 days ago who were active again in the last 14 days
   app: { newThisWeek: number | null; newLastWeek: number | null; growthPct: number | null; returnPct: number | null; returnBase: number | null; active30d: number | null } | null
@@ -108,7 +111,7 @@ async function posthogReturnRate(brandId: string): Promise<{ returnPct: number |
 export async function gatherMetrics(brandId: string): Promise<DiagnosisMetrics> {
   const [brandRows, integrations, mods, kwRows, ga, gsc, ph, ret] = await Promise.all([
     db.select({ websiteType: brands.websiteType, websiteUrl: brands.websiteUrl }).from(brands).where(eq(brands.id, brandId)).limit(1),
-    db.select({ provider: brandIntegrations.provider }).from(brandIntegrations)
+    db.select({ provider: brandIntegrations.provider, metadata: brandIntegrations.metadata }).from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brandId), eq(brandIntegrations.status, 'connected'))),
     db.select({ type: modules.type, score: modules.score, lastAnalyzedAt: modules.lastAnalyzedAt, status: modules.status })
       .from(modules).where(eq(modules.brandId, brandId)),
@@ -136,6 +139,14 @@ export async function gatherMetrics(brandId: string): Promise<DiagnosisMetrics> 
       channels: ga.channels.map((c) => ({ channel: c.channel, sessions: c.sessions, pct: c.pct })),
       landingPages: ga.landingPages.map((p) => ({ page: p.page, sessions: p.sessions, conversions: p.conversions })),
     }
+  }
+
+  // Connected but no usable numbers: ask Google why, so Today says "can't read it: <reason>", not "not connected"
+  let gaProblem: string | null = null
+  const gaInt = integrations.find((i) => i.provider === 'ga4_api')
+  if (gaInt && (!traffic || traffic.sessions30d === 0)) {
+    const [status, detail] = await checkGa4((gaInt.metadata as Record<string, string> | null) ?? {}).catch(() => ['error', 'Couldn\'t reach Google Analytics.'] as const)
+    if (status === 'error') { gaProblem = detail; traffic = null }
   }
 
   let search: DiagnosisMetrics['search'] = null
@@ -174,6 +185,7 @@ export async function gatherMetrics(brandId: string): Promise<DiagnosisMetrics> 
   return {
     websiteType: brandRows[0]?.websiteType ?? null,
     traffic,
+    gaProblem,
     search,
     app,
     blog: {
@@ -210,6 +222,7 @@ function isAppBrand(m: DiagnosisMetrics): boolean {
 export function findStage(m: DiagnosisMetrics): { stage: GrowthStage; summary: string } {
   const t = m.traffic
   if (!t) {
+    if (m.gaProblem) return { stage: 'unknown', summary: `Google Analytics is connected, but GrowJin can't read it, so traffic and conversions can't be measured yet. ${m.gaProblem}` }
     return { stage: 'unknown', summary: 'Google Analytics is not connected, so traffic and conversions can\'t be measured yet.' }
   }
 
@@ -314,6 +327,14 @@ export function buildPlays(stage: GrowthStage, m: DiagnosisMetrics): Play[] {
             detail: 'Google Analytics recorded zero visits in 30 days. Either the tracking tag is missing from the site or the connected GA4 property is the wrong one.',
             action: 'Check the GA4 tag (gtag.js or Google Tag Manager) loads on every page of the site, and that the property ID in GrowJin Settings → Integrations matches the property receiving data.',
             route: 'code',
+            priority: 3,
+          }
+        : m.gaProblem ? {
+            signalKey: 'fix-ga4-access',
+            title: 'Fix Google Analytics access',
+            detail: `Google Analytics is connected, but GrowJin can't read it: ${m.gaProblem}`,
+            action: 'Fix it in Google, then in GrowJin go to Settings → Integrations → Google Analytics Data API and press Test again.',
+            route: 'manual',
             priority: 3,
           }
         : {
