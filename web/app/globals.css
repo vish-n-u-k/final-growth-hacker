@@ -6993,7 +6993,9 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .ta { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
 .ta--connect { flex-direction: row; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
 .ta-wrap { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-.ta-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; }
+.ta-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; flex-wrap: wrap; }
+.ta-head .ta-toggle { margin-left: auto; }
+.ta-head-link { margin-left: 4px; }
 .ta-title { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); white-space: nowrap; }
 .ta-toggle { display: inline-flex; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
 .ta-toggle button { border: 0; background: none; font: inherit; font-size: 12px; font-weight: 600; color: var(--text-dim); padding: 4px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }

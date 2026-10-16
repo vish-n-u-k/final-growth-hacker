@@ -15,6 +15,8 @@ import type { PlatformStats } from '@/app/api/social/analytics/route'
 import type { DBItemFull } from '@/lib/modules/types'
 import { connectUrl } from '@/lib/integrations/connect-url'
 import { Spinner } from '@/components/ui/spinner'
+import Link from 'next/link'
+import { BarChart3 } from 'lucide-react'
 
 interface TrafficData {
   visits: number
@@ -181,7 +183,7 @@ function AnalyticsBar() {
   const top = channels[0]?.name
 
   return (
-    <div className="td-analytics-bar">
+    <Link href="/analytics" className="td-analytics-bar" title="Open analytics">
       <span className="td-analytics-label">Yesterday</span>
       <span className="td-analytics-num">{visits.toLocaleString()} visits</span>
       {delta !== null && (
@@ -190,7 +192,7 @@ function AnalyticsBar() {
         </span>
       )}
       {top && <span className="td-analytics-channel">via {top}</span>}
-    </div>
+    </Link>
   )
 }
 
@@ -1212,6 +1214,10 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
               <span className="td-streak-txt">day streak</span>
             </div>
           )}
+          <Link href="/analytics" className="td-analytics-link">
+            <BarChart3 size={15} aria-hidden="true" />
+            Analytics
+          </Link>
         </div>
       </div>
 
@@ -1515,6 +1521,15 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           background: var(--bg-soft); border: 1px solid var(--line);
           border-radius: 99px; padding: 6px 14px; font-size: 13px; color: var(--text-dim);
         }
+        a.td-analytics-bar { text-decoration: none; transition: border-color .15s; }
+        a.td-analytics-bar:hover { border-color: var(--green); }
+        .td-analytics-link {
+          display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 99px;
+          border: 1px solid var(--line); background: var(--card, var(--bg-soft)); color: var(--text);
+          font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap;
+          transition: border-color .15s, color .15s;
+        }
+        .td-analytics-link:hover { border-color: var(--green); color: var(--green); }
         .td-analytics-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); }
         .td-analytics-num { font-weight: 700; color: var(--text); }
         .td-analytics-delta { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 99px; }
