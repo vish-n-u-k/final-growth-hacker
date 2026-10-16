@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { brands, brandIntegrations, modules } from '@/lib/db/schema'
 import { and, eq, ne, isNotNull } from 'drizzle-orm'
 import { detectEmailDns, detectMetaAds, detectLaunchedCampaigns } from '@/lib/signals/detectors'
+import { detectSearchChanges } from '@/lib/signals/search-detectors'
 import { runDiagnosis } from '@/lib/daily/diagnosis'
 import { recordBrandHistory } from '@/lib/history'
 
@@ -63,6 +64,19 @@ export async function GET(req: NextRequest) {
     const accountId = (m.metadata as Record<string, string> | null)?.['ad_account_id'] ?? ''
     if (m.accessToken && accountId) jobs.push({ brandId: m.brandId, source: 'meta-ads', run: () => detectMetaAds(m.brandId, m.accessToken!, accountId) })
     if (m.accessToken) jobs.push({ brandId: m.brandId, source: 'meta-launches', run: () => detectLaunchedCampaigns(m.brandId, m.accessToken!) })
+  }
+
+  // Search Console: pages losing clicks, low CTR on page 1, queries falling off page 1
+  const gscInts = await db
+    .select({ brandId: brandIntegrations.brandId, metadata: brandIntegrations.metadata, websiteUrl: brands.websiteUrl })
+    .from(brandIntegrations)
+    .innerJoin(brands, eq(brands.id, brandIntegrations.brandId))
+    .where(and(eq(brandIntegrations.provider, 'gsc_api'), eq(brandIntegrations.status, 'connected')))
+  for (const g of gscInts) {
+    const meta = (g.metadata as Record<string, string> | null) ?? {}
+    if (g.websiteUrl && meta.client_email && meta.private_key) {
+      jobs.push({ brandId: g.brandId, source: 'search', run: () => detectSearchChanges(g.brandId, g.websiteUrl!, meta.client_email, meta.private_key) })
+    }
   }
 
   // Growth diagnosis (bottleneck + plays) for every brand with an analysed module.

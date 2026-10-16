@@ -4,21 +4,32 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSmartBack } from '@/lib/useSmartBack'
 import ThemeToggle from '@/components/ThemeToggle'
-import type { ReminderSuggestion } from '@/app/api/reminders/suggest/route'
-
-type ReminderCategory = 'marketplace' | 'app-store' | 'directory' | 'profile' | 'custom'
+import { connectUrl } from '@/lib/integrations/connect-url'
+import { REMINDER_CATEGORIES, type ReminderCategory, type ReminderPreset } from '@/lib/reminders/presets'
 
 interface Reminder {
   id: string
   title: string
   description: string | null
   category: string
+  url: string | null
   intervalDays: number
   lastDoneAt: string | null
   nextDueAt: string
   snoozedUntil: string | null
   enabled: boolean
   isPreset: boolean
+  createdAt: string | null
+}
+
+// An open signal: something changed in the brand's data (lib/signals)
+interface Change {
+  id: string
+  source: string
+  title: string
+  detail: string | null
+  action: string | null
+  priority: number
   createdAt: string | null
 }
 
@@ -49,10 +60,11 @@ const CAT_CLASS: Record<string, string> = {
   custom:      'rm-cat-custom',
 }
 
-const CATEGORIES: ReminderCategory[] = ['marketplace', 'app-store', 'directory', 'profile', 'custom']
+const CATEGORIES = REMINDER_CATEGORIES
 
+// Whole days until the date: due later today → 0, due an hour ago → -1 (overdue)
 function daysUntil(isoDate: string): number {
-  return Math.round((new Date(isoDate).getTime() - Date.now()) / 86400000)
+  return Math.floor((new Date(isoDate).getTime() - Date.now()) / 86400000)
 }
 
 function isSnoozed(r: Reminder): boolean {
@@ -61,40 +73,46 @@ function isSnoozed(r: Reminder): boolean {
 
 function groupReminders(list: Reminder[]) {
   const byDate = (a: Reminder, b: Reminder) => new Date(a.nextDueAt).getTime() - new Date(b.nextDueAt).getTime()
-  const active = list.filter(r => r.enabled && !isSnoozed(r))
+  const followups = list.filter(r => r.category === 'outreach')
+  const checks = list.filter(r => r.category !== 'outreach')
+  const active = checks.filter(r => r.enabled && !isSnoozed(r))
   return {
+    followups: followups.filter(r => r.enabled && !isSnoozed(r)).sort(byDate),
     overdue:  active.filter(r => daysUntil(r.nextDueAt) < 0).sort(byDate),
     thisWeek: active.filter(r => { const d = daysUntil(r.nextDueAt); return d >= 0 && d <= 7 }).sort(byDate),
     upcoming: active.filter(r => daysUntil(r.nextDueAt) > 7).sort(byDate),
     snoozed:  list.filter(r => r.enabled && isSnoozed(r)).sort(byDate),
-    disabled: list.filter(r => !r.enabled),
+    disabled: list.filter(r => !r.enabled && !(r.category === 'outreach')),
   }
 }
 
 export default function RemindersPage({
   initialReminders,
+  initialChanges,
+  commonChecks,
+  searchConnected,
   brandProfile,
 }: {
   initialReminders: Reminder[]
+  initialChanges: Change[]
+  commonChecks: ReminderPreset[]
+  searchConnected: boolean
   brandProfile: BrandProfile
 }) {
   const router = useRouter()
   const goBack = useSmartBack('/dashboard')
   const [reminders, setReminders] = useState<Reminder[]>(initialReminders)
+  const [changes, setChanges] = useState<Change[]>(initialChanges)
+  const [resolving, setResolving] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
   const [showAdd, setShowAdd] = useState(false)
-  const [addForm, setAddForm] = useState({ title: '', category: 'custom' as ReminderCategory, intervalDays: '30' })
+  const [addForm, setAddForm] = useState({ title: '', category: 'custom' as ReminderCategory, intervalDays: '30', url: '' })
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ title: '', description: '', intervalDays: '30' })
-
-  // AI suggestions state
-  const [suggestions, setSuggestions] = useState<ReminderSuggestion[]>([])
-  const [suggestLoading, setSuggestLoading] = useState(false)
-  const [suggestError, setSuggestError] = useState<string | null>(null)
-  const [addingIds, setAddingIds] = useState<Set<number>>(new Set())
-  const [addedIds, setAddedIds] = useState<Set<number>>(new Set())
+  const [editForm, setEditForm] = useState({ title: '', description: '', intervalDays: '30', url: '' })
+  const [addingCheck, setAddingCheck] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
 
   // Outreach follow-up compose state
   const [drafts, setDrafts] = useState<Record<string, DraftState>>({})
@@ -106,97 +124,119 @@ export default function RemindersPage({
     return () => document.removeEventListener('click', close)
   }, [openMenu])
 
-  // Suggestions run only when the user taps "Suggest" (each run is an AI call).
+  // Coming back from the daily email's "Mark done" confirm page
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const done = params.get('done')
+    if (!done) return
+    setToast(done === '1' ? { kind: 'ok', text: 'Reminder marked done.' } : { kind: 'error', text: 'That link has expired. Mark it done here instead.' })
+    params.delete('done')
+    const qs = params.toString()
+    window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''))
+  }, [])
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 5000)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  // Every write goes through here so a failed request is shown, not silently ignored
+  async function call(url: string, init: RequestInit, failText: string): Promise<boolean> {
+    try {
+      const res = await fetch(url, init)
+      if (res.ok) return true
+      const data = await res.json().catch(() => ({}))
+      setToast({ kind: 'error', text: data?.upgrade ? 'This needs GrowJin Pro.' : `${failText}${data?.error ? `: ${data.error}` : ''}` })
+    } catch {
+      setToast({ kind: 'error', text: `${failText}: check your connection.` })
+    }
+    return false
+  }
+
+  const json = (method: string, body: unknown): RequestInit => ({
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
 
   async function reload() {
-    const res = await fetch('/api/reminders')
-    if (res.ok) setReminders((await res.json()).reminders)
+    const res = await fetch('/api/reminders').catch(() => null)
+    if (res?.ok) setReminders((await res.json()).reminders)
   }
 
   async function markDone(id: string) {
     setDoneIds(s => new Set(s).add(id))
-    await fetch(`/api/reminders/${id}/done`, { method: 'POST' })
+    await call(`/api/reminders/${id}/done`, { method: 'POST' }, 'Could not mark it done')
     await reload()
     setDoneIds(s => { const n = new Set(s); n.delete(id); return n })
   }
 
   async function snooze(id: string) {
     setOpenMenu(null)
-    await fetch(`/api/reminders/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ snooze: true }) })
+    await call(`/api/reminders/${id}`, json('PATCH', { snooze: true }), 'Could not snooze')
     await reload()
   }
 
   async function toggleEnabled(id: string, enabled: boolean) {
     setOpenMenu(null)
-    await fetch(`/api/reminders/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) })
+    await call(`/api/reminders/${id}`, json('PATCH', { enabled }), enabled ? 'Could not enable' : 'Could not disable')
     await reload()
   }
 
   async function deleteReminder(id: string) {
     setOpenMenu(null)
     if (!confirm('Delete this reminder?')) return
-    await fetch(`/api/reminders/${id}`, { method: 'DELETE' })
+    await call(`/api/reminders/${id}`, { method: 'DELETE' }, 'Could not delete')
     await reload()
   }
 
   async function addReminder() {
     if (!addForm.title.trim()) return
     setLoading(true)
-    await fetch('/api/reminders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: addForm.title, category: addForm.category, intervalDays: parseInt(addForm.intervalDays, 10) }),
-    })
-    setAddForm({ title: '', category: 'custom', intervalDays: '30' })
-    setShowAdd(false)
+    const ok = await call('/api/reminders', json('POST', {
+      title: addForm.title,
+      category: addForm.category,
+      intervalDays: parseInt(addForm.intervalDays, 10),
+      url: addForm.url,
+    }), 'Could not add the reminder')
     setLoading(false)
+    if (!ok) return
+    setAddForm({ title: '', category: 'custom', intervalDays: '30', url: '' })
+    setShowAdd(false)
     await reload()
   }
 
+  async function addCommonCheck(p: ReminderPreset) {
+    setAddingCheck(p.title)
+    await call('/api/reminders', json('POST', { ...p, isPreset: true }), 'Could not add the check')
+    await reload()
+    setAddingCheck(null)
+  }
+
   async function saveEdit(id: string) {
-    await fetch(`/api/reminders/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: editForm.title, intervalDays: parseInt(editForm.intervalDays, 10) }),
-    })
+    const ok = await call(`/api/reminders/${id}`, json('PATCH', {
+      title: editForm.title,
+      intervalDays: parseInt(editForm.intervalDays, 10),
+      url: editForm.url,
+    }), 'Could not save')
+    if (!ok) return
     setEditId(null)
     await reload()
   }
 
-  async function reseed() {
-    setLoading(true)
-    await fetch('/api/reminders/seed', { method: 'POST' })
-    await reload()
-    setLoading(false)
+  function startEdit(r: Reminder) {
+    setEditId(r.id)
+    setEditForm({ title: r.title, description: r.description ?? '', intervalDays: String(r.intervalDays), url: r.url ?? '' })
+    setOpenMenu(null)
   }
 
-  async function fetchSuggestions() {
-    setSuggestLoading(true)
-    setSuggestError(null)
-    setSuggestions([])
-    setAddedIds(new Set())
-    try {
-      const res = await fetch('/api/reminders/suggest', { method: 'POST' })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data?.detail || data?.error || `HTTP ${res.status}`)
-      setSuggestions(data.suggestions ?? [])
-    } catch {
-      setSuggestError('Could not generate suggestions. Try again.')
-    } finally {
-      setSuggestLoading(false)
-    }
-  }
-
-  async function addSuggestion(s: ReminderSuggestion, idx: number) {
-    setAddingIds(prev => new Set(prev).add(idx))
-    await fetch('/api/reminders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: s.title, category: s.category, intervalDays: s.intervalDays }),
-    })
-    setAddingIds(prev => { const n = new Set(prev); n.delete(idx); return n })
-    setAddedIds(prev => new Set(prev).add(idx))
-    await reload()
+  // Signals are resolved like Today's alerts (same endpoint, same effect)
+  async function resolveChange(id: string, status: 'done' | 'dismissed') {
+    setResolving(s => new Set(s).add(id))
+    const ok = await call('/api/today/complete', json('POST', { kind: 'alert', id, status }), 'Could not update')
+    setResolving(s => { const n = new Set(s); n.delete(id); return n })
+    if (ok) setChanges(prev => prev.filter(c => c.id !== id))
   }
 
   function setDraft(id: string, patch: Partial<DraftState>) {
@@ -240,7 +280,8 @@ export default function RemindersPage({
 
   const groups = groupReminders(reminders)
   const totalActive = groups.overdue.length + groups.thisWeek.length + groups.upcoming.length
-  const showSuggestPanel = suggestLoading || suggestions.length > 0 || suggestError !== null
+  const existingTitles = new Set(reminders.map(r => r.title.toLowerCase()))
+  const availableChecks = commonChecks.filter(p => !existingTitles.has(p.title.toLowerCase()))
 
   // ── Card ──────────────────────────────────────────────────────────────────
 
@@ -259,6 +300,9 @@ export default function RemindersPage({
             <input type="number" min="1" className="rm-input rm-input-num" value={editForm.intervalDays} onChange={e => setEditForm(f => ({ ...f, intervalDays: e.target.value }))} />
             <span className="rm-edit-label">days</span>
           </div>
+          {r.category !== 'outreach' && (
+            <input className="rm-input" style={{ marginTop: 10 }} value={editForm.url} onChange={e => setEditForm(f => ({ ...f, url: e.target.value }))} placeholder="Link to the listing or profile (optional)" />
+          )}
           <div className="rm-edit-actions">
             <button className="rm-btn-primary" onClick={() => saveEdit(r.id)}>Save</button>
             <button className="rm-btn-ghost" onClick={() => setEditId(null)}>Cancel</button>
@@ -295,7 +339,7 @@ export default function RemindersPage({
                 <button className="rm-kebab" onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === r.id ? null : r.id) }}>&#8942;</button>
                 {openMenu === r.id && (
                   <div className="rm-menu" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => { setEditId(r.id); setEditForm({ title: r.title, description: r.description ?? '', intervalDays: String(r.intervalDays) }); setOpenMenu(null) }}>Edit</button>
+                    <button onClick={() => startEdit(r)}>Edit</button>
                     <button onClick={() => snooze(r.id)}>Snooze 7 days</button>
                     <button onClick={() => toggleEnabled(r.id, !r.enabled)}>{r.enabled ? 'Disable' : 'Enable'}</button>
                     <button className="rm-menu-delete" onClick={() => deleteReminder(r.id)}>Delete</button>
@@ -432,6 +476,9 @@ export default function RemindersPage({
           </button>
 
           <span className="rm-card-title">{r.title}</span>
+          {r.url && (
+            <a className="rm-card-link" href={r.url} target="_blank" rel="noopener noreferrer" title={r.url}>Open ↗</a>
+          )}
           <span className={`rm-cat-badge ${CAT_CLASS[r.category] ?? 'rm-cat-custom'}`}>{r.category}</span>
           <span className="rm-card-meta">{r.intervalDays}d</span>
 
@@ -448,7 +495,7 @@ export default function RemindersPage({
               <button className="rm-kebab" onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === r.id ? null : r.id) }}>&#8942;</button>
               {openMenu === r.id && (
                 <div className="rm-menu" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => { setEditId(r.id); setEditForm({ title: r.title, description: r.description ?? '', intervalDays: String(r.intervalDays) }); setOpenMenu(null) }}>Edit</button>
+                  <button onClick={() => startEdit(r)}>Edit</button>
                   <button onClick={() => snooze(r.id)}>Snooze 7 days</button>
                   <button onClick={() => toggleEnabled(r.id, !r.enabled)}>{r.enabled ? 'Disable' : 'Enable'}</button>
                   <button className="rm-menu-delete" onClick={() => deleteReminder(r.id)}>Delete</button>
@@ -479,7 +526,34 @@ export default function RemindersPage({
     )
   }
 
+  // ── Change card (open signal) ─────────────────────────────────────────────
+
+  function ChangeCard({ c }: { c: Change }) {
+    const busy = resolving.has(c.id)
+    return (
+      <div className={`rm-change${c.priority >= 3 ? ' rm-change-critical' : ''}`}>
+        <div className="rm-change-hd">
+          <span className="rm-change-source">{c.source}</span>
+          {c.priority >= 3 && <span className="rm-change-flag">Important</span>}
+        </div>
+        <p className="rm-change-title">{c.title}</p>
+        {c.detail && <p className="rm-change-text"><span className="rm-change-label">Why now</span>{c.detail}</p>}
+        {c.action && <p className="rm-change-text"><span className="rm-change-label">What to do</span>{c.action}</p>}
+        <div className="rm-change-actions">
+          <button className="rm-btn-primary rm-btn-sm" onClick={() => resolveChange(c.id, 'done')} disabled={busy}>
+            {busy ? '…' : 'Done'}
+          </button>
+          <button className="rm-btn-ghost rm-btn-sm" onClick={() => resolveChange(c.id, 'dismissed')} disabled={busy}>
+            Not relevant
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
+
+  const nothingYet = reminders.length === 0 && changes.length === 0
 
   return (
     <>
@@ -513,124 +587,95 @@ export default function RemindersPage({
               <h1 className="st-page-title">Reminders</h1>
               <p className="st-page-sub">
                 {brandProfile.name}
-                {brandProfile.industry ? ` · ${brandProfile.industry}` : ''}
-                {brandProfile.websiteType ? ` · ${brandProfile.websiteType}` : ''}
-                {totalActive > 0 ? ` · ${totalActive} active` : ''}
+                {changes.length > 0 ? ` · ${changes.length} change${changes.length !== 1 ? 's' : ''} to act on` : ''}
+                {groups.followups.length > 0 ? ` · ${groups.followups.length} follow-up${groups.followups.length !== 1 ? 's' : ''}` : ''}
+                {totalActive > 0 ? ` · ${totalActive} recurring` : ''}
               </p>
             </div>
           </div>
           <div className="rm-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6 }}>
-            <button className="rm-btn-ghost" onClick={reseed} disabled={loading}>Reset presets</button>
-            <button
-              className="rm-btn-suggest"
-              onClick={() => { sessionStorage.removeItem('reminders_suggested'); fetchSuggestions() }}
-              disabled={suggestLoading}
-            >
-              {suggestLoading
-                ? <><span className="rm-suggest-spinner" />Thinking…</>
-                : <>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    Suggest for {brandProfile.name}
-                  </>
-              }
-            </button>
-            <button className="rm-btn-primary" onClick={() => setShowAdd(true)}>+ Add</button>
+            <button className="rm-btn-primary" onClick={() => setShowAdd(true)}>+ Add check</button>
           </div>
         </div>
 
         <div style={{ paddingTop: 28, paddingBottom: 80 }}>
 
-          {/* AI Suggestions panel */}
-          {showSuggestPanel && (
-            <div className="rm-suggest-panel">
-              <div className="rm-suggest-panel-hd">
-                <div>
-                  <span className="rm-suggest-panel-title">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    AI suggestions for {brandProfile.name}
-                  </span>
-                  {brandProfile.industry && <span className="rm-suggest-panel-sub">{brandProfile.industry}{brandProfile.websiteType ? ` · ${brandProfile.websiteType}` : ''}</span>}
-                </div>
-                <button className="rm-modal-close" onClick={() => { setSuggestions([]); setSuggestError(null) }}>
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-                </button>
-              </div>
-
-              {suggestLoading && (
-                <div className="rm-suggest-loading">
-                  <span className="rm-suggest-spinner rm-suggest-spinner-lg" />
-                  <span>Analysing your brand profile…</span>
-                </div>
-              )}
-
-              {suggestError && (
-                <div className="rm-suggest-error">{suggestError}</div>
-              )}
-
-              {suggestions.length > 0 && (
-                <div className="rm-suggest-list">
-                  {suggestions.map((s, idx) => {
-                    const added = addedIds.has(idx)
-                    const adding = addingIds.has(idx)
-                    return (
-                      <div key={idx} className={`rm-suggest-card${added ? ' rm-suggest-card-added' : ''}`}>
-                        <span className="rm-suggest-card-title">{s.title}</span>
-                        <span className={`rm-cat-badge ${CAT_CLASS[s.category] ?? 'rm-cat-custom'}`}>{s.category}</span>
-                        <span className="rm-suggest-card-meta">{s.intervalDays}d</span>
-                        <div className="rm-suggest-actions">
-                          {added
-                            ? <span className="rm-suggest-yes rm-suggest-yes-done">Added</span>
-                            : <>
-                                <button
-                                  className="rm-suggest-yes"
-                                  onClick={() => !adding && addSuggestion(s, idx)}
-                                  disabled={adding}
-                                >
-                                  {adding ? '…' : 'Yes'}
-                                </button>
-                                <button
-                                  className="rm-suggest-no"
-                                  onClick={() => setSuggestions(prev => prev.filter((_, i) => i !== idx))}
-                                >
-                                  No
-                                </button>
-                              </>
-                          }
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+          {toast && (
+            <div className={`rm-toast rm-toast-${toast.kind}`} role="status">
+              {toast.text}
+              <button className="rm-toast-close" onClick={() => setToast(null)} aria-label="Close">×</button>
             </div>
           )}
 
-          {/* Empty state */}
-          {reminders.length === 0 && !showSuggestPanel && (
-            <div className="rm-empty-state">
-              <div className="rm-empty-icon">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                </svg>
+          {/* 1. What changed — raised from the brand's own data */}
+          <div className="rm-section">
+            <div className="rm-section-hd">
+              <span className="rm-section-dot" style={{ background: '#dc2626' }} />
+              What changed
+              {changes.length > 0 && <span className="rm-section-count">{changes.length}</span>}
+            </div>
+            <div className="rm-section-body">
+              {changes.map(c => <ChangeCard key={c.id} c={c} />)}
+              {changes.length === 0 && (
+                <div className="rm-note">
+                  {searchConnected
+                    ? 'Nothing needs attention. GrowJin checks your Google Search, email DNS and ads every night and adds a card here when something drops or breaks.'
+                    : <>Nothing yet. <a href={connectUrl('gsc_api')}>Connect Google Search Console</a> and GrowJin will tell you when a page loses Google clicks, ranks on page 1 but rarely gets clicked, or a search falls off the first page.</>}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 2. Follow-ups — outreach emails without a reply */}
+          {groups.followups.length > 0 && (
+            <div className="rm-section">
+              <div className="rm-section-hd">
+                <span className="rm-section-dot" style={{ background: 'var(--green)' }} />
+                Follow-ups
+                <span className="rm-section-count">{groups.followups.length}</span>
               </div>
-              <p className="rm-empty-title">No reminders yet</p>
-              <p className="rm-empty-sub">Let AI suggest personalized reminders based on your brand, or add your own.</p>
-              <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap', justifyContent: 'center' }}>
-                <button className="rm-btn-suggest" onClick={fetchSuggestions}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                  Suggest for {brandProfile.name}
-                </button>
-                <button className="rm-btn-ghost" onClick={reseed}>Use presets</button>
+              <div className="rm-section-body">
+                {groups.followups.map(r => <ReminderCard key={r.id} r={r} />)}
               </div>
             </div>
           )}
 
-          <Section title="Overdue" accent="#dc2626" items={groups.overdue} />
-          <Section title="Due this week" accent="#d97706" items={groups.thisWeek} />
-          <Section title="Upcoming" items={groups.upcoming} />
+          {/* 3. Recurring checks — chores the user chose */}
+          <Section title="Overdue checks" accent="#dc2626" items={groups.overdue} />
+          <Section title="Checks due this week" accent="#d97706" items={groups.thisWeek} />
+          <Section title="Upcoming checks" items={groups.upcoming} />
+
+          {availableChecks.length > 0 && (
+            <div className="rm-section">
+              <div className="rm-section-hd">
+                Common checks{brandProfile.websiteType ? ` for ${brandProfile.websiteType}` : ''}
+              </div>
+              <p className="rm-note-plain">Only add the ones for places you're actually listed. You can add the link to each listing so it's one click away.</p>
+              <div className="rm-chips">
+                {availableChecks.map(p => (
+                  <button
+                    key={p.title}
+                    className="rm-chip"
+                    onClick={() => addCommonCheck(p)}
+                    disabled={addingCheck !== null}
+                    title={`Every ${p.intervalDays} days`}
+                  >
+                    {addingCheck === p.title ? '…' : '+'} {p.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <Section title="Snoozed" items={groups.snoozed} />
           <Section title="Disabled" items={groups.disabled} />
+
+          {nothingYet && availableChecks.length === 0 && (
+            <div className="rm-empty-state">
+              <p className="rm-empty-title">No recurring checks</p>
+              <p className="rm-empty-sub">Add one for anything you need to keep up to date, like a marketplace listing or a directory profile.</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -639,7 +684,7 @@ export default function RemindersPage({
         <div className="rm-overlay" onClick={() => setShowAdd(false)}>
           <div className="rm-modal" onClick={e => e.stopPropagation()}>
             <div className="rm-modal-hd">
-              <span>New reminder</span>
+              <span>New recurring check</span>
               <button className="rm-modal-close" onClick={() => setShowAdd(false)}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
               </button>
@@ -647,6 +692,10 @@ export default function RemindersPage({
             <div className="rm-field">
               <label className="rm-label">Title</label>
               <input className="rm-input" value={addForm.title} onChange={e => setAddForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Update Etsy listings" autoFocus />
+            </div>
+            <div className="rm-field">
+              <label className="rm-label">Link (optional)</label>
+              <input className="rm-input" value={addForm.url} onChange={e => setAddForm(f => ({ ...f, url: e.target.value }))} placeholder="https://www.etsy.com/shop/yourshop" />
             </div>
             <div className="rm-field-row">
               <div className="rm-field" style={{ flex: 1 }}>
@@ -657,11 +706,11 @@ export default function RemindersPage({
               </div>
               <div className="rm-field" style={{ width: 120 }}>
                 <label className="rm-label">Every (days)</label>
-                <input type="number" min="1" className="rm-input" value={addForm.intervalDays} onChange={e => setAddForm(f => ({ ...f, intervalDays: e.target.value }))} />
+                <input type="number" min="1" max="365" className="rm-input" value={addForm.intervalDays} onChange={e => setAddForm(f => ({ ...f, intervalDays: e.target.value }))} />
               </div>
             </div>
             <div className="rm-modal-actions">
-              <button className="rm-btn-primary" onClick={addReminder} disabled={loading || !addForm.title.trim()}>Add reminder</button>
+              <button className="rm-btn-primary" onClick={addReminder} disabled={loading || !addForm.title.trim()}>Add check</button>
               <button className="rm-btn-ghost" onClick={() => setShowAdd(false)}>Cancel</button>
             </div>
           </div>

@@ -1,4 +1,5 @@
-export type ReminderCategory = 'marketplace' | 'app-store' | 'directory' | 'profile' | 'custom'
+export const REMINDER_CATEGORIES = ['marketplace', 'app-store', 'directory', 'profile', 'custom'] as const
+export type ReminderCategory = (typeof REMINDER_CATEGORIES)[number]
 
 export interface ReminderPreset {
   title: string

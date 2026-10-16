@@ -499,7 +499,8 @@ export const reminders = pgTable('reminders', {
   brandId:      uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
   title:        text('title').notNull(),
   description:  text('description'),
-  category:     text('category').notNull(), // 'marketplace'|'content'|'social'|'seo'|'outreach'|'ads'|'custom'
+  category:     text('category').notNull(), // 'marketplace'|'app-store'|'directory'|'profile'|'custom' | 'outreach' (Gmail follow-up)
+  url:          text('url'),                // where the check is done (listing / profile page) — SQL: drizzle/reminders.sql
   intervalDays: integer('interval_days').notNull().default(30),
   lastDoneAt:   timestamp('last_done_at', { withTimezone: true }),
   nextDueAt:    timestamp('next_due_at', { withTimezone: true }).notNull(),

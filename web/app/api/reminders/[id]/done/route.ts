@@ -2,13 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { reminders, brands } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
-
-async function getBrandId(userId: string): Promise<string | null> {
-  const rows = await db.select({ id: brands.id }).from(brands).where(eq(brands.userId, userId)).limit(1)
-  return rows[0]?.id ?? null
-}
+import { brands } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
+import { completeReminder } from '@/lib/reminders/complete'
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const proBlock = await requirePro()
@@ -17,27 +13,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const brandId = await getBrandId(user.id)
-  if (!brandId) return NextResponse.json({ error: 'Brand not found' }, { status: 404 })
+  const [brand] = await db.select({ id: brands.id }).from(brands).where(eq(brands.userId, user.id)).limit(1)
+  if (!brand) return NextResponse.json({ error: 'Brand not found' }, { status: 404 })
 
   const { id } = await params
-
-  const existing = await db.select().from(reminders)
-    .where(and(eq(reminders.id, id), eq(reminders.brandId, brandId)))
-    .limit(1)
-
-  if (!existing[0]) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  const now = new Date()
-  const nextDueAt = new Date(now.getTime() + existing[0].intervalDays * 24 * 3600 * 1000)
-
-  // Gmail follow-ups are one-off: close them instead of re-arming the interval
-  const isGmailFollowup = existing[0].description?.includes('gmailThreadId:') ?? false
-
-  const [row] = await db.update(reminders)
-    .set({ lastDoneAt: now, nextDueAt, snoozedUntil: null, ...(isGmailFollowup ? { enabled: false } : {}) })
-    .where(eq(reminders.id, id))
-    .returning()
-
+  const row = await completeReminder(brand.id, id)
+  if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   return NextResponse.json({ reminder: row })
 }

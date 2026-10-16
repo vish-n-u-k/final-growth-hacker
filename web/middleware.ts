@@ -51,7 +51,9 @@ async function handle(request: NextRequest) {
     pathname.startsWith('/.well-known/') ||
     pathname === '/oauth/authorize'
   const isCronEndpoint = pathname.startsWith('/api/cron/')
-  const isTrackedLink = pathname.startsWith('/api/r/') // signed email links, e.g. "Do it in Claude"
+  const isTrackedLink =
+    pathname.startsWith('/api/r/') || // signed email links, e.g. "Do it in Claude"
+    pathname === '/api/reminders/done' // signed "Mark done" link in the daily email
   const isStripeWebhook = pathname === '/api/billing/webhook' // authenticated by Stripe's signature
 
   if (!user && !isAuthPage && !isMcpEndpoint && !isOAuthPublic && !isCronEndpoint && !isTrackedLink && !isStripeWebhook) {
