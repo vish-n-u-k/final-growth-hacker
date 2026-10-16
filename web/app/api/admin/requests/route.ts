@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { analysisRequests, moduleItems, brands } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { getValidAdminGmailToken } from '@/lib/gmail/admin-token'
+import { appUrl } from '@/lib/app-url'
 
 function buildNotificationEmail(opts: {
   moduleName: string
@@ -33,7 +34,7 @@ function buildNotificationEmail(opts: {
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;margin-bottom:14px;">
       <tr>
         <td style="padding:0 4px;">
-          <img src="https://final-growth-hacker.vercel.app/favicon.svg" alt="" width="22" height="22" style="width:22px;height:22px;vertical-align:middle;margin-right:6px;" />
+          <img src="${appUrl('/favicon.svg')}" alt="" width="22" height="22" style="width:22px;height:22px;vertical-align:middle;margin-right:6px;" />
           <span style="font-size:18px;font-weight:700;color:#2fbf71;letter-spacing:-0.4px;vertical-align:middle;">GrowJin</span>
         </td>
       </tr>
@@ -112,7 +113,7 @@ function buildNotificationEmail(opts: {
       <tr>
         <td style="padding:18px 40px;background:#f7f9f7;border-top:1px solid #e0e8e3;text-align:center;">
           <p style="margin:0;font-size:12px;color:#8a9e90;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-            You received this email because you requested an analysis on <a href="https://final-growth-hacker.vercel.app" style="color:#2fbf71;text-decoration:none;">GrowJin</a>.
+            You received this email because you requested an analysis on <a href="${appUrl()}" style="color:#2fbf71;text-decoration:none;">GrowJin</a>.
           </p>
         </td>
       </tr>
@@ -179,7 +180,7 @@ export async function PATCH(req: NextRequest) {
     const verifiedWeight = items.filter(i => i.aiVerified).reduce((s, i) => s + i.weight, 0)
     const aiPct = totalWeight > 0 ? Math.round((verifiedWeight / totalWeight) * 100) : 0
 
-    const dashboardUrl = `https://final-growth-hacker.vercel.app/dashboard/${request.moduleId}`
+    const dashboardUrl = appUrl(`/dashboard/${request.moduleId}`)
     const bodyHtml = buildNotificationEmail({
       moduleName:      request.moduleName,
       brandName:       request.brandName,

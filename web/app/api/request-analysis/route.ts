@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { brands, analysisRequests } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { Resend } from 'resend'
+import { appUrl } from '@/lib/app-url'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -32,12 +33,13 @@ export async function POST(req: NextRequest) {
     status: 'pending',
   })
 
-  const moduleUrl = `https://final-growth-hacker.vercel.app/dashboard/${moduleId}`
+  const moduleUrl = appUrl(`/dashboard/${moduleId}`)
 
   // Fire email notification (non-fatal)
   try {
     await resend.emails.send({
-      from: 'GrowJin <onboarding@resend.dev>',
+      // Set RESEND_FROM (e.g. 'GrowJin <noreply@growjin.com>') once growjin.com is verified in Resend.
+      from: process.env.RESEND_FROM || 'GrowJin <onboarding@resend.dev>',
       to: 'vishnu@kuchnaya.com',
       subject: `Analysis Requested — ${brandName} / ${moduleName}`,
       text: [
@@ -47,7 +49,7 @@ export async function POST(req: NextRequest) {
         `Module: ${moduleName} (moduleId: ${moduleId})`,
         `Module URL: ${moduleUrl}`,
         ``,
-        `Admin queue: https://final-growth-hacker.vercel.app/admin`,
+        `Admin queue: ${appUrl('/admin')}`,
       ].join('\n'),
     })
   } catch (err) {

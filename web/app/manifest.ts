@@ -12,10 +12,14 @@ export default function manifest(): MetadataRoute.Manifest {
     display: 'standalone',
     background_color: '#f7f7f5',
     theme_color: '#f7f7f5',
+    // Open links to app.growjin.com (e.g. from emails) in the installed app instead of the browser,
+    // reusing the open app window rather than starting a new one.
+    handle_links: 'preferred',
+    launch_handler: { client_mode: ['navigate-existing', 'auto'] },
     icons: [
       { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
       { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
-  }
+  } as MetadataRoute.Manifest // cast: Next's type lacks handle_links
 }

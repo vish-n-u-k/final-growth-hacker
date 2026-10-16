@@ -7,7 +7,7 @@ import { eq, and } from 'drizzle-orm'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
-const UA = 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growthhacker.app)'
+const UA = 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growjin.com)'
 
 async function safeFetch(url: string, ms = 8000): Promise<{ text: string; status: number } | null> {
   try {

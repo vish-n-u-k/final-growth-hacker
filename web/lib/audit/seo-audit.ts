@@ -68,7 +68,7 @@ function f(key: string, level: SeoFindingLevel, text: string, fix?: string): Seo
   return out
 }
 
-const UA = 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growthhacker.app)'
+const UA = 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growjin.com)'
 
 // ── SSL check ─────────────────────────────────────────────────────────────────
 
