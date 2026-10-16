@@ -6,6 +6,8 @@
  *  2. BFS link crawl (fallback when sitemap returns < crawlFallbackThreshold URLs)
  */
 
+import { detectBlock, isFirewallRefusal } from '@/lib/audit/blocked'
+
 const UA = 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growthhacker.app)'
 
 export interface DiscoveredUrl {
@@ -92,8 +94,10 @@ export async function enrichUrlsWithMeta(
 async function fetchPage(url: string, timeoutMs: number): Promise<{ ok: boolean; status: number; redirected: boolean; html: string | null }> {
   try {
     const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(timeoutMs), redirect: 'follow' })
-    const html = res.ok ? await res.text() : null
-    return { ok: res.ok, status: res.status, redirected: res.redirected, html }
+    const html = await res.text().catch(() => '')
+    // A firewall page instead of the real one tells us nothing about the page: treat it as no answer
+    if (isFirewallRefusal(res.status, res.headers) || detectBlock(res.status, res.headers, html)) return { ok: false, status: 0, redirected: false, html: null }
+    return { ok: res.ok, status: res.status, redirected: res.redirected, html: res.ok ? html : null }
   } catch {
     return { ok: false, status: 0, redirected: false, html: null }
   }

@@ -3,6 +3,7 @@ import { SOCIAL_MEDIA_MODULE } from './definition'
 import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } from '../types'
 import { PLATFORM_NAME, type SocialMediaFetchResult, type SocialPlatformData, type SocialProvider } from './fetcher'
 import { domainWord } from '../geo/fetcher'
+import { blockedSkipText } from '@/lib/audit/blocked'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 
 // Social Media: the facts (website links, profile links, handles, posting and engagement from
@@ -42,6 +43,8 @@ export function buildSocialRuleResults(data: SocialMediaFetchResult): Result[] {
     out.push(r(W, 'links', 3, 'Your website links to your social profiles', true,
       `Your homepage links to **${names(linked.map(nm))}**.`, `Links to ${linked.length} social profile${linked.length > 1 ? 's' : ''}`,
       'Visitors can follow you, and search engines and AI can connect your site to your profiles.', ''))
+  } else if (data.homepageBlocked) {
+    out.push(skip(W, 'links', 'Your website links to your social profiles', blockedSkipText(data.homepageBlocked)))
   } else if (data.homepageIsJsShell) {
     out.push(skip(W, 'links', 'Your website links to your social profiles', SHELL_SKIP))
   } else if (!data.homepageLoaded) {
@@ -58,7 +61,9 @@ export function buildSocialRuleResults(data: SocialMediaFetchResult): Result[] {
   // Profiles you have (from setup, Settings or a connected account) that the website doesn't link
   const elsewhere = known.filter(p => p.source !== 'website')
   const missing = elsewhere.filter(p => !p.onWebsite)
-  if (data.homepageIsJsShell && linked.length === 0) {
+  if (data.homepageBlocked) {
+    out.push(skip(W, 'missing-links', 'Every profile you have is linked from your website', blockedSkipText(data.homepageBlocked)))
+  } else if (data.homepageIsJsShell && linked.length === 0) {
     out.push(skip(W, 'missing-links', 'Every profile you have is linked from your website', SHELL_SKIP))
   } else if (elsewhere.length === 0) {
     out.push(skip(W, 'missing-links', 'Every profile you have is linked from your website',

@@ -14,6 +14,7 @@ import { fetchPsiAccessibility } from '@/lib/psi'
 import { extractElements, extractScreenshot, type AuditElement, type PageScreenshot } from '@/lib/audit/elements'
 import { readPagePreview, type PagePreviewData } from '@/lib/audit/page-preview'
 import { isJsShell, JS_SHELL_SKIP } from '@/lib/audit/js-shell'
+import { detectBlock, blockedSkipText, type BlockInfo } from '@/lib/audit/blocked'
 import { connect as tlsConnect } from 'tls'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
@@ -54,6 +55,7 @@ export interface AuditResult {
   // Replaced by its saved size and time once lib/audit/screenshot.ts has stored it.
   screenshot?: PageScreenshot | { w: number; h: number; at: string } | null
   preview?: PagePreviewData // title, description and share tags, for the Google / share previews
+  blocked?: BlockInfo       // a firewall answered instead of the site; page checks are Not checked
 }
 
 export interface AuditError {
@@ -1003,8 +1005,15 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
   // A page whose HTML is an empty shell built by JavaScript: say so (AI crawlers and many bots see it
   // empty too) and don't fail the body checks we can't see; Google's scan below still fills in what
   // it finds on the rendered page.
-  const jsShell = isJsShell($)
-  sections[0].findings.unshift(jsShell
+  // A firewall answered instead of the site (e.g. Cloudflare's "Just a moment…"): nothing we read is
+  // the real page, so every check made from it is Not checked. Google's scan below still runs.
+  const block = detectBlock(status, headers, html)
+  if (block) {
+    const why = blockedSkipText(block)
+    for (const section of sections) section.findings = section.findings.map((fi) => f(fi.key, 'skip', why))
+  }
+  const jsShell = !block && isJsShell($)
+  sections[0].findings.unshift(block ? f('content-without-js', 'skip', blockedSkipText(block)) : jsShell
     ? f('content-without-js', 'bad', 'The page\'s HTML is nearly empty: its content is built by JavaScript in the browser. Google can usually still render it, but AI assistants (ChatGPT, Perplexity, Claude) and many crawlers only see the empty HTML.',
         'Pre-render or server-render the page (SSR / static generation, e.g. Next.js, Astro, or a prerendering service) so the content is in the HTML.')
     : f('content-without-js', 'good', 'The page\'s content is in its HTML, readable without running JavaScript.'))
@@ -1047,6 +1056,7 @@ export async function runAudit(url: string): Promise<AuditResult | AuditError> {
     action_count: actionCount,
     sections,
     screenshot: a11yData?.screenshot ?? null,
-    preview: readPagePreview($, finalUrl),
+    preview: block ? undefined : readPagePreview($, finalUrl),
+    ...(block ? { blocked: block } : {}),
   }
 }

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { isJsShell } from '@/lib/audit/js-shell'
+import { detectBlock, type BlockInfo } from '@/lib/audit/blocked'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,6 +52,7 @@ export interface SocialMediaFetchResult {
   targetAudience: string | null
   homepageLoaded: boolean
   homepageIsJsShell: boolean      // links are added by JavaScript, so we can't see them
+  homepageBlocked: BlockInfo | null // a firewall answered instead of the site
   socialLinksOnWebsite: { platform: SocialProvider; url: string }[]
   platforms: SocialPlatformData[]
 }
@@ -138,12 +140,14 @@ async function getJson(url: string, headers: Record<string, string> = {}): Promi
   return body
 }
 
-async function fetchText(url: string, timeoutMs = 10000): Promise<{ status: number | null; html: string }> {
+async function fetchText(url: string, timeoutMs = 10000): Promise<{ status: number | null; html: string; block: BlockInfo | null }> {
   try {
     const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(timeoutMs) })
-    return { status: res.status, html: res.ok ? await res.text() : '' }
+    const body = await res.text().catch(() => '')
+    const block = detectBlock(res.status, res.headers, body)
+    return { status: res.status, html: res.ok && !block ? body : '', block }
   } catch {
-    return { status: null, html: '' }
+    return { status: null, html: '', block: null }
   }
 }
 
@@ -374,7 +378,7 @@ export async function fetchSocialMediaData(requirements: Record<string, string>)
 
   // Homepage → profile links (header, footer, anywhere on the page)
   const pageUrl = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
-  const home = websiteUrl ? await fetchText(pageUrl, 12000) : { status: null, html: '' }
+  const home = websiteUrl ? await fetchText(pageUrl, 12000) : { status: null, html: '', block: null }
   const socialLinksOnWebsite = home.html ? profileLinksIn(home.html, pageUrl) : []
   const homepageIsJsShell = home.html ? isJsShell(cheerio.load(home.html)) : false
   const metricsBy = await connectedMetrics(by)
@@ -408,6 +412,7 @@ export async function fetchSocialMediaData(requirements: Record<string, string>)
     targetAudience: requirements['target_audience'] || null,
     homepageLoaded: !!home.html,
     homepageIsJsShell,
+    homepageBlocked: home.block,
     socialLinksOnWebsite,
     platforms,
   }
