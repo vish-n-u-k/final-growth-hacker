@@ -10,7 +10,6 @@ import { type ModuleDefinition, type ModuleCategoryDefinition, type ModuleItemDe
 import ExportPrepModal from '@/components/ExportPrepModal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
 import ComingSoon from '@/components/ComingSoon'
 import { type DBItemState } from './ModuleDashboard'
 import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/registry'
@@ -301,11 +300,51 @@ function InlineIntegrationForm({ intDef, onConnected }: { intDef: IntegrationDef
 }
 
 
-function SparkleIcon({ size = 12, style }: { size?: number; style?: React.CSSProperties }) {
+// A check's state, shown where the checkbox used to be. It's read-only on purpose: people read a
+// checkbox as "click to do this", but ticking only records a change they made on their own site.
+// Marking done lives in the expanded row, after the instructions ("Changed this on your site?").
+type ItemStatusKind = 'todo' | 'critical' | 'verified' | 'self' | 'skipped' | 'unchecked' | 'checking'
+
+const STATUS_LABEL: Record<ItemStatusKind, string> = {
+  todo: 'To fix', critical: 'To fix', verified: 'Verified', self: 'You did it',
+  skipped: 'Skipped', unchecked: 'Not checked', checking: 'Checking',
+}
+const STATUS_TITLE: Record<ItemStatusKind, string> = {
+  todo: 'Open the check to see what to change on your site',
+  critical: 'Open the check to see what to change on your site',
+  verified: 'Our scan found this on your site',
+  self: 'You marked this done. Our next scan will confirm it',
+  skipped: 'You skipped this check',
+  unchecked: 'We could not check this automatically',
+  checking: 'Checking your site',
+}
+
+function itemStatusKind(o: { aiV: boolean; userC: boolean; skipped: boolean; notChecked: boolean; verifying?: boolean; weight: number }): ItemStatusKind {
+  if (o.verifying) return 'checking'
+  if (o.aiV) return 'verified'
+  if (o.userC) return 'self'
+  if (o.skipped) return 'skipped'
+  if (o.notChecked) return 'unchecked'
+  return o.weight === 3 ? 'critical' : 'todo'
+}
+
+function ItemStatus({ kind }: { kind: ItemStatusKind }) {
+  const icon = {
+    todo: <><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5M12 16.2v.1" /></>,
+    critical: <><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5M12 16.2v.1" /></>,
+    verified: <><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z" /><path d="M9 12l2 2 4-4" /></>,
+    self: <><circle cx="12" cy="12" r="9" strokeDasharray="3 3" /><path d="M8.5 12.5l2.3 2.3 4.7-5" /></>,
+    skipped: <><circle cx="12" cy="12" r="9" /><path d="M6 18L18 6" /></>,
+    unchecked: <><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6M12 16.5v.1" /></>,
+    checking: null,
+  }[kind]
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
-      <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
-    </svg>
+    <span className={`md-status md-status-${kind}`} title={STATUS_TITLE[kind]}>
+      {kind === 'checking'
+        ? <span className="md-spin" style={{ width: '12px', height: '12px' }} />
+        : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{icon}</svg>}
+      <span className="md-status-lbl">{STATUS_LABEL[kind]}</span>
+    </span>
   )
 }
 
@@ -628,7 +667,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   }
 
   const toggleExpand = (modId: string, slug: string, e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('.md-cb')) return
     const key = `${modId}:${slug}`
     setExpandedItems(prev => prev.has(key) ? new Set() : new Set([key]))
   }
@@ -1543,6 +1581,18 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       i % 2 === 1 ? <strong key={i} className="sm-bold">{part}</strong> : part,
     )
 
+  // Marking done comes after the instructions and asks about the user's site, so it reads as
+  // "record what I did" rather than "do this for me".
+  const renderMarkDone = (onYes: (e: React.MouseEvent) => void) => (
+    <div className="md-confirm" onClick={(e) => e.stopPropagation()}>
+      <span className="md-confirm-q">Changed this on your site?</span>
+      <button type="button" className="sm-act-secondary md-confirm-yes" onClick={onYes}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        Yes, mark as done
+      </button>
+    </div>
+  )
+
   const renderDynamicItem = (modId: string, prUrl: string | null, item: DBItemFull) => {
     const aiV = item.aiVerified
     const userC = item.userChecked
@@ -1572,17 +1622,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             <svg viewBox="0 0 24 24" fill="none"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </span>
         ) : (
-        <span
-          className={`md-cb${aiV ? ' md-cb-ai' : userC ? ' md-cb-self' : ''}`}
-          onClick={(e) => !skipped && toggleItem(modId, true, item.id, item.slug, userC, e)}
-          style={{ cursor: skipped ? 'default' : 'pointer' }}
-        >
-          {(aiV || userC) && (
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M5 13l4 4L19 7" stroke={aiV ? '#06140c' : 'var(--lime)'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          )}
-        </span>
+        <ItemStatus kind={itemStatusKind({ aiV, userC, skipped, notChecked, weight: item.weight })} />
         )}
         <div className="md-item-body">
           <div className="md-item-top">
@@ -1590,13 +1630,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
               {skipped ? (
                 <>
-                  <span className="md-tag" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-faint)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>Skipped</span>
                   <button className="md-skip-unskip" onClick={(e) => { e.stopPropagation(); handleSkip(modId, true, item.id, item.slug, false, '') }}>Unskip</button>
                 </>
               ) : (
                 <>
                   {idea && <span className="md-tag md-tag-idea">Idea</span>}
-                  {notChecked && <span className="md-tag md-tag-unchecked">Not checked</span>}
                   {!done && !idea && !notChecked && item.weight === 3 && (
                     <span className="md-priority-icon md-priority-critical">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
@@ -1617,9 +1655,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       <span className="md-priority-label">Medium</span>
                     </span>
                   )}
-                  {aiV && <Badge className="md-tag md-tag-ai" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>AI <SparkleIcon size={11} style={{ color: '#178a4c' }} /></Badge>}
-                  {!aiV && userC && <Badge className="md-tag md-tag-self">Self</Badge>}
-                  {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
+                  {!aiV && userC && <button className="md-skip-unskip" onClick={(e) => toggleItem(modId, true, item.id, item.slug, true, e)}>Undo</button>}
+                  {hasDetail && (!done && !idea
+                    ? <span className="sm-expand-icon sm-expand-howto">{isExpanded ? 'Close' : 'How to fix'}</span>
+                    : <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>)}
                 </>
               )}
             </div>
@@ -1646,7 +1685,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <button className="md-skip-cancel" onClick={() => setSkipPrompting((prev) => { const n = new Set(prev); n.delete(itemKey); return n })}>Cancel</button>
                 </div>
               ) : (
-                <button className="md-skip-btn" onClick={() => setSkipPrompting((prev) => new Set(prev).add(itemKey))}>Not relevant — skip</button>
+                <>
+                  {renderMarkDone((e) => toggleItem(modId, true, item.id, item.slug, userC, e))}
+                  <button className="md-skip-btn" onClick={() => setSkipPrompting((prev) => new Set(prev).add(itemKey))}>Not relevant — skip</button>
+                </>
               )}
             </div>
           )}
@@ -1775,10 +1817,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       {exportingMap[modId] ? <><Spinner />Exporting…</> : 'Export'}
                     </button>
                   )}
-                  <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, true, item.id, item.slug, userC, e)}>Mark as done</button>
                 </div>
               )}
               {handoff.hint(itemKey)}
+              {!done && !idea && renderMarkDone((e) => toggleItem(modId, true, item.id, item.slug, userC, e))}
               {/* Skip section — at bottom of expanded body */}
               {!done && !idea && (
                 <div className="md-skip-section">
@@ -1842,19 +1884,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             <svg viewBox="0 0 24 24" fill="none"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.4 1 1.1 1 1.8V16h5v-.3c0-.7.4-1.4 1-1.8A6 6 0 0 0 12 3z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
           </span>
         ) : (
-        <span
-          className={`md-cb${aiV ? ' md-cb-ai' : userC ? ' md-cb-self' : ''}`}
-          onClick={(e) => !skipped && toggleItem(modId, false, s?.id ?? '', item.slug, userC, e)}
-          style={{ cursor: skipped ? 'default' : 'pointer' }}
-        >
-          {isVerifying ? (
-            <span className="md-spin" style={{ width: '10px', height: '10px' }} />
-          ) : (aiV || userC) ? (
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M5 13l4 4L19 7" stroke={aiV ? '#06140c' : 'var(--lime)'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          ) : null}
-        </span>
+        <ItemStatus kind={itemStatusKind({ aiV, userC, skipped, notChecked, verifying: isVerifying, weight: item.weight })} />
         )}
         <div className="md-item-body">
           <div className="md-item-top">
@@ -1862,13 +1892,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
               {skipped ? (
                 <>
-                  <span className="md-tag" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-faint)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>Skipped</span>
                   <button className="md-skip-unskip" onClick={(e) => { e.stopPropagation(); handleSkip(modId, false, s?.id ?? '', item.slug, false, '') }}>Unskip</button>
                 </>
               ) : (
                 <>
                   {idea && <span className="md-tag md-tag-idea">Idea</span>}
-                  {notChecked && <span className="md-tag md-tag-unchecked">Not checked</span>}
                   {!done && !idea && !notChecked && item.weight === 3 && (
                     <span className="md-priority-icon md-priority-critical">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
@@ -1889,9 +1917,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       <span className="md-priority-label">Medium</span>
                     </span>
                   )}
-                  {aiV && <span className="md-tag md-tag-ai" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>AI <SparkleIcon size={11} style={{ color: '#178a4c' }} /></span>}
-                  {!aiV && userC && <span className="md-tag md-tag-self">Self</span>}
-                  {hasDetail && <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>}
+                  {!aiV && userC && <button className="md-skip-unskip" onClick={(e) => toggleItem(modId, false, s?.id ?? '', item.slug, true, e)}>Undo</button>}
+                  {hasDetail && (!done && !idea
+                    ? <span className="sm-expand-icon sm-expand-howto">{isExpanded ? 'Close' : 'How to fix'}</span>
+                    : <span className="sm-expand-icon">{isExpanded ? '−' : '+'}</span>)}
                 </>
               )}
             </div>
@@ -1918,7 +1947,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   <button className="md-skip-cancel" onClick={() => setSkipPrompting((prev) => { const n = new Set(prev); n.delete(itemKey); return n })}>Cancel</button>
                 </div>
               ) : (
-                <button className="md-skip-btn" onClick={() => setSkipPrompting((prev) => new Set(prev).add(itemKey))}>Not relevant — skip</button>
+                <>
+                  {renderMarkDone((e) => toggleItem(modId, false, s?.id ?? '', item.slug, userC, e))}
+                  <button className="md-skip-btn" onClick={() => setSkipPrompting((prev) => new Set(prev).add(itemKey))}>Not relevant — skip</button>
+                </>
               )}
             </div>
           )}
@@ -2027,10 +2059,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       {exportingMap[modId] ? <><Spinner />Exporting…</> : 'Export'}
                     </button>
                   )}
-                  {!idea && <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, false, s?.id ?? '', item.slug, userC, e)}>Mark as done</button>}
                 </div>
               )}
               {handoff.hint(itemKey)}
+              {!done && !idea && renderMarkDone((e) => toggleItem(modId, false, s?.id ?? '', item.slug, userC, e))}
               {/* Skip section — at bottom of expanded body */}
               {!done && !idea && (
                 <div className="md-skip-section">

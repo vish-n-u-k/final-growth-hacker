@@ -7809,3 +7809,35 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
 .loading-state > .spinner { color: var(--green); opacity: 1; }
 .loading-state--compact { flex-direction: row; padding: 14px 16px; gap: 8px; justify-content: flex-start; }
 @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.6s; } }
+
+/* Check status (AllModulesDashboard): a read-only label where the checkbox used to be, so the row
+   doesn't read as "click to do this". Marking done is the "Changed this on your site?" row. */
+.md-status {
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; min-width: 84px; margin-top: 2px;
+  font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; cursor: inherit;
+}
+.md-status svg { width: 15px; height: 15px; flex-shrink: 0; }
+.md-status-critical { color: var(--crit); }
+.md-status-todo { color: var(--warn); }
+.md-status-verified { color: var(--green-bright); }
+.md-status-self { color: var(--lime); }
+.md-status-skipped, .md-status-unchecked, .md-status-checking { color: var(--text-faint); }
+@media (max-width: 640px) {
+  .md-items .md-item { flex-wrap: wrap; row-gap: 6px; }
+  .md-items .md-item > .md-status { flex-basis: 100%; min-width: 0; margin-top: 0; }
+  /* the status sits on its own line here, so there's no left column for the open panel to reclaim */
+  .gp-detail .md-item > .md-status + .md-item-body .sm-expanded-body { margin-left: 0; }
+}
+
+.md-item .sm-expand-icon.sm-expand-howto,
+.gp-detail .md-item .sm-expand-icon.sm-expand-howto {
+  width: auto; padding: 0 10px; font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--green-bright);
+}
+
+.md-confirm {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px;
+  border-top: 1px solid var(--line); padding-top: 12px;
+}
+.md-confirm-q { flex: 1 1 200px; font-size: 14px; color: var(--text-dim); }
+.md-confirm .md-confirm-yes { display: inline-flex; align-items: center; gap: 7px; border-color: var(--green); color: var(--green-bright); }
+.md-skip-control .md-confirm { border-top: 0; padding-top: 0; margin-bottom: 8px; }
