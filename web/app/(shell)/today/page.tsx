@@ -7,6 +7,7 @@ import { eq, and, ne, desc, count, inArray, like } from 'drizzle-orm'
 import TodayDashboard from '@/components/TodayDashboard'
 import type { ActionCard } from '@/lib/daily/signals'
 import type { DBItemFull } from '@/lib/modules/types'
+import { validTimezone } from '@/lib/frekto/time'
 
 const BLOG_LIMITS: Record<string, number> = {
   blog: 30, saas: 15, ecommerce: 12, agency: 10,
@@ -86,6 +87,9 @@ export default async function TodayPage() {
   const gmailAddress = (gmailInteg?.metadata as { gmail_address?: string } | null)?.gmail_address ?? null
   const frektoConnected = frektoInteg?.status === 'connected'
   const frektoDefaultPlatform = ((frektoInteg?.metadata as Record<string, string> | null)?.auto_post_platforms ?? '').split(',')[0]?.trim().toLowerCase() || null
+  // The timezone chosen in Social Studio (null = never chosen: the composer uses the device's)
+  const frektoTz = (frektoInteg?.metadata as Record<string, string> | null)?.timezone
+  const frektoTimezone = validTimezone(frektoTz) ? frektoTz : null
 
   // "Create a post": the Social Media audit's post suggestions as ready ideas
   const postIdeas = socialModule
@@ -188,6 +192,7 @@ export default async function TodayPage() {
       gmailModuleId={gmailModule?.id ?? null}
       frektoConnected={frektoConnected}
       frektoDefaultPlatform={frektoDefaultPlatform}
+      frektoTimezone={frektoTimezone}
       postIdeas={postIdeas}
       posthogConnected={posthogInteg?.status === 'connected'}
       dailyEmailEnabled={brand.dailyEmailEnabled ?? false}

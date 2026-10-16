@@ -78,6 +78,7 @@ interface Props {
   gmailModuleId: string | null
   frektoConnected: boolean
   frektoDefaultPlatform: string | null
+  frektoTimezone?: string | null
   postIdeas: PostIdea[]
   posthogConnected: boolean
   blogData: BlogData
@@ -1065,7 +1066,7 @@ function LoadingState() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function TodayDashboard({ initialData, brandName, websiteUrl = null, mcpLastUsedAt = null, githubRepo = null, gmailConnected, gmailAddress, prospectItems, gmailModuleId, frektoConnected, frektoDefaultPlatform, postIdeas, posthogConnected, blogData, dailyEmailEnabled = false, dailyEmailTo = null }: Props) {
+export default function TodayDashboard({ initialData, brandName, websiteUrl = null, mcpLastUsedAt = null, githubRepo = null, gmailConnected, gmailAddress, prospectItems, gmailModuleId, frektoConnected, frektoDefaultPlatform, frektoTimezone = null, postIdeas, posthogConnected, blogData, dailyEmailEnabled = false, dailyEmailTo = null }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
@@ -1291,6 +1292,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
                       connected={frektoConnected}
                       ideas={postIdeas}
                       defaultPlatform={frektoDefaultPlatform}
+                      timezone={frektoTimezone}
                       onPublished={() => publishedSocial(card)}
                       onCancel={() => closeSocialPanel(card)}
                     />
@@ -1471,8 +1473,10 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .tsp-review-side { display: flex; flex-direction: column; gap: 14px; }
         .tsp-meta { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 13px; font-weight: 600; color: var(--text-dim); }
         .tsp-topic { margin: 0; font-size: 15px; color: var(--text); line-height: 1.45; }
-        .tsp-when { display: flex; gap: 8px; }
+        .tsp-when { display: flex; flex-wrap: wrap; gap: 8px; }
         .tsp-when .tsp-input { width: auto; }
+        .tsp-when .tsp-tz { flex: 1 1 100%; max-width: 320px; }
+        .tsp-tz-note { margin: 2px 0 0; font-size: 12px; color: var(--text-faint); }
         .tsp-preview { border: 1px solid var(--line); border-radius: 12px; background: var(--bg-soft); padding: 12px; display: flex; justify-content: center; }
         .tsp-preview img, .tsp-preview video { max-width: 100%; max-height: 460px; border-radius: 8px; display: block; }
         .tsp-slides { display: flex; gap: 8px; overflow-x: auto; }

@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import SocialIcon from '@/components/SocialIcon'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import TimezoneSelect, { canonicalTimezone } from '@/components/TimezoneSelect'
 
 export interface PostIdea {
   label: string
@@ -51,10 +52,11 @@ const localZone = () => { try { return Intl.DateTimeFormat().resolvedOptions().t
 const nameOf = (p: string) => PLATFORMS.find(x => x.key === p)?.label ?? p
 const usable = (p: string | null | undefined) => PLATFORMS.some(x => x.key === p) ? p! : null
 
-export default function TodaySocialPost({ connected, ideas: auditIdeas, defaultPlatform, onPublished, onCancel }: {
+export default function TodaySocialPost({ connected, ideas: auditIdeas, defaultPlatform, timezone: savedTz = null, onPublished, onCancel }: {
   connected: boolean
   ideas: PostIdea[]
   defaultPlatform: string | null
+  timezone?: string | null // chosen in Social Studio; null = use this device's
   onPublished: () => void
   onCancel: () => void
 }) {
@@ -71,6 +73,19 @@ export default function TodaySocialPost({ connected, ideas: auditIdeas, defaultP
   const [when, setWhen] = useState<'now' | 'later'>('now')
   const [date, setDate] = useState(tomorrow)
   const [time, setTime] = useState('09:00')
+  // Same setting as Social Studio's timezone picker: changing it here changes it there too
+  const [tz, setTz] = useState(() => canonicalTimezone(savedTz ?? localZone()))
+  const [tzNote, setTzNote] = useState<string | null>(null)
+  const changeTz = async (next: string) => {
+    const prev = tz
+    setTz(next); setTzNote(null)
+    try {
+      const res = await fetch('/api/settings/frekto-auto-post', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timezone: next }) })
+      if (!res.ok) throw new Error()
+    } catch {
+      setTz(prev); setTzNote('Couldn\'t change the timezone. Please try again.')
+    }
+  }
   const [result, setResult] = useState<string | null>(null)
   const poll = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (poll.current) clearTimeout(poll.current) }, [])
@@ -136,7 +151,7 @@ export default function TodaySocialPost({ connected, ideas: auditIdeas, defaultP
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobId: preview.job_id, topic, platform, postType: format, allowRegenerate,
-          ...(when === 'now' ? { postNow: true } : { startDate: date, time, timezone: localZone() }),
+          ...(when === 'now' ? { postNow: true } : { startDate: date, time, timezone: tz }),
         }),
       })
       const d = await res.json().catch(() => ({})) as { ok?: boolean; error?: string; regenerated?: boolean; next_step?: string }
@@ -147,7 +162,7 @@ export default function TodaySocialPost({ connected, ideas: auditIdeas, defaultP
       }
       setResult(when === 'now'
         ? `Posted to ${nameOf(platform)}. It goes live within about a minute.`
-        : `Scheduled for ${nameOf(platform)} on ${new Date(`${date}T${time}`).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}.${d.regenerated ? ' (Frekto made a fresh version of the same post, so it may look a little different.)' : ''}`)
+        : `Scheduled for ${nameOf(platform)} on ${new Date(`${date}T${time}`).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })} (${tz.replace(/_/g, ' ')}).${d.regenerated ? ' (Frekto made a fresh version of the same post, so it may look a little different.)' : ''}`)
       setStage('published')
       onPublished()
     } catch {
@@ -282,6 +297,8 @@ export default function TodaySocialPost({ connected, ideas: auditIdeas, defaultP
                 <div className="tsp-when">
                   <input type="date" className="tsp-input" value={date} min={tomorrow()} onChange={e => setDate(e.target.value)} aria-label="Date" />
                   <input type="time" className="tsp-input" value={time} onChange={e => setTime(e.target.value)} aria-label="Time" />
+                  <TimezoneSelect className="tsp-input tsp-tz" value={tz} onChange={changeTz} ariaLabel="Timezone" />
+                  {tzNote && <p className="tsp-tz-note tsp-error" role="alert">{tzNote}</p>}
                 </div>
               )}
             </fieldset>

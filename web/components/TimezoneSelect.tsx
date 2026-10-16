@@ -38,11 +38,12 @@ function allZones(): string[] {
 
 const label = (tz: string) => `${tz.replace(/_/g, ' ')}${tz === 'UTC' ? '' : ` (${utcOffset(tz)})`}`
 
-export default function TimezoneSelect({ value: raw, onChange, disabled, style, ariaLabel = 'Timezone', compact }: {
+export default function TimezoneSelect({ value: raw, onChange, disabled, style, className, ariaLabel = 'Timezone', compact }: {
   value: string
   onChange: (tz: string) => void
   disabled?: boolean
   style?: React.CSSProperties
+  className?: string
   ariaLabel?: string
   compact?: boolean // next to a date/time: no "your device" wording
 }) {
@@ -52,7 +53,7 @@ export default function TimezoneSelect({ value: raw, onChange, disabled, style, 
   useEffect(() => { setZones(allZones()); setDevice(deviceTimezone()) }, [])
 
   return (
-    <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled} aria-label={ariaLabel} style={style}>
+    <select value={value} onChange={e => onChange(e.target.value)} disabled={disabled} aria-label={ariaLabel} style={style} className={className}>
       {!zones ? (
         <option value={value}>{value.replace(/_/g, ' ')}</option>
       ) : (
