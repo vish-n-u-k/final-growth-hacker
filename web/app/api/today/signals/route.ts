@@ -100,11 +100,13 @@ export async function GET(request: Request) {
   const streak = computeStreak(brand.dailyStreak ?? 0, brand.lastActionDate ?? null)
   const force = new URL(request.url).searchParams.get('refresh') === '1'
 
-  // Return cached cards if < 4 hours old (reminders always fetched fresh)
+  // Return cached cards if < 4 hours old (reminders always fetched fresh); a focus made without
+  // traffic data ("unknown") only for 30 minutes, so connecting or fixing GA shows up soon
   if (!force && brand.signalsCachedAt && brand.dailySignalsCache) {
     const age = Date.now() - new Date(brand.signalsCachedAt).getTime()
-    if (age < 4 * 60 * 60 * 1000) {
-      const cached = brand.dailySignalsCache as CachedSignals | ActionCard[]
+    const cached = brand.dailySignalsCache as CachedSignals | ActionCard[]
+    const unknownFocus = !Array.isArray(cached) && cached.focus?.stage === 'unknown'
+    if (age < (unknownFocus ? 30 * 60 * 1000 : 4 * 60 * 60 * 1000)) {
       const cachedCards = Array.isArray(cached) ? cached : (cached.cards ?? [])
       const impacts = Array.isArray(cached) ? [] : (cached.impacts ?? [])
       const focus = Array.isArray(cached) ? null : (cached.focus ?? null)
@@ -116,7 +118,7 @@ export async function GET(request: Request) {
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 864e5)
   const [today, [ga4Int], frektoRows, kwRows] = await Promise.all([
-    getTodayTasks(brand.id),
+    getTodayTasks(brand.id, undefined, { diagnose: force ? 'force' : 'auto' }),
     db.select().from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.provider, 'ga4_api'), eq(brandIntegrations.status, 'connected')))
       .limit(1),

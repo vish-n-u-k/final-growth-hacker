@@ -1107,7 +1107,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
       url.searchParams.delete('label')
       window.history.replaceState({}, '', url.toString())
       // refresh signals to pick up new platform data
-      setTimeout(() => fetchSignals(), 500)
+      setTimeout(() => fetchSignals(true), 500)
     } else if (error) {
       setOauthBanner(`Connection failed: ${error}`)
       const url = new URL(window.location.href)
@@ -1119,14 +1119,16 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
 
   useEffect(() => {
     const age = cachedAt ? Date.now() - new Date(cachedAt).getTime() : Infinity
-    if (age >= 4 * 60 * 60 * 1000) fetchSignals()
+    // Same limits as /api/today/signals: 4h, or 30 min when the focus had no traffic data
+    if (age >= (focus?.stage === 'unknown' ? 30 * 60 * 1000 : 4 * 60 * 60 * 1000)) fetchSignals()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const fetchSignals = useCallback(async () => {
+  // fresh: the Refresh button / a new connection — recompute instead of reusing the 4h cache
+  const fetchSignals = useCallback(async (fresh = false) => {
     setRefreshing(true)
     try {
-      const res = await fetch('/api/today/signals')
+      const res = await fetch(fresh ? '/api/today/signals?refresh=1' : '/api/today/signals')
       if (res.ok) {
         const d = await res.json()
         setCards(d.cards ?? [])
@@ -1233,7 +1235,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           <LoadingState />
         ) : allGood && cards.length === 0 ? (
           <>
-            <AllGoodState cachedAt={cachedAt} onRefresh={fetchSignals} refreshing={refreshing} />
+            <AllGoodState cachedAt={cachedAt} onRefresh={() => fetchSignals(true)} refreshing={refreshing} />
             {impacts.length > 0 && (
               <>
                 <div className="td-section-label">
@@ -1354,7 +1356,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
             <SocialAnalytics />
             <SocialFeed posts={recentPosts} />
 
-            <button className="td-recheck" onClick={fetchSignals} disabled={refreshing}>
+            <button className="td-recheck" onClick={() => fetchSignals(true)} disabled={refreshing}>
               {refreshing ? <><Spinner />Refreshing...</> : `Last updated ${cachedAt ? new Date(cachedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'} · Refresh`}
             </button>
           </>

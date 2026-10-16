@@ -79,6 +79,9 @@ const STAGE_MODULES: Record<GrowthStage, Set<string>> = {
 const CONVERSION_SLUG = /cta|value|proof|testimonial|trust|pricing|headline|hero|h1/i
 
 const DIAGNOSIS_MAX_AGE_MS = 20 * 3600000
+// A diagnosis made without traffic data while GA is connected is re-checked sooner: GA was
+// probably just connected or fixed, and "not connected" shouldn't linger for 20 hours
+const NO_TRAFFIC_MAX_AGE_MS = 30 * 60000
 
 const OVERDUE_DAYS = 2
 const DROP_ASK_DAYS = 5
@@ -100,17 +103,25 @@ function routeFor(exportType: string | null, moduleType: string): TaskRoute {
 // diagnose: 'auto' recomputes when the stored diagnosis is missing or older than 20h
 // (live GA4 / GSC / PostHog calls, a few seconds). 'never' only reads the stored one —
 // used by the email cron, which runs after the daily-signals cron has refreshed it.
+// 'force' always recomputes (Today's Refresh button).
 export async function getTodayTasks(
   brandId: string,
   limit = 3,
-  opts: { diagnose?: 'auto' | 'never' } = {},
+  opts: { diagnose?: 'auto' | 'never' | 'force' } = {},
 ): Promise<TodayTasks | null> {
   const [brand] = await db.select().from(brands).where(eq(brands.id, brandId)).limit(1)
   if (!brand) return null
 
   // Signal tables may not exist before the migration — degrade to checklist only
   let diagnosis = await getSnapshot<Diagnosis>(brandId, 'diagnosis').catch(() => null)
-  const stale = !diagnosis || Date.now() - new Date(diagnosis.computedAt).getTime() > DIAGNOSIS_MAX_AGE_MS
+  const age = diagnosis ? Date.now() - new Date(diagnosis.computedAt).getTime() : Infinity
+  let stale = age > DIAGNOSIS_MAX_AGE_MS || opts.diagnose === 'force'
+  if (!stale && diagnosis && !diagnosis.metrics?.traffic && age > NO_TRAFFIC_MAX_AGE_MS) {
+    const [ga] = await db.select({ id: brandIntegrations.id }).from(brandIntegrations)
+      .where(and(eq(brandIntegrations.brandId, brandId), eq(brandIntegrations.provider, 'ga4_api'), eq(brandIntegrations.status, 'connected')))
+      .limit(1)
+    stale = !!ga
+  }
   if (stale && opts.diagnose !== 'never') {
     const prev = diagnosis
     diagnosis = await runDiagnosis(brandId).catch((err) => {
