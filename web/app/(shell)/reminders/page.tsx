@@ -6,12 +6,22 @@ import { and, eq } from 'drizzle-orm'
 import { getOpenSignals } from '@/lib/signals'
 import { getPresetsForWebsiteType } from '@/lib/reminders/presets'
 import RemindersPage from '@/components/RemindersPage'
+import { validTimezone } from '@/lib/frekto/time'
 
 const SOURCE_LABEL: Record<string, string> = {
   seo: 'Google Search',
   'email-marketing': 'Email deliverability',
   'meta-ads': 'Meta Ads',
   'business-stage': 'Business stage',
+}
+
+// The timezone chosen in Social Studio / Today (saved on the Frekto connection); null = the device's
+async function savedTimezone(brandId: string): Promise<string | null> {
+  const [row] = await db.select({ metadata: brandIntegrations.metadata }).from(brandIntegrations)
+    .where(and(eq(brandIntegrations.brandId, brandId), eq(brandIntegrations.provider, 'frekto'))).limit(1)
+    .catch(() => [])
+  const tz = (row?.metadata as Record<string, string> | null)?.timezone
+  return validTimezone(tz) ? tz : null
 }
 
 export default async function Reminders() {
@@ -76,6 +86,7 @@ export default async function Reminders() {
       commonChecks={getPresetsForWebsiteType(brand.websiteType)}
       searchConnected={!!gsc}
       dailyEmailOn={!!brand.dailyEmailEnabled}
+      defaultTimezone={await savedTimezone(brand.id)}
       brandProfile={brandProfile}
     />
   )

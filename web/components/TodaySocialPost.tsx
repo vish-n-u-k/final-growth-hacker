@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react'
 import SocialIcon from '@/components/SocialIcon'
 import { connectUrl } from '@/lib/integrations/connect-url'
 import TimezoneSelect, { canonicalTimezone } from '@/components/TimezoneSelect'
+import TimeField from '@/components/TimeField'
 
 export interface PostIdea {
   label: string
@@ -296,8 +297,8 @@ export default function TodaySocialPost({ connected, ideas: auditIdeas, defaultP
               {when === 'later' && (
                 <div className="tsp-when">
                   <input type="date" className="tsp-input" value={date} min={tomorrow()} onChange={e => setDate(e.target.value)} aria-label="Date" />
-                  <input type="time" className="tsp-input" value={time} onChange={e => setTime(e.target.value)} aria-label="Time" />
-                  <TimezoneSelect className="tsp-input tsp-tz" value={tz} onChange={changeTz} ariaLabel="Timezone" />
+                  <TimeField value={time} onChange={setTime} />
+                  <TimezoneSelect className="tsp-tz" value={tz} onChange={changeTz} ariaLabel="Timezone" />
                   {tzNote && <p className="tsp-tz-note tsp-error" role="alert">{tzNote}</p>}
                 </div>
               )}

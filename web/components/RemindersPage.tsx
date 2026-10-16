@@ -7,6 +7,9 @@ import ThemeToggle from '@/components/ThemeToggle'
 import { connectUrl } from '@/lib/integrations/connect-url'
 import { REMINDER_CATEGORIES, type ReminderCategory, type ReminderPreset } from '@/lib/reminders/presets'
 import { Spinner } from '@/components/ui/spinner'
+import TimezoneSelect, { canonicalTimezone, deviceTimezone } from '@/components/TimezoneSelect'
+import TimeField from '@/components/TimeField'
+import { utcToZoned, zonedToUtc } from '@/lib/frekto/time'
 
 interface Reminder {
   id: string
@@ -94,6 +97,7 @@ export default function RemindersPage({
   searchConnected,
   dailyEmailOn,
   brandProfile,
+  defaultTimezone = null,
 }: {
   initialReminders: Reminder[]
   initialChanges: Change[]
@@ -101,6 +105,7 @@ export default function RemindersPage({
   searchConnected: boolean
   dailyEmailOn: boolean
   brandProfile: BrandProfile
+  defaultTimezone?: string | null
 }) {
   const router = useRouter()
   const goBack = useSmartBack('/dashboard')
@@ -110,6 +115,10 @@ export default function RemindersPage({
   const [loading, setLoading] = useState(false)
   const [doneIds, setDoneIds] = useState<Set<string>>(new Set())
   const [showAdd, setShowAdd] = useState(false)
+  // First due: date + time in a timezone (the one chosen in Social Studio, else this device's)
+  const [tz, setTz] = useState(() => canonicalTimezone(defaultTimezone ?? deviceTimezone() ?? 'UTC'))
+  const [firstDate, setFirstDate] = useState('')
+  const [firstTime, setFirstTime] = useState('09:00')
   const [addForm, setAddForm] = useState({ title: '', category: 'custom' as ReminderCategory, intervalDays: '30', url: '' })
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
@@ -208,6 +217,11 @@ export default function RemindersPage({
     await reload()
   }
 
+  function openAdd() {
+    setFirstDate(utcToZoned(new Date(Date.now() + 3 * 864e5), tz).date)
+    setShowAdd(true)
+  }
+
   async function addReminder() {
     if (!addForm.title.trim()) return
     setLoading(true)
@@ -216,6 +230,7 @@ export default function RemindersPage({
       category: addForm.category,
       intervalDays: parseInt(addForm.intervalDays, 10),
       url: addForm.url,
+      ...(firstDate ? { firstDueAt: zonedToUtc(firstDate, firstTime, tz).toISOString() } : {}),
     }, 'Could not add the reminder')
     setLoading(false)
     if (!created) return
@@ -613,7 +628,7 @@ export default function RemindersPage({
             </div>
           </div>
           <div className="rm-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6 }}>
-            <button className="rm-btn-primary" onClick={() => setShowAdd(true)}>+ Add check</button>
+            <button className="rm-btn-primary" onClick={() => openAdd()}>+ Add check</button>
           </div>
         </div>
 
@@ -728,6 +743,14 @@ export default function RemindersPage({
                 <input type="number" min="1" max="365" className="rm-input" value={addForm.intervalDays} onChange={e => setAddForm(f => ({ ...f, intervalDays: e.target.value }))} />
               </div>
             </div>
+            <div className="rm-field">
+              <label className="rm-label">First due</label>
+              <div className="rm-when">
+                <input type="date" className="rm-input rm-date" value={firstDate} min={utcToZoned(new Date(), tz).date} onChange={e => setFirstDate(e.target.value)} aria-label="First due date" />
+                <TimeField value={firstTime} onChange={setFirstTime} ariaLabel="First due time" />
+                <TimezoneSelect value={tz} onChange={setTz} ariaLabel="Timezone" />
+              </div>
+            </div>
             <div className="rm-modal-actions">
               <button className="rm-btn-primary" onClick={addReminder} disabled={loading || !addForm.title.trim()}>Add check</button>
               <button className="rm-btn-ghost" onClick={() => setShowAdd(false)}>Cancel</button>
@@ -739,7 +762,7 @@ export default function RemindersPage({
       {justAdded && (() => {
         const due = new Date(justAdded.nextDueAt)
         const dueDays = Math.max(0, Math.ceil((due.getTime() - Date.now()) / 86400000))
-        const dueText = due.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+        const dueText = `${due.toLocaleString(undefined, { timeZone: tz, weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} (${tz.replace(/_/g, ' ')})`
         const every = justAdded.intervalDays === 1 ? 'day' : `${justAdded.intervalDays} days`
         return (
           <div className="rm-overlay" onClick={() => setJustAdded(null)}>

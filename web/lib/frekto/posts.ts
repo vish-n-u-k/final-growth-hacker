@@ -7,6 +7,8 @@ import { db } from '@/lib/db'
 import { brandIntegrations, brandSignals, frektoScheduledPosts } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { callFrektoMcpTool } from '@/lib/frekto/mcp'
+import { zonedToUtc } from '@/lib/frekto/time'
+export { zonedToUtc }
 
 const FREKTO_BASE = 'https://api.frekto.ai'
 const POLL_INTERVAL_MS = 3000
@@ -164,19 +166,6 @@ export async function getSocialPostStatus(brandId: string, jobId: string): Promi
 }
 
 // ── schedule_social_post ─────────────────────────────────────────────────────
-
-// "2026-10-08" + "09:00" in Asia/Kolkata → UTC Date (for our own record)
-export function zonedToUtc(date: string, time: string, tz: string): Date {
-  const guess = new Date(`${date}T${time}:00Z`)
-  try {
-    const parts = Object.fromEntries(
-      new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-        .formatToParts(guess).map((p) => [p.type, p.value]),
-    )
-    const asZoned = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute)
-    return new Date(guess.getTime() - (asZoned - guess.getTime()))
-  } catch { return guess }
-}
 
 export async function scheduleSocialPost(
   brandId: string,

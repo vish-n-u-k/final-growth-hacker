@@ -52,6 +52,14 @@ export async function POST(req: NextRequest) {
   const url = cleanUrl(body.url)
   if (!url.ok) return NextResponse.json({ error: 'Invalid link' }, { status: 400 })
 
+  // First due: when the user picked one (date + time in their timezone, sent as an instant),
+  // else a few days from now
+  const picked = typeof body.firstDueAt === 'string' ? new Date(body.firstDueAt) : null
+  const firstDue = picked && !Number.isNaN(picked.getTime())
+    && picked.getTime() > Date.now() - 60 * 60 * 1000 && picked.getTime() < Date.now() + 400 * 864e5
+    ? picked
+    : new Date(Date.now() + Math.min(days, FIRST_DUE_DAYS) * 24 * 3600 * 1000)
+
   const [row] = await db.insert(reminders).values({
     brandId,
     title,
@@ -59,7 +67,7 @@ export async function POST(req: NextRequest) {
     category,
     url: url.url,
     intervalDays: days,
-    nextDueAt: new Date(Date.now() + Math.min(days, FIRST_DUE_DAYS) * 24 * 3600 * 1000),
+    nextDueAt: firstDue,
     isPreset: body.isPreset === true,
     enabled: true,
   }).returning()

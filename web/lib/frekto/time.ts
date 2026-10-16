@@ -19,3 +19,16 @@ export function formatInZone(iso: string | null, tz: string): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('en-US', { timeZone: tz, weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
+
+// "2026-10-08" + "09:00" in Asia/Kolkata → UTC Date (for our own record)
+export function zonedToUtc(date: string, time: string, tz: string): Date {
+  const guess = new Date(`${date}T${time}:00Z`)
+  try {
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+        .formatToParts(guess).map((p) => [p.type, p.value]),
+    )
+    const asZoned = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute)
+    return new Date(guess.getTime() - (asZoned - guess.getTime()))
+  } catch { return guess }
+}

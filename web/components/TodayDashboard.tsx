@@ -1475,7 +1475,8 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .tsp-topic { margin: 0; font-size: 15px; color: var(--text); line-height: 1.45; }
         .tsp-when { display: flex; flex-wrap: wrap; gap: 8px; }
         .tsp-when .tsp-input { width: auto; }
-        .tsp-when .tsp-tz { flex: 1 1 100%; max-width: 320px; }
+        .tsp-when > .pk-wrap:last-of-type { flex: 1 1 100%; }
+        .tsp-when .tsp-tz { width: 100%; max-width: 340px; }
         .tsp-tz-note { margin: 2px 0 0; font-size: 12px; color: var(--text-faint); }
         .tsp-preview { border: 1px solid var(--line); border-radius: 12px; background: var(--bg-soft); padding: 12px; display: flex; justify-content: center; }
         .tsp-preview img, .tsp-preview video { max-width: 100%; max-height: 460px; border-radius: 8px; display: block; }

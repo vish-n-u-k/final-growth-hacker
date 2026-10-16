@@ -6,6 +6,7 @@ import type { ClientPost } from '@/lib/frekto/drafts'
 import { formatInZone, utcToZoned } from '@/lib/frekto/time'
 import { Spinner } from '@/components/ui/spinner'
 import TimezoneSelect, { deviceTimezone, canonicalTimezone } from '@/components/TimezoneSelect'
+import TimeField from '@/components/TimeField'
 
 export type ScheduledPost = ClientPost
 
@@ -226,8 +227,8 @@ function WhenPicker({ initialIso, timezone, onTimezone, busy, confirmLabel, onCo
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
       <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} aria-label="Date" />
-      <input type="time" value={time} onChange={e => setTime(e.target.value)} style={inputStyle} aria-label="Time" />
-      <TimezoneSelect compact value={timezone} onChange={onTimezone} disabled={busy} style={{ ...inputStyle, maxWidth: 210 }} ariaLabel="Timezone for this time" />
+      <TimeField value={time} onChange={setTime} disabled={busy} />
+      <TimezoneSelect compact value={timezone} onChange={onTimezone} disabled={busy} style={{ maxWidth: 240 }} ariaLabel="Timezone for this time" />
       <button style={primaryBtn(busy || !date || !time)} disabled={busy || !date || !time} onClick={() => onConfirm({ date, time, timezone })}>
         {busy ? '…' : confirmLabel}
       </button>
@@ -524,7 +525,7 @@ export default function SocialStudioPage({
       {frektoConnected && (
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 10px', marginTop: 12, fontSize: 13, color: 'var(--text-dim)' }}>
           <span>Times are shown and scheduled in</span>
-          <TimezoneSelect value={tz} onChange={changeTz} style={{ ...inputStyle, maxWidth: 260 }} />
+          <TimezoneSelect value={tz} onChange={changeTz} style={{ maxWidth: 300 }} />
           {deviceTz && deviceTz !== tz && (
             <button type="button" style={{ ...ghostBtn, fontSize: 12 }} onClick={() => changeTz(deviceTz)}>
               Use my timezone ({deviceTz.replace(/_/g, ' ')})
