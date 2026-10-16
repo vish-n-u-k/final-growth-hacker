@@ -3,7 +3,7 @@ import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations, frektoScheduledPosts, keywordSnapshots, reminders } from '@/lib/db/schema'
-import { eq, and, desc, gte, lte, or, isNull } from 'drizzle-orm'
+import { eq, and, desc, gte, lte, or, isNull, inArray } from 'drizzle-orm'
 import { createSign } from 'crypto'
 import { detectImpacts, type ActionCard, type SignalInput } from '@/lib/daily/signals'
 import { getTodayTasks, tasksToCards, type TodayTasks } from '@/lib/daily/today-tasks'
@@ -127,7 +127,7 @@ export async function GET(request: Request) {
       scheduledAt: frektoScheduledPosts.scheduledAt,
     })
       .from(frektoScheduledPosts)
-      .where(eq(frektoScheduledPosts.brandId, brand.id))
+      .where(and(eq(frektoScheduledPosts.brandId, brand.id), inArray(frektoScheduledPosts.status, ['scheduled', 'done', 'failed'])))
       .orderBy(desc(frektoScheduledPosts.scheduledAt))
       .limit(10),
     db.select({ position: keywordSnapshots.position, fetchedAt: keywordSnapshots.fetchedAt })

@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands, brandIntegrations, frektoScheduledPosts } from '@/lib/db/schema'
+import { brands, brandIntegrations, frektoScheduledPosts, socialSuggestions } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { toClientPost } from '@/lib/frekto/drafts'
 
 export const maxDuration = 90
 
@@ -12,6 +13,8 @@ const POLL_INTERVAL_MS = 5000
 const MAX_POLLS = 36 // up to 3 minutes
 
 interface FrektoPost {
+  job_id?: string
+  scheduled_id?: string
   topic?: string
   status: string
   url?: string
@@ -55,6 +58,7 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json() as {
+    suggestionId?: string
     brandId: string
     platform: string
     instruction: string
@@ -65,7 +69,7 @@ export async function POST(request: NextRequest) {
     startDate: string
   }
 
-  const { brandId, platform, instruction, count, cadence, format, outputFormat, startDate } = body
+  const { suggestionId, brandId, platform, instruction, count, cadence, format, outputFormat, startDate } = body
   if (!brandId || !platform || !instruction?.trim() || !count || !cadence || !startDate) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
@@ -98,6 +102,18 @@ export async function POST(request: NextRequest) {
   const timezone = frektoMeta['timezone'] ?? 'UTC'
   const preferredTime = frektoMeta['preferred_time'] ?? '10:00'
 
+  // Claim the saved suggestion so the same series can't be launched twice
+  if (suggestionId) {
+    const claimed = await db.update(socialSuggestions)
+      .set({ status: 'accepted', updatedAt: new Date() })
+      .where(and(eq(socialSuggestions.id, suggestionId), eq(socialSuggestions.brandId, brandId), eq(socialSuggestions.status, 'suggested')))
+      .returning({ id: socialSuggestions.id })
+    if (claimed.length === 0) return NextResponse.json({ error: 'This series was already launched or dismissed.' }, { status: 409 })
+  }
+  const release = async () => {
+    if (suggestionId) await db.update(socialSuggestions).set({ status: 'suggested', updatedAt: new Date() }).where(eq(socialSuggestions.id, suggestionId)).catch(() => {})
+  }
+
   let seriesId: string
   try {
     const genRes = await fetch(`${FREKTO_BASE}/generate/series`, {
@@ -118,34 +134,46 @@ export async function POST(request: NextRequest) {
     })
     if (!genRes.ok) {
       const err = await genRes.text()
+      await release()
       return NextResponse.json({ error: `Frekto rejected request (${genRes.status}): ${err}` }, { status: 502 })
     }
     const genData = await genRes.json() as { series_id?: string }
-    if (!genData.series_id) return NextResponse.json({ error: 'No series_id returned from Frekto' }, { status: 502 })
+    if (!genData.series_id) { await release(); return NextResponse.json({ error: 'No series_id returned from Frekto' }, { status: 502 }) }
     seriesId = genData.series_id
   } catch (e) {
+    await release()
     return NextResponse.json({ error: `Could not reach Frekto: ${e instanceof Error ? e.message : String(e)}` }, { status: 502 })
   }
 
   const result = await pollSeries(seriesId, frektoInt.apiKey)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 502 })
 
-  const insertedPosts: { topic: string; scheduledAt: string; outputUrl: string | null }[] = []
+  const insertedPosts: { id: string; topic: string; scheduledAt: string; outputUrl: string | null }[] = []
+  const rows: (typeof frektoScheduledPosts.$inferSelect)[] = []
   for (const post of result.posts) {
     const outputUrl = post.url ?? post.output_url ?? null
     const scheduledAt = post.scheduled_at ? new Date(post.scheduled_at) : new Date(startDate)
-    await db.insert(frektoScheduledPosts).values({
+    const [row] = await db.insert(frektoScheduledPosts).values({
       brandId,
       platform,
       topic: post.topic ?? instruction.trim(),
       postType: outputFormat === 'mp4' ? 'video' : 'image',
       scheduledAt,
-      frektoJobId: seriesId,
+      // Each post's own render id when Frekto gives one (needed to cancel/reschedule it)
+      frektoJobId: post.job_id ?? seriesId,
+      frektoScheduledId: post.scheduled_id ?? null,
+      seriesId,
       outputUrl,
+      source: suggestionId ? 'suggestion' : 'series',
+      suggestionId: suggestionId ?? null,
       status: 'scheduled',
-    })
-    insertedPosts.push({ topic: post.topic ?? instruction.trim(), scheduledAt: scheduledAt.toISOString(), outputUrl })
+    }).returning()
+    rows.push(row)
+    insertedPosts.push({ id: row.id, topic: row.topic, scheduledAt: scheduledAt.toISOString(), outputUrl })
+  }
+  if (suggestionId && rows[0]) {
+    await db.update(socialSuggestions).set({ postId: rows[0].id }).where(eq(socialSuggestions.id, suggestionId)).catch(() => {})
   }
 
-  return NextResponse.json({ seriesId, posts: insertedPosts })
+  return NextResponse.json({ seriesId, posts: insertedPosts, rows: rows.map(toClientPost) })
 }
