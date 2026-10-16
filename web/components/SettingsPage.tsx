@@ -8,6 +8,7 @@ import type { IntegrationDefinition } from '@/lib/integrations/registry'
 import { INTEGRATION_GROUPS } from '@/lib/integrations/registry'
 import ThemeToggle from '@/components/ThemeToggle'
 import { Spinner } from '@/components/ui/spinner'
+import DailyEmailToggle from '@/components/DailyEmailToggle'
 
 interface ConnectedIntegration {
   status: string
@@ -1334,23 +1335,8 @@ function AccountSection({ userEmail, dailyEmailEnabled: initialDailyEmail, frekt
   const [deleting, setDeleting] = useState(false)
   const router = useRouter()
 
-  const [dailyEmail, setDailyEmail] = useState(initialDailyEmail)
-  const [emailToggling, setEmailToggling] = useState(false)
   const [autoPost, setAutoPost] = useState(initialAutoPost)
   const [autoPostToggling, setAutoPostToggling] = useState(false)
-
-  const toggleDailyEmail = async () => {
-    setEmailToggling(true)
-    try {
-      const res = await fetch('/api/analytics/daily-email-pref', { method: 'POST' })
-      if (res.ok) {
-        const data = await res.json() as { dailyEmailEnabled: boolean }
-        setDailyEmail(data.dailyEmailEnabled)
-      }
-    } finally {
-      setEmailToggling(false)
-    }
-  }
 
   const toggleAutoPost = async () => {
     setAutoPostToggling(true)
@@ -1405,28 +1391,8 @@ function AccountSection({ userEmail, dailyEmailEnabled: initialDailyEmail, frekt
             <label className="st-label">Notifications</label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '4px' }}>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>Daily email digest</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-faint)', marginTop: '2px' }}>Analytics summary sent to {userEmail} each morning</div>
-                </div>
-                <button
-                  disabled={emailToggling}
-                  onClick={toggleDailyEmail}
-                  style={{
-                    flexShrink: 0, width: '44px', height: '24px', borderRadius: '12px', border: 'none',
-                    cursor: emailToggling ? 'not-allowed' : 'pointer',
-                    background: dailyEmail ? 'var(--green)' : 'var(--line)',
-                    position: 'relative', transition: 'background .2s',
-                  }}
-                >
-                  <span style={{
-                    position: 'absolute', top: '3px', width: '18px', height: '18px', borderRadius: '50%',
-                    background: '#fff', transition: 'left .2s', left: dailyEmail ? '23px' : '3px',
-                    boxShadow: '0 1px 3px rgba(0,0,0,.2)',
-                  }} />
-                </button>
-              </div>
+              <DailyEmailToggle variant="full" initialEnabled={initialDailyEmail} email={userEmail} />
+              <div className="st-divider" style={{ margin: '4px 0' }} />
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                 <div>

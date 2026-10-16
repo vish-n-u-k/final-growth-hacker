@@ -31,6 +31,8 @@ export default async function TodayPage() {
     lastActionDate: brands.lastActionDate,
     dailySignalsCache: brands.dailySignalsCache,
     signalsCachedAt: brands.signalsCachedAt,
+    dailyEmailEnabled: brands.dailyEmailEnabled,
+    notificationEmail: brands.notificationEmail,
   }).from(brands).where(eq(brands.userId, user.id)).limit(1)
 
   if (!brand) redirect('/onboarding')
@@ -188,6 +190,8 @@ export default async function TodayPage() {
       frektoDefaultPlatform={frektoDefaultPlatform}
       postIdeas={postIdeas}
       posthogConnected={posthogInteg?.status === 'connected'}
+      dailyEmailEnabled={brand.dailyEmailEnabled ?? false}
+      dailyEmailTo={brand.notificationEmail ?? null}
       blogData={{
         blogs: recentBlogs.map(b => ({ ...b, mdUrl: blogMarkdownUrl((process.env.NEXT_PUBLIC_APP_URL || 'https://app.growjin.com'), b.id) })),
         limit: blogLimit,

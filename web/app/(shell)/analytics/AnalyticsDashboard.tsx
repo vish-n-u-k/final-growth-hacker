@@ -8,7 +8,7 @@ import {
 import {
   RefreshCw, UserPlus, LogIn, Crown, UserMinus,
   Trash2, MessageSquare, Star, TrendingDown, TrendingUp,
-  Zap, ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle,
+  ChevronDown, ArrowRight, Lock, Search, BarChart2, CheckCircle2, Circle,
   ArrowUp, ArrowDown,
 } from 'lucide-react'
 import DailySummaryCard from './daily/DailySummaryCard'
@@ -16,6 +16,7 @@ import ProjectedMrr from '@/components/ProjectedMrr'
 import type { MrrSettings } from '@/lib/mrr-shared'
 import { connectUrl } from '@/lib/integrations/connect-url'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
+import DailyEmailToggle from '@/components/DailyEmailToggle'
 
 /* ── Types ────────────────────────────────────────────── */
 export interface ModuleHealth {
@@ -484,21 +485,6 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [trafficData, setTrafficData] = useState<TrafficData | null>(null)
   const [trafficLoading, setTrafficLoading] = useState(true)
-  const [dailyEmail, setDailyEmail] = useState(initialDailyEmail)
-  const [emailToggling, setEmailToggling] = useState(false)
-
-  async function toggleDailyEmail() {
-    setEmailToggling(true)
-    try {
-      const res = await fetch('/api/analytics/daily-email-pref', { method: 'POST' })
-      if (res.ok) {
-        const { dailyEmailEnabled } = await res.json() as { dailyEmailEnabled: boolean }
-        setDailyEmail(dailyEmailEnabled)
-      }
-    } finally {
-      setEmailToggling(false)
-    }
-  }
 
   // Fetch analytics data
   useEffect(() => {
@@ -666,26 +652,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             >
               <RefreshCw size={12} style={{ animation: phLoading ? 'spin 1s linear infinite' : 'none' }} /> Refresh
             </button>
-            {/* Daily email toggle — only when both PostHog + GA4 connected */}
-            {data?.posthogConnected && data?.ga4?.connected && (
-            <button
-              onClick={toggleDailyEmail}
-              disabled={emailToggling}
-              title={dailyEmail ? 'Daily email is on — click to turn off' : 'Get a daily summary email at 8am IST'}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
-                padding: '7px 14px', borderRadius: 99, border: '1px solid var(--line)',
-                background: dailyEmail ? 'var(--green)' : 'transparent',
-                color: dailyEmail ? '#06140c' : 'var(--text-dim)',
-                cursor: emailToggling ? 'default' : 'pointer',
-                opacity: emailToggling ? 0.6 : 1,
-                transition: 'all 0.15s',
-              }}
-            >
-              <Zap size={12} />
-              {dailyEmail ? 'Daily email on' : 'Daily email'}
-            </button>
-            )}
+            <DailyEmailToggle initialEnabled={initialDailyEmail} />
           </div>
         </div>
 

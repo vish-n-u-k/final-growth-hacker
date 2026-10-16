@@ -16,6 +16,7 @@ import type { DBItemFull } from '@/lib/modules/types'
 import { connectUrl } from '@/lib/integrations/connect-url'
 import { Spinner } from '@/components/ui/spinner'
 import Link from 'next/link'
+import DailyEmailToggle from '@/components/DailyEmailToggle'
 import { BarChart3 } from 'lucide-react'
 
 interface TrafficData {
@@ -80,6 +81,8 @@ interface Props {
   postIdeas: PostIdea[]
   posthogConnected: boolean
   blogData: BlogData
+  dailyEmailEnabled?: boolean
+  dailyEmailTo?: string | null
 }
 
 // ── Type config ───────────────────────────────────────────────────────────────
@@ -1062,7 +1065,7 @@ function LoadingState() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function TodayDashboard({ initialData, brandName, websiteUrl = null, mcpLastUsedAt = null, githubRepo = null, gmailConnected, gmailAddress, prospectItems, gmailModuleId, frektoConnected, frektoDefaultPlatform, postIdeas, posthogConnected, blogData }: Props) {
+export default function TodayDashboard({ initialData, brandName, websiteUrl = null, mcpLastUsedAt = null, githubRepo = null, gmailConnected, gmailAddress, prospectItems, gmailModuleId, frektoConnected, frektoDefaultPlatform, postIdeas, posthogConnected, blogData, dailyEmailEnabled = false, dailyEmailTo = null }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
@@ -1216,6 +1219,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
               <span className="td-streak-txt">day streak</span>
             </div>
           )}
+          <DailyEmailToggle initialEnabled={dailyEmailEnabled} email={dailyEmailTo} />
           <Link href="/analytics" className="td-analytics-link">
             <BarChart3 size={15} aria-hidden="true" />
             Analytics

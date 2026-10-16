@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { connectUrl } from '@/lib/integrations/connect-url'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
+import DailyEmailToggle from '@/components/DailyEmailToggle'
 
 /* ── Types ────────────────────────────────────────────── */
 export interface ModuleHealth {
@@ -1484,24 +1485,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   const [newMetricTone, setNewMetricTone] = useState('green')
   const [newMetricType, setNewMetricType] = useState('count')
   const [savingMetric, setSavingMetric] = useState(false)
-  const [dailyEmail, setDailyEmail] = useState(initialDailyEmail)
-  const [emailToggling, setEmailToggling] = useState(false)
   const [ga4ChartMetric, setGa4ChartMetric] = useState<'newUsers' | 'sessions'>('newUsers')
   const [websiteData, setWebsiteData] = useState<{ gsc: GscData | null; ga4: Ga4Data | null } | null>(null)
   const [websiteLoading, setWebsiteLoading] = useState(false)
 
-  async function toggleDailyEmail() {
-    setEmailToggling(true)
-    try {
-      const res = await fetch('/api/analytics/daily-email-pref', { method: 'POST' })
-      if (res.ok) {
-        const { dailyEmailEnabled } = await res.json() as { dailyEmailEnabled: boolean }
-        setDailyEmail(dailyEmailEnabled)
-      }
-    } finally {
-      setEmailToggling(false)
-    }
-  }
   const [editBuiltinCard, setEditBuiltinCard] = useState<{ key: string; label: string; events: string } | null>(null)
   const [savingBuiltinEdit, setSavingBuiltinEdit] = useState(false)
   const [editingCustomId, setEditingCustomId] = useState<string | null>(null)
@@ -2093,29 +2080,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               >
                 <RefreshCw size={14} style={{ animation: phLoading ? 'spin 1s linear infinite' : 'none' }} />
               </button>
-              {/* Daily email toggle — only when both PostHog + GA4 connected */}
-              {data?.posthogConnected && ga4?.connected && (
-                <button
-                  onClick={toggleDailyEmail}
-                  disabled={emailToggling}
-                  title={dailyEmail ? 'Daily email is on — click to turn off' : 'Get a daily summary email at 8am IST'}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    fontSize: 13, fontWeight: 600,
-                    padding: '7px 14px', borderRadius: 99,
-                    border: `1px solid ${MOCK.border}`,
-                    background: dailyEmail ? MOCK.green : MOCK.card,
-                    color: dailyEmail ? '#ffffff' : MOCK.muted,
-                    cursor: emailToggling ? 'default' : 'pointer',
-                    opacity: emailToggling ? 0.6 : 1,
-                    transition: 'all 0.15s',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <Zap size={12} />
-                  {dailyEmail ? 'Daily email on' : 'Daily email'}
-                </button>
-              )}
+              <DailyEmailToggle initialEnabled={initialDailyEmail} />
             </div>
             {snapshotAt && !phLoading && (
               <span style={{ fontSize: 11.5, color: MOCK.muted2 }}>
