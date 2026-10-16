@@ -3,7 +3,7 @@ import { blogMarkdownUrl } from '@/lib/blog-share'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations, modules, moduleItems, moduleCategories, brandBlogs } from '@/lib/db/schema'
-import { eq, and, ne, desc, count, inArray } from 'drizzle-orm'
+import { eq, and, ne, desc, count, inArray, like } from 'drizzle-orm'
 import TodayDashboard from '@/components/TodayDashboard'
 import type { ActionCard } from '@/lib/daily/signals'
 import type { DBItemFull } from '@/lib/modules/types'
@@ -43,7 +43,7 @@ export default async function TodayPage() {
       .from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.provider, 'gmail')))
       .limit(1),
-    db.select({ status: brandIntegrations.status })
+    db.select({ status: brandIntegrations.status, metadata: brandIntegrations.metadata })
       .from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.provider, 'frekto')))
       .limit(1),
@@ -83,6 +83,22 @@ export default async function TodayPage() {
   const gmailConnected = gmailInteg?.status === 'connected'
   const gmailAddress = (gmailInteg?.metadata as { gmail_address?: string } | null)?.gmail_address ?? null
   const frektoConnected = frektoInteg?.status === 'connected'
+  const frektoDefaultPlatform = ((frektoInteg?.metadata as Record<string, string> | null)?.auto_post_platforms ?? '').split(',')[0]?.trim().toLowerCase() || null
+
+  // "Create a post": the Social Media audit's post suggestions as ready ideas
+  const postIdeas = socialModule
+    ? (await db.select({ label: moduleItems.label, detail: moduleItems.aiDetail, action: moduleItems.aiAction })
+        .from(moduleItems)
+        .where(and(eq(moduleItems.moduleId, socialModule.id), like(moduleItems.slug, 'post-suggestions-%')))
+        .limit(8)
+        .catch(() => []))
+        .filter(i => i.label)
+        .map(i => ({
+          label: (i.label ?? '').replace(/\s*\[[^\]]*\]\s*$/, '').slice(0, 300),
+          platform: /\b(linkedin|instagram|facebook|pinterest|youtube|tiktok|twitter|x)\b/i.exec(i.detail ?? '')?.[1]?.toLowerCase() ?? null,
+          hook: i.action ?? null,
+        }))
+    : []
 
   const blogActiveCount = Number(blogCountRow?.n ?? 0)
   const lastBlogAt = recentBlogs[0]?.createdAt ?? null
@@ -168,8 +184,9 @@ export default async function TodayPage() {
       gmailAddress={gmailAddress}
       prospectItems={prospectItems}
       gmailModuleId={gmailModule?.id ?? null}
-      socialModuleId={socialModule?.id ?? null}
       frektoConnected={frektoConnected}
+      frektoDefaultPlatform={frektoDefaultPlatform}
+      postIdeas={postIdeas}
       posthogConnected={posthogInteg?.status === 'connected'}
       blogData={{
         blogs: recentBlogs.map(b => ({ ...b, mdUrl: blogMarkdownUrl((process.env.NEXT_PUBLIC_APP_URL || 'https://app.growjin.com'), b.id) })),

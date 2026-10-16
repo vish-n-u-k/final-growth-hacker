@@ -6,7 +6,7 @@ import SocialIcon, { socialBrand } from '@/components/SocialIcon'
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
-import FrektoPostingSection from '@/components/FrektoPostingSection'
+import TodaySocialPost, { type PostIdea } from '@/components/TodaySocialPost'
 import TodayActivity from '@/components/TodayActivity'
 import ElementEvidence from '@/components/ElementEvidence'
 import PagePreview from '@/components/PagePreview'
@@ -72,8 +72,9 @@ interface Props {
   gmailAddress: string | null
   prospectItems: DBItemFull[]
   gmailModuleId: string | null
-  socialModuleId: string | null
   frektoConnected: boolean
+  frektoDefaultPlatform: string | null
+  postIdeas: PostIdea[]
   posthogConnected: boolean
   blogData: BlogData
 }
@@ -354,7 +355,7 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
       ) : (
         <div className="td-card-actions">
           {isInline ? (
-            <button className="td-cta-btn" onClick={() => { onCta(); onToggleExpand() }}>
+            <button className="td-cta-btn" onClick={() => { if (card.type !== 'social') onCta(); onToggleExpand() }}>
               {expanded ? 'Close' : card.type === 'outreach' ? 'Write outreach emails' : card.type === 'blog' ? 'Write the blog post' : 'Create a post'}
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 5, transform: expanded ? 'rotate(180deg)' : 'none' }}>
                 <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -1054,7 +1055,7 @@ function LoadingState() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function TodayDashboard({ initialData, brandName, websiteUrl = null, mcpLastUsedAt = null, githubRepo = null, gmailConnected, gmailAddress, prospectItems, gmailModuleId, socialModuleId, frektoConnected, posthogConnected, blogData }: Props) {
+export default function TodayDashboard({ initialData, brandName, websiteUrl = null, mcpLastUsedAt = null, githubRepo = null, gmailConnected, gmailAddress, prospectItems, gmailModuleId, frektoConnected, frektoDefaultPlatform, postIdeas, posthogConnected, blogData }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
@@ -1153,6 +1154,25 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
     if (status === 'done') markAction()
   }, [markAction])
 
+  // A post went out from the "Create a post" panel: mark the task done and count today's action,
+  // but keep the card (with its success message) until the panel is closed.
+  const [publishedIds, setPublishedIds] = useState<Set<string>>(new Set())
+  const publishedSocial = useCallback((card: ActionCard) => {
+    setPublishedIds(prev => new Set(prev).add(card.id))
+    markAction()
+    if (card.data?.taskKind) {
+      fetch('/api/today/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: card.data.taskKind, id: card.data.taskId, status: 'done' }),
+      }).catch(() => {})
+    }
+  }, [markAction])
+  const closeSocialPanel = useCallback((card: ActionCard) => {
+    setExpandedCard(null)
+    if (publishedIds.has(card.id)) setCards(prev => prev.filter(c => c.id !== card.id))
+  }, [publishedIds])
+
   const now = new Date()
   const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -1244,7 +1264,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
                   rank={i + 1}
                   onCta={markAction}
                   expanded={expandedCard === card.id}
-                  onToggleExpand={() => setExpandedCard(expandedCard === card.id ? null : card.id)}
+                  onToggleExpand={() => expandedCard === card.id && card.type === 'social' ? closeSocialPanel(card) : setExpandedCard(expandedCard === card.id ? null : card.id)}
                   onDone={card.type === 'reminder' ? () => setCards(prev => prev.filter(c => c.id !== card.id)) : undefined}
                   onComplete={card.data?.taskKind ? (status) => completeTask(card, status) : undefined}
                   onClaude={card.data?.route === 'code' && !INLINE_TYPES.has(card.type) ? () => handoff.start(taskHandoff(card, site)) : undefined}
@@ -1278,24 +1298,19 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
                   </div>
                 )}
 
-                {/* Inline social post panel */}
+                {/* Inline social post panel: make → preview → post now / schedule */}
                 {card.type === 'social' && expandedCard === card.id && (
                   <div className="td-inline-panel">
                     <div className="td-inline-panel-header">
-                      <span className="td-inline-panel-title">Generate Social Post</span>
-                      <button className="td-inline-panel-close" onClick={() => setExpandedCard(null)}>×</button>
+                      <span className="td-inline-panel-title">Create a post</span>
+                      <button className="td-inline-panel-close" aria-label="Close" onClick={() => closeSocialPanel(card)}>×</button>
                     </div>
-                    {socialModuleId ? (
-                      <FrektoPostingSection
-                        moduleId={socialModuleId}
-                        brandName={brandName}
-                        connected={frektoConnected}
-                      />
-                    ) : (
-                      <div className="td-inline-analyze">
-                        <p className="td-inline-analyze-msg">Complete the Social Media module first to unlock post generation.</p>
-                      </div>
-                    )}
+                    <TodaySocialPost
+                      connected={frektoConnected}
+                      ideas={postIdeas}
+                      defaultPlatform={frektoDefaultPlatform}
+                      onPublished={() => publishedSocial(card)}
+                    />
                   </div>
                 )}
 
@@ -1380,6 +1395,54 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           padding: 0 2px;
         }
         .td-inline-panel-close:hover { color: var(--text); }
+
+        /* "Create a post" panel (TodaySocialPost) */
+        .tsp { padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+        .tsp-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+        .tsp-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); }
+        .tsp-row { display: flex; gap: 20px; flex-wrap: wrap; }
+        .tsp-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .tsp-chip {
+          display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+          padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line);
+          background: var(--card); color: var(--text-dim); font-size: 12.5px; cursor: pointer; text-align: left;
+        }
+        .tsp-chip:hover:not(:disabled) { border-color: var(--green); color: var(--text); }
+        .tsp-chip.is-on { border-color: var(--green); background: rgba(23,154,80,.1); color: var(--green); font-weight: 600; }
+        .tsp-chip:disabled { opacity: .55; cursor: default; }
+        .tsp-input {
+          width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px;
+          border: 1px solid var(--line); background: var(--card); color: var(--text);
+          font: inherit; font-size: 13.5px; line-height: 1.5; resize: vertical; outline: none;
+        }
+        .tsp-input:focus { border-color: var(--green); }
+        .tsp-input--small { width: auto; padding: 5px 9px; font-size: 12.5px; }
+        .tsp-btn {
+          align-self: flex-start; display: inline-flex; align-items: center; gap: 8px;
+          padding: 10px 20px; border-radius: 9px; border: none; background: var(--green); color: #fff;
+          font-size: 13.5px; font-weight: 600; cursor: pointer; text-decoration: none;
+        }
+        .tsp-btn:disabled { opacity: .7; cursor: default; }
+        .tsp-ghost {
+          padding: 10px 16px; border-radius: 9px; border: 1px solid var(--line); background: var(--card);
+          color: var(--text-dim); font-size: 13px; cursor: pointer;
+        }
+        .tsp-ghost:hover:not(:disabled) { color: var(--text); }
+        .tsp-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .tsp-muted { margin: -6px 0 0; font-size: 12.5px; color: var(--text-faint); line-height: 1.5; }
+        .tsp-error { margin: 0; font-size: 13px; color: #dc2626; }
+        .tsp-spin {
+          width: 13px; height: 13px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
+          animation: tsp-spin .8s linear infinite;
+        }
+        @keyframes tsp-spin { to { transform: rotate(360deg); } }
+        .tsp-preview { border: 1px solid var(--line); border-radius: 12px; background: var(--bg-soft); padding: 12px; display: flex; justify-content: center; }
+        .tsp-preview img, .tsp-preview video { max-width: 100%; max-height: 460px; border-radius: 8px; display: block; }
+        .tsp-slides { display: flex; gap: 8px; overflow-x: auto; }
+        .tsp-slides img { height: 320px; width: auto; flex: none; }
+        .tsp-done { display: flex; gap: 12px; align-items: flex-start; padding: 6px 0; font-size: 14px; color: var(--text); }
+        .tsp-done > span { width: 26px; height: 26px; flex: none; border-radius: 50%; background: var(--green); color: #fff; display: grid; place-items: center; font-weight: 700; }
+        .tsp-done .tsp-muted { margin: 4px 0 0; }
         .td-inline-analyze {
           padding: 32px 24px; display: flex; flex-direction: column; align-items: center; gap: 14px;
         }
