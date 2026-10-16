@@ -5,6 +5,7 @@ import SocialIcon, { socialBrand } from '@/components/SocialIcon'
 import type { ClientPost } from '@/lib/frekto/drafts'
 import { formatInZone, utcToZoned } from '@/lib/frekto/time'
 import { Spinner } from '@/components/ui/spinner'
+import TimezoneSelect, { deviceTimezone, canonicalTimezone } from '@/components/TimezoneSelect'
 
 export type ScheduledPost = ClientPost
 
@@ -206,9 +207,10 @@ function PreviewModal({ post, timezone, onClose }: { post: ScheduledPost; timezo
 
 // ── Date/time picker used for approve and reschedule ─────────────────────────
 
-function WhenPicker({ initialIso, timezone, busy, confirmLabel, onConfirm, onPostNow, onCancel }: {
+function WhenPicker({ initialIso, timezone, onTimezone, busy, confirmLabel, onConfirm, onPostNow, onCancel }: {
   initialIso: string | null
   timezone: string
+  onTimezone: (tz: string) => void // changes it for the whole page (and is saved)
   busy: boolean
   confirmLabel: string
   onConfirm: (w: When) => void
@@ -225,7 +227,7 @@ function WhenPicker({ initialIso, timezone, busy, confirmLabel, onConfirm, onPos
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
       <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} aria-label="Date" />
       <input type="time" value={time} onChange={e => setTime(e.target.value)} style={inputStyle} aria-label="Time" />
-      <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{timezone}</span>
+      <TimezoneSelect compact value={timezone} onChange={onTimezone} disabled={busy} style={{ ...inputStyle, maxWidth: 210 }} ariaLabel="Timezone for this time" />
       <button style={primaryBtn(busy || !date || !time)} disabled={busy || !date || !time} onClick={() => onConfirm({ date, time, timezone })}>
         {busy ? '…' : confirmLabel}
       </button>
@@ -258,7 +260,24 @@ export default function SocialStudioPage({
   initialSeriesSuggestions: SeriesSuggestion[]
   renderedAt: string
 }) {
-  const tz = frektoMeta.timezone
+  // The timezone times are shown and scheduled in (saved on the Frekto connection)
+  const [tz, setTz] = useState(canonicalTimezone(frektoMeta.timezone))
+  const [tzError, setTzError] = useState<string | null>(null)
+  const [deviceTz, setDeviceTz] = useState<string | null>(null)
+  useEffect(() => { setDeviceTz(deviceTimezone()) }, [])
+  const changeTz = async (next: string) => {
+    if (next === tz) return
+    const prev = tz
+    setTz(next)
+    setTzError(null)
+    try {
+      const res = await fetch('/api/settings/frekto-auto-post', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timezone: next }) })
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? 'save failed')
+    } catch (e) {
+      setTz(prev)
+      setTzError(`Couldn't change the timezone: ${e instanceof Error ? e.message : 'try again'}.`)
+    }
+  }
   // Server render time first so the upcoming/history split matches on hydration
   const [now, setNow] = useState(() => new Date(renderedAt).getTime())
   useEffect(() => {
@@ -502,6 +521,18 @@ export default function SocialStudioPage({
       <p style={{ fontSize: '13px', color: 'var(--text-faint)', margin: 0 }}>
         AI-driven post scheduling powered by Frekto — {brandName}
       </p>
+      {frektoConnected && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 10px', marginTop: 12, fontSize: 13, color: 'var(--text-dim)' }}>
+          <span>Times are shown and scheduled in</span>
+          <TimezoneSelect value={tz} onChange={changeTz} style={{ ...inputStyle, maxWidth: 260 }} />
+          {deviceTz && deviceTz !== tz && (
+            <button type="button" style={{ ...ghostBtn, fontSize: 12 }} onClick={() => changeTz(deviceTz)}>
+              Use my timezone ({deviceTz.replace(/_/g, ' ')})
+            </button>
+          )}
+          {tzError && <span style={{ flexBasis: '100%', fontSize: 12, color: '#dc2626' }}>{tzError}</span>}
+        </div>
+      )}
     </div>
   )
 
@@ -595,7 +626,7 @@ export default function SocialStudioPage({
       {reschedulingId === p.id && (
         <div style={{ marginTop: 10 }}>
           <WhenPicker
-            initialIso={p.scheduledAt} timezone={tz} busy={busyPost === p.id} confirmLabel="Move"
+            initialIso={p.scheduledAt} timezone={tz} onTimezone={changeTz} busy={busyPost === p.id} confirmLabel="Move"
             onConfirm={when => postAction(p, { action: 'reschedule', when })}
             onPostNow={() => postAction(p, { action: 'reschedule', when: { postNow: true } })}
             onCancel={() => setReschedulingId(null)}
@@ -695,7 +726,7 @@ export default function SocialStudioPage({
                       <>
                         <div style={{ fontSize: 11, color: 'var(--text-faint)', marginBottom: 6 }}>When should it go out?</div>
                         <WhenPicker
-                          initialIso={p.scheduledAt} timezone={tz} busy={busyPost === p.id} confirmLabel="Schedule"
+                          initialIso={p.scheduledAt} timezone={tz} onTimezone={changeTz} busy={busyPost === p.id} confirmLabel="Schedule"
                           onConfirm={when => postAction(p, { action: 'approve', when })}
                           onPostNow={() => postAction(p, { action: 'approve', when: { postNow: true } })}
                         />
@@ -718,7 +749,7 @@ export default function SocialStudioPage({
       {/* Section 3 — Upcoming queue */}
       <div style={card}>
         <div style={sectionTitle}>Upcoming</div>
-        <p style={sectionSub}>Scheduled with Frekto. Times are in {tz}. Click a picture to see the full post.</p>
+        <p style={sectionSub}>Scheduled with Frekto. Click a picture to see the full post.</p>
         {upcomingGroups.length === 0 ? (
           <p style={{ fontSize: '13px', color: 'var(--text-faint)', margin: 0 }}>
             Nothing scheduled — use AI Suggest below to make your next post.
