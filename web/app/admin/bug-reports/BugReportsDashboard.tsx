@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { LoadingState } from '@/components/ui/spinner'
 
 interface DeviceInfo {
   ua?: string
@@ -131,7 +132,7 @@ export default function BugReportsDashboard() {
 
       {/* Content */}
       {loading ? (
-        <p style={{ color: 'var(--text-dim)', fontSize: 14 }}>Loading...</p>
+        <LoadingState>Loading reports…</LoadingState>
       ) : filtered.length === 0 ? (
         <p style={{ color: 'var(--text-dim)', fontSize: 14 }}>No {tab === 'all' ? '' : tab} reports.</p>
       ) : (

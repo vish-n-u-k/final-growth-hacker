@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { FontSizeScanResult, FontSizeViolation } from '@/lib/font-size-scan'
+import { Spinner } from '@/components/ui/spinner'
 
 function ViolationCard({ v }: { v: FontSizeViolation }) {
   const snippet = v.snippet || v.selector
@@ -59,7 +60,7 @@ export default function FontSizeChecker({ websiteUrl }: { websiteUrl?: string })
       <div className="cc-checker-hd">
         <span>Live font size checker</span>
         <button type="button" className="cc-rescan" onClick={() => runScan(true)} disabled={loading}>
-          {loading ? 'Scanning…' : 'Re-scan page'}
+          {loading ? <><Spinner />Scanning…</> : 'Re-scan page'}
         </button>
       </div>
       <div className="cc-checker-body">

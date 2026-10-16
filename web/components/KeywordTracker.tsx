@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import type { GscKeywordRow, SuggestionRow, TrackedWithGsc } from '@/app/api/keywords/route'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import { LoadingState, Spinner } from '@/components/ui/spinner'
 
 function timeAgo(iso: string | null): string {
   if (!iso) return 'Never'
@@ -123,7 +124,7 @@ function GscConnectForm({ onConnected }: { onConnected: () => void }) {
         {err && <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', color: '#f87171', fontSize: 13 }}>{err}</div>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button type="submit" disabled={saving} style={{ padding: '9px 22px', borderRadius: 8, border: 'none', background: 'var(--green)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: 'inherit' }}>
-            {saving ? 'Connecting…' : 'Connect GSC'}
+            {saving ? <><Spinner />Connecting…</> : 'Connect GSC'}
           </button>
           <a href={connectUrl('gsc_api')} style={{ fontSize: 12.5, color: 'var(--text-dim)', textDecoration: 'none' }}>Manage in Settings →</a>
         </div>
@@ -187,7 +188,7 @@ function GoogleAdsConnectForm({ onConnected }: { onConnected: () => void }) {
         {err && <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.3)', color: '#f87171', fontSize: 13 }}>{err}</div>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button type="submit" disabled={saving} style={{ padding: '9px 22px', borderRadius: 8, border: 'none', background: 'var(--green)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: 'inherit' }}>
-            {saving ? 'Connecting…' : 'Connect Google Ads'}
+            {saving ? <><Spinner />Connecting…</> : 'Connect Google Ads'}
           </button>
           <a href={connectUrl('google_ads')} style={{ fontSize: 12.5, color: 'var(--text-dim)', textDecoration: 'none' }}>Manage in Settings →</a>
         </div>
@@ -418,7 +419,7 @@ export default function KeywordTracker({ brandName, seoAnalyzed }: { brandName: 
 
             <div style={{ borderRadius: 12, border: '1px solid var(--line)', overflow: 'hidden' }}>
               {loading ? (
-                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-dim)', fontSize: 13 }}>Loading…</div>
+                <LoadingState>Loading keywords…</LoadingState>
               ) : gscKeywords.length === 0 ? (
                 <div style={{ padding: '40px 24px', textAlign: 'center' }}>
                   <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>No GSC data yet</p>

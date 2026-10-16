@@ -5,6 +5,7 @@ import ArrowIcon from '@/components/ArrowIcon'
 import Link from 'next/link'
 import PersonPanel, { ago } from '@/components/PersonPanel'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import { Spinner } from '@/components/ui/spinner'
 
 // Acquisition & Journeys: how people find you, which channels and pages turn visitors into
 // signups, and every signed-up person with their full journey one tap away.
@@ -248,7 +249,7 @@ export default function AuthNewDashboard({ brand }: { brand: { id: string; name:
             <h1 className="aj-title">Acquisition &amp; Journeys</h1>
             <p className="aj-muted">{brand.name} · last 30 days</p>
           </div>
-          <button type="button" className="aj-refresh" onClick={load} disabled={loading}>{loading ? 'Loading…' : 'Refresh'}</button>
+          <button type="button" className="aj-refresh" onClick={load} disabled={loading}>{loading ? <><Spinner />Loading…</> : 'Refresh'}</button>
         </div>
       </div>
 

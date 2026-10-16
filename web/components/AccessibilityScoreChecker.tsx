@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { AccessibilityScoreResult } from '@/lib/accessibility-score-scan'
+import { Spinner } from '@/components/ui/spinner'
 
 const CHECKS: { key: keyof Omit<AccessibilityScoreResult, 'score'>; label: string }[] = [
   { key: 'colorContrastPass', label: 'Color contrast' },
@@ -48,7 +49,7 @@ export default function AccessibilityScoreChecker({ websiteUrl }: { websiteUrl?:
       <div className="cc-checker-hd">
         <span>Live accessibility score</span>
         <button type="button" className="cc-rescan" onClick={() => runScan(true)} disabled={loading}>
-          {loading ? 'Checking…' : 'Re-check'}
+          {loading ? <><Spinner />Checking…</> : 'Re-check'}
         </button>
       </div>
       <div className="cc-checker-body">

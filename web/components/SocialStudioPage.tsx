@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import SocialIcon, { socialBrand } from '@/components/SocialIcon'
 import type { ClientPost } from '@/lib/frekto/drafts'
 import { formatInZone, utcToZoned } from '@/lib/frekto/time'
+import { Spinner } from '@/components/ui/spinner'
 
 export type ScheduledPost = ClientPost
 
@@ -91,7 +92,7 @@ function StatusPill({ post, now }: { post: ScheduledPost; now: number }) {
       display: 'inline-block', padding: '2px 8px', borderRadius: '99px', fontSize: '10px', whiteSpace: 'nowrap',
       fontWeight: 600, background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
     }}>
-      {cfg.label}
+      {post.status === 'scheduling' && <Spinner size={8} />}{cfg.label}
     </span>
   )
 }
@@ -151,7 +152,7 @@ function Preview({ post, size, onOpen }: { post: ScheduledPost; size: number; on
     display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: onOpen && post.outputUrl ? 'zoom-in' : 'default',
   }
   if (!post.outputUrl && post.status === 'draft') {
-    return <div style={box}><span style={{ fontSize: '10px', color: 'var(--text-faint)', textAlign: 'center', padding: 4 }}>Rendering…</span></div>
+    return <div style={box}><span style={{ fontSize: '10px', color: 'var(--text-faint)', textAlign: 'center', padding: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}><Spinner size={14} />Rendering…</span></div>
   }
   if (!post.outputUrl) {
     return <div style={box}><span style={{ fontSize: '10px', color: 'var(--text-faint)', textAlign: 'center', padding: 4 }}>No preview</span></div>
@@ -765,7 +766,7 @@ export default function SocialStudioPage({
         ) : (
           <>
             <button disabled={suggestLoading} onClick={fetchSuggestions} style={{ ...primaryBtn(suggestLoading), padding: '8px 18px', fontSize: 13 }}>
-              {suggestLoading ? 'Thinking…' : suggestions.some(s => s.id) ? 'Get new suggestions' : 'Get suggestions'}
+              {suggestLoading ? <><Spinner />Thinking…</> : suggestions.some(s => s.id) ? 'Get new suggestions' : 'Get suggestions'}
             </button>
 
             {suggestError && (
@@ -802,7 +803,7 @@ export default function SocialStudioPage({
                         <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                           <button style={ghostBtn} disabled={previewingId === s.id} onClick={() => dismissSuggestion(s.id, 'post')}>Not interested</button>
                           <button style={primaryBtn(previewingId !== null)} disabled={previewingId !== null} onClick={() => createPreview(s)}>
-                            {previewingId === s.id ? 'Rendering… (up to 1 min)' : 'Create preview'}
+                            {previewingId === s.id ? <><Spinner />Rendering… (up to 1 min)</> : 'Create preview'}
                           </button>
                         </div>
                       )}
@@ -827,7 +828,7 @@ export default function SocialStudioPage({
         ) : (
           <>
             <button disabled={seriesLoading} onClick={fetchSeriesSuggestions} style={{ ...primaryBtn(seriesLoading), padding: '8px 18px', fontSize: 13 }}>
-              {seriesLoading ? 'Planning…' : 'Plan a content series'}
+              {seriesLoading ? <><Spinner />Planning…</> : 'Plan a content series'}
             </button>
 
             {seriesError && (
@@ -862,7 +863,7 @@ export default function SocialStudioPage({
                             onClick={() => { if (window.confirm(`Frekto will make and schedule ${s.count} ${s.platform} posts starting ${s.startDate}. Continue?`)) launchSeries(s) }}
                             style={primaryBtn(launchingId !== null)}
                           >
-                            {launchingId === key ? 'Generating… (up to 3 min)' : 'Launch series'}
+                            {launchingId === key ? <><Spinner />Generating… (up to 3 min)</> : 'Launch series'}
                           </button>
                         </div>
                       </div>
@@ -897,7 +898,7 @@ export default function SocialStudioPage({
           style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', fontSize: 13, resize: 'vertical' }}
         />
         <button disabled={manualBusy || !manual.topic.trim()} onClick={createManual} style={{ ...primaryBtn(manualBusy || !manual.topic.trim()), marginTop: 8 }}>
-          {manualBusy ? 'Rendering… (up to 1 min)' : 'Create preview'}
+          {manualBusy ? <><Spinner />Rendering… (up to 1 min)</> : 'Create preview'}
         </button>
         {manualError && <p style={{ fontSize: '13px', color: '#ef4444', margin: '10px 0 0' }}>{manualError}</p>}
       </div>

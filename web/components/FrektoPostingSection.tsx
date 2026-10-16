@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import SocialIcon from '@/components/SocialIcon'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import { Spinner } from '@/components/ui/spinner'
 
 const FREKTO_PLATFORMS = [
   { key: 'instagram', label: 'Instagram', format: '4:5' },
@@ -216,7 +217,7 @@ export default function FrektoPostingSection({
             onClick={handleGenerate}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '9px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: generating || !topic.trim() ? 'not-allowed' : 'pointer', border: 'none', background: generating || !topic.trim() ? 'var(--bg-soft)' : 'var(--green)', color: generating || !topic.trim() ? 'var(--text-dim)' : '#fff', alignSelf: 'flex-start', fontFamily: 'var(--font-body)' }}
           >
-            {generating ? 'Generating… (15–90s)' : 'Generate post'}
+            {generating ? <><Spinner />Generating… (15–90s)</> : 'Generate post'}
           </button>
 
           {/* Result */}

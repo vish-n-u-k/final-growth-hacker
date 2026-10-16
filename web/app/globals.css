@@ -7781,3 +7781,19 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
   border-radius: 10px;
   transition: outline-color .6s ease;
 }
+
+/* Shared loading indicator (components/ui/spinner.tsx) */
+.spinner {
+  display: inline-block; flex-shrink: 0; box-sizing: border-box; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent; opacity: .8;
+  animation: md-spin .7s linear infinite; vertical-align: -2px; margin-right: 6px;
+}
+/* flex containers space their children with gap already */
+:where(.inline-flex, .flex, [data-slot="button"]) > .spinner, .loading-state > .spinner { margin-right: 0; }
+.loading-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  padding: 40px 24px; color: var(--text-faint); font-size: 13px; text-align: center;
+}
+.loading-state > .spinner { color: var(--green); opacity: 1; }
+.loading-state--compact { flex-direction: row; padding: 14px 16px; gap: 8px; justify-content: flex-start; }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.6s; } }

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react'
 import Link from 'next/link'
 import { useSmartBack } from '@/lib/useSmartBack'
 import FollowUpsTab from '@/components/FollowUpsTab'
+import { LoadingState, Spinner } from '@/components/ui/spinner'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -895,7 +896,7 @@ export default function GmailHub({
               onClick={handleDisconnect}
               disabled={disconnecting}
             >
-              {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+              {disconnecting ? <><Spinner />Disconnecting…</> : 'Disconnect'}
             </button>
           </div>
         </div>
@@ -991,20 +992,18 @@ export default function GmailHub({
                 </button>
               ))}
               <span className="gh-filter-sep" />
-              <span className="gh-filter-info">{inboxLoading ? 'Loading…' : `${filteredThreads.length} thread${filteredThreads.length !== 1 ? 's' : ''}`}</span>
+              <span className="gh-filter-info">{inboxLoading ? <><Spinner />Loading…</> : `${filteredThreads.length} thread${filteredThreads.length !== 1 ? 's' : ''}`}</span>
               <button
                 style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-faint)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' }}
                 onClick={fetchInbox}
                 disabled={inboxLoading}
               >
-                {inboxLoading ? 'Refreshing…' : 'Refresh'}
+                {inboxLoading ? <><Spinner />Refreshing…</> : 'Refresh'}
               </button>
             </div>
 
             {inboxLoading && inboxThreads.length === 0 ? (
-              <div style={{ padding: '48px 28px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
-                Loading inbox…
-              </div>
+              <LoadingState style={{ padding: '48px 28px' }}>Loading inbox…</LoadingState>
             ) : !inboxLoading && inboxThreads.length === 0 ? (
               <div style={{ padding: '48px 28px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
                 No emails in inbox.
@@ -1063,7 +1062,7 @@ export default function GmailHub({
                   {/* Message thread */}
                   <div className="gh-messages">
                     {loadingMsgs.has(thread.id) ? (
-                      <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>Loading messages…</div>
+                      <LoadingState>Loading messages…</LoadingState>
                     ) : thread.messages.length === 0 ? (
                       <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
                         <button
@@ -1101,14 +1100,14 @@ export default function GmailHub({
                           onClick={() => generateSummary(thread)}
                           disabled={summarizing.has(thread.id)}
                         >
-                          {summarizing.has(thread.id) ? 'Generating…' : thread.aiSummary ? 'Regenerate' : 'Generate'}
+                          {summarizing.has(thread.id) ? <><Spinner />Generating…</> : thread.aiSummary ? 'Regenerate' : 'Generate'}
                         </button>
                       )}
                     </div>
                     {thread.aiSummary
                       ? <p className="gh-ai-text">{thread.aiSummary}</p>
                       : <p className="gh-ai-text" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>
-                          {summarizing.has(thread.id) ? 'Analysing thread…' : 'Click Generate to get an AI summary of this thread.'}
+                          {summarizing.has(thread.id) ? <><Spinner />Analysing thread…</> : 'Click Generate to get an AI summary of this thread.'}
                         </p>
                     }
                   </div>
@@ -1390,7 +1389,7 @@ export default function GmailHub({
                             onClick={() => saveDraft(prospect)}
                             disabled={cardStatus === 'saving'}
                           >
-                            {cardStatus === 'saving' ? 'Saving…' : cardStatus === 'saved' ? 'Saved' : 'Save to Drafts'}
+                            {cardStatus === 'saving' ? <><Spinner />Saving…</> : cardStatus === 'saved' ? 'Saved' : 'Save to Drafts'}
                           </button>
                           <button
                             className="gh-draft-copy"
@@ -1839,7 +1838,7 @@ export default function GmailHub({
                             >
                               <IcAI />
                               {aiEditApplying
-                                ? `Applying… ${aiEditProgress ? `(${aiEditProgress.done}/${aiEditProgress.total})` : ''}`
+                                ? <><Spinner />{`Applying… ${aiEditProgress ? `(${aiEditProgress.done}/${aiEditProgress.total})` : ''}`}</>
                                 : `Apply to ${targetCount} email${targetCount !== 1 ? 's' : ''}`}
                             </button>
                             {aiEditApplying && (
@@ -1903,9 +1902,9 @@ export default function GmailHub({
                               <td className="gh-cmp-td">
                                 {status !== 'idle' && (
                                   <span className={`gh-cmp-status-badge gh-cmp-sb-${status}`}>
-                                    {status === 'generating' ? 'Generating…'
+                                    {status === 'generating' ? <><Spinner />Generating…</>
                                       : status === 'ready'     ? 'Ready'
-                                      : status === 'sending'   ? 'Sending…'
+                                      : status === 'sending'   ? <><Spinner />Sending…</>
                                       : status === 'sent'      ? 'Sent ✓'
                                       : status === 'scheduled' ? `Scheduled · ${formatScheduledDate(state?.scheduledAt ?? '')}`
                                       :                          'Error'}
@@ -2099,7 +2098,7 @@ export default function GmailHub({
                                         onClick={() => saveCampaignDraft(prospect)}
                                         disabled={campaignDraftSaving.has(prospect.id)}
                                       >
-                                        {campaignDraftSaving.has(prospect.id) ? 'Saving…' : campaignDraftSaved.has(prospect.id) ? 'Saved' : 'Save to Drafts'}
+                                        {campaignDraftSaving.has(prospect.id) ? <><Spinner />Saving…</> : campaignDraftSaved.has(prospect.id) ? 'Saved' : 'Save to Drafts'}
                                       </button>
                                       <button
                                         className="gh-draft-copy"

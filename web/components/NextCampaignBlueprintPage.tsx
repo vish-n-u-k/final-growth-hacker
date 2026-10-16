@@ -9,6 +9,7 @@ import MetaAdLaunchPanel from '@/components/MetaAdLaunchPanel'
 import type { CampaignBrief } from '@/components/MetaAdLaunchPanel'
 import type { OGTagResult, PixelStatus } from '@/app/(shell)/dashboard/meta-ads/blueprint/page'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import { Spinner } from '@/components/ui/spinner'
 
 const AUDIT_CATEGORIES = [
   { slug: 'campaign-performance', label: 'Campaigns' },
@@ -284,7 +285,7 @@ export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, bran
           <span className="bp-dot">·</span>
           <span className="bp-topbar-brand">{brandName}</span>
           <span className="bp-dot">·</span>
-          <span className="bp-topbar-updated">{analysing ? 'Analysing…' : timeAgo(lastAnalyzedAt)}</span>
+          <span className="bp-topbar-updated">{analysing ? <><Spinner />Analysing…</> : timeAgo(lastAnalyzedAt)}</span>
         </div>
         <div className="bp-topbar-actions">
           {isLocked ? (

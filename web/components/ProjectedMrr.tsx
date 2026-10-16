@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { MRR_CURRENCIES, formatMoney, projectMrr, type MrrSettings } from '@/lib/mrr-shared'
+import { Spinner } from '@/components/ui/spinner'
 
 interface Props {
   /** Live user count. Omit to have the card fetch it from PostHog itself. */
@@ -107,7 +108,7 @@ export default function ProjectedMrr({ userCount, loading = false, initial, onSa
         </div>
         {error && <p className="pmrr-error">{error}</p>}
         <div className="pmrr-actions">
-          <button type="submit" className="pmrr-btn pmrr-btn--primary" disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
+          <button type="submit" className="pmrr-btn pmrr-btn--primary" disabled={saving}>{saving ? <><Spinner />Saving…</> : 'Save'}</button>
           <button type="button" className="pmrr-btn" onClick={() => setEditing(false)}>Cancel</button>
         </div>
       </form>
@@ -138,7 +139,7 @@ export default function ProjectedMrr({ userCount, loading = false, initial, onSa
           {countLoading ? '…' : formatMoney(projectMrr(n, settings), settings.currency)}<small>/mo</small>
         </span>
         <span className="pmrr-sub">
-          {countLoading ? 'Counting users…' : `${n.toLocaleString()} users${paying} × ${formatMoney(settings.price, settings.currency)}`}
+          {countLoading ? <><Spinner />Counting users…</> : `${n.toLocaleString()} users${paying} × ${formatMoney(settings.price, settings.currency)}`}
         </span>
       </div>
       <div className="pmrr-side">
