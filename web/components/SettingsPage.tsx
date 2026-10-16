@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { IntegrationDefinition } from '@/lib/integrations/registry'
 import { INTEGRATION_GROUPS } from '@/lib/integrations/registry'
 import ThemeToggle from '@/components/ThemeToggle'
+import { Spinner } from '@/components/ui/spinner'
 
 interface ConnectedIntegration {
   status: string
@@ -310,7 +311,7 @@ function BrandSection({ brand }: { brand: { name: string; websiteUrl: string; ke
           {error && <p className="st-error">{error}</p>}
           <div className="st-form-submit">
             <button type="submit" disabled={saving} className="st-btn-primary">
-              {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save changes'}
+              {saving ? <><Spinner />Saving…</> : saved ? 'Saved ✓' : 'Save changes'}
             </button>
           </div>
         </form>
@@ -480,7 +481,7 @@ function SocialProfilesCard({ connected }: { connected: ConnectedIntegration | n
         </div>
         {error && <p className="st-error" style={{ margin: 0 }}>{error}</p>}
         <button className="st-btn-primary" onClick={handleSave} disabled={saving} type="button" style={{ flexShrink: 0 }}>
-          {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Changes'}
+          {saving ? <><Spinner />Saving…</> : saved ? 'Saved ✓' : 'Save Changes'}
         </button>
       </div>
     </div>
@@ -702,7 +703,7 @@ function HealthLine({ provider, onStatus, silent = false }: { provider: string; 
   const label = h === undefined || busy ? 'Checking the connection…' : !h ? 'Not checked' : h.status === 'ok' ? `Working. ${h.detail}` : h.status === 'no-data' ? `Connected, but no data. ${h.detail}` : `Not working. ${h.detail}`
   return (
     <div className={`st-health st-health--${busy || h === undefined ? 'checking' : h?.status ?? 'none'}`} role="status">
-      <span>{label}</span>
+      <span>{(busy || h === undefined) && <Spinner size={11} />}{label}</span>
       <button type="button" className="st-health-retest" onClick={retest} disabled={busy}>Test again</button>
     </div>
   )
@@ -831,7 +832,7 @@ function OAuthCard({
           <>
             <span className="st-oauth-badge-connected">Connected</span>
             <button className="st-btn-danger" onClick={handleDisconnect} disabled={disconnecting} style={{ fontSize: 12, padding: '5px 12px' }}>
-              {disconnecting ? 'Removing...' : 'Disconnect'}
+              {disconnecting ? <><Spinner />Removing...</> : 'Disconnect'}
             </button>
           </>
         ) : (
@@ -950,7 +951,7 @@ function IntegrationCard({
         <div className="st-int-actions">
           <button className="st-btn-ghost" onClick={() => setEditing(true)}>Edit credentials</button>
           <button className="st-btn-danger" onClick={handleDisconnect} disabled={disconnecting}>
-            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+            {disconnecting ? <><Spinner />Disconnecting…</> : 'Disconnect'}
           </button>
         </div>
       ) : (
@@ -1008,7 +1009,7 @@ function IntegrationCard({
               </button>
             )}
             <button type="submit" disabled={saving} className="st-btn-primary">
-              {saving ? 'Saving…' : isConnected ? 'Update' : `Connect ${def.name}`}
+              {saving ? <><Spinner />Saving…</> : isConnected ? 'Update' : `Connect ${def.name}`}
             </button>
           </div>
           {def.docsUrl && (
@@ -1117,7 +1118,7 @@ function PostHogSettingsSection({ connected }: { connected: ConnectedIntegration
           {error && <p className="st-error">{error}</p>}
           <div className="st-form-submit" style={{ marginTop: 16 }}>
             <button type="button" onClick={handleSave} disabled={saving} className="st-btn-primary">
-              {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save settings'}
+              {saving ? <><Spinner />Saving…</> : saved ? 'Saved ✓' : 'Save settings'}
             </button>
           </div>
         </div>
@@ -1262,12 +1263,12 @@ function ClaudeCodeSection({ initialKeyPrefix }: { initialKeyPrefix: string | nu
                   disabled={loading}
                   style={{ fontSize: 12, color: 'var(--text-dim)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
                 >
-                  {loading ? 'Regenerating…' : 'Regenerate'}
+                  {loading ? <><Spinner />Regenerating…</> : 'Regenerate'}
                 </button>
               </div>
             ) : (
               <button onClick={generateKey} disabled={loading} className="md-btn-reanalyze" style={{ alignSelf: 'flex-start' }}>
-                {loading ? 'Generating…' : 'Generate API key'}
+                {loading ? <><Spinner />Generating…</> : 'Generate API key'}
               </button>
             )}
 
@@ -1458,7 +1459,7 @@ function AccountSection({ userEmail, dailyEmailEnabled: initialDailyEmail, frekt
           <div className="st-account-actions">
             <button onClick={handleSignOut} className="st-btn-ghost">Sign out</button>
             <button onClick={handleDelete} disabled={deleting} className="st-btn-danger">
-              {deleting ? 'Deleting…' : 'Delete account'}
+              {deleting ? <><Spinner />Deleting…</> : 'Delete account'}
             </button>
           </div>
           <p className="st-hint">Deleting your account permanently removes all data including modules, findings, and connected integrations.</p>

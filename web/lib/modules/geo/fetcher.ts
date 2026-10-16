@@ -1,3 +1,5 @@
+import { detectBlock, type BlockInfo } from '@/lib/audit/blocked'
+
 export interface PageFetch {
   url: string
   html: string | null // null = found but couldn't be loaded
@@ -33,6 +35,11 @@ export interface GeoFetchData {
   feedUrl: string | null        // RSS / Atom feed, from <link> tags or common feed addresses
   botProbes: BotProbe[]         // [] for light (competitor) loads
   wiki: WikiLookup
+  // A firewall (e.g. Cloudflare's "Just a moment…") answered instead of the site: the homepage
+  // checks can't be judged. robots.txt / llms.txt can be blocked separately.
+  blocked: BlockInfo | null
+  robotsBlocked: boolean
+  llmsBlocked: boolean
 }
 
 const UA = 'Mozilla/5.0 (compatible; GrowJinBot/1.0)'
@@ -43,14 +50,16 @@ type Kind = 'html' | 'text' | 'xml'
  * GET a URL and return its body, or null. Many sites answer every address with their normal
  * page (status 200), so text and XML files are only accepted when they really are text / XML.
  */
-async function fetchText(url: string, timeoutMs = 8000, kind: Kind = 'html'): Promise<string | null> {
+async function fetchText(url: string, timeoutMs = 8000, kind: Kind = 'html', onBlock?: (b: BlockInfo) => void): Promise<string | null> {
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': UA },
       signal: AbortSignal.timeout(timeoutMs),
     })
-    if (!res.ok) return null
     const body = await res.text()
+    const block = detectBlock(res.status, res.headers, body)
+    if (block) { onBlock?.(block); return null }
+    if (!res.ok) return null
     if (kind === 'text') {
       const type = res.headers.get('content-type') ?? ''
       if (/html/i.test(type) || /^\s*</.test(body)) return null
@@ -186,18 +195,30 @@ export async function fetchGeoData(
     return { error: `Invalid URL: ${rawUrl}` }
   }
 
+  let blocked: BlockInfo | null = null
+  let robotsBlocked = false
+  let llmsBlocked = false
   const [html, robotsTxt, llmsTxt, sitemapXml, botProbes, wiki] = await Promise.all([
-    fetchText(url, 12000),
-    fetchText(`${origin}/robots.txt`, 8000, 'text'),
-    fetchText(`${origin}/llms.txt`, 8000, 'text'),
+    fetchText(url, 12000, 'html', b => { blocked = b }),
+    fetchText(`${origin}/robots.txt`, 8000, 'text', () => { robotsBlocked = true }),
+    fetchText(`${origin}/llms.txt`, 8000, 'text', () => { llmsBlocked = true }),
     fetchText(`${origin}/sitemap.xml`, 8000, 'xml'),
     opts.light ? Promise.resolve([]) : probeBots(url),
     opts.light ? Promise.resolve<WikiLookup>({ status: 'skipped' }) : lookupWikidata(requirements['brand_name'] ?? '', url),
   ])
 
+  // Blocked by a firewall: carry on with what we could read (robots.txt, llms.txt, Wikidata);
+  // the homepage checks become Not checked
+  const block = blocked as BlockInfo | null // set inside the fetch callback
+  if (block) {
+    return {
+      url, html: '', robotsTxt: robotsTxt ?? '', llmsTxt, sitemapUrls: [], sitemapLastmod: null,
+      articlePage: null, faqPage: null, feedUrl: null, botProbes: [], wiki, blocked: block, robotsBlocked, llmsBlocked,
+    }
+  }
   if (!html) return { error: `Could not fetch ${url}` }
 
-  const sitemap = await readSitemap(sitemapXml)
+  const sitemap = await readSitemap(sitemapXml ?? null)
 
   // A real blog post (for article markup, citations and dates) and an FAQ page (for FAQ markup)
   const postUrl = findPageUrl(POST_PATH, sitemap.urls, html, origin)
@@ -220,5 +241,8 @@ export async function fetchGeoData(
     feedUrl,
     botProbes,
     wiki,
+    blocked: null,
+    robotsBlocked,
+    llmsBlocked,
   }
 }

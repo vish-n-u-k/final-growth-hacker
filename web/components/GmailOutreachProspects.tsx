@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { DBItemFull } from '@/lib/modules/types'
 import { isComingSoon } from '@/lib/features'
+import { Spinner } from '@/components/ui/spinner'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -268,7 +269,7 @@ export default function GmailOutreachProspects({
                     </button>
                   )}
                   {status === 'generating' && (
-                    <span className="gop-status-text">Generating…</span>
+                    <span className="gop-status-text"><Spinner size={11} />Generating…</span>
                   )}
                   {(status === 'ready' || status === 'confirming' || status === 'saved') && (
                     <>
@@ -282,7 +283,7 @@ export default function GmailOutreachProspects({
                     </>
                   )}
                   {(status === 'saving' || status === 'sending') && (
-                    <span className="gop-status-text">{status === 'sending' ? 'Sending…' : 'Saving…'}</span>
+                    <span className="gop-status-text"><Spinner size={11} />{status === 'sending' ? 'Sending…' : 'Saving…'}</span>
                   )}
                   {status === 'sent' && (
                     <span className="gop-sent-label">Sent</span>

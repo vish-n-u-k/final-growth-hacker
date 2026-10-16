@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge'
 import ThemeToggle from '@/components/ThemeToggle'
 import ComingSoon from '@/components/ComingSoon'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import { Spinner } from '@/components/ui/spinner'
 
 export interface DBItemState {
   id: string
@@ -1226,7 +1227,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                                   disabled={generatingDraft.has(item.slug)}
                                                   onClick={(e) => { e.stopPropagation(); handleGenerateDraft(item.id, item.slug) }}
                                                 >
-                                                  {generatingDraft.has(item.slug) ? 'Regenerating…' : 'Regenerate'}
+                                                  {generatingDraft.has(item.slug) ? <><Spinner />Regenerating…</> : 'Regenerate'}
                                                 </button>
                                               </>
                                             ) : (
@@ -1637,7 +1638,7 @@ function SocialProfilesPanel({ moduleId, requirements }: { moduleId: string; req
             fontSize: '12px', fontWeight: 600, height: '32px', padding: '0 16px',
           }}
         >
-          {saving ? 'Saving…' : saved ? 'Saved' : 'Save profiles'}
+          {saving ? <><Spinner />Saving…</> : saved ? 'Saved' : 'Save profiles'}
         </Button>
       </div>
     </div>
@@ -2386,7 +2387,7 @@ function FixPlanModal({
         <div className="fp-actions">
           <button className="fp-btn-cancel" onClick={onCancel}>Cancel</button>
           <button className="fp-btn-apply" disabled={applying} onClick={handleConfirm}>
-            {applying ? 'Applying…' : 'Apply Fix'}
+            {applying ? <><Spinner />Applying…</> : 'Apply Fix'}
           </button>
         </div>
       </div>

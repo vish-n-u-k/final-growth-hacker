@@ -1,6 +1,7 @@
 import { callAI } from '@/lib/ai/client'
 import type { AuditResult, Finding } from '@/lib/audit/audit'
 import { NOT_CHECKED_DETAIL, type ElementEvidence } from '@/lib/audit/elements'
+import { blockedSkipText } from '@/lib/audit/blocked'
 import { previewFor } from '@/lib/audit/page-preview'
 import type { ModuleAnalysisResult } from '../types'
 import { WEBSITE_MODULE } from './definition'
@@ -99,6 +100,11 @@ export async function analyzeWebsite(
         aiData: null,
         isFail: false,
       }
+    }
+
+    if (!finding && audit.blocked) {
+      // A firewall answered instead of the site: nothing to judge, so don't guess
+      return { slug: item.slug, detail: blockedSkipText(audit.blocked), narrative: '', action: '', verified: false, aiData: null, isFail: false }
     }
 
     if (!finding) {

@@ -10,6 +10,7 @@ import ThemeToggle from '@/components/ThemeToggle'
 import { useEffect, useMemo, useRef, useState, type JSX } from 'react'
 import { useRoadmap } from '@/components/RoadmapContext'
 import { buildRoadmapPhases, currentRoadmapType, progressColor, roadmapState, type RoadmapModule } from '@/lib/modules/roadmap'
+import { Spinner } from '@/components/ui/spinner'
 
 interface NavItem {
   href: string
@@ -358,7 +359,7 @@ export default function AppSidebar({
               <InstallAppButton className="app-navitem app-navitem--btn" icon={<NavIcon name="install" />} />
               <button type="button" role="menuitem" className="app-navitem app-navitem--btn" onClick={handleSignOut} disabled={signingOut}>
                 <NavIcon name="logout" />
-                {signingOut ? 'Signing out…' : 'Sign out'}
+                {signingOut ? <><Spinner />Signing out…</> : 'Sign out'}
               </button>
             </div>
           )}

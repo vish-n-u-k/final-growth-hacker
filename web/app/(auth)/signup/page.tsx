@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 
 export default function SignupPage() {
   const [email, setEmail] = useState('')
@@ -132,7 +133,7 @@ export default function SignupPage() {
           disabled={loading}
           className="w-full h-12 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-white font-semibold hover:opacity-90 mt-4"
         >
-          {loading ? 'Creating account…' : 'Create account'}
+          {loading ? <><Spinner />Creating account…</> : 'Create account'}
         </Button>
       </form>
       <div className="auth-divider" style={{ margin: '24px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>

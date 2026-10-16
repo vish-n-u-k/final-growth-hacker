@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { generatePostSuggestions } from '@/lib/frekto/suggest'
+import { generatePostSuggestions, savePostSuggestions } from '@/lib/frekto/suggest'
 
 export const maxDuration = 90
 
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   if (!brand || brand.userId !== user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   try {
-    const suggestions = await generatePostSuggestions({ brand, moduleId })
+    const suggestions = await savePostSuggestions(brand.id, await generatePostSuggestions({ brand, moduleId }))
     return NextResponse.json({ suggestions })
   } catch (e) {
     console.error('[suggest] failed:', e)

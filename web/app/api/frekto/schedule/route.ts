@@ -3,7 +3,8 @@ import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations, frektoScheduledPosts } from '@/lib/db/schema'
-import { eq, and, desc } from 'drizzle-orm'
+import { eq, and, desc, inArray } from 'drizzle-orm'
+import { utcToZoned, validTimezone } from '@/lib/frekto/drafts'
 
 export const maxDuration = 90
 
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
   const posts = await db
     .select()
     .from(frektoScheduledPosts)
-    .where(eq(frektoScheduledPosts.brandId, brandId))
+    .where(and(eq(frektoScheduledPosts.brandId, brandId), inArray(frektoScheduledPosts.status, ['scheduled', 'done', 'failed'])))
     .orderBy(desc(frektoScheduledPosts.scheduledAt))
 
   const lastByPlatform: Record<string, { scheduledAt: string; status: string; outputUrl: string | null }> = {}
@@ -139,10 +140,9 @@ export async function POST(request: NextRequest) {
   const { format, outputFormat } = getFormat(platform, postType)
 
   const frektoMeta = (frektoInt.metadata as Record<string, string> | null) ?? {}
-  const timezone = frektoMeta['timezone'] ?? 'UTC'
-  const schedDate = new Date(scheduledAt)
-  const datePart = schedDate.toISOString().slice(0, 10)
-  const timePart = `${String(schedDate.getUTCHours()).padStart(2, '0')}:00`
+  const timezone = validTimezone(frektoMeta['timezone']) ? frektoMeta['timezone'] : 'UTC'
+  // Frekto reads date/time in `timezone`, so convert the UTC instant into it
+  const { date: datePart, time: timePart } = utcToZoned(new Date(scheduledAt), timezone)
 
   let jobId: string
   try {
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
         topic: topic.trim(),
         format,
         output_format: outputFormat,
-        schedule: { start_date: datePart, time: timePart, timezone },
+        schedule: { start_date: datePart, time: timePart, timezone, platform },
       }),
     })
     if (!genRes.ok) {
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
   const result = await pollJob(jobId, frektoInt.apiKey)
   if ('error' in result) return NextResponse.json({ error: result.error }, { status: 502 })
 
-  await db.insert(frektoScheduledPosts).values({
+  const [row] = await db.insert(frektoScheduledPosts).values({
     brandId,
     platform,
     topic: topic.trim(),
@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
     frektoJobId: jobId,
     outputUrl: result.outputUrl,
     status: 'scheduled',
-  })
+  }).returning({ id: frektoScheduledPosts.id })
 
-  return NextResponse.json({ outputUrl: result.outputUrl })
+  return NextResponse.json({ id: row.id, outputUrl: result.outputUrl })
 }

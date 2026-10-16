@@ -15,6 +15,7 @@ import { connect as tlsConnect } from 'tls'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { discoverAllUrls, type UrlDiscoveryResult } from './url-discovery'
+import { detectBlock, blockedSkipText, isFirewallRefusal, type BlockInfo } from '@/lib/audit/blocked'
 
 const execFileAsync = promisify(execFile)
 
@@ -39,6 +40,7 @@ export interface SeoAuditResult {
   preview?: PagePreviewData // title, description and share tags, for the Google / share previews
   // Lighthouse's full-page phone screenshot; replaced by its saved size once stored (lib/audit/screenshot.ts)
   screenshot?: PageScreenshot | { w: number; h: number; at: string; name?: string } | null
+  blocked?: BlockInfo       // a firewall answered instead of the site; page checks are Not checked
 }
 
 export interface SeoAuditError {
@@ -1058,6 +1060,8 @@ async function checkTechnical(
     const once = async (method: 'HEAD' | 'GET') => {
       const r = await fetch(u, { method, headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(5000), redirect: 'follow' })
       if (method === 'GET') r.body?.cancel().catch(() => {})
+      // Turned away by a firewall: no answer about the page itself (not a 4xx/5xx)
+      if (isFirewallRefusal(r.status, r.headers)) return { url: u, status: 0, redirected: false }
       return { url: u, status: r.status, redirected: r.redirected }
     }
     try {
@@ -1319,6 +1323,7 @@ export async function runSeoAudit(url: string, opts: SeoAuditOptions = {}): Prom
   let finalUrl = normalizedUrl
   let ttfb = -1
   let headers: Record<string, string> = {}
+  let status = 200
 
   try {
     const start = Date.now()
@@ -1331,6 +1336,7 @@ export async function runSeoAudit(url: string, opts: SeoAuditOptions = {}): Prom
     finalUrl = res.url
     html = await res.text()
     headers = Object.fromEntries(res.headers.entries())
+    status = res.status
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Failed to fetch the page' }
   }
@@ -1388,8 +1394,15 @@ export async function runSeoAudit(url: string, opts: SeoAuditOptions = {}): Prom
   // A page whose HTML is an empty shell filled in by JavaScript: say so (AI crawlers and many
   // bots see it empty too), and don't fail body checks we can't see. Google's scan below still
   // overrides with what it finds on the rendered page.
-  const jsShell = isJsShell($)
-  findings.push(jsShell
+  // A firewall answered instead of the site (e.g. Cloudflare's "Just a moment…"): nothing we read is
+  // the real page, so every check made from it is Not checked. Google's scan below still runs.
+  const block = detectBlock(status, headers, html)
+  if (block) {
+    const why = blockedSkipText(block)
+    for (let i = 0; i < findings.length; i++) findings[i] = f(findings[i].key, 'skip', why)
+  }
+  const jsShell = !block && isJsShell($)
+  findings.push(block ? f('render.no_js', 'skip', blockedSkipText(block)) : jsShell
     ? f('render.no_js', 'bad', 'The page\'s HTML is nearly empty: its content is built by JavaScript in the browser. Google can usually still render it, but AI assistants (ChatGPT, Perplexity, Claude) and many crawlers read the empty HTML.',
         'Pre-render or server-render the page (SSR / static generation, e.g. Next.js, Astro, or a prerendering service) so the content is in the HTML.')
     : f('render.no_js', 'good', 'The page\'s content is in its HTML, readable without running JavaScript.'))
@@ -1407,7 +1420,8 @@ export async function runSeoAudit(url: string, opts: SeoAuditOptions = {}): Prom
     finalUrl,
     findings,
     discoveredUrls,
-    preview: readPagePreview($, finalUrl),
+    preview: block ? undefined : readPagePreview($, finalUrl),
     screenshot,
+    ...(block ? { blocked: block } : {}),
   }
 }

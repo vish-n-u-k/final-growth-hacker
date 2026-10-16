@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, Fragment } from 'react'
+import { Spinner } from '@/components/ui/spinner'
 
 // Gmail follow-up reminders (created when an email is sent with "Follow up in N days",
 // or via the bell icon in the inbox). Lists what is due and lets the user draft + send,
@@ -459,10 +460,10 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
           <div className="gh-fu-head-side">
             <div className="gh-fu-check">
               <span className="gh-fu-muted">
-                {checking ? 'Checking Gmail for replies…' : checkedAt ? `Replies checked ${checkedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}
+                {checking ? <><Spinner />Checking Gmail for replies…</> : checkedAt ? `Replies checked ${checkedAt.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}
               </span>
               <button className="gh-fu-btn" onClick={() => checkReplies(true)} disabled={checking || locked}>
-                {checking ? 'Checking…' : 'Check for replies'}
+                {checking ? <><Spinner />Checking…</> : 'Check for replies'}
               </button>
             </div>
           <div className="gh-fu-filters" role="tablist">
@@ -493,7 +494,7 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
           <div className="gh-fu-bulk">
             <div className="gh-fu-bulk-row">
               <span className="gh-fu-bulk-label">
-                {bulkBusy ?? (selectedVisible.length > 0 ? `${selectedVisible.length} selected` : 'Select rows to act on several at once')}
+                {bulkBusy ? <><Spinner size={11} />{bulkBusy}</> : (selectedVisible.length > 0 ? `${selectedVisible.length} selected` : 'Select rows to act on several at once')}
               </span>
               <div className="gh-fu-bulk-actions">
                 {selectedVisible.length === 0 ? (
@@ -716,7 +717,7 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
                         <td>
                           <span className={`gh-fu-due gh-fu-due-${due.tone}`}>{due.text}</span>
                           <div className="gh-fu-muted gh-fu-due-date">
-                            {d?.loading ? 'Drafting…' : isDrafted(d) ? <span className="gh-fu-ready">Draft ready</span> : formatDate(f.dueAt)}
+                            {d?.loading ? <><Spinner />Drafting…</> : isDrafted(d) ? <span className="gh-fu-ready">Draft ready</span> : formatDate(f.dueAt)}
                           </div>
                         </td>
                         <td className="gh-fu-td-actions">
@@ -808,7 +809,7 @@ export default function FollowUpsTab({ onCountChange }: { onCountChange?: (dueCo
                                     onClick={() => sendSingle(f.id)}
                                     disabled={d.sending || locked || !d.to.trim() || !d.body.trim()}
                                   >
-                                    {d.sending ? 'Sending…' : 'Send follow-up'}
+                                    {d.sending ? <><Spinner />Sending…</> : 'Send follow-up'}
                                   </button>
                                   <label className="gh-followup-toggle">
                                     If no reply, remind me in

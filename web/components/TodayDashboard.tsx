@@ -14,6 +14,9 @@ import type { ActionCard, ImpactCard } from '@/lib/daily/signals'
 import type { PlatformStats } from '@/app/api/social/analytics/route'
 import type { DBItemFull } from '@/lib/modules/types'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import { Spinner } from '@/components/ui/spinner'
+import Link from 'next/link'
+import { BarChart3 } from 'lucide-react'
 
 interface TrafficData {
   visits: number
@@ -180,7 +183,7 @@ function AnalyticsBar() {
   const top = channels[0]?.name
 
   return (
-    <div className="td-analytics-bar">
+    <Link href="/analytics" className="td-analytics-bar" title="Open analytics">
       <span className="td-analytics-label">Yesterday</span>
       <span className="td-analytics-num">{visits.toLocaleString()} visits</span>
       {delta !== null && (
@@ -189,7 +192,7 @@ function AnalyticsBar() {
         </span>
       )}
       {top && <span className="td-analytics-channel">via {top}</span>}
-    </div>
+    </Link>
   )
 }
 
@@ -346,7 +349,7 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
             disabled={marking}
             style={{ opacity: marking ? 0.6 : 1 }}
           >
-            {marking ? 'Marking…' : 'Mark done'}
+            {marking ? <><Spinner />Marking…</> : 'Mark done'}
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 5 }}>
               <polyline points="20 6 9 17 4 12"/>
             </svg>
@@ -379,12 +382,12 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
           )}
           {onComplete && (
             <button className="td-ghost-btn" onClick={() => handleComplete('done')} disabled={completing !== null}>
-              {completing === 'done' ? 'Marking…' : 'Mark done'}
+              {completing === 'done' ? <><Spinner />Marking…</> : 'Mark done'}
             </button>
           )}
           {onComplete && taskKind !== 'item' && (
             <button className="td-ghost-btn" onClick={() => handleComplete('dismissed')} disabled={completing !== null}>
-              {completing === 'dismissed' ? 'Hiding…' : 'Not relevant'}
+              {completing === 'dismissed' ? <><Spinner />Hiding…</> : 'Not relevant'}
             </button>
           )}
         </div>
@@ -669,7 +672,7 @@ function BlogComposer({ frektoConnected, generating, topic, setTopic, mode, setM
         placeholder="Leave empty and we'll pick a topic for you"
       />
       {ideas === null ? (
-        <p className="td-blog-ideas-note">Finding topic ideas…</p>
+        <p className="td-blog-ideas-note"><Spinner size={11} />Finding topic ideas…</p>
       ) : ideas.length > 0 && (
         <div className="td-blog-ideas">
           {ideas.map(i => (
@@ -878,7 +881,7 @@ function WeeklyBlogSection({ initialData, frektoConnected = false, onAddToSite, 
                 onClick={() => markPublished(generatedBlog.id)}
                 disabled={markingId === generatedBlog.id}
               >
-                {markingId === generatedBlog.id ? 'Saving...' : 'Mark as published'}
+                {markingId === generatedBlog.id ? <><Spinner />Saving...</> : 'Mark as published'}
               </button>
             )}
           </div>
@@ -990,7 +993,7 @@ function WeeklyBlogSection({ initialData, frektoConnected = false, onAddToSite, 
                       onClick={() => markPublished(latestBlog.id)}
                       disabled={markingId === latestBlog.id}
                     >
-                      {markingId === latestBlog.id ? 'Saving...' : 'Mark as published'}
+                      {markingId === latestBlog.id ? <><Spinner />Saving...</> : 'Mark as published'}
                     </button>
                   )}
                   {latestBlog.status === 'published' && (
@@ -1042,7 +1045,7 @@ function AllGoodState({ cachedAt, onRefresh, refreshing }: { cachedAt: string; o
       <p className="td-allgood-headline">All signals clear</p>
       <p className="td-allgood-sub">No action needed today.{time ? ` Checked at ${time}.` : ''}</p>
       <button className="td-ghost-btn" onClick={onRefresh} disabled={refreshing}>
-        {refreshing ? 'Checking...' : 'Refresh'}
+        {refreshing ? <><Spinner />Checking...</> : 'Refresh'}
       </button>
     </div>
   )
@@ -1200,7 +1203,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
             {ready && !allGood && cards.length > 0
               ? `${cards.length} thing${cards.length === 1 ? ' needs' : 's need'} your attention`
               : ready && allGood ? 'You\'re all caught up'
-              : 'Checking your signals...'}
+              : <><Spinner size={12} />Checking your signals…</>}
           </div>
         </div>
         <div className="td-hero-right">
@@ -1211,6 +1214,10 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
               <span className="td-streak-txt">day streak</span>
             </div>
           )}
+          <Link href="/analytics" className="td-analytics-link">
+            <BarChart3 size={15} aria-hidden="true" />
+            Analytics
+          </Link>
         </div>
       </div>
 
@@ -1302,7 +1309,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
                           onClick={runOutreachAnalysis}
                           disabled={analyzing}
                         >
-                          {analyzing ? 'Finding prospects…' : 'Find prospects now'}
+                          {analyzing ? <><Spinner />Finding prospects…</> : 'Find prospects now'}
                         </button>
                       </div>
                     ) : (
@@ -1348,7 +1355,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
             <SocialFeed posts={recentPosts} />
 
             <button className="td-recheck" onClick={fetchSignals} disabled={refreshing}>
-              {refreshing ? 'Refreshing...' : `Last updated ${cachedAt ? new Date(cachedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'} · Refresh`}
+              {refreshing ? <><Spinner />Refreshing...</> : `Last updated ${cachedAt ? new Date(cachedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'} · Refresh`}
             </button>
           </>
         )}
@@ -1514,6 +1521,15 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           background: var(--bg-soft); border: 1px solid var(--line);
           border-radius: 99px; padding: 6px 14px; font-size: 13px; color: var(--text-dim);
         }
+        a.td-analytics-bar { text-decoration: none; transition: border-color .15s; }
+        a.td-analytics-bar:hover { border-color: var(--green); }
+        .td-analytics-link {
+          display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 99px;
+          border: 1px solid var(--line); background: var(--card, var(--bg-soft)); color: var(--text);
+          font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap;
+          transition: border-color .15s, color .15s;
+        }
+        .td-analytics-link:hover { border-color: var(--green); color: var(--green); }
         .td-analytics-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); }
         .td-analytics-num { font-weight: 700; color: var(--text); }
         .td-analytics-delta { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 99px; }
@@ -1895,7 +1911,10 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           .td-card, .td-blog-card, .td-impact-card { padding: 18px 16px; }
           .td-connect-row { padding: 12px 14px; }
           .td-card-actions .td-cta-btn { flex: 1 1 100%; justify-content: center; }
-          .td-card-actions .td-ghost-btn { flex: 1 1 0; justify-content: center; padding: 9px 10px; }
+          /* two per row; a third takes the full row instead of squeezing all three */
+          .td-card-actions .td-ghost-btn { flex: 1 1 calc(50% - 4px); justify-content: center; padding: 9px 10px; white-space: nowrap; }
+          .td-analytics-bar { flex-wrap: wrap; row-gap: 2px; border-radius: 14px; }
+          .td-analytics-bar > * { white-space: nowrap; }
         }
       `}</style>
       {handoff.modal}

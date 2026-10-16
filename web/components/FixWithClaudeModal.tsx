@@ -6,7 +6,8 @@ import { useEffect, useRef, useState } from 'react'
 // and ticks it off here), with "do it myself in Claude Code" as the alternative. The choice can be
 // remembered, after which the button opens Claude straight away (see AllModulesDashboard).
 
-// mcp = GrowJin MCP in the Claude app / claude.ai; mcp-code = GrowJin MCP in Claude Code; code = plain prompt in Claude Code.
+// mcp = GrowJin MCP in Claude Code on the web (claude.ai/code); mcp-code = GrowJin MCP in the Claude Code
+// app on this computer; code = plain prompt in the Claude Code app (on phones: Claude Code on the web).
 export type FixChoice = 'mcp' | 'mcp-code' | 'code'
 export const FIX_CHOICE_KEY = 'growjin_fix_with'
 const MCP_URL = 'https://app.growjin.com/api/mcp'
@@ -80,8 +81,8 @@ export default function FixWithClaudeModal({ title = 'Fix this with Claude', ite
 
           {mcpConnected && !isPhone && (
             <div className="fwc-tabs" role="tablist" aria-label="Open in">
-              <button type="button" role="tab" aria-selected={client === 'app'} className={client === 'app' ? 'is-on' : ''} onClick={() => setClient('app')}>Claude app / claude.ai</button>
-              <button type="button" role="tab" aria-selected={client === 'code'} className={client === 'code' ? 'is-on' : ''} onClick={() => setClient('code')}>Claude Code</button>
+              <button type="button" role="tab" aria-selected={client === 'app'} className={client === 'app' ? 'is-on' : ''} onClick={() => setClient('app')}>Claude Code on the web</button>
+              <button type="button" role="tab" aria-selected={client === 'code'} className={client === 'code' ? 'is-on' : ''} onClick={() => setClient('code')}>Claude Code on this computer</button>
             </div>
           )}
           {mcpConnected ? (
@@ -94,8 +95,8 @@ export default function FixWithClaudeModal({ title = 'Fix this with Claude', ite
               {setupOpen && (
                 <>
                   <div className="fwc-tabs" role="tablist" aria-label="Where you use Claude">
-                    <button type="button" role="tab" aria-selected={client === 'app'} className={client === 'app' ? 'is-on' : ''} onClick={() => setClient('app')}>Claude app / claude.ai</button>
-                    <button type="button" role="tab" aria-selected={client === 'code'} className={client === 'code' ? 'is-on' : ''} onClick={() => setClient('code')}>Claude Code</button>
+                    <button type="button" role="tab" aria-selected={client === 'app'} className={client === 'app' ? 'is-on' : ''} onClick={() => setClient('app')}>Claude Code on the web</button>
+                    <button type="button" role="tab" aria-selected={client === 'code'} className={client === 'code' ? 'is-on' : ''} onClick={() => setClient('code')}>Claude Code on this computer</button>
                   </div>
                   {client === 'app' ? (
                     <>
@@ -104,7 +105,7 @@ export default function FixWithClaudeModal({ title = 'Fix this with Claude', ite
                         <li>Name it <b>GrowJin</b> and paste this URL:<CopyBox text={MCP_URL} /></li>
                         <li>Click <b>Add</b>, then <b>Connect</b>, and log in to GrowJin when asked</li>
                       </ol>
-                      <p className="fwc-note">Works in the Claude desktop and phone apps too once added.</p>
+                      <p className="fwc-note">Once added, it works in Claude Code on the web and in the Claude apps.</p>
                       <div className="fwc-setup-actions">
                         <a href="https://claude.ai/settings/connectors" target="_blank" rel="noopener noreferrer" className="fwc-link-btn">Open Claude connectors ↗</a>
                         <button type="button" className="fwc-link-btn" onClick={onMarkConnected}>I&apos;ve connected it</button>
@@ -128,22 +129,22 @@ export default function FixWithClaudeModal({ title = 'Fix this with Claude', ite
           )}
 
           <button ref={firstBtn} type="button" className="fwc-primary" onClick={() => onChoose(client === 'code' && !isPhone ? 'mcp-code' : 'mcp', remember)}>
-            {`${mcpConnected ? '' : 'Connected? '}Open ${client === 'code' && !isPhone ? 'Claude Code' : 'Claude'} and fix it`}
+            {`${mcpConnected ? '' : 'Connected? '}Open Claude Code and fix it`}
           </button>
         </section>
 
         {/* Option 2: do it yourself in Claude Code */}
         <section className="fwc-opt">
           <div className="fwc-opt-hd">
-            <span className="fwc-opt-name">{isPhone ? 'Just send the fix to Claude' : 'Fix it myself in Claude Code'}</span>
+            <span className="fwc-opt-name">{isPhone ? 'Just send the fix to Claude Code' : 'Fix it myself in the Claude Code app'}</span>
           </div>
           <p className="fwc-text">
             {isPhone
-              ? 'Claude Code runs on a computer. On this phone we’ll open Claude with the fix written out for you.'
-              : 'Opens Claude Code in your project with the fix already typed in. You review it and press Enter.'}
+              ? 'Opens Claude Code with the fix already typed in and your website’s repo selected. You review it and press Enter.'
+              : 'Opens the Claude Code app on this computer with the fix already typed in. You review it and press Enter.'}
           </p>
           <button type="button" className="fwc-secondary" onClick={() => onChoose('code', remember)}>
-            {isPhone ? 'Open in Claude' : 'Open Claude Code'}
+            {isPhone ? 'Open Claude Code' : 'Open the Claude Code app'}
           </button>
         </section>
 

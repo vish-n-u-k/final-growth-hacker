@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Trash2, Plus, RefreshCw, Check, Download, ChevronDown, ChevronUp } from 'lucide-react'
+import { LoadingState, Spinner } from '@/components/ui/spinner'
 
 interface Feature {
   id: string
@@ -230,7 +231,7 @@ export default function FeaturesPage() {
               className="bg-gradient-to-br from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:from-slate-600 disabled:to-slate-600 text-white rounded-xl p-6 font-semibold transition-all duration-300 flex items-center justify-center gap-2 group"
             >
               <RefreshCw size={20} className={checking ? 'animate-spin' : 'group-hover:rotate-12 transition-transform'} />
-              <span>{checking ? 'Scanning...' : 'Scan Commits'}</span>
+              <span>{checking ? <><Spinner />Scanning...</> : 'Scan Commits'}</span>
             </button>
           </div>
         </div>
@@ -364,7 +365,7 @@ export default function FeaturesPage() {
               </h2>
 
               {loading ? (
-                <div className="text-center text-slate-400 py-8">⏳ Loading...</div>
+                <LoadingState>Loading…</LoadingState>
               ) : features.length === 0 ? (
                 <div className="text-center text-slate-400 py-8">
                   <p className="text-sm">No features yet</p>

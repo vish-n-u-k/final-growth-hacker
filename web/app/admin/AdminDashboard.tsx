@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import type { analysisRequests } from '@/lib/db/schema'
+import { LoadingState, Spinner } from '@/components/ui/spinner'
 
 type Request = typeof analysisRequests.$inferSelect
 
@@ -284,7 +285,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {running[req.id] ? 'Running…' : 'Run Analysis'}
+                          {running[req.id] ? <><Spinner />Running…</> : 'Run Analysis'}
                         </button>
                       </td>
                     </tr>
@@ -338,7 +339,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
             </span>
           </div>
 
-          {notesLoading && <p style={{ color: 'var(--text-dim, #8aa897)', fontSize: 14 }}>Loading notes…</p>}
+          {notesLoading && <LoadingState compact>Loading notes…</LoadingState>}
           {notesError && <p style={{ color: '#f87171', fontSize: 14 }}>{notesError}</p>}
           {!notesLoading && !notesError && notes.length === 0 && (
             <p style={{ color: 'var(--text-dim, #8aa897)', fontSize: 14 }}>No notes found.</p>
@@ -431,7 +432,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
                 whiteSpace: 'nowrap', flexShrink: 0,
               }}
             >
-              {sending ? 'Sending…' : 'Send now'}
+              {sending ? <><Spinner />Sending…</> : 'Send now'}
             </button>
           </div>
 
@@ -460,7 +461,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
           )}
 
           {usersLoading && (
-            <p style={{ color: 'var(--text-dim, #8aa897)', fontSize: 14 }}>Loading users…</p>
+            <LoadingState>Loading users…</LoadingState>
           )}
           {usersError && (
             <p style={{ color: '#f87171', fontSize: 14 }}>{usersError}</p>

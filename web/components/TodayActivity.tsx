@@ -87,6 +87,7 @@ export default function TodayActivity() {
         <button type="button" role="tab" aria-selected={days === 1} className={days === 1 ? 'is-on' : ''} onClick={() => setDays(1)}>24h</button>
         <button type="button" role="tab" aria-selected={days === 7} className={days === 7 ? 'is-on' : ''} onClick={() => setDays(7)}>7 days</button>
       </div>
+      <Link href="/analytics" className="ta-connect ta-head-link">Full analytics <ArrowRight size={13} aria-hidden="true" /></Link>
     </div>
     <section className="ta" aria-busy={loading}>
 
@@ -216,9 +217,6 @@ export default function TodayActivity() {
           These numbers are for the app (PostHog). Visits to {data.website.host} come from Google Analytics, which isn&apos;t connected.{' '}
           <Link href={connectUrl('ga4_api')}>Connect it <ArrowRight size={12} aria-hidden="true" /></Link>
         </p>
-      )}
-      {data?.connected && (
-        <Link href="/analytics" className="ta-more-link">See full analytics <ArrowRight size={13} aria-hidden="true" /></Link>
       )}
     </section>
     </div>

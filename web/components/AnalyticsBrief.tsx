@@ -5,6 +5,7 @@ import ArrowIcon from '@/components/ArrowIcon'
 import { useRouter } from 'next/navigation'
 import type { OverviewResponse, StatusBoardItem } from '@/app/api/analytics/summary/route'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import { Spinner } from '@/components/ui/spinner'
 
 interface Props {
   brand: { id: string; name: string; websiteUrl: string }
@@ -160,7 +161,7 @@ export default function AnalyticsBrief({ brand, connectedProviders: _ }: Props) 
                 <path d="M23 4v6h-6" /><path d="M1 20v-6h6" />
                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
               </svg>
-              {loading ? 'Loading…' : 'Refresh'}
+              {loading ? <><Spinner />Loading…</> : 'Refresh'}
             </button>
           </div>
         </div>
