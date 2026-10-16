@@ -197,6 +197,7 @@ export function buildRuleFindings(data: GeoFetchData) {
   const page = readPage(data.html, data.url)
   const post = readSubPage(data.articlePage)
   const faqPage = readSubPage(data.faqPage)
+  const blogIndex = readSubPage(data.blogIndex ?? null)
   const ownHost = bareHost(data.url)
 
   // FAQ markup: homepage or the FAQ page
@@ -234,12 +235,22 @@ export function buildRuleFindings(data: GeoFetchData) {
   const aboutLink = page.links.find(l => sameSite(bareHost(l.url), ownHost) && (ABOUT_PATH.test(pathOf(l.url)) || ABOUT_TEXT.test(l.text)))
   const aboutUrl = aboutLink?.url ?? data.sitemapUrls.find(u => ABOUT_PATH.test(pathOf(u))) ?? null
 
-  // Comparison pages: sitemap, homepage links and headings
+  // Comparison pages: sitemap, homepage links and headings, and the blog index's post links and titles
+  const compareLinks = (links: typeof page.links) =>
+    links.filter(l => sameSite(bareHost(l.url), ownHost) && (COMPARE_PATH.test(pathOf(l.url)) || COMPARE_TEXT.test(l.text))).map(l => pathOf(l.url))
+  const blogPage = blogIndex?.page ?? null
+  // Post links first; a post title without a link (or a linked card) is only listed when no link matched
+  const blogLinks = blogPage ? compareLinks(blogPage.links) : []
+  const blogCompares = blogLinks.length ? blogLinks
+    : (blogPage?.headings ?? []).filter(h => COMPARE_TEXT.test(h)).map(h => `"${h}" (${blogIndex!.path})`)
   const compares = [...new Set([
     ...data.sitemapUrls.filter(u => COMPARE_PATH.test(pathOf(u))).map(pathOf),
-    ...page.links.filter(l => sameSite(bareHost(l.url), ownHost) && (COMPARE_PATH.test(pathOf(l.url)) || COMPARE_TEXT.test(l.text))).map(l => pathOf(l.url)),
+    ...compareLinks(page.links),
     ...page.headings.filter(h => COMPARE_TEXT.test(h)).map(h => `"${h}"`),
+    ...blogCompares,
   ])]
+  // What the comparison check looked at, for the "not found" text: the blog only counts when we could read it
+  const compareBlog = blogIndex ? { path: blogIndex.path, read: !!blogPage && !blogPage.shell, why: !blogPage ? 'couldn\'t be loaded' : 'is built by JavaScript' } : null
 
   // FAQ-style content: homepage or the FAQ page
   const faqContentOn = page.hasFaqContent ? 'home' : faqPage?.page?.hasFaqContent ? 'faq-page' : null
@@ -252,7 +263,7 @@ export function buildRuleFindings(data: GeoFetchData) {
     articleCheck, post,
     llmsPresent, llmsH1: /^#\s/m.test(llms), llmsBlockquote: /^>\s/m.test(llms),
     llmsLinkCount, llmsSectionCount, llmsDepth: llmsLinkCount >= 5 && llmsSectionCount >= 2,
-    page, freshness, aboutUrl, compares, faqContentOn,
+    page, freshness, aboutUrl, compares, compareBlog, faqContentOn,
     feedUrl: data.feedUrl, botProbes: data.botProbes, wiki: data.wiki,
     sitemapCount: data.sitemapUrls.length,
   }
@@ -726,9 +737,10 @@ function buildGeoRuleResults(f: Findings, siteUrl: string, brandName: string): M
     f.compares.length > 0
       ? re('geo-competitor-compare', true, `**Comparison content found:** ${f.compares.slice(0, 3).join(', ')}.`, 'Comparison pages present',
           'AI engines cite comparison pages when users ask "X vs Y" or "alternatives to X".', '')
-    : f.page.shell && f.sitemapCount === 0 ? skip('geo-competitor-compare', SHELL_SKIP)
+    : f.page.shell && f.sitemapCount === 0 && !f.compareBlog?.read ? skip('geo-competitor-compare', SHELL_SKIP)
       : re('geo-competitor-compare', false,
-          '**No comparison pages found** in your sitemap or homepage links (like /vs/competitor or /alternatives).',
+          `**No comparison pages found** in your sitemap${f.compareBlog?.read ? `, homepage links or blog (${f.compareBlog.path})` : ' or homepage links'} (like /vs/competitor, /alternatives or a "X vs Y" post).`
+            + (f.compareBlog && !f.compareBlog.read ? ` Your blog (${f.compareBlog.path}) ${f.compareBlog.why}, so its posts weren't checked.` : ''),
           'No comparison content',
           '**"X vs Y" and "alternatives to X" are common AI questions** — without these pages, competitors\' answers get quoted instead.',
           'Create honest comparison pages for your top 2–3 competitors (e.g. /vs/competitor) and an "alternatives" page, and link them from the footer.')

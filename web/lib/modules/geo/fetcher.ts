@@ -32,6 +32,8 @@ export interface GeoFetchData {
   articlePage: PageFetch | null
   // An FAQ page (/faq…), for FAQ markup that lives off the homepage; null when there is none
   faqPage: PageFetch | null
+  // The blog's index page (/blog/…), for comparison posts the sitemap doesn't list; null when there is none
+  blogIndex: PageFetch | null
   feedUrl: string | null        // RSS / Atom feed, from <link> tags or common feed addresses
   botProbes: BotProbe[]         // [] for light (competitor) loads
   wiki: WikiLookup
@@ -74,6 +76,19 @@ async function fetchText(url: string, timeoutMs = 8000, kind: Kind = 'html', onB
 // Blog posts / articles: a content section followed by a post slug (not listings, tags or pages 2+)
 const POST_PATH = /\/(blog|blogs|posts?|articles?|news|insights|guides?|resources|learn|journal|stories|updates)\/(?!(tag|tags|category|categories|author|authors|page|feed)\b)[^/?#]+/i
 const FAQ_PATH = /\/(faqs?|frequently-asked-questions)(\/|$|\.html?)/i
+// The blog's own listing page: just the section, e.g. /blog or /resources/
+const BLOG_INDEX_PATH = /^\/(blog|blogs|posts?|articles?|news|insights|guides?|resources|learn|journal|stories)\/?$/i
+
+/** The blog index: the section the found post lives in (/blog/post → /blog/), else a homepage or sitemap link to one. */
+function findBlogIndexUrl(postUrl: string | null, sitemapUrls: string[], html: string, origin: string): string | null {
+  if (postUrl) {
+    try {
+      const section = new URL(postUrl).pathname.split('/')[1]
+      if (section && BLOG_INDEX_PATH.test(`/${section}`)) return `${origin}/${section}/`
+    } catch { /* fall through */ }
+  }
+  return findPageUrl(BLOG_INDEX_PATH, sitemapUrls, html, origin)
+}
 
 /** The first sitemap URL (else homepage link) on this site whose path matches. */
 function findPageUrl(pattern: RegExp, sitemapUrls: string[], html: string, origin: string): string | null {
@@ -213,7 +228,7 @@ export async function fetchGeoData(
   if (block) {
     return {
       url, html: '', robotsTxt: robotsTxt ?? '', llmsTxt, sitemapUrls: [], sitemapLastmod: null,
-      articlePage: null, faqPage: null, feedUrl: null, botProbes: [], wiki, blocked: block, robotsBlocked, llmsBlocked,
+      articlePage: null, faqPage: null, blogIndex: null, feedUrl: null, botProbes: [], wiki, blocked: block, robotsBlocked, llmsBlocked,
     }
   }
   if (!html) return { error: `Could not fetch ${url}` }
@@ -223,9 +238,12 @@ export async function fetchGeoData(
   // A real blog post (for article markup, citations and dates) and an FAQ page (for FAQ markup)
   const postUrl = findPageUrl(POST_PATH, sitemap.urls, html, origin)
   const faqUrl = findPageUrl(FAQ_PATH, sitemap.urls, html, origin)
-  const [postHtml, faqHtml] = await Promise.all([
+  // The blog index lists posts (e.g. "Frekto vs Buffer") the sitemap may leave out; not needed for competitors
+  const blogUrl = opts.light ? null : findBlogIndexUrl(postUrl, sitemap.urls, html, origin)
+  const [postHtml, faqHtml, blogHtml] = await Promise.all([
     postUrl ? fetchText(postUrl, 8000) : null,
     faqUrl ? fetchText(faqUrl, 8000) : null,
+    blogUrl ? fetchText(blogUrl, 8000) : null,
   ])
   const feedUrl = opts.light ? null : await findFeed([html, postHtml], origin, postUrl)
 
@@ -238,6 +256,7 @@ export async function fetchGeoData(
     sitemapLastmod: sitemap.lastmod,
     articlePage: postUrl ? { url: postUrl, html: postHtml } : null,
     faqPage: faqUrl ? { url: faqUrl, html: faqHtml } : null,
+    blogIndex: blogUrl ? { url: blogUrl, html: blogHtml } : null,
     feedUrl,
     botProbes,
     wiki,
