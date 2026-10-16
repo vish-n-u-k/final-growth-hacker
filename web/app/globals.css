@@ -7585,6 +7585,12 @@ button.gp-users-chip, .gp-users-chip.is-live { height: auto; min-height: 38px; p
 .fwc-remember input { width: 16px; height: 16px; accent-color: var(--green); }
 .sm-claude-change { font: inherit; font-size: inherit; font-weight: 600; color: var(--text-dim); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
 .sm-claude-change:hover { color: var(--text); }
+.sm-claude-callout { margin: 8px 0 0; padding: 12px 14px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--green) 35%, var(--line)); background: color-mix(in srgb, var(--green) 6%, var(--card)); }
+.sm-claude-callout-title { margin: 0; font-size: 13px; font-weight: 600; color: var(--text); }
+.sm-claude-callout-text { margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
+.sm-claude-callout-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 10px; font-size: 12.5px; }
+.sm-claude-callout-btn { display: inline-flex; align-items: center; padding: 6px 12px; border-radius: 8px; background: var(--green); color: #fff !important; font-weight: 600; text-decoration: none; }
+.sm-claude-callout-btn:hover { filter: brightness(1.05); }
 @media (max-width: 560px) {
   .fwc-backdrop { place-items: end stretch; padding: 0; }
   .fwc { max-width: none; border-radius: 18px 18px 0 0; max-height: 92dvh; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
