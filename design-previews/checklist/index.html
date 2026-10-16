@@ -1,0 +1,626 @@
+<title>Checklist Redesigns</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Outfit:wght@300;400;500;600;700&display=swap">
+<style>
+/* Layout: a narrow app-like column. Intro, then a tab strip of concepts; each tab = a short brief + a working mock in GrowJin's own dark-green system. */
+:root {
+  --bg: #0f1511; --bg-soft: #131b16; --card: #161e19; --card-2: #1b241e; --line: #27342c; --line-2: #33443a;
+  --green: #2fbf71; --green-bright: #4ade80; --green-soft: #2fbf711f; --lime: #a3e635;
+  --text: #e8f0ea; --text-dim: #a9b8ad; --text-faint: #74857a;
+  --warn: #f5a524; --warn-soft: #f5a5241a; --crit: #f26b5b; --crit-soft: #f26b5b1a;
+  --on-green: #06140c; --shadow: 0 10px 30px #00000059;
+  --display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --body: 'Outfit', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  --bg: #ffffff; --bg-soft: #eef1ee; --card: #ffffff; --card-2: #f6f8f6; --line: #dfe4df; --line-2: #cbd3cc;
+  --green: #15803d; --green-bright: #15803d; --green-soft: #15803d14; --lime: #5a9200;
+  --text: #16201a; --text-dim: #4c5a50; --text-faint: #7d8a80;
+  --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft: #fde8e6;
+  --on-green: #ffffff; --shadow: 0 10px 30px #16201a1a; color-scheme: light;
+} }
+:root[data-theme="light"] {
+  --bg: #ffffff; --bg-soft: #eef1ee; --card: #ffffff; --card-2: #f6f8f6; --line: #dfe4df; --line-2: #cbd3cc;
+  --green: #15803d; --green-bright: #15803d; --green-soft: #15803d14; --lime: #5a9200;
+  --text: #16201a; --text-dim: #4c5a50; --text-faint: #7d8a80;
+  --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft: #fde8e6;
+  --on-green: #ffffff; --shadow: 0 10px 30px #16201a1a; color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--text); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+.wrap { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(28px, 5vw, 38px); line-height: 1.1; }
+h2 { font-size: 22px; }
+p { margin: 0; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--green-bright); outline-offset: 2px; border-radius: 6px; }
+.eyebrow { font-size: 11.5px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--text-faint); }
+.muted { color: var(--text-dim); }
+.faint { color: var(--text-faint); }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* ── intro ── */
+.intro { display: flex; flex-direction: column; gap: 14px; }
+.intro p { max-width: 64ch; color: var(--text-dim); }
+.problem { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
+.problem > div { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: var(--bg-soft); display: flex; flex-direction: column; gap: 4px; }
+.problem b { font-weight: 600; }
+@media (max-width: 560px) { .problem { grid-template-columns: 1fr; } }
+
+/* ── tabs ── */
+.tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.tab {
+  flex: 0 0 auto; border: 1px solid var(--line); background: transparent; border-radius: 999px;
+  padding: 8px 14px; cursor: pointer; font-size: 13.5px; color: var(--text-dim); display: inline-flex; gap: 8px; align-items: center;
+}
+.tab:hover { border-color: var(--line-2); color: var(--text); }
+.tab[aria-selected="true"] { background: var(--green); border-color: var(--green); color: var(--on-green); font-weight: 600; }
+.tab .k { font-size: 11px; opacity: .7; font-weight: 600; }
+
+/* ── brief ── */
+.brief { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; align-items: start; }
+.brief-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.brief-main p { color: var(--text-dim); max-width: 60ch; }
+.facts { display: flex; flex-direction: column; gap: 10px; border-left: 1px solid var(--line); padding-left: 18px; min-width: 0; }
+.fact { display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; }
+.fact .v { color: var(--text); }
+.effort { display: inline-flex; gap: 3px; vertical-align: middle; margin-right: 6px; }
+.effort i { width: 14px; height: 6px; border-radius: 2px; background: var(--line-2); }
+.effort i.on { background: var(--green); }
+@media (max-width: 640px) { .brief { grid-template-columns: 1fr; } .facts { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 14px; } }
+
+/* ── mock frame ── */
+.frame { border: 1px solid var(--line); border-radius: 16px; background: var(--bg-soft); overflow: hidden; }
+.frame-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--text-faint); flex-wrap: wrap; }
+.frame-bar .dots { display: inline-flex; gap: 5px; }
+.frame-bar .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--line-2); }
+.reset { border: 0; background: none; color: var(--text-faint); cursor: pointer; font-size: 12.5px; text-decoration: underline; text-underline-offset: 3px; }
+.reset:hover { color: var(--text); }
+.stage { padding: 22px clamp(14px, 3vw, 26px) 26px; display: flex; flex-direction: column; gap: 16px; }
+.mod-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mod-hd h3 { font-size: 22px; }
+.mod-hd .sub { font-size: 13px; color: var(--text-faint); }
+
+/* shared bits */
+.btn { display: inline-flex; align-items: center; gap: 7px; border-radius: 9px; padding: 8px 13px; font-size: 13.5px; font-weight: 600; cursor: pointer; border: 1px solid transparent; white-space: nowrap; transition: background .15s, border-color .15s, transform .1s; }
+.btn:active { transform: translateY(1px); }
+.btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+.btn-primary { background: var(--green); color: var(--on-green); }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-ghost { background: transparent; border-color: var(--line-2); color: var(--text); }
+.btn-ghost:hover { border-color: var(--text-faint); }
+.btn-text { background: none; border: 0; color: var(--text-faint); padding: 8px 6px; font-weight: 500; }
+.btn-text:hover { color: var(--text); }
+.btn[disabled] { opacity: .55; cursor: default; }
+.chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+.chip-crit { background: var(--crit-soft); color: var(--crit); }
+.chip-warn { background: var(--warn-soft); color: var(--warn); }
+.chip-low { background: var(--card-2); color: var(--text-faint); border: 1px solid var(--line); }
+.chip-ok { background: var(--green-soft); color: var(--green-bright); }
+.howto { border: 1px solid var(--line); background: var(--card-2); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.howto .eyebrow { color: var(--green-bright); }
+.spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.fade-in { animation: fadeIn .35s ease both; }
+@keyframes fadeIn { from { opacity: .3; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .fade-in, .spin, .c3-card.leaving { animation: none !important; } }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: var(--shadow); z-index: 20; max-width: calc(100vw - 32px); }
+
+/* ── 0: current ── */
+.c0-list { display: flex; flex-direction: column; gap: 8px; }
+.c0-item { display: flex; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); align-items: flex-start; }
+.c0-item.done .c0-lbl { color: var(--text-faint); }
+.c0-cb { width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0; margin-top: 2px; border: 1.5px solid var(--line-2); display: grid; place-items: center; cursor: pointer; background: none; padding: 0; }
+.c0-cb.ai { background: #e6e8e7; border-color: #d3d6d4; }
+.c0-cb.self { border: 1.5px dashed var(--lime); }
+.c0-cb svg { width: 12px; height: 12px; }
+.c0-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.c0-top { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.c0-lbl { font-size: 15px; }
+.c0-detail { font-size: 13.5px; color: var(--text-faint); }
+.c0-note { border: 1px dashed var(--crit); color: var(--crit); background: var(--crit-soft); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; }
+
+/* ── 1: status, not checkbox ── */
+.c1-list { display: flex; flex-direction: column; gap: 8px; }
+.c1-row { border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.c1-head { display: grid; grid-template-columns: 96px 1fr auto; gap: 14px; align-items: start; padding: 14px 16px; width: 100%; text-align: left; background: none; border: 0; cursor: pointer; }
+.c1-head:hover { background: var(--card-2); }
+.c1-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; margin-top: 2px; white-space: nowrap; }
+.c1-status svg { width: 15px; height: 15px; flex-shrink: 0; }
+.st-todo { color: var(--warn); }
+.st-crit { color: var(--crit); }
+.st-ai { color: var(--green-bright); }
+.st-self { color: var(--lime); }
+.c1-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.c1-lbl { font-size: 15px; }
+.c1-row.is-done .c1-lbl { color: var(--text-faint); }
+.c1-detail { font-size: 13.5px; color: var(--text-faint); }
+.c1-cta { font-size: 13px; color: var(--green-bright); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; margin-top: 2px; }
+.c1-cta svg { width: 13px; height: 13px; transition: transform .2s; }
+.c1-row.open .c1-cta svg { transform: rotate(90deg); }
+.c1-body { padding: 0 16px 16px calc(16px + 96px + 14px); display: flex; flex-direction: column; gap: 12px; }
+.c1-after { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 12px; }
+.c1-after .q { font-size: 13.5px; color: var(--text-dim); flex: 1 1 220px; }
+.c1-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-faint); }
+.c1-legend span { display: inline-flex; gap: 6px; align-items: center; }
+.c1-legend svg { width: 14px; height: 14px; }
+@media (max-width: 600px) {
+  .c1-head { grid-template-columns: 1fr auto; }
+  .c1-status { grid-column: 1 / -1; }
+  .c1-body { padding-left: 16px; }
+}
+
+/* ── 2: fix tracker ── */
+.c2-summary { display: flex; gap: 8px; flex-wrap: wrap; }
+.c2-sum { flex: 1 1 120px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--card); display: flex; flex-direction: column; gap: 2px; }
+.c2-sum b { font-family: var(--display); font-size: 24px; font-weight: 600; line-height: 1; }
+.c2-sum span { font-size: 12.5px; color: var(--text-faint); }
+.c2-list { display: flex; flex-direction: column; gap: 8px; }
+.c2-row { border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.c2-row[data-s="fixing"] { border-color: var(--warn); }
+.c2-top { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.c2-title { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 260px; }
+.c2-title .lbl { font-size: 15px; }
+.c2-title .det { font-size: 13.5px; color: var(--text-faint); }
+.track { display: flex; align-items: center; gap: 0; font-size: 11.5px; font-weight: 600; color: var(--text-faint); }
+.track .s { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.track .d { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--line-2); }
+.track .bar { width: 22px; height: 1.5px; background: var(--line-2); margin: 0 6px; }
+.track .s.on { color: var(--text); }
+.track .s.on .d { background: var(--crit); border-color: var(--crit); }
+.track .s.on.f .d { background: var(--warn); border-color: var(--warn); }
+.track .s.on.v .d { background: var(--green-bright); border-color: var(--green-bright); }
+.track .bar.on { background: var(--text-faint); }
+.c2-act { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.c2-panel { display: flex; flex-direction: column; gap: 12px; }
+.c2-steps { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.c2-step { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: var(--card-2); min-width: 0; }
+.c2-step .n { font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); }
+.c2-step p { font-size: 14px; }
+@media (max-width: 600px) { .c2-steps { grid-template-columns: 1fr; } }
+
+/* ── 3: one at a time ── */
+.c3-progress { display: flex; flex-direction: column; gap: 8px; }
+.c3-progress .row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-dim); gap: 10px; }
+.meter { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--green); border-radius: 99px; transition: width .4s ease; }
+.c3-card { border: 1px solid var(--line-2); border-radius: 16px; background: var(--card); padding: clamp(18px, 3vw, 26px); display: flex; flex-direction: column; gap: 16px; box-shadow: var(--shadow); }
+.c3-card.leaving { animation: leave .35s ease forwards; }
+@keyframes leave { to { opacity: 0; transform: translateX(24px); } }
+.c3-card h4 { font-family: var(--display); font-size: clamp(20px, 3.4vw, 26px); font-weight: 600; margin: 0; line-height: 1.2; text-wrap: balance; }
+.c3-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.c3-why { color: var(--text-dim); max-width: 60ch; }
+.c3-steps { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.c3-step { display: grid; grid-template-columns: 30px 1fr; gap: 12px; padding: 14px 16px; }
+.c3-step + .c3-step { border-top: 1px solid var(--line); }
+.c3-num { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; border: 1.5px solid var(--line-2); color: var(--text-dim); }
+.c3-step.now .c3-num { border-color: var(--green); color: var(--green-bright); }
+.c3-step-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.c3-step-body .t { font-weight: 600; }
+.c3-step-body .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.c3-next { display: flex; flex-direction: column; gap: 6px; }
+.c3-next ol { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.c3-next li { display: flex; gap: 12px; justify-content: space-between; padding: 9px 2px; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--text-dim); }
+.c3-next li span:first-child { min-width: 0; }
+.c3-done { text-align: center; padding: 30px 10px; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+
+/* ── 4: health report ── */
+.c4-head { display: grid; grid-template-columns: auto 1fr; gap: 20px; align-items: center; border: 1px solid var(--line); background: var(--card); border-radius: 14px; padding: 18px 20px; }
+.ring { position: relative; width: 104px; height: 104px; }
+.ring svg { width: 104px; height: 104px; transform: rotate(-90deg); }
+.ring .num { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+.ring .num b { font-family: var(--display); font-size: 32px; font-weight: 600; line-height: 1; display: block; }
+.ring .num small { font-size: 11px; color: var(--text-faint); }
+.c4-head .txt { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.c4-head .txt p { font-size: 14px; color: var(--text-dim); max-width: 52ch; }
+.c4-sec { display: flex; flex-direction: column; gap: 8px; }
+.c4-sec-hd { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.c4-row { border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.c4-line { display: grid; grid-template-columns: 22px 1fr auto auto; gap: 12px; align-items: center; padding: 12px 14px; }
+.c4-ico { width: 20px; height: 20px; display: grid; place-items: center; }
+.c4-ico svg { width: 18px; height: 18px; }
+.c4-lbl { font-size: 14.5px; min-width: 0; }
+.c4-pts { font-size: 12.5px; color: var(--text-faint); white-space: nowrap; }
+.c4-pass .c4-lbl { color: var(--text-dim); }
+.c4-pass .c4-line { padding-block: 10px; }
+.c4-drawer { padding: 0 14px 14px 48px; display: flex; flex-direction: column; gap: 10px; }
+.c4-drawer .acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.c4-result { font-size: 13.5px; padding: 8px 12px; border-radius: 8px; }
+.c4-result.bad { background: var(--crit-soft); color: var(--crit); }
+@media (max-width: 560px) {
+  .c4-head { grid-template-columns: 1fr; justify-items: start; }
+  .c4-line { grid-template-columns: 22px 1fr auto; }
+  .c4-pts { display: none; }
+  .c4-drawer { padding-left: 14px; }
+}
+
+/* ── 5: board ── */
+.c5-board { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; align-items: start; }
+.c5-col { border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; background: var(--bg); }
+.c5-col-hd { display: flex; justify-content: space-between; align-items: center; padding: 2px 4px; gap: 8px; }
+.c5-col-hd b { font-weight: 600; font-size: 14px; }
+.c5-count { font-size: 12px; color: var(--text-faint); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; }
+.c5-done-col { border-style: dashed; }
+.c5-card { border: 1px solid var(--line); border-radius: 10px; background: var(--card); padding: 12px 13px; display: flex; flex-direction: column; gap: 8px; }
+.c5-card .lbl { font-size: 14.5px; }
+.c5-card .top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.c5-card details summary { cursor: pointer; font-size: 13px; color: var(--text-faint); list-style: none; display: inline-flex; gap: 5px; align-items: center; }
+.c5-card details summary::-webkit-details-marker { display: none; }
+.c5-card details[open] summary { margin-bottom: 8px; }
+.c5-card .foot { display: flex; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.c5-confirm { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; font-size: 13.5px; }
+.c5-confirm .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.c5-mini { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; background: var(--card); }
+.c5-mini .lbl { font-size: 14px; color: var(--text-dim); text-decoration: line-through; text-decoration-color: var(--text-faint); }
+.c5-mini .by { font-size: 12px; display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.c5-empty { font-size: 13px; color: var(--text-faint); padding: 14px 6px; text-align: center; }
+@media (max-width: 640px) { .c5-board { grid-template-columns: 1fr; } }
+
+/* ── compare ── */
+.compare { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+.compare table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 13.5px; }
+.compare th, .compare td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.compare th { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; background: var(--bg-soft); }
+.compare tr:last-child td { border-bottom: 0; }
+.compare td:first-child { font-weight: 600; white-space: nowrap; }
+.rec { border: 1px solid var(--green); background: var(--green-soft); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.rec p { color: var(--text-dim); max-width: 70ch; }
+</style>
+
+<div class="wrap">
+  <header class="intro">
+    <span class="eyebrow">GrowJin · Dashboard checklist</span>
+    <h1>Five ways to say “do this on your site, then tell us”</h1>
+    <p>Each concept below works. Click through, try the buttons, and compare against the current design in the first tab. The sample data is a made-up coffee shop’s SEO module.</p>
+    <div class="problem">
+      <div><span class="eyebrow">What people expect</span><p>The checkbox looks like a button. Click it, and GrowJin fixes the thing.</p></div>
+      <div><span class="eyebrow">What actually happens</span><p>It only <b>records</b> that they already made the change on their own site. Nothing on the site changes.</p></div>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Design concepts" id="tabs"></nav>
+
+  <section id="panel" role="tabpanel" style="display:flex;flex-direction:column;gap:18px"></section>
+
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <h2>Side by side</h2>
+    <div class="compare">
+      <table>
+        <thead><tr><th>Concept</th><th>How it removes the confusion</th><th>Build effort</th><th>Trade-off</th></tr></thead>
+        <tbody>
+          <tr><td>A · Status label</td><td>The left column is a read-only status. The only buttons say what they do.</td><td>Small</td><td>Least change. Still a long list.</td></tr>
+          <tr><td>B · Fix tracker</td><td>Shows the full path: Found → Fixing → Verified. Done is the end of a journey.</td><td>Medium</td><td>Adds a “fixing” state to store.</td></tr>
+          <tr><td>C · One at a time</td><td>A single card with two numbered steps. Confirming is clearly step 2.</td><td>Medium</td><td>Hides the full list behind “up next”.</td></tr>
+          <tr><td>D · Health report</td><td>No checklist. Checks turn green when the scan sees the fix.</td><td>Large</td><td>Depends on re-scans being fast and reliable.</td></tr>
+          <tr><td>E · To fix / Done</td><td>Moving a card across columns reads as filing it, not triggering it.</td><td>Medium</td><td>Two columns get cramped on phones.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="rec">
+      <span class="eyebrow" style="color:var(--green-bright)">My pick</span>
+      <p><b>Ship A now, aim for D.</b> A is a small change in <code>AllModulesDashboard.tsx</code> and fixes the misread immediately. D matches what the product already does (AI-verified checks), so the user’s job becomes “make the score go up” and the tick stops being something they press. B’s step labels are worth borrowing into either one.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  // ── sample data ───────────────────────────────────────────────────────────
+  const ITEMS = [
+    { id: 'meta', label: 'Homepage has no meta description', w: 3, pts: 9,
+      detail: 'Google is making up a snippet from your page footer: “© 2026 Lumen Coffee · Privacy · Terms”.',
+      action: 'Add a meta description of 140–160 characters to <head> on /. Suggested: “Small-batch coffee roasted in Leeds every Tuesday. Free UK delivery over £25.”',
+      done: null },
+    { id: 'alt', label: '14 of 22 images have no alt text', w: 2, pts: 6,
+      detail: 'Product photos on /shop are invisible to Google Images and screen readers.',
+      action: 'Add a short alt attribute to each product image describing the bag and roast, e.g. alt="Ethiopia Guji, light roast, 250g bag".',
+      done: null },
+    { id: 'sitemap', label: 'Sitemap not submitted to Search Console', w: 3, pts: 8,
+      detail: 'Your sitemap.xml exists but Google has never been told about it. 9 pages are not indexed.',
+      action: 'In Google Search Console, open Sitemaps and submit https://lumencoffee.com/sitemap.xml.',
+      done: null, manual: true },
+    { id: 'h1', label: '/pricing has two H1 headings', w: 2, pts: 4,
+      detail: '“Subscriptions” and “Choose your plan” are both H1, so Google can’t tell which is the page topic.',
+      action: 'Keep “Coffee subscriptions” as the H1 and change the second heading to an H2.',
+      done: null },
+    { id: 'title', label: 'Blog title tag is 74 characters', w: 1, pts: 2,
+      detail: 'Google cuts it off after “Lumen Coffee Journal: brewing guides, origin stories and…”.',
+      action: 'Shorten the /blog title to under 60 characters, e.g. “Brewing guides & origin stories | Lumen Coffee”.',
+      done: null },
+    { id: 'canon', label: 'Canonical tags set on every page', w: 2, pts: 5, detail: 'Checked 31 pages.', done: 'ai', when: '14 Oct' },
+    { id: 'https', label: 'HTTP redirects to HTTPS', w: 3, pts: 8, detail: 'All 31 pages redirect with a 301.', done: 'ai', when: '14 Oct' },
+    { id: 'og', label: 'Share image set for social links', w: 1, pts: 3, detail: 'You marked this done.', done: 'self', when: '12 Oct' },
+  ];
+  const fresh = () => ITEMS.map(i => ({ ...i }));
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const prio = w => w === 3 ? '<span class="chip chip-crit">High impact</span>' : w === 2 ? '<span class="chip chip-warn">Medium</span>' : '<span class="chip chip-low">Low</span>';
+
+  const I = {
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
+    circle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/></svg>',
+    alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4.5M12 16h.01"/></svg>',
+    shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+    user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5" stroke-dasharray="3 3"/><path d="M8.5 12.5l2.3 2.3 4.7-5"/></svg>',
+    chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+    scan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>',
+    arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+    ext: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+    cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M9.5 9.5l5 5M14.5 9.5l-5 5"/></svg>',
+  };
+
+  let toastTimer;
+  function toast(msg) {
+    document.querySelector('.toast')?.remove();
+    const t = document.createElement('div'); t.className = 'toast fade-in'; t.textContent = msg; t.setAttribute('role', 'status');
+    document.body.appendChild(t); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.remove(), 2600);
+  }
+  function copyText(text) {
+    try { navigator.clipboard.writeText(text).then(() => toast('Copied. Paste it into Claude.'), () => toast('Copy blocked here. In the real app this copies the prompt.')); }
+    catch { toast('Copy blocked here. In the real app this copies the prompt.'); }
+  }
+  const prompt = it => `Please make this change on my website (lumencoffee.com).\n\nTask: ${it.label}\nWhy: ${it.detail}\nWhat to do: ${it.action}`;
+
+  // ── concepts ──────────────────────────────────────────────────────────────
+  const CONCEPTS = [
+    {
+      key: 'current', tab: 'Current', name: 'Today’s checklist',
+      pitch: 'For reference. A checkbox on the left of every row, the same shape as a button. Clicking it ticks the item and nothing else, which is where people get lost.',
+      facts: [['Effort', 'Already built', 0], ['What it says', 'Tick boxes. AI or Self badges after.'], ['Why it confuses', 'The box is the most clickable thing on the row, and its label is a task, so it reads as “do this”.']],
+      init: () => ({ items: fresh() }),
+      render(s, el) {
+        el.innerHTML = `<div class="mod-hd"><h3>SEO</h3><span class="sub tnum">${s.items.filter(i => i.done).length} of ${s.items.length} done</span></div>
+        <div class="c0-list">${s.items.map(i => `<div class="c0-item ${i.done ? 'done' : ''}">
+          <button class="c0-cb ${i.done === 'ai' ? 'ai' : i.done ? 'self' : ''}" data-id="${i.id}" aria-label="Toggle ${esc(i.label)}">${i.done ? `<span style="color:${i.done === 'ai' ? '#06140c' : 'var(--lime)'};display:grid">${I.check}</span>` : ''}</button>
+          <div class="c0-body"><div class="c0-top"><span class="c0-lbl">${esc(i.label)}</span>${!i.done ? prio(i.w) : `<span class="chip chip-low">${i.done === 'ai' ? 'AI' : 'Self'}</span>`}</div><span class="c0-detail">${esc(i.detail)}</span></div>
+        </div>`).join('')}</div>
+        ${s.clicked ? `<div class="c0-note fade-in">That ticked “${esc(s.clicked)}”. Nothing happened on the site. This is the moment users think something broke, or that it got fixed for them.</div>` : ''}`;
+        el.querySelectorAll('.c0-cb').forEach(b => b.onclick = () => {
+          const it = s.items.find(x => x.id === b.dataset.id);
+          if (it.done === 'ai') return;
+          it.done = it.done ? null : 'self'; s.clicked = it.done ? it.label : null; this.render(s, el);
+        });
+      },
+    },
+    {
+      key: 'status', tab: 'A', name: 'Status label, explicit button',
+      pitch: 'Swap the checkbox for a read-only status word: To fix, Verified, You marked done. The row opens to show what to change, and only after that comes the question “Changed this on your site?” with a button that says exactly what it does.',
+      facts: [['Effort', 'Small. One component, same data.', 1], ['Key copy', '“Changed this on your site?” → Yes, mark as done'], ['Keeps', 'The whole list, priorities and AI verification']],
+      init: () => ({ items: fresh(), open: 'meta', busy: null }),
+      render(s, el) {
+        const st = i => i.done === 'ai' ? `<span class="c1-status st-ai">${I.shield}Verified</span>`
+          : i.done === 'self' ? `<span class="c1-status st-self">${I.user}You did it</span>`
+          : `<span class="c1-status ${i.w === 3 ? 'st-crit' : 'st-todo'}">${I.alert}To fix</span>`;
+        const todo = s.items.filter(i => !i.done), done = s.items.filter(i => i.done);
+        const row = i => {
+          const open = s.open === i.id;
+          return `<div class="c1-row ${open ? 'open' : ''} ${i.done ? 'is-done' : ''}">
+            <button class="c1-head" data-open="${i.id}" aria-expanded="${open}">
+              ${st(i)}
+              <span class="c1-main"><span class="c1-lbl">${esc(i.label)}</span><span class="c1-detail">${esc(i.detail)}</span></span>
+              <span class="c1-cta">${i.done ? (i.when ? `<span class="faint" style="font-weight:500">${i.when}</span>` : '') : `How to fix ${I.chev}`}</span>
+            </button>
+            ${open && !i.done ? `<div class="c1-body fade-in">
+              <div class="howto"><span class="eyebrow">What to change on your site</span>${esc(i.action)}</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">${i.manual ? `<a class="btn btn-ghost" href="https://search.google.com/search-console" target="_blank" rel="noopener">Open Search Console ${I.ext}</a>` : `<button class="btn btn-ghost" data-copy="${i.id}">${I.copy} Copy fix for Claude</button>`}</div>
+              <div class="c1-after">
+                <span class="q">Changed this on your site?</span>
+                <button class="btn btn-primary" data-done="${i.id}">${I.check} Yes, mark as done</button>
+                <button class="btn btn-text" data-scan="${i.id}" ${s.busy === i.id ? 'disabled' : ''}>${s.busy === i.id ? '<span class="spin"></span> Checking your site…' : `${I.scan} Check my site for me`}</button>
+              </div>
+            </div>` : ''}
+            ${open && i.done === 'self' ? `<div class="c1-body fade-in"><div class="c1-after"><span class="q">You marked this done. We’ll confirm it on the next scan.</span><button class="btn btn-text" data-undo="${i.id}">Undo</button></div></div>` : ''}
+          </div>`;
+        };
+        el.innerHTML = `<div class="mod-hd"><h3>SEO</h3><span class="sub tnum">${todo.length} to fix · ${done.length} done</span></div>
+          <div class="c1-legend"><span class="st-crit">${I.alert} To fix</span><span class="st-ai">${I.shield} Verified by our scan</span><span class="st-self">${I.user} You said you did it</span></div>
+          <div class="c1-list">${todo.map(row).join('')}</div>
+          <div class="eyebrow" style="margin-top:6px">Done</div>
+          <div class="c1-list">${done.map(row).join('')}</div>`;
+        el.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { s.open = s.open === b.dataset.open ? null : b.dataset.open; this.render(s, el); });
+        el.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(prompt(s.items.find(x => x.id === b.dataset.copy))));
+        el.querySelectorAll('[data-done]').forEach(b => b.onclick = () => { const it = s.items.find(x => x.id === b.dataset.done); it.done = 'self'; it.when = 'Today'; s.open = null; toast('Marked done. We’ll confirm it on tonight’s scan.'); this.render(s, el); });
+        el.querySelectorAll('[data-undo]').forEach(b => b.onclick = () => { const it = s.items.find(x => x.id === b.dataset.undo); it.done = null; s.open = it.id; this.render(s, el); });
+        el.querySelectorAll('[data-scan]').forEach(b => b.onclick = () => {
+          const id = b.dataset.scan; s.busy = id; this.render(s, el);
+          setTimeout(() => { s.busy = null; const it = s.items.find(x => x.id === id); it.done = 'ai'; it.when = 'Just now'; s.open = null; toast('Verified. The scan found your change.'); this.render(s, el); }, 1400);
+        });
+      },
+    },
+    {
+      key: 'tracker', tab: 'B', name: 'Fix tracker',
+      pitch: 'Treat each item as an issue with a visible path: Found → Fixing → Verified. Pressing “Start fixing” only opens the instructions. The final step is a clear second action, “I’ve made the change”, after which we verify it.',
+      facts: [['Effort', 'Medium. Adds a “fixing” state per item.', 2], ['Key copy', 'Found · Fixing · Verified'], ['Bonus', '“Fixing” items become the natural reminders for Today']],
+      init: () => ({ items: fresh().map(i => ({ ...i, s: i.done ? 'verified' : 'found' })), busy: null }),
+      render(s, el) {
+        const count = k => s.items.filter(i => i.s === k).length;
+        const track = st => {
+          const lvl = { found: 0, fixing: 1, checking: 1, verified: 2 }[st];
+          return `<span class="track" aria-label="Stage: ${st}">
+            <span class="s ${lvl === 0 ? 'on' : ''}"><i class="d"></i>Found</span><i class="bar ${lvl >= 1 ? 'on' : ''}"></i>
+            <span class="s f ${lvl === 1 ? 'on' : ''}"><i class="d"></i>Fixing</span><i class="bar ${lvl >= 2 ? 'on' : ''}"></i>
+            <span class="s v ${lvl === 2 ? 'on' : ''}"><i class="d"></i>Verified</span></span>`;
+        };
+        const order = { fixing: 0, checking: 0, found: 1, verified: 2 };
+        const list = [...s.items].sort((a, b) => order[a.s] - order[b.s] || b.w - a.w);
+        el.innerHTML = `<div class="mod-hd"><h3>SEO fixes</h3><span class="sub">Issues we found on lumencoffee.com</span></div>
+          <div class="c2-summary">
+            <div class="c2-sum"><b class="tnum" style="color:var(--crit)">${count('found')}</b><span>Found, not started</span></div>
+            <div class="c2-sum"><b class="tnum" style="color:var(--warn)">${count('fixing') + count('checking')}</b><span>You’re fixing</span></div>
+            <div class="c2-sum"><b class="tnum" style="color:var(--green-bright)">${count('verified')}</b><span>Verified</span></div>
+          </div>
+          <div class="c2-list">${list.map(i => `<div class="c2-row" data-s="${i.s}">
+            <div class="c2-top">
+              <div class="c2-title"><span class="lbl">${esc(i.label)}</span><span class="det">${esc(i.detail)}</span></div>
+              ${track(i.s)}
+            </div>
+            ${i.s === 'found' ? `<div class="c2-act">${prio(i.w)}<span style="flex:1"></span><button class="btn btn-ghost" data-start="${i.id}">Start fixing ${I.arrow}</button></div>` : ''}
+            ${i.s === 'fixing' || i.s === 'checking' ? `<div class="c2-panel fade-in"><div class="c2-steps">
+                <div class="c2-step"><span class="n">1 · On your site</span><p>${esc(i.action)}</p>
+                  <div>${i.manual ? `<a class="btn btn-ghost" href="https://search.google.com/search-console" target="_blank" rel="noopener">Open Search Console ${I.ext}</a>` : `<button class="btn btn-ghost" data-copy="${i.id}">${I.copy} Copy fix for Claude</button>`}</div></div>
+                <div class="c2-step"><span class="n">2 · Back here</span><p>When it’s live, tell us and we’ll check your site to confirm.</p>
+                  <div><button class="btn btn-primary" data-made="${i.id}" ${i.s === 'checking' ? 'disabled' : ''}>${i.s === 'checking' ? '<span class="spin"></span> Checking…' : `${I.check} I’ve made the change`}</button></div></div>
+              </div><div><button class="btn btn-text" data-back="${i.id}">Not now</button></div></div>` : ''}
+            ${i.s === 'verified' ? `<div class="c2-act"><span class="chip chip-ok">${i.done === 'self' ? 'Confirmed by you' : 'Verified by scan'}${i.when ? ' · ' + i.when : ''}</span></div>` : ''}
+          </div>`).join('')}</div>`;
+        const find = id => s.items.find(x => x.id === id);
+        el.querySelectorAll('[data-start]').forEach(b => b.onclick = () => { find(b.dataset.start).s = 'fixing'; this.render(s, el); });
+        el.querySelectorAll('[data-back]').forEach(b => b.onclick = () => { find(b.dataset.back).s = 'found'; this.render(s, el); });
+        el.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(prompt(find(b.dataset.copy))));
+        el.querySelectorAll('[data-made]').forEach(b => b.onclick = () => {
+          const it = find(b.dataset.made); it.s = 'checking'; this.render(s, el);
+          setTimeout(() => { it.s = 'verified'; it.when = 'Just now'; toast('Verified on your site.'); this.render(s, el); }, 1400);
+        });
+      },
+    },
+    {
+      key: 'focus', tab: 'C', name: 'One fix at a time',
+      pitch: 'Show one fix as a card with two numbered steps. Step 1 is the work, on the user’s site. Step 2 is the confirmation. Because confirming is visibly the second step, nobody expects it to do the work. The rest waits in a short “up next” list.',
+      facts: [['Effort', 'Medium. New view over the same items.', 2], ['Key copy', '1 · Make the change  2 · Confirm it’s done'], ['Fits', 'The Today page, where you already pick 3 tasks']],
+      init: () => ({ items: fresh(), leaving: false }),
+      render(s, el) {
+        const todo = s.items.filter(i => !i.done).sort((a, b) => b.w - a.w);
+        const total = s.items.length, done = total - todo.length;
+        const cur = todo[0];
+        el.innerHTML = `<div class="c3-progress"><div class="row"><span>SEO · lumencoffee.com</span><span class="tnum">${done} of ${total} fixed</span></div><div class="meter"><i style="width:${(done / total) * 100}%"></i></div></div>
+          ${cur ? `<article class="c3-card ${s.leaving ? 'leaving' : 'fade-in'}">
+            <div class="c3-meta"><span class="eyebrow">Next fix</span>${prio(cur.w)}<span class="faint" style="font-size:12.5px">≈ +${cur.pts} SEO points</span></div>
+            <h4>${esc(cur.label)}</h4>
+            <p class="c3-why">${esc(cur.detail)}</p>
+            <div class="c3-steps">
+              <div class="c3-step now"><span class="c3-num">1</span><div class="c3-step-body"><span class="t">Make the change on your site</span><span class="muted" style="font-size:14px">${esc(cur.action)}</span>
+                <div class="btns">${cur.manual ? `<a class="btn btn-ghost" href="https://search.google.com/search-console" target="_blank" rel="noopener">Open Search Console ${I.ext}</a>` : `<button class="btn btn-ghost" data-copy>${I.copy} Copy fix for Claude</button>`}</div></div></div>
+              <div class="c3-step"><span class="c3-num">2</span><div class="c3-step-body"><span class="t">Come back and confirm</span><span class="muted" style="font-size:14px">This only records it. We double-check on the next scan.</span>
+                <div class="btns"><button class="btn btn-primary" data-done>${I.check} I’ve done this</button><button class="btn btn-text" data-skip>Skip, not relevant</button></div></div></div>
+            </div>
+          </article>` : `<div class="c3-done fade-in"><h4 style="font-family:var(--display);font-size:24px;margin:0">All SEO fixes done</h4><p class="muted">We’ll re-check everything on tonight’s scan.</p></div>`}
+          ${todo.length > 1 ? `<div class="c3-next"><span class="eyebrow">Up next</span><ol>${todo.slice(1, 5).map(i => `<li><span>${esc(i.label)}</span>${prio(i.w)}</li>`).join('')}</ol></div>` : ''}`;
+        const advance = (msg, mark) => {
+          s.leaving = true; this.render(s, el);
+          setTimeout(() => { mark(); s.leaving = false; toast(msg); this.render(s, el); }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 320);
+        };
+        el.querySelector('[data-copy]')?.addEventListener('click', () => copyText(prompt(cur)));
+        el.querySelector('[data-done]')?.addEventListener('click', () => advance('Nice. Marked as done, we’ll verify tonight.', () => { cur.done = 'self'; }));
+        el.querySelector('[data-skip]')?.addEventListener('click', () => advance('Skipped. You can bring it back from the full list.', () => { cur.done = 'skip'; }));
+      },
+    },
+    {
+      key: 'report', tab: 'D', name: 'Health report, no checklist',
+      pitch: 'Drop the checklist idea. Show a site health score and a list of checks that are failing or passing. Checks pass when our scan sees the fix, so there is nothing to tick. The user’s button is “Fix it”, and after they’ve changed the site, “Re-check now”.',
+      facts: [['Effort', 'Large. Needs per-item re-scan on demand.', 3], ['Key copy', 'Failing · Passing · Re-check now'], ['Why it works', 'Green is earned, never clicked. Matches the AI-verified model you already have.']],
+      init: () => ({ items: fresh().map(i => ({ ...i, pass: i.done === 'ai' || i.done === 'self' })), open: 'meta', busy: null, fail: {} }),
+      render(s, el) {
+        const max = s.items.reduce((a, i) => a + i.pts, 0);
+        const score = Math.round((s.items.filter(i => i.pass).reduce((a, i) => a + i.pts, 0) / max) * 100);
+        const C = 2 * Math.PI * 44;
+        const failing = s.items.filter(i => !i.pass).sort((a, b) => b.pts - a.pts), passing = s.items.filter(i => i.pass);
+        el.innerHTML = `<div class="c4-head">
+            <div class="ring" role="img" aria-label="SEO health ${score} out of 100"><svg viewBox="0 0 104 104"><circle cx="52" cy="52" r="44" fill="none" stroke="var(--line)" stroke-width="9"/><circle cx="52" cy="52" r="44" fill="none" stroke="${score >= 75 ? 'var(--green-bright)' : 'var(--warn)'}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - score / 100)}" style="transition:stroke-dashoffset .6s ease"/></svg><div class="num"><span><b class="tnum">${score}</b><small>of 100</small></span></div></div>
+            <div class="txt"><span class="eyebrow">SEO health · lumencoffee.com</span><h3 style="font-size:20px">${failing.length} checks failing</h3><p>We scan your site every night. When you fix something, it turns green here on its own. In a hurry? Use “Re-check now”.</p><span class="faint" style="font-size:12.5px">Last scan: 16 Oct, 06:10</span></div>
+          </div>
+          <div class="c4-sec"><div class="c4-sec-hd"><span class="eyebrow">Failing</span><span class="faint" style="font-size:12.5px">Fix these to raise your score</span></div>
+            ${failing.map(i => {
+              const open = s.open === i.id;
+              return `<div class="c4-row"><div class="c4-line">
+                <span class="c4-ico" style="color:${i.w === 3 ? 'var(--crit)' : 'var(--warn)'}">${I.cross}</span>
+                <span class="c4-lbl">${esc(i.label)}</span>
+                <span class="c4-pts tnum">+${i.pts} pts</span>
+                <button class="btn ${open ? 'btn-text' : 'btn-ghost'}" data-open="${i.id}" aria-expanded="${open}">${open ? 'Close' : 'Fix it'}</button>
+              </div>
+              ${open ? `<div class="c4-drawer fade-in">
+                <span class="muted" style="font-size:14px">${esc(i.detail)}</span>
+                <div class="howto"><span class="eyebrow">Change this on your site</span>${esc(i.action)}</div>
+                ${s.fail[i.id] ? `<div class="c4-result bad">Still failing: we didn’t find the change yet. If you just published, wait a minute and re-check.</div>` : ''}
+                <div class="acts">${i.manual ? `<a class="btn btn-ghost" href="https://search.google.com/search-console" target="_blank" rel="noopener">Open Search Console ${I.ext}</a>` : `<button class="btn btn-ghost" data-copy="${i.id}">${I.copy} Copy fix for Claude</button>`}
+                  <button class="btn btn-primary" data-scan="${i.id}" ${s.busy === i.id ? 'disabled' : ''}>${s.busy === i.id ? '<span class="spin"></span> Scanning your page…' : `${I.scan} I fixed it, re-check now`}</button></div>
+              </div>` : ''}</div>`;
+            }).join('') || '<p class="muted">Nothing failing. Nice work.</p>'}
+          </div>
+          <div class="c4-sec"><div class="c4-sec-hd"><span class="eyebrow">Passing</span><span class="faint tnum" style="font-size:12.5px">${passing.length} checks</span></div>
+            ${passing.map(i => `<div class="c4-row c4-pass"><div class="c4-line"><span class="c4-ico" style="color:var(--green-bright)">${I.shield}</span><span class="c4-lbl">${esc(i.label)}</span><span class="c4-pts">${i.done === 'self' ? 'You confirmed' : 'Verified'} · ${i.when || 'Today'}</span><span></span></div></div>`).join('')}
+          </div>`;
+        const find = id => s.items.find(x => x.id === id);
+        el.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { s.open = s.open === b.dataset.open ? null : b.dataset.open; this.render(s, el); });
+        el.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(prompt(find(b.dataset.copy))));
+        el.querySelectorAll('[data-scan]').forEach(b => b.onclick = () => {
+          const id = b.dataset.scan; s.busy = id; this.render(s, el);
+          setTimeout(() => {
+            s.busy = null;
+            // first re-check of the H1 item "fails" so the not-yet-fixed state is visible
+            if (id === 'h1' && !s.fail.h1) { s.fail.h1 = true; this.render(s, el); return; }
+            const it = find(id); it.pass = true; it.done = 'ai'; it.when = 'Just now'; s.open = null; toast(`Passing now. Score up ${it.pts} points.`); this.render(s, el);
+          }, 1500);
+        });
+      },
+    },
+    {
+      key: 'board', tab: 'E', name: 'To fix / Done columns',
+      pitch: 'Two columns: “To change on your site” and “Done”. Each card has one move: “I’ve done this →”, which asks a quick confirm and files the card in Done. Moving something across reads as sorting your own work, not pressing a button that does it.',
+      facts: [['Effort', 'Medium. Layout change, same data.', 2], ['Key copy', 'To change on your site · Done'], ['Watch out', 'Stacks into one column on phones']],
+      init: () => ({ items: fresh(), confirm: null, flash: null }),
+      render(s, el) {
+        const todo = s.items.filter(i => !i.done).sort((a, b) => b.w - a.w), done = s.items.filter(i => i.done);
+        el.innerHTML = `<div class="mod-hd"><h3>SEO</h3><span class="sub">Move a card to Done after you’ve changed your site</span></div>
+          <div class="c5-board">
+            <div class="c5-col"><div class="c5-col-hd"><b>To change on your site</b><span class="c5-count tnum">${todo.length}</span></div>
+              ${todo.map(i => `<div class="c5-card">
+                <div class="top"><span class="lbl">${esc(i.label)}</span>${prio(i.w)}</div>
+                <details><summary>${I.chev.replace('<svg', '<svg width="12" height="12"')} How to fix</summary><div class="howto" style="font-size:13.5px"><span class="eyebrow">What to change</span>${esc(i.action)}</div></details>
+                ${s.confirm === i.id ? `<div class="c5-confirm fade-in"><span>Is this change live on lumencoffee.com?</span><div class="btns"><button class="btn btn-primary" data-yes="${i.id}">Yes, move to Done</button><button class="btn btn-text" data-no>Not yet</button></div></div>`
+                  : `<div class="foot">${i.manual ? '' : `<button class="btn btn-text" data-copy="${i.id}">${I.copy} Copy for Claude</button>`}<button class="btn btn-ghost" data-move="${i.id}">I’ve done this ${I.arrow}</button></div>`}
+              </div>`).join('') || '<div class="c5-empty">Nothing left to change.</div>'}
+            </div>
+            <div class="c5-col c5-done-col"><div class="c5-col-hd"><b>Done</b><span class="c5-count tnum">${done.length}</span></div>
+              ${done.map(i => `<div class="c5-mini ${s.flash === i.id ? 'fade-in' : ''}"><span class="lbl">${esc(i.label)}</span><span class="by"><span class="${i.done === 'ai' ? 'st-ai' : 'st-self'}">${i.done === 'ai' ? 'Verified by scan' : 'You moved this'} · ${i.when}</span>${i.done === 'self' ? `<button class="btn btn-text" style="padding:2px 4px;font-size:12px" data-undo="${i.id}">Move back</button>` : ''}</span></div>`).join('')}
+            </div>
+          </div>`;
+        const find = id => s.items.find(x => x.id === id);
+        el.querySelectorAll('[data-move]').forEach(b => b.onclick = () => { s.confirm = b.dataset.move; this.render(s, el); });
+        el.querySelectorAll('[data-no]').forEach(b => b.onclick = () => { s.confirm = null; this.render(s, el); });
+        el.querySelectorAll('[data-yes]').forEach(b => b.onclick = () => { const it = find(b.dataset.yes); it.done = 'self'; it.when = 'Today'; s.confirm = null; s.flash = it.id; this.render(s, el); });
+        el.querySelectorAll('[data-undo]').forEach(b => b.onclick = () => { find(b.dataset.undo).done = null; this.render(s, el); });
+        el.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(prompt(find(b.dataset.copy))));
+      },
+    },
+  ];
+
+  // ── shell ─────────────────────────────────────────────────────────────────
+  const tabsEl = document.getElementById('tabs'), panel = document.getElementById('panel');
+  const states = {};
+  let active = CONCEPTS[1].key;
+  const fromHash = location.hash.slice(1);
+  if (CONCEPTS.some(c => c.key === fromHash)) active = fromHash;
+  else { try { const saved = localStorage.getItem('cl-tab'); if (CONCEPTS.some(c => c.key === saved)) active = saved; } catch {} }
+
+  function show(key) {
+    active = key;
+    try { localStorage.setItem('cl-tab', key); } catch {}
+    tabsEl.innerHTML = CONCEPTS.map(c => `<button class="tab" role="tab" id="tab-${c.key}" aria-selected="${c.key === key}" data-k="${c.key}"><span class="k">${c.tab === 'Current' ? 'Now' : c.tab}</span>${c.tab === 'Current' ? 'Current' : c.name}</button>`).join('');
+    tabsEl.querySelectorAll('.tab').forEach(t => t.onclick = () => show(t.dataset.k));
+    const c = CONCEPTS.find(x => x.key === key);
+    if (!states[key]) states[key] = c.init();
+    panel.setAttribute('aria-labelledby', 'tab-' + key);
+    panel.innerHTML = `<div class="brief">
+        <div class="brief-main"><span class="eyebrow">${c.tab === 'Current' ? 'Baseline' : 'Concept ' + c.tab}</span><h2>${c.name}</h2><p>${c.pitch}</p></div>
+        <div class="facts">${c.facts.map(([k, v, e]) => `<div class="fact"><span class="eyebrow">${k}</span><span class="v">${e ? `<span class="effort">${[1, 2, 3].map(n => `<i class="${n <= e ? 'on' : ''}"></i>`).join('')}</span>` : ''}${v}</span></div>`).join('')}</div>
+      </div>
+      <div class="frame">
+        <div class="frame-bar"><span class="dots"><i></i><i></i><i></i></span><span>growjin.app/dashboard · example data</span><button class="reset" id="reset">Reset demo</button></div>
+        <div class="stage" id="stage"></div>
+      </div>`;
+    const stage = document.getElementById('stage');
+    c.render(states[key], stage);
+    document.getElementById('reset').onclick = () => { states[key] = c.init(); c.render(states[key], stage); };
+  }
+  show(active);
+})();
+</script>

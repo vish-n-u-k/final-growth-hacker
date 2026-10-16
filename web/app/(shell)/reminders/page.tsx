@@ -75,6 +75,7 @@ export default async function Reminders() {
       initialChanges={changes}
       commonChecks={getPresetsForWebsiteType(brand.websiteType)}
       searchConnected={!!gsc}
+      dailyEmailOn={!!brand.dailyEmailEnabled}
       brandProfile={brandProfile}
     />
   )

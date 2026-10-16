@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -112,7 +113,7 @@ function LoginForm() {
           disabled={loading}
           className="w-full h-12 bg-gradient-to-br from-[var(--green-bright)] to-[var(--green)] text-white font-semibold hover:opacity-90 mt-4"
         >
-          {loading ? 'Signing in…' : 'Sign in'}
+          {loading ? <><Spinner />Signing in…</> : 'Sign in'}
         </Button>
       </form>
       <div className="auth-divider" style={{ margin: '24px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>

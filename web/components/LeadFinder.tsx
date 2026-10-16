@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useSmartBack } from '@/lib/useSmartBack'
+import { Spinner } from '@/components/ui/spinner'
 
 interface ScrapedLead {
   id: string
@@ -207,7 +208,7 @@ export default function LeadFinder({
               onClick={scrape}
               disabled={status === 'loading' || !url.trim()}
             >
-              {status === 'loading' ? 'Analysing...' : 'Find Leads'}
+              {status === 'loading' ? <><Spinner />Analysing...</> : 'Find Leads'}
             </button>
           </div>
 
@@ -374,8 +375,8 @@ export default function LeadFinder({
                           }}
                           disabled={es?.status === 'generating' || es?.status === 'sending'}
                         >
-                          {es?.status === 'generating' ? 'Generating...' :
-                           es?.status === 'sending'    ? 'Sending...'   :
+                          {es?.status === 'generating' ? <><Spinner />Generating...</> :
+                           es?.status === 'sending'    ? <><Spinner />Sending...</>   :
                            es?.status === 'ready'      ? (isExpanded ? 'Hide email' : 'View email') :
                            es?.status === 'error'      ? 'Retry'        :
                            'Generate Email'}

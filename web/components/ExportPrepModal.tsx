@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { Spinner } from '@/components/ui/spinner'
 
 interface Props {
   moduleName: string
@@ -153,7 +154,7 @@ export default function ExportPrepModal({ moduleName, singleIssue = false, onDow
             </div>
             <div style={{ textAlign: 'left' }}>
               <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>
-                {downloading ? 'Preparing your file…' : 'Download .md file'}
+                {downloading ? <><Spinner />Preparing your file…</> : 'Download .md file'}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
                 {downloading ? 'Running analysis — this takes a few seconds' : singleIssue ? 'This issue as a Markdown file' : 'Full action plan as a Markdown file'}

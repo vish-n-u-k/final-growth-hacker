@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio'
 import { previewFor } from '@/lib/audit/page-preview'
 import { NOT_CHECKED_DETAIL, type ElementEvidence } from '@/lib/audit/elements'
+import { blockedSkipText } from '@/lib/audit/blocked'
 import { callAI } from '@/lib/ai/client'
 import type { SeoAuditResult } from '@/lib/audit/seo-audit'
 import type { ModuleAnalysisResult, ModuleItemDefinition } from '../types'
@@ -75,7 +76,7 @@ async function fetchPageContent(websiteUrl: string): Promise<{
     const urlPath = new URL(url).pathname.replace(/\/$/, '')
     const domain = new URL(url).hostname
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growthhacker.app)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growjin.com)' },
       signal: AbortSignal.timeout(10000),
     })
     if (!res.ok) return { ...empty, urlPath }
@@ -595,7 +596,8 @@ export async function analyzeSeo(
     : Promise.resolve(null)
 
   // Fetch page content once at the top (skip if no keyword items)
-  const pageContent = kwItems.length > 0 || lbItems.length > 0 ? await fetchPageContent(websiteUrl) : { title: '', description: '', h1: '', headings: [], bodyText: '', urlPath: '', internalLinks: [] }
+  // (not when a firewall blocked our checker: it would only see the firewall's page)
+  const pageContent = (kwItems.length > 0 || lbItems.length > 0) && !audit.blocked ? await fetchPageContent(websiteUrl) : { title: '', description: '', h1: '', headings: [], bodyText: '', urlPath: '', internalLinks: [] }
 
   // Failing page elements from Google's scan, boxed on the saved screenshot
   const shot = audit.screenshot && !('data' in audit.screenshot) ? audit.screenshot : undefined
@@ -616,6 +618,11 @@ export async function analyzeSeo(
         aiData: null,
         isFail: false,
       }
+    }
+
+    if (!finding && audit.blocked) {
+      // A firewall answered instead of the site: nothing to judge, so don't guess
+      return { slug: item.slug, detail: blockedSkipText(audit.blocked), narrative: '', action: '', verified: false, aiData: null, isFail: false }
     }
 
     if (!finding) {

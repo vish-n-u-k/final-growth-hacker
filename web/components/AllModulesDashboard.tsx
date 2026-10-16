@@ -25,6 +25,7 @@ import ElementEvidence, { isElementEvidence, describeElements } from '@/componen
 import PagePreview from '@/components/PagePreview'
 import { isPagePreview } from '@/lib/audit/page-preview'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import { Spinner } from '@/components/ui/spinner'
 
 function renderMdStep(step: string): React.ReactNode {
   const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
@@ -293,7 +294,7 @@ function InlineIntegrationForm({ intDef, onConnected }: { intDef: IntegrationDef
       ))}
       {error && <p className="sm-inline-error">{error}</p>}
       <button type="submit" disabled={saving} className="sm-inline-btn">
-        {saving ? 'Connecting…' : `Connect ${intDef.name}`}
+        {saving ? <><Spinner />Connecting…</> : `Connect ${intDef.name}`}
       </button>
     </form>
   )
@@ -1740,7 +1741,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         disabled={generatingDraft.has(itemKey)}
                         onClick={(e) => { e.stopPropagation(); handleGenerateDraft(modId, item.id, item.slug) }}
                       >
-                        {generatingDraft.has(itemKey) ? 'Regenerating…' : 'Regenerate'}
+                        {generatingDraft.has(itemKey) ? <><Spinner />Regenerating…</> : 'Regenerate'}
                       </button>
                     </>
                   ) : (
@@ -1771,7 +1772,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       onClick={(e) => { e.stopPropagation(); const m = allModulesData.find(x => x.id === modId); if (m) handleTopExport(m, item.slug) }}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                      {exportingMap[modId] ? 'Exporting…' : 'Export'}
+                      {exportingMap[modId] ? <><Spinner />Exporting…</> : 'Export'}
                     </button>
                   )}
                   <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, true, item.id, item.slug, userC, e)}>Mark as done</button>
@@ -2023,7 +2024,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       onClick={(e) => { e.stopPropagation(); const m = allModulesData.find(x => x.id === modId); if (m) handleTopExport(m, item.slug) }}
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                      {exportingMap[modId] ? 'Exporting…' : 'Export'}
+                      {exportingMap[modId] ? <><Spinner />Exporting…</> : 'Export'}
                     </button>
                   )}
                   {!idea && <button type="button" className="sm-act-secondary" onClick={(e) => toggleItem(modId, false, s?.id ?? '', item.slug, userC, e)}>Mark as done</button>}
@@ -3213,7 +3214,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                             {playbookData
                               ? <span className="gp-pb-chip">Generated{playbookData.generatedAt ? ` · ${new Date(playbookData.generatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}</span>
                               : reanalyzing
-                                ? <span className="gp-pb-chip is-busy">Generating…</span>
+                                ? <span className="gp-pb-chip is-busy"><Spinner size={10} />Generating…</span>
                                 : <span className="gp-pb-chip is-empty">Not generated yet</span>}
                             {playbookData && !playbookEditing && (
                               <button
@@ -3286,7 +3287,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         {playbookOpen && playbookEditing && (
                           <div className="gp-pb-foot">
                             <button type="button" onClick={handlePlaybookSave} disabled={playbookSaving} className="gp-pb-save">
-                              {playbookSaving ? 'Saving…' : playbookSaved ? 'Saved ✓' : 'Save changes'}
+                              {playbookSaving ? <><Spinner />Saving…</> : playbookSaved ? 'Saved ✓' : 'Save changes'}
                             </button>
                             <button type="button" onClick={() => setPlaybookEditing(false)} className="gp-pb-btn">Cancel</button>
                           </div>
@@ -3623,9 +3624,9 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
 
   return (
     <div style={{ padding: '24px 28px', borderTop: '1px solid var(--line)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
         <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>Content Scheduler</span>
-        {!connected && <a href={connectUrl('frekto')} style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '5px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
+        {!connected && <a href={connectUrl('frekto')} style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '5px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none', whiteSpace: 'nowrap' }}>Connect Frekto to unlock</a>}
       </div>
       <p style={{ fontSize: '14px', color: 'var(--text-faint)', marginBottom: '20px', lineHeight: 1.55 }}>
         Generates a full content series for Instagram, LinkedIn, and X — AI plans the posts, Frekto renders and auto-schedules them.
@@ -3794,7 +3795,7 @@ function ContentScheduler({ moduleId, brandId, connected }: { moduleId: string; 
                                 {mBrief?.outputFormat === 'mp4' ? 'Watch video' : 'View full image'} <ArrowIcon size={12} />
                               </a>
                             ) : (
-                              <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}>Rendering…</span>
+                              <span style={{ fontSize: '12px', color: 'var(--text-faint)' }}><Spinner size={11} />Rendering…</span>
                             )}
                           </div>
                         </div>
@@ -3966,9 +3967,9 @@ function SmartScheduler({ moduleId, brandId, connected }: { moduleId: string; br
 
   return (
     <div style={{ padding: '20px 28px', borderTop: '1px solid var(--line)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '6px' }}>
         <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-display)' }}>Smart Scheduler</span>
-        {!connected && <a href={connectUrl('frekto')} style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none' }}>Connect Frekto to unlock</a>}
+        {!connected && <a href={connectUrl('frekto')} style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.04)', border: '1px solid var(--line)', color: 'var(--gold)', textDecoration: 'none', whiteSpace: 'nowrap' }}>Connect Frekto to unlock</a>}
       </div>
       <p style={{ fontSize: '12px', color: 'var(--text-faint)', marginBottom: '16px', lineHeight: 1.5 }}>
         Analyzes your brand and audit findings to suggest what to post, where, and when — then generates and schedules content via Frekto.

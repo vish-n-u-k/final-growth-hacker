@@ -4,6 +4,7 @@ import { GEO_MODULE } from './definition'
 import { getAllItems, type ModuleAnalysisResult } from '../types'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 import { isJsShell } from '@/lib/audit/js-shell'
+import { blockedSkipText } from '@/lib/audit/blocked'
 import { domainWord, type GeoFetchData, type PageFetch } from './fetcher'
 
 // ── Robots.txt parser ─────────────────────────────────────────────────────────
@@ -756,8 +757,24 @@ export async function analyzeGeo(
   ]
   const ruleResultMap = new Map(ruleResults.map(r => [r.slug, r]))
 
-  // Claude: homepage copy judgements (not on JS-built pages: there's no copy to read) and the ideas
-  const aiItems = allItems.filter(item => GEO_AI_SLUGS.has(item.slug) && !(findings.page.shell && SHELL_AI_SLUGS.has(item.slug)))
+  // A firewall answered instead of the site (e.g. Cloudflare's "Just a moment…"): homepage checks
+  // are Not checked. robots.txt, llms.txt and Wikidata are judged when they could be read.
+  const block = data.blocked
+  const ROBOTS = ['geo-robots-tier1', 'geo-robots-tier2', 'geo-robots-tier3']
+  const LLMS = ['geo-llms-present', 'geo-llms-h1', 'geo-llms-blockquote', 'geo-llms-sections', 'geo-llms-links', 'geo-llms-depth']
+  const fileBlocked = (slug: string) => (data.robotsBlocked && ROBOTS.includes(slug)) || (data.llmsBlocked && LLMS.includes(slug))
+  const readable = new Set(['geo-entity-wikipedia', ...ROBOTS, ...LLMS])
+  const blockedResult = (slug: string): ModuleAnalysisResult | null => {
+    if (fileBlocked(slug)) return skip(slug, `Couldn't check: the site's firewall blocked GrowJin's checker from reading ${ROBOTS.includes(slug) ? 'robots.txt' : 'llms.txt'}. Allow GrowJin in your firewall, then re-analyse.`)
+    if (!block || readable.has(slug)) return null
+    if (slug === 'geo-bots-firewall') {
+      return skip(slug, `Couldn't check: ${block.by} blocks GrowJin's checker on every visit, so we can't tell whether it lets AI bots in. If bot protection is on (e.g. Cloudflare's Bot Fight Mode), it may block AI crawlers like GPTBot and ClaudeBot too — allow verified bots there.`)
+    }
+    return skip(slug, blockedSkipText(block))
+  }
+
+  // Claude: homepage copy judgements (not on JS-built or blocked pages: there's no copy to read) and the ideas
+  const aiItems = allItems.filter(item => GEO_AI_SLUGS.has(item.slug) && !((findings.page.shell || block) && SHELL_AI_SLUGS.has(item.slug)))
 
   let aiResultMap = new Map<string, ModuleAnalysisResult>()
   if (aiItems.length) {
@@ -811,6 +828,8 @@ ${itemList}`,
   // Merge: rule engine results + AI results, preserving definition order. Side-by-side checks
   // without competitors stay unrun.
   return allItems.filter(item => !item.slug.startsWith('geo-gap-') || ruleResultMap.has(item.slug)).map(item => {
+    const blockedSkip = blockedResult(item.slug)
+    if (blockedSkip && !item.insight) return blockedSkip
     if (GEO_AI_SLUGS.has(item.slug)) {
       if (findings.page.shell && SHELL_AI_SLUGS.has(item.slug)) return skip(item.slug, SHELL_SKIP)
       return aiResultMap.get(item.slug) ?? skip(item.slug, 'Couldn\'t check: the AI review didn\'t return a result this time. Re-analyse to try again.')

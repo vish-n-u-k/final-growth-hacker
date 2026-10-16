@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Access } from '@/lib/billing/plan'
 import type { PriceInfo } from '@/lib/billing/stripe'
+import { Spinner } from '@/components/ui/spinner'
 
 const PRO_FEATURES = [
   'Every Growth Path module after the free ones — GEO, competitors, social, brand, content, Meta Ads, outreach, analytics',
@@ -113,14 +114,14 @@ export default function PricingPlans({ access, prices, freeModuleNames, checkout
                   : access.periodEnd ? `Renews ${new Date(access.periodEnd).toLocaleDateString()} · ${access.interval === 'year' ? 'yearly' : 'monthly'}` : 'Your current plan'}
               </div>
               <button className="pricing-btn pricing-btn--ghost" onClick={() => go('/api/billing/portal')} disabled={!!busy}>
-                {busy ? 'Opening…' : 'Manage billing'}
+                {busy ? <><Spinner />Opening…</> : 'Manage billing'}
               </button>
             </>
           ) : access.pro ? (
             <div className="pricing-current">Pro access granted to your account</div>
           ) : (
             <button className="pricing-btn" onClick={() => go('/api/billing/checkout')} disabled={!!busy || !price}>
-              {busy ? 'Opening checkout…' : `Upgrade to Pro${price ? ` — ${money(price)}/${interval === 'year' ? 'yr' : 'mo'}` : ''}`}
+              {busy ? <><Spinner />Opening checkout…</> : `Upgrade to Pro${price ? ` — ${money(price)}/${interval === 'year' ? 'yr' : 'mo'}` : ''}`}
             </button>
           )}
         </div>

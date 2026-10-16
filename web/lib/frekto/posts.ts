@@ -166,7 +166,7 @@ export async function getSocialPostStatus(brandId: string, jobId: string): Promi
 // ── schedule_social_post ─────────────────────────────────────────────────────
 
 // "2026-10-08" + "09:00" in Asia/Kolkata → UTC Date (for our own record)
-function zonedToUtc(date: string, time: string, tz: string): Date {
+export function zonedToUtc(date: string, time: string, tz: string): Date {
   const guess = new Date(`${date}T${time}:00Z`)
   try {
     const parts = Object.fromEntries(
@@ -259,6 +259,7 @@ export async function scheduleSocialPost(
     scheduledAt,
     frektoJobId: finalJobId,
     outputUrl: regenerated ? null : (job.output_url ?? null),
+    source: 'claude',
     status: 'scheduled',
   })
 

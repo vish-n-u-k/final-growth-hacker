@@ -332,12 +332,47 @@ export const frektoScheduledPosts = pgTable('frekto_scheduled_posts', {
   platform: text('platform').notNull(),      // 'instagram' | 'linkedin' | 'twitter' | 'facebook' | 'youtube' | 'tiktok'
   topic: text('topic').notNull(),
   postType: text('post_type').notNull(),     // 'image' | 'video'
-  scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull(),
-  frektoJobId: text('frekto_job_id'),
+  scheduledAt: timestamp('scheduled_at', { withTimezone: true }).notNull(), // for drafts: the suggested time
+  frektoJobId: text('frekto_job_id'),        // the render (job_id)
+  frektoScheduledId: text('frekto_scheduled_id'), // its place on Frekto's calendar — needed to cancel/reschedule
+  seriesId: text('series_id'),
   outputUrl: text('output_url'),
-  status: text('status').notNull().default('scheduled'), // 'scheduled' | 'done' | 'failed'
+  thumbnailUrl: text('thumbnail_url'),
+  slideUrls: jsonb('slide_urls').$type<string[]>(),
+  caption: text('caption'),
+  source: text('source').notNull().default('manual'), // 'manual' | 'suggestion' | 'series' | 'auto' | 'claude'
+  suggestionId: uuid('suggestion_id'),
+  error: text('error'),
+  // 'draft' (rendered, waiting for approval) | 'scheduled' | 'done' | 'failed' | 'cancelled'
+  status: text('status').notNull().default('scheduled'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-})
+}, (table) => ({
+  brandStatusIdx: index('frekto_posts_brand_status_idx').on(table.brandId, table.status),
+}))
+
+// ── Social Suggestions ───────────────────────────────────────────────────────
+// Every AI suggestion is kept, so a refresh doesn't lose it, it can't be scheduled
+// twice, and dismissed/used topics are never suggested again.
+
+export const socialSuggestions = pgTable('social_suggestions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),              // 'post' | 'series'
+  platform: text('platform').notNull(),
+  topic: text('topic').notNull(),            // post topic, or the series brief
+  postType: text('post_type'),               // 'image' | 'video'
+  suggestedAt: timestamp('suggested_at', { withTimezone: true }), // suggested publish time / series start
+  reason: text('reason'),
+  payload: jsonb('payload').$type<Record<string, unknown>>(), // the full suggestion as the AI returned it
+  // 'suggested' | 'accepted' (a draft or schedule was made from it) | 'dismissed' | 'expired'
+  status: text('status').notNull().default('suggested'),
+  postId: uuid('post_id'),
+  source: text('source').notNull().default('studio'), // 'studio' | 'auto'
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  brandStatusIdx: index('social_suggestions_brand_status_idx').on(table.brandId, table.status),
+}))
 
 // ── Analysis Requests (admin queue) ──────────────────────────────────────────
 

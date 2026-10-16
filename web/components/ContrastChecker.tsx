@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { evaluateContrast } from '@/lib/color-contrast'
 import type { ColorContrastScanResult, ColorContrastViolation } from '@/lib/color-contrast-scan'
+import { Spinner } from '@/components/ui/spinner'
 
 function ViolationCard({ v }: { v: ColorContrastViolation }) {
   const result = evaluateContrast(v.fg, v.bg)
@@ -66,7 +67,7 @@ export default function ContrastChecker({ websiteUrl }: { websiteUrl?: string })
         <span>Contrast checker</span>
         {websiteUrl && (
           <button type="button" className="cc-rescan" onClick={() => runScan(true)} disabled={loading}>
-            {loading ? 'Scanning…' : 'Re-scan page'}
+            {loading ? <><Spinner />Scanning…</> : 'Re-scan page'}
           </button>
         )}
       </div>

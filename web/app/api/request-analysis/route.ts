@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     status: 'pending',
   })
 
-  const moduleUrl = `https://final-growth-hacker.vercel.app/dashboard/${moduleId}`
+  const moduleUrl = `https://app.growjin.com/dashboard/${moduleId}`
 
   // Fire email notification (non-fatal)
   try {
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
         `Module: ${moduleName} (moduleId: ${moduleId})`,
         `Module URL: ${moduleUrl}`,
         ``,
-        `Admin queue: https://final-growth-hacker.vercel.app/admin`,
+        `Admin queue: https://app.growjin.com/admin`,
       ].join('\n'),
     })
   } catch (err) {

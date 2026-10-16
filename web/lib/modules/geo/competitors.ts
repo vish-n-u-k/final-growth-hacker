@@ -78,7 +78,8 @@ export async function loadGeoCompetitors(
   for (let i = 0; i < urls.length && loaded.length < MAX; i += MAX) {
     const batch = urls.slice(i, i + MAX)
     const results = await Promise.all(batch.map(u => fetchGeoData({ website_url: u }, { light: true })))
-    results.forEach((r, j) => { if (!('error' in r) && loaded.length < MAX) loaded.push({ url: batch[j], data: r, suggested }) })
+    // (a competitor whose firewall blocks us can't be compared)
+    results.forEach((r, j) => { if (!('error' in r) && !r.blocked && loaded.length < MAX) loaded.push({ url: batch[j], data: r, suggested }) })
   }
 
   if (suggested && loaded.length > 0 && brandId && !requirements['competitor_urls']) {
