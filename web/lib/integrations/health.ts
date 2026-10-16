@@ -46,7 +46,11 @@ async function checkGa4(meta: Record<string, string>): Promise<[HealthStatus, st
     body: JSON.stringify({ dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }], metrics: [{ name: 'sessions' }] }),
   })
   if (!res) return ['error', "Couldn't reach Google Analytics."]
-  if (res.status === 403) return ['error', `The service account can't read property ${pid}. Add ${meta.client_email} as a Viewer in GA4 → Admin → Property access.`]
+  if (res.status === 403) {
+    const body = await res.text().catch(() => '')
+    if (/SERVICE_DISABLED|has not been used|is disabled/i.test(body)) return ['error', 'The Google Analytics Data API is not enabled in your service account\'s Cloud project. Enable it at console.cloud.google.com/apis/library/analyticsdata.googleapis.com, wait a minute, then test again.']
+    return ['error', `The service account can't read property ${pid}. In GA4, switch to the property with ID ${pid} (the URL shows p${pid}), then Admin → Property access management → + → Add users → add ${meta.client_email} with the Viewer role.`]
+  }
   if (res.status === 404 || res.status === 400) return ['error', `Property ${pid} wasn't found. Use the numeric GA4 property ID (not the G- measurement ID).`]
   if (!res.ok) return ['error', `Google Analytics returned an error (${res.status}).`]
   const d = await res.json().catch(() => null) as { rows?: { metricValues?: { value?: string }[] }[] } | null
