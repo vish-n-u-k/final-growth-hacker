@@ -2,11 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
-import { brands, modules, moduleItems, competitors, modulePageAudit, brandIntegrations, frektoScheduledPosts } from '@/lib/db/schema'
-import { eq, and, desc } from 'drizzle-orm'
+import { brands, modules, moduleItems, competitors, modulePageAudit, brandIntegrations, socialSuggestions } from '@/lib/db/schema'
+import { eq, and } from 'drizzle-orm'
 import { callAI } from '@/lib/ai/client'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 import { fetchGscTopQueries } from '@/lib/modules/seo/keyword-fetchers'
+import { PUBLISHABLE_PLATFORMS, getPostingContext, avoidTopicsBlock, isRepeatTopic, replaceOpenSuggestions, expireStaleSuggestions } from '@/lib/frekto/history'
+
+interface SeriesSuggestion {
+  id?: string
+  platform: string
+  shouldPost: boolean
+  instruction: string
+  count: number
+  cadence: string
+  format: string
+  outputFormat: string
+  startDate: string
+  reason: string[]
+}
 
 export const maxDuration = 90
 
@@ -27,19 +41,15 @@ export async function POST(request: NextRequest) {
   if (!brand || brand.userId !== user.id) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Fetch all enrichment data in parallel
-  const [items, lastPostsByPlatform, topCompetitors, repurposePages, gscInt, posthogInt] = await Promise.all([
+  const [items, history, topCompetitors, repurposePages, gscInt, posthogInt] = await Promise.all([
     // Failing audit items
     db.select({ label: moduleItems.label, aiDetail: moduleItems.aiDetail })
       .from(moduleItems)
       .where(and(eq(moduleItems.moduleId, moduleId), eq(moduleItems.aiVerified, false)))
       .limit(15),
 
-    // Last scheduled post per platform
-    db.select({ platform: frektoScheduledPosts.platform, scheduledAt: frektoScheduledPosts.scheduledAt })
-      .from(frektoScheduledPosts)
-      .where(eq(frektoScheduledPosts.brandId, brand.id))
-      .orderBy(desc(frektoScheduledPosts.scheduledAt))
-      .catch(() => []),
+    // What's already posted, queued or turned down
+    getPostingContext(brand.id),
 
     // Top 3 competitors (table may not exist yet — fail gracefully)
     db.select({ name: competitors.name, primaryStrength: competitors.primaryStrength, type: competitors.type })
@@ -115,12 +125,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Compute last scheduled date per platform
-  const lastDateByPlatform: Record<string, Date> = {}
-  for (const row of lastPostsByPlatform) {
-    if (!lastDateByPlatform[row.platform] && row.scheduledAt) {
-      lastDateByPlatform[row.platform] = row.scheduledAt
-    }
-  }
+  const lastDateByPlatform = history.lastByPlatform
 
   // Cadence → valid weekdays (0=Sun … 6=Sat)
   const cadenceDays: Record<string, number[]> = {
@@ -147,7 +152,7 @@ export async function POST(request: NextRequest) {
     tiktok:    { cadence: 'daily',    format: '9:16', outputFormat: 'mp4' },
   }
 
-  const ALL_PLATFORMS = ['instagram', 'linkedin', 'twitter', 'facebook', 'youtube', 'tiktok']
+  const ALL_PLATFORMS: readonly string[] = PUBLISHABLE_PLATFORMS
 
   function nextCadenceDate(platform: string): string {
     const cadence = platformCadence[platform] ?? 'mwf'
@@ -195,22 +200,20 @@ ${findingsList}
 
 IMPORTANT — Frekto platform capabilities (you are generating briefs for Frekto, an AI social media content creator):
 - Frekto creates SHORT-FORM content only: carousels, stat drops, quote cards, educational frameworks, tip posts, and short videos (under 2 minutes max).
-- For video platforms (instagram, youtube, tiktok): Frekto renders short animated videos under 2 minutes — NOT long-form videos. Never suggest 5, 8, or 10-minute videos. Think 15–90 second clips: a quick tip, a stat reveal, a before/after, a 3-step framework.
-- TikTok: Frekto exports MP4 only (no direct publish). Briefs should be for short vertical video (9:16), under 60 seconds.
+- For video platforms (instagram, youtube): Frekto renders short animated videos under 2 minutes — NOT long-form videos. Never suggest 5, 8, or 10-minute videos. Think 15–90 second clips: a quick tip, a stat reveal, a before/after, a 3-step framework.
 - YouTube: Frekto creates short YouTube Shorts (under 60 seconds, 9:16 or 16:9), not full-length videos.
 - Instagram Reels: short animated video, 15–60 seconds, 4:5 or 9:16.
-- For image platforms (linkedin, twitter, facebook): Frekto creates static or animated carousels, quote cards, stat visualizations, and framework breakdowns — not blog posts or long copy.
+- For image platforms (linkedin, facebook): Frekto creates static or animated carousels, quote cards, stat visualizations, and framework breakdowns — not blog posts or long copy.
 - The instruction you write is Frekto's creative prompt. Be specific about the post FORMAT (e.g. "carousel", "stat drop", "quote card", "3-step framework reel", "before/after short") and the TOPIC. Frekto handles brand colors and visual design automatically.
 
-Evaluate all 6 platforms for this brand and decide which ones are worth posting on based on their industry, audience, and stage.
+Evaluate all ${ALL_PLATFORMS.length} platforms for this brand and decide which ones are worth posting on based on their industry, audience, and stage.
 
 Platform specs and suggested start dates:
 - instagram:  cadence=mwf,      format=4:5,  output=mp4, startDate=${startDates.instagram}
 - linkedin:   cadence=linkedin, format=1:1,  output=png, startDate=${startDates.linkedin}
-- twitter:    cadence=weekdays, format=1:1,  output=png, startDate=${startDates.twitter}
 - facebook:   cadence=mwf,      format=1:1,  output=png, startDate=${startDates.facebook}
 - youtube:    cadence=weekly,   format=16:9, output=mp4, startDate=${startDates.youtube}
-- tiktok:     cadence=daily,    format=9:16, output=mp4, startDate=${startDates.tiktok}
+${avoidTopicsBlock(history)}
 
 For each platform return:
 1. shouldPost — true/false. Set false if the platform clearly doesn't suit this brand's industry or audience.
@@ -225,7 +228,7 @@ For each platform return:
      Each must start with the bold label (double asterisks).
 3. If shouldPost false: set instruction="", count=0, cadence="", format="", outputFormat="", startDate="", reason=[]
 
-Return a JSON array of exactly 6 objects in this order: instagram, linkedin, twitter, facebook, youtube, tiktok
+Return a JSON array of exactly ${ALL_PLATFORMS.length} objects in this order: ${ALL_PLATFORMS.join(', ')}
 
 [
   {
@@ -254,11 +257,34 @@ Return a JSON array of exactly 6 objects in this order: instagram, linkedin, twi
     return NextResponse.json({ error: `AI call failed: ${e instanceof Error ? e.message : String(e)}` }, { status: 500 })
   }
 
-  let suggestions: unknown[]
+  let suggestions: SeriesSuggestion[]
   try {
-    suggestions = parseClaudeJsonArray(raw)
+    suggestions = parseClaudeJsonArray(raw) as SeriesSuggestion[]
   } catch {
     return NextResponse.json({ error: 'Failed to parse AI suggestions. Please try again.' }, { status: 500 })
+  }
+
+  // Only platforms Frekto can publish to, nothing that repeats an old or rejected brief
+  suggestions = suggestions
+    .filter(s => ALL_PLATFORMS.includes(s.platform))
+    .filter(s => s.shouldPost && s.instruction?.trim() && !isRepeatTopic(s.instruction, history))
+
+  // Save the batch so a refresh keeps it and it can only be launched once
+  await expireStaleSuggestions(brand.id)
+  await replaceOpenSuggestions(brand.id, 'series')
+  if (suggestions.length > 0) {
+    const rows = await db.insert(socialSuggestions).values(suggestions.map(s => ({
+      brandId: brand.id,
+      kind: 'series',
+      platform: s.platform,
+      topic: s.instruction.trim().slice(0, 500),
+      postType: s.outputFormat === 'mp4' ? 'video' : 'image',
+      suggestedAt: isNaN(Date.parse(s.startDate)) ? null : new Date(s.startDate),
+      reason: Array.isArray(s.reason) ? s.reason.join('\n') : null,
+      payload: s as unknown as Record<string, unknown>,
+    }))).returning({ id: socialSuggestions.id, platform: socialSuggestions.platform })
+    const idByPlatform = new Map(rows.map(r => [r.platform, r.id]))
+    suggestions = suggestions.map(s => ({ ...s, id: idByPlatform.get(s.platform) }))
   }
 
   return NextResponse.json({ suggestions })

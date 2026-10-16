@@ -1,9 +1,10 @@
 import { db } from '@/lib/db'
-import { brands, modules, moduleItems, moduleCategories, frektoScheduledPosts, competitors, modulePageAudit, brandIntegrations } from '@/lib/db/schema'
-import { eq, and, desc, inArray } from 'drizzle-orm'
+import { brands, modules, moduleItems, moduleCategories, competitors, modulePageAudit, brandIntegrations, socialSuggestions } from '@/lib/db/schema'
+import { eq, and, inArray } from 'drizzle-orm'
 import { callAI } from '@/lib/ai/client'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 import { fetchGscTopQueries } from '@/lib/modules/seo/keyword-fetchers'
+import { PUBLISHABLE_PLATFORMS, getPostingContext, avoidTopicsBlock, isRepeatTopic, replaceOpenSuggestions, expireStaleSuggestions, type PostingContext } from '@/lib/frekto/history'
 
 export const PLATFORM_SLOTS: Record<string, { day: number; hour: number }[]> = {
   instagram: [{ day: 2, hour: 10 }, { day: 3, hour: 10 }, { day: 5, hour: 10 }],
@@ -33,6 +34,7 @@ export function getNextSlot(platform: string): string {
 }
 
 export interface PostSuggestion {
+  id?: string // set once saved to social_suggestions
   platform: string
   shouldPost: boolean
   topic: string
@@ -41,7 +43,7 @@ export interface PostSuggestion {
   reason: string
 }
 
-const PLATFORMS = ['instagram', 'linkedin', 'twitter', 'facebook', 'youtube', 'tiktok']
+const PLATFORMS: readonly string[] = PUBLISHABLE_PLATFORMS
 
 export async function generatePostSuggestions(params: {
   brand: typeof brands.$inferSelect
@@ -49,16 +51,13 @@ export async function generatePostSuggestions(params: {
 }): Promise<PostSuggestion[]> {
   const { brand, moduleId } = params
 
-  const [items, allScheduled, topCompetitors, repurposePages, gscInt, posthogInt, socialStrategyItems] = await Promise.all([
+  const [items, history, topCompetitors, repurposePages, gscInt, posthogInt, socialStrategyItems] = await Promise.all([
     db.select({ label: moduleItems.label, aiDetail: moduleItems.aiDetail })
       .from(moduleItems)
       .where(and(eq(moduleItems.moduleId, moduleId), eq(moduleItems.aiVerified, false)))
       .limit(15),
 
-    db.select({ platform: frektoScheduledPosts.platform, scheduledAt: frektoScheduledPosts.scheduledAt })
-      .from(frektoScheduledPosts)
-      .where(eq(frektoScheduledPosts.brandId, brand.id))
-      .orderBy(desc(frektoScheduledPosts.scheduledAt)),
+    getPostingContext(brand.id),
 
     db.select({ name: competitors.name, primaryStrength: competitors.primaryStrength, type: competitors.type })
       .from(competitors)
@@ -147,12 +146,9 @@ export async function generatePostSuggestions(params: {
     }
   }
 
-  const lastByPlatform: Record<string, string> = {}
-  for (const row of allScheduled) {
-    if (!lastByPlatform[row.platform] && row.scheduledAt) {
-      lastByPlatform[row.platform] = row.scheduledAt.toISOString()
-    }
-  }
+  const lastByPlatform: Record<string, string> = Object.fromEntries(
+    Object.entries(history.lastByPlatform).map(([p, d]) => [p, d.toISOString()]),
+  )
 
   const findingsList = items.length > 0
     ? items.map(i => `- ${i.label}${i.aiDetail ? `: ${i.aiDetail}` : ''}`).join('\n')
@@ -160,7 +156,8 @@ export async function generatePostSuggestions(params: {
 
   const lastPostsStr = PLATFORMS.map(p => {
     const last = lastByPlatform[p]
-    return `- ${p}: ${last ? `last posted ${new Date(last).toDateString()}` : 'never posted'}`
+    const upcoming = history.upcomingByPlatform[p]
+    return `- ${p}: ${upcoming ? `already has a post queued for ${upcoming.toDateString()}` : last ? `last posted ${new Date(last).toDateString()}` : 'never posted'}`
   }).join('\n')
 
   const suggestedTimesStr = PLATFORMS.map(p => `- ${p}: ${getNextSlot(p)}`).join('\n')
@@ -193,7 +190,7 @@ Current audit findings (areas to improve):
 ${findingsList}
 
 Posting history:
-${lastPostsStr}
+${lastPostsStr}${avoidTopicsBlock(history)}
 
 Suggested next posting times (UTC):
 ${suggestedTimesStr}
@@ -201,11 +198,11 @@ ${suggestedTimesStr}
 Generate ONE post suggestion per platform. For each:
 1. shouldPost true/false — is this platform worth the brand's time given their industry and audience?
 2. If shouldPost true: a specific, compelling topic tied to the brand's actual industry and audience. If content strategy pillars are listed above, the topic MUST map to one of those pillars — name which pillar it maps to in the reason. Prioritize repurpose pages if listed. Weave in a GSC page-2 keyword if relevant and natural.
-3. postType "image" or "video" — video for TikTok/YouTube/Reels, image for LinkedIn/Facebook
+3. postType "image" or "video" — video for YouTube/Instagram Reels, image for LinkedIn/Facebook
 4. scheduledAt — use the suggested time above
 5. reason — one sentence. State which content pillar this maps to (if pillars exist). If a competitor strength is relevant, explain how this post counters it.
 
-Return a JSON array of exactly 6 objects in this order: instagram, linkedin, twitter, facebook, youtube, tiktok
+Return a JSON array of exactly ${PLATFORMS.length} objects in this order: ${PLATFORMS.join(', ')}
 
 [
   {
@@ -225,5 +222,49 @@ Return a JSON array of exactly 6 objects in this order: instagram, linkedin, twi
     model: 'claude-haiku-4-5-20251001',
   })
 
-  return parseClaudeJsonArray(raw) as PostSuggestion[]
+  return applyHistory(parseClaudeJsonArray(raw) as PostSuggestion[], history)
+}
+
+// Drop unsupported platforms, and turn off any platform that already has a post coming
+// up or whose topic repeats something already posted/rejected.
+function applyHistory(suggestions: PostSuggestion[], history: PostingContext): PostSuggestion[] {
+  return suggestions
+    .filter((s) => PLATFORMS.includes(s.platform))
+    .map((s) => {
+      if (!s.shouldPost) return s
+      const upcoming = history.upcomingByPlatform[s.platform]
+      if (upcoming) return { ...s, shouldPost: false, reason: `Already has a post queued for ${upcoming.toDateString()}.` }
+      if (isRepeatTopic(s.topic, history)) return { ...s, shouldPost: false, reason: 'Same topic as a post you already made or turned down.' }
+      return s
+    })
+}
+
+// Save a batch so it survives a refresh and can only be scheduled once. Replaces the
+// previous unanswered batch. Returns the suggestions with their ids.
+export async function savePostSuggestions(brandId: string, suggestions: PostSuggestion[], source: 'studio' | 'auto' = 'studio'): Promise<PostSuggestion[]> {
+  await expireStaleSuggestions(brandId)
+  if (source === 'studio') await replaceOpenSuggestions(brandId, 'post')
+  const toSave = suggestions.filter((s) => s.shouldPost && s.topic?.trim())
+  if (toSave.length === 0) return suggestions
+  const rows = await db.insert(socialSuggestions).values(toSave.map((s) => ({
+    brandId,
+    kind: 'post',
+    platform: s.platform,
+    topic: s.topic.trim().slice(0, 500),
+    postType: s.postType === 'video' ? 'video' : 'image',
+    suggestedAt: isNaN(Date.parse(s.scheduledAt)) ? null : new Date(s.scheduledAt),
+    reason: s.reason ?? null,
+    payload: s as unknown as Record<string, unknown>,
+    source,
+  }))).returning({ id: socialSuggestions.id, platform: socialSuggestions.platform })
+  const idByPlatform = new Map(rows.map((r) => [r.platform, r.id]))
+  return suggestions.map((s) => (s.shouldPost && idByPlatform.has(s.platform) ? { ...s, id: idByPlatform.get(s.platform) } : s))
+}
+
+// Open suggestions to show when Social Studio loads
+export async function loadOpenSuggestions(brandId: string) {
+  await expireStaleSuggestions(brandId)
+  return db.select().from(socialSuggestions)
+    .where(and(eq(socialSuggestions.brandId, brandId), inArray(socialSuggestions.status, ['suggested'])))
+    .orderBy(socialSuggestions.createdAt)
 }
