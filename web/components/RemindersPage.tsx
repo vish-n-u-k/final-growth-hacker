@@ -91,12 +91,14 @@ export default function RemindersPage({
   initialChanges,
   commonChecks,
   searchConnected,
+  dailyEmailOn,
   brandProfile,
 }: {
   initialReminders: Reminder[]
   initialChanges: Change[]
   commonChecks: ReminderPreset[]
   searchConnected: boolean
+  dailyEmailOn: boolean
   brandProfile: BrandProfile
 }) {
   const router = useRouter()
@@ -113,6 +115,7 @@ export default function RemindersPage({
   const [editForm, setEditForm] = useState({ title: '', description: '', intervalDays: '30', url: '' })
   const [addingCheck, setAddingCheck] = useState<string | null>(null)
   const [toast, setToast] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  const [justAdded, setJustAdded] = useState<Reminder | null>(null) // "What happens next" popup
 
   // Outreach follow-up compose state
   const [drafts, setDrafts] = useState<Record<string, DraftState>>({})
@@ -160,6 +163,19 @@ export default function RemindersPage({
     body: JSON.stringify(body),
   })
 
+  // Creates a check and returns it (null on failure — the error is already shown)
+  async function createReminder(body: Record<string, unknown>, failText: string): Promise<Reminder | null> {
+    try {
+      const res = await fetch('/api/reminders', json('POST', body))
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data?.reminder) return data.reminder as Reminder
+      setToast({ kind: 'error', text: data?.upgrade ? 'This needs GrowJin Pro.' : `${failText}${data?.error ? `: ${data.error}` : ''}` })
+    } catch {
+      setToast({ kind: 'error', text: `${failText}: check your connection.` })
+    }
+    return null
+  }
+
   async function reload() {
     const res = await fetch('/api/reminders').catch(() => null)
     if (res?.ok) setReminders((await res.json()).reminders)
@@ -194,22 +210,24 @@ export default function RemindersPage({
   async function addReminder() {
     if (!addForm.title.trim()) return
     setLoading(true)
-    const ok = await call('/api/reminders', json('POST', {
+    const created = await createReminder({
       title: addForm.title,
       category: addForm.category,
       intervalDays: parseInt(addForm.intervalDays, 10),
       url: addForm.url,
-    }), 'Could not add the reminder')
+    }, 'Could not add the reminder')
     setLoading(false)
-    if (!ok) return
+    if (!created) return
     setAddForm({ title: '', category: 'custom', intervalDays: '30', url: '' })
     setShowAdd(false)
+    setJustAdded(created)
     await reload()
   }
 
   async function addCommonCheck(p: ReminderPreset) {
     setAddingCheck(p.title)
-    await call('/api/reminders', json('POST', { ...p, isPreset: true }), 'Could not add the check')
+    const created = await createReminder({ ...p, isPreset: true }, 'Could not add the check')
+    if (created) setJustAdded(created)
     await reload()
     setAddingCheck(null)
   }
@@ -716,6 +734,54 @@ export default function RemindersPage({
           </div>
         </div>
       )}
+      {/* What happens next — shown once a check is added */}
+      {justAdded && (() => {
+        const due = new Date(justAdded.nextDueAt)
+        const dueDays = Math.max(0, Math.ceil((due.getTime() - Date.now()) / 86400000))
+        const dueText = due.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })
+        const every = justAdded.intervalDays === 1 ? 'day' : `${justAdded.intervalDays} days`
+        return (
+          <div className="rm-overlay" onClick={() => setJustAdded(null)}>
+            <div className="rm-modal rm-next" role="dialog" aria-labelledby="rm-next-title" onClick={e => e.stopPropagation()}>
+              <div className="rm-modal-hd">
+                <span id="rm-next-title">Check added</span>
+                <button className="rm-modal-close" onClick={() => setJustAdded(null)} aria-label="Close">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+                </button>
+              </div>
+              <p className="rm-next-title">{justAdded.title}</p>
+              <p className="rm-next-sub">Here&apos;s what happens next:</p>
+              <ol className="rm-next-steps">
+                <li>
+                  <strong>First due {dueDays === 0 ? 'today' : dueDays === 1 ? 'tomorrow' : `in ${dueDays} days`}</strong>
+                  <span>{dueText}. Until then it&apos;s listed with your recurring checks below.</span>
+                </li>
+                <li>
+                  <strong>You get reminded</strong>
+                  <span>
+                    On the day it&apos;s due it shows on Today and is marked due here
+                    {dailyEmailOn ? ', and it’s in your daily email two days before, with a Mark done link.' : '. Turn on the daily email in Settings to get it in your inbox too.'}
+                  </span>
+                </li>
+                <li>
+                  <strong>Do it, then tick ✓</strong>
+                  <span>
+                    {justAdded.url ? 'Use Open ↗ on the card to go straight to the page. ' : 'Add a link with Edit so the page is one click away. '}
+                    Ticking it schedules the next one {every} later.
+                  </span>
+                </li>
+                <li>
+                  <strong>Not now?</strong>
+                  <span>Use ⋮ on the card to snooze it for 7 days, edit how often it repeats, or turn it off.</span>
+                </li>
+              </ol>
+              <div className="rm-modal-actions">
+                <button className="rm-btn-primary" onClick={() => setJustAdded(null)} autoFocus>Got it</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </>
   )
 }
