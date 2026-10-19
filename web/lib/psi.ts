@@ -3,9 +3,37 @@
 // Results are cached per URL for a few minutes (and in-flight calls are shared) so the
 // audit + the three dashboard widgets don't each trigger their own Lighthouse run.
 
+// Real visitors' Core Web Vitals from Chrome (CrUX), 75th percentile. 'page' = this URL's own
+// visitors; 'site' = the whole site's, when the page alone doesn't have enough traffic.
+export interface PsiFieldData {
+  scope: 'page' | 'site'
+  lcpMs?: number
+  inpMs?: number
+  cls?: number
+}
+
 export type PsiResult =
-  | { ok: true; lhr: Record<string, unknown> }
+  | { ok: true; lhr: Record<string, unknown>; field: PsiFieldData | null }
   | { ok: false; error: string }
+
+type CruxMetrics = Record<string, { percentile?: number } | undefined>
+
+function readField(json: Record<string, unknown>): PsiFieldData | null {
+  const pick = (le: unknown): Omit<PsiFieldData, 'scope'> | null => {
+    const m = (le as { metrics?: CruxMetrics } | undefined)?.metrics
+    if (!m) return null
+    const lcpMs = m.LARGEST_CONTENTFUL_PAINT_MS?.percentile
+    const inpMs = m.INTERACTION_TO_NEXT_PAINT?.percentile
+    const clsX100 = m.CUMULATIVE_LAYOUT_SHIFT_SCORE?.percentile
+    if (lcpMs == null && inpMs == null && clsX100 == null) return null
+    return { lcpMs, inpMs, cls: clsX100 == null ? undefined : clsX100 / 100 }
+  }
+  const le = json.loadingExperience as { origin_fallback?: boolean } | undefined
+  const page = le && !le.origin_fallback ? pick(le) : null
+  if (page) return { scope: 'page', ...page }
+  const site = pick(json.originLoadingExperience) ?? (le?.origin_fallback ? pick(le) : null)
+  return site ? { scope: 'site', ...site } : null
+}
 
 const CACHE_TTL_MS = 10 * 60 * 1000
 const cache = new Map<string, { at: number; result: PsiResult }>()
@@ -16,6 +44,7 @@ async function runPsi(url: string, timeoutMs: number): Promise<PsiResult> {
   const params = new URLSearchParams({ url, strategy: 'mobile' })
   params.append('category', 'accessibility')
   params.append('category', 'seo') // crawlable-anchors etc., for the SEO Health Audit
+  params.append('category', 'performance') // lab Core Web Vitals, for the SEO Health Audit
   if (key) params.set('key', key)
   const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${params.toString()}`
 
@@ -37,7 +66,7 @@ async function runPsi(url: string, timeoutMs: number): Promise<PsiResult> {
     if (runtimeError?.code && runtimeError.code !== 'NO_ERROR') {
       return { ok: false, error: 'Google could not load your page — it may block automated scanners' }
     }
-    return { ok: true, lhr }
+    return { ok: true, lhr, field: readField(json) }
   } catch (err) {
     const timedOut = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')
     return { ok: false, error: timedOut ? 'Google PageSpeed took too long — try again' : 'Could not reach Google PageSpeed' }

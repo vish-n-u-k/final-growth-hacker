@@ -921,6 +921,8 @@ Key One-Liners: ${pb.keyOneLiners}`
         return db
           .update(moduleItems)
           .set({
+            // Labels follow the definition, so renamed checks update on the next run
+            ...(defItem ? { label: defItem.label } : {}),
             aiDetail: r.detail,
             aiHighlight: (r as ModuleAnalysisResult).highlight ?? null,
             aiNarrative: r.narrative,

@@ -6,6 +6,7 @@
  *  2. BFS link crawl (fallback when sitemap returns < crawlFallbackThreshold URLs)
  */
 
+import * as cheerio from 'cheerio'
 import { detectBlock, isFirewallRefusal } from '@/lib/audit/blocked'
 
 const UA = 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growjin.com)'
@@ -29,23 +30,28 @@ export interface UrlDiscoveryResult {
   crawlUsed: boolean
   totalDiscovered: number
   urlsByPrefix: Record<string, number> // e.g. { '/blog': 42, '/products': 15 }
+  robotsSitemaps?: string[] | null     // Sitemap: lines in robots.txt (null = no robots.txt)
+  sitemaps?: SitemapFile[]             // each sitemap file tried: robots.txt's ones and /sitemap.xml
+}
+
+export interface SitemapFile {
+  url: string
+  fromRobots: boolean
+  ok: boolean   // loaded and is a sitemap (not an HTML page answering 200)
+  urls: number  // page URLs it listed (through its child sitemaps, for an index)
 }
 
 // ── Page meta extraction ──────────────────────────────────────────────────────
 
 function extractPageMeta(html: string): { title: string; metaDescription: string; h1: string } {
-  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)
-  const title = titleMatch?.[1]?.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() ?? ''
-
-  const metaMatch =
-    /<meta\s[^>]*name=["']description["'][^>]*content=["']([^"']*)["']/i.exec(html) ??
-    /<meta\s[^>]*content=["']([^"']*)["'][^>]*name=["']description["']/i.exec(html)
-  const metaDescription = metaMatch?.[1]?.trim() ?? ''
-
-  const h1Match = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html)
-  const h1 = h1Match?.[1]?.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim() ?? ''
-
-  return { title, metaDescription, h1 }
+  // A real HTML parser: a regex stops at the first apostrophe in content="Don't…"
+  const $ = cheerio.load(html)
+  const clean = (t: string | undefined) => (t ?? '').replace(/\s+/g, ' ').trim()
+  return {
+    title: clean($('title').first().text()),
+    metaDescription: clean($('meta[name="description" i]').attr('content')),
+    h1: clean($('h1').first().text()),
+  }
 }
 
 /**
@@ -148,12 +154,14 @@ function extractChildSitemapUrls(indexXml: string): string[] {
   return urls
 }
 
-async function discoverFromSitemap(
+/** One sitemap file (or index and its children); null = didn't load, or isn't a sitemap. */
+async function readSitemapFile(
+  url: string,
   origin: string,
   maxUrls: number,
-): Promise<{ urls: DiscoveredUrl[]; found: boolean; sitemapCount: number }> {
-  const xml = await safeFetchText(`${origin}/sitemap.xml`)
-  if (!xml) return { urls: [], found: false, sitemapCount: 0 }
+): Promise<{ urls: DiscoveredUrl[]; files: number } | null> {
+  const xml = await safeFetchText(url)
+  if (!xml || !/<(urlset|sitemapindex)[\s>]/i.test(xml)) return null
 
   // Sitemap index — fetch all child sitemaps in parallel
   if (/<sitemapindex/i.test(xml)) {
@@ -167,12 +175,54 @@ async function discoverFromSitemap(
       allUrls.push(...parseSitemapLocs(childXml, origin, name))
       if (allUrls.length >= maxUrls) break
     }
-    return { urls: allUrls.slice(0, maxUrls), found: true, sitemapCount: childUrls.length }
+    return { urls: allUrls.slice(0, maxUrls), files: childUrls.length }
   }
 
   // Standard sitemap
-  const urls = parseSitemapLocs(xml, origin, 'sitemap.xml').slice(0, maxUrls)
-  return { urls, found: true, sitemapCount: 1 }
+  const name = new URL(url).pathname.split('/').pop() || 'sitemap.xml'
+  return { urls: parseSitemapLocs(xml, origin, name).slice(0, maxUrls), files: 1 }
+}
+
+/** robots.txt's Sitemap: lines; null = no robots.txt. */
+async function readRobotsSitemaps(origin: string): Promise<string[] | null> {
+  const txt = await safeFetchText(`${origin}/robots.txt`, 5000)
+  if (txt === null || /<html[\s>]/i.test(txt)) return null
+  const out: string[] = []
+  for (const line of txt.split(/\r?\n/)) {
+    const m = /^\s*sitemap\s*:\s*(\S+)/i.exec(line)
+    if (!m) continue
+    try { out.push(new URL(m[1], origin).href) } catch { /* skip malformed */ }
+  }
+  return [...new Set(out)]
+}
+
+/** The sitemaps robots.txt lists, plus /sitemap.xml: their URLs merged. */
+async function discoverFromSitemap(
+  origin: string,
+  maxUrls: number,
+): Promise<{ urls: DiscoveredUrl[]; found: boolean; sitemapCount: number; robotsSitemaps: string[] | null; sitemaps: SitemapFile[] }> {
+  const robotsSitemaps = await readRobotsSitemaps(origin)
+  const defaultUrl = `${origin}/sitemap.xml`
+  const listed = (robotsSitemaps ?? []).slice(0, 5)
+  const candidates = [
+    ...listed.map(url => ({ url, fromRobots: true })),
+    ...(listed.includes(defaultUrl) ? [] : [{ url: defaultUrl, fromRobots: false }]),
+  ]
+  const results = await Promise.all(candidates.map(c => readSitemapFile(c.url, origin, maxUrls)))
+  const seen = new Set<string>()
+  const urls: DiscoveredUrl[] = []
+  let sitemapCount = 0
+  results.forEach((r) => {
+    if (!r) return
+    sitemapCount += r.files
+    for (const u of r.urls) {
+      if (seen.has(u.url)) continue
+      seen.add(u.url)
+      urls.push(u)
+    }
+  })
+  const sitemaps = candidates.map((c, i) => ({ ...c, ok: !!results[i], urls: results[i]?.urls.length ?? 0 }))
+  return { urls: urls.slice(0, maxUrls), found: sitemaps.some(s => s.ok), sitemapCount, robotsSitemaps, sitemaps }
 }
 
 function extractInternalLinks(html: string, baseUrl: string, origin: string): string[] {
@@ -277,7 +327,7 @@ export async function discoverAllUrls(
     return { urls: [], sitemapFound: false, sitemapCount: 0, crawlUsed: false, totalDiscovered: 0, urlsByPrefix: {} }
   }
 
-  const { urls: sitemapUrls, found: sitemapFound, sitemapCount } = await discoverFromSitemap(origin, maxUrls)
+  const { urls: sitemapUrls, found: sitemapFound, sitemapCount, robotsSitemaps, sitemaps } = await discoverFromSitemap(origin, maxUrls)
 
   let crawlUsed = false
   let finalUrls = sitemapUrls
@@ -303,6 +353,8 @@ export async function discoverAllUrls(
     crawlUsed,
     totalDiscovered: capped.length,
     urlsByPrefix: buildUrlsByPrefix(capped),
+    robotsSitemaps,
+    sitemaps,
   }
 }
 

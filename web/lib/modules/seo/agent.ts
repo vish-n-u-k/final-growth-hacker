@@ -14,6 +14,7 @@ import {
   fetchGoogleTrends,
   fetchSerpApiPAA,
   fetchGscTopQueries,
+  brandedQueryMatcher,
 } from './keyword-fetchers'
 import { fetchGscIndexing, type GscIndexingResult, type InspectedUrl } from './gsc-indexing'
 
@@ -221,10 +222,11 @@ function buildFilteredExternalData(
     gscQueries: { query: string; impressions: number; clicks: number; position: number }[]
     gscConnected: boolean
     seed: string
+    isBranded: (query: string) => boolean
   },
 ): string {
   const sections: string[] = []
-  const { autocomplete, categorized, trendsScore, paaQuestions, gscQueries, gscConnected, seed } = externalDataCache
+  const { autocomplete, categorized, trendsScore, paaQuestions, gscQueries, gscConnected, seed, isBranded } = externalDataCache
 
   const hasQuestionItems = itemSlugs.some((slug) => slug === 'kw-questions')
   const hasComparisonItems = itemSlugs.some((slug) => slug === 'kw-comparisons')
@@ -275,20 +277,31 @@ function buildFilteredExternalData(
     } else if (gscQueries.length === 0) {
       sections.push('GSC data: Connected and verified. Search Analytics API returned no rows yet — this is normal for new properties or recently granted service account access. Data typically syncs within 24 hours. Do NOT suggest connecting GSC, adding a service account, or verifying the site — those steps are already done.')
     } else {
-      const quickWins = gscQueries.filter((r) => r.position > 3 && r.position <= 20)
-      const lowCtr = gscQueries.filter((r) => r.impressions >= 50 && r.clicks / r.impressions < 0.05)
+      // Branded searches (the brand's name, typos included) come from people who already know the
+      // brand: report them apart, and keep them out of the quick wins and CTR fixes
+      const branded = gscQueries.filter((r) => isBranded(r.query))
+      const generic = gscQueries.filter((r) => !isBranded(r.query))
+      const sum = (rows: typeof gscQueries, k: 'impressions' | 'clicks') => rows.reduce((n, r) => n + r[k], 0)
+      const totalImpr = sum(gscQueries, 'impressions') || 1
+      const quickWins = generic.filter((r) => r.position > 3 && r.position <= 20)
+      const lowCtr = generic.filter((r) => r.impressions >= 50 && r.clicks / r.impressions < 0.05)
+      const row = (r: (typeof gscQueries)[number]) => `  "${r.query}" — ${r.impressions} impressions, ${r.clicks} clicks, pos ${r.position}`
       const gscSections: string[] = [
-        `GSC top queries (last 90 days, by impressions):\n${gscQueries.slice(0, 10).map((r) => `  "${r.query}" — ${r.impressions} impressions, ${r.clicks} clicks, pos ${r.position}`).join('\n')}`,
+        `GSC branded vs non-branded (top ${gscQueries.length} queries, last 90 days): branded (searches for the brand name) ${branded.length} queries, ${sum(branded, 'impressions')} impressions (${Math.round((sum(branded, 'impressions') / totalImpr) * 100)}%), ${sum(branded, 'clicks')} clicks; non-branded (new people finding the site) ${generic.length} queries, ${sum(generic, 'impressions')} impressions (${Math.round((sum(generic, 'impressions') / totalImpr) * 100)}%), ${sum(generic, 'clicks')} clicks. Judge search growth on the non-branded numbers.`,
+        generic.length > 0
+          ? `GSC top non-branded queries (by impressions):\n${generic.slice(0, 10).map(row).join('\n')}`
+          : 'GSC non-branded queries: none — every query with data is a search for the brand name.',
+        ...(branded.length > 0 ? [`GSC branded queries:\n${branded.slice(0, 5).map(row).join('\n')}`] : []),
       ]
       if (quickWins.length > 0) {
-        gscSections.push(`GSC quick win keywords (positions 4–20):\n${quickWins.slice(0, 10).map((r) => `  "${r.query}" — pos ${r.position}, ${r.impressions} impressions`).join('\n')}`)
+        gscSections.push(`GSC quick win keywords (non-branded, positions 4–20):\n${quickWins.slice(0, 10).map((r) => `  "${r.query}" — pos ${r.position}, ${r.impressions} impressions`).join('\n')}`)
       } else {
-        gscSections.push('GSC quick wins: No keywords currently ranking in positions 4–20.')
+        gscSections.push('GSC quick wins: No non-branded keywords currently ranking in positions 4–20.')
       }
       if (lowCtr.length > 0) {
-        gscSections.push(`GSC low CTR keywords (≥50 impressions, <5% CTR):\n${lowCtr.slice(0, 10).map((r) => `  "${r.query}" — ${r.impressions} impressions, CTR ${((r.clicks / r.impressions) * 100).toFixed(1)}%, pos ${r.position}`).join('\n')}`)
+        gscSections.push(`GSC low CTR keywords (non-branded, ≥50 impressions, <5% CTR):\n${lowCtr.slice(0, 10).map((r) => `  "${r.query}" — ${r.impressions} impressions, CTR ${((r.clicks / r.impressions) * 100).toFixed(1)}%, pos ${r.position}`).join('\n')}`)
       } else {
-        gscSections.push('GSC low CTR: No high-impression, low-CTR keywords found.')
+        gscSections.push('GSC low CTR: No non-branded high-impression, low-CTR keywords found.')
       }
       sections.push(gscSections.join('\n\n'))
     }
@@ -400,7 +413,7 @@ async function generateKeywordResearchContent(
       ? fetchSerpApiPAA(seed, integrations.serpApiKey)
       : Promise.resolve([] as string[]),
     items.some((i) => i.slug.startsWith('gsc-')) && integrations.gscClientEmail && integrations.gscPrivateKey
-      ? fetchGscTopQueries(integrations.gscClientEmail, integrations.gscPrivateKey, websiteUrl)
+      ? fetchGscTopQueries(integrations.gscClientEmail, integrations.gscPrivateKey, websiteUrl, 100)
       : Promise.resolve([] as Awaited<ReturnType<typeof fetchGscTopQueries>>),
   ])
 
@@ -429,6 +442,7 @@ async function generateKeywordResearchContent(
       gscQueries,
       gscConnected: !!(integrations.gscClientEmail && integrations.gscPrivateKey),
       seed,
+      isBranded: brandedQueryMatcher(seedHint?.brandName, websiteUrl),
     },
   )
 

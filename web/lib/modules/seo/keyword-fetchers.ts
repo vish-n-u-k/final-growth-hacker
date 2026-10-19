@@ -21,6 +21,41 @@ export function extractSeedKeyword(title: string, h1: string, brandName?: string
   return seed.split(/\s+/).slice(0, 5).join(' ').trim().toLowerCase()
 }
 
+function editDistance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    let prev = row[0]
+    row[0] = i
+    for (let j = 1; j <= b.length; j++) {
+      const cur = row[j]
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1))
+      prev = cur
+    }
+  }
+  return row[b.length]
+}
+
+/** Searches for the brand itself, typos included ("growjn"). They show people who already know
+ *  you, not new reach, so they're kept apart from the keywords worth optimising for. */
+export function brandedQueryMatcher(brandName: string | undefined, websiteUrl: string): (query: string) => boolean {
+  let domainWord = ''
+  try {
+    const labels = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).hostname.replace(/^www\./, '').split('.')
+    domainWord = (labels.length > 2 && /^(app|my|get|try|use|go|join|hello)$/.test(labels[0]) ? labels[1] : labels[0]) ?? ''
+  } catch { /* no domain word */ }
+  const name = (brandName ?? '').toLowerCase().trim()
+  const forms = [...new Set([name, name.replace(/\s+/g, ''), domainWord.toLowerCase()])].filter((t) => t.length >= 3)
+  if (forms.length === 0) return () => false
+  return (query: string) => {
+    const q = query.toLowerCase()
+    if (forms.some((t) => q.includes(t))) return true
+    // Typos: a word (or two words run together) within 1–2 letters of the brand
+    const words = q.split(/\s+/).filter(Boolean)
+    const grams = [...words, ...words.slice(1).map((w, i) => words[i] + w)]
+    return forms.some((t) => t.length >= 5 && grams.some((g) => Math.abs(g.length - t.length) <= 2 && editDistance(g, t) <= (t.length >= 8 ? 2 : 1)))
+  }
+}
+
 // ── Google Autocomplete ───────────────────────────────────────────────────────
 // Free, no auth, no key. Returns up to 30 suggestions across 3 seed variants.
 

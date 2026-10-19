@@ -34,6 +34,7 @@ export const SEO_MODULE: ModuleDefinition = {
             { slug: 'title.keyword',  label: 'Primary keyword in title',              prompt: 'Rule engine check.', order: 3, weight: 2, fixable: true, fixType: 'value' },
             { slug: 'title.unique',   label: 'Title tag uniqueness',                  prompt: 'Rule engine check.', order: 4, weight: 2 },
             { slug: 'title.brand',    label: 'Brand name in title',                   prompt: 'Rule engine check.', order: 5, weight: 1, fixable: true, fixType: 'value' },
+            { slug: 'title.sitewide', label: 'Title length across the site',          prompt: 'Rule engine check.', order: 6, weight: 1 },
           ],
         },
         {
@@ -56,7 +57,7 @@ export const SEO_MODULE: ModuleDefinition = {
             { slug: 'canonical.present',      label: 'Canonical URL',                                  prompt: 'Rule engine check.', order: 1, weight: 3, fixable: true, fixType: 'template' },
             { slug: 'canonical.same_domain',  label: 'Canonical same-domain check',                  prompt: 'Rule engine check.', order: 2, weight: 2, fixable: true, fixType: 'template' },
             { slug: 'canonical.self',         label: 'Self-referencing canonical',                    prompt: 'Rule engine check.', order: 3, weight: 2, fixable: true, fixType: 'template' },
-            { slug: 'canonical.resolves',     label: 'Canonical URL resolves (HTTP 200)',             prompt: 'Rule engine check.', order: 4, weight: 2 },
+            { slug: 'canonical.resolves',     label: 'Canonical URL loads directly (no redirect)',    prompt: 'Rule engine check.', order: 4, weight: 2 },
           ],
         },
         {
@@ -273,7 +274,7 @@ export const SEO_MODULE: ModuleDefinition = {
           requires: ['gsc_api'],
           description: 'Data needed: Google Search Console API — requires setup. Go to Settings → Integrations → Google Search Console API, add your Service Account email and private key from your Google Cloud JSON key file, then add that service account email as a User in your GSC property. Without this, all three items will prompt you to connect.',
           items: [
-            { slug: 'gsc-top-queries', label: 'Top organic queries (GSC)', prompt: 'Using the GSC top queries data provided, summarise the top keyword themes driving impressions. State whether branded or non-branded terms dominate, what this reveals about current search visibility, and what the top opportunity is. If GSC data is not available, explain that connecting the GSC API in Settings → Integrations will unlock this insight.', order: 1, weight: 2, insight: true },
+            { slug: 'gsc-top-queries', label: 'Top organic queries (GSC)', prompt: 'Using the GSC branded vs non-branded split and top queries provided, state how much of the search traffic is branded (people searching the brand name, who already know it) versus non-branded (new people finding the site), using the numbers given. Then summarise the top non-branded keyword themes and the single biggest non-branded opportunity. If nearly all traffic is branded, say plainly that the site is not yet being found by new people through search. If GSC data is not available, explain that connecting the GSC API in Settings → Integrations will unlock this insight.', order: 1, weight: 2, insight: true },
             { slug: 'gsc-quick-wins', label: 'Quick win keywords (positions 4–20)', prompt: 'Using the GSC quick win keywords provided (positions 4–20), identify the top 3 best opportunities where a focused on-page optimisation could push the ranking onto page 1. For each, state the query, current position, and what specific change would likely move it up. If no quick win data is available, explain that connecting the GSC API in Settings → Integrations will unlock this.', order: 2, weight: 3, insight: true },
             { slug: 'gsc-low-ctr', label: 'High impression, low CTR keywords', prompt: 'Using the GSC low CTR keywords provided (high impressions but low click-through rate), identify the top opportunities where improving the title tag or meta description would increase clicks without needing to rank higher. For each, suggest a specific improvement. If no CTR data is available, explain that connecting the GSC API in Settings → Integrations will unlock this.', order: 3, weight: 2, insight: true },
           ],
@@ -305,10 +306,10 @@ export const SEO_MODULE: ModuleDefinition = {
           label: 'Core Web Vitals',
           order: 1,
           items: [
-            { slug: 'cwv.lcp',         label: 'LCP (Largest Contentful Paint)',               prompt: 'Rule engine check.', order: 1, weight: 3 },
-            { slug: 'cwv.cls',         label: 'CLS (layout stability)',                        prompt: 'Rule engine check.', order: 2, weight: 3 },
-            { slug: 'cwv.fid',         label: 'TBT (interaction speed)',                       prompt: 'Rule engine check.', order: 3, weight: 2 },
-            { slug: 'lighthouse.score', label: 'Lighthouse performance score',                 prompt: 'Rule engine check.', order: 4, weight: 2 },
+            { slug: 'cwv.lcp',         label: 'Loading speed (LCP)',                           prompt: 'Rule engine check.', order: 1, weight: 3 },
+            { slug: 'cwv.cls',         label: 'Layout stability (CLS)',                        prompt: 'Rule engine check.', order: 2, weight: 3 },
+            { slug: 'cwv.fid',         label: 'Interaction speed (INP)',                       prompt: 'Rule engine check.', order: 3, weight: 2 },
+            { slug: 'lighthouse.score', label: 'Google speed score (Lighthouse)',              prompt: 'Rule engine check.', order: 4, weight: 2 },
           ],
         },
         {
@@ -339,6 +340,8 @@ export const SEO_MODULE: ModuleDefinition = {
             { slug: 'sitemap.exists',  label: 'sitemap.xml accessibility',             prompt: 'Rule engine check.', order: 3, weight: 2 },
             { slug: 'sitemap.valid',   label: 'Sitemap URL validity',                  prompt: 'Rule engine check.', order: 4, weight: 1 },
             { slug: 'render.no_js',    label: 'Content readable without JavaScript',   prompt: 'Rule engine check.', order: 5, weight: 3 },
+            { slug: 'sitemap.robots',  label: 'Sitemap listed in robots.txt',          prompt: 'Rule engine check.', order: 6, weight: 1 },
+            { slug: 'soft404',         label: 'Missing pages return 404',              prompt: 'Rule engine check.', order: 7, weight: 2 },
           ],
         },
         {
@@ -382,6 +385,16 @@ export const SEO_MODULE: ModuleDefinition = {
           items: [
             { slug: 'http.4xx', label: '4xx errors in links',               prompt: 'Rule engine check.', order: 1, weight: 2 },
             { slug: 'http.5xx', label: 'Server errors (5xx)',               prompt: 'Rule engine check.', order: 2, weight: 3 },
+          ],
+        },
+        {
+          slug: 'redirects',
+          label: 'Redirects',
+          order: 8,
+          items: [
+            { slug: 'redirect.www',            label: 'www and non-www go to one address',        prompt: 'Rule engine check.', order: 1, weight: 2 },
+            { slug: 'redirect.chains',         label: 'No redirect chains',                       prompt: 'Rule engine check.', order: 2, weight: 1 },
+            { slug: 'redirect.internal_links', label: 'Internal links skip redirects',            prompt: 'Rule engine check.', order: 3, weight: 1 },
           ],
         },
         {

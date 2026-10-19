@@ -182,6 +182,7 @@ export async function analyzeModule(brandId: string, moduleType: string) {
         db
           .update(moduleItems)
           .set({
+            ...(defItemMap.has(r.slug) ? { label: defItemMap.get(r.slug)!.label } : {}),
             aiDetail: r.detail,
             aiNarrative: r.narrative,
             aiAction: r.action,

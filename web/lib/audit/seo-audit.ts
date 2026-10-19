@@ -9,7 +9,7 @@
 import * as cheerio from 'cheerio'
 import { readPagePreview, type PagePreviewData } from '@/lib/audit/page-preview'
 import { isJsShell, JS_SHELL_SKIP } from '@/lib/audit/js-shell'
-import { fetchPsiAccessibility } from '@/lib/psi'
+import { fetchPsiAccessibility, type PsiFieldData } from '@/lib/psi'
 import { extractElements, extractScreenshot, type AuditElement, type PageScreenshot } from '@/lib/audit/elements'
 import { connect as tlsConnect } from 'tls'
 import { execFile } from 'child_process'
@@ -109,6 +109,55 @@ async function headRequest(url: string): Promise<{ status: number; contentType: 
   }
 }
 
+// ── Redirect tracing ──────────────────────────────────────────────────────────
+
+interface Trace {
+  status: number      // the last answer; 0 = no answer (network, DNS or certificate error)
+  finalUrl: string
+  hops: string[]      // each URL redirected to, in order
+  loop?: boolean
+  blocked?: boolean   // a firewall answered instead of the site
+  html?: string       // the final page's HTML (withBody only)
+}
+
+/** Follows redirects one at a time, so the hops can be counted. */
+async function traceRedirects(url: string, maxHops = 5, withBody = false): Promise<Trace> {
+  const hops: string[] = []
+  let current = url
+  for (let i = 0; i <= maxHops; i++) {
+    let res: Response
+    try {
+      res = await fetch(current, { headers: { 'User-Agent': UA }, redirect: 'manual', signal: AbortSignal.timeout(6000) })
+    } catch {
+      return { status: 0, finalUrl: current, hops }
+    }
+    if (isFirewallRefusal(res.status, res.headers)) {
+      res.body?.cancel().catch(() => {})
+      return { status: 0, finalUrl: current, hops, blocked: true }
+    }
+    const loc = res.headers.get('location')
+    if (res.status >= 300 && res.status < 400 && loc) {
+      res.body?.cancel().catch(() => {})
+      let next: string
+      try { next = new URL(loc, current).href } catch { return { status: res.status, finalUrl: current, hops } }
+      if (next === url || hops.includes(next)) return { status: res.status, finalUrl: next, hops: [...hops, next], loop: true }
+      hops.push(next)
+      current = next
+      continue
+    }
+    if (!withBody) {
+      res.body?.cancel().catch(() => {})
+      return { status: res.status, finalUrl: current, hops }
+    }
+    const html = await res.text().catch(() => '')
+    if (detectBlock(res.status, res.headers, html)) return { status: 0, finalUrl: current, hops, blocked: true }
+    return { status: res.status, finalUrl: current, hops, html }
+  }
+  return { status: 0, finalUrl: current, hops, loop: true }
+}
+
+const pathOfUrl = (u: string) => { try { const x = new URL(u); return x.pathname + x.search } catch { return u } }
+
 // ── Optional Lighthouse ────────────────────────────────────────────────────────
 
 async function lighthouseAvailable(): Promise<boolean> {
@@ -145,6 +194,7 @@ async function checkMetaTags(
   pageUrl: string,
   canonicalHref: string | null,
   opts: SeoAuditOptions = {},
+  headers: Record<string, string> = {},
 ): Promise<SeoFinding[]> {
   const findings: SeoFinding[] = []
   const { brand, hasBrand } = brandOf(pageUrl, opts)
@@ -306,16 +356,23 @@ async function checkMetaTags(
       findings.push(f('canonical.self', 'skip', 'Couldn\'t check: the canonical URL couldn\'t be compared with the page URL.'))
     }
 
-    // canonical.resolves — HEAD request to check it returns 200
-    const canonCheck = await headRequest(canonical)
-    if (!canonCheck) {
-      findings.push(f('canonical.resolves', 'ok', `Could not verify canonical URL is accessible (timeout or network error).`,
-        'Manually confirm the canonical URL returns HTTP 200.'))
+    // canonical.resolves — the canonical URL itself answers 200, without redirecting
+    // (a canonical that redirects sends Google mixed signals about which URL to index)
+    let canonAbs = canonical
+    try { canonAbs = new URL(canonical, pageUrl).href } catch { /* checked above */ }
+    const canonCheck = await traceRedirects(canonAbs, 5)
+    if (canonCheck.blocked || canonCheck.status === 0) {
+      findings.push(f('canonical.resolves', 'skip', canonCheck.blocked
+        ? 'Couldn\'t check: a firewall answered instead of the canonical URL.'
+        : 'Couldn\'t check: the canonical URL didn\'t answer (timeout or network error).'))
+    } else if (canonCheck.hops.length > 0) {
+      findings.push(f('canonical.resolves', 'bad', `The canonical URL (${canonAbs}) redirects to ${canonCheck.hops[canonCheck.hops.length - 1]}. Google may ignore a canonical that redirects.`,
+        `Point the canonical tag at the final URL: <link rel="canonical" href="${canonCheck.hops[canonCheck.hops.length - 1]}">`))
     } else if (canonCheck.status === 200) {
-      findings.push(f('canonical.resolves', 'good', `Canonical URL resolves correctly (HTTP ${canonCheck.status}).`))
+      findings.push(f('canonical.resolves', 'good', 'The canonical URL loads directly (HTTP 200, no redirect).'))
     } else {
       findings.push(f('canonical.resolves', 'bad', `Canonical URL returns HTTP ${canonCheck.status} — search engines will not use it.`,
-        `Fix the canonical URL to point to a page that returns 200 OK.`))
+        'Fix the canonical URL to point to a page that returns 200 OK.'))
     }
   } else {
     findings.push(f('canonical.same_domain', 'info', 'No canonical to check domain for.'))
@@ -324,13 +381,18 @@ async function checkMetaTags(
   }
 
   // robots.noindex
-  const robotsMeta = $('meta[name="robots"]').attr('content')?.toLowerCase() ?? ''
-  const xRobotsNoindex = false // Would need response headers — checked in technical section
-  if (robotsMeta.includes('noindex')) {
-    findings.push(f('robots.noindex', 'bad', `Page has <meta name="robots" content="${$('meta[name="robots"]').attr('content')}"> — this page will not be indexed.`,
+  const robotsMeta = $('meta[name="robots"], meta[name="googlebot"]').toArray().map((el) => $(el).attr('content') ?? '').join(', ').toLowerCase()
+  // The same rule can come as an HTTP header (set by the server or CDN, invisible in the HTML)
+  const xRobots = (headers['x-robots-tag'] ?? '').toLowerCase()
+  const blocks = (v: string) => /\b(noindex|none)\b/.test(v)
+  if (blocks(xRobots)) {
+    findings.push(f('robots.noindex', 'bad', `The server sends the header "X-Robots-Tag: ${headers['x-robots-tag']}" — Google will not index this page. It's set on the server or CDN, so it doesn't show in the page's HTML.`,
+      'Remove noindex from the X-Robots-Tag header in your server, hosting or CDN settings (e.g. vercel.json / netlify.toml headers, nginx add_header).'))
+  } else if (blocks(robotsMeta)) {
+    findings.push(f('robots.noindex', 'bad', `Page has <meta name="robots" content="${robotsMeta}"> — this page will not be indexed.`,
       'Remove the noindex directive unless this page is intentionally excluded from search.'))
   } else {
-    findings.push(f('robots.noindex', 'good', 'No noindex meta tag — page is indexable.'))
+    findings.push(f('robots.noindex', 'good', 'No noindex in the page\'s meta tags or the server\'s X-Robots-Tag header — page is indexable.'))
   }
 
   // ── Open Graph ──
@@ -768,6 +830,9 @@ function checkInternalLinks($: cheerio.CheerioAPI, pageUrl: string, discoveredUr
   // pagerank.nav — check if key pages are in nav
   const navLinks = $('nav a, header a').toArray()
   const navHrefs = navLinks.map((el) => $(el).attr('href')?.toLowerCase() ?? '')
+  // About and Contact usually live in the footer, which is fine
+  const footerHrefs = $('footer a').toArray().map((el) => $(el).attr('href')?.toLowerCase() ?? '')
+  const footerOk = new Set(['about', 'contact'])
   const keyPageGroups: Record<string, string[]> = {
     pricing: ['pricing', 'price', 'plans'],
     'features / product': ['feature', 'product', 'solution', 'how-it-works', 'platform'],
@@ -779,7 +844,7 @@ function checkInternalLinks($: cheerio.CheerioAPI, pageUrl: string, discoveredUr
   const sitePaths = (discoveredUrls?.urls ?? []).map((u) => { try { return new URL(u.url).pathname.toLowerCase() } catch { return '' } })
   const existing = Object.entries(keyPageGroups).filter(([, kws]) => sitePaths.some((p) => kws.some((kw) => p.includes(kw))))
   const missingNav = existing
-    .filter(([, keywords]) => !navHrefs.some((href) => keywords.some((kw) => href.includes(kw))))
+    .filter(([label, keywords]) => ![...navHrefs, ...(footerOk.has(label) ? footerHrefs : [])].some((href) => keywords.some((kw) => href.includes(kw))))
     .map(([label]) => label)
   if (existing.length === 0) {
     findings.push(f('pagerank.nav', 'skip', 'Couldn\'t check: no key pages (pricing, features, about, blog, contact) were found on the site to compare the navigation with.'))
@@ -924,45 +989,7 @@ async function checkTechnical(
   const isHttps = pageUrl.startsWith('https://')
   const hostname = new URL(pageUrl).hostname
 
-  // ── Core Web Vitals (Lighthouse) ──
-  if (lighthouseData) {
-    const { lcp, cls, fid, performance } = lighthouseData
-    const lcpSec = lcp / 1000
-    findings.push(lcpSec <= 2.5
-      ? f('cwv.lcp', 'good', `LCP is ${lcpSec.toFixed(1)}s — good (≤2.5s).`)
-      : lcpSec <= 4
-      ? f('cwv.lcp', 'ok', `LCP is ${lcpSec.toFixed(1)}s — needs improvement (2.5–4s threshold).`,
-          'Optimise the largest element (usually hero image): compress it, preload it, and serve from CDN.')
-      : f('cwv.lcp', 'bad', `LCP is ${lcpSec.toFixed(1)}s — poor (>4s); Google rates this as failing Core Web Vitals.`,
-          'Identify the LCP element (usually hero image or H1), compress it, add preload hints, and minimise server response time.'))
-
-    findings.push(cls <= 0.1
-      ? f('cwv.cls', 'good', `CLS is ${cls.toFixed(3)} — good (≤0.1).`)
-      : cls <= 0.25
-      ? f('cwv.cls', 'ok', `CLS is ${cls.toFixed(3)} — needs improvement.`,
-          'Add explicit width/height to images and avoid inserting content above existing content.')
-      : f('cwv.cls', 'bad', `CLS is ${cls.toFixed(3)} — poor layout stability; fails Core Web Vitals.`,
-          'Identify elements causing layout shift: images without dimensions, ads, injected banners.'))
-
-    findings.push(fid <= 100
-      ? f('cwv.fid', 'good', `TBT (proxy for FID) is ${fid}ms — good.`)
-      : fid <= 300
-      ? f('cwv.fid', 'ok', `TBT is ${fid}ms — reduce JavaScript execution time for better interactivity.`,
-          'Split large JS bundles, defer non-critical scripts, and remove unused third-party scripts.')
-      : f('cwv.fid', 'bad', `TBT is ${fid}ms — poor; long JavaScript tasks block user interaction.`,
-          'Profile and reduce main-thread JavaScript. Use code splitting and defer non-essential scripts.'))
-
-    findings.push(performance >= 80
-      ? f('lighthouse.score', 'good', `Lighthouse performance score: ${performance}/100.`)
-      : performance >= 50
-      ? f('lighthouse.score', 'ok', `Lighthouse performance score: ${performance}/100 — room for improvement.`,
-          'Focus on the top Lighthouse opportunities: image optimisation, render-blocking resources, server response time.')
-      : f('lighthouse.score', 'bad', `Lighthouse performance score: ${performance}/100 — poor; site is significantly under-optimised.`,
-          'Prioritise Lighthouse suggestions: compress images, eliminate render-blocking CSS/JS, enable caching.'))
-  } else {
-    ;['cwv.lcp', 'cwv.cls', 'cwv.fid', 'lighthouse.score'].forEach((key) =>
-      findings.push(f(key, 'info', 'Core Web Vitals require Lighthouse CLI — install it to enable this check (npm i -g lighthouse).')))
-  }
+  // Core Web Vitals: checkVitals, once Google's scan is back
 
   // ── Security & Accessibility ──
 
@@ -1047,11 +1074,35 @@ async function checkTechnical(
     }
   }
 
-  // sitemap.exists + sitemap.valid
-  findings.push(sitemapStatus === 200
+  // sitemap.exists + sitemap.robots: /sitemap.xml or any sitemap robots.txt points to
+  const sitemaps = discoveredUrls?.sitemaps
+  const okMaps = (sitemaps ?? []).filter((m) => m.ok)
+  findings.push(sitemaps
+    ? okMaps.length > 0
+      ? f('sitemap.exists', 'good', `Sitemap found: ${okMaps.map((m) => pathOfUrl(m.url)).join(', ')}.`)
+      : f('sitemap.exists', 'ok', `No sitemap found at /sitemap.xml${(discoveredUrls?.robotsSitemaps ?? []).length ? ' or where robots.txt points' : ''}.`,
+          'Generate a sitemap.xml (most site builders and frameworks can), list it in robots.txt, and submit it in Google Search Console.')
+    : sitemapStatus === 200
     ? f('sitemap.exists', 'good', 'sitemap.xml found and accessible.')
     : f('sitemap.exists', 'ok', 'sitemap.xml not found at /sitemap.xml.',
         'Generate and submit a sitemap.xml to Google Search Console.'))
+
+  const listed = discoveredUrls?.robotsSitemaps
+  if (!discoveredUrls || listed === undefined) {
+    findings.push(f('sitemap.robots', 'skip', 'Couldn\'t check: the site\'s pages couldn\'t be discovered this time.'))
+  } else if (listed === null) {
+    findings.push(f('sitemap.robots', 'ok', 'There\'s no robots.txt, so nothing points search engines and AI crawlers to your sitemap.',
+      `Create robots.txt with the line: Sitemap: ${okMaps[0]?.url ?? `${new URL(pageUrl).origin}/sitemap.xml`}`))
+  } else if (listed.length === 0) {
+    findings.push(f('sitemap.robots', 'ok', `robots.txt doesn't list your sitemap${okMaps.length ? '' : ' (and no sitemap was found)'}. Crawlers other than Google look for it there.`,
+      `Add this line to robots.txt: Sitemap: ${okMaps[0]?.url ?? `${new URL(pageUrl).origin}/sitemap.xml`}`))
+  } else {
+    const broken = (sitemaps ?? []).filter((m) => m.fromRobots && !m.ok)
+    findings.push(broken.length > 0
+      ? f('sitemap.robots', 'bad', `robots.txt points to ${broken.map((m) => m.url).join(', ')}, but ${broken.length === 1 ? 'it doesn\'t' : 'they don\'t'} load as a sitemap.`,
+          'Fix the Sitemap: line in robots.txt so it points to your real sitemap URL (it must return XML, not a page).')
+      : f('sitemap.robots', 'good', `robots.txt points crawlers to your sitemap (${listed.map(pathOfUrl).join(', ')}).`))
+  }
 
   // Status of a sample of the site's pages (sitemap or crawl): for 404s, 5xx errors and
   // whether the sitemap lists pages that actually load
@@ -1089,6 +1140,8 @@ async function checkTechnical(
       ? f('sitemap.valid', 'ok', `${moved.length} of ${checked.length} sampled sitemap URLs redirect (e.g. ${moved.slice(0, 3).map(r => pathOf(r.url)).join(', ')}).`,
           'List the final URLs in the sitemap, not ones that redirect.')
       : f('sitemap.valid', 'good', `All ${checked.length} sampled sitemap URLs load directly (${discoveredUrls.totalDiscovered} URLs listed).`))
+  } else if (discoveredUrls?.sitemapFound && discoveredUrls.crawlUsed) {
+    findings.push(f('sitemap.valid', 'skip', 'Couldn\'t check: the sitemap lists fewer than 5 pages, so the site\'s pages were found by following its links instead.'))
   } else if (discoveredUrls?.sitemapFound) {
     findings.push(f('sitemap.valid', 'skip', 'Couldn\'t check: none of the sitemap\'s pages answered when we tested them.'))
   } else {
@@ -1313,6 +1366,224 @@ async function checkJsSize($: cheerio.CheerioAPI, pageUrl: string): Promise<SeoF
     : f('perf.js_size', 'good', `${kb} KB of JavaScript${of}.`)
 }
 
+/** title.sitewide: page titles across the site that Google cuts off (over 60 characters) or that
+ *  are very short, and whether a shared ending ("| Acme Inc") is what pushes them over. */
+function checkTitlesSitewide($: cheerio.CheerioAPI, pageUrl: string, discovered?: UrlDiscoveryResult): SeoFinding {
+  const norm = (u: string) => { try { const x = new URL(u); return x.origin + x.pathname.replace(/\/$/, '') } catch { return u } }
+  const titles = [
+    $('title').first().text(),
+    ...(discovered?.urls ?? []).filter((u) => (u.status ?? 200) < 400 && norm(u.url) !== norm(pageUrl)).map((u) => u.title ?? ''),
+  ].map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean)
+  if (titles.length < 3) return f('title.sitewide', 'skip', 'Couldn\'t check: fewer than 3 of the site\'s page titles could be read.')
+
+  // The longest ending most titles share, from a separator on (" | Acme Inc — Best Tools")
+  const endingsOf = (t: string) => [...t.matchAll(/\s+[|\-–—·:]\s+/g)].map((m) => t.slice(m.index))
+  const counts = new Map<string, number>()
+  for (const t of titles) for (const e of new Set(endingsOf(t))) counts.set(e, (counts.get(e) ?? 0) + 1)
+  const shared = [...counts.entries()]
+    .filter(([e, n]) => n >= Math.max(2, titles.length * 0.5) && e.length < 45)
+    .sort((a, b) => b[0].length - a[0].length)[0]?.[0] ?? ''
+
+  const long = titles.filter((t) => t.length > 60)
+  const short = titles.filter((t) => t.length < 30)
+  const bySuffix = shared ? long.filter((t) => t.endsWith(shared) && t.length - shared.length <= 60) : []
+
+  if (long.length === 0 && short.length / titles.length <= 0.3) {
+    return f('title.sitewide', 'good', `All ${titles.length} page titles checked are a good length (under 60 characters, so Google shows them in full).`)
+  }
+  const parts: string[] = []
+  if (long.length) {
+    parts.push(`${long.length} of ${titles.length} page titles are over 60 characters, so Google cuts them off (e.g. "${long[0]}")`)
+    if (bySuffix.length) parts.push(`in ${bySuffix.length === long.length ? (long.length === 1 ? 'it' : 'all of them') : `${bySuffix.length} of them`} it's the ending "${shared.trim()}" added to every title (${shared.length} characters) that pushes ${bySuffix.length === 1 ? 'it' : 'them'} over`)
+  }
+  if (short.length / titles.length > 0.3) parts.push(`${short.length} are under 30 characters, too short to say what the page is about`)
+  return f('title.sitewide', long.length / titles.length > 0.3 ? 'bad' : 'ok', `${parts.join('; ')}.`,
+    bySuffix.length
+      ? `Shorten the "${shared.trim()}" ending in your title template (just the brand name is enough), or leave it off long titles.`
+      : long.length
+        ? 'Keep each page title under 60 characters, with the words people search for first.'
+        : 'Make short titles say what the page offers, e.g. "Pricing — Plans from $9/month | Acme".')
+}
+
+/** soft404: a made-up page address should answer 404, not 200 or a redirect to the homepage. */
+async function checkSoft404(pageUrl: string): Promise<SeoFinding> {
+  const origin = new URL(pageUrl).origin
+  const probe = `${origin}/growjin-check-${Math.random().toString(36).slice(2, 10)}`
+  const r = await traceRedirects(probe, 3, true)
+  if (r.blocked) return f('soft404', 'skip', 'Couldn\'t check: a firewall answered instead of the site.')
+  if (r.status === 0) return f('soft404', 'skip', 'Couldn\'t check: the site didn\'t answer for a made-up page address.')
+  const toHome = r.hops.length > 0 && (() => { try { return new URL(r.finalUrl).pathname === '/' } catch { return false } })()
+  if (r.status === 404 || r.status === 410) {
+    return r.hops.length === 0
+      ? f('soft404', 'good', 'A page that doesn\'t exist correctly answers 404 Not Found.')
+      : f('soft404', 'ok', `A page that doesn't exist redirects first (to ${pathOfUrl(r.finalUrl)}) and only then answers ${r.status}.`,
+          'Answer 404 straight away at the missing address, without redirecting.')
+  }
+  if (r.status === 200) {
+    return f('soft404', 'bad', toHome
+      ? 'Pages that don\'t exist redirect to the homepage. Google treats this as a "soft 404": broken and mistyped links look like duplicates of your homepage.'
+      : `A page that doesn't exist (${pathOfUrl(probe)}) answers 200 OK instead of 404. Google calls this a "soft 404": missing pages look real, waste crawl time and can get indexed as empty pages.`,
+      'Make the server answer 404 for unknown addresses (keep your friendly "page not found" design, just with a 404 status). Don\'t redirect missing pages to the homepage.')
+  }
+  return f('soft404', 'ok', `A page that doesn't exist answers ${r.status} instead of 404.`,
+    'Make the server answer 404 Not Found for addresses that don\'t exist.')
+}
+
+// Links that redirect on purpose (to log in, to the app): not a problem to report
+const AUTH_PATH = /\/(log-?in|sign-?in|sign-?up|register|log-?out|sign-?out|account|dashboard|app|auth|cart|checkout)(\/|$|\?)/i
+
+/** redirect.www, redirect.chains, redirect.internal_links: one address for the site, reached in one hop, and links that don't detour. */
+async function checkRedirects($: cheerio.CheerioAPI, pageUrl: string): Promise<SeoFinding[]> {
+  const page = new URL(pageUrl)
+  const host = page.hostname
+  const labels = host.split('.')
+  const isIp = /^[\d.]+$/.test(host) || host.includes(':') || host === 'localhost'
+  const twoPartTld = labels.length === 3 && /^(co|com|org|net|gov|ac|edu)$/.test(labels[1]) && labels[2].length === 2
+  const alt = isIp ? null : host.startsWith('www.') ? host.slice(4) : labels.length === 2 || twoPartTld ? `www.${host}` : null
+  const onSite = (u: string) => { try { const h = new URL(u).hostname; return h === host || h === alt } catch { return false } }
+
+  // Internal links on the homepage (same site, not log-in / app links)
+  const links = [...new Set($('a[href]').toArray().map((el) => $(el).attr('href') ?? '')
+    .filter((h) => h && !/^(#|mailto:|tel:|javascript:)/i.test(h))
+    .map((h) => { try { const u = new URL(h, pageUrl); u.hash = ''; return u.origin === page.origin ? u.href : '' } catch { return '' } })
+    .filter((u) => u && !AUTH_PATH.test(new URL(u).pathname)))].slice(0, 40)
+
+  const [altTrace, httpTrace, httpAltTrace, linkTraces] = await Promise.all([
+    alt ? traceRedirects(`${page.protocol}//${alt}/`) : Promise.resolve(null),
+    page.protocol === 'https:' ? traceRedirects(`http://${host}/`) : Promise.resolve(null),
+    alt && page.protocol === 'https:' ? traceRedirects(`http://${alt}/`) : Promise.resolve(null),
+    Promise.all(links.map((u) => traceRedirects(u, 3).then((t) => ({ u, t })))),
+  ])
+  const out: SeoFinding[] = []
+
+  // redirect.www
+  if (!alt || !altTrace) {
+    out.push(f('redirect.www', 'info', `Your site is on ${host}, a subdomain, so there's no www / non-www pair to check.`))
+  } else if (altTrace.blocked) {
+    out.push(f('redirect.www', 'skip', `Couldn't check: a firewall answered for ${alt}.`))
+  } else if (altTrace.status === 0 && altTrace.hops.length === 0) {
+    out.push(f('redirect.www', 'bad', `${alt} doesn't load (no answer, or a certificate error). Anyone who types it gets an error instead of your site.`,
+      `Add a DNS record for ${alt} at your domain provider and redirect it (301) to ${page.protocol}//${host}/. Make sure the SSL certificate covers both.`))
+  } else if (altTrace.loop) {
+    out.push(f('redirect.www', 'bad', `${alt} is stuck in a redirect loop.`, `Redirect ${alt} straight to ${page.protocol}//${host}/ (one 301).`))
+  } else if (altTrace.hops.length === 0 && altTrace.status === 200) {
+    out.push(f('redirect.www', 'ok', `Both ${host} and ${alt} show the site without redirecting, so Google sees two copies of every page.`,
+      `Redirect ${alt} to ${host} with a 301 (permanent) redirect in your hosting or DNS settings.`))
+  } else if (altTrace.status < 400 && onSite(altTrace.finalUrl) && new URL(altTrace.finalUrl).hostname === host) {
+    out.push(altTrace.hops.length === 1
+      ? f('redirect.www', 'good', `${alt} redirects to ${host} in one step.`)
+      : f('redirect.www', 'ok', `${alt} reaches ${host}, but through ${altTrace.hops.length} redirects.`,
+          `Redirect ${alt} straight to ${page.protocol}//${host}/ in one 301.`))
+  } else {
+    out.push(f('redirect.www', 'bad', `${alt} ${altTrace.status >= 400 ? `answers ${altTrace.status}` : `ends up at ${altTrace.finalUrl}`} instead of showing your site.`,
+      `Redirect ${alt} to ${page.protocol}//${host}/ with a 301 (permanent) redirect.`))
+  }
+
+  // redirect.chains: the usual ways in (http://, www) reach the site in one redirect
+  const entries = [
+    { from: `http://${host}/`, t: httpTrace },
+    { from: `http://${alt}/`, t: httpAltTrace },
+    { from: `${page.protocol}//${alt}/`, t: alt ? altTrace : null },
+  ].filter((e): e is { from: string; t: Trace } => !!e.t && !e.t.blocked && e.t.hops.length > 0 && (e.t.status > 0 || !!e.t.loop))
+  const worst = entries.sort((a, b) => b.t.hops.length - a.t.hops.length)[0]
+  if (!worst) {
+    out.push(f('redirect.chains', 'skip', 'Couldn\'t check: none of the other addresses for your site (http://, www) redirected anywhere to follow.'))
+  } else if (worst.t.loop) {
+    out.push(f('redirect.chains', 'bad', `${worst.from} is stuck in a redirect loop — visitors and Google never reach the page.`,
+      `Make ${worst.from} redirect once, straight to ${page.protocol}//${host}/.`))
+  } else if (worst.t.hops.length >= 2) {
+    const chain = [worst.from, ...worst.t.hops].join(' → ')
+    out.push(f('redirect.chains', worst.t.hops.length >= 3 ? 'bad' : 'ok', `${worst.from} takes ${worst.t.hops.length} redirects to reach your site: ${chain}. Each hop slows visitors down and leaks a little ranking strength.`,
+      `Redirect every variant (http://, www, non-www) straight to ${page.protocol}//${host}/ in a single 301.`))
+  } else {
+    out.push(f('redirect.chains', 'good', `Every way into the site (${entries.map((e) => e.from.replace(/\/$/, '')).join(', ')}) reaches it in one redirect.`))
+  }
+
+  // redirect.internal_links
+  const answered = linkTraces.filter(({ t }) => !t.blocked && (t.status > 0 || t.hops.length > 0))
+  if (answered.length === 0) {
+    out.push(f('redirect.internal_links', 'skip', links.length === 0
+      ? 'Couldn\'t check: the homepage has no internal links to test.'
+      : 'Couldn\'t check: none of the homepage\'s links answered when we tested them.'))
+  } else {
+    // Only detours within the site count: a /discord link sending people to discord.gg is on purpose
+    const moved = answered.filter(({ t }) => t.hops.length > 0 && onSite(t.finalUrl))
+    const strip = (u: string) => u.replace(/\/(\?|$)/, '$1')
+    const slashOnly = moved.filter(({ u, t }) => strip(u) === strip(t.hops[0]))
+    if (moved.length === 0) {
+      out.push(f('redirect.internal_links', 'good', `All ${answered.length} internal links on the homepage point straight at their pages.`))
+    } else {
+      const eg = moved.slice(0, 3).map(({ u, t }) => `${pathOfUrl(u)} → ${pathOfUrl(t.finalUrl)}`).join(', ')
+      out.push(f('redirect.internal_links', moved.length >= 3 && moved.length / answered.length >= 0.3 ? 'bad' : 'ok',
+        `${moved.length} of ${answered.length} internal links on the homepage go through a redirect (e.g. ${eg})${slashOnly.length ? `; ${slashOnly.length} of them only because of a missing or extra "/" at the end` : ''}.`,
+        slashOnly.length
+          ? 'Pick one style (with or without the ending "/") and use it in every link, so links match the final URLs.'
+          : 'Update these links to the final URLs, so visitors and Google skip the extra hop.'))
+    }
+  }
+  return out
+}
+
+type LabVitals = { lcp: number; cls: number; tbt: number; performance: number }
+
+/** Lab numbers from Google's scan (PageSpeed Insights), when its performance test ran. */
+function labFromScan(lhr: Record<string, unknown>): LabVitals | null {
+  const audits = lhr.audits as Record<string, { numericValue?: number }> | undefined
+  const score = (lhr.categories as Record<string, { score?: number | null }> | undefined)?.performance?.score
+  const lcp = audits?.['largest-contentful-paint']?.numericValue
+  if (score == null || lcp == null) return null
+  return {
+    lcp: Math.round(lcp),
+    cls: audits?.['cumulative-layout-shift']?.numericValue ?? 0,
+    tbt: Math.round(audits?.['total-blocking-time']?.numericValue ?? 0),
+    performance: Math.round(score * 100),
+  }
+}
+
+/** Core Web Vitals: real visitors' numbers from Chrome when Google has them (what rankings use), else the lab test. */
+function checkVitals(field: PsiFieldData | null, lab: LabVitals | null): SeoFinding[] {
+  const who = field?.scope === 'page' ? 'Real visitors (Chrome data, last 28 days)' : 'Real visitors across your site (Chrome data, last 28 days)'
+  const labWho = 'Google\'s lab test on a phone (no real-visitor data yet)'
+  const none = 'Couldn\'t check: Google\'s speed test didn\'t finish this time, and Chrome has no real-visitor data for this site yet.'
+  const grade = (key: string, v: number, good: number, poor: number, text: string, fixOk: string, fixBad: string) =>
+    v <= good ? f(key, 'good', `${text} — good.`)
+    : v <= poor ? f(key, 'ok', `${text} — needs improvement.`, fixOk)
+    : f(key, 'bad', `${text} — poor; fails Google's Core Web Vitals.`, fixBad)
+  const out: SeoFinding[] = []
+
+  const lcpFix = ['Optimise the largest element (usually the hero image): compress it, preload it, and serve it from a CDN.',
+    'Find the largest element (usually the hero image or H1), compress it, add a preload hint, and cut server response time.']
+  if (field?.lcpMs != null) out.push(grade('cwv.lcp', field.lcpMs / 1000, 2.5, 4, `${who}: the main content appears after ${(field.lcpMs / 1000).toFixed(1)}s (LCP)`, lcpFix[0], lcpFix[1]))
+  else if (lab) out.push(grade('cwv.lcp', lab.lcp / 1000, 2.5, 4, `${labWho}: the main content appears after ${(lab.lcp / 1000).toFixed(1)}s (LCP)`, lcpFix[0], lcpFix[1]))
+  else out.push(f('cwv.lcp', 'skip', none))
+
+  const clsFix = ['Give images and embeds a width and height, and don\'t insert banners above existing content.',
+    'Find what moves while the page loads: images without dimensions, ads, injected banners or late-loading fonts.']
+  if (field?.cls != null) out.push(grade('cwv.cls', field.cls, 0.1, 0.25, `${who}: layout shift score ${field.cls.toFixed(2)} (CLS)`, clsFix[0], clsFix[1]))
+  else if (lab) out.push(grade('cwv.cls', lab.cls, 0.1, 0.25, `${labWho}: layout shift score ${lab.cls.toFixed(2)} (CLS)`, clsFix[0], clsFix[1]))
+  else out.push(f('cwv.cls', 'skip', none))
+
+  const inpFix = ['Split large JavaScript bundles, defer non-critical scripts, and remove unused third-party scripts.',
+    'Profile what runs when people tap: break up long JavaScript tasks and defer non-essential scripts.']
+  if (field?.inpMs != null) out.push(grade('cwv.fid', field.inpMs, 200, 500, `${who}: the page reacts to taps and clicks in ${field.inpMs}ms (INP)`, inpFix[0], inpFix[1]))
+  else if (lab) out.push(grade('cwv.fid', lab.tbt, 200, 600, `${labWho}: JavaScript blocks the page for ${lab.tbt}ms while loading (Total Blocking Time, the lab stand-in for INP)`, inpFix[0], inpFix[1]))
+  else out.push(f('cwv.fid', 'skip', none))
+
+  if (!lab) {
+    out.push(f('lighthouse.score', 'skip', 'Couldn\'t check: Google\'s speed test didn\'t finish this time.'))
+  } else {
+    const p = lab.performance
+    out.push(p >= 80
+      ? f('lighthouse.score', 'good', `Google speed score: ${p}/100.`)
+      : p >= 50
+      ? f('lighthouse.score', 'ok', `Google speed score: ${p}/100 — room for improvement.`,
+          'Focus on the top suggestions in PageSpeed Insights: image size, render-blocking files, server response time.')
+      : f('lighthouse.score', 'bad', `Google speed score: ${p}/100 — poor; the page is slow on phones.`,
+          'Work through PageSpeed Insights: compress images, remove render-blocking CSS/JS, enable caching.'))
+  }
+  return out
+}
+
 // Checks that read the page's body content: not judgeable on a page built by JavaScript
 const BODY_CHECK = /^(h1\.|hierarchy\.|outline\.|alt\.|image\.|anchor\.|pagerank\.|links\.homepage_links$|links\.broken$)/
 
@@ -1367,12 +1638,14 @@ export async function runSeoAudit(url: string, opts: SeoAuditOptions = {}): Prom
   const lighthouseData = hasLighthouse ? await runLighthouse(finalUrl) : null
 
   // Run all sections in parallel where possible
-  const [metaFindings, imageFindings, technicalFindings, brokenLinks, jsSize] = await Promise.all([
-    checkMetaTags($, finalUrl, canonicalHref, opts),
+  const [metaFindings, imageFindings, technicalFindings, brokenLinks, jsSize, soft404, redirectFindings] = await Promise.all([
+    checkMetaTags($, finalUrl, canonicalHref, opts, headers),
     checkImageAlt($, finalUrl),
     checkTechnical($, finalUrl, headers, ttfb, robotsTxt, sitemapStatus, Buffer.byteLength(html, 'utf8'), lighthouseData, discoveredUrls),
     checkBrokenLinks($, finalUrl),
     checkJsSize($, finalUrl),
+    checkSoft404(finalUrl),
+    checkRedirects($, finalUrl),
   ])
 
   const title = $('title').first().text().trim()
@@ -1388,7 +1661,10 @@ export async function runSeoAudit(url: string, opts: SeoAuditOptions = {}): Prom
     ...schemaFindings,
     ...technicalFindings,
     ...checkSitePages($, finalUrl, discoveredUrls),
+    checkTitlesSitewide($, finalUrl, discoveredUrls),
     jsSize,
+    soft404,
+    ...redirectFindings,
   ]
 
   // A page whose HTML is an empty shell filled in by JavaScript: say so (AI crawlers and many
@@ -1414,6 +1690,11 @@ export async function runSeoAudit(url: string, opts: SeoAuditOptions = {}): Prom
 
   const scan = await scanPromise
   const screenshot = scan?.ok ? applyScan(findings, scan.lhr) : null
+  // Core Web Vitals from Google (real visitors, else its lab test); the local Lighthouse CLI's lab numbers when installed
+  const lab = lighthouseData
+    ? { lcp: lighthouseData.lcp, cls: lighthouseData.cls, tbt: lighthouseData.fid, performance: lighthouseData.performance }
+    : scan?.ok ? labFromScan(scan.lhr) : null
+  findings.push(...checkVitals(scan?.ok ? scan.field : null, lab))
 
   return {
     url: normalizedUrl,
