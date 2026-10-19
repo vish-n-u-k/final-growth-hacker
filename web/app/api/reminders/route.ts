@@ -3,8 +3,9 @@ import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { reminders, brands } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { cleanTitle, cleanCategory, cleanInterval, cleanUrl } from '@/lib/reminders/validate'
+import { buildAuditJobReminder } from '@/lib/reminders/audit-jobs'
 
 async function getBrandId(userId: string): Promise<string | null> {
   const rows = await db.select({ id: brands.id }).from(brands).where(eq(brands.userId, userId)).limit(1)
@@ -43,6 +44,18 @@ export async function POST(req: NextRequest) {
   if (!brandId) return NextResponse.json({ error: 'Brand not found' }, { status: 404 })
 
   const body = await req.json().catch(() => ({}))
+
+  // A repeat job suggested from the brand's audits: built server-side, once per brand
+  if (typeof body.auditJob === 'string') {
+    const values = await buildAuditJobReminder(brandId, body.auditJob)
+    if (!values) return NextResponse.json({ error: 'Unknown suggestion' }, { status: 400 })
+    const [dupe] = await db.select({ id: reminders.id }).from(reminders)
+      .where(and(eq(reminders.brandId, brandId), eq(reminders.category, values.category))).limit(1)
+    if (dupe) return NextResponse.json({ error: 'Already added' }, { status: 409 })
+    const [row] = await db.insert(reminders).values(values).returning()
+    return NextResponse.json({ reminder: row }, { status: 201 })
+  }
+
   const title = cleanTitle(body.title)
   if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 })
   const category = cleanCategory(body.category)

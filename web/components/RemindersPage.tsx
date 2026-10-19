@@ -10,6 +10,8 @@ import { Spinner } from '@/components/ui/spinner'
 import TimezoneSelect, { canonicalTimezone, deviceTimezone } from '@/components/TimezoneSelect'
 import TimeField from '@/components/TimeField'
 import { utcToZoned, zonedToUtc } from '@/lib/frekto/time'
+import { auditJobSource } from '@/lib/reminders/audit-source'
+import type { AuditJobSuggestion } from '@/lib/reminders/audit-jobs'
 
 interface Reminder {
   id: string
@@ -94,6 +96,7 @@ export default function RemindersPage({
   initialReminders,
   initialChanges,
   commonChecks,
+  auditSuggestions = [],
   searchConnected,
   dailyEmailOn,
   brandProfile,
@@ -102,6 +105,7 @@ export default function RemindersPage({
   initialReminders: Reminder[]
   initialChanges: Change[]
   commonChecks: ReminderPreset[]
+  auditSuggestions?: AuditJobSuggestion[]
   searchConnected: boolean
   dailyEmailOn: boolean
   brandProfile: BrandProfile
@@ -124,6 +128,7 @@ export default function RemindersPage({
   const [editId, setEditId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({ title: '', description: '', intervalDays: '30', url: '' })
   const [addingCheck, setAddingCheck] = useState<string | null>(null)
+  const [suggestions, setSuggestions] = useState<AuditJobSuggestion[]>(auditSuggestions)
   const [toast, setToast] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const [justAdded, setJustAdded] = useState<Reminder | null>(null) // "What happens next" popup
 
@@ -248,11 +253,25 @@ export default function RemindersPage({
     setAddingCheck(null)
   }
 
+  // A repeat job from the audits: GrowJin fills in this time's task, the user just adds it
+  async function addSuggestion(s: AuditJobSuggestion) {
+    setAddingCheck(s.key)
+    const created = await createReminder({ auditJob: s.key }, 'Could not add the reminder')
+    if (created) {
+      setSuggestions(list => list.filter(x => x.key !== s.key))
+      setJustAdded(created)
+    }
+    await reload()
+    setAddingCheck(null)
+  }
+
   async function saveEdit(id: string) {
+    // Audit reminders keep the link GrowJin set (it can point inside the app)
+    const audit = !!auditJobSource(reminders.find(r => r.id === id)?.category ?? '')
     const ok = await call(`/api/reminders/${id}`, json('PATCH', {
       title: editForm.title,
       intervalDays: parseInt(editForm.intervalDays, 10),
-      url: editForm.url,
+      ...(audit ? {} : { url: editForm.url }),
     }), 'Could not save')
     if (!ok) return
     setEditId(null)
@@ -334,7 +353,7 @@ export default function RemindersPage({
             <input type="number" min="1" className="rm-input rm-input-num" value={editForm.intervalDays} onChange={e => setEditForm(f => ({ ...f, intervalDays: e.target.value }))} />
             <span className="rm-edit-label">days</span>
           </div>
-          {r.category !== 'outreach' && (
+          {r.category !== 'outreach' && !auditJobSource(r.category) && (
             <input className="rm-input" style={{ marginTop: 10 }} value={editForm.url} onChange={e => setEditForm(f => ({ ...f, url: e.target.value }))} placeholder="Link to the listing or profile (optional)" />
           )}
           <div className="rm-edit-actions">
@@ -493,6 +512,8 @@ export default function RemindersPage({
     }
 
     // ── Standard card ────────────────────────────────────────────────────────
+    // Repeat jobs from the audits say what to do this time (kept current by the server)
+    const source = auditJobSource(r.category)
 
     return (
       <div className={`rm-card${days < 0 ? ' rm-card-overdue' : days <= 2 ? ' rm-card-urgent' : days <= 7 ? ' rm-card-soon' : ''}`}>
@@ -510,10 +531,13 @@ export default function RemindersPage({
           </button>
 
           <span className="rm-card-title">{r.title}</span>
-          {r.url && (
-            <a className="rm-card-link" href={r.url} target="_blank" rel="noopener noreferrer" title={r.url}>Open ↗</a>
+          {r.url && (r.url.startsWith('/')
+            ? <a className="rm-card-link" href={r.url}>Open</a>
+            : <a className="rm-card-link" href={r.url} target="_blank" rel="noopener noreferrer" title={r.url}>Open ↗</a>
           )}
-          <span className={`rm-cat-badge ${CAT_CLASS[r.category] ?? 'rm-cat-custom'}`}>{r.category}</span>
+          {source
+            ? <span className="rm-cat-badge rm-cat-audit">{source}</span>
+            : <span className={`rm-cat-badge ${CAT_CLASS[r.category] ?? 'rm-cat-custom'}`}>{r.category}</span>}
           <span className="rm-card-meta">{r.intervalDays}d</span>
 
           <div className="rm-card-right">
@@ -538,6 +562,7 @@ export default function RemindersPage({
             </div>
           </div>
         </div>
+        {source && r.description && <p className="rm-card-desc">{r.description}</p>}
       </div>
     )
   }
@@ -679,6 +704,34 @@ export default function RemindersPage({
           <Section title="Checks due this week" accent="#d97706" items={groups.thisWeek} />
           <Section title="Upcoming checks" items={groups.upcoming} />
 
+          {suggestions.length > 0 && (
+            <div className="rm-section">
+              <div className="rm-section-hd">
+                Suggested from your audits
+                <span className="rm-section-count">{suggestions.length}</span>
+              </div>
+              <p className="rm-note-plain">Jobs worth repeating, based on your SEO, Content and GEO results. Each time one is due, it names exactly what to do from your latest results.</p>
+              <div className="rm-section-body">
+                {suggestions.map(s => (
+                  <div key={s.key} className="rm-sugg">
+                    <div className="rm-sugg-main">
+                      <div className="rm-sugg-hd">
+                        <span className="rm-sugg-title">{s.title}</span>
+                        <span className="rm-cat-badge rm-cat-audit">{s.source}</span>
+                        <span className="rm-card-meta">every {s.intervalDays === 7 ? 'week' : `${s.intervalDays} days`}</span>
+                      </div>
+                      <p className="rm-sugg-why">{s.why}</p>
+                      <p className="rm-sugg-preview"><span>First up:</span> {s.preview}</p>
+                    </div>
+                    <button className="rm-btn-primary rm-sugg-add" onClick={() => addSuggestion(s)} disabled={addingCheck !== null}>
+                      {addingCheck === s.key ? <Spinner /> : '+'} Add
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {availableChecks.length > 0 && (
             <div className="rm-section">
               <div className="rm-section-hd">
@@ -704,7 +757,7 @@ export default function RemindersPage({
           <Section title="Snoozed" items={groups.snoozed} />
           <Section title="Disabled" items={groups.disabled} />
 
-          {nothingYet && availableChecks.length === 0 && (
+          {nothingYet && availableChecks.length === 0 && suggestions.length === 0 && (
             <div className="rm-empty-state">
               <p className="rm-empty-title">No recurring checks</p>
               <p className="rm-empty-sub">Add one for anything you need to keep up to date, like a marketplace listing or a directory profile.</p>
@@ -790,7 +843,10 @@ export default function RemindersPage({
                 <li>
                   <strong>Do it, then tick ✓</strong>
                   <span>
-                    {justAdded.url ? 'Use Open ↗ on the card to go straight to the page. ' : 'Add a link with Edit so the page is one click away. '}
+                    {auditJobSource(justAdded.category)
+                      ? 'The card says exactly what to do this time, from your latest results; Open takes you there. '
+                      : justAdded.url ? 'Use Open ↗ on the card to go straight to the page. ' : 'Add a link with Edit so the page is one click away. '}
+                    {justAdded.category === 'audit:blog-post' && 'It also ticks itself off when a new article shows up in your sitemap. '}
                     Ticking it schedules the next one {every} later.
                   </span>
                 </li>

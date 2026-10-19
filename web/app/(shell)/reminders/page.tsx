@@ -5,6 +5,7 @@ import { reminders, brandIntegrations } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { getOpenSignals } from '@/lib/signals'
 import { getPresetsForWebsiteType } from '@/lib/reminders/presets'
+import { getAuditJobSuggestions, refreshAuditReminders } from '@/lib/reminders/audit-jobs'
 import RemindersPage from '@/components/RemindersPage'
 import { validTimezone } from '@/lib/frekto/time'
 
@@ -31,7 +32,11 @@ export default async function Reminders() {
   const brand = await getBrandForUser(user.id)
   if (!brand) redirect('/onboarding')
 
-  const [rows, signals, [gsc]] = await Promise.all([
+  // Audit reminders: this time's task from the latest results; a due blog post ticks itself off
+  // when a new article is in the sitemap
+  await refreshAuditReminders(brand.id, { autoDone: true }).catch(err => console.error('[reminders] audit refresh failed', err))
+
+  const [rows, signals, [gsc], auditSuggestions] = await Promise.all([
     db.select().from(reminders)
       .where(eq(reminders.brandId, brand.id))
       .orderBy(reminders.nextDueAt),
@@ -40,6 +45,7 @@ export default async function Reminders() {
     db.select({ id: brandIntegrations.id }).from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.provider, 'gsc_api'), eq(brandIntegrations.status, 'connected')))
       .limit(1),
+    getAuditJobSuggestions(brand.id).catch(() => []),
   ])
 
   const serialized = rows.map(r => ({
@@ -84,6 +90,7 @@ export default async function Reminders() {
       initialReminders={serialized}
       initialChanges={changes}
       commonChecks={getPresetsForWebsiteType(brand.websiteType)}
+      auditSuggestions={auditSuggestions}
       searchConnected={!!gsc}
       dailyEmailOn={!!brand.dailyEmailEnabled}
       defaultTimezone={await savedTimezone(brand.id)}

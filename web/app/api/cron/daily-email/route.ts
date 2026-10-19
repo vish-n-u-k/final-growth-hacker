@@ -6,6 +6,8 @@ import { eq, and, lte, or, isNull } from 'drizzle-orm'
 import { createSign } from 'crypto'
 import { getValidAdminGmailToken, getAdminGmailAddress } from '@/lib/gmail/admin-token'
 import { signReminderToken } from '@/lib/reminders/token'
+import { refreshAuditReminders } from '@/lib/reminders/audit-jobs'
+import { auditJobSource } from '@/lib/reminders/audit-source'
 import { checkBrandFollowups } from '@/lib/gmail/reply-check'
 import { getTodayTasks, buildTodayPrompt, type TodayTasks, type TaskRoute } from '@/lib/daily/today-tasks'
 import { claudeClickUrl, logActivity } from '@/lib/activity'
@@ -216,6 +218,8 @@ interface DueReminder {
   id: string
   brandId: string
   title: string
+  description: string | null
+  category: string
   nextDueAt: Date
   intervalDays: number
 }
@@ -239,7 +243,7 @@ function buildRemindersSection(dueReminders: DueReminder[], appUrl: string): str
     <tr><td style="background:#f9fafb;border:1px solid #e5e7eb;border-left:3px solid #16a34a;border-radius:8px;padding:12px 16px;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
         <tr>
-          <td style="font-size:14px;color:#111827;">${r.title}</td>
+          <td style="font-size:14px;color:#111827;">${esc(r.title)}${auditJobSource(r.category) && r.description ? `<div style="font-size:13px;color:#4b5563;line-height:1.5;padding-top:4px;">${esc(r.description)}</div>` : ''}</td>
           <td style="text-align:right;font-size:12px;white-space:nowrap;padding-left:12px;">${label}</td>
         </tr>
         <tr><td colspan="2" style="padding-top:8px;">
@@ -594,12 +598,15 @@ export async function GET(req: NextRequest) {
       await checkBrandFollowups(brand.id, { deadline: cronStarted + 40_000 }).catch(() => {})
     }
 
-    // Fetch reminders due within 2 days
+    // Fetch reminders due within 2 days (audit ones first get this time's task, and a blog post
+    // published since the last one ticks its reminder off)
     let dueReminders: DueReminder[] = []
+    if (Date.now() - cronStarted < 45_000) await refreshAuditReminders(brand.id, { autoDone: true }).catch(() => {})
     try {
       const twoDaysFromNow = new Date(Date.now() + 2 * 24 * 3600 * 1000)
       const rows = await db.select({
         id: reminders.id, brandId: reminders.brandId, title: reminders.title,
+        description: reminders.description, category: reminders.category,
         nextDueAt: reminders.nextDueAt, intervalDays: reminders.intervalDays,
       }).from(reminders).where(
         and(

@@ -6,6 +6,8 @@ import { brands, brandIntegrations, frektoScheduledPosts, keywordSnapshots, remi
 import { eq, and, desc, gte, lte, or, isNull, inArray } from 'drizzle-orm'
 import { createSign } from 'crypto'
 import { detectImpacts, type ActionCard, type SignalInput } from '@/lib/daily/signals'
+import { refreshAuditReminders } from '@/lib/reminders/audit-jobs'
+import { auditJobSource } from '@/lib/reminders/audit-source'
 import { getTodayTasks, tasksToCards, type TodayTasks } from '@/lib/daily/today-tasks'
 
 export const dynamic = 'force-dynamic'
@@ -182,10 +184,14 @@ export async function GET(request: Request) {
 
 async function fetchReminderCards(brandId: string): Promise<ActionCard[]> {
   try {
+    // Audit reminders name this time's task (no sitemap check here: Today should load fast)
+    await refreshAuditReminders(brandId).catch(() => {})
     const now = new Date()
     const rows = await db.select({
       id: reminders.id,
       title: reminders.title,
+      description: reminders.description,
+      category: reminders.category,
       nextDueAt: reminders.nextDueAt,
     })
       .from(reminders)
@@ -205,9 +211,9 @@ async function fetchReminderCards(brandId: string): Promise<ActionCard[]> {
         type: 'reminder' as const,
         priority: -1,
         headline: r.title,
-        reason: daysOverdue > 0
+        reason: `${daysOverdue > 0
           ? `Overdue by ${daysOverdue} day${daysOverdue === 1 ? '' : 's'}`
-          : 'Due today',
+          : 'Due today'}${auditJobSource(r.category) && r.description ? ` · ${r.description}` : ''}`,
         cta: 'Mark done',
         ctaUrl: `/api/reminders/${r.id}/done`,
         data: { reminderId: r.id },
