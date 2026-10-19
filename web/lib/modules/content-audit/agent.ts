@@ -2,6 +2,14 @@ import { callAI } from '@/lib/ai/client'
 import { CONTENT_AUDIT_MODULE } from './definition'
 import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } from '../types'
 import type { ContentAuditFetchResult, PageSummary } from './fetcher'
+import { blockedSkipText } from '@/lib/audit/blocked'
+import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
+import { CONTENT_SUMMARY_SLUG, type ContentOverview } from './summary'
+
+// Content Audit: the facts (how much content, how fresh, how substantial, whether posts lead to the
+// product) are fixed rule checks with stable slugs, so ticks and the score stay put between runs.
+// Each content page gets a verdict from fixed rules too. Claude only writes ideas (gaps, blog
+// topics), and the 30-day plan is built from those topics. Ideas are never scored.
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -30,355 +38,314 @@ export interface ContentAuditAnalysisOutput {
   calendarData: CalendarEntry[] | null
 }
 
-// ── Format helpers ─────────────────────────────────────────────────────────────
+type Result = DynamicModuleAnalysisResult
 
-function formatPageSummary(p: PageSummary, index: number, includeBody: boolean = true): string {
-  const lines: string[] = []
-  lines.push(`[${index + 1}] ${p.url}`)
-  if (p.fetchError) {
-    lines.push(`  ERROR: ${p.fetchError}`)
-    return lines.join('\n')
-  }
-  if (p.title)           lines.push(`  Title: ${p.title}`)
-  if (p.metaDescription) lines.push(`  Meta: ${p.metaDescription.slice(0, 160)}`)
-  if (p.h1)              lines.push(`  H1: ${p.h1}`)
-  if (includeBody && p.bodyExcerpt)     lines.push(`  Body: ${p.bodyExcerpt.slice(0, 100)}`)
-  lines.push(`  Stats: ${p.wordCount} words | ${p.imageCount} images | ${p.internalLinkCount} internal links | ${p.externalLinkCount} external links`)
-  return lines.join('\n')
+const r = (category: string, slug: string, weight: 1 | 2 | 3, label: string, verified: boolean, detail: string, highlight: string, narrative: string, action: string): Result =>
+  ({ category, slug: `${category}-${slug}`, label, weight, verified, detail, highlight, narrative, action, fixable: false })
+
+/** "Couldn't check": shown as Not checked and left out of the score. */
+const skip = (category: string, slug: string, label: string, detail: string): Result =>
+  ({ category, slug: `${category}-${slug}`, label, weight: 1, verified: false, detail, narrative: '', action: '', fixable: false })
+
+const DAY = 86_400_000
+const daysSince = (iso: string) => Math.floor((Date.now() - Date.parse(iso)) / DAY)
+const pathOf = (url: string) => { try { return new URL(url).pathname } catch { return url } }
+const nameOf = (p: PageSummary, tpl: Template) => p.title ? `"${cleanTitle(p.title, tpl).slice(0, 60)}"` : pathOf(p.url)
+const list = (pages: PageSummary[], tpl: Template, n = 4) => `${pages.slice(0, n).map(p => nameOf(p, tpl)).join(', ')}${pages.length > n ? ` and ${pages.length - n} more` : ''}`
+const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0 }
+
+const SHELL_SKIP = 'Couldn\'t check: your site builds its pages with JavaScript, so their text isn\'t in the HTML we (and search engines) read.'
+
+// ── Titles ────────────────────────────────────────────────────────────────────
+
+// Most sites add the same ending to every title ("… | Frekto – AI Social Media Posts"). It's removed
+// before comparing or showing titles, so pages aren't called duplicates for sharing it.
+type Template = Set<string>
+const SEP = /\s+[|–—:·-]\s+/
+function templateOf(pages: PageSummary[]): Template {
+  const titles = pages.map(p => p.title).filter((t): t is string => !!t)
+  const counts = new Map<string, number>()
+  for (const t of titles) for (const part of new Set(t.split(SEP).map(s => s.trim().toLowerCase()))) counts.set(part, (counts.get(part) ?? 0) + 1)
+  return new Set([...counts].filter(([, n]) => titles.length >= 3 && n >= Math.max(2, titles.length * 0.4)).map(([s]) => s))
 }
-
-function formatCompetitorPage(p: PageSummary): string {
-  const lines: string[] = []
-  lines.push(`COMPETITOR: ${p.url}`)
-  if (p.fetchError) {
-    lines.push(`  ERROR: Failed to fetch — note as data-unavailable`)
-    return lines.join('\n')
-  }
-  if (p.title)           lines.push(`  Title: ${p.title}`)
-  if (p.metaDescription) lines.push(`  Meta: ${p.metaDescription.slice(0, 160)}`)
-  if (p.h1)              lines.push(`  H1: ${p.h1}`)
-  if (p.bodyExcerpt)     lines.push(`  Body: ${p.bodyExcerpt.slice(0, 150)}`)
-  lines.push(`  Stats: ${p.wordCount} words | ${p.imageCount} images | ${p.internalLinkCount} internal links`)
-  return lines.join('\n')
+function cleanTitle(t: string, tpl: Template): string {
+  const parts = t.split(SEP).filter(s => !tpl.has(s.trim().toLowerCase()))
+  return (parts.join(' – ') || t).trim()
 }
+const STOP = new Set(['the', 'and', 'for', 'with', 'your', 'you', 'our', 'how', 'what', 'why', 'when', 'who', 'are', 'from', 'into', 'this', 'that', 'best', 'guide', 'tips', 'ways'])
+const titleWords = (t: string, tpl: Template) => new Set((cleanTitle(t, tpl).toLowerCase().match(/[a-z0-9]+/g) ?? []).filter(w => w.length > 2 && !STOP.has(w)).map(w => w.replace(/s$/, '')))
 
-function buildSiteStats(pages: PageSummary[]): string {
-  const successful = pages.filter(p => !p.fetchError)
-  if (successful.length === 0) return 'No pages successfully fetched.'
-
-  const totalWords = successful.reduce((s, p) => s + p.wordCount, 0)
-  const avgWords = Math.round(totalWords / successful.length)
-  const below300 = successful.filter(p => p.wordCount < 300).length
-  const below500 = successful.filter(p => p.wordCount < 500).length
-  const noImages = successful.filter(p => p.imageCount === 0).length
-  const noInternalLinks = successful.filter(p => p.internalLinkCount < 3).length
-
-  return [
-    `Total pages audited: ${successful.length}`,
-    `Average word count: ${avgWords}`,
-    `Pages below 300 words: ${below300}`,
-    `Pages below 500 words: ${below500}`,
-    `Pages with 0 images: ${noImages}`,
-    `Pages with fewer than 3 internal links: ${noInternalLinks}`,
-  ].join('\n')
-}
-
-// ── Prompt builders ───────────────────────────────────────────────────────────
-
-function chunk<T>(array: T[], size: number): T[][] {
-  const chunks: T[][] = []
-  for (let i = 0; i < array.length; i += size) {
-    chunks.push(array.slice(i, i + size))
-  }
-  return chunks
-}
-
-function buildBasePageContext(data: ContentAuditFetchResult, brainContext?: string): string {
-  const includeBodyText = data.pages.length < 30
-  const pagesSection = data.pages.map((p, i) => formatPageSummary(p, i, includeBodyText)).join('\n\n')
-
-  const competitorSection = data.competitorPages.length > 0
-    ? data.competitorPages.map(formatCompetitorPage).join('\n\n')
-    : 'No competitor URLs provided — base gap analysis on industry best practices for this brand\'s space.'
-
-  return `${brainContext ? `=== Prior context about this brand ===\n${brainContext}\n\n` : ''}=== Brand Context ===
-Brand: ${data.brandName || 'not provided'}
-Website: ${data.websiteUrl}
-Target audience: ${data.targetAudience ?? 'not provided'}
-Business goals: ${data.businessGoals ?? 'not provided'}
-Tech stack: ${data.techStack ?? 'unknown'}
-${data.isCsr ? 'NOTE: Site appears to be client-side rendered — some pages may have limited body content. Base findings on what is available.' : ''}
-
-=== Site-Level Statistics ===
-${buildSiteStats(data.pages)}
-
-=== Your Pages (${data.pages.length} pages) ===
-
-${pagesSection}
-
-=== Competitor Data ===
-
-${competitorSection}`
-}
-
-async function analyzeContentCategoryBatch(
-  baseContext: string,
-  categoryBatch: DynamicModuleCategoryDefinition[],
-  allCategorySlugs: string[],
-): Promise<DynamicModuleAnalysisResult[]> {
-  const categoryInstructions = categoryBatch
-    .map(c => `--- Category: "${c.slug}" (label: "${c.label}") ---\n${c.prompt}`)
-    .join('\n\n')
-
-  const maxTokens = Math.min(categoryBatch.length * 150, 2000)
-
-  const prompt = `${baseContext}
-
-=== Category Instructions (Batch) ===
-${categoryInstructions}
-
-=== Output requirements ===
-Analyse all page data above. Generate findings for these categories ONLY: ${categoryBatch.map(c => `"${c.slug}"`).join(', ')}.
-
-Return ONLY a valid JSON array. No markdown fences, no text outside the array. Keep responses terse: d (detail) under 15 words, n (narrative) under 20 words, a (action) under 25 words.
-
-[{
-  "category": string — exactly one of: ${allCategorySlugs.map(s => `"${s}"`).join(', ')},
-  "slug": string — kebab-case unique identifier,
-  "label": string — plain English, no jargon; cite actual page titles or metrics,
-  "weight": 1 | 2 | 3,
-  "d": string — one plain English sentence with exact data; wrap key data point in **double asterisks**,
-  "highlight": string — 5–8 plain English words capturing the key point; no jargon, no period,
-  "n": string — exactly 1 plain English sentence on business impact; wrap the key risk in **double asterisks**,
-  "a": string — specific next step; technical details allowed here; wrap the specific thing to do in **double asterisks**,
-  "verified": boolean,
-  "fixable": boolean
-}]`
-
-  const raw = await callAI({
-    system: CONTENT_AUDIT_MODULE.systemPrompt,
-    prompt,
-    maxTokens,
-  })
-
-  const start = raw.indexOf('[')
-  const end = raw.lastIndexOf(']')
-  if (start === -1 || end === -1 || end < start) return []
-
-  try {
-    const parsed = parseClaudeJsonArray(raw.slice(start, end + 1)) as unknown[]
-    return parsed
-      .map((r: any) => ({
-        ...r,
-        detail: r.d || r.detail,
-        highlight: r.highlight ?? null,
-        narrative: r.n || r.narrative,
-        action: r.a || r.action,
-      }))
-      .filter(validateFinding) as DynamicModuleAnalysisResult[]
-  } catch {
-    return []
-  }
-}
-
-// ── Deterministic verdict engine ──────────────────────────────────────────────
-
-const STOP_WORDS = new Set([
-  'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of',
-  'with', 'by', 'from', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has',
-  'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might',
-  'this', 'that', 'these', 'those', 'your', 'our', 'their', 'how', 'what', 'why',
-  'when', 'where', 'who',
-])
-
-function significantWords(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .split(/\s+/)
-    .filter(w => w.length > 3 && !STOP_WORDS.has(w))
-}
-
-function findConsolidateTarget(page: PageSummary, allPages: PageSummary[]): string | null {
-  if (!page.title) return null
-  const myWords = significantWords(page.title)
-  if (myWords.length < 2) return null
-
-  for (const other of allPages) {
-    if (other.url === page.url || !other.title || other.fetchError) continue
-    const otherWords = significantWords(other.title)
-    const overlap = myWords.filter(w => otherWords.includes(w)).length
-    const threshold = Math.min(myWords.length, otherWords.length) * 0.5
-    if (overlap >= 2 && overlap >= threshold && other.wordCount > page.wordCount) {
-      return other.url
-    }
-  }
-  return null
-}
-
-function computeVerdicts(pages: PageSummary[]): PageVerdict[] {
-  const successful = pages.filter(p => !p.fetchError)
-
-  return successful.map(page => {
-    const { url, title, wordCount, imageCount, internalLinkCount } = page
-
-    // 1. REMOVE
-    if (wordCount < 200 || (imageCount === 0 && internalLinkCount < 3 && wordCount < 300)) {
-      return {
-        url,
-        title: title ?? null,
-        wordCount,
-        verdict: 'Remove' as const,
-        urgency: 'High' as const,
-        reason: wordCount < 200
-          ? `Only ${wordCount} words — far below the minimum viable content threshold.`
-          : `${wordCount} words with no images and fewer than 3 internal links — too thin to justify a standalone page.`,
-        action: wordCount < 50
-          ? 'Delete this page and set up a 301 redirect to the most relevant existing page.'
-          : 'Either expand to 600+ words with at least one image and 3+ internal links, or delete and set up a 301 redirect.',
+/** Pairs of content pages whose titles are about the same thing (shorter page first). */
+function duplicatePairs(pages: PageSummary[], tpl: Template): [PageSummary, PageSummary][] {
+  const out: [PageSummary, PageSummary][] = []
+  const used = new Set<string>()
+  for (let i = 0; i < pages.length; i++) {
+    for (let j = i + 1; j < pages.length; j++) {
+      const a = pages[i], b = pages[j]
+      if (!a.title || !b.title || used.has(a.url) || used.has(b.url)) continue
+      const wa = titleWords(a.title, tpl), wb = titleWords(b.title, tpl)
+      if (wa.size < 3 || wb.size < 3) continue
+      const shared = [...wa].filter(w => wb.has(w)).length
+      if (shared / new Set([...wa, ...wb]).size >= 0.6) {
+        out.push(a.wordCount <= b.wordCount ? [a, b] : [b, a])
+        used.add(a.url); used.add(b.url)
       }
     }
-
-    // 2. CONSOLIDATE (title word-overlap heuristic)
-    const consolidateTarget = findConsolidateTarget(page, successful)
-    if (consolidateTarget) {
-      return {
-        url,
-        title: title ?? null,
-        wordCount,
-        verdict: 'Consolidate' as const,
-        urgency: 'High' as const,
-        reason: `Title overlaps significantly with ${consolidateTarget} — covering the same topic splits authority and confuses search engines.`,
-        action: `Merge this page's unique content into ${consolidateTarget}, then set up a 301 redirect from this URL to that page.`,
-      }
-    }
-
-    // 3. REFRESH
-    if (wordCount < 500 && (imageCount === 0 || internalLinkCount < 3)) {
-      const issues: string[] = []
-      if (wordCount < 500) issues.push(`expand from ${wordCount} to 600+ words`)
-      if (imageCount === 0) issues.push('add at least one relevant image')
-      if (internalLinkCount < 3) issues.push(`add ${3 - internalLinkCount} more internal link${3 - internalLinkCount !== 1 ? 's' : ''}`)
-
-      return {
-        url,
-        title: title ?? null,
-        wordCount,
-        verdict: 'Refresh' as const,
-        urgency: 'Medium' as const,
-        reason: `${wordCount} words${imageCount === 0 ? ', no images' : ''}${internalLinkCount < 3 ? `, only ${internalLinkCount} internal link${internalLinkCount !== 1 ? 's' : ''}` : ''} — below quality thresholds.`,
-        action: `Update this page: ${issues.join('; ')}.`,
-      }
-    }
-
-    // 4. KEEP
-    return {
-      url,
-      title: title ?? null,
-      wordCount,
-      verdict: 'Keep' as const,
-      urgency: 'Low' as const,
-      reason: `${wordCount} words, ${imageCount} image${imageCount !== 1 ? 's' : ''}, ${internalLinkCount} internal link${internalLinkCount !== 1 ? 's' : ''} — meets content quality thresholds.`,
-      action: 'Monitor performance in Google Search Console and refresh content annually to maintain rankings.',
-    }
-  })
-}
-
-// ── JSON parsing helpers ──────────────────────────────────────────────────────
-
-import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
-
-function parseJsonArray<T>(raw: string): T[] {
-  return parseClaudeJsonArray(raw) as T[]
-}
-
-function validateFinding(r: unknown): r is DynamicModuleAnalysisResult {
-  if (!r || typeof r !== 'object') return false
-  const obj = r as Record<string, unknown>
-  const validCategories = new Set([
-    'content-gap', 'foundational-inventory', 'business-alignment',
-    'quality-substance', 'blog-topics', 'content-calendar', 'content-categories',
-  ])
-  return (
-    typeof obj['category'] === 'string' && validCategories.has(obj['category']) &&
-    typeof obj['slug'] === 'string' &&
-    typeof obj['label'] === 'string' &&
-    (obj['weight'] === 1 || obj['weight'] === 2 || obj['weight'] === 3) &&
-    typeof obj['detail'] === 'string' &&
-    typeof obj['narrative'] === 'string' &&
-    typeof obj['action'] === 'string' &&
-    typeof obj['verified'] === 'boolean'
-  )
-}
-
-
-function extractCalendarData(findings: DynamicModuleAnalysisResult[]): CalendarEntry[] | null {
-  const calendarFinding = findings.find(f => f.slug === 'content-calendar-30-day')
-  if (!calendarFinding) return null
-
-  try {
-    const entries = parseJsonArray<CalendarEntry>(calendarFinding.action)
-    if (!Array.isArray(entries) || entries.length === 0) return null
-
-    // Validate entries have required fields
-    const valid = entries.filter(e =>
-      typeof e.date === 'string' &&
-      typeof e.topic === 'string' &&
-      typeof e.category === 'string',
-    )
-    return valid.length > 0 ? valid : null
-  } catch {
-    return null
   }
+  return out
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
+// ── Rule checks ───────────────────────────────────────────────────────────────
 
-export async function analyzeContentAudit(
-  data: ContentAuditFetchResult,
-  brainContext?: string,
-): Promise<ContentAuditAnalysisOutput> {
-  if (data.pages.length === 0) {
-    throw new Error('No pages could be fetched for content audit. Check that the website URL is accessible.')
+export function buildContentRuleResults(data: ContentAuditFetchResult): Result[] {
+  const out: Result[] = []
+  const ok = data.pages.filter(p => !p.fetchError)
+  const tpl = templateOf(ok)
+  const posts = ok.filter(p => p.kind === 'post')
+  const content = ok.filter(p => p.kind === 'post' || p.kind === 'page')
+  const unreadable = data.homepageBlocked ? blockedSkipText(data.homepageBlocked) : data.homepageIsJsShell ? SHELL_SKIP : null
+
+  // ── Your content ──
+  const L = 'content-library'
+  const found = Math.max(data.postsFound, posts.length)
+  const blogLabel = 'You publish articles on your site'
+  // Nothing read and no sitemap to fall back on: we can't say there's no blog
+  if (found === 0 && unreadable && data.totalPagesFound <= 1) {
+    out.push(skip(L, 'blog', blogLabel, unreadable))
+  } else out.push(found >= 3
+    ? r(L, 'blog', 3, blogLabel, true, `We found **${found} articles** on your site.`, `${found} articles published`,
+        'Articles bring in people searching for answers, long after you publish them.', '')
+    : r(L, 'blog', 3, blogLabel, false,
+        found === 0 ? 'We found **no blog or articles** on your site.' : `We found **only ${found} article${found > 1 ? 's' : ''}** on your site.`,
+        found === 0 ? 'No blog yet' : 'Very few articles',
+        '**Without articles, the only way people find you is by already knowing your name.**',
+        'Start a blog at /blog and publish one useful article a week for your audience. See the topic ideas below.'))
+
+  // Freshness and pace, from the posts' own dates or the sitemap's
+  const dates = [data.newestPostDate, ...posts.map(p => p.published)].filter((d): d is string => !!d)
+  const newest = dates.sort().at(-1) ?? null
+  const recent = data.postsLast90Days ?? (posts.some(p => p.published) ? posts.filter(p => p.published && daysSince(p.published) <= 90).length : null)
+  if (found > 0) {
+    const fLabel = 'You\'ve published something recently'
+    if (!newest) {
+      out.push(skip(L, 'fresh', fLabel, 'Couldn\'t check: your articles don\'t show a date, and your sitemap doesn\'t list when pages changed. Add a publish date to each article.'))
+    } else {
+      const d = daysSince(newest)
+      out.push(d <= 30
+        ? r(L, 'fresh', 2, fLabel, true, `Your newest article went up **${d <= 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`}**.`, 'Published in the last month', 'A blog that\'s kept up looks alive to visitors and search engines.', '')
+        : r(L, 'fresh', 2, fLabel, false, `Your newest article is **${d} days old**.`, d > 90 ? 'Blog has gone quiet' : 'Nothing new this month',
+            '**A blog that stopped looks abandoned**, and search engines visit it less often.',
+            'Publish one new article this week, then keep to a steady pace, even one a fortnight.'))
+    }
+    const cLabel = 'You publish at a steady pace'
+    out.push(recent === null
+      ? skip(L, 'cadence', cLabel, 'Couldn\'t check: we couldn\'t tell when your articles were published.')
+      : recent >= 3
+        ? r(L, 'cadence', 2, cLabel, true, `**${recent} articles** in the last 90 days.`, 'About one a month or more', 'A steady pace builds an audience and search traffic over time.', '')
+        : r(L, 'cadence', 2, cLabel, false, `**${recent === 0 ? 'No' : `Only ${recent}`} article${recent === 1 ? '' : 's'}** in the last 90 days.`, 'Publishing has slowed',
+            '**Content builds traffic by adding up**: a few posts a year rarely move it.',
+            'Plan the next 6 posts now (see the publishing plan below) and publish one every week or two.'))
   }
 
-  const categories = CONTENT_AUDIT_MODULE.categories as DynamicModuleCategoryDefinition[]
-  const allCategorySlugs = categories.map(c => c.slug)
+  // ── Page quality ──
+  const Q = 'content-quality'
+  const qualityChecks: [string, string][] = [
+    ['thin', 'Your content pages are substantial'], ['depth', 'Your articles go into depth'], ['duplicates', 'No two pages cover the same topic'],
+    ['cta', 'Your articles lead readers to your product'], ['links', 'Your articles link to your other pages'],
+  ]
+  if (unreadable) {
+    for (const [slug, label] of qualityChecks) out.push(skip(Q, slug, label, unreadable))
+    return out
+  }
 
-  // Build base context (reused for all batches)
-  const baseContext = buildBasePageContext(data, brainContext)
+  const [tL, dL, uL, cL, kL] = qualityChecks.map(c => c[1])
+  if (content.length === 0) {
+    out.push(skip(Q, 'thin', tL, 'Couldn\'t check: we found no articles or content pages to read (only your homepage, legal and utility pages).'))
+  } else {
+    const thin = content.filter(p => p.wordCount < 300)
+    out.push(thin.length === 0
+      ? r(Q, 'thin', 3, tL, true, `All **${content.length} content pages** we read have 300+ words.`, 'No thin pages', 'Pages with substance can answer what people search for.', '')
+      : r(Q, 'thin', 3, tL, false, `**${thin.length} of ${content.length} content pages** ${thin.length === 1 ? 'has' : 'have'} under 300 words: ${list(thin, tpl)}.`, `${thin.length} thin page${thin.length > 1 ? 's' : ''}`,
+          '**Thin pages rarely rank**, and visitors leave them without learning much.',
+          'Expand each to 600+ words that answer the reader\'s question, or merge it into a fuller page. The page table below lists them.'))
+  }
 
-  // Split 7 categories into batches of 3 → 3 parallel AI calls
-  const categoryBatches = chunk(categories, 3)
+  if (posts.length >= 2) {
+    const m = median(posts.map(p => p.wordCount))
+    out.push(m >= 700
+      ? r(Q, 'depth', 2, dL, true, `Your typical article is **${m.toLocaleString()} words**.`, 'Articles go into depth', 'In-depth articles are the ones that rank and get shared.', '')
+      : r(Q, 'depth', 2, dL, false, `Your typical article is **${m.toLocaleString()} words** — short for a topic to rank.`, 'Articles are short',
+          '**Short articles lose to fuller ones** on the same topic in search.',
+          'Make your next articles 800–1,500 words, with headings, examples and steps.'))
+  } else {
+    out.push(skip(Q, 'depth', dL, `Couldn't check: we read ${posts.length === 1 ? 'only one article' : 'no articles'}, so there's nothing to compare.`))
+  }
 
-  // Run all batches in parallel
-  const batchResults = await Promise.all(
-    categoryBatches.map(batch => analyzeContentCategoryBatch(baseContext, batch, allCategorySlugs)),
-  )
+  if (content.length >= 3) {
+    const pairs = duplicatePairs(content, tpl)
+    out.push(pairs.length === 0
+      ? r(Q, 'duplicates', 2, uL, true, `None of the **${content.length} content pages** we read share a topic.`, 'Each page has its own topic', 'Search engines know which page to show for each search.', '')
+      : r(Q, 'duplicates', 2, uL, false,
+          `**${pairs.length} pair${pairs.length > 1 ? 's' : ''} of pages** cover the same topic: ${pairs.slice(0, 3).map(([a, b]) => `${nameOf(a, tpl)} and ${nameOf(b, tpl)}`).join('; ')}.`,
+          'Pages compete with each other',
+          '**Two pages on one topic split the attention** search engines would give a single strong page.',
+          'Merge each pair into the fuller page and redirect the other one to it. The page table below marks them "Consolidate".'))
+  } else {
+    out.push(skip(Q, 'duplicates', uL, 'Couldn\'t check: fewer than 3 content pages to compare.'))
+  }
 
-  // Merge all batch results
-  let findings: DynamicModuleAnalysisResult[] = batchResults.flat().map(r => ({
-    ...r,
-    fixable: typeof r.fixable === 'boolean' ? r.fixable : false,
+  if (posts.length > 0) {
+    const withCta = posts.filter(p => p.hasCta)
+    out.push(withCta.length >= posts.length / 2
+      ? r(Q, 'cta', 2, cL, true, `**${withCta.length} of ${posts.length} articles** invite readers to try, sign up or see pricing.`, 'Articles lead to your product', 'Readers who like an article have a next step.', '')
+      : r(Q, 'cta', 2, cL, false, `**Only ${withCta.length} of ${posts.length} articles** invite readers to try, sign up or see pricing.`, 'Articles don\'t lead anywhere',
+          '**Readers finish the article and leave** — the traffic never turns into customers.',
+          'End every article with one line and a button, e.g. "Want this done for you? Start your free trial."'))
+
+    const weak = posts.filter(p => p.bodyLinks < 2)
+    out.push(weak.length <= posts.length / 3
+      ? r(Q, 'links', 1, kL, true, `**${posts.length - weak.length} of ${posts.length} articles** link to 2+ of your other pages.`, 'Articles link to each other', 'Readers keep going, and search engines find all your pages.', '')
+      : r(Q, 'links', 1, kL, false, `**${weak.length} of ${posts.length} articles** link to fewer than 2 of your other pages: ${list(weak, tpl, 3)}.`, 'Articles are dead ends',
+          '**Readers have nowhere to go next**, and newer pages are harder for search engines to find.',
+          'Add 2–3 links in each article to related articles or your product pages.'))
+  } else {
+    out.push(skip(Q, 'cta', cL, 'Couldn\'t check: we read no articles.'), skip(Q, 'links', kL, 'Couldn\'t check: we read no articles.'))
+  }
+
+  return out
+}
+
+// ── Page verdicts (fixed rules) ───────────────────────────────────────────────
+
+export function computeVerdicts(data: ContentAuditFetchResult): PageVerdict[] {
+  // Nothing meaningful to say when the pages couldn't be read
+  if (data.homepageBlocked || data.homepageIsJsShell) return []
+  const tpl = templateOf(data.pages.filter(p => !p.fetchError))
+  const content = data.pages.filter(p => !p.fetchError && (p.kind === 'post' || p.kind === 'page'))
+  const merge = new Map(duplicatePairs(content, tpl).map(([short, full]) => [short.url, full]))
+  const v = (p: PageSummary, verdict: PageVerdict['verdict'], urgency: PageVerdict['urgency'], reason: string, action: string): PageVerdict =>
+    ({ url: p.url, title: p.title ? cleanTitle(p.title, tpl) : null, wordCount: p.wordCount, verdict, urgency, reason, action })
+
+  return content.map(p => {
+    const into = merge.get(p.url)
+    if (into) return v(p, 'Consolidate', 'High', `Covers the same topic as ${nameOf(into, tpl)}, which is fuller.`, `Move anything unique into ${pathOf(into.url)}, then redirect this page there.`)
+    if (p.kind === 'post' && p.wordCount < 100) return v(p, 'Remove', 'Medium', `Almost empty: ${p.wordCount} words.`, 'Write it properly, or delete it and redirect to a related article.')
+    if (p.wordCount < 300) return v(p, 'Refresh', 'High', `Thin: ${p.wordCount} words.`, 'Expand to 600+ words that fully answer the reader\'s question.')
+    if (p.kind === 'post' && p.published && daysSince(p.published) > 540) {
+      return v(p, 'Refresh', 'Medium', `Last updated ${Math.round(daysSince(p.published) / 30)} months ago.`, `Bring it up to date for ${new Date().getFullYear()} and change the date.`)
+    }
+    if (p.kind === 'post' && (!p.hasCta || p.bodyLinks < 2)) {
+      const fixes = [!p.hasCta && 'add a call to try or sign up', p.bodyLinks < 2 && 'link to 2–3 related pages'].filter(Boolean)
+      return v(p, 'Refresh', 'Low', `${p.wordCount.toLocaleString()} words, but ${!p.hasCta ? 'no next step for readers' : 'few links to your other pages'}.`, `${fixes.join(' and ').replace(/^./, c => c.toUpperCase())}.`)
+    }
+    return v(p, 'Keep', 'Low', `${p.wordCount.toLocaleString()} words${p.kind === 'post' ? ', links onward and leads to your product' : ''}.`, 'Nothing to do now.')
+  }).sort((a, b) => ORDER[a.verdict] - ORDER[b.verdict] || URGENCY[a.urgency] - URGENCY[b.urgency])
+}
+const ORDER: Record<PageVerdict['verdict'], number> = { Consolidate: 0, Remove: 1, Refresh: 2, Repurpose: 3, Keep: 4 }
+const URGENCY: Record<PageVerdict['urgency'], number> = { High: 0, Medium: 1, Low: 2 }
+
+// ── Ideas (Claude) and the publishing plan ────────────────────────────────────
+
+const STAGES = ['Awareness', 'Consideration', 'Decision'] as const
+
+/** One post every 5 days from tomorrow, Decision posts first. */
+function buildCalendar(topics: Result[]): CalendarEntry[] {
+  const stageOf = (x: Result): CalendarEntry['stage'] => (STAGES as readonly string[]).includes(x.highlight ?? '') ? x.highlight as CalendarEntry['stage'] : x.weight === 3 ? 'Decision' : x.weight === 2 ? 'Consideration' : 'Awareness'
+  const sorted = [...topics].sort((a, b) => b.weight - a.weight)
+  return sorted.map((t, i) => ({
+    date: new Date(Date.now() + (1 + i * 5) * DAY).toISOString().slice(0, 10),
+    topic: t.label,
+    category: 'Blog',
+    format: 'Blog post',
+    priority: t.weight === 3 ? 'High' : t.weight === 2 ? 'Medium' : 'Low',
+    stage: stageOf(t),
   }))
+}
 
-  // Compute page verdicts deterministically (no AI call needed)
-  const pageVerdicts = computeVerdicts(data.pages)
+export async function analyzeContentAudit(data: ContentAuditFetchResult, brainContext?: string): Promise<ContentAuditAnalysisOutput> {
+  if (data.pages.every(p => p.fetchError) && data.postsFound === 0 && !data.homepageBlocked) {
+    throw new Error('No pages could be read for the content audit. Check that the website URL is correct and public.')
+  }
+  const rules = buildContentRuleResults(data)
+  const pageVerdicts = computeVerdicts(data)
 
-  // Extract calendar data from the calendar finding's action field
-  const calendarData = extractCalendarData(findings)
+  // The overview at the top of the module rides on the first check
+  const ok = data.pages.filter(p => !p.fetchError)
+  const postsRead = ok.filter(p => p.kind === 'post')
+  const overview: ContentOverview = {
+    pagesRead: ok.length,
+    pagesFound: data.totalPagesFound,
+    postsFound: Math.max(data.postsFound, postsRead.length),
+    newestPostDate: [data.newestPostDate, ...postsRead.map(p => p.published)].filter((d): d is string => !!d).sort().at(-1) ?? null,
+    typicalPostWords: postsRead.length ? median(postsRead.map(p => p.wordCount)) : null,
+    unreadable: !!(data.homepageBlocked || data.homepageIsJsShell),
+  }
+  const first = rules.find(x => x.slug === CONTENT_SUMMARY_SLUG)
+  if (first) first.aiData = { overview }
 
-  // Replace the calendar action field with a human-readable summary
-  // (the raw JSON in action is not user-friendly)
-  findings = findings.map(f => {
-    if (f.slug === 'content-calendar-30-day' && calendarData) {
-      return {
-        ...f,
-        action: `Your 30-day editorial calendar has been generated with ${calendarData.length} scheduled posts. Download it using the button below.`,
-      }
-    }
-    return f
-  })
+  // Ideas: one call, with room for them all
+  const ideaCats = (CONTENT_AUDIT_MODULE.categories as DynamicModuleCategoryDefinition[]).filter(c => c.insight && c.prompt)
+  const failed = rules.filter(x => !x.verified && !x.detail.startsWith('Couldn\'t check'))
+  const tpl = templateOf(ok)
+  const titles = ok.filter(p => p.title).map(p => `- [${p.kind}] ${cleanTitle(p.title!, tpl)} (${p.wordCount} words)`).slice(0, 40)
+  const prompt = `${brainContext ? `=== About this brand ===\n${brainContext}\n\n` : ''}Brand: ${data.brandName || 'not provided'}
+Website: ${data.websiteUrl}
+Industry: ${data.industry ?? 'not provided'}
+Target audience: ${data.targetAudience ?? 'not provided'}
+Main selling point: ${data.usp ?? 'not provided'}
 
+=== Pages on the site (facts) ===
+${overview.postsFound} articles found in total; ${ok.length} pages read:
+${titles.join('\n') || '(none could be read)'}
+
+=== Checks that failed ===
+${failed.length ? failed.map(f => `- ${f.label}: ${f.detail.replace(/\*\*/g, '')}`).join('\n') : 'none'}
+
+=== Write ideas for these sections ===
+${ideaCats.map(c => `--- "${c.slug}" (${c.label}) ---\n${c.prompt}`).join('\n\n')}
+
+Return ONLY a JSON array. Each element:
+{"category": one of ${ideaCats.map(c => `"${c.slug}"`).join(', ')}, "slug": "{category}-{short-descriptor}", "label": string, "weight": 1|2|3, "detail": string, "highlight": string, "narrative": string, "action": string}`
+
+  let ideas: Result[] = []
+  try {
+    const raw = await callAI({ system: CONTENT_AUDIT_MODULE.systemPrompt, prompt, maxTokens: 4000 })
+    const allowed = new Set(ideaCats.map(c => c.slug))
+    ideas = (parseClaudeJsonArray(raw) as Result[])
+      .filter(x => typeof x?.category === 'string' && allowed.has(x.category) && typeof x.label === 'string' && typeof x.detail === 'string')
+      .map(x => ({
+        category: x.category,
+        // Ideas are recognised by their slug prefix (see isDynamicIdea), so make sure it's there
+        slug: String(x.slug ?? x.label).startsWith(`${x.category}-`) ? String(x.slug) : `${x.category}-${String(x.slug ?? x.label).toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60)}`,
+        label: x.label,
+        weight: x.weight === 3 || x.weight === 1 ? x.weight : 2,
+        detail: x.detail,
+        highlight: x.highlight,
+        narrative: x.narrative ?? '',
+        action: x.action ?? '',
+        verified: false,
+        fixable: false,
+      }))
+  } catch (err) {
+    console.error('[content-audit] ideas failed', err)
+  }
+
+  // The 30-day plan, built from the blog topic ideas
+  const topics = ideas.filter(x => x.category === 'blog-topics')
+  const calendarData = topics.length ? buildCalendar(topics) : null
+  if (calendarData) {
+    ideas.push({
+      category: 'content-calendar', slug: 'content-calendar-30-day', label: '30-day publishing plan', weight: 2,
+      detail: `**${calendarData.length} articles**, one every 5 days from ${calendarData[0].date}, the ones closest to a purchase first.`,
+      highlight: 'A plan for the next 30 days',
+      narrative: 'Publishing on a schedule is what turns ideas into traffic.',
+      action: 'Download the plan and put the dates in your calendar.',
+      verified: false, fixable: false, aiData: calendarData as unknown as Record<string, unknown>,
+    })
+  }
+
+  // Unique slugs (two items with the same slug would overwrite each other)
+  const seen = new Set<string>()
+  const findings = [...rules, ...ideas].filter(x => (seen.has(x.slug) ? false : (seen.add(x.slug), true)))
   return { findings, pageVerdicts, calendarData }
 }

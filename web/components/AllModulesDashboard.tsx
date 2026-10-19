@@ -15,6 +15,8 @@ import ComingSoon from '@/components/ComingSoon'
 import { type DBItemState } from './ModuleDashboard'
 import SocialProfilesOverview from './SocialProfilesOverview'
 import BrandBasisOverview from './BrandBasisOverview'
+import ContentPagesOverview from './ContentPagesOverview'
+import { CONTENT_SUMMARY_SLUG, type ContentOverview } from '@/lib/modules/content-audit/summary'
 import { BRAND_SUMMARY_SLUG, type BrandBasis } from '@/lib/modules/brand-audit/summary'
 import { SOCIAL_SUMMARY_SLUG, type SocialProfileSummary } from '@/lib/modules/social-media/summary'
 import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/registry'
@@ -3296,6 +3298,11 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     {modData.type === 'social-media' && effectiveLastAnalyzedAt && !needsSetup && (() => {
                       const profiles = (dynItems.find(i => i.slug === SOCIAL_SUMMARY_SLUG)?.aiData as { profiles?: SocialProfileSummary[] } | null)?.profiles
                       return profiles?.length ? <SocialProfilesOverview profiles={profiles} /> : null
+                    })()}
+                    {modData.type === 'content-audit' && effectiveLastAnalyzedAt && !needsSetup && (() => {
+                      const overview = (dynItems.find(i => i.slug === CONTENT_SUMMARY_SLUG)?.aiData as { overview?: ContentOverview } | null)?.overview ?? null
+                      const verdicts = pageVerdictsMap[modData.id] ?? []
+                      return overview || verdicts.length ? <ContentPagesOverview overview={overview} verdicts={verdicts} /> : null
                     })()}
                     {modData.type === 'brand-audit' && effectiveLastAnalyzedAt && !needsSetup && (() => {
                       const basis = (dynItems.find(i => i.slug === BRAND_SUMMARY_SLUG)?.aiData as { basis?: BrandBasis } | null)?.basis

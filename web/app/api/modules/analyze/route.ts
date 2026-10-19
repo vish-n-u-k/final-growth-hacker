@@ -413,6 +413,8 @@ Key One-Liners: ${pb.keyOneLiners}`
     // Preserve user_checked state before wiping items
     const existingItems = await db.select().from(moduleItems).where(eq(moduleItems.moduleId, moduleId))
     const userCheckedSlugs = new Set(existingItems.filter(i => i.userChecked).map(i => i.slug))
+    // Skips carry over to the same item (same slug) on the next run
+    const skippedBySlugCa = new Map(existingItems.filter(i => i.userSkipped).map(i => [i.slug, i]))
 
     // Replace findings: one transaction, so a page load never sees the module half-written.
     await db.transaction(async (tx) => {
@@ -424,9 +426,9 @@ Key One-Liners: ${pb.keyOneLiners}`
       let cats = await tx.select().from(moduleCategories).where(eq(moduleCategories.moduleId, moduleId))
       let catMap = new Map(cats.filter(c => !c.parentId).map(c => [c.slug, c.id]))
 
-      // If categories weren't seeded at onboarding (module added to registry after user onboarded), seed them now
-      if (catMap.size === 0) {
-        for (const cat of def.categories) {
+      // Seed any category the definition has that isn't stored yet (not seeded at onboarding, or added since)
+      if (def.categories.some(cat => !catMap.has(cat.slug))) {
+        for (const cat of def.categories.filter(c => !catMap.has(c.slug))) {
           // eslint-disable-next-line no-await-in-loop
           await tx.insert(moduleCategories).values({
             moduleId,
@@ -447,6 +449,7 @@ Key One-Liners: ${pb.keyOneLiners}`
           if (!categoryId) return Promise.resolve()
           const wasChecked = userCheckedSlugs.has(r.slug)
           const isCalendar = r.slug === 'content-calendar-30-day'
+          const skipped = skippedBySlugCa.get(r.slug)
           return tx.insert(moduleItems).values({
             moduleId,
             categoryId,
@@ -457,11 +460,13 @@ Key One-Liners: ${pb.keyOneLiners}`
             aiHighlight: r.highlight ?? null,
             aiNarrative: r.narrative,
             aiAction: r.action,
-            aiData: isCalendar && calendarData ? calendarData : null,
+            aiData: r.aiData ?? (isCalendar && calendarData ? calendarData : null),
             aiVerified: r.verified,
             aiVerifiedAt: r.verified ? new Date() : null,
             userChecked: wasChecked,
             userCheckedAt: wasChecked ? new Date() : null,
+            userSkipped: !!skipped,
+            userSkipReason: skipped?.userSkipReason ?? null,
             completedBy: r.verified ? 'ai' : wasChecked ? 'user' : null,
             fixable: false,
             updatedAt: new Date(),
@@ -471,7 +476,9 @@ Key One-Liners: ${pb.keyOneLiners}`
 
       // Re-insert user_checked items Claude didn't return — keep them visible in checklist as completed
       const returnedSlugsCa = new Set(findings.map((r) => r.slug))
-      const orphansCa = existingItems.filter((i) => i.userChecked && !returnedSlugsCa.has(i.slug))
+      // ...only in areas the module still has (an old area isn't shown, so its ticks mustn't count in the score)
+      const liveCatIdsCa = new Set(cats.filter((c) => !c.parentId && def.categories.some((d) => d.slug === c.slug)).map((c) => c.id))
+      const orphansCa = existingItems.filter((i) => i.userChecked && liveCatIdsCa.has(i.categoryId) && !returnedSlugsCa.has(i.slug))
       if (orphansCa.length > 0) {
         await Promise.all(
           orphansCa.map((i) =>

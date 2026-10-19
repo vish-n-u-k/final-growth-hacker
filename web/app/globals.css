@@ -7898,3 +7898,32 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
 .bbo-row.is-empty { background: var(--warn-soft); border-color: transparent; }
 .bbo-row.is-empty dd { color: var(--warn); font-size: 13px; }
 @media (max-width: 640px) { .bbo-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── Content Audit: what we read, and a verdict per content page ── */
+.cpo-stats { margin: 0 0 14px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.cpo-stat { min-width: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.cpo-stat dt { font-size: 12.5px; color: var(--text-dim); margin-bottom: 4px; }
+.cpo-stat dd { margin: 0; display: flex; flex-direction: column; gap: 1px; }
+.cpo-stat dd b { font-size: 17px; font-weight: 600; color: var(--text); }
+.cpo-stat dd span { font-size: 12px; color: var(--text-faint); }
+.cpo-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.cpo-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; }
+.cpo-row + .cpo-row { border-top: 1px solid var(--line); }
+.cpo-verdict { flex-shrink: 0; width: 96px; text-align: center; font-size: 12px; font-weight: 600; border-radius: 99px; padding: 3px 0; background: var(--bg-soft); color: var(--text-dim); }
+.cpo-verdict.is-ok { background: var(--accent); color: var(--accent-foreground); }
+.cpo-verdict.is-warn { background: var(--warn-soft); color: var(--warn); }
+.cpo-verdict.is-bad { background: var(--crit-soft); color: var(--crit); }
+.cpo-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cpo-title { font-size: 14px; font-weight: 600; color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cpo-title:hover { text-decoration: underline; }
+.cpo-meta { font-size: 12.5px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cpo-why { font-size: 13px; color: var(--text-dim); line-height: 1.45; overflow-wrap: anywhere; }
+.cpo-why b { font-weight: 500; color: var(--text); }
+.cpo-toggle { margin-top: 10px; background: none; border: 0; padding: 4px 0; font: inherit; font-size: 13px; font-weight: 500; color: var(--accent-foreground); cursor: pointer; }
+.cpo-toggle:hover { text-decoration: underline; }
+@media (max-width: 760px) { .cpo-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) {
+  .cpo-row { flex-direction: column; gap: 6px; }
+  .cpo-main { width: 100%; }
+  .cpo-verdict { width: auto; padding: 3px 10px; }
+}
