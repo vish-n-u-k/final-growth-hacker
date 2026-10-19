@@ -1029,7 +1029,6 @@ html.light .md-spin { border-color: rgba(23,154,80,0.3); border-top-color: var(-
 .md-setup-field { display: flex; flex-direction: column; gap: 8px; }
 .md-setup-label {
   font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: 0.01em;
-  text-transform: capitalize;
 }
 .md-setup-required { color: #ff6b6b; font-weight: 700; }
 .md-setup-input {

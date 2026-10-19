@@ -20,9 +20,9 @@ export const COMPETITOR_ANALYSIS_MODULE: ModuleDefinition = {
   requirements: [
     {
       key: 'competitor_urls',
-      label: 'Competitor websites (up to 3 — leave empty and GrowJin will suggest some)',
+      label: 'Competitor websites',
       type: 'url_list',
-      placeholder: 'https://competitor1.com, https://competitor2.com',
+      placeholder: 'Up to 3, e.g. buffer.com, later.com. Leave empty and GrowJin will suggest some.',
       required: false,
     },
   ],

@@ -2163,14 +2163,18 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   ) : null
 
   // The result summary shows once a module is set up and analysed; the growth-stage note then sits inside it.
+  // Inputs GrowJin already has from the brand profile aren't asked for again (the analysis fills them in)
+  const knownReq = (key: string) => (key === 'website_url' && !!brand.websiteUrl) || (key === 'brand_name' && !!brand.name)
+  const askedReqs = (def: ModuleDefinition) => def.requirements.filter(r => !knownReq(r.key))
+
   const bandSummary = (m: ModuleData | undefined) => {
     if (!m || m.definition.comingSoon || m.type === 'business-stage' || m.type === 'gmail-outreach') return null
     if (isModuleLocked(m)) return null
     const def = m.definition
     const reqValues = reqValuesMap[m.id] ?? {}
     const dynItems = dynItemsMap[m.id] ?? []
-    const missing = def.requirements.filter(r => r.required !== false && !reqValues[r.key]?.trim())
-    const needsSetup = missing.length > 0 || (!!def.dynamic && dynItems.length === 0 && def.requirements.length > 0)
+    const missing = askedReqs(def).filter(r => r.required !== false && !reqValues[r.key]?.trim())
+    const needsSetup = missing.length > 0 || (!!def.dynamic && dynItems.length === 0 && askedReqs(def).length > 0)
     const analysed = lastAnalyzedAtMap[m.id] !== undefined ? lastAnalyzedAtMap[m.id] : m.lastAnalyzedAt
     if (needsSetup || !analysed) return null
     const sum = summarizeCats(def, statesMap[m.id] ?? {}, dynItems)
@@ -2600,10 +2604,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             const states = statesMap[modData.id] ?? {}
             const dynItems = dynItemsMap[modData.id] ?? []
             const openCats = openCatsMap[modData.id] ?? new Set<string>()
-            const missingReqs = def.requirements.filter(r => r.required !== false && !reqValues[r.key]?.trim())
+            const missingReqs = askedReqs(def).filter(r => r.required !== false && !reqValues[r.key]?.trim())
             // For dynamic modules with no findings yet, always show setup form
             const hasNoFindings = def.dynamic && dynItems.length === 0
-            const needsSetup = missingReqs.length > 0 || (hasNoFindings && def.requirements.length > 0)
+            const needsSetup = missingReqs.length > 0 || (hasNoFindings && askedReqs(def).length > 0)
 
             // Categories for the list and the detail panel (not for modules that have their own layout).
             const hasCatList = !def.comingSoon && modData.type !== 'business-stage' && modData.type !== 'gmail-outreach'
@@ -2626,7 +2630,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     body: soon ? (
                       <ComingSoon title={cat.label} note={(cat as DynamicModuleCategoryDefinition).comingSoonNote} />
                     ) : catItems.length === 0 ? (
-                      <p className="gp-detail-empty">No issues found in this category.</p>
+                      // Before the first run the panel already says the checks run when you analyse
+                      effectiveLastAnalyzedAt ? <p className="gp-detail-empty">No issues found in this category.</p> : null
                     ) : (
                       <div className="md-sub">
                         <div className="md-items">
@@ -2947,9 +2952,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     {!def.comingSoon && needsSetup && (
                       <div className="md-setup-card" style={{ margin: '20px 28px 0' }}>
                         <div className="md-setup-title">Set up {def.name}</div>
-                        <p className="md-setup-desc">Provide the information below before running the analysis.</p>
+                        <p className="md-setup-desc">{askedReqs(def).some(r => r.required !== false) ? 'Provide the information below before running the analysis.' : 'Optional: add these now, or just run the analysis.'}</p>
                         <div className="md-setup-fields">
-                          {def.requirements.map((req) => {
+                          {askedReqs(def).map((req) => {
                             return (
                             <div key={req.key} className="md-setup-field">
                               <label className="md-setup-label">
