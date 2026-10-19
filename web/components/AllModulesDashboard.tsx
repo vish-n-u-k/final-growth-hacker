@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/badge'
 import ComingSoon from '@/components/ComingSoon'
 import { type DBItemState } from './ModuleDashboard'
 import SocialProfilesOverview from './SocialProfilesOverview'
+import BrandBasisOverview from './BrandBasisOverview'
+import { BRAND_SUMMARY_SLUG, type BrandBasis } from '@/lib/modules/brand-audit/summary'
 import { SOCIAL_SUMMARY_SLUG, type SocialProfileSummary } from '@/lib/modules/social-media/summary'
 import { INTEGRATION_MAP, type IntegrationDefinition } from '@/lib/integrations/registry'
 import { PLAYBOOK_SECTIONS } from '@/lib/playbook/fields'
@@ -165,31 +167,40 @@ function summarizeCats(def: ModuleDefinition, states: Record<string, DBItemState
   let needs = 0
   let pass = 0
   let openItems = 0
-  let first: { catSlug: string; catLabel: string; catPct: number; itemSlug: string; label: string; weight: number } | null = null
+  // label: what the item shows as its title (the finding, e.g. "No customer quotes"); action: its first step
+  let first: { catSlug: string; catLabel: string; catPct: number; itemSlug: string; label: string; action: string; weight: number } | null = null
   for (const cat of def.categories as (ModuleCategoryDefinition | DynamicModuleCategoryDefinition)[]) {
     if (cat.slug === 'next-campaign' || (cat as DynamicModuleCategoryDefinition).comingSoon) continue
-    let open: { slug: string; label: string; weight: number }[]
+    let open: { slug: string; label: string; action: string; weight: number }[]
     let stats: { total: number; done: number; pct: number }
     if (def.dynamic) {
       stats = getDynamicCatStats(def, cat.slug, dynItems)
       open = dynItems
         .filter(i => i.categorySlug === cat.slug && dynCounts(def, i) && !i.userSkipped && !i.aiVerified && !i.userChecked)
-        .map(i => ({ slug: i.slug, label: i.label, weight: i.weight }))
+        .map(i => ({ slug: i.slug, label: i.aiHighlight || i.label, action: i.aiAction ?? '', weight: i.weight }))
     } else {
       stats = getCatStats(cat as ModuleCategoryDefinition, states)
       open = (cat as ModuleCategoryDefinition).subCategories
         .flatMap(sub => sub.items)
         .filter(i => !i.insight && counts(i.slug, states) && !states[i.slug]?.userSkipped && !states[i.slug]?.aiVerified && !states[i.slug]?.userChecked)
-        .map(i => ({ slug: i.slug, label: i.label, weight: i.weight }))
+        .map(i => ({ slug: i.slug, label: states[i.slug]?.aiHighlight || i.label, action: states[i.slug]?.aiAction ?? '', weight: i.weight }))
     }
     if (catNeedsAttention(stats)) needs++
     else if (stats.total > 0) pass++
     openItems += open.length
     for (const it of open) {
-      if (!first || it.weight > first.weight) first = { catSlug: cat.slug, catLabel: cat.label, catPct: stats.pct, itemSlug: it.slug, label: it.label, weight: it.weight }
+      if (!first || it.weight > first.weight) first = { catSlug: cat.slug, catLabel: cat.label, catPct: stats.pct, itemSlug: it.slug, label: it.label, action: it.action, weight: it.weight }
     }
   }
   return { needs, pass, openItems, first }
+}
+
+/** "Add 2–3 quotes… Then link…" → "Add 2–3 quotes…", without markdown bold. */
+function firstSentence(text: string): string {
+  const plain = text.replace(/\*\*/g, '').trim()
+  const m = /^.+?[.!?](?=\s+[A-Z"“(]|$)/.exec(plain) // "e.g. how" doesn't end the sentence
+  const one = (m ? m[0] : plain)
+  return one.length > 160 ? `${one.slice(0, 157).replace(/\s+\S*$/, '')}…` : one
 }
 
 function renderMd(text: string, color: string) {
@@ -3165,6 +3176,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                               <div className="gp-fix-body">
                                 <div className="gp-sum-eyebrow">Fix this first</div>
                                 <b className="gp-fix-title">{sum.first.label}</b>
+                                {/* The first step, in one sentence (the full steps open with "Show me how") */}
+                                {sum.first.action && <span className="gp-fix-step">{firstSentence(sum.first.action)}</span>}
                                 <span className="gp-sum-sub">{sum.first.catLabel} · lifts it from {sum.first.catPct}% toward 100%</span>
                               </div>
                               <button type="button" className="gp-fix-cta" onClick={() => focusItem(modData.id, sum.first!.catSlug, sum.first!.itemSlug)}>Show me how</button>
@@ -3283,6 +3296,10 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                     {modData.type === 'social-media' && effectiveLastAnalyzedAt && !needsSetup && (() => {
                       const profiles = (dynItems.find(i => i.slug === SOCIAL_SUMMARY_SLUG)?.aiData as { profiles?: SocialProfileSummary[] } | null)?.profiles
                       return profiles?.length ? <SocialProfilesOverview profiles={profiles} /> : null
+                    })()}
+                    {modData.type === 'brand-audit' && effectiveLastAnalyzedAt && !needsSetup && (() => {
+                      const basis = (dynItems.find(i => i.slug === BRAND_SUMMARY_SLUG)?.aiData as { basis?: BrandBasis } | null)?.basis
+                      return basis ? <BrandBasisOverview basis={basis} /> : null
                     })()}
 
                     <div className={`md-cats${reanalyzing && !effectiveLastAnalyzedAt ? ' gp-cats--loading' : ''}`} style={(modData.type === 'business-stage' || modData.type === 'gmail-outreach') ? { display: 'none' } : needsSetup ? { opacity: 0.4, pointerEvents: 'none' } : {}}>

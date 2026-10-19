@@ -4,6 +4,7 @@ import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } fro
 import type { BrandAuditFetchResult } from './fetcher'
 import { blockedSkipText } from '@/lib/audit/blocked'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
+import { BRAND_SUMMARY_SLUG, type BrandBasis } from './summary'
 
 // Brand Audit: the facts (what the top of the homepage says, proof, pricing, a risk-free start,
 // why-us) are fixed rule checks with stable slugs, so ticks and the score stay put between runs.
@@ -76,7 +77,7 @@ export function buildBrandRuleResults(data: BrandAuditFetchResult): Result[] {
     const named = groups.filter(g => { const w = [...stems(g)]; return w.filter(x => top.has(x)).length >= Math.min(2, w.length) })
     check(P, 'audience', aLabel, () => named.length > 0
       ? r(P, 'audience', 3, aLabel, true,
-          `${topWhere[0].toUpperCase()}${topWhere.slice(1)} speak${data.h1 ? '' : 's'} to **${names(named)}**.`, `Speaks to ${names(named).slice(0, 40)}`,
+          `${topWhere[0].toUpperCase()}${topWhere.slice(1)} speak${data.h1 ? '' : 's'} to **${names(named)}**.`, 'Speaks to your audience',
           'Visitors who fit can tell in seconds that this is for them.', '')
       : r(P, 'audience', 3, aLabel, false,
           `${topWhere[0].toUpperCase()}${topWhere.slice(1)} ${data.h1 ? 'don\'t' : 'doesn\'t'} name who it's for. Your audience: **${names(groups.length ? groups : [data.targetAudience!.slice(0, 80)])}**.`,
@@ -121,26 +122,26 @@ export function buildBrandRuleResults(data: BrandAuditFetchResult): Result[] {
   const pr = data.proof
   check(R, 'testimonials', 'Customers speak for you on your homepage', () => pr.testimonials
     ? r(R, 'testimonials', 3, 'Customers speak for you on your homepage', true, `Your homepage has ${pr.testimonials}.`, 'Customer quotes on the homepage', 'Words from real customers persuade more than anything you say yourself.', '')
-    : r(R, 'testimonials', 3, 'Customers speak for you on your homepage', false, '**No customer quotes** found on your homepage.', 'No customer quotes',
+    : r(R, 'testimonials', 3, 'Customers speak for you on your homepage', false, 'There\'s **no testimonials section, quote or review** from a customer on your homepage.', 'No customer quotes',
         '**Without other people vouching for you, visitors have only your word.**',
         'Add 2–3 short quotes from real customers, each with a name, role or company, and a photo if you can.'))
 
   check(R, 'logos', 'You show who already uses you', () => pr.logos
     ? r(R, 'logos', 2, 'You show who already uses you', true, `Your homepage shows ${pr.logos}.`, 'Shows who uses you', 'Familiar names make you look established.', '')
-    : r(R, 'logos', 2, 'You show who already uses you', false, '**No "trusted by" line or customer logos** on your homepage.', 'No "trusted by" proof',
+    : r(R, 'logos', 2, 'You show who already uses you', false, 'Your homepage doesn\'t show **who already uses you**: no "trusted by" line or logo strip.', 'No "trusted by" proof',
         '**Visitors can\'t see that anyone like them already uses you.**',
         'Add a "Trusted by" row with customer logos — or, if you\'re early, a line like "Used by 40+ small businesses" (only if true).'))
 
   check(R, 'numbers', 'You back your claims with numbers', () => pr.numbers.length > 0
     ? r(R, 'numbers', 2, 'You back your claims with numbers', true, `Your homepage quotes **${pr.numbers.slice(0, 3).join(', ')}**.`, 'Numbers back your claims', 'Real numbers make claims believable.', '')
-    : r(R, 'numbers', 2, 'You back your claims with numbers', false, '**No customer counts or ratings** on your homepage (e.g. "2,000+ businesses", "4.8/5").', 'No numbers as proof',
+    : r(R, 'numbers', 2, 'You back your claims with numbers', false, 'Your homepage has **no customer count or rating**, like "2,000+ businesses" or "4.8/5".', 'No numbers as proof',
         '**Claims without numbers are easy to doubt.**',
         'Add one true number near your proof: customers, posts made, hours saved, or your average rating.'))
 
   check(R, 'review-sites', 'You link to reviews on sites people trust', () => pr.reviewSites.length > 0
     ? r(R, 'review-sites', 2, 'You link to reviews on sites people trust', true, `Your homepage links to **${names(pr.reviewSites.map(s => s.name))}**.`, 'Links to independent reviews', 'Reviews on independent sites are trusted more than your own page.', '')
     : r(R, 'review-sites', 2, 'You link to reviews on sites people trust', false,
-        `**No links to independent reviews** (${SELLS_ONLINE.has(type) ? 'G2, Capterra, Trustpilot, Product Hunt' : 'Google reviews, Trustpilot, Yelp'}) on your homepage.`, 'No independent reviews linked',
+        `Your homepage doesn't link to reviews on **${SELLS_ONLINE.has(type) ? 'G2, Capterra, Trustpilot or Product Hunt' : 'Google, Trustpilot or Yelp'}**.`, 'No independent reviews linked',
         '**Visitors who want a second opinion have to go looking** — and may not come back.',
         type === 'saas'
           ? 'Get your first reviews on G2 or Product Hunt, then add their badge or a link to your homepage.'
@@ -149,7 +150,7 @@ export function buildBrandRuleResults(data: BrandAuditFetchResult): Result[] {
   if (CASE_STUDY_TYPES.has(type)) {
     check(R, 'case-studies', 'You show a customer\'s results in detail', () => pr.caseStudies
       ? r(R, 'case-studies', 1, 'You show a customer\'s results in detail', true, `Your homepage links to ${pr.caseStudies}.`, 'Case studies linked', 'A detailed story shows exactly what working with you gets.', '')
-      : r(R, 'case-studies', 1, 'You show a customer\'s results in detail', false, '**No case studies or customer stories** linked from your homepage.', 'No case studies',
+      : r(R, 'case-studies', 1, 'You show a customer\'s results in detail', false, 'Your homepage doesn\'t link to **a customer\'s story** showing their results.', 'No case studies',
           '**Buyers comparing options want to see results**, not just promises.',
           'Write one short customer story: their problem, what they did with you, and the result in numbers. Link it from your homepage.'))
   }
@@ -190,6 +191,16 @@ export function buildBrandRuleResults(data: BrandAuditFetchResult): Result[] {
           'Add a short "Why [your brand]" section under the hero with 3 reasons only you can claim. See the ideas below for wording.'))
   }
 
+  // What the checks compared against, for the overview at the top of the module
+  const first = out.find(x => x.slug === BRAND_SUMMARY_SLUG)
+  if (first) {
+    const basis: BrandBasis = {
+      headline: data.homepageLoaded && !data.homepageIsJsShell ? data.h1 || null : null,
+      pageRead: data.homepageLoaded && !data.homepageIsJsShell,
+      audience: data.targetAudience, usp: data.usp, voice: data.brandVoice,
+    }
+    first.aiData = { basis }
+  }
   return out
 }
 
