@@ -7957,6 +7957,17 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
 .cmo-no { color: var(--text-faint); }
 .cmo-num { font-variant-numeric: tabular-nums; color: var(--text); }
 .cmo-note { margin: 10px 0 0; font-size: 12.5px; color: var(--text-faint); }
+.cmo-catch { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+.cmo-catch-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.cmo-catch-title { margin: 0; font-size: 14.5px; font-weight: 600; color: var(--text); }
+.cmo-catch-sub { margin: 2px 0 0; font-size: 12.5px; color: var(--text-dim); }
+.cmo-catch-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.cmo-catch-list li { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.cmo-catch-list a { font-size: 14px; font-weight: 600; color: var(--text); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmo-catch-list a:hover { text-decoration: underline; }
+.cmo-catch-host { font-size: 12px; color: var(--text-faint); }
+.cmo-catch-why { font-size: 13px; color: var(--text-dim); line-height: 1.4; }
+@media (max-width: 640px) { .cmo-catch-hd { flex-direction: column; } .cmo-catch-list { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 640px) {
   .cmo-edit { grid-template-columns: minmax(0, 1fr); }
   .cmo-table { font-size: 12.5px; }

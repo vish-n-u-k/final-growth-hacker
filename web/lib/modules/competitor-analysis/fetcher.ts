@@ -10,12 +10,17 @@ import { storeCompetitors } from '@/lib/modules/competitor-registry'
 // Competitor Analysis reads your homepage and up to 3 competitors' the same way (Brand Audit's
 // homepage reader, plus the sitemap for articles), so every check compares like with like.
 //
-// Competitors, in order: this module's setup → competitors saved by other modules → GEO's list →
-// a short AI suggestion, kept only if the sites load. Suggestions are saved into this module's
-// setup (marked as suggested) so later runs compare against the same sites, and the user can
-// change them from the page.
+// Competitors, in order: this module's setup → competitors saved by other modules → GEO's own list →
+// four "achievable" competitors (similar-size businesses this brand can realistically catch, not
+// the market leaders), suggested by AI and kept only if their sites load. The achievable list is
+// shown on the page either way, and is cached in this module's setup for 30 days so it stays put
+// between runs. A suggested comparison set is saved into setup (marked as suggested) so later runs
+// compare against the same sites, and the user can change it from the page.
 
 export type CompetitorSource = 'setup' | 'saved' | 'suggested'
+
+/** A competitor at a similar stage: realistic to catch, unlike the market leaders. */
+export interface Achievable { name: string; url: string; why: string }
 
 export interface SiteProfile {
   url: string
@@ -37,12 +42,14 @@ export interface CompetitorAnalysisFetchResult {
   targetAudience: string | null
   usp: string | null
   you: SiteProfile
-  competitors: SiteProfile[]        // the ones that loaded (up to 3)
+  competitors: SiteProfile[]        // the ones that loaded (up to 4)
+  achievable: Achievable[]          // similar-size competitors to catch (up to 4)
   unreachable: string[]             // listed but couldn't be read (blocked, down, JavaScript-only)
   suggested: boolean                // the list is GrowJin's suggestion, not the user's
 }
 
-const MAX = 3
+const MAX = 4
+const ACHIEVABLE_TTL_DAYS = 30
 const COMPARISON = /\/(vs|versus|compare|comparison)(\/|-|$)|-vs-|\/[^/]*-alternatives?(\/|$)|\/alternatives?(\/|-|$)/i
 
 function normalise(raw: string): string | null {
@@ -56,21 +63,43 @@ function normalise(raw: string): string | null {
 export const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return u } }
 const split = (v: string | undefined) => (v ?? '').split(/[,\n]/)
 
-async function suggestCompetitors(websiteUrl: string, brandName: string, brainCtx?: string): Promise<string[]> {
+async function suggestAchievable(websiteUrl: string, brand: { name?: string | null; industry?: string | null; targetAudience?: string | null; usp?: string | null }, brainCtx?: string): Promise<Achievable[]> {
   try {
     const raw = await callAI({
-      system: 'You name real, currently operating direct competitors of a business. Reply with JSON only.',
-      prompt: `Business: ${brandName || websiteUrl} (${websiteUrl})
+      system: 'You name real, currently operating competitors of a business. Reply with JSON only.',
+      prompt: `Business: ${brand.name || websiteUrl} (${websiteUrl})
+Industry: ${brand.industry ?? 'unknown'}
+Customers: ${brand.targetAudience ?? 'unknown'}
+What it offers: ${brand.usp ?? 'unknown'}
 ${brainCtx ? `Context:\n${brainCtx.slice(0, 1500)}\n` : ''}
-List up to 5 direct competitors that sell a similar product to the same customers. Only well-known companies you are confident exist; no marketplaces or review sites.
-Return a JSON array of homepage URLs, e.g. ["https://example.com"]. Return [] if unsure.`,
-      maxTokens: 300,
+List 6 competitors this business can realistically catch up with in the next 6–12 months: companies at a similar stage and size (small, indie or early-stage) that sell a similar product to the same customers.
+Do NOT list the market leaders or big, well-funded companies in this space — only peers it can actually compete with now.
+Only real companies you are confident exist and still operate; no marketplaces, agencies-for-hire or review sites.
+Return a JSON array: [{"name": "Company", "url": "https://homepage.com", "why": "one short line: what they offer and to whom"}]. Return [] if unsure.`,
+      maxTokens: 700,
       model: 'claude-haiku-4-5-20251001',
     })
-    return (JSON.parse(raw.slice(raw.indexOf('['), raw.lastIndexOf(']') + 1)) as unknown[]).map(String)
+    const arr = JSON.parse(raw.slice(raw.indexOf('['), raw.lastIndexOf(']') + 1)) as { name?: unknown; url?: unknown; why?: unknown }[]
+    return arr.filter(x => typeof x?.url === 'string').map(x => ({ name: String(x.name ?? ''), url: String(x.url), why: String(x.why ?? '') }))
   } catch {
     return []
   }
+}
+
+/** The achievable list: from the cache in setup if it's recent, else a fresh suggestion of sites that load. */
+async function achievableCompetitors(requirements: Record<string, string>, websiteUrl: string, brand: Parameters<typeof suggestAchievable>[1], exclude: (u: string) => boolean, brainCtx?: string): Promise<{ list: Achievable[]; fresh: boolean }> {
+  try {
+    const cached = JSON.parse(requirements['achievable_competitors'] || '[]') as Achievable[]
+    const at = Date.parse(requirements['achievable_at'] ?? '')
+    if (cached.length && Number.isFinite(at) && Date.now() - at < ACHIEVABLE_TTL_DAYS * 86_400_000) return { list: cached, fresh: false }
+  } catch { /* suggest again */ }
+  const ideas = (await suggestAchievable(websiteUrl, brand, brainCtx))
+    .map(x => ({ ...x, url: normalise(x.url) ?? '' }))
+    .filter(x => x.url && !exclude(x.url))
+  // Keep only real, reachable sites
+  const checked = await Promise.all(ideas.slice(0, 8).map(async x => ((await fetchPage(x.url)).html ? x : null)))
+  const list = checked.filter((x): x is Achievable => !!x).slice(0, MAX).map(x => ({ ...x, name: x.name || hostOf(x.url) }))
+  return { list, fresh: true }
 }
 
 /** One site: its homepage (as Brand Audit reads it) and its sitemap's articles and comparison pages. */
@@ -112,17 +141,23 @@ export async function fetchCompetitorAnalysisData(requirements: Record<string, s
   if (sameAsSuggested) source = 'suggested'
   if (urls.length === 0) { urls = pick(saved.map(s => s.url)); source = 'saved' }
   if (urls.length === 0 && brandId) {
+    // GEO's list, only if the user set it (GEO's own suggestions lean to the market leaders)
     const [geo] = await db.select({ requirements: modules.requirements }).from(modules).where(and(eq(modules.brandId, brandId), eq(modules.type, 'geo'))).limit(1).catch(() => [])
     const geoReq = (geo?.requirements as Record<string, string> | null) ?? {}
-    urls = pick(split(geoReq.competitor_urls))
-    source = urls.length && geoReq.competitor_urls !== geoReq.competitor_urls_suggested ? 'saved' : 'suggested'
+    if (geoReq.competitor_urls && geoReq.competitor_urls !== geoReq.competitor_urls_suggested) { urls = pick(split(geoReq.competitor_urls)); source = 'saved' }
   }
-  if (urls.length === 0) { urls = pick(await suggestCompetitors(websiteUrl, brand?.name ?? requirements['brand_name'] ?? '', brainCtx)); source = 'suggested' }
 
-  // Read you and the competitors; keep the first 3 competitors that load
+  // Competitors you can realistically catch (shown either way; compared when there's no other list)
+  const achievable = await achievableCompetitors(requirements, websiteUrl,
+    { name: brand?.name ?? requirements['brand_name'], industry: brand?.industry, targetAudience: brand?.targetAudience, usp: brand?.usp },
+    u => hostOf(u) === ownHost, brainCtx)
+  for (const a of achievable.list) if (!saved.some(s => hostOf(s.url) === hostOf(a.url))) saved.push({ url: a.url, name: a.name })
+  if (urls.length === 0) { urls = achievable.list.map(a => a.url); source = 'suggested' }
+
+  // Read you and the competitors; keep the first 4 that load
   const [you, ...candidates] = await Promise.all([
     profileSite(websiteUrl, brand?.name || requirements['brand_name'] || hostOf(websiteUrl), 'you'),
-    ...urls.slice(0, 6).map(u => profileSite(u, nameOf(u), source)),
+    ...urls.slice(0, 8).map(u => profileSite(u, nameOf(u), source)),
   ])
   // A readable name: the saved one, else the start of the site's title ("Buffer: Social media…" → "Buffer")
   for (const c of candidates) {
@@ -137,14 +172,22 @@ export async function fetchCompetitorAnalysisData(requirements: Record<string, s
     await storeCompetitors(brandId, loaded.map(c => ({ url: c.url, name: c.name, discoveredIn: 'competitor-analysis' }))).catch(() => {})
   }
 
-  // Remember a suggested list, so the next run compares the same sites (and the page can show and change it)
-  if (source === 'suggested' && loaded.length && brandId && !requirements['competitor_urls']) {
-    const list = loaded.map(c => hostOf(c.url)).join(', ')
+  // Remember a suggested comparison set (so the next run compares the same sites) and a fresh
+  // achievable list (so it stays put for 30 days)
+  const patch: Record<string, string> = {}
+  if (source === 'suggested' && loaded.length && !requirements['competitor_urls']) {
+    patch.competitor_urls = patch.competitor_urls_suggested = loaded.map(c => hostOf(c.url)).join(', ')
+  }
+  if (achievable.fresh && achievable.list.length) {
+    patch.achievable_competitors = JSON.stringify(achievable.list)
+    patch.achievable_at = new Date().toISOString()
+  }
+  if (brandId && Object.keys(patch).length) {
     const [ca] = await db.select({ id: modules.id, requirements: modules.requirements }).from(modules)
       .where(and(eq(modules.brandId, brandId), eq(modules.type, 'competitor-analysis'))).limit(1).catch(() => [])
     if (ca) {
       const req = (ca.requirements as Record<string, string> | null) ?? {}
-      await db.update(modules).set({ requirements: { ...req, competitor_urls: list, competitor_urls_suggested: list } }).where(eq(modules.id, ca.id)).catch(() => {})
+      await db.update(modules).set({ requirements: { ...req, ...patch } }).where(eq(modules.id, ca.id)).catch(() => {})
     }
   }
 
@@ -157,6 +200,7 @@ export async function fetchCompetitorAnalysisData(requirements: Record<string, s
     usp: brand?.usp || requirements['usp'] || null,
     you,
     competitors: loaded,
+    achievable: achievable.list,
     unreachable,
     suggested: source === 'suggested',
   }

@@ -113,7 +113,7 @@ export function buildCompetitorRuleResults(data: CompetitorAnalysisFetchResult):
           ahead.length ? `${ft.short}: you're ahead` : `${ft.short}: on par`, 'Buyers comparing you side by side see you hold your own.', '')
       : theyHave.length === 0
         ? r(ft.category, ft.slug, ft.weight, ft.label, true,
-            `Neither you nor **${names(comps.map(c => c.name))}** ${ft.none} on the homepage.`, `${ft.short}: no one has it yet`,
+            `${comps.length === 1 ? `Neither you nor **${comps[0].name}**` : `None of you, **${comps.map(c => c.name).slice(0, -1).join(', ')}** or **${comps.at(-1)!.name}**`} ${ft.none} on the homepage.`, `${ft.short}: no one has it yet`,
             'No gap to close, and a chance to stand out if you do it first.', '')
         : r(ft.category, ft.slug, ft.weight, ft.label, false,
             `**${names(theyHave.map(c => c.name))}** ${theyHave.length > 1 ? 'do' : 'does'} (${theyHave.slice(0, 2).map(c => cite(ft.evidence(c), 40)).join('; ')}); your homepage ${ft.missing}.`,
@@ -159,6 +159,8 @@ function buildTable(data: CompetitorAnalysisFetchResult, features: Feature[]): C
     ],
     unreachable: data.unreachable,
     competitorUrls: data.competitors.map(c => c.url),
+    // (a suggestion whose site no longer loads is dropped)
+    achievable: data.achievable.filter(a => !data.unreachable.some(u => hostOf(u) === hostOf(a.url))),
   }
 }
 

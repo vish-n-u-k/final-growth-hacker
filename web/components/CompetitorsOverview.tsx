@@ -14,6 +14,9 @@ export default function CompetitorsOverview({ table, busy, onSave }: { table: Co
   const [draft, setDraft] = useState<string[]>(() => [...table.competitorUrls.map(host), '', '', ''].slice(0, 3))
   const suggested = table.sites.some(s => s.suggested)
   const comps = table.sites.filter(s => !s.you)
+  const achievable = table.achievable ?? []
+  // Already comparing against exactly these: no need to offer it
+  const comparingAchievable = achievable.length > 0 && achievable.every(a => comps.some(c => host(c.url) === host(a.url)))
 
   const save = () => {
     const urls = [...new Set(draft.map(d => d.trim()).filter(Boolean))]
@@ -83,6 +86,28 @@ export default function CompetitorsOverview({ table, busy, onSave }: { table: Co
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {achievable.length > 0 && (
+        <div className="cmo-catch">
+          <div className="cmo-catch-hd">
+            <div>
+              <h4 className="cmo-catch-title">Competitors you can realistically catch</h4>
+              <p className="cmo-catch-sub">Similar-size businesses selling to the same customers — not the market leaders.</p>
+            </div>
+            {!comparingAchievable && (
+              <button type="button" className="spo-edit" disabled={busy} onClick={() => onSave(achievable.map(a => a.url))}>{busy ? <><Spinner />Analysing…</> : 'Compare with these'}</button>
+            )}
+          </div>
+          <ul className="cmo-catch-list">
+            {achievable.map(a => (
+              <li key={a.url}>
+                <a href={a.url} target="_blank" rel="noopener noreferrer">{a.name || host(a.url)}</a>
+                <span className="cmo-catch-host">{host(a.url)}</span>
+                {a.why && <span className="cmo-catch-why">{a.why}</span>}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
       {table.unreachable.length > 0 && (

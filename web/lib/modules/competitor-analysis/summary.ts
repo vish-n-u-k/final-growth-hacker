@@ -15,4 +15,5 @@ export interface ComparisonTable {
   rows: { label: string; cells: ComparisonCell[] }[]
   unreachable: string[]        // listed but couldn't be read
   competitorUrls: string[]     // the list the next run will use (for the editor)
+  achievable?: { name: string; url: string; why: string }[]   // similar-size competitors you can realistically catch
 }
