@@ -312,6 +312,16 @@ export default function SocialStudioPage({
   const [manualBusy, setManualBusy] = useState(false)
   const [manualError, setManualError] = useState<string | null>(null)
 
+  // Opened from a post idea (Social Media Audit): /social?platform=…&topic=…#create-post fills the composer
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    const topic = q.get('topic')?.trim()
+    if (!topic) return
+    const platform = q.get('platform') ?? ''
+    setManual(m => ({ ...m, topic: topic.slice(0, 300), platform: MANUAL_PLATFORMS.includes(platform) ? platform : m.platform }))
+    requestAnimationFrame(() => document.getElementById('create-post')?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+  }, [])
+
   const upsertPost = (p: ScheduledPost) => setPosts(list => [p, ...list.filter(x => x.id !== p.id)])
 
   const drafts = posts.filter(p => p.status === 'draft')
@@ -910,7 +920,7 @@ export default function SocialStudioPage({
       </div>
 
       {/* Section 6 — Manual Create */}
-      <div style={card}>
+      <div style={card} id="create-post">
         <div style={sectionTitle}>Create a post manually</div>
         <p style={sectionSub}>Describe a post; Frekto renders a preview and it waits for your approval above.</p>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>

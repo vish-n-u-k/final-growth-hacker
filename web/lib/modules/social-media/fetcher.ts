@@ -1,7 +1,8 @@
 import * as cheerio from 'cheerio'
 import { db } from '@/lib/db'
-import { brandIntegrations } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { brandIntegrations, brands, frektoScheduledPosts } from '@/lib/db/schema'
+import { eq, and, gte, inArray } from 'drizzle-orm'
+import { LIVE_STATUSES } from '@/lib/frekto/history'
 import { isJsShell } from '@/lib/audit/js-shell'
 import { detectBlock, type BlockInfo } from '@/lib/audit/blocked'
 
@@ -35,14 +36,21 @@ export interface SocialPlatformData {
   source: ProfileSource | null
   onWebsite: boolean
   handle: string | null           // without @
-  // The profile link, opened by our checker: 'ok' (it opens), 'broken' (404/410), 'unknown' (the
-  // platform blocked or redirected us, as Instagram, X and LinkedIn often do)
+  // The profile link, opened by our checker: 'ok' (the profile itself loaded), 'broken' (404/410),
+  // 'unknown' (the platform blocked us, or showed a page that could be anyone's, e.g. a login wall)
   link: 'ok' | 'broken' | 'unknown' | null
   linkStatus: number | null
   publicTitle: string | null
   // A YouTube channel's newest video date, from its public feed (no API needed)
   publicLastPostDate: string | null
   metrics: PlatformMetrics | null // null = no connected account for this platform
+  frekto: FrektoPosting | null    // posts GrowJin scheduled through Frekto (null = none in the last 60 days)
+}
+
+export interface FrektoPosting {
+  lastPostDate: string | null     // newest post that has gone out
+  postsLast30: number
+  nextPostDate: string | null     // the next one waiting to go out
 }
 
 export interface SocialMediaFetchResult {
@@ -346,11 +354,20 @@ function connectedProfileUrl(platform: SocialProvider, by: Map<string, Integrati
 
 // ── Profile page check ────────────────────────────────────────────────────────
 
-async function checkProfile(url: string, platform: SocialProvider) {
+const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+async function checkProfile(url: string, platform: SocialProvider, handle: string | null) {
   const { status, html } = await fetchText(url)
-  const link: SocialPlatformData['link'] = status === 404 || status === 410 ? 'broken' : status === 200 ? 'ok' : 'unknown'
   const $ = html ? cheerio.load(html) : null
   const publicTitle = $ ? ($('meta[property="og:title"]').attr('content') ?? $('title').first().text()).trim() || null : null
+  // X, Instagram, TikTok and Facebook answer 200 for any address (a login wall or an app shell),
+  // so a page that loads proves nothing: it only counts when the page names the profile. YouTube
+  // answers 404 for a channel that doesn't exist, so its 200 is enough.
+  const pageUrl = $ ? ($('meta[property="og:url"]').attr('content') ?? $('link[rel="canonical"]').attr('href') ?? '') : ''
+  const named = !!handle && squash(handle).length >= 2 && [publicTitle ?? '', pageUrl].some(t => squash(t).includes(squash(handle)))
+  const link: SocialPlatformData['link'] = status === 404 || status === 410 ? 'broken'
+    : status === 200 && (platform === 'youtube' || named) ? 'ok'
+    : 'unknown'
 
   // YouTube: newest video date from the channel's public feed
   let publicLastPostDate: string | null = null
@@ -364,6 +381,28 @@ async function checkProfile(url: string, platform: SocialProvider) {
   return { link, linkStatus: status, publicTitle, publicLastPostDate }
 }
 
+// ── Posts sent through Frekto ─────────────────────────────────────────────────
+
+async function frektoPosting(brandId: string): Promise<Partial<Record<SocialProvider, FrektoPosting>>> {
+  const rows = await db
+    .select({ platform: frektoScheduledPosts.platform, scheduledAt: frektoScheduledPosts.scheduledAt })
+    .from(frektoScheduledPosts)
+    .where(and(eq(frektoScheduledPosts.brandId, brandId), inArray(frektoScheduledPosts.status, LIVE_STATUSES), gte(frektoScheduledPosts.scheduledAt, new Date(Date.now() - 60 * 86_400_000))))
+    .catch(() => [])
+  const now = Date.now()
+  const out: Partial<Record<SocialProvider, FrektoPosting>> = {}
+  for (const r of rows) {
+    if (!SOCIAL_PLATFORMS.includes(r.platform as SocialProvider)) continue
+    const p = (out[r.platform as SocialProvider] ??= { lastPostDate: null, postsLast30: 0, nextPostDate: null })
+    const t = r.scheduledAt.getTime(), iso = r.scheduledAt.toISOString()
+    if (t <= now) {
+      if (!p.lastPostDate || iso > p.lastPostDate) p.lastPostDate = iso
+      if (now - t <= 30 * 86_400_000) p.postsLast30++
+    } else if (!p.nextPostDate || iso < p.nextPostDate) p.nextPostDate = iso
+  }
+  return out
+}
+
 // ── Main fetcher ──────────────────────────────────────────────────────────────
 
 export async function fetchSocialMediaData(requirements: Record<string, string>): Promise<SocialMediaFetchResult> {
@@ -375,6 +414,10 @@ export async function fetchSocialMediaData(requirements: Record<string, string>)
     : []
   const by = new Map(integrations.map((i) => [i.provider, i]))
   const saved = metaOf(by.get('social_profiles'))
+  // Industry and audience from the brand profile (Settings), so edits there are picked up; the module's
+  // own setup values (copied from the profile at sign-up) are the fallback
+  const [brand] = brandId ? await db.select({ industry: brands.industry, targetAudience: brands.targetAudience }).from(brands).where(eq(brands.id, brandId)).limit(1) : []
+  const posting = brandId ? await frektoPosting(brandId) : {}
 
   // Homepage → profile links (header, footer, anywhere on the page)
   const pageUrl = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
@@ -384,13 +427,14 @@ export async function fetchSocialMediaData(requirements: Record<string, string>)
   const metricsBy = await connectedMetrics(by)
 
   const platforms = await Promise.all(SOCIAL_PLATFORMS.map(async (platform): Promise<SocialPlatformData> => {
-    const fromSetup = requirements[`${platform}_url`] || saved[`${platform}_url`] || ''
+    // Settings → Social profiles first: it can be changed any time, the module setup only before the first run
+    const fromSetup = saved[`${platform}_url`] || requirements[`${platform}_url`] || ''
     const fromSite = socialLinksOnWebsite.find(l => l.platform === platform)?.url ?? ''
     const fromConn = connectedProfileUrl(platform, by) ?? ''
     const raw = fromSetup || fromSite || fromConn
     const parsed = raw ? parseProfileUrl(raw) : null
     const profileUrl = parsed?.url ?? (raw || null)
-    const check = profileUrl ? await checkProfile(profileUrl, platform) : null
+    const check = profileUrl ? await checkProfile(profileUrl, platform, parsed?.handle ?? null) : null
     return {
       platform,
       profileUrl,
@@ -402,14 +446,15 @@ export async function fetchSocialMediaData(requirements: Record<string, string>)
       publicTitle: check?.publicTitle ?? null,
       publicLastPostDate: check?.publicLastPostDate ?? null,
       metrics: metricsBy[platform] ? await metricsBy[platform]! : null,
+      frekto: posting[platform] ?? null,
     }
   }))
 
   return {
     websiteUrl,
     brandName: requirements['brand_name'] || '',
-    industry: requirements['industry'] || null,
-    targetAudience: requirements['target_audience'] || null,
+    industry: brand?.industry || requirements['industry'] || null,
+    targetAudience: brand?.targetAudience || requirements['target_audience'] || null,
     homepageLoaded: !!home.html,
     homepageIsJsShell,
     homepageBlocked: home.block,

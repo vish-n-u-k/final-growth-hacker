@@ -2,9 +2,11 @@ import { callAI } from '@/lib/ai/client'
 import { SOCIAL_MEDIA_MODULE } from './definition'
 import type { DynamicModuleAnalysisResult, DynamicModuleCategoryDefinition } from '../types'
 import { PLATFORM_NAME, type SocialMediaFetchResult, type SocialPlatformData, type SocialProvider } from './fetcher'
+import { SOCIAL_SUMMARY_SLUG, type SocialProfileSummary } from './summary'
 import { domainWord } from '../geo/fetcher'
 import { blockedSkipText } from '@/lib/audit/blocked'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
+import { PUBLISHABLE_PLATFORMS } from '@/lib/frekto/history'
 
 // Social Media: the facts (website links, profile links, handles, posting and engagement from
 // connected accounts) are fixed rule checks with stable slugs, so ticks and the score stay put
@@ -12,6 +14,27 @@ import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
 // which are shown as ideas and never scored.
 
 type Result = DynamicModuleAnalysisResult
+
+function profileSummary(data: SocialMediaFetchResult): SocialProfileSummary[] {
+  return data.platforms.map(p => {
+    const m = p.metrics && !p.metrics.fetchError ? p.metrics : null
+    return {
+      platform: p.platform,
+      url: p.profileUrl,
+      handle: p.handle,
+      onWebsite: p.onWebsite,
+      link: p.link,
+      followers: m?.followerCount ?? null,
+      lastPostDate: lastPostOf(p),
+      nextPostDate: p.frekto?.nextPostDate ?? null,
+      connected: !!m,
+    }
+  })
+}
+
+/** Newest post we know of: a connected account, the public YouTube feed, or a post sent through Frekto. */
+const lastPostOf = (p: SocialPlatformData) =>
+  [p.metrics?.fetchError ? null : p.metrics?.lastPostDate, p.publicLastPostDate, p.frekto?.lastPostDate].filter((d): d is string => !!d).sort().at(-1) ?? null
 
 const r = (category: string, slug: string, weight: 1 | 2 | 3, label: string, verified: boolean, detail: string, highlight: string, narrative: string, action: string): Result =>
   ({ category, slug: `${category}-${slug}`, label, weight, verified, detail, highlight, narrative, action, fixable: false })
@@ -100,7 +123,9 @@ export function buildSocialRuleResults(data: SocialMediaFetchResult): Result[] {
       out.push(skip(P, `link-${p.platform}`, label,
         p.linkStatus === null
           ? `Couldn't check: ${nm(p.platform)} didn't answer when our checker opened ${p.profileUrl}. Re-analyse to try again.`
-          : `Couldn't check: ${nm(p.platform)} didn't let our checker open ${p.profileUrl} (it answered ${p.linkStatus}) — it often asks visitors to log in first.`))
+          : p.linkStatus === 200
+            ? `Couldn't check: ${nm(p.platform)} shows the same login page for every address, so we can't tell if ${p.profileUrl} is your live profile. Open it yourself to make sure it works.`
+            : `Couldn't check: ${nm(p.platform)} didn't let our checker open ${p.profileUrl} (it answered ${p.linkStatus}) — it often asks visitors to log in first.`))
     }
   }
 
@@ -137,21 +162,34 @@ export function buildSocialRuleResults(data: SocialMediaFetchResult): Result[] {
         `Couldn't check: ${nm(p.platform)} rejected the saved connection (${m.fetchError.slice(0, 140)}). Reconnect it in Settings → Integrations.`))
       continue
     }
-    const lastPost = m?.lastPostDate ?? p.publicLastPostDate
-    if (m || lastPost) anyData = true
+    const lastPost = lastPostOf(p)
+    const f = p.frekto
+    if (m || lastPost || f) anyData = true
     const followers = m?.followerCount != null ? ` · ${m.followerCount.toLocaleString()} followers` : ''
+    // Posts sent through Social Studio (Frekto) count too, and say so
+    const viaFrekto = !!f?.lastPostDate && lastPost === f.lastPostDate && !m?.lastPostDate
+    const nextDays = f?.nextPostDate ? Math.max(0, Math.ceil((Date.parse(f.nextPostDate) - Date.now()) / 86_400_000)) : null
+    const next = nextDays !== null ? ` Next one is scheduled ${nextDays === 0 ? 'today' : `in ${nextDays} day${nextDays === 1 ? '' : 's'}`}.` : ''
 
     // Posting
     if (lastPost) {
       const d = daysSince(lastPost)
-      const rate = m?.postsPerWeek != null ? `, about ${m.postsPerWeek} posts a week` : ''
-      out.push(d <= 14
+      const rate = m?.postsPerWeek != null ? `, about ${m.postsPerWeek} posts a week`
+        : viaFrekto ? `, ${f!.postsLast30} in the last 30 days through Social Studio` : ''
+      out.push(d <= 14 || (nextDays !== null && nextDays <= 7)
         ? r(M, `${p.platform}-active`, 3, `Posting regularly on ${nm(p.platform)}`, true,
-            `Last ${nm(p.platform)} post **${d} day${d === 1 ? '' : 's'} ago**${rate}${followers}.`, `Active on ${nm(p.platform)}`, 'Regular posting keeps you in your followers\' feeds.', '')
+            `Last ${nm(p.platform)} post **${d} day${d === 1 ? '' : 's'} ago**${rate}${followers}.${next}`, `Active on ${nm(p.platform)}`, 'Regular posting keeps you in your followers\' feeds.', '')
         : r(M, `${p.platform}-active`, 3, `Posting regularly on ${nm(p.platform)}`, false,
-            `Last ${nm(p.platform)} post was **${d} days ago**${rate}${followers}.`, d > 30 ? `${nm(p.platform)} has gone quiet` : `${nm(p.platform)} posting is slowing`,
+            `Last ${nm(p.platform)} post was **${d} days ago**${rate}${followers}.${next}`, d > 30 ? `${nm(p.platform)} has gone quiet` : `${nm(p.platform)} posting is slowing`,
             '**Accounts that stop posting drop out of feeds** and look abandoned to new visitors.',
-            `Post on ${nm(p.platform)} at least once a week — plan the next 4 posts now.`))
+            `Post on ${nm(p.platform)} at least once a week — plan the next 4 posts in Social Studio now.`))
+    } else if (nextDays !== null) {
+      // Nothing out yet, but posts are queued in Social Studio
+      out.push(r(M, `${p.platform}-active`, 3, `Posting regularly on ${nm(p.platform)}`, nextDays <= 7,
+        `Your first ${nm(p.platform)} post from Social Studio goes out **${nextDays === 0 ? 'today' : `in ${nextDays} day${nextDays === 1 ? '' : 's'}`}**${followers}.`,
+        nextDays <= 7 ? `${nm(p.platform)} posts are lined up` : `${nm(p.platform)} posts start in ${nextDays} days`,
+        nextDays <= 7 ? 'Posts are on the way to your followers\' feeds.' : '**Followers see nothing new until then.**',
+        nextDays <= 7 ? '' : `Schedule a ${nm(p.platform)} post for this week in Social Studio.`))
     } else if (m && m.postCount === 0) {
       out.push(r(M, `${p.platform}-active`, 3, `Posting regularly on ${nm(p.platform)}`, false,
         `Your ${nm(p.platform)} account has **no posts yet**${followers}.`, `No ${nm(p.platform)} posts yet`,
@@ -184,9 +222,12 @@ export function buildSocialRuleResults(data: SocialMediaFetchResult): Result[] {
   }
   if (!anyData) {
     out.push(skip(M, 'connect', 'Followers, posting and engagement',
-      'Couldn\'t check: no social account is connected, so followers, posting and engagement can\'t be read. Connect Instagram, Facebook or LinkedIn in Settings → Integrations (one click).'))
+      'Couldn\'t check: no social account is connected and nothing has been posted through Social Studio yet, so followers, posting and engagement can\'t be read. Connect Instagram, Facebook or LinkedIn in Settings → Integrations (one click), or schedule posts in Social Studio.'))
   }
 
+  // The overview rides on the first check (always present)
+  const first = out.find(x => x.slug === SOCIAL_SUMMARY_SLUG)
+  if (first) first.aiData = { profiles: profileSummary(data) }
   return out
 }
 
@@ -202,9 +243,23 @@ function platformLine(p: SocialPlatformData): string {
     if (m.engagementRate != null) parts.push(`${m.engagementRate}% engagement`)
     if (m.bio) parts.push(`bio: "${m.bio.slice(0, 160)}"`)
   }
-  const last = m?.lastPostDate ?? p.publicLastPostDate
+  const last = lastPostOf(p)
   if (last) parts.push(`last post ${daysSince(last)} days ago`)
+  if (p.frekto?.postsLast30) parts.push(`${p.frekto.postsLast30} posts in the last 30 days through Social Studio`)
+  if (p.frekto?.nextPostDate) parts.push('more posts scheduled')
   return `- ${parts.join(' · ')}`
+}
+
+// A post suggestion carries its platform and topic, so the page can open it in Social Studio
+const PLATFORM_WORDS: [RegExp, SocialProvider][] = [
+  [/\binstagram\b|\breel\b/i, 'instagram'], [/\blinkedin\b/i, 'linkedin'], [/\bfacebook\b/i, 'facebook'],
+  [/\byoutube\b/i, 'youtube'], [/\btiktok\b/i, 'tiktok'], [/\b(twitter|x \(twitter\)|thread)\b|^x\b/i, 'twitter'],
+]
+function postIdea(x: Result): { aiData?: Record<string, unknown> } {
+  const platform = PLATFORM_WORDS.find(([re]) => re.test(x.detail))?.[1] ?? PLATFORM_WORDS.find(([re]) => re.test(x.label))?.[1]
+  const topic = x.label.replace(/\s*\[[^\]]*\]\s*$/, '').replace(/^["“]|["”]$/g, '').trim()
+  // Only platforms Social Studio can publish to get a "Make this post" button
+  return platform && topic && (PUBLISHABLE_PLATFORMS as readonly string[]).includes(platform) ? { aiData: { post: { platform, topic } } } : {}
 }
 
 export async function analyzeSocialMedia(data: SocialMediaFetchResult, brainContext?: string): Promise<DynamicModuleAnalysisResult[]> {
@@ -245,6 +300,7 @@ Return ONLY a JSON array. Each element:
         action: x.action ?? '',
         verified: false,
         fixable: false,
+        ...(x.category === 'post-suggestions' ? postIdea(x) : {}),
       }))
   } catch (err) {
     console.error('[social-media] ideas failed', err)
