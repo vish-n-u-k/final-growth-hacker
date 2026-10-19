@@ -1,6 +1,6 @@
 # frekto.ai — SEO Implementation Plan
 
-Audited 2026-10-19 with the rampstack-seo skills (`seo-technical`, `seo-onpage`, `seo-site-health-audit` triage, `seo-aeo-geo`, `seo-content-audit`, `programmatic-seo`), against the live site. All 37 URLs in `sitemap.xml` were fetched, plus 31 URLs in `/b/sitemap.xml` (sampled 2), `robots.txt`, `llms.txt`, and 69 unique internal link targets.
+Audited 2026-10-19 against the live site. Skills actually invoked: `rampstack-seo:seo-technical` and `rampstack-seo:seo-onpage`. Frameworks only read from the skill files and applied by hand (skill not invoked): `seo-aeo-geo` (SKILL.md plus one reference), `seo-site-health-audit` (issue-impact table only) and `seo-content-audit` (first part of SKILL.md). `programmatic-seo`, `seo-keyword`, `seo-competitor` and `seo-traffic-diagnosis` were not used; the `/b/` pages finding rests on general pSEO reasoning, not that skill. Checks were run with curl and scripts: all 37 URLs in `sitemap.xml`, 31 URLs in `/b/sitemap.xml` (sampled 2), `robots.txt`, `llms.txt`, and 69 unique internal link targets.
 
 **Where to implement:** the frekto.ai site code is **not** in this repo (this repo is Growjin). Every fix below is written to be stack-agnostic. The 308 trailing-slash redirects are typical of Next.js, so Next.js hints are given where they apply.
 
