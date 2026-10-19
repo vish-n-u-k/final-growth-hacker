@@ -136,7 +136,7 @@ async function runAnalysis(
       return analyzeCompetitorAudit(data, brainCtx)
     }
     case 'competitor-analysis': {
-      const data = await fetchCompetitorAnalysisData(requirements, requirements['website_url'])
+      const data = await fetchCompetitorAnalysisData(requirements, requirements['website_url'], brainCtx)
       return analyzeCompetitorAnalysis(data, brainCtx)
     }
     case 'social-media': {

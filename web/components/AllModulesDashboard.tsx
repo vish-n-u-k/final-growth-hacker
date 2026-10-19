@@ -16,6 +16,8 @@ import { type DBItemState } from './ModuleDashboard'
 import SocialProfilesOverview from './SocialProfilesOverview'
 import BrandBasisOverview from './BrandBasisOverview'
 import ContentPagesOverview from './ContentPagesOverview'
+import CompetitorsOverview from './CompetitorsOverview'
+import { COMPETITOR_SUMMARY_SLUG, type ComparisonTable } from '@/lib/modules/competitor-analysis/summary'
 import { CONTENT_SUMMARY_SLUG, type ContentOverview } from '@/lib/modules/content-audit/summary'
 import { BRAND_SUMMARY_SLUG, type BrandBasis } from '@/lib/modules/brand-audit/summary'
 import { SOCIAL_SUMMARY_SLUG, type SocialProfileSummary } from '@/lib/modules/social-media/summary'
@@ -3303,6 +3305,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       const overview = (dynItems.find(i => i.slug === CONTENT_SUMMARY_SLUG)?.aiData as { overview?: ContentOverview } | null)?.overview ?? null
                       const verdicts = pageVerdictsMap[modData.id] ?? []
                       return overview || verdicts.length ? <ContentPagesOverview overview={overview} verdicts={verdicts} /> : null
+                    })()}
+                    {modData.type === 'competitor-analysis' && effectiveLastAnalyzedAt && !needsSetup && (() => {
+                      const table = (dynItems.find(i => i.slug === COMPETITOR_SUMMARY_SLUG)?.aiData as { table?: ComparisonTable } | null)?.table
+                      return table ? (
+                        <CompetitorsOverview table={table} busy={!!reanalyzingMap[modData.id]}
+                          onSave={urls => handleReanalyze(modData.id, reqValues, { ...reqValues, competitor_urls: urls.join(', ') })} />
+                      ) : null
                     })()}
                     {modData.type === 'brand-audit' && effectiveLastAnalyzedAt && !needsSetup && (() => {
                       const basis = (dynItems.find(i => i.slug === BRAND_SUMMARY_SLUG)?.aiData as { basis?: BrandBasis } | null)?.basis

@@ -100,7 +100,7 @@ export function kindOf(url: string, homeUrl: string): PageKind {
 
 // ── Sitemap (with last-modified dates) ────────────────────────────────────────
 
-async function getSitemap(origin: string): Promise<Map<string, string | null>> {
+export async function getSitemap(origin: string): Promise<Map<string, string | null>> {
   const found = new Map<string, string | null>()
 
   async function parse(sitemapUrl: string, depth = 0): Promise<void> {

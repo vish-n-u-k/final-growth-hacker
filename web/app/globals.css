@@ -7927,3 +7927,34 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
   .cpo-main { width: 100%; }
   .cpo-verdict { width: auto; padding: 3px 10px; }
 }
+
+/* ── Competitor Analysis: side by side, and the list of competitors ── */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.cmo-edit { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 14px; }
+.cmo-input { min-width: 0; height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; font-size: 14px; }
+.cmo-input:focus { outline: 2px solid var(--green); outline-offset: -1px; }
+.cmo-edit-actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+.cmo-save { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; border: 0; border-radius: 8px; background: var(--green); color: #fff; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.cmo-save:disabled { opacity: .55; cursor: default; }
+.cmo-cancel { height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; font-size: 13.5px; cursor: pointer; }
+.cmo-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.cmo-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.cmo-table th, .cmo-table td { padding: 10px 12px; text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.cmo-table tbody tr:last-child th, .cmo-table tbody tr:last-child td { border-bottom: 0; }
+.cmo-table thead th { font-weight: 600; color: var(--text); }
+.cmo-table thead th a { color: var(--text); text-decoration: none; }
+.cmo-table thead th a:hover { text-decoration: underline; }
+.cmo-table tbody th { text-align: left; font-weight: 500; color: var(--text-dim); }
+.cmo-table .is-you { background: color-mix(in srgb, var(--green) 6%, transparent); }
+.cmo-tag { display: block; margin-top: 2px; font-size: 11px; font-weight: 500; color: var(--text-faint); }
+.cmo-yes { color: var(--progress-good); font-weight: 700; }
+.cmo-no { color: var(--text-faint); }
+.cmo-num { font-variant-numeric: tabular-nums; color: var(--text); }
+.cmo-note { margin: 10px 0 0; font-size: 12.5px; color: var(--text-faint); }
+@media (max-width: 640px) {
+  .cmo-edit { grid-template-columns: minmax(0, 1fr); }
+  .cmo-table { font-size: 12.5px; }
+  .cmo-table th, .cmo-table td { padding: 9px 8px; }
+  .cmo-table tbody th { white-space: normal; min-width: 96px; }
+  .cmo-table thead th { white-space: normal; }
+}

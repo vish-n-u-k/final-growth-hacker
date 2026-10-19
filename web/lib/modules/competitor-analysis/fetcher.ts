@@ -1,265 +1,163 @@
-import { load } from 'cheerio'
-import { TfIdf } from 'natural'
-import { discoverAllUrls, formatUrlProfile, type UrlDiscoveryResult } from '@/lib/audit/url-discovery'
+import { db } from '@/lib/db'
+import { brands, competitors, modules } from '@/lib/db/schema'
+import { and, eq } from 'drizzle-orm'
+import { callAI } from '@/lib/ai/client'
+import { fetchPage, readHomepage, type HomepageFacts } from '@/lib/modules/brand-audit/fetcher'
+import { getSitemap, kindOf } from '@/lib/modules/content-audit/fetcher'
+import type { BlockInfo } from '@/lib/audit/blocked'
+import { storeCompetitors } from '@/lib/modules/competitor-registry'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// Competitor Analysis reads your homepage and up to 3 competitors' the same way (Brand Audit's
+// homepage reader, plus the sitemap for articles), so every check compares like with like.
+//
+// Competitors, in order: this module's setup → competitors saved by other modules → GEO's list →
+// a short AI suggestion, kept only if the sites load. Suggestions are saved into this module's
+// setup (marked as suggested) so later runs compare against the same sites, and the user can
+// change them from the page.
 
-export interface ParsedPage {
-  title: string
-  description: string
-  h1: string
-  h1Count: number
-  h2s: string[]
-  firstParagraph: string
-  hasSchema: boolean
-  social: Record<string, string | null>
-  imgCount: number
-  imgWithAlt: number
-  internalLinks: number
-  bodyText: string  // clean text for TF-IDF and content gap analysis
-}
+export type CompetitorSource = 'setup' | 'saved' | 'suggested'
 
-export interface PsiScore {
-  performance: number  // 0–100
-  lcp: number          // ms
-  cls: number          // 0–1
-  tbt: number          // ms
-}
-
-export interface CompetitorData {
+export interface SiteProfile {
   url: string
-  parsed: ParsedPage
-  pixels: Record<string, boolean>
-  topTerms: string[]
-  psi: PsiScore | null
-  fetchFailed: boolean
-  urlProfile: string           // pre-formatted for AI prompt
-  urlDiscovery: UrlDiscoveryResult
+  name: string
+  source: CompetitorSource | 'you'
+  loaded: boolean
+  blocked: BlockInfo | null
+  facts: HomepageFacts | null       // null when the homepage couldn't be read
+  postsFound: number                // articles in the sitemap
+  postsLast90Days: number | null    // null = the sitemap has no dates
+  comparisonPages: string[]         // /vs-…, /…-alternative(s), /compare… URLs
 }
 
 export interface CompetitorAnalysisFetchResult {
-  userUrl: string
-  userParsed: ParsedPage
-  userPixels: Record<string, boolean>
-  userTopTerms: string[]
-  userPsi: PsiScore | null
-  userUrlProfile: string
-  competitors: CompetitorData[]
-  industry: string
-  competitorsProvided: boolean
+  websiteUrl: string
+  brandName: string
+  websiteType: string
+  industry: string | null
+  targetAudience: string | null
+  usp: string | null
+  you: SiteProfile
+  competitors: SiteProfile[]        // the ones that loaded (up to 3)
+  unreachable: string[]             // listed but couldn't be read (blocked, down, JavaScript-only)
+  suggested: boolean                // the list is GrowJin's suggestion, not the user's
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+const MAX = 3
+const COMPARISON = /\/(vs|versus|compare|comparison)(\/|-|$)|-vs-|\/[^/]*-alternatives?(\/|$)|\/alternatives?(\/|-|$)/i
 
-const SOCIAL_PATTERNS: Record<string, RegExp> = {
-  instagram: /instagram\.com\//i,
-  facebook: /facebook\.com\//i,
-  linkedin: /linkedin\.com\/(company|in)\//i,
-  twitter: /(?:twitter|x)\.com\//i,
-  tiktok: /tiktok\.com\/@/i,
-  youtube: /youtube\.com\//i,
-}
-
-export const AD_PIXEL_PATTERNS: Record<string, RegExp> = {
-  gtm: /googletagmanager\.com\/gtm\.js/i,
-  google_ads: /googleads\.g\.doubleclick\.net/i,
-  facebook_pixel: /connect\.facebook\.net|fbq\s*\(/i,
-  linkedin_insight: /snap\.licdn\.com/i,
-  tiktok_pixel: /analytics\.tiktok\.com/i,
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-async function safeFetch(url: string, timeoutMs = 12000): Promise<string | null> {
+function normalise(raw: string): string | null {
+  const t = raw.trim().replace(/^["']|["']$/g, '')
+  if (!t) return null
   try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(timeoutMs),
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthAuditBot/1.0)' },
+    const u = new URL(t.startsWith('http') ? t : `https://${t}`)
+    return u.hostname.includes('.') ? u.origin : null
+  } catch { return null }
+}
+export const hostOf = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return u } }
+const split = (v: string | undefined) => (v ?? '').split(/[,\n]/)
+
+async function suggestCompetitors(websiteUrl: string, brandName: string, brainCtx?: string): Promise<string[]> {
+  try {
+    const raw = await callAI({
+      system: 'You name real, currently operating direct competitors of a business. Reply with JSON only.',
+      prompt: `Business: ${brandName || websiteUrl} (${websiteUrl})
+${brainCtx ? `Context:\n${brainCtx.slice(0, 1500)}\n` : ''}
+List up to 5 direct competitors that sell a similar product to the same customers. Only well-known companies you are confident exist; no marketplaces or review sites.
+Return a JSON array of homepage URLs, e.g. ["https://example.com"]. Return [] if unsure.`,
+      maxTokens: 300,
+      model: 'claude-haiku-4-5-20251001',
     })
-    if (!res.ok) return null
-    return await res.text()
+    return (JSON.parse(raw.slice(raw.indexOf('['), raw.lastIndexOf(']') + 1)) as unknown[]).map(String)
   } catch {
-    return null
+    return []
   }
 }
 
-function parsePage(rawHtml: string, maxBodyChars = 6000): ParsedPage {
-  if (!rawHtml) {
-    return {
-      title: '', description: '', h1: '', h1Count: 0, h2s: [], firstParagraph: '',
-      hasSchema: false, social: {}, imgCount: 0, imgWithAlt: 0, internalLinks: 0, bodyText: '',
-    }
-  }
-
-  const $ = load(rawHtml)
-
-  const title = $('title').text().trim()
-  const description = $('meta[name="description"]').attr('content')?.trim() ?? ''
-  const h1 = $('h1').first().text().trim()
-  const h1Count = $('h1').length
-  const h2s = $('h2').toArray().map(el => $(el).text().trim()).filter(Boolean).slice(0, 5)
-  const hasSchema = $('script[type="application/ld+json"]').length > 0 || $('[itemscope]').length > 0
-
-  // Social links — scan all anchors
-  const social: Record<string, string | null> = {}
-  const allAnchors = $('a[href]').toArray()
-  for (const [platform, pattern] of Object.entries(SOCIAL_PATTERNS)) {
-    const el = allAnchors.find(a => pattern.test($(a).attr('href') ?? ''))
-    social[platform] = el ? ($(el).attr('href') ?? null) : null
-  }
-
-  // Image stats
-  const imgs = $('img').toArray()
-  const imgCount = imgs.length
-  const imgWithAlt = imgs.filter(el => {
-    const alt = $(el).attr('alt')
-    return alt !== undefined && alt.trim() !== ''
-  }).length
-
-  // Internal link count (relative hrefs)
-  const internalLinks = allAnchors.filter(a => {
-    const href = $(a).attr('href') ?? ''
-    return href.startsWith('/') || href.startsWith('#')
-  }).length
-
-  // First paragraph before stripping
-  const firstParagraph = $('p').first().text().trim().slice(0, 400)
-
-  // Clean body text for TF-IDF and content analysis
-  $('script, style, noscript, svg, nav, footer, header').remove()
-  const bodyText = ($('body').text() || $('*').text())
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, maxBodyChars)
-
-  return { title, description, h1, h1Count, h2s, firstParagraph, hasSchema, social, imgCount, imgWithAlt, internalLinks, bodyText }
-}
-
-function detectPixels(rawHtml: string): Record<string, boolean> {
-  const result: Record<string, boolean> = {}
-  for (const [pixel, pattern] of Object.entries(AD_PIXEL_PATTERNS)) {
-    result[pixel] = pattern.test(rawHtml)
-  }
-  return result
-}
-
-async function fetchPsi(url: string): Promise<PsiScore | null> {
-  try {
-    const key = process.env.GOOGLE_PSI_API_KEY
-    const endpoint = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile${key ? `&key=${key}` : ''}`
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 8000)
-    const res = await fetch(endpoint, { signal: controller.signal })
-    clearTimeout(timer)
-    if (!res.ok) return null
-    const json = await res.json() as Record<string, unknown>
-    const cats = json.categories as Record<string, { score: number }> | undefined
-    const audits = json.audits as Record<string, { numericValue?: number }> | undefined
-    return {
-      performance: Math.round((cats?.performance?.score ?? 0) * 100),
-      lcp: Math.round(audits?.['largest-contentful-paint']?.numericValue ?? 0),
-      cls: audits?.['cumulative-layout-shift']?.numericValue ?? 0,
-      tbt: Math.round(audits?.['total-blocking-time']?.numericValue ?? 0),
-    }
-  } catch {
-    return null
+/** One site: its homepage (as Brand Audit reads it) and its sitemap's articles and comparison pages. */
+export async function profileSite(url: string, name: string, source: SiteProfile['source']): Promise<SiteProfile> {
+  const [home, sitemap] = await Promise.all([fetchPage(url), getSitemap(new URL(url).origin).catch(() => new Map<string, string | null>())])
+  const facts = home.html ? readHomepage(home.html, url) : null
+  const urls = [...sitemap.keys()]
+  const posts = urls.filter(u => kindOf(u, url) === 'post')
+  const dates = posts.map(u => sitemap.get(u)).filter((d): d is string => !!d)
+  return {
+    url, name, source,
+    loaded: !!facts && !facts.jsShell,
+    blocked: home.block,
+    facts,
+    postsFound: posts.length,
+    postsLast90Days: dates.length ? dates.filter(d => Date.now() - Date.parse(d) <= 90 * 86_400_000).length : null,
+    comparisonPages: urls.filter(u => { try { return COMPARISON.test(new URL(u).pathname) } catch { return false } }).slice(0, 10),
   }
 }
 
-function extractTopTerms(docIndex: number, tfidf: TfIdf, n = 20): string[] {
-  return tfidf
-    .listTerms(docIndex)
-    .filter(t => t.term.length > 3 && /^[a-zA-Z]+$/.test(t.term))
-    .slice(0, n)
-    .map(t => t.term)
-}
+export async function fetchCompetitorAnalysisData(requirements: Record<string, string>, userWebsiteUrl?: string, brainCtx?: string): Promise<CompetitorAnalysisFetchResult> {
+  const brandId = requirements['brand_id'] ?? ''
+  const raw = (userWebsiteUrl ?? requirements['website_url'] ?? '').trim()
+  const websiteUrl = raw.startsWith('http') ? raw : `https://${raw}`
+  const ownHost = hostOf(websiteUrl)
+  const pick = (list: string[]) => [...new Set(list.map(normalise).filter((u): u is string => !!u && hostOf(u) !== ownHost))]
 
-// ── Main export ───────────────────────────────────────────────────────────────
+  const [brand] = brandId
+    ? await db.select({ name: brands.name, industry: brands.industry, targetAudience: brands.targetAudience, usp: brands.usp, websiteType: brands.websiteType })
+        .from(brands).where(eq(brands.id, brandId)).limit(1)
+    : []
+  const saved = brandId ? await db.select({ url: competitors.url, name: competitors.name }).from(competitors).where(eq(competitors.brandId, brandId)).catch(() => []) : []
+  const nameOf = (u: string) => saved.find(s => hostOf(s.url) === hostOf(u))?.name || hostOf(u)
 
-export async function fetchCompetitorAnalysisData(
-  requirements: Record<string, string>,
-  userWebsiteUrl?: string,
-): Promise<CompetitorAnalysisFetchResult> {
-  const rawUrls = (requirements['competitor_urls'] ?? '')
-    .split(/[,\n]/)
-    .map(u => u.trim())
-    .filter(Boolean)
-    .slice(0, 5)
-    .map(u => (u.startsWith('http') ? u : `https://${u}`))
+  // Where the list comes from
+  let source: CompetitorSource = 'setup'
+  let urls = pick(split(requirements['competitor_urls']))
+  const sameAsSuggested = urls.length > 0 && urls.map(hostOf).sort().join(',') === pick(split(requirements['competitor_urls_suggested'])).map(hostOf).sort().join(',')
+  if (sameAsSuggested) source = 'suggested'
+  if (urls.length === 0) { urls = pick(saved.map(s => s.url)); source = 'saved' }
+  if (urls.length === 0 && brandId) {
+    const [geo] = await db.select({ requirements: modules.requirements }).from(modules).where(and(eq(modules.brandId, brandId), eq(modules.type, 'geo'))).limit(1).catch(() => [])
+    const geoReq = (geo?.requirements as Record<string, string> | null) ?? {}
+    urls = pick(split(geoReq.competitor_urls))
+    source = urls.length && geoReq.competitor_urls !== geoReq.competitor_urls_suggested ? 'saved' : 'suggested'
+  }
+  if (urls.length === 0) { urls = pick(await suggestCompetitors(websiteUrl, brand?.name ?? requirements['brand_name'] ?? '', brainCtx)); source = 'suggested' }
 
-  const industry = requirements['industry'] ?? ''
-  const rawUserUrl = (userWebsiteUrl ?? requirements['website_url'] ?? '').trim()
-  const userUrl = rawUserUrl.startsWith('http') ? rawUserUrl : `https://${rawUserUrl}`
-
-  // PSI capped at user + top 2 competitors to stay well within 90s maxDuration
-  const psiUrls = [userUrl, ...rawUrls.slice(0, 2)]
-
-  // All network tasks in parallel: HTML fetches, PSI, and URL discovery
-  const [[userRaw, ...competitorRaws], psiScores, [userDiscovery, ...competitorDiscoveries]] = await Promise.all([
-    Promise.all([
-      safeFetch(userUrl, 15000),
-      ...rawUrls.map(u => safeFetch(u, 10000)),
-    ]),
-    Promise.all(psiUrls.map(u => fetchPsi(u))),
-    Promise.all([
-      discoverAllUrls(userUrl, undefined, { maxUrls: 150, enrichMeta: 20 }),
-      ...rawUrls.map(u => discoverAllUrls(u, undefined, { maxUrls: 150, enrichMeta: 10 })),
-    ]),
+  // Read you and the competitors; keep the first 3 competitors that load
+  const [you, ...candidates] = await Promise.all([
+    profileSite(websiteUrl, brand?.name || requirements['brand_name'] || hostOf(websiteUrl), 'you'),
+    ...urls.slice(0, 6).map(u => profileSite(u, nameOf(u), source)),
   ])
+  // A readable name: the saved one, else the start of the site's title ("Buffer: Social media…" → "Buffer")
+  for (const c of candidates) {
+    const fromTitle = c.facts?.title.split(/\s*[|:–—]\s*|\s+-\s+/)[0]?.trim()
+    if (c.name === hostOf(c.url) && fromTitle && fromTitle.length <= 24) c.name = fromTitle
+  }
+  const loaded = candidates.filter(c => c.loaded).slice(0, MAX)
+  const unreachable = candidates.filter(c => !c.loaded).map(c => c.url).slice(0, 5)
 
-  if (!userRaw) {
-    throw new Error(`Could not fetch your website at ${userUrl}. Check the URL is correct and publicly accessible.`)
+  // Competitors the user chose are saved for the other modules (GEO, Brand Audit) to use too
+  if (source === 'setup' && loaded.length && brandId) {
+    await storeCompetitors(brandId, loaded.map(c => ({ url: c.url, name: c.name, discoveredIn: 'competitor-analysis' }))).catch(() => {})
   }
 
-  const userParsed = parsePage(userRaw, 8000)
-  const userPixels = detectPixels(userRaw)
-
-  const competitorBase = rawUrls.map((url, i) => {
-    const raw = competitorRaws[i]
-    const discovery = competitorDiscoveries[i]
-    if (!raw) {
-      return {
-        url,
-        parsed: parsePage('', 0),
-        pixels: {} as Record<string, boolean>,
-        psi: null as PsiScore | null,
-        fetchFailed: true,
-        urlProfile: formatUrlProfile(discovery, url),
-        urlDiscovery: discovery,
-      }
+  // Remember a suggested list, so the next run compares the same sites (and the page can show and change it)
+  if (source === 'suggested' && loaded.length && brandId && !requirements['competitor_urls']) {
+    const list = loaded.map(c => hostOf(c.url)).join(', ')
+    const [ca] = await db.select({ id: modules.id, requirements: modules.requirements }).from(modules)
+      .where(and(eq(modules.brandId, brandId), eq(modules.type, 'competitor-analysis'))).limit(1).catch(() => [])
+    if (ca) {
+      const req = (ca.requirements as Record<string, string> | null) ?? {}
+      await db.update(modules).set({ requirements: { ...req, competitor_urls: list, competitor_urls_suggested: list } }).where(eq(modules.id, ca.id)).catch(() => {})
     }
-    return {
-      url,
-      parsed: parsePage(raw, 6000),
-      pixels: detectPixels(raw),
-      psi: (psiScores[i + 1] ?? null),
-      fetchFailed: false,
-      urlProfile: formatUrlProfile(discovery, url),
-      urlDiscovery: discovery,
-    }
-  })
-
-  // Build TF-IDF corpus: user doc first, then each competitor
-  const tfidf = new TfIdf()
-  tfidf.addDocument(userParsed.bodyText)
-  for (const c of competitorBase) {
-    tfidf.addDocument(c.fetchFailed ? '' : c.parsed.bodyText)
   }
-
-  const userTopTerms = extractTopTerms(0, tfidf)
 
   return {
-    userUrl,
-    userParsed,
-    userPixels,
-    userTopTerms,
-    userPsi: psiScores[0] ?? null,
-    userUrlProfile: formatUrlProfile(userDiscovery, userUrl),
-    competitors: competitorBase.map((c, i) => ({
-      ...c,
-      topTerms: c.fetchFailed ? [] : extractTopTerms(i + 1, tfidf),
-    })),
-    industry,
-    competitorsProvided: rawUrls.length > 0,
+    websiteUrl,
+    brandName: brand?.name || requirements['brand_name'] || '',
+    websiteType: brand?.websiteType || requirements['website_type'] || 'saas',
+    industry: brand?.industry || requirements['industry'] || null,
+    targetAudience: brand?.targetAudience || requirements['target_audience'] || null,
+    usp: brand?.usp || requirements['usp'] || null,
+    you,
+    competitors: loaded,
+    unreachable,
+    suggested: source === 'suggested',
   }
 }

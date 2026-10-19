@@ -45,7 +45,7 @@ export interface BrandAuditFetchResult {
 const UA = 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growjin.com)'
 const clean = (s: string) => s.replace(/\s+/g, ' ').trim()
 
-async function fetchPage(url: string): Promise<{ html: string; block: BlockInfo | null }> {
+export async function fetchPage(url: string): Promise<{ html: string; block: BlockInfo | null }> {
   try {
     const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(15000) })
     const body = await res.text().catch(() => '')
@@ -84,26 +84,26 @@ const RISK_FREE = /\b\d+[- ]day free trial\b|\bfree trial\b|\bstart (for )?free\
 const WHY_US = /\bwhy (choose|use|pick|switch to|(teams|people|founders|businesses|agencies|brands) (choose|love|pick|use)) \w+|^why [\w .'-]{1,30}\?$|\bwhat makes (us|\w+) different\b|\bhow (we|\w+)('re| are| is)? different\b|\bunlike (other|most|traditional)\b|\bvs\.?\s|\bcompared (to|with)\b|\bthe (only|first) \w+|\balternative to\b/i
 const PRICE = /(\$|€|£|₹)\s?\d|\b\d+(\.\d+)?\s?(usd|eur|gbp|inr)\b|\/\s?(mo|month)\b/i
 
-// ── Main fetcher ──────────────────────────────────────────────────────────────
+// ── Reading a homepage ────────────────────────────────────────────────────────
 
-export async function fetchBrandAuditData(requirements: Record<string, string>): Promise<BrandAuditFetchResult> {
-  const brandId = requirements['brand_id'] ?? ''
-  const raw = requirements['website_url'] ?? ''
-  const url = raw.startsWith('http') ? raw : `https://${raw}`
-  try { new URL(url) } catch { throw new Error(`Invalid URL: ${raw}`) }
+export interface HomepageFacts {
+  jsShell: boolean
+  h1: string
+  topText: string
+  copySample: string
+  headings: string[]
+  title: string
+  description: string
+  proof: BrandAuditFetchResult['proof']
+  pricing: BrandAuditFetchResult['pricing']
+  riskFree: string | null
+  whyUs: string | null
+}
 
-  const [[brand], competitors, home] = await Promise.all([
-    brandId
-      ? db.select({ name: brands.name, industry: brands.industry, targetAudience: brands.targetAudience, usp: brands.usp, brandVoice: brands.brandVoice, websiteType: brands.websiteType })
-          .from(brands).where(eq(brands.id, brandId)).limit(1)
-      : Promise.resolve([] as never[]),
-    brandId ? getCompetitors(brandId).catch(() => []) : Promise.resolve([]),
-    fetchPage(url),
-  ])
-  if (!home.html && !home.block) throw new Error(`Could not fetch ${url}. Check the URL is correct and publicly accessible.`)
-
-  const $ = cheerio.load(home.html || '<html></html>')
-  const jsShell = !!home.html && isJsShell($)
+/** What a homepage says and shows. Also used by Competitor Analysis, so both modules read sites the same way. */
+export function readHomepage(html: string, url: string): HomepageFacts {
+  const $ = cheerio.load(html || '<html></html>')
+  const jsShell = !!html && isJsShell($)
 
   // Facts read from the raw page (before nav/footer are stripped): links, scripts, structured data
   const links = $('a[href]').toArray().map(a => ({ href: $(a).attr('href') ?? '', text: clean($(a).text()) }))
@@ -151,6 +151,37 @@ export async function fetchBrandAuditData(requirements: Record<string, string>):
   const riskFree = RISK_FREE.exec(bodyText)?.[0] ?? links.map(l => RISK_FREE.exec(l.text)?.[0]).find(Boolean) ?? null
   const whyUs = headings.slice(1).find(h => WHY_US.test(h)) ?? null
 
+
+  return {
+    jsShell, h1, topText, copySample: bodyText.slice(0, 2500), headings: headings.slice(0, 30),
+    title: clean($('title').first().text()), description: clean($('meta[name="description"]').attr('content') ?? ''),
+    proof: { testimonials, logos, numbers, reviewSites: [...reviewSites].map(([name, u]) => ({ name, url: u })), caseStudies },
+    pricing: { link: pricingLink ? new URL(pricingLink.href, url).href : null, pricesOnPage: PRICE.test(bodyText) },
+    riskFree: riskFree ? clean(riskFree) : null,
+    whyUs,
+  }
+}
+
+// ── Main fetcher ──────────────────────────────────────────────────────────────
+
+export async function fetchBrandAuditData(requirements: Record<string, string>): Promise<BrandAuditFetchResult> {
+  const brandId = requirements['brand_id'] ?? ''
+  const raw = requirements['website_url'] ?? ''
+  const url = raw.startsWith('http') ? raw : `https://${raw}`
+  try { new URL(url) } catch { throw new Error(`Invalid URL: ${raw}`) }
+
+  const [[brand], competitors, home] = await Promise.all([
+    brandId
+      ? db.select({ name: brands.name, industry: brands.industry, targetAudience: brands.targetAudience, usp: brands.usp, brandVoice: brands.brandVoice, websiteType: brands.websiteType })
+          .from(brands).where(eq(brands.id, brandId)).limit(1)
+      : Promise.resolve([] as never[]),
+    brandId ? getCompetitors(brandId).catch(() => []) : Promise.resolve([]),
+    fetchPage(url),
+  ])
+  if (!home.html && !home.block) throw new Error(`Could not fetch ${url}. Check the URL is correct and publicly accessible.`)
+
+  const f = readHomepage(home.html, url)
+
   return {
     websiteUrl: url,
     brandName: brand?.name || requirements['brand_name'] || '',
@@ -160,16 +191,16 @@ export async function fetchBrandAuditData(requirements: Record<string, string>):
     usp: brand?.usp || requirements['usp'] || null,
     brandVoice: brand?.brandVoice || requirements['brand_voice'] || null,
     homepageLoaded: !!home.html,
-    homepageIsJsShell: jsShell,
+    homepageIsJsShell: f.jsShell,
     homepageBlocked: home.block,
-    h1,
-    topText,
-    copySample: bodyText.slice(0, 2500),
-    headings: headings.slice(0, 30),
-    proof: { testimonials, logos, numbers, reviewSites: [...reviewSites].map(([name, u]) => ({ name, url: u })), caseStudies },
-    pricing: { link: pricingLink ? new URL(pricingLink.href, url).href : null, pricesOnPage: PRICE.test(bodyText) },
-    riskFree: riskFree ? clean(riskFree) : null,
-    whyUs,
+    h1: f.h1,
+    topText: f.topText,
+    copySample: f.copySample,
+    headings: f.headings,
+    proof: f.proof,
+    pricing: f.pricing,
+    riskFree: f.riskFree,
+    whyUs: f.whyUs,
     competitors: competitors.slice(0, 5).map(c => ({ name: c.name || (() => { try { return new URL(c.url).hostname.replace(/^www\./, '') } catch { return c.url } })(), url: c.url })),
   }
 }
