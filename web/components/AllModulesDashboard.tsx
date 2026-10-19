@@ -2997,10 +2997,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <Button
                           disabled={reanalyzing || requested || missingReqs.length > 0}
                           onClick={() => { if (!requested) handleReanalyze(modData.id, reqValues, reqValues) }}
-                          className={`mt-3 gap-1.5 font-semibold${reanalyzing ? ' btn-analysing' : ''}`}
-                          style={requested
-                            ? { background: 'transparent', border: '1px solid var(--gold)', color: 'var(--gold)', cursor: 'default' }
-                            : { background: 'var(--green)', color: '#ffffff' }}
+                          className={`md-run-btn${requested ? ' is-requested' : ''}${reanalyzing ? ' btn-analysing' : ''}`}
                         >
                           {reanalyzing ? (
                             <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>{runsDirect ? 'Analysing…' : 'Requesting…'}</>

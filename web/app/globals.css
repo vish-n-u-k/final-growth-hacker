@@ -1026,6 +1026,13 @@ html.light .md-spin { border-color: rgba(23,154,80,0.3); border-top-color: var(-
   font-size: 13px; color: var(--text-dim); margin-bottom: 22px; line-height: 1.6;
 }
 .md-setup-fields { display: flex; flex-direction: column; gap: 18px; }
+/* The setup card's run button (explicit sizes: the global * reset would otherwise zero its padding) */
+.md-run-btn { display: inline-flex; align-items: center; gap: 8px; height: 42px; margin-top: 20px; padding: 0 20px; border: 0; border-radius: 10px; background: var(--green); color: #fff; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: filter .15s; }
+.md-run-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.md-run-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.md-run-btn:disabled:not(.btn-analysing) { opacity: .55; cursor: default; }
+.md-run-btn.is-requested { background: transparent; border: 1px solid var(--gold); color: var(--gold); cursor: default; }
+.md-run-btn svg { flex-shrink: 0; }
 .md-setup-field { display: flex; flex-direction: column; gap: 8px; }
 .md-setup-label {
   font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: 0.01em;
