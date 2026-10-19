@@ -15,11 +15,11 @@ const ago = (iso: string) => {
   return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 60 ? `${d} days ago` : `${Math.round(d / 30)} months ago`
 }
 
-const ORDER: Record<string, number> = { Consolidate: 0, Remove: 1, Refresh: 2, Repurpose: 3, Keep: 4 }
+const ORDER: Record<string, number> = { Consolidate: 0, Refresh: 1, Repurpose: 2, Remove: 3, Keep: 4 }
 const URGENCY: Record<string, number> = { High: 0, Medium: 1, Low: 2 }
 
 export default function ContentPagesOverview({ overview, verdicts: unsorted }: { overview: ContentOverview | null; verdicts: PageVerdictRow[] }) {
-  // Pages to act on first: merges and removals, then refreshes by urgency, then keeps
+  // Pages to act on first: merges, then refreshes by urgency, then removals, then keeps
   const verdicts = [...unsorted].sort((a, b) => (ORDER[a.verdict] ?? 9) - (ORDER[b.verdict] ?? 9) || (URGENCY[a.urgency] ?? 9) - (URGENCY[b.urgency] ?? 9))
   const needsWork = verdicts.filter(v => v.verdict !== 'Keep')
   const [showAll, setShowAll] = useState(false)
@@ -30,6 +30,7 @@ export default function ContentPagesOverview({ overview, verdicts: unsorted }: {
     { label: 'Articles', value: `${overview.postsFound}`, sub: overview.postsFound ? 'on your site' : 'none yet' },
     { label: 'Newest article', value: overview.newestPostDate ? ago(overview.newestPostDate) : '—', sub: overview.newestPostDate ? new Date(overview.newestPostDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'no date found' },
     { label: 'Typical article', value: overview.typicalPostWords != null ? `${overview.typicalPostWords.toLocaleString()} words` : '—', sub: overview.typicalPostWords != null ? 'median length' : 'none read' },
+    ...(overview.searchClicks != null ? [{ label: 'From Google', value: `${overview.searchClicks.toLocaleString()} clicks`, sub: 'last 90 days' }] : []),
   ] : []
 
   return (

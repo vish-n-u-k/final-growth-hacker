@@ -255,14 +255,16 @@ export interface GscRow {
   position: number
 }
 
-// Tries URL-prefix property first, then domain property — GSC has two formats
-// Throws on auth failure or hard errors so callers can surface the reason to users.
-export async function fetchGscTopQueries(
+type GscApiRow = { keys: string[]; impressions: number; clicks: number; position: number }
+
+// Tries URL-prefix property first, then domain property — GSC has two formats.
+// rows = null when neither answered with data (errors says why).
+async function searchAnalytics(
   clientEmail: string,
   privateKey: string,
   siteUrl: string,
-  rowLimit = 25,
-): Promise<GscRow[]> {
+  query: Record<string, unknown>,
+): Promise<{ rows: GscApiRow[] | null; errors: string[] }> {
   const accessToken = await getGscAccessToken(clientEmail, privateKey)
   if (!accessToken) {
     throw new Error('GSC auth failed — check your service account email and private key.')
@@ -270,22 +272,14 @@ export async function fetchGscTopQueries(
 
   const url = siteUrl.startsWith('http') ? siteUrl : `https://${siteUrl}`
   const hostname = new URL(url).hostname
-  const endDate = new Date().toISOString().split('T')[0]
-  const startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  const body = JSON.stringify({
-    startDate,
-    endDate,
-    dimensions: ['query'],
-    rowLimit,
-    orderBy: [{ fieldName: 'impressions', sortOrder: 'DESCENDING' }],
-  })
+  const body = JSON.stringify(query)
   const headers = {
     Authorization: `Bearer ${accessToken}`,
     'Content-Type': 'application/json',
   }
 
   const siteIds = [encodeURIComponent(url), `sc-domain%3A${hostname}`]
-  const lastErrors: string[] = []
+  const errors: string[] = []
 
   for (const siteId of siteIds) {
     const res = await fetch(
@@ -294,23 +288,65 @@ export async function fetchGscTopQueries(
     )
     if (!res.ok) {
       const errText = await res.text().catch(() => res.statusText)
-      lastErrors.push(`${decodeURIComponent(siteId)}: HTTP ${res.status} — ${errText.slice(0, 200)}`)
+      errors.push(`${decodeURIComponent(siteId)}: HTTP ${res.status} — ${errText.slice(0, 200)}`)
       continue
     }
-    const data = await res.json() as {
-      rows?: { keys: string[]; impressions: number; clicks: number; position: number }[]
-    }
+    const data = await res.json() as { rows?: GscApiRow[] }
     if (!data.rows?.length) {
-      lastErrors.push(`${decodeURIComponent(siteId)}: no rows returned (site may have no Search Console data yet)`)
+      errors.push(`${decodeURIComponent(siteId)}: no rows returned (site may have no Search Console data yet)`)
       continue
     }
-    return data.rows.map((r) => ({
-      query: r.keys[0],
-      impressions: r.impressions,
-      clicks: r.clicks,
-      position: Math.round(r.position * 10) / 10,
-    }))
+    return { rows: data.rows, errors }
   }
+  return { rows: null, errors }
+}
 
-  throw new Error(`GSC returned no data. Tried:\n${lastErrors.join('\n')}`)
+const isoDaysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+// Throws on auth failure or hard errors so callers can surface the reason to users.
+export async function fetchGscTopQueries(
+  clientEmail: string,
+  privateKey: string,
+  siteUrl: string,
+  rowLimit = 25,
+): Promise<GscRow[]> {
+  const { rows, errors } = await searchAnalytics(clientEmail, privateKey, siteUrl, {
+    startDate: isoDaysAgo(90),
+    endDate: isoDaysAgo(0),
+    dimensions: ['query'],
+    rowLimit,
+    orderBy: [{ fieldName: 'impressions', sortOrder: 'DESCENDING' }],
+  })
+  if (!rows) throw new Error(`GSC returned no data. Tried:\n${errors.join('\n')}`)
+  return rows.map((r) => ({
+    query: r.keys[0],
+    impressions: r.impressions,
+    clicks: r.clicks,
+    position: Math.round(r.position * 10) / 10,
+  }))
+}
+
+export interface GscPageRow {
+  page: string
+  clicks: number
+  impressions: number
+  position: number
+}
+
+/** Google search clicks, impressions and average position per page, over `days` days ending
+ *  `endDaysAgo` days ago. null = Search Console has no data for the site. Throws on auth errors. */
+export async function fetchGscPageTraffic(
+  clientEmail: string,
+  privateKey: string,
+  siteUrl: string,
+  days = 90,
+  endDaysAgo = 0,
+): Promise<GscPageRow[] | null> {
+  const { rows } = await searchAnalytics(clientEmail, privateKey, siteUrl, {
+    startDate: isoDaysAgo(endDaysAgo + days),
+    endDate: isoDaysAgo(endDaysAgo),
+    dimensions: ['page'],
+    rowLimit: 1000,
+  })
+  return rows?.map((r) => ({ page: r.keys[0], clicks: r.clicks, impressions: r.impressions, position: r.position })) ?? null
 }

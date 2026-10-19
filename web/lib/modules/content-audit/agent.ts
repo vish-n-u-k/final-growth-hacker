@@ -189,7 +189,7 @@ export function buildContentRuleResults(data: ContentAuditFetchResult): Result[]
           `**${pairs.length} pair${pairs.length > 1 ? 's' : ''} of pages** cover the same topic: ${pairs.slice(0, 3).map(([a, b]) => `${nameOf(a, tpl)} and ${nameOf(b, tpl)}`).join('; ')}.`,
           'Pages compete with each other',
           '**Two pages on one topic split the attention** search engines would give a single strong page.',
-          'Merge each pair into the fuller page and redirect the other one to it. The page table below marks them "Consolidate".'))
+          'Merge each pair into the stronger page (the one Google sends more visitors to, else the fuller one) and redirect (301) the other one to it. The page table below marks them "Consolidate".'))
   } else {
     out.push(skip(Q, 'duplicates', uL, 'Couldn\'t check: fewer than 3 content pages to compare.'))
   }
@@ -217,31 +217,90 @@ export function buildContentRuleResults(data: ContentAuditFetchResult): Result[]
 
 // ── Page verdicts (fixed rules) ───────────────────────────────────────────────
 
+const n = (x: number) => x.toLocaleString()
+const plural = (x: number, w: string) => `${n(x)} ${w}${x === 1 ? '' : 's'}`
+
+/** The closest substantial article to send a removed page's visitors to (never the homepage). */
+function redirectTarget(p: PageSummary, pages: PageSummary[], tpl: Template): PageSummary | null {
+  if (!p.title) return null
+  const words = titleWords(p.title, tpl)
+  let best: PageSummary | null = null
+  let bestShared = 0
+  for (const q of pages) {
+    if (q.url === p.url || !q.title || q.wordCount < 300) continue
+    const shared = [...titleWords(q.title, tpl)].filter(w => words.has(w)).length
+    if (shared > bestShared) { best = q; bestShared = shared }
+  }
+  return best
+}
+
 export function computeVerdicts(data: ContentAuditFetchResult): PageVerdict[] {
   // Nothing meaningful to say when the pages couldn't be read
   if (data.homepageBlocked || data.homepageIsJsShell) return []
   const tpl = templateOf(data.pages.filter(p => !p.fetchError))
   const content = data.pages.filter(p => !p.fetchError && (p.kind === 'post' || p.kind === 'page'))
-  const merge = new Map(duplicatePairs(content, tpl).map(([short, full]) => [short.url, full]))
+  // With Search Console, the page Google already sends people to is the one to keep; else the fuller one
+  const clicksOf = (p: PageSummary) => p.search?.clicks ?? 0
+  const merge = new Map(duplicatePairs(content, tpl).map(([short, full]) => clicksOf(short) > clicksOf(full) ? [full.url, short] : [short.url, full]))
   const v = (p: PageSummary, verdict: PageVerdict['verdict'], urgency: PageVerdict['urgency'], reason: string, action: string): PageVerdict =>
     ({ url: p.url, title: p.title ? cleanTitle(p.title, tpl) : null, wordCount: p.wordCount, verdict, urgency, reason, action })
 
   return content.map(p => {
+    const s = p.search
+    const visits = s && s.clicks > 0 ? ` Google sent it ${plural(s.clicks, 'click')} in the last 90 days.` : ''
     const into = merge.get(p.url)
-    if (into) return v(p, 'Consolidate', 'High', `Covers the same topic as ${nameOf(into, tpl)}, which is fuller.`, `Move anything unique into ${pathOf(into.url)}, then redirect this page there.`)
-    if (p.kind === 'post' && p.wordCount < 100) return v(p, 'Remove', 'Medium', `Almost empty: ${p.wordCount} words.`, 'Write it properly, or delete it and redirect to a related article.')
-    if (p.wordCount < 300) return v(p, 'Refresh', 'High', `Thin: ${p.wordCount} words.`, 'Expand to 600+ words that fully answer the reader\'s question.')
+    if (into) {
+      const why = s && clicksOf(into) > 0 && clicksOf(into) >= s.clicks ? 'which gets more clicks from Google' : 'which is fuller'
+      return v(p, 'Consolidate', 'High', `Covers the same topic as ${nameOf(into, tpl)}, ${why}.`, `Move anything unique into ${pathOf(into.url)}, then redirect (301) this page there.`)
+    }
+
+    if (p.kind === 'post' && p.wordCount < 100) {
+      // Safety first: never delete a page people find on Google, or one too new to judge
+      if (s && (s.clicks > 0 || s.impressions >= 50)) {
+        return v(p, 'Refresh', 'High', `Almost empty (${p.wordCount} words), but people find it on Google: ${plural(s.clicks, 'click')} and ${plural(s.impressions, 'view')} in search in 90 days.`,
+          'Expand it to 600+ words that answer what people search for. Don\'t delete a page that gets visitors.')
+      }
+      if (p.published && daysSince(p.published) < 90) {
+        return v(p, 'Refresh', 'High', `New and almost empty: ${p.wordCount} words.`, 'Finish it: 600+ words that fully answer the reader\'s question.')
+      }
+      const target = redirectTarget(p, content, tpl)
+      const check = s ? ''
+        : data.search.connected ? ' First check in your analytics that it gets no visits (Search Console couldn\'t tell us this time).'
+        : ' First check it gets no visits (connect Google Search Console and GrowJin checks this for you).'
+      return v(p, 'Remove', 'Medium', `Almost empty: ${p.wordCount} words${s ? ', and Google sent it no visits in 90 days' : ''}.`,
+        `${target
+          ? `Delete it and redirect (301) its address to ${pathOf(target.url)}, the closest related article — not the homepage.`
+          : 'Delete it and let its address answer 410 Gone (or redirect it to a closely related article — never the homepage).'} Update any links that point to it.${check}`)
+    }
+    if (p.wordCount < 300) return v(p, 'Refresh', 'High', `Thin: ${p.wordCount} words.${visits}`, 'Expand to 600+ words that fully answer the reader\'s question.')
+
+    // Losing Google traffic: update it before it slips further
+    if (s && s.prevClicks >= 10 && s.clicks <= s.prevClicks * 0.7) {
+      return v(p, 'Refresh', 'High', `Google clicks fell from ${n(s.prevClicks)} to ${n(s.clicks)} (−${Math.round((1 - s.clicks / s.prevClicks) * 100)}%) compared with the 90 days before.`,
+        'Update it: look at what now ranks above it for its main search, add what\'s missing, and refresh the date.')
+    }
+    // Seen in Google but just off the top results, where few people click
+    if (s && s.impressions >= 100 && s.position > 5 && s.position <= 20) {
+      return v(p, 'Refresh', 'Medium', `Shows up in Google (${plural(s.impressions, 'view')} in 90 days) but at position ${Math.round(s.position)}, where few people click.`,
+        'Push it into the top 5: answer the search more fully, sharpen the title, and link to it from related pages.')
+    }
     if (p.kind === 'post' && p.published && daysSince(p.published) > 540) {
-      return v(p, 'Refresh', 'Medium', `Last updated ${Math.round(daysSince(p.published) / 30)} months ago.`, `Bring it up to date for ${new Date().getFullYear()} and change the date.`)
+      return v(p, 'Refresh', 'Medium', `Last updated ${Math.round(daysSince(p.published) / 30)} months ago.${visits}`, `Bring it up to date for ${new Date().getFullYear()} and change the date.`)
+    }
+    // Google doesn't show it at all, a year on
+    if (s && p.kind === 'post' && s.impressions < 10 && p.published && daysSince(p.published) > 365) {
+      return v(p, 'Refresh', 'Low', `Google hasn't shown it in search for 90 days (${plural(s.impressions, 'view')}).`,
+        'Re-aim it at a question people actually search for, or merge it into a related article and redirect (301) it there.')
     }
     if (p.kind === 'post' && (!p.hasCta || p.bodyLinks < 2)) {
       const fixes = [!p.hasCta && 'add a call to try or sign up', p.bodyLinks < 2 && 'link to 2–3 related pages'].filter(Boolean)
-      return v(p, 'Refresh', 'Low', `${p.wordCount.toLocaleString()} words, but ${!p.hasCta ? 'no next step for readers' : 'few links to your other pages'}.`, `${fixes.join(' and ').replace(/^./, c => c.toUpperCase())}.`)
+      return v(p, 'Refresh', 'Low', `${n(p.wordCount)} words, but ${!p.hasCta ? 'no next step for readers' : 'few links to your other pages'}.${visits}`, `${fixes.join(' and ').replace(/^./, c => c.toUpperCase())}.`)
     }
-    return v(p, 'Keep', 'Low', `${p.wordCount.toLocaleString()} words${p.kind === 'post' ? ', links onward and leads to your product' : ''}.`, 'Nothing to do now.')
+    return v(p, 'Keep', 'Low', `${n(p.wordCount)} words${p.kind === 'post' ? ', links onward and leads to your product' : ''}.${visits}`, 'Nothing to do now.')
   }).sort((a, b) => ORDER[a.verdict] - ORDER[b.verdict] || URGENCY[a.urgency] - URGENCY[b.urgency])
 }
-const ORDER: Record<PageVerdict['verdict'], number> = { Consolidate: 0, Remove: 1, Refresh: 2, Repurpose: 3, Keep: 4 }
+// Merges first, then updates, deletes last (a page is easier to save than to bring back)
+const ORDER: Record<PageVerdict['verdict'], number> = { Consolidate: 0, Refresh: 1, Repurpose: 2, Remove: 3, Keep: 4 }
 const URGENCY: Record<PageVerdict['urgency'], number> = { High: 0, Medium: 1, Low: 2 }
 
 // ── Ideas (Claude) and the publishing plan ────────────────────────────────────
@@ -279,6 +338,7 @@ export async function analyzeContentAudit(data: ContentAuditFetchResult, brainCo
     newestPostDate: [data.newestPostDate, ...postsRead.map(p => p.published)].filter((d): d is string => !!d).sort().at(-1) ?? null,
     typicalPostWords: postsRead.length ? median(postsRead.map(p => p.wordCount)) : null,
     unreadable: !!(data.homepageBlocked || data.homepageIsJsShell),
+    searchClicks: data.search.clicks,
   }
   const first = rules.find(x => x.slug === CONTENT_SUMMARY_SLUG)
   if (first) first.aiData = { overview }

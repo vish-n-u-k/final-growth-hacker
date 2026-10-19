@@ -9,4 +9,5 @@ export interface ContentOverview {
   newestPostDate: string | null
   typicalPostWords: number | null   // median words per article read
   unreadable: boolean               // blocked or built with JavaScript: page text couldn't be read
+  searchClicks?: number | null      // clicks from Google in the last 90 days (Search Console); null/absent = not connected
 }

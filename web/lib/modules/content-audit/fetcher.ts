@@ -1,7 +1,8 @@
 import * as cheerio from 'cheerio'
 import { db } from '@/lib/db'
-import { brands } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { brands, brandIntegrations } from '@/lib/db/schema'
+import { and, eq } from 'drizzle-orm'
+import { fetchGscPageTraffic, type GscPageRow } from '@/lib/modules/seo/keyword-fetchers'
 import { isJsShell } from '@/lib/audit/js-shell'
 import { detectBlock, type BlockInfo } from '@/lib/audit/blocked'
 
@@ -26,6 +27,15 @@ export interface PageSummary {
   hasCta: boolean           // the main copy points readers to sign up, try, buy, book or pricing
   published: string | null  // ISO date: the page's own date, else the sitemap's last-modified date
   fetchError: string | null
+  search?: PageSearch       // Google search traffic (only when Search Console has data for the site)
+}
+
+/** A page's Google search traffic from Search Console: the last 90 days, and the 90 before. */
+export interface PageSearch {
+  clicks: number
+  impressions: number
+  position: number          // average position (0 = not shown)
+  prevClicks: number
 }
 
 export interface ContentAuditFetchResult {
@@ -41,6 +51,8 @@ export interface ContentAuditFetchResult {
   postsFound: number        // blog/article URLs found, before capping
   newestPostDate: string | null   // across every post URL found (sitemap dates), not just the ones read
   postsLast90Days: number | null  // null = no dates to go on
+  // Search Console: not connected, couldn't be read (error), or the site's clicks in the last 90 days
+  search: { connected: boolean; error: string | null; clicks: number | null }
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -193,12 +205,54 @@ const failed = (url: string, kind: PageKind): PageSummary => ({
 
 // ── Main fetcher ──────────────────────────────────────────────────────────────
 
+/** Same page whatever the scheme, www, trailing slash or query string: how Search Console rows are matched to pages. */
+function trafficKey(url: string): string {
+  try { const u = new URL(url); return `${u.hostname.replace(/^www\./, '')}${u.pathname.replace(/\/+$/, '')}`.toLowerCase() } catch { return url }
+}
+
+/** Per-page Google traffic for the last 90 days and the 90 before (null when Search Console isn't connected). */
+async function readSearchTraffic(brandId: string, siteUrl: string): Promise<{ byPage: Map<string, PageSearch> | null; error: string | null } | null> {
+  if (!brandId) return null
+  const [row] = await db.select({ metadata: brandIntegrations.metadata }).from(brandIntegrations)
+    .where(and(eq(brandIntegrations.brandId, brandId), eq(brandIntegrations.provider, 'gsc_api'), eq(brandIntegrations.status, 'connected')))
+    .limit(1)
+  const meta = (row?.metadata as Record<string, string> | null) ?? {}
+  if (!meta.client_email || !meta.private_key) return null
+  try {
+    const [now, before] = await Promise.all([
+      fetchGscPageTraffic(meta.client_email, meta.private_key, siteUrl, 90, 0),
+      fetchGscPageTraffic(meta.client_email, meta.private_key, siteUrl, 90, 90),
+    ])
+    // No rows at all: Search Console has no data yet, which says nothing about any one page
+    if (!now) return { byPage: null, error: 'Search Console has no search data for this site yet.' }
+    const byPage = new Map<string, PageSearch>()
+    const add = (r: GscPageRow, prev: boolean) => {
+      const k = trafficKey(r.page)
+      const cur = byPage.get(k) ?? { clicks: 0, impressions: 0, position: 0, prevClicks: 0 }
+      if (prev) cur.prevClicks += r.clicks
+      else {
+        // Impression-weighted average position across the page's variants
+        cur.position = cur.impressions + r.impressions > 0 ? (cur.position * cur.impressions + r.position * r.impressions) / (cur.impressions + r.impressions) : 0
+        cur.clicks += r.clicks
+        cur.impressions += r.impressions
+      }
+      byPage.set(k, cur)
+    }
+    for (const r of now) add(r, false)
+    for (const r of before ?? []) add(r, true)
+    return { byPage, error: null }
+  } catch (err) {
+    return { byPage: null, error: err instanceof Error ? err.message : 'Search Console could not be read.' }
+  }
+}
+
 export async function fetchContentAuditData(requirements: Record<string, string>): Promise<ContentAuditFetchResult> {
   const rawUrl = requirements['website_url'] ?? ''
   const baseUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`
   const { origin, hostname } = new URL(baseUrl)
   const brandId = requirements['brand_id'] ?? ''
 
+  const trafficPromise = readSearchTraffic(brandId, baseUrl)
   const [[brand], home, sitemap] = await Promise.all([
     brandId
       ? db.select({ name: brands.name, industry: brands.industry, targetAudience: brands.targetAudience, usp: brands.usp }).from(brands).where(eq(brands.id, brandId)).limit(1)
@@ -237,6 +291,12 @@ export async function fetchContentAuditData(requirements: Record<string, string>
   }))
   const pages = [homeHtml ? summarize(homeKey, homeHtml, 'home', null) : failed(homeKey, 'home'), ...read]
 
+  // Google traffic per page; a page Search Console has no row for got no clicks or impressions
+  const traffic = await trafficPromise
+  if (traffic?.byPage) {
+    for (const p of pages) p.search = traffic.byPage.get(trafficKey(p.url)) ?? { clicks: 0, impressions: 0, position: 0, prevClicks: 0 }
+  }
+
   return {
     websiteUrl: baseUrl,
     brandName: brand?.name || requirements['brand_name'] || '',
@@ -250,5 +310,10 @@ export async function fetchContentAuditData(requirements: Record<string, string>
     postsFound: posts.length,
     newestPostDate,
     postsLast90Days,
+    search: {
+      connected: !!traffic,
+      error: traffic?.error ?? null,
+      clicks: traffic?.byPage ? [...traffic.byPage.values()].reduce((n, x) => n + x.clicks, 0) : null,
+    },
   }
 }
