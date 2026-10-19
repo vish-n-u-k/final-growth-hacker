@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { fetchGscPageTraffic, type GscPageRow } from '@/lib/modules/seo/keyword-fetchers'
+import { readHomepage } from '@/lib/modules/brand-audit/fetcher'
 import { isJsShell } from '@/lib/audit/js-shell'
 import { detectBlock, type BlockInfo } from '@/lib/audit/blocked'
 
@@ -53,6 +54,8 @@ export interface ContentAuditFetchResult {
   postsLast90Days: number | null  // null = no dates to go on
   // Search Console: not connected, couldn't be read (error), or the site's clicks in the last 90 days
   search: { connected: boolean; error: string | null; clicks: number | null }
+  // Customer proof the homepage already shows (testimonials, logos, ratings…), so ideas don't call it missing
+  homepageProof: string[]
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -297,6 +300,15 @@ export async function fetchContentAuditData(requirements: Record<string, string>
     for (const p of pages) p.search = traffic.byPage.get(trafficKey(p.url)) ?? { clicks: 0, impressions: 0, position: 0, prevClicks: 0 }
   }
 
+  const proof = homeHtml && !home?.block ? readHomepage(homeHtml, baseUrl).proof : null
+  const homepageProof = proof ? [
+    proof.testimonials && `Testimonials: ${proof.testimonials}`,
+    proof.logos && `Customer logos: ${proof.logos}`,
+    proof.numbers.length > 0 && `Numbers / ratings: ${proof.numbers.join(', ')}`,
+    proof.reviewSites.length > 0 && `Review sites linked: ${proof.reviewSites.map(x => x.name).join(', ')}`,
+    proof.caseStudies && `Case studies: ${proof.caseStudies}`,
+  ].filter((x): x is string => !!x) : []
+
   return {
     websiteUrl: baseUrl,
     brandName: brand?.name || requirements['brand_name'] || '',
@@ -310,6 +322,7 @@ export async function fetchContentAuditData(requirements: Record<string, string>
     postsFound: posts.length,
     newestPostDate,
     postsLast90Days,
+    homepageProof,
     search: {
       connected: !!traffic,
       error: traffic?.error ?? null,

@@ -78,7 +78,11 @@ function reviewSiteOf(raw: string, base: string): string | null {
 const TESTIMONIAL_HEADING = /\btestimonials?\b|what (our |real )?(customers|clients|users|people|founders|members|teams|creators) (say|are saying|think)|wall of love|\bloved by\b|hear (it )?from (our )?(customers|clients|users)|\b(customer|user|client|our) reviews\b|^reviews$/i
 const LOGO_PHRASE = /\b(trusted|used|loved|chosen|backed) by\b|\bas (seen|featured) (in|on)\b|\bfeatured (in|on)\b|\bour (customers|clients|partners)\b|\bcompanies (using|that use|that trust)\b/i
 const NUMBER_CLAIM = /\b(?!(19|20)\d\d\b)\d[\d,.]*\s*(k|m)?\+?\s*((?!(for|to|in|with|of|and|the|per|a|an)\b)[a-z-]+ ){0,2}?(users|customers|clients|businesses|companies|teams|founders|creators|brands|agencies|members|downloads|students|shops|stores|sellers|merchants|marketers|restaurants|owners|posts (created|made|published))\b/gi
-const RATING = /\b[1-5]\.\d\s*(\/\s*5|out of 5|stars?)\b|\b[1-5]\s*(\/\s*5|out of 5)\b|★{3,}/gi
+const RATING = /\b[1-5]\.\d\s*(\/\s*5|out of 5|stars?)\b|\b[1-5]\s*(\/\s*5|out of 5)\b|★(\s*★){2,}/gi
+// A review / testimonial card's class ("review-card", "testimonials", "customer_review"), not "preview"
+const REVIEW_CLASS = /(^|[\s_-])(testimonials?|reviews?)([\s_-]|$)/i
+// Small section labels above a heading ("What customers say"), which sites style instead of using a heading
+const LABEL_SEL = '[class*="eyebrow" i], [class*="kicker" i], [class*="overline" i], [class*="tagline" i], [class*="label" i], [class*="subtitle" i], [class*="badge" i]'
 const CASE_STUDY = /case.?stud|success.?stor|customer.?stor/i
 const RISK_FREE = /\b\d+[- ]day free trial\b|\bfree trial\b|\bstart (for )?free\b|\btry (it )?(for )?free\b|\bfree (plan|forever|tier)\b|\bno credit card\b|\bno card (required|needed)\b|\bcancel any ?time\b|\bmoney[- ]back\b|\bfull refund\b|\b\d+[- ]day (money[- ]back )?guarantee\b|\bfree (returns|shipping)\b|\bbook a (free )?(demo|call)\b|\bfree (consultation|quote)\b/i
 const WHY_US = /\bwhy (choose|use|pick|switch to|(teams|people|founders|businesses|agencies|brands) (choose|love|pick|use)) \w+|^why [\w .'-]{1,30}\?$|\bwhat makes (us|\w+) different\b|\bhow (we|\w+)('re| are| is)? different\b|\bunlike (other|most|traditional)\b|\bvs\.?\s|\bcompared (to|with)\b|\bthe (only|first) \w+|\balternative to\b/i
@@ -131,11 +135,22 @@ export function readHomepage(html: string, url: string): HomepageFacts {
   const at = h1 ? bodyText.indexOf(h1) : -1
   const topText = bodyText.slice(Math.max(0, at), Math.max(0, at) + 900)
 
-  // Testimonials: quote blocks, a testimonials section, or review markup
-  const quoteBlocks = $('blockquote, [class*="testimonial" i], [id*="testimonial" i]').length
-  const testimonialHeading = headings.find(h => TESTIMONIAL_HEADING.test(h))
-  const testimonials = testimonialHeading ? `a "${testimonialHeading.slice(0, 60)}" section`
-    : quoteBlocks > 0 ? `${quoteBlocks} customer quote${quoteBlocks > 1 ? 's' : ''}`
+  // Testimonials: a testimonials heading or label, review / quote cards, or review markup
+  const labels = $(LABEL_SEL).toArray().map(el => clean($(el).text())).filter(t => t && t.length <= 80)
+  const testimonialHeading = [...headings, ...labels].find(h => TESTIMONIAL_HEADING.test(h))
+  // Cards: review / testimonial elements of a quote's size, counted by their most repeated class
+  // ("review-card" ×5), so the section around them or a name line isn't counted as a quote
+  const cardsByClass = new Map<string, number>()
+  $('[class]').each((_, el) => {
+    const cls = clean($(el).attr('class') ?? '')
+    const len = clean($(el).text()).length
+    if (REVIEW_CLASS.test(cls) && len >= 40 && len <= 1200) cardsByClass.set(cls, (cardsByClass.get(cls) ?? 0) + 1)
+  })
+  const cards = Math.max(0, ...cardsByClass.values())
+  const quotes = Math.max(cards, $('blockquote').length)
+  const testimonials = testimonialHeading
+    ? `a "${testimonialHeading.slice(0, 60)}" section${quotes > 0 ? ` with ${quotes} customer quote${quotes > 1 ? 's' : ''}` : ''}`
+    : quotes > 0 ? `${quotes} customer quote${quotes > 1 ? 's' : ''}`
     : reviewSchema ? 'review markup on the page' : null
 
   // Customer logos: a "trusted by" line, or a strip of 3+ logos
@@ -144,7 +159,7 @@ export function readHomepage(html: string, url: string): HomepageFacts {
     .filter((_, el) => $(el).find('img, svg').length >= 3).length > 0
   const logos = logoPhrase ? `a "${logoPhrase[0].toUpperCase()}${logoPhrase.slice(1)}" line` : logoStrip ? 'a strip of customer logos' : null
 
-  const numbers = [...new Set([...bodyText.matchAll(NUMBER_CLAIM), ...bodyText.matchAll(RATING)].map(m => clean(m[0])))].slice(0, 4)
+  const numbers = [...new Set([...bodyText.matchAll(NUMBER_CLAIM), ...bodyText.matchAll(RATING)].map(m => clean(m[0]).replace(/★\s+/g, '★')))].slice(0, 4)
   const caseHeading = headings.find(h => CASE_STUDY.test(h))
   const caseStudies = caseLink ? `"${(caseLink.text || caseLink.href).slice(0, 60)}"` : caseHeading ? `"${caseHeading.slice(0, 60)}"` : null
 

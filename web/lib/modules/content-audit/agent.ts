@@ -358,6 +358,10 @@ Main selling point: ${data.usp ?? 'not provided'}
 ${overview.postsFound} articles found in total; ${ok.length} pages read:
 ${titles.join('\n') || '(none could be read)'}
 
+=== Customer proof already on the homepage ===
+${data.homepageProof.length ? data.homepageProof.map(x => `- ${x}`).join('\n') : (data.homepageBlocked || data.homepageIsJsShell ? 'unknown (the homepage couldn\'t be read)' : 'none found')}
+Don't suggest adding testimonials, reviews, logos or ratings the homepage already has, and never say the site lacks them. You may suggest turning existing quotes into full customer-story pages.
+
 === Checks that failed ===
 ${failed.length ? failed.map(f => `- ${f.label}: ${f.detail.replace(/\*\*/g, '')}`).join('\n') : 'none'}
 
