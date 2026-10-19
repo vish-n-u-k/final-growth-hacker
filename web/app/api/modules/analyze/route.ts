@@ -773,8 +773,10 @@ Key One-Liners: ${pb.keyOneLiners}`
       const returnedSlugs = new Set(dynamicResults.map((r) => r.slug))
       const returnedLabels = new Set(dynamicResults.map((r) => normalizeLabel(r.label)))
       // Exclude orphans whose label already appears in Claude's output (label-matched → userChecked restored above)
+      // ...and only in areas the module still has (an old area isn't shown, so its ticks mustn't count in the score)
+      const liveCatIds = new Set(cats.filter((c) => !c.parentId && def.categories.some((d) => d.slug === c.slug)).map((c) => c.id))
       const completedOrphans = existingItems.filter(
-        (i) => i.userChecked && !returnedSlugs.has(i.slug) && !returnedLabels.has(normalizeLabel(i.label ?? '')),
+        (i) => i.userChecked && liveCatIds.has(i.categoryId) && !returnedSlugs.has(i.slug) && !returnedLabels.has(normalizeLabel(i.label ?? '')),
       )
       if (completedOrphans.length > 0) {
         await Promise.all(

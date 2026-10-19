@@ -1,409 +1,175 @@
-import { load } from 'cheerio'
-import { TfIdf } from 'natural'
-import Sentiment from 'sentiment'
-import { discoverAllUrls, type UrlDiscoveryResult } from '@/lib/audit/url-discovery'
-
-const sentimentAnalyzer = new Sentiment()
+import * as cheerio from 'cheerio'
+import { db } from '@/lib/db'
+import { brands } from '@/lib/db/schema'
+import { eq } from 'drizzle-orm'
+import { isJsShell } from '@/lib/audit/js-shell'
+import { detectBlock, type BlockInfo } from '@/lib/audit/blocked'
+import { getCompetitors } from '@/lib/modules/competitor-registry'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-export interface TrustSignals {
-  hasHttps: boolean
-  testimonialCount: number
-  socialProofCount: number
-  clientLogoCount: number
-  hasCaseStudyLink: boolean
-  hasReviewWidget: boolean
-  hasTeamPage: boolean
-  hasPrivacyPage: boolean
-  hasTermsPage: boolean
-}
-
-export interface SocialProfileResult {
-  handle: string
-  url: string
-  bio: string
-  sentimentScore: number
-  fetchFailed: boolean
-}
 
 export interface BrandAuditFetchResult {
   websiteUrl: string
   brandName: string
-  industry: string
-  targetAudience: string
-  usp: string
-  brandVoice: string
-  // Page metadata
-  title: string
-  metaDescription: string
-  ogTitle: string
-  ogDescription: string
+  websiteType: string
+  // From the brand profile (Settings → Brand); the module's own setup values are the fallback
+  industry: string | null
+  targetAudience: string | null
+  usp: string | null
+  brandVoice: string | null
+
+  homepageLoaded: boolean
+  homepageIsJsShell: boolean
+  homepageBlocked: BlockInfo | null
+
   h1: string
-  firstParagraph: string
-  heroCopy: string
-  bodyCopy: string
-  // NLP signals
-  topKeywords: string[]
-  readabilityScore: number
-  readabilityLabel: string
-  websiteSentimentScore: number
-  // Language analysis
-  benefitCount: number
-  featureCount: number
-  ctaTexts: string[]
-  audienceMentionCount: number
-  // Trust
-  trustSignals: TrustSignals
-  // Schema
-  schemaTypes: string[]
-  // Discovery
-  wikidataFound: boolean
-  hasComparisonPage: boolean
-  // Social profiles (if handles provided)
-  socialProfiles: SocialProfileResult[]
-  avgSocialSentiment: number | null
-  toneDelta: number | null
-  // Brand name consistency
-  titleHasBrandName: boolean
-  ogTitleHasBrandName: boolean
-  // Site structure (same as website module)
-  robotsTxt: string
-  sitemapStatus: number
-  urlDiscovery: UrlDiscoveryResult
+  topText: string                  // what a visitor reads first: the headline and the copy right after it
+  copySample: string               // the homepage copy, for the ideas
+  headings: string[]               // h1–h3 text, in page order
+
+  proof: {
+    testimonials: string | null    // what we found ("a "What our customers say" section"), null = none
+    logos: string | null
+    numbers: string[]              // "2,000+ businesses", "4.8/5"
+    reviewSites: { name: string; url: string }[]
+    caseStudies: string | null
+  }
+  pricing: { link: string | null; pricesOnPage: boolean }
+  riskFree: string | null          // the phrase we found ("7-day free trial", "no credit card")
+  whyUs: string | null             // the heading that explains why you over the alternatives
+  competitors: { name: string; url: string }[]
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function safeFetch(url: string, timeoutMs = 12000): Promise<string | null> {
+const UA = 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growjin.com)'
+const clean = (s: string) => s.replace(/\s+/g, ' ').trim()
+
+async function fetchPage(url: string): Promise<{ html: string; block: BlockInfo | null }> {
   try {
-    const res = await fetch(url, {
-      signal: AbortSignal.timeout(timeoutMs),
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthAuditBot/1.0)' },
-    })
-    if (!res.ok) return null
-    return await res.text()
+    const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(15000) })
+    const body = await res.text().catch(() => '')
+    const block = detectBlock(res.status, res.headers, body)
+    return { html: res.ok && !block ? body : '', block }
+  } catch {
+    return { html: '', block: null }
+  }
+}
+
+const REVIEW_SITES: [RegExp, string][] = [
+  [/(^|\.)g2\.com$/i, 'G2'], [/(^|\.)capterra\.[a-z.]+$/i, 'Capterra'], [/(^|\.)trustpilot\.com$/i, 'Trustpilot'],
+  [/(^|\.)producthunt\.com$/i, 'Product Hunt'], [/(^|\.)getapp\.com$/i, 'GetApp'], [/(^|\.)softwareadvice\.com$/i, 'Software Advice'],
+  [/(^|\.)appsumo\.com$/i, 'AppSumo'], [/(^|\.)reviews\.io$/i, 'Reviews.io'], [/(^|\.)yelp\.[a-z.]+$/i, 'Yelp'],
+  [/(^|\.)tripadvisor\.[a-z.]+$/i, 'Tripadvisor'], [/^g\.page$/i, 'Google reviews'], [/^apps\.apple\.com$/i, 'App Store'],
+  [/^play\.google\.com$/i, 'Google Play'], [/^chromewebstore\.google\.com$/i, 'Chrome Web Store'],
+]
+
+function reviewSiteOf(raw: string, base: string): string | null {
+  try {
+    const u = new URL(raw, base)
+    if (/(^|\.)google\.[a-z.]+$/i.test(u.hostname) && /^\/maps/.test(u.pathname)) return 'Google reviews'
+    return REVIEW_SITES.find(([re]) => re.test(u.hostname))?.[1] ?? null
   } catch {
     return null
   }
 }
 
-// Flesch Reading Ease — pure math, no package needed
-function countSyllables(word: string): number {
-  const cleaned = word.toLowerCase().replace(/[^a-z]/g, '')
-  if (cleaned.length <= 3) return 1
-  return Math.max(1, (cleaned.match(/[aeiouy]+/g) ?? []).length)
-}
+// Same family of phrases the Website Audit's "Social proof signals" check uses, split by kind
+const TESTIMONIAL_HEADING = /\btestimonials?\b|what (our |real )?(customers|clients|users|people|founders|members|teams|creators) (say|are saying|think)|wall of love|\bloved by\b|hear (it )?from (our )?(customers|clients|users)|\b(customer|user|client|our) reviews\b|^reviews$/i
+const LOGO_PHRASE = /\b(trusted|used|loved|chosen|backed) by\b|\bas (seen|featured) (in|on)\b|\bfeatured (in|on)\b|\bour (customers|clients|partners)\b|\bcompanies (using|that use|that trust)\b/i
+const NUMBER_CLAIM = /\b(?!(19|20)\d\d\b)\d[\d,.]*\s*(k|m)?\+?\s*((?!(for|to|in|with|of|and|the|per|a|an)\b)[a-z-]+ ){0,2}?(users|customers|clients|businesses|companies|teams|founders|creators|brands|agencies|members|downloads|students|posts (created|made|published))\b/gi
+const RATING = /\b[1-5]\.\d\s*(\/\s*5|out of 5|stars?)\b|\b[1-5]\s*(\/\s*5|out of 5)\b|★{3,}/gi
+const CASE_STUDY = /case.?stud|success.?stor|customer.?stor/i
+const RISK_FREE = /\b\d+[- ]day free trial\b|\bfree trial\b|\bstart (for )?free\b|\btry (it )?(for )?free\b|\bfree (plan|forever|tier)\b|\bno credit card\b|\bno card (required|needed)\b|\bcancel any ?time\b|\bmoney[- ]back\b|\bfull refund\b|\b\d+[- ]day (money[- ]back )?guarantee\b|\bfree (returns|shipping)\b|\bbook a (free )?(demo|call)\b|\bfree (consultation|quote)\b/i
+const WHY_US = /\bwhy (choose|use|pick|switch to|(teams|people|founders|businesses|agencies|brands) (choose|love|pick|use)) \w+|^why [\w .'-]{1,30}\?$|\bwhat makes (us|\w+) different\b|\bhow (we|\w+)('re| are| is)? different\b|\bunlike (other|most|traditional)\b|\bvs\.?\s|\bcompared (to|with)\b|\bthe (only|first) \w+|\balternative to\b/i
+const PRICE = /(\$|€|£|₹)\s?\d|\b\d+(\.\d+)?\s?(usd|eur|gbp|inr)\b|\/\s?(mo|month)\b/i
 
-function fleschReadingEase(text: string): number {
-  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 3)
-  const words = text.split(/\s+/).filter(Boolean)
-  if (words.length === 0 || sentences.length === 0) return 0
-  const totalSyllables = words.reduce((sum, w) => sum + countSyllables(w), 0)
-  const score = 206.835 - 1.015 * (words.length / sentences.length) - 84.6 * (totalSyllables / words.length)
-  return Math.round(Math.min(100, Math.max(0, score)))
-}
+// ── Main fetcher ──────────────────────────────────────────────────────────────
 
-function readabilityLabel(score: number): string {
-  if (score >= 70) return 'Easy — plain English'
-  if (score >= 50) return 'Moderate'
-  if (score >= 30) return 'Difficult'
-  return 'Very difficult'
-}
+export async function fetchBrandAuditData(requirements: Record<string, string>): Promise<BrandAuditFetchResult> {
+  const brandId = requirements['brand_id'] ?? ''
+  const raw = requirements['website_url'] ?? ''
+  const url = raw.startsWith('http') ? raw : `https://${raw}`
+  try { new URL(url) } catch { throw new Error(`Invalid URL: ${raw}`) }
 
-// Normalize sentiment comparative (-3..+3) to -1..+1
-function normalizeSentiment(text: string): number {
-  if (!text.trim()) return 0
-  const result = sentimentAnalyzer.analyze(text)
-  return Math.max(-1, Math.min(1, result.comparative / 3))
-}
-
-// Schema type extraction from JSON-LD
-function extractSchemaTypes(rawHtml: string): string[] {
-  const $ = load(rawHtml)
-  const types: string[] = []
-  $('script[type="application/ld+json"]').each((_, el) => {
-    try {
-      const json = JSON.parse($(el).text()) as { '@type'?: string; '@graph'?: { '@type'?: string }[] }
-      if (json['@type']) types.push(String(json['@type']))
-      if (Array.isArray(json['@graph'])) {
-        for (const item of json['@graph']) {
-          if (item['@type']) types.push(String(item['@type']))
-        }
-      }
-    } catch { /* malformed JSON-LD — skip */ }
-  })
-  return [...new Set(types)]
-}
-
-// Trust signal detection via cheerio + regex
-function extractTrustSignals(rawHtml: string, url: string): TrustSignals {
-  const $ = load(rawHtml)
-  const allText = rawHtml.toLowerCase()
-  const allLinks = $('a[href]').toArray()
-
-  const testimonialCount = Math.min(
-    $('[class*="testimonial"], [class*="review"], [class*="quote"], blockquote').length,
-    50,
-  )
-
-  const socialProofCount = Math.min(
-    $('[class*="social-proof"], [class*="trust"], [class*="stat"], [class*="counter"]').length +
-    (allText.match(/\d[\d,]+\+?\s*(customers?|users?|clients?|companies|businesses|teams?)/g) ?? []).length,
-    50,
-  )
-
-  const clientLogoCount = Math.min(
-    $('[class*="logo-grid"], [class*="client"], [class*="partner"], [class*="brand-wall"]')
-      .filter((_, el) => $(el).find('img').length > 0).length,
-    50,
-  )
-
-  const hasCaseStudyLink = allLinks.some(a =>
-    /case.?stud|success.?stor|customer.?stor/i.test($(a).attr('href') ?? ''),
-  )
-
-  const hasReviewWidget = /g2\.com|capterra\.com|trustpilot\.com|reviews\.io|getapp\.com/i.test(allText)
-
-  const hasTeamPage = allLinks.some(a => /\/(team|people|crew|staff)(\/|$)/i.test($(a).attr('href') ?? ''))
-  const hasPrivacyPage = allLinks.some(a => /\/privacy/i.test($(a).attr('href') ?? ''))
-  const hasTermsPage = allLinks.some(a => /\/(terms|tos|legal)(\/|$)/i.test($(a).attr('href') ?? ''))
-
-  return {
-    hasHttps: url.startsWith('https://'),
-    testimonialCount,
-    socialProofCount,
-    clientLogoCount,
-    hasCaseStudyLink,
-    hasReviewWidget,
-    hasTeamPage,
-    hasPrivacyPage,
-    hasTermsPage,
-  }
-}
-
-// Benefit vs feature language counts
-const BENEFIT_REGEX = /\b(save|grow|boost|increase|reduce|improve|earn|achieve|faster|easier|eliminate|scale|simplify|unlock|maximize|revenue|roi|profit|time|cost|results?|outcome)\b/gi
-const FEATURE_REGEX = /\b(dashboard|api|integration|plugin|widget|module|interface|platform|sync|workflow|built-in|automated|algorithm|database|sdk|endpoint|webhook|feature)\b/gi
-
-function countLanguage(text: string) {
-  return {
-    benefitCount: (text.match(BENEFIT_REGEX) ?? []).length,
-    featureCount: (text.match(FEATURE_REGEX) ?? []).length,
-  }
-}
-
-// CTA text extraction from buttons and action links
-function extractCtaTexts(rawHtml: string): string[] {
-  const $ = load(rawHtml)
-  const ctas: string[] = []
-  $('a, button').each((_, el) => {
-    const text = $(el).text().trim()
-    if (text.length > 2 && text.length < 60 &&
-      /\b(get|start|try|sign|join|request|book|schedule|buy|shop|learn|see|watch|download|access|claim|grab|free)\b/i.test(text)) {
-      ctas.push(text)
-    }
-  })
-  return [...new Set(ctas)].slice(0, 10)
-}
-
-// Wikidata Knowledge Graph check — no API key needed
-async function checkWikidata(brandName: string): Promise<boolean> {
-  try {
-    const url = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(brandName)}&language=en&format=json&limit=5`
-    const raw = await safeFetch(url, 8000)
-    if (!raw) return false
-    const json = JSON.parse(raw) as { search?: { label?: string }[] }
-    const results = json.search ?? []
-    if (!results.length) return false
-    // Loose match: any result label overlaps with brand name
-    return results.some(r => {
-      const label = (r.label ?? '').toLowerCase()
-      const brand = brandName.toLowerCase()
-      return label.includes(brand) || brand.includes(label)
-    })
-  } catch {
-    return false
-  }
-}
-
-// Social profile fetch — extracts bio from meta description (SSR-available on LinkedIn/YouTube)
-async function fetchSocialProfile(handle: string): Promise<SocialProfileResult> {
-  const url = handle.startsWith('http') ? handle : `https://${handle}`
-  const raw = await safeFetch(url, 8000)
-  if (!raw) return { handle, url, bio: '', sentimentScore: 0, fetchFailed: true }
-  const $ = load(raw)
-  const bio =
-    $('meta[name="description"]').attr('content')?.trim() ??
-    $('meta[property="og:description"]').attr('content')?.trim() ??
-    ''
-  return { handle, url, bio, sentimentScore: normalizeSentiment(bio), fetchFailed: false }
-}
-
-// Count how many times audience terms appear in copy
-function countAudienceMentions(text: string, targetAudience: string): number {
-  if (!targetAudience.trim()) return 0
-  const terms = targetAudience.toLowerCase().split(/[\s,/()]+/).filter(t => t.length > 3)
-  const lowerText = text.toLowerCase()
-  return terms.reduce((count, term) => {
-    return count + (lowerText.match(new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g')) ?? []).length
-  }, 0)
-}
-
-// TF-IDF keyword extraction — uses `natural` already installed
-function extractTopKeywords(text: string, n = 20): string[] {
-  const tfidf = new TfIdf()
-  tfidf.addDocument(text)
-  return tfidf
-    .listTerms(0)
-    .filter(t => t.term.length > 3 && /^[a-zA-Z]+$/.test(t.term))
-    .slice(0, n)
-    .map(t => t.term)
-}
-
-// ── Main export ───────────────────────────────────────────────────────────────
-
-export async function fetchBrandAuditData(
-  requirements: Record<string, string>,
-): Promise<BrandAuditFetchResult> {
-  const websiteUrl = requirements['website_url'] ?? ''
-  const brandName = requirements['brand_name'] ?? ''
-  const industry = requirements['industry'] ?? ''
-  const targetAudience = requirements['target_audience'] ?? ''
-  const usp = requirements['usp'] ?? ''
-  const brandVoice = requirements['brand_voice'] ?? ''
-  const socialHandles = requirements['social_handles'] ?? ''
-
-  const url = websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`
-  let origin: string
-  try {
-    origin = new URL(url).origin
-  } catch {
-    throw new Error(`Invalid URL: ${websiteUrl}`)
-  }
-
-  // Fetch homepage + robots.txt + sitemap status + URL discovery in parallel
-  const [homeRaw, robotsRes, sitemapRes, urlDiscovery] = await Promise.all([
-    safeFetch(url, 15000),
-    fetch(`${origin}/robots.txt`, { signal: AbortSignal.timeout(5000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthAuditBot/1.0)' } }).catch(() => null),
-    fetch(`${origin}/sitemap.xml`, { method: 'HEAD', signal: AbortSignal.timeout(5000), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; GrowthAuditBot/1.0)' } }).catch(() => null),
-    discoverAllUrls(url, undefined, { maxUrls: 150, enrichMeta: 20 }),
+  const [[brand], competitors, home] = await Promise.all([
+    brandId
+      ? db.select({ name: brands.name, industry: brands.industry, targetAudience: brands.targetAudience, usp: brands.usp, brandVoice: brands.brandVoice, websiteType: brands.websiteType })
+          .from(brands).where(eq(brands.id, brandId)).limit(1)
+      : Promise.resolve([] as never[]),
+    brandId ? getCompetitors(brandId).catch(() => []) : Promise.resolve([]),
+    fetchPage(url),
   ])
+  if (!home.html && !home.block) throw new Error(`Could not fetch ${url}. Check the URL is correct and publicly accessible.`)
 
-  if (!homeRaw) {
-    throw new Error(`Could not fetch ${url}. Check the URL is correct and publicly accessible.`)
-  }
+  const $ = cheerio.load(home.html || '<html></html>')
+  const jsShell = !!home.html && isJsShell($)
 
-  const robotsTxt = robotsRes?.ok ? await robotsRes.text().catch(() => '') : ''
-  const sitemapStatus = sitemapRes?.status ?? 0
+  // Facts read from the raw page (before nav/footer are stripped): links, scripts, structured data
+  const links = $('a[href]').toArray().map(a => ({ href: $(a).attr('href') ?? '', text: clean($(a).text()) }))
+  const reviewSites = new Map<string, string>()
+  for (const l of links) { const n = reviewSiteOf(l.href, url); if (n && !reviewSites.has(n)) reviewSites.set(n, new URL(l.href, url).href) }
+  $('script[src], img[src], iframe[src]').each((_, el) => {
+    const src = $(el).attr('src') ?? ''
+    const n = /trustpilot/i.test(src) ? 'Trustpilot' : /producthunt/i.test(src) ? 'Product Hunt' : /g2(crowd)?\.com/i.test(src) ? 'G2' : /capterra/i.test(src) ? 'Capterra' : null
+    if (n && !reviewSites.has(n)) reviewSites.set(n, src)
+  })
+  let reviewSchema = false
+  $('script[type="application/ld+json"]').each((_, el) => { if (/"@type"\s*:\s*"(Review|AggregateRating)"/.test($(el).text())) reviewSchema = true })
+  const pricingLink = links.find(l => /\/(pricing|plans|prices)(\/|$|\?|#)/i.test(l.href) || /^(pricing|plans|see pricing|view pricing)$/i.test(l.text))
+  const caseLink = links.find(l => CASE_STUDY.test(l.href) || CASE_STUDY.test(l.text))
 
-  // Parse homepage
-  const $ = load(homeRaw)
+  // Visible copy, without navigation and footer
+  const body = $('body').clone()
+  body.find('script, style, noscript, template, svg, nav, footer').remove()
+  // A space between neighbouring tags, so "…free trial</a><p>Used by…" doesn't read as "trialUsed by"
+  const bodyText = clean(cheerio.load((body.html() ?? '').replace(/></g, '> <')).text())
+  const headings = $('h1, h2, h3').toArray().map(h => clean($(h).text())).filter(Boolean)
+  const h1 = clean($('h1').first().text())
 
-  const title = $('title').text().trim()
-  const metaDescription = $('meta[name="description"]').attr('content')?.trim() ?? ''
-  const ogTitle = $('meta[property="og:title"]').attr('content')?.trim() ?? ''
-  const ogDescription = $('meta[property="og:description"]').attr('content')?.trim() ?? ''
-  const h1 = $('h1').first().text().trim()
-  const firstParagraph = $('p').first().text().trim().slice(0, 500)
+  // The top of the page: from the headline on (or the start of the copy), about two screens of text
+  const at = h1 ? bodyText.indexOf(h1) : -1
+  const topText = bodyText.slice(Math.max(0, at), Math.max(0, at) + 900)
 
-  // Hero copy: first section or header area (above the fold approximation)
-  const heroCopy = (
-    $('section').first().text() ||
-    $('header').first().text() ||
-    $('[class*="hero"], [class*="banner"], [class*="above-fold"]').first().text() ||
-    ''
-  ).replace(/\s+/g, ' ').trim().slice(0, 800)
+  // Testimonials: quote blocks, a testimonials section, or review markup
+  const quoteBlocks = $('blockquote, [class*="testimonial" i], [id*="testimonial" i]').length
+  const testimonialHeading = headings.find(h => TESTIMONIAL_HEADING.test(h))
+  const testimonials = testimonialHeading ? `a "${testimonialHeading.slice(0, 60)}" section`
+    : quoteBlocks > 0 ? `${quoteBlocks} customer quote${quoteBlocks > 1 ? 's' : ''}`
+    : reviewSchema ? 'review markup on the page' : null
 
-  // Comparison page detection before stripping nav/footer
-  const allLinks = $('a[href]').toArray()
-  const hasComparisonPage = allLinks.some(a =>
-    /\/vs[-/]|\/compare|\/alternatives/i.test($(a).attr('href') ?? ''),
-  )
+  // Customer logos: a "trusted by" line, or a strip of 3+ logos
+  const logoPhrase = LOGO_PHRASE.exec(bodyText)?.[0]
+  const logoStrip = $('[class*="logo" i], [class*="client" i], [class*="customer" i], [class*="partner" i], [class*="brands" i]')
+    .filter((_, el) => $(el).find('img, svg').length >= 3).length > 0
+  const logos = logoPhrase ? `a "${logoPhrase[0].toUpperCase()}${logoPhrase.slice(1)}" line` : logoStrip ? 'a strip of customer logos' : null
 
-  // Clean body text for NLP
-  $('script, style, noscript, svg, nav, footer').remove()
-  const bodyCopy = ($('body').text() || $('*').text()).replace(/\s+/g, ' ').trim().slice(0, 8000)
+  const numbers = [...new Set([...bodyText.matchAll(NUMBER_CLAIM), ...bodyText.matchAll(RATING)].map(m => clean(m[0])))].slice(0, 4)
+  const caseHeading = headings.find(h => CASE_STUDY.test(h))
+  const caseStudies = caseLink ? `"${(caseLink.text || caseLink.href).slice(0, 60)}"` : caseHeading ? `"${caseHeading.slice(0, 60)}"` : null
 
-  // Extract signals
-  const schemaTypes = extractSchemaTypes(homeRaw)
-  const trustSignals = extractTrustSignals(homeRaw, url)
-  const { benefitCount, featureCount } = countLanguage(bodyCopy)
-  const ctaTexts = extractCtaTexts(homeRaw)
-  const topKeywords = extractTopKeywords(bodyCopy)
-
-  // NLP scores (run on first 3k chars to keep it fast)
-  const sampleText = bodyCopy.slice(0, 3000)
-  const readabilityScore = fleschReadingEase(sampleText)
-  const websiteSentimentScore = normalizeSentiment(sampleText)
-
-  // Brand name consistency
-  const brandLower = brandName.toLowerCase()
-  const titleHasBrandName = !!brandLower && title.toLowerCase().includes(brandLower)
-  const ogTitleHasBrandName = !!brandLower && ogTitle.toLowerCase().includes(brandLower)
-
-  // Audience mention count
-  const audienceMentionCount = countAudienceMentions(bodyCopy, targetAudience)
-
-  // Wikidata + social profiles in parallel
-  const socialHandleList = socialHandles
-    .split(/[,\n]/)
-    .map(h => h.trim())
-    .filter(Boolean)
-    .slice(0, 5)
-
-  const [wikidataFound, ...socialResults] = await Promise.all([
-    checkWikidata(brandName),
-    ...socialHandleList.map(h => fetchSocialProfile(h)),
-  ])
-
-  const socialProfiles = socialResults as SocialProfileResult[]
-  const socialSentiments = socialProfiles
-    .filter(p => !p.fetchFailed && p.bio)
-    .map(p => p.sentimentScore)
-
-  const avgSocialSentiment =
-    socialSentiments.length > 0
-      ? socialSentiments.reduce((a, b) => a + b, 0) / socialSentiments.length
-      : null
-
-  const toneDelta =
-    avgSocialSentiment !== null ? Math.abs(websiteSentimentScore - avgSocialSentiment) : null
+  const riskFree = RISK_FREE.exec(bodyText)?.[0] ?? links.map(l => RISK_FREE.exec(l.text)?.[0]).find(Boolean) ?? null
+  const whyUs = headings.slice(1).find(h => WHY_US.test(h)) ?? null
 
   return {
     websiteUrl: url,
-    brandName,
-    industry,
-    targetAudience,
-    usp,
-    brandVoice,
-    title,
-    metaDescription,
-    ogTitle,
-    ogDescription,
+    brandName: brand?.name || requirements['brand_name'] || '',
+    websiteType: brand?.websiteType || requirements['website_type'] || 'saas',
+    industry: brand?.industry || requirements['industry'] || null,
+    targetAudience: brand?.targetAudience || requirements['target_audience'] || null,
+    usp: brand?.usp || requirements['usp'] || null,
+    brandVoice: brand?.brandVoice || requirements['brand_voice'] || null,
+    homepageLoaded: !!home.html,
+    homepageIsJsShell: jsShell,
+    homepageBlocked: home.block,
     h1,
-    firstParagraph,
-    heroCopy,
-    bodyCopy,
-    topKeywords,
-    readabilityScore,
-    readabilityLabel: readabilityLabel(readabilityScore),
-    websiteSentimentScore,
-    benefitCount,
-    featureCount,
-    ctaTexts,
-    audienceMentionCount,
-    trustSignals,
-    schemaTypes,
-    wikidataFound,
-    hasComparisonPage,
-    socialProfiles,
-    avgSocialSentiment,
-    toneDelta,
-    titleHasBrandName,
-    ogTitleHasBrandName,
-    robotsTxt: robotsTxt.slice(0, 3000),
-    sitemapStatus,
-    urlDiscovery,
+    topText,
+    copySample: bodyText.slice(0, 2500),
+    headings: headings.slice(0, 30),
+    proof: { testimonials, logos, numbers, reviewSites: [...reviewSites].map(([name, u]) => ({ name, url: u })), caseStudies },
+    pricing: { link: pricingLink ? new URL(pricingLink.href, url).href : null, pricesOnPage: PRICE.test(bodyText) },
+    riskFree: riskFree ? clean(riskFree) : null,
+    whyUs,
+    competitors: competitors.slice(0, 5).map(c => ({ name: c.name || (() => { try { return new URL(c.url).hostname.replace(/^www\./, '') } catch { return c.url } })(), url: c.url })),
   }
 }

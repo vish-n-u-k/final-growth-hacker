@@ -409,22 +409,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     return map
   })
 
-  // Pre-fill Brand Audit social_handles from Social Media module requirements
-  useEffect(() => {
-    const socialMedia = allModulesData.find(m => m.type === 'social-media')
-    const brandAudit = allModulesData.find(m => m.type === 'brand-audit')
-    if (!socialMedia || !brandAudit) return
-    const socialReqs = reqValuesMap[socialMedia.id] ?? socialMedia.requirements
-    const socialUrlKeys = ['instagram_url', 'twitter_url', 'linkedin_url', 'youtube_url', 'facebook_url', 'tiktok_url']
-    const handles = socialUrlKeys.map(k => socialReqs[k]).filter(Boolean).join(', ')
-    if (handles) {
-      setReqValuesMap(prev => ({
-        ...prev,
-        [brandAudit.id]: { ...prev[brandAudit.id], social_handles: handles },
-      }))
-    }
-  }, [allModulesData]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // Pre-fill Community Finder keywords from brand whenever brand changes
   useEffect(() => {
     if (brand.keywords?.trim()) {
@@ -2609,8 +2593,9 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             // Categories for the list and the detail panel (not for modules that have their own layout).
             const hasCatList = !def.comingSoon && modData.type !== 'business-stage' && modData.type !== 'gmail-outreach'
             const catRows: CatRow[] = !hasCatList ? [] : def.dynamic
-              // (an ideas section with no ideas this run isn't shown)
-              ? [...def.categories].filter(cat => cat.slug !== 'next-campaign' && !(isDynamicIdea(def, cat.slug) && effectiveLastAnalyzedAt && !dynItems.some(i => i.categorySlug === cat.slug))).map((cat): CatRow => {
+              // (once analysed, a section with nothing this run isn't shown: an ideas section with no ideas,
+              // or checks that don't apply to this kind of site; coming-soon areas stay listed)
+              ? [...def.categories].filter(cat => cat.slug !== 'next-campaign' && !(effectiveLastAnalyzedAt && dynItems.length > 0 && !(cat as DynamicModuleCategoryDefinition).comingSoon && !dynItems.some(i => i.categorySlug === cat.slug))).map((cat): CatRow => {
                   const stats = getDynamicCatStats(def, cat.slug, dynItems)
                   const soon = !!(cat as DynamicModuleCategoryDefinition).comingSoon
                   const ideaCat = isDynamicIdea(def, cat.slug)
@@ -2950,13 +2935,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <p className="md-setup-desc">Provide the information below before running the analysis.</p>
                         <div className="md-setup-fields">
                           {def.requirements.map((req) => {
-                            // Hide social_handles for Brand Audit if Social Media module already has URLs
-                            if (req.key === 'social_handles' && modData.type === 'brand-audit') {
-                              const socialMedia = allModulesData.find(m => m.type === 'social-media')
-                              const socialReqs = socialMedia ? (reqValuesMap[socialMedia.id] ?? socialMedia.requirements) : {}
-                              const hasSocialUrls = ['instagram_url', 'twitter_url', 'linkedin_url', 'youtube_url', 'facebook_url', 'tiktok_url'].some(k => socialReqs[k])
-                              if (hasSocialUrls) return null
-                            }
                             return (
                             <div key={req.key} className="md-setup-field">
                               <label className="md-setup-label">

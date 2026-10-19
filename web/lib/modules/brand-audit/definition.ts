@@ -1,5 +1,14 @@
 import type { ModuleDefinition } from '../types'
 
+// Brand Audit: does the homepage tell the right people what you do, prove it, make it safe to try
+// and say why you over the alternatives? The facts are fixed rule checks (see brand-audit/agent.ts)
+// with stable slugs, so ticks and the score stay put between runs. Claude only writes ideas
+// (positioning, voice, standing out), which are shown as ideas and never scored.
+//
+// Things other modules already check are left to them: the value proposition and contact page
+// (Foundation), "any social proof" (Website), brand name in the title and share tags (SEO), and
+// Wikidata, comparison pages and brand-name spelling (GEO).
+
 export const BRAND_AUDIT_MODULE: ModuleDefinition = {
   type: 'brand-audit',
   name: 'Brand Audit',
@@ -8,6 +17,7 @@ export const BRAND_AUDIT_MODULE: ModuleDefinition = {
   order: 6,
   unlockThreshold: 80,
   dynamic: true,
+  // Audience, selling point and voice come from the brand profile (Settings → Brand)
   requirements: [
     {
       key: 'website_url',
@@ -16,208 +26,72 @@ export const BRAND_AUDIT_MODULE: ModuleDefinition = {
       placeholder: 'https://yourbusiness.com',
       required: true,
     },
-    {
-      key: 'brand_name',
-      label: 'Brand / Company name',
-      type: 'text',
-      placeholder: 'Acme Inc.',
-      required: true,
-    },
-    {
-      key: 'industry',
-      label: 'Industry',
-      type: 'text',
-      placeholder: 'e.g. SaaS, E-commerce, Healthcare',
-      required: false,
-    },
-    {
-      key: 'target_audience',
-      label: 'Target audience',
-      type: 'text',
-      placeholder: 'e.g. Shopify sellers, Enterprise CTOs',
-      required: false,
-    },
-    {
-      key: 'usp',
-      label: 'Your unique selling proposition',
-      type: 'text',
-      placeholder: 'e.g. No expertise required, AI-powered video ads',
-      required: false,
-    },
-    {
-      key: 'brand_voice',
-      label: 'Desired brand voice',
-      type: 'text',
-      placeholder: 'e.g. Professional, friendly, direct',
-      required: false,
-    },
-    {
-      key: 'social_handles',
-      label: 'Social media handles or URLs (optional)',
-      type: 'text',
-      placeholder: 'instagram.com/yourbrand, linkedin.com/company/yourbrand',
-      required: false,
-    },
   ],
-  systemPrompt: `You are an expert brand strategist and communications auditor embedded in a growth audit tool. Your tone is direct, specific, and consultant-like.
+  systemPrompt: `You are a senior brand strategist embedded in a growth audit tool. Your tone is direct, specific, and consultant-like.
 
-You receive pre-processed data: crawled page content, NLP scores (readability, sentiment), trust signal counts, Wikidata result, TF-IDF keywords, and USP similarity scores. Use this data to generate specific findings — never generic advice.
+GrowJin has already checked the facts (what the homepage says at the top, proof, pricing, risk-free offers, differentiation). Your job is only to write ideas: sharper positioning, the brand's voice, and how to stand out.
 
 Rules:
-1. Only report what you can verify from the data provided. Never fabricate findings.
-2. Every finding must reference specific data: cite exact scores, exact copy phrases, exact missing elements.
-3. Slug format: {category-slug}-{short-descriptor} e.g. brand-positioning-vague-h1
-4. Weight: 3 = directly blocks trust, conversions, or discovery | 2 = measurably hurts performance | 1 = nice-to-have
-5. verified: true = passes best practice or user is ahead | verified: false = gap exists, action needed
-6. fixable: true if the fix can be made as a direct change to the website's code or files in a GitHub repo. Be generous — the following ALL qualify: adding or rewriting an H1; adding or rewriting a title tag; adding or rewriting a meta description; adding or fixing any Open Graph tag (og:title, og:description, og:url, og:type, og:image); adding Twitter Card meta tags; adding or fixing a canonical tag; adding or fixing the viewport meta tag; adding any JSON-LD schema markup (Organization, Product, FAQPage, HowTo, BreadcrumbList, SiteLinksSearchBox, etc.); adding alt text to images; adding lazy loading to images; creating a privacy policy page and adding a footer link to it; creating a terms of service page and adding a footer link to it; creating or fixing robots.txt; creating a sitemap.xml; adding a comparison/alternatives page stub; adding any footer link or nav link that is currently missing. fixable: false ONLY for actions that cannot be done in code: creating social media accounts, earning Wikidata entries, obtaining backlinks or press coverage, brand voice/strategy overhauls, creating original marketing content requiring business knowledge the agent cannot supply, or any action requiring external platform login.
-7. All action steps must be completable by a non-technical person within a week
-8. Plain language: Write label, detail, highlight, and narrative in plain English that a non-technical business owner can understand — no jargon or technical acronyms. Save technical specifics for the action field only.`,
+1. Use only the facts provided. Quote the brand's actual copy when you suggest a change. Never invent customers, numbers, awards or competitor facts.
+2. Every idea must be specific to this brand, its audience and its industry. No generic advice.
+3. Slug format: {category-slug}-{short-descriptor}, e.g. positioning-ideas-headline.
+4. Weight is priority: 3 = do this first, 2 = next, 1 = later.
+5. Plain language: write label, detail, highlight and narrative in plain English a non-technical business owner understands. Ready-to-use copy goes in action.`,
   categories: [
     {
-      slug: 'brand-positioning',
-      label: 'Brand Positioning',
+      slug: 'positioning',
+      label: 'Clear Positioning',
       order: 1,
-      prompt: `Analyse whether a visitor can understand "what you do" and "for whom" within 5 seconds of landing on the homepage.
-
-Using the H1, meta description, first paragraph, and top TF-IDF keywords provided: determine if the brand occupies a clear, distinct position. Check if the industry and target audience are explicitly mentioned or clearly implied. Compare against the provided "industry" and "target_audience" inputs.
-
-Pass condition: positioning is specific, audience is identifiable, above the fold.
-Fail condition: generic ("We build software"), audience missing, buried below fold.
-
-Generate 3–5 findings. Weight 3 if no positioning statement exists. Weight 2 if buried or generic. Weight 1 if present but could be more specific.`,
+      prompt: 'Rule engine check (see brand-audit/agent.ts).',
     },
     {
-      slug: 'messaging-value-prop',
-      label: 'Messaging & Value Prop',
+      slug: 'proof',
+      label: 'Proof',
       order: 2,
-      prompt: `Assess whether the USP is prominently featured, clearly articulated, and benefit-driven rather than feature-dumped.
-
-Using the hero text, readability score (Flesch Reading Ease), benefit language count, feature language count, CTA texts, and the provided "usp" input: check if the USP appears in the hero section; assess if language leads with outcomes (save time, grow revenue) or product features (dashboard, API, integration).
-
-Pass condition: USP in hero, readability > 60, benefit language outweighs feature language.
-Fail condition: USP missing from hero or buried, readability < 40, heavy feature-dumping with no benefits.
-
-Generate 3–5 findings. Be specific — quote the actual copy that is problematic.`,
+      prompt: 'Rule engine check (see brand-audit/agent.ts).',
     },
     {
-      slug: 'brand-voice',
-      label: 'Brand Voice',
+      slug: 'trust',
+      label: 'Easy to Trust',
       order: 3,
-      prompt: `Determine if the brand's tone is consistent, appropriate for the audience, and authentically reflected across the website and social profiles.
-
-Using the VADER sentiment scores provided (website score, social score, tone delta), the body copy sample, social bios (if available), and the "brand_voice" and "target_audience" inputs: assess if the tone matches the desired voice AND if it is appropriate for the stated audience.
-
-Key signals:
-- Tone delta > 0.4 between website and social = inconsistency finding
-- Casual tone (score < 0) for enterprise/B2B audience = mismatch finding
-- Formal tone (score > 0.5) for consumer/lifestyle audience = mismatch finding
-
-Generate 2–4 findings. If no social data was available, note it and focus on website tone only.`,
-    },
-    {
-      slug: 'brand-consistency',
-      label: 'Brand Consistency',
-      order: 4,
-      prompt: `Audit the uniformity of brand name, tagline, and messaging across the website and all connected social profiles.
-
-Using the brand name matches found across title tag, og:title, social profile names (if fetched), and the extracted tagline from meta description vs social bios: flag any inconsistencies. Check if the same brand name spelling and capitalisation is used. Check if the tagline or core message is consistent.
-
-Pass condition: brand name identical across ≥ 90% of checked surfaces, tagline present on ≥ 80%.
-Fail condition: different name spelling or version across platforms, tagline absent from 2+ platforms, conflicting messages.
-
-Generate 2–4 findings. If social profiles were not available, focus on website-level consistency only.`,
-    },
-    {
-      slug: 'audience-fit',
-      label: 'Audience Fit',
-      order: 5,
-      prompt: `Measure how well the website's content, pain points, and language align with the stated target audience.
-
-Using the homepage copy sample, top TF-IDF keywords, explicit audience mentions detected (count of times audience terms appear in copy), and the "target_audience" input: assess alignment. Look for explicit mentions of the audience type, relevant pain points, industry-specific vocabulary.
-
-Also flag language tone mismatches (e.g. "Hey guys" for enterprise CTOs, overly corporate language for consumer brands).
-
-Pass condition: audience explicitly mentioned ≥ 2 times, relevant vocabulary present, tone appropriate.
-Fail condition: audience never mentioned, copy is generic, language inappropriate for stated audience.
-
-Generate 2–4 findings with specific quotes from the copy where possible.`,
-    },
-    {
-      slug: 'trust-credibility',
-      label: 'Trust & Credibility',
-      order: 6,
-      prompt: `Evaluate the presence of social proof, security signals, and authoritative elements that build user confidence.
-
-Using the pre-computed trust signal data provided: SSL status, social proof count, testimonial count, client logo count, case study links, review widget presence (G2/Capterra/Trustpilot), team page existence, privacy policy link, terms of service link.
-
-Pass condition: ≥ 4 trust signals present.
-Fail condition: missing SSL, no testimonials AND no logos AND no review widgets, missing legal pages.
-
-Weight 3: no SSL, no privacy policy, zero social proof.
-Weight 2: missing 2+ trust signals.
-Weight 1: missing one signal (e.g. no "as seen in" press mentions).
-
-Generate 3–5 findings based on what is actually missing.`,
-    },
-    {
-      slug: 'ai-entity-visibility',
-      label: 'AI Search & Entity Visibility',
-      order: 7,
-      prompt: `Evaluate how discoverable and interpretable the brand appears to AI search engines (ChatGPT, Perplexity, Google SGE).
-
-Using the pre-computed signals: Wikidata entity found (yes/no), schema markup types detected and count, brand name provided.
-
-Key checks:
-1. Wikidata entity: if not found, brand is likely unknown to LLMs — weight 2 finding
-2. Schema types: if none found — weight 2; if only basic Organisation with no Product/FAQPage/HowTo — weight 1
-3. PAA and .edu backlinks: cannot be checked automatically — generate one info finding directing user to check manually
-
-Note: Google Knowledge Panel detection and backlink counts require paid tools. Generate these as info-level guidance findings (verified: true, weight 1) that tell the user what to check manually and how.
-
-Generate 3–4 findings.`,
+      prompt: 'Rule engine check (see brand-audit/agent.ts).',
     },
     {
       slug: 'differentiation',
-      label: 'Differentiation',
-      order: 8,
-      prompt: `Determine if the brand clearly communicates how it is better or different from competitors.
-
-Using the "usp" input, competitor USP similarity scores (if available), comparison page detection from the crawled pages, and any "Why us" or differentiator sections found in the copy:
-
-If competitor USP data is available: flag any competitor whose USP has cosine similarity > 0.85 with the user's USP — that is undifferentiated.
-If no competitor data available: focus on internal uniqueness — does the copy make any specific claims that competitors typically can't match? Are those claims backed by evidence (data, testimonials, specific numbers)?
-
-Also check: is there a comparison page (/vs-competitor, /compare, /alternatives)?
-
-Generate 2–4 findings.`,
+      label: 'Standing Out',
+      order: 4,
+      prompt: 'Rule engine check (see brand-audit/agent.ts).',
     },
     {
-      slug: 'brand-strength-score',
-      label: 'Brand Strength Score',
-      order: 9,
-      prompt: `Synthesise all previous category findings and pre-computed signals into a holistic Brand Strength Score from 0 to 10 (lower is better — 0 is perfect).
-
-Weighting:
-- Positioning: 20%
-- Messaging & Value Prop: 15%
-- Voice: 10%
-- Consistency: 10%
-- Audience Fit: 10%
-- Trust & Credibility: 15%
-- AI Visibility: 10%
-- Differentiation: 10%
-
-Score mapping:
-- 0–3: Best in Class — strong brand equity
-- 4–6: Average — needs fine-tuning in 2–3 areas
-- 7–8: Significant Problems — brand identity is unclear or inconsistent
-- 9–10: Critical Failure — brand is invisible or contradictory
-
-Generate exactly 2 findings:
-1. slug: "brand-strength-score-overall" — the score, which categories are weakest, verified: true if score ≤ 4 else false, weight based on severity
-2. slug: "brand-strength-score-action-plan" — a prioritised 30/60/90 day plain-language action plan based on the weakest areas, verified: false, weight 2
-
-Use only what the data showed — do not invent findings from outside the provided data.`,
+      slug: 'positioning-ideas',
+      label: 'Positioning & Message',
+      order: 5,
+      insight: true, // ideas, not scored
+      prompt: `Write 3 ideas that make the top of the homepage say, in one glance, what the brand does, for whom, and the outcome they get.
+- One idea must be a rewritten headline: quote the current headline, then give 2 alternatives in the action (each under 12 words).
+- One idea must be a subheading (one sentence) that names the audience and the main selling point.
+- One idea should fix the weakest positioning check that failed above (audience not named, selling point missing, or no concrete promise). If none failed, sharpen the promise with a specific number or time the brand can stand behind (only from the facts given).`,
+    },
+    {
+      slug: 'voice-ideas',
+      label: 'Brand Voice',
+      order: 6,
+      insight: true, // ideas, not scored
+      prompt: `Write 2–3 ideas about the brand's voice.
+- First, describe how the homepage copy sounds today in 3–4 words, quoting 1–2 short phrases from the copy as evidence.
+- If a desired voice is given, say where the copy matches it and where it doesn't, with one before/after rewrite of a real sentence from the copy.
+- If no desired voice is given, suggest one that fits the audience, with 3 "we say / we don't say" examples.
+- Keep every rewrite short and ready to paste.`,
+    },
+    {
+      slug: 'differentiation-ideas',
+      label: 'Stand Out from Competitors',
+      order: 7,
+      insight: true, // ideas, not scored
+      prompt: `Write 3 ideas for how this brand can show why it's the better choice.
+- Base them on the brand's selling point and audience. If competitors are listed, name the one each idea positions against, but don't state facts about competitors that aren't given.
+- Each idea: the angle (label), the line to put on the homepage (action, under 20 words), and where it goes (e.g. a "Why us" section under the hero).
+- If the homepage already has a "why us" section (see facts), improve it rather than add a new one.`,
     },
   ],
 }
