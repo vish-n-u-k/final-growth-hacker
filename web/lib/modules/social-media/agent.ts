@@ -6,7 +6,6 @@ import { SOCIAL_SUMMARY_SLUG, type SocialProfileSummary } from './summary'
 import { domainWord } from '../geo/fetcher'
 import { blockedSkipText } from '@/lib/audit/blocked'
 import { parseClaudeJsonArray } from '@/lib/modules/parse-utils'
-import { PUBLISHABLE_PLATFORMS } from '@/lib/frekto/history'
 
 // Social Media: the facts (website links, profile links, handles, posting and engagement from
 // connected accounts) are fixed rule checks with stable slugs, so ticks and the score stay put
@@ -250,18 +249,6 @@ function platformLine(p: SocialPlatformData): string {
   return `- ${parts.join(' · ')}`
 }
 
-// A post suggestion carries its platform and topic, so the page can open it in Social Studio
-const PLATFORM_WORDS: [RegExp, SocialProvider][] = [
-  [/\binstagram\b|\breel\b/i, 'instagram'], [/\blinkedin\b/i, 'linkedin'], [/\bfacebook\b/i, 'facebook'],
-  [/\byoutube\b/i, 'youtube'], [/\btiktok\b/i, 'tiktok'], [/\b(twitter|x \(twitter\)|thread)\b|^x\b/i, 'twitter'],
-]
-function postIdea(x: Result): { aiData?: Record<string, unknown> } {
-  const platform = PLATFORM_WORDS.find(([re]) => re.test(x.detail))?.[1] ?? PLATFORM_WORDS.find(([re]) => re.test(x.label))?.[1]
-  const topic = x.label.replace(/\s*\[[^\]]*\]\s*$/, '').replace(/^["“]|["”]$/g, '').trim()
-  // Only platforms Social Studio can publish to get a "Make this post" button
-  return platform && topic && (PUBLISHABLE_PLATFORMS as readonly string[]).includes(platform) ? { aiData: { post: { platform, topic } } } : {}
-}
-
 export async function analyzeSocialMedia(data: SocialMediaFetchResult, brainContext?: string): Promise<DynamicModuleAnalysisResult[]> {
   const rules = buildSocialRuleResults(data)
   const ideaCats = (SOCIAL_MEDIA_MODULE.categories as DynamicModuleCategoryDefinition[]).filter(c => c.insight)
@@ -300,7 +287,6 @@ Return ONLY a JSON array. Each element:
         action: x.action ?? '',
         verified: false,
         fixable: false,
-        ...(x.category === 'post-suggestions' ? postIdea(x) : {}),
       }))
   } catch (err) {
     console.error('[social-media] ideas failed', err)

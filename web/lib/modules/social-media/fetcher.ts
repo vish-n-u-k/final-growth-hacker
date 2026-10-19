@@ -403,6 +403,38 @@ async function frektoPosting(brandId: string): Promise<Partial<Record<SocialProv
   return out
 }
 
+// ── Save found profiles to Settings ───────────────────────────────────────────
+
+// Profiles found on the website or from a connected account are written to Settings → Social profiles
+// when that platform is empty there, so the rest of GrowJin (Today, Brand Audit…) knows them too.
+// `auto_filled` remembers what we wrote: a link we filled is updated when the website changes, but a
+// link the user typed or edited is never touched.
+async function saveFoundProfiles(brandId: string, platforms: SocialPlatformData[]) {
+  const [row] = await db.select().from(brandIntegrations)
+    .where(and(eq(brandIntegrations.brandId, brandId), eq(brandIntegrations.provider, 'social_profiles'))).limit(1)
+  const meta = { ...((row?.metadata as Record<string, string> | null) ?? {}) }
+  let filled: Record<string, string> = {}
+  try { filled = JSON.parse(meta.auto_filled || '{}') } catch { /* start over */ }
+
+  let changed = false
+  for (const p of platforms) {
+    if (!p.profileUrl || (p.source !== 'website' && p.source !== 'connected') || p.link === 'broken') continue
+    const key = `${p.platform}_url`
+    const current = meta[key]?.trim() ?? ''
+    // Ours to fill: empty and never filled before (an emptied one was cleared on purpose), or still what we wrote
+    const ours = current ? current === filled[key] : !(key in filled)
+    if (!ours || current === p.profileUrl) continue
+    meta[key] = p.profileUrl
+    filled[key] = p.profileUrl
+    changed = true
+  }
+  if (!changed) return
+  meta.auto_filled = JSON.stringify(filled)
+  await db.insert(brandIntegrations)
+    .values({ brandId, provider: 'social_profiles', type: 'api_key', status: 'connected', metadata: meta, connectedAt: new Date() })
+    .onConflictDoUpdate({ target: [brandIntegrations.brandId, brandIntegrations.provider], set: { metadata: meta, status: 'connected' } })
+}
+
 // ── Main fetcher ──────────────────────────────────────────────────────────────
 
 export async function fetchSocialMediaData(requirements: Record<string, string>): Promise<SocialMediaFetchResult> {
@@ -414,6 +446,8 @@ export async function fetchSocialMediaData(requirements: Record<string, string>)
     : []
   const by = new Map(integrations.map((i) => [i.provider, i]))
   const saved = metaOf(by.get('social_profiles'))
+  let autoFilled: Record<string, string> = {}
+  try { autoFilled = JSON.parse(saved.auto_filled || '{}') } catch { /* none */ }
   // Industry and audience from the brand profile (Settings), so edits there are picked up; the module's
   // own setup values (copied from the profile at sign-up) are the fallback
   const [brand] = brandId ? await db.select({ industry: brands.industry, targetAudience: brands.targetAudience }).from(brands).where(eq(brands.id, brandId)).limit(1) : []
@@ -427,18 +461,22 @@ export async function fetchSocialMediaData(requirements: Record<string, string>)
   const metricsBy = await connectedMetrics(by)
 
   const platforms = await Promise.all(SOCIAL_PLATFORMS.map(async (platform): Promise<SocialPlatformData> => {
-    // Settings → Social profiles first: it can be changed any time, the module setup only before the first run
-    const fromSetup = saved[`${platform}_url`] || requirements[`${platform}_url`] || ''
+    // Settings → Social profiles first: it can be changed any time, the module setup only before the first run.
+    // A link GrowJin saved there itself (autoFilled) gives way to what the website links now.
+    const savedUrl = saved[`${platform}_url`] || ''
+    const savedByUs = !!savedUrl && savedUrl === autoFilled[`${platform}_url`]
+    const fromSetup = (savedByUs ? '' : savedUrl) || requirements[`${platform}_url`] || ''
     const fromSite = socialLinksOnWebsite.find(l => l.platform === platform)?.url ?? ''
     const fromConn = connectedProfileUrl(platform, by) ?? ''
-    const raw = fromSetup || fromSite || fromConn
+    const fromAuto = savedByUs ? savedUrl : ''
+    const raw = fromSetup || fromSite || fromAuto || fromConn
     const parsed = raw ? parseProfileUrl(raw) : null
     const profileUrl = parsed?.url ?? (raw || null)
     const check = profileUrl ? await checkProfile(profileUrl, platform, parsed?.handle ?? null) : null
     return {
       platform,
       profileUrl,
-      source: fromSetup ? 'setup' : fromSite ? 'website' : fromConn ? 'connected' : null,
+      source: fromSetup || (!fromSite && fromAuto) ? 'setup' : fromSite ? 'website' : fromConn ? 'connected' : null,
       onWebsite: !!fromSite,
       handle: parsed?.handle ?? null,
       link: check?.link ?? null,
@@ -449,6 +487,8 @@ export async function fetchSocialMediaData(requirements: Record<string, string>)
       frekto: posting[platform] ?? null,
     }
   }))
+
+  if (brandId) await saveFoundProfiles(brandId, platforms).catch((e) => console.error('[social-media] saving found profiles failed', e))
 
   return {
     websiteUrl,

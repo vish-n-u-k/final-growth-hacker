@@ -1557,8 +1557,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const isExpanded = expandedItems.has(itemKey)
     const hasDetail = !skipped && !!(item.aiDetail || item.aiHighlight || item.aiNarrative || item.aiAction)
     const isSkipPrompting = skipPrompting.has(itemKey)
-    // Social Media post suggestions can be opened straight in Social Studio's composer
-    const postIdea = idea ? (item.aiData as { post?: { platform: string; topic: string } } | null)?.post : undefined
+    // Social Media post suggestions: the label is the post itself, the action its opening line
+    const postIdea = item.categorySlug === 'post-suggestions'
 
     return (
       <div
@@ -1589,7 +1589,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         )}
         <div className="md-item-body">
           <div className="md-item-top">
-            <span className="md-item-lbl">{postIdea ? postIdea.topic : item.aiHighlight || item.label}</span>
+            <span className="md-item-lbl">{postIdea ? item.label : item.aiHighlight || item.label}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
               {skipped ? (
                 <>
@@ -1666,12 +1666,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 <div className="sm-action-box">
                   <span className="sm-action-label">{postIdea ? 'Opening line' : 'What to do'}</span>
                   <p className="sm-action-text">{parseBold(item.aiAction)}</p>
-                  {postIdea && (
-                    <a className="sm-make-post" href={`/social?${new URLSearchParams({ platform: postIdea.platform, topic: postIdea.topic })}#create-post`}>
-                      Make this post in Social Studio
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                    </a>
-                  )}
                   {/https?:\/\/(www\.)?(reddit\.com\/r\/|facebook\.com\/groups\/|linkedin\.com\/groups\/)/i.test(item.aiAction ?? '') && (
                     <button
                       onClick={(e) => {
@@ -1726,8 +1720,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                   Download Calendar CSV
                 </a>
               )}
-              {/* Post ideas are made in Social Studio instead */}
-              {!aiV && !postIdea && (
+              {!aiV && (
                 <div className="sm-draft-section">
                   {item.aiDraft ? (
                     <>
@@ -3390,19 +3383,6 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       )}
                     </div>
 
-                    {/* Social Media: the ideas become posts in Social Studio */}
-                    {modData.type === 'social-media' && effectiveLastAnalyzedAt && (
-                      <a className="sm-studio-cta" href="/social">
-                        <span className="sm-studio-cta-ic" aria-hidden="true">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="M21 15l-5-5L5 21" /></svg>
-                        </span>
-                        <span className="sm-studio-cta-txt">
-                          <b>Turn these ideas into posts</b>
-                          <span>{connectedIntegrations['frekto'] ? 'Make, approve and schedule them in Social Studio.' : 'Connect Frekto in Social Studio to make and schedule posts from here.'}</span>
-                        </span>
-                        <svg className="sm-studio-cta-go" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                      </a>
-                    )}
                   </>)}
                 </div>
               </div>

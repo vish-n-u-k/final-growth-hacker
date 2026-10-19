@@ -7858,7 +7858,7 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
 .pk-time-now { font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .pk-done { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 8px; border: 0; background: var(--green); color: #fff; cursor: pointer; }
 
-/* ── Social Media Audit: profiles overview, post ideas → Social Studio ── */
+/* ── Social Media Audit: profiles overview ── */
 .gp-detail-pill.is-muted { background: var(--bg-soft); color: var(--text-dim); }
 .spo { margin: 0 0 18px; padding: 18px 20px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
 .spo-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
@@ -7887,12 +7887,3 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
   .spo-grid { gap: 8px; }
   .spo-tile { padding: 10px 12px; }
 }
-.sm-studio-cta { display: flex; align-items: center; gap: 14px; margin: 20px 0 0; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--text); text-decoration: none; transition: border-color .15s; }
-.sm-studio-cta:hover, .sm-studio-cta:focus-visible { border-color: var(--green); outline: none; }
-.sm-studio-cta-ic { flex-shrink: 0; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; background: var(--accent); color: var(--accent-foreground); }
-.sm-studio-cta-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.sm-studio-cta-txt b { font-size: 14.5px; font-weight: 600; }
-.sm-studio-cta-txt span { font-size: 13px; color: var(--text-dim); }
-.sm-studio-cta-go { flex-shrink: 0; color: var(--text-dim); }
-.sm-make-post { align-self: flex-start; width: fit-content; display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; height: 34px; padding: 0 14px; border-radius: 8px; background: var(--green); color: #fff; font-size: 13px; font-weight: 600; text-decoration: none; }
-.sm-make-post:hover, .sm-make-post:focus-visible { filter: brightness(1.08); }
