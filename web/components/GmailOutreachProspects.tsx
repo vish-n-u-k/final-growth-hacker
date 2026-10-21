@@ -67,9 +67,11 @@ function stripHtml(html: string) {
 export default function GmailOutreachProspects({
   items,
   gmailConnected,
+  earlyAccess = false,
 }: {
   items: DBItemFull[]
   gmailConnected: boolean
+  earlyAccess?: boolean
 }) {
   const [states, setStates]                     = useState<Record<string, ProspectState>>({})
   const [expanded, setExpanded]                 = useState<string | null>(null)
@@ -206,7 +208,7 @@ export default function GmailOutreachProspects({
       </div>
 
       {/* Gmail Hub link (hidden while Outreach is parked) */}
-      {!isComingSoon('/gmail-hub') && <a
+      {!isComingSoon('/gmail-hub', earlyAccess) && <a
         href="/gmail-hub"
         style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 20, padding: '9px 16px', borderRadius: 10, background: 'var(--card)', border: '1px solid var(--line)', fontSize: 13, color: 'var(--text-dim)', textDecoration: 'none', transition: 'border-color .15s' }}
         onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--green)')}

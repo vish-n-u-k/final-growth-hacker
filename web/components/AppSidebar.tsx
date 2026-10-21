@@ -177,12 +177,15 @@ export default function AppSidebar({
   lockedTypes,
   plan = { enabled: false, pro: true },
   roadmap = [],
+  earlyAccess = false,
 }: {
   brandName: string
   lockedTypes: string[]
   plan?: { enabled: boolean; pro: boolean }
   roadmap?: RoadmapModule[]
+  earlyAccess?: boolean
 }) {
+  const isSoon = (href: string) => isComingSoon(href, earlyAccess)
   // Free users (billing on): the Pro tools move into one "Pro" group with a single Upgrade link,
   // rather than a badge on every item. The pages themselves show the upgrade screen.
   const showPro = plan.enabled && !plan.pro
@@ -202,10 +205,10 @@ export default function AppSidebar({
   // Today ("what do I do now?") always sits first, above the roadmap, whether it is live or parked.
   const todayItem = allItems.find(i => i.href === '/today')
   const notToday = (i: NavItem) => i.href !== '/today'
-  const soonItems = NAV.flatMap(g => g.items).filter(i => isComingSoon(i.href) && notToday(i))
+  const soonItems = NAV.flatMap(g => g.items).filter(i => isSoon(i.href) && notToday(i))
   const groups: (NavGroup & { pro?: boolean; soon?: boolean })[] = [
     ...(todayItem ? [{ label: '', items: [todayItem] }] : []),
-    ...baseGroups.map(g => ({ ...g, items: g.items.filter(i => !isComingSoon(i.href) && notToday(i)) })).filter(g => g.items.length > 0),
+    ...baseGroups.map(g => ({ ...g, items: g.items.filter(i => !isSoon(i.href) && notToday(i)) })).filter(g => g.items.length > 0),
     ...(soonItems.length ? [{ label: 'Coming soon', items: soonItems, soon: true }] : []),
   ]
   const actualPath = usePathname()
@@ -308,7 +311,7 @@ export default function AppSidebar({
             if (item.href === '/dashboard' && roadmap.length > 0) {
               return <RoadmapNav key={item.href} modules={roadmap} pathname={pathname} onNavigate={closeOnNav} showUpgrade={showPro} />
             }
-            if (isComingSoon(item.href)) {
+            if (isSoon(item.href)) {
               return (
                 <span className="app-navitem app-navitem-locked app-navitem-soon" key={item.href} title="Coming soon">
                   <NavIcon name={item.icon} />

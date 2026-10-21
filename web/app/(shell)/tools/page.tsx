@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSessionUser, getBrandForUser } from '@/lib/server-session'
 import Link from 'next/link'
 import { isComingSoon } from '@/lib/features'
+import { hasEarlyAccess } from '@/lib/early-access'
 import { db } from '@/lib/db'
 import { brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
@@ -135,7 +136,7 @@ export default async function ToolsPage() {
         <div className="tl-grid">
           {/* Live tools first; one calm colour for all of them (per-tool rainbow colours read as noise). */}
           {tools
-            .map(t => ({ ...t, color: 'var(--green)', glow: 'var(--green-glow)', comingSoon: t.comingSoon || isComingSoon(t.href) }))
+            .map(t => ({ ...t, color: 'var(--green)', glow: 'var(--green-glow)', comingSoon: t.comingSoon || isComingSoon(t.href, hasEarlyAccess(user.email)) }))
             .sort((a, b) => Number(a.comingSoon) - Number(b.comingSoon))
             .map(tool => {
             const content = (

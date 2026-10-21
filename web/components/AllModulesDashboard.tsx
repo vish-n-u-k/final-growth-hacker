@@ -2,7 +2,6 @@
 
 import { Fragment, useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
 import ArrowIcon from '@/components/ArrowIcon'
-import { UNLOCK_ALL_MODULES } from '@/lib/features'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useRoadmap } from '@/components/RoadmapContext'
 import { progressColor as ringColor, GROWTH_PHASES } from '@/lib/modules/roadmap'
@@ -87,6 +86,7 @@ interface Props {
   queueRuns?: boolean // module runs switched to the admin queue (admin page); Foundation always runs directly
   userEmail: string
   isAdmin?: boolean // GrowJin team: shows internal tools like Notes
+  earlyAccess?: boolean // lib/early-access.ts: no module locks, coming-soon tools live
   githubConnected: boolean
   githubRepo?: string | null
   mcpLastUsedAt?: string | null
@@ -353,7 +353,7 @@ function LevelRing({ score, pending = false }: { score: number; pending?: boolea
 
 const BILLING_OFF = { enabled: false, pro: true, planLocked: [] as string[] }
 
-export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], queueRuns = false, isAdmin = false, githubConnected, githubRepo = null, mcpLastUsedAt = null, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], queueRuns = false, isAdmin = false, earlyAccess = false, githubConnected, githubRepo = null, mcpLastUsedAt = null, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
   const isPlanLocked = (m: Pick<ModuleData, 'type'>) => billing.planLocked.includes(m.type)
   const [notesOpen, setNotesOpen] = useState(false)
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
@@ -573,7 +573,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   )
 
   const isModuleLocked = (modData: ModuleData): boolean => {
-    if (UNLOCK_ALL_MODULES || process.env.NEXT_PUBLIC_APP_ENV !== 'production') return false
+    if (earlyAccess || process.env.NEXT_PUBLIC_APP_ENV !== 'production') return false
     if (modData.order <= 3) return false  // Foundation, Website Audit, SEO always unlocked
     const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order && !p.definition?.comingSoon)
     return !prev || liveScores[prev.id] < 80
@@ -2269,7 +2269,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     if (!analysedYet) return null // nothing to measure until the first analysis lands
     const next = railModules.slice(selectedIdx + 1).find(p => !p.definition.comingSoon)
     // Mirrors isModuleLocked: the first three modules never gate each other, and nothing gates while all are open.
-    const unlocksNext = !UNLOCK_ALL_MODULES && !!next && next.order > 3
+    const unlocksNext = !earlyAccess && !!next && next.order > 3
     if (score >= 80) {
       return (
         <div className="gp-unlock gp-unlock--done">
@@ -3137,6 +3137,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <GmailOutreachProspects
                           items={dynItems}
                           gmailConnected={true}
+                          earlyAccess={earlyAccess}
                         />
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '48px 28px 52px', textAlign: 'center' }}>

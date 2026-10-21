@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { hasEarlyAccess } from '@/lib/early-access'
 import { blogMarkdownUrl } from '@/lib/blog-share'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
@@ -187,6 +188,7 @@ export default async function TodayPage() {
       mcpLastUsedAt={mcpRow?.lastUsedAt ? new Date(mcpRow.lastUsedAt).toISOString() : null}
       githubRepo={githubRepo}
       gmailConnected={gmailConnected}
+      earlyAccess={hasEarlyAccess(user.email)}
       gmailAddress={gmailAddress}
       prospectItems={prospectItems}
       gmailModuleId={gmailModule?.id ?? null}
