@@ -176,7 +176,7 @@ Rules:
   "ctaUrl": "full URL with UTM params if requested, otherwise omit this field"
 }`
 
-      const raw = await callAI({
+      const raw = await callAI({ feature: 'gmail-campaign',
         system: 'You are a cold email copywriter. Apply the edit and return only a raw JSON object — no markdown, no code blocks.',
         prompt,
         maxTokens: 1000,

@@ -28,7 +28,7 @@ ${text.slice(0, 8000)}
 Return ONLY a JSON array (no markdown, no code fences):
 [{"email":"...","name":"...","domain":"..."}]`
 
-  const raw = await callAI({
+  const raw = await callAI({ feature: 'outreach-parse',
     system: 'You extract contact information from unstructured text. Return only a raw JSON array.',
     prompt,
     maxTokens: 1000,

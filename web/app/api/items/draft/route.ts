@@ -59,7 +59,7 @@ Choose the appropriate format:
 
 Use the brand name, industry, audience, and USP to make every output specific. Never use generic placeholders like [Company Name] — use the actual brand name.`
 
-  const draft = await callAI({
+  const draft = await callAI({ feature: 'item-draft',
     system:
       'You are an expert copywriter and growth consultant. Generate specific, immediately usable drafts tailored to the exact brand provided. No generic advice — every output must be ready to copy and use.',
     prompt,

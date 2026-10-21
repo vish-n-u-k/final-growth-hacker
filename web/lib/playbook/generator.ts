@@ -74,7 +74,7 @@ Return ONLY a valid JSON object with exactly these 19 keys:
 No markdown fences. No explanation. Return only the JSON object.`
 
   try {
-    const raw = await callAI({
+    const raw = await callAI({ feature: 'playbook',
       system: 'You are a senior B2B sales strategist and copywriter. You write in plain, direct language. Everything you produce is immediately usable — no fluff, no placeholders, no generic advice.',
       prompt,
       maxTokens: 8000,

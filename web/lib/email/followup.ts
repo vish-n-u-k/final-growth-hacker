@@ -145,7 +145,7 @@ Rules: no em dashes, no signature (it is added automatically), no subject line.
 Return ONLY this JSON (no markdown):
 ${JSON_SHAPE}`
 
-  const raw = await callAI({
+  const raw = await callAI({ feature: 'email-followup',
     system: 'You write short follow-up emails. Return only a raw JSON object, no markdown, no code fences.',
     prompt,
     maxTokens: 500,
@@ -179,7 +179,7 @@ Rules: apply the instruction faithfully, keep it short, no em dashes, no signatu
 Return ONLY this JSON (no markdown):
 ${JSON_SHAPE}`
 
-  const raw = await callAI({
+  const raw = await callAI({ feature: 'email-followup',
     system: 'You edit short follow-up emails. Return only a raw JSON object, no markdown, no code fences.',
     prompt,
     maxTokens: 500,

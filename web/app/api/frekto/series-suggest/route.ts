@@ -246,7 +246,7 @@ Return a JSON array of exactly ${ALL_PLATFORMS.length} objects in this order: ${
 
   let raw: string
   try {
-    raw = await callAI({
+    raw = await callAI({ feature: 'social-series-suggest',
       system: 'You are a social media strategist. Return only a valid JSON array, no markdown fences, no text outside the array.',
       prompt,
       maxTokens: 2500,

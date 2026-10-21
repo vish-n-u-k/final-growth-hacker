@@ -188,7 +188,7 @@ Return ONLY this JSON (no markdown, no code fences, no extra text):
   "ctaText": "button label"
 }`
 
-  const raw = await callAI({
+  const raw = await callAI({ feature: 'gmail-generate-email',
     system: 'You are a cold email copywriter. Return only a raw JSON object — no markdown, no code blocks, no extra text.',
     prompt,
     maxTokens: 1000,

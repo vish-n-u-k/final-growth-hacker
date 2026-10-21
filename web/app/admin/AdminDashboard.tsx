@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import type { analysisRequests } from '@/lib/db/schema'
 import type { AnalysisMode } from '@/lib/modules/analysis-mode'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
+import AdminCosts from './AdminCosts'
 
 type Request = typeof analysisRequests.$inferSelect
 
@@ -71,7 +72,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
       setModeSaving(false)
     }
   }
-  const [tab, setTab] = useState<'queue' | 'users' | 'notes'>('queue')
+  const [tab, setTab] = useState<'queue' | 'users' | 'notes' | 'costs'>('queue')
   const [requests, setRequests] = useState(initial)
   const [running, setRunning] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -172,7 +173,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
 
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid var(--line, #1e3830)', paddingBottom: 0 }}>
-        {(['queue', 'users', 'notes'] as const).map(t => (
+        {(['queue', 'users', 'notes', 'costs'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -190,7 +191,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
               textTransform: 'capitalize',
             }}
           >
-            {t === 'queue' ? `Analysis Queue (${pending.length} pending)` : t === 'users' ? 'Users' : 'Notes'}
+            {t === 'queue' ? `Analysis Queue (${pending.length} pending)` : t === 'users' ? 'Users' : t === 'notes' ? 'Notes' : 'AI Costs'}
           </button>
         ))}
       </div>
@@ -371,6 +372,8 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
           )}
         </>
       )}
+
+      {tab === 'costs' && <AdminCosts />}
 
       {tab === 'notes' && (
         <section>

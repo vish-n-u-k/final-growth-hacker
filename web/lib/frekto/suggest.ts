@@ -215,7 +215,7 @@ Return a JSON array of exactly ${PLATFORMS.length} objects in this order: ${PLAT
   }
 ]`
 
-  const raw = await callAI({
+  const raw = await callAI({ feature: 'social-suggest',
     system: 'You are a social media strategist. Return only a valid JSON array, no markdown fences, no text outside the array.',
     prompt,
     maxTokens: 1500,

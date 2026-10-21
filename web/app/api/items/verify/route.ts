@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { brands, modules, moduleItems } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import Anthropic from '@anthropic-ai/sdk'
+import { logAnthropicUsage } from '@/lib/ai/client'
 import { getAllItems } from '@/lib/modules/types'
 import { FOUNDATION_MODULE } from '@/lib/modules/foundation/definition'
 import { fetchFoundationData } from '@/lib/modules/foundation/fetcher'
@@ -78,6 +79,7 @@ No markdown, no extra text.`,
       },
     ],
   })
+  logAnthropicUsage('item-verify', message, brand?.id)
 
   const raw = message.content[0].type === 'text' ? message.content[0].text : '{}'
   const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()

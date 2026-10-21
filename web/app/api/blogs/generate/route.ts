@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { brands, brandBlogs } from '@/lib/db/schema'
 import { eq, and, ne, count } from 'drizzle-orm'
 import Anthropic from '@anthropic-ai/sdk'
+import { logAnthropicUsage } from '@/lib/ai/client'
 import { blogMarkdownUrl } from '@/lib/blog-share'
 import { generateFrektoBlog, getFrektoKey, slugify, type FrektoBlogMode } from '@/lib/frekto/blog'
 
@@ -143,6 +144,7 @@ Rules:
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   })
+  logAnthropicUsage('blog-generate', message, brand.id)
 
   const raw = (message.content[0] as { type: string; text: string }).text ?? ''
 

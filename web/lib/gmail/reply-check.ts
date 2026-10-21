@@ -63,7 +63,7 @@ function isAutoReply(m: GmailMsg): boolean {
 /** Asks the model whether a human reply is an opt-out. Defaults to 'replied' on any failure. */
 async function classifyReply(text: string): Promise<'replied' | 'opted_out'> {
   try {
-    const raw = await callAI({
+    const raw = await callAI({ feature: 'gmail-reply-check',
       system: 'You classify replies to sales outreach emails. Answer with exactly one word.',
       prompt: `Reply text:\n"""${text.slice(0, 2000)}"""\n\nIs the sender asking to stop contact or clearly not interested? Answer OPTOUT or REPLY.`,
       maxTokens: 5,

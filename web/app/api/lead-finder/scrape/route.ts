@@ -152,7 +152,7 @@ Return ONLY a raw JSON array — no markdown, no code fences:
 
 painPoints: 3–5 short phrases (2–4 words each) that capture the merchant's specific complaints — e.g. "slow sync", "missing integrations", "confusing setup", "poor support response". These are keyword chips shown to the user at a glance.`
 
-  const raw = await callAI({
+  const raw = await callAI({ feature: 'lead-finder',
     system: 'You are a sales qualification expert. Evaluate leads based on product-market fit. Return only a raw JSON array.',
     prompt,
     maxTokens: 2000,

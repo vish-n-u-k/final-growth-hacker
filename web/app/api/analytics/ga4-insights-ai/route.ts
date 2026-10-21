@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { logAnthropicUsage } from '@/lib/ai/client'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -66,6 +67,7 @@ Rules:
       max_tokens: 700,
       messages: [{ role: 'user', content: prompt }],
     })
+    logAnthropicUsage('analytics-ga4-insights', message, brandId)
 
     const text = message.content[0]?.type === 'text' ? message.content[0].text : ''
 

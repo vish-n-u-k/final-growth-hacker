@@ -18,7 +18,7 @@ export async function GET() {
   const [b] = await db.select().from(brands).where(eq(brands.id, brandId)).limit(1)
   if (!b) return NextResponse.json({ ideas: [] })
   try {
-    const raw = await callAI({
+    const raw = await callAI({ feature: 'social-post-ideas',
       system: 'You suggest social media posts for a business. Reply with JSON only.',
       prompt: `Business: ${b.name} (${b.websiteUrl ?? ''})
 ${b.industry ? `Industry: ${b.industry}\n` : ''}${b.targetAudience ? `Audience: ${b.targetAudience}\n` : ''}${b.usp ? `What makes it different: ${b.usp}\n` : ''}${b.keywords ? `Topics: ${b.keywords}\n` : ''}
