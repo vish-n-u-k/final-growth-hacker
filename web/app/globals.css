@@ -15,6 +15,10 @@
   --line: #27342c;
   --green: #2fbf71;
   --green-bright: #4ade80;
+  /* Frekto's brand teal, for the Frekto-powered parts of Social Studio */
+  --frekto: #14b8a6;
+  --frekto-ink: #5eead4;
+  --frekto-soft: rgba(20, 184, 166, 0.12);
   --green-glow: #34d39926;
   --lime: #a3e635;
   --text: #e8f0ea;
@@ -2060,6 +2064,9 @@ html.light {
   --line: #dfe4df;
   --green: #15803d;
   --green-bright: #15803d;
+  --frekto: #0d9488;
+  --frekto-ink: #0f766e;
+  --frekto-soft: rgba(13, 148, 136, 0.08);
   --green-glow: #15803d33;
   --lime: #5a9200;
   --text: #16201a;

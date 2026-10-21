@@ -92,7 +92,7 @@ function StatusPill({ post, now }: { post: ScheduledPost; now: number }) {
   const configs: Record<string, { bg: string; color: string; border: string; label: string }> = {
     done: { bg: 'rgba(23,154,80,.10)', color: 'var(--green)', border: 'rgba(23,154,80,.25)', label: 'Posted' },
     scheduled: due
-      ? { bg: 'var(--bg-soft)', color: 'var(--text-dim)', border: 'var(--line)', label: 'Sent to Frekto' }
+      ? { bg: 'var(--frekto-soft)', color: 'var(--frekto-ink)', border: 'color-mix(in srgb, var(--frekto) 30%, transparent)', label: 'Sent to Frekto' }
       : { bg: 'rgba(122,90,8,.08)', color: 'var(--gold)', border: 'rgba(122,90,8,.25)', label: 'Scheduled' },
     scheduling: { bg: 'rgba(122,90,8,.08)', color: 'var(--gold)', border: 'rgba(122,90,8,.25)', label: 'Scheduling…' },
     draft: { bg: 'rgba(37,99,235,.08)', color: '#2563eb', border: 'rgba(37,99,235,.25)', label: 'Needs approval' },
@@ -161,6 +161,11 @@ const FREKTO_URL = 'https://app.frekto.ai'
 
 // Frekto does the making and publishing; GrowJin decides what and when. Shown so it's clear
 // whose account the posts come from and where to manage connected social accounts.
+function FrektoLogo({ size = 18 }: { size?: number }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/integrations/frekto.png" alt="" width={size} height={size} style={{ borderRadius: Math.round(size / 4), display: 'block', flexShrink: 0 }} />
+}
+
 function FrektoBadge() {
   return (
     <a
@@ -169,13 +174,13 @@ function FrektoBadge() {
       rel="noreferrer"
       title="Open Frekto"
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px 3px 6px', borderRadius: 999,
-        border: '1px solid var(--line)', background: 'var(--bg-soft)', color: 'var(--text-dim)',
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px 3px 4px', borderRadius: 999,
+        border: '1px solid color-mix(in srgb, var(--frekto) 35%, transparent)', background: 'var(--frekto-soft)', color: 'var(--frekto-ink)',
         fontSize: 12, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap',
       }}
     >
-      <span aria-hidden="true" style={{ display: 'grid', placeItems: 'center', width: 18, height: 18, borderRadius: 5, background: 'var(--text)', color: 'var(--bg)', fontSize: 11, fontWeight: 800 }}>F</span>
-      Auto-posting by Frekto ↗
+      <FrektoLogo />
+      Powered by Frekto ↗
     </a>
   )
 }
@@ -186,16 +191,17 @@ const HOW_IT_WORKS: { title: string; body: string }[] = [
   { title: 'Frekto publishes it', body: 'At the time you choose, to the social accounts connected in your Frekto account.' },
 ]
 
+// Kept out of the way: a small "How it works" toggle, not a section of its own
 function HowItWorks() {
   return (
-    <ol style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, listStyle: 'none', padding: 0, margin: '14px 0 0' }}>
-      {HOW_IT_WORKS.map((step, i) => (
-        <li key={step.title} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg)' }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{i + 1}. {step.title}</div>
-          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.45 }}>{step.body}</div>
-        </li>
-      ))}
-    </ol>
+    <details style={{ marginTop: 6, fontSize: 12.5, color: 'var(--text-faint)' }}>
+      <summary style={{ cursor: 'pointer', width: 'fit-content', color: 'var(--frekto-ink)', fontWeight: 600 }}>How it works</summary>
+      <ol style={{ margin: '6px 0 0', paddingLeft: 18, lineHeight: 1.6, color: 'var(--text-dim)' }}>
+        {HOW_IT_WORKS.map(step => (
+          <li key={step.title}><strong style={{ fontWeight: 600, color: 'var(--text)' }}>{step.title}.</strong> {step.body}</li>
+        ))}
+      </ol>
+    </details>
   )
 }
 
@@ -608,7 +614,7 @@ export default function SocialStudioPage({
             <li>Plan a whole content series</li>
             <li>Keep a queue you can reschedule or cancel</li>
           </ul>
-          <a href="/settings?tab=integrations" style={{ display: 'inline-block', padding: '10px 18px', borderRadius: '10px', background: 'var(--green)', color: '#fff', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}>
+          <a href="/settings?tab=integrations" style={{ display: 'inline-block', padding: '10px 18px', borderRadius: '10px', background: 'var(--frekto)', color: '#fff', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}>
             Connect Frekto →
           </a>
         </div>
@@ -701,12 +707,12 @@ export default function SocialStudioPage({
     <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 16px' }}>
       {header}
 
-      {/* Section 1 — Auto-Post Control */}
-      <div style={card}>
+      {/* Section 1 — Auto-Post Control (Frekto's feature, so in Frekto's colours) */}
+      <div style={{ ...card, borderColor: 'color-mix(in srgb, var(--frekto) 30%, var(--line))' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
           <div>
-            <div style={sectionTitle}>Auto-posting with Frekto</div>
-            <p style={{ fontSize: 12, fontWeight: 600, margin: '0 0 4px', color: autoPost ? 'var(--green)' : 'var(--text-faint)' }}>
+            <div style={{ ...sectionTitle, display: 'flex', alignItems: 'center', gap: 8 }}><FrektoLogo size={20} />Auto-posting with Frekto</div>
+            <p style={{ fontSize: 12, fontWeight: 600, margin: '0 0 4px', color: autoPost ? 'var(--frekto-ink)' : 'var(--text-faint)' }}>
               {!autoPost ? 'Off' : autoMode === 'approve' ? 'On · asks you before anything is posted' : 'On · posts automatically'}
             </p>
             <p style={{ ...sectionSub, marginBottom: 0 }}>
@@ -729,7 +735,7 @@ export default function SocialStudioPage({
             )}
             <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: '6px 0 0' }}>
               Posts are published from your Frekto account.{' '}
-              <a href={FREKTO_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--text-dim)' }}>Manage connected accounts in Frekto ↗</a>
+              <a href={FREKTO_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--frekto-ink)' }}>Manage connected accounts in Frekto ↗</a>
             </p>
           </div>
           <button
@@ -740,7 +746,7 @@ export default function SocialStudioPage({
               flexShrink: 0,
               width: '44px', height: '24px', borderRadius: '12px', border: 'none',
               cursor: autoPostLoading ? 'not-allowed' : 'pointer',
-              background: autoPost ? 'var(--green)' : 'var(--line)',
+              background: autoPost ? 'var(--frekto)' : 'var(--line)',
               position: 'relative', transition: 'background .2s',
             }}
           >
@@ -759,7 +765,7 @@ export default function SocialStudioPage({
                 key={m}
                 disabled={autoPostLoading}
                 onClick={() => saveAutoPost({ mode: m })}
-                style={{ ...ghostBtn, ...(autoMode === m ? { borderColor: 'var(--green)', color: 'var(--green)', background: 'rgba(23,154,80,.06)' } : {}) }}
+                style={{ ...ghostBtn, ...(autoMode === m ? { borderColor: 'var(--frekto)', color: 'var(--frekto-ink)', background: 'var(--frekto-soft)' } : {}) }}
               >
                 {label}
               </button>
