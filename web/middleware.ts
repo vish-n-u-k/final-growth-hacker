@@ -1,5 +1,13 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { AUTH_COOKIE_OPTIONS } from '@/lib/supabase/cookie-options'
+
+// A redirect built from scratch drops the session cookies the refresh just set, so carry them over.
+function redirectWithCookies(to: URL, from: NextResponse) {
+  const res = NextResponse.redirect(to)
+  from.cookies.getAll().forEach((c) => res.cookies.set(c))
+  return res
+}
 
 async function handle(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -21,6 +29,7 @@ async function handle(request: NextRequest) {
     supabaseUrl,
     supabaseKey,
     {
+      cookieOptions: AUTH_COOKIE_OPTIONS,
       cookies: {
         getAll() {
           return request.cookies.getAll()
@@ -59,17 +68,17 @@ async function handle(request: NextRequest) {
   if (!user && !isAuthPage && !isMcpEndpoint && !isOAuthPublic && !isCronEndpoint && !isTrackedLink && !isStripeWebhook) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    return NextResponse.redirect(url)
+    return redirectWithCookies(url, supabaseResponse)
   }
 
   if (user && isAuthPage) {
     const next = request.nextUrl.searchParams.get('next')
     const url = request.nextUrl.clone()
     if (next && next.startsWith('/')) {
-      return NextResponse.redirect(new URL(next, request.url))
+      return redirectWithCookies(new URL(next, request.url), supabaseResponse)
     }
     url.pathname = '/start'
-    return NextResponse.redirect(url)
+    return redirectWithCookies(url, supabaseResponse)
   }
 
   return supabaseResponse
