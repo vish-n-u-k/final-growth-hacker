@@ -52,7 +52,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'toggle_item',
     description:
-      'Marks a checklist item as checked or unchecked (user self-reported completion). Does not affect AI verification.',
+      'Marks a checklist item as checked or unchecked (user self-reported completion). Does not affect AI verification. When you did the work, pass link (the pull request, changed page or published post) and note (what you changed) so the user can see the result in GrowJin.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -63,6 +63,14 @@ export const TOOLS: MCPTool[] = [
         checked: {
           type: 'boolean',
           description: 'true to mark as done, false to unmark.',
+        },
+        link: {
+          type: 'string',
+          description: 'When marking done: a link that shows the result, e.g. the pull request, the changed page on the live site, or the published post. Shown to the user next to the finished task.',
+        },
+        note: {
+          type: 'string',
+          description: 'When marking done: one or two sentences on what you changed. Shown to the user next to the finished task.',
         },
       },
       required: ['item_id', 'checked'],
@@ -208,7 +216,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'resolve_signal',
     description:
-      'Closes an alert or play (a kind="alert" or kind="play" task from get_today_tasks) once it has been handled. Use status="done" when the issue was fixed, or "dismissed" when the user says it does not apply. A closed signal will not be raised again for 7 days.',
+      'Closes an alert or play (a kind="alert" or kind="play" task from get_today_tasks) once it has been handled. Use status="done" when the issue was fixed, or "dismissed" when the user says it does not apply. A closed signal will not be raised again for 7 days. When status is "done", pass link (the pull request, changed page or published post) and note (what you changed) so the user can see the result in GrowJin.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -219,6 +227,14 @@ export const TOOLS: MCPTool[] = [
         status: {
           type: 'string',
           description: '"done" (default) or "dismissed".',
+        },
+        link: {
+          type: 'string',
+          description: 'When marking done: a link that shows the result, e.g. the pull request, the changed page on the live site, or the published post. Shown to the user next to the finished task.',
+        },
+        note: {
+          type: 'string',
+          description: 'When marking done: one or two sentences on what you changed. Shown to the user next to the finished task.',
         },
       },
       required: ['signal_id'],

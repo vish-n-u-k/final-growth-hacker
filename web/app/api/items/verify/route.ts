@@ -5,6 +5,7 @@ import { brands, modules, moduleItems } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import Anthropic from '@anthropic-ai/sdk'
 import { logAnthropicUsage } from '@/lib/ai/client'
+import { saveProof } from '@/lib/proofs'
 import { getAllItems } from '@/lib/modules/types'
 import { FOUNDATION_MODULE } from '@/lib/modules/foundation/definition'
 import { fetchFoundationData } from '@/lib/modules/foundation/fetcher'
@@ -104,6 +105,8 @@ No markdown, no extra text.`,
     .where(eq(moduleItems.id, itemId))
 
   await refreshModuleScore(item.moduleId)
+  // The page that was checked + what the check found, shown on the finished item
+  if (result.verified) await saveProof({ brandId: brand.id, itemId, url: brand.websiteUrl, note: `AI check passed: ${result.detail}`, source: 'ai' })
 
   return NextResponse.json({ canVerify: true, aiVerified: result.verified, detail: result.detail })
 }

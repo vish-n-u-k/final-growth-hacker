@@ -976,6 +976,15 @@ html.light .md-spin { border-color: rgba(23,154,80,0.3); border-top-color: var(-
   font-size: 15px; font-weight: 400; line-height: 1.4; flex: 1;
 }
 .md-item-done .md-item-lbl { color: var(--text-faint); }
+/* How a finished item was done: who, what changed, link to the change */
+.md-item-proof {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px;
+  margin-top: 6px; font-size: 12.5px; line-height: 1.5; color: var(--text-dim);
+}
+.md-item-proof-by { font-weight: 600; color: var(--green); }
+.md-item-proof-note { overflow-wrap: anywhere; }
+.md-item-proof-link { color: var(--green); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.md-item-proof-link:hover { text-decoration: underline; }
 .md-item-detail {
   font-size: 14px; color: var(--text-dim); line-height: 1.6;
   margin-top: 6px; padding-right: 4px;
@@ -7637,6 +7646,14 @@ a.ta-more:hover { color: var(--text); }
 .td-blog-compose-label { font-size: 13px; font-weight: 600; color: var(--text); }
 .td-blog-topic { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
 .td-blog-topic:focus { outline: 2px solid var(--green); outline-offset: 1px; border-color: transparent; }
+.td-done-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.td-done-item { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); }
+.td-done-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 10px; }
+.td-done-label { font-size: 14px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.td-done-meta { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
+.td-done-note { font-size: 13px; color: var(--text-dim); line-height: 1.5; margin: 4px 0 0; overflow-wrap: anywhere; }
+.td-done-link { display: inline-block; margin-top: 4px; font-size: 13px; font-weight: 600; color: var(--green); text-decoration: none; }
+.td-done-link:hover { text-decoration: underline; }
 .td-blog-ideas { display: flex; flex-wrap: wrap; gap: 8px; }
 .td-blog-idea { font: inherit; text-align: left; display: flex; flex-direction: column; gap: 1px; max-width: 100%; padding: 7px 11px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-soft); color: var(--text); cursor: pointer; }
 .td-blog-idea span { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }

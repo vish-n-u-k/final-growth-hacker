@@ -28,6 +28,7 @@ import {
   type SelectorPatch,
   type FixPlan,
 } from '@/lib/modules/seo/fix-agent'
+import { saveProof } from '@/lib/proofs'
 
 export const maxDuration = 60
 
@@ -40,13 +41,14 @@ function findMainHtmlFile(fileTree: string[]): string | null {
   return fileTree.find((f) => f.endsWith('.html') && !f.includes('/')) ?? null
 }
 
-// Mark item as agent-fixed in DB
-async function markFixed(itemId: string, moduleId: string) {
+// Mark item as agent-fixed in DB, keeping the commit as the proof shown on the finished task
+async function markFixed(itemId: string, moduleId: string, proof: { brandId: string; url: string; note: string }) {
   await db
     .update(moduleItems)
     .set({ completedBy: 'agent', aiVerified: true, aiVerifiedAt: new Date(), updatedAt: new Date() })
     .where(eq(moduleItems.id, itemId))
   await refreshModuleScore(moduleId)
+  await saveProof({ brandId: proof.brandId, itemId, url: proof.url, note: proof.note, source: 'agent' })
 }
 
 export async function POST(request: NextRequest) {
@@ -114,6 +116,7 @@ export async function POST(request: NextRequest) {
   t('getting default branch')
   const defaultBranch = await getDefaultBranch(owner, repo, pat)
   const repoHomeUrl = `https://github.com/${owner}/${repo}`
+  let lastCommitUrl: string | null = null // set by each commit, shown as the fix's proof
 
   const brandCtx: BrandContext = {
     name: brand.name,
@@ -156,8 +159,8 @@ export async function POST(request: NextRequest) {
     }
 
     t('template — committing')
-    await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)
-    await markFixed(itemId, item.moduleId)
+    lastCommitUrl = await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)
+    await markFixed(itemId, item.moduleId, { brandId: brand.id, url: lastCommitUrl ?? repoHomeUrl, note: `GrowJin committed this fix to ${owner}/${repo} (${defaultBranch}).` })
 
     t('done — template (0 AI calls)')
     return NextResponse.json({ ok: true, prUrl: repoHomeUrl })
@@ -215,8 +218,8 @@ export async function POST(request: NextRequest) {
     const modified = applyValueFix(html, item.slug, newValue)
 
     t('value — committing')
-    await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)
-    await markFixed(itemId, item.moduleId)
+    lastCommitUrl = await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)
+    await markFixed(itemId, item.moduleId, { brandId: brand.id, url: lastCommitUrl ?? repoHomeUrl, note: `GrowJin committed this fix to ${owner}/${repo} (${defaultBranch}).` })
 
     t('done — value (1 tiny AI call)')
     return NextResponse.json({ ok: true, prUrl: repoHomeUrl })
@@ -333,7 +336,7 @@ export async function POST(request: NextRequest) {
       }
 
       t(`patch — committing ${filePath}`)
-      await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)
+      lastCommitUrl = await commitFile(owner, repo, filePath, modified, sha, defaultBranch, `fix(seo): ${item.label}`, pat)
       anyPatched = true
     }
 
@@ -341,7 +344,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Patch agent found no changes to apply across any of the target files.' }, { status: 422 })
     }
 
-    await markFixed(itemId, item.moduleId)
+    await markFixed(itemId, item.moduleId, { brandId: brand.id, url: lastCommitUrl ?? repoHomeUrl, note: `GrowJin committed this fix to ${owner}/${repo} (${defaultBranch}).` })
     t(`done — patch (${plan.files_to_read.length} file(s), DOM map only)`)
     return NextResponse.json({ ok: true, prUrl: repoHomeUrl })
   }
@@ -496,11 +499,11 @@ export async function POST(request: NextRequest) {
   t('legacy — committing files')
   const shaMap = Object.fromEntries(fileContents.map((f) => [f.path, f.sha]))
   for (const { path, content } of finalFiles) {
-    await commitFile(owner, repo, path, content, shaMap[path] ?? null, defaultBranch, `fix(seo): ${item.label}`, pat)
+    lastCommitUrl = await commitFile(owner, repo, path, content, shaMap[path] ?? null, defaultBranch, `fix(seo): ${item.label}`, pat)
     console.log(`[apply-fix] committed ${path}`)
   }
 
-  await markFixed(itemId, item.moduleId)
+  await markFixed(itemId, item.moduleId, { brandId: brand.id, url: lastCommitUrl ?? repoHomeUrl, note: `GrowJin committed this fix to ${owner}/${repo} (${defaultBranch}).` })
 
   t('done — legacy (2 AI calls, full file rewrite)')
   return NextResponse.json({ ok: true, prUrl: repoHomeUrl })

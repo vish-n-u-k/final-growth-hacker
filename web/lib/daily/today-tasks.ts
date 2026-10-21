@@ -347,6 +347,6 @@ export function buildTodayPrompt(t: Pick<TodayTasks, 'brandName' | 'websiteUrl' 
     '3. For each "content" task: draft the content (blog copy, emails). For social posts use create_social_post, show me the preview, and only call schedule_social_post after I approve. For a blog post already written in GrowJin, call get_blog_post, add it to the website, and call mark_blog_published once it is live.',
     '4. For each "manual" task: give me short step-by-step instructions.',
     '5. If a task needs real data from me (stats, testimonials, quotes), ask instead of inventing it.',
-    '6. When a task is done: if its kind is "item", call toggle_item with its id and checked=true; if its kind is "alert" or "play", call resolve_signal with its id and status="done".',
+    '6. When a task is done: if its kind is "item", call toggle_item with its id and checked=true; if its kind is "alert" or "play", call resolve_signal with its id and status="done". Either way pass link (the pull request, changed page or published post) and note (one sentence on what you changed) so I can see the result in GrowJin.',
   ].join('\n')
 }

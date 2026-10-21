@@ -1,6 +1,7 @@
 'use client'
 
 import RoadToFiveHundred from '@/components/RoadToFiveHundred'
+import RecentlyDone from '@/components/RecentlyDone'
 import { useClaudeHandoff, repoLine, type HandoffArgs } from '@/components/useClaudeHandoff'
 import SocialIcon, { socialBrand } from '@/components/SocialIcon'
 import { useState, useEffect, useCallback } from 'react'
@@ -216,8 +217,8 @@ function taskHandoff(card: ActionCard, c: SiteCtx): HandoffArgs {
   const action = typeof d.action === 'string' ? d.action : ''
   const finding = typeof d.finding === 'string' ? d.finding : card.reason
   const done = kind === 'item'
-    ? `call toggle_item with item_id "${id}" and checked true`
-    : `call resolve_signal with signal_id "${id}" and status "done"`
+    ? `call toggle_item with item_id "${id}" and checked true, passing link (the pull request, changed page or published post) and note (one sentence on what you changed) so I can see the result in GrowJin`
+    : `call resolve_signal with signal_id "${id}" and status "done", passing link (the pull request, changed page or published post) and note (one sentence on what you changed) so I can see the result in GrowJin`
   const mcp = [
     `Use the GrowJin connector to do one of today's growth tasks for ${c.brandName}${where(c)}.`,
     repoLine(c.githubRepo),
@@ -1262,6 +1263,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
                 <div className="td-cards">{impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}</div>
               </>
             )}
+            <RecentlyDone />
             <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
             <SocialAnalytics />
             <SocialFeed posts={recentPosts} />
@@ -1364,6 +1366,8 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
                 <div className="td-cards">{impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}</div>
               </>
             )}
+
+            <RecentlyDone />
 
             {/* Weekly blog */}
             <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />

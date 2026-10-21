@@ -3,8 +3,10 @@ import { brands, modules, moduleItems } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { updateUserResolved } from '@/lib/brain'
 import { refreshModuleScore } from '@/lib/modules/score'
+import { saveProof } from '@/lib/proofs'
 
-export async function toggleItem(brandId: string, itemId: string, checked: boolean) {
+// proof: what Claude did (link to the PR / page / post, and a note), shown on the finished task
+export async function toggleItem(brandId: string, itemId: string, checked: boolean, proof?: { link?: unknown; note?: unknown }) {
   const [item] = await db.select().from(moduleItems).where(eq(moduleItems.id, itemId)).limit(1)
   if (!item) return { error: 'Item not found.' }
 
@@ -25,6 +27,7 @@ export async function toggleItem(brandId: string, itemId: string, checked: boole
     .where(eq(moduleItems.id, itemId))
 
   await refreshModuleScore(item.moduleId)
+  if (checked && proof) await saveProof({ brandId, itemId, url: proof.link, note: proof.note, source: 'claude' })
 
   try {
     await updateUserResolved(brand.id, item.slug, checked)

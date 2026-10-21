@@ -376,6 +376,18 @@ export const socialSuggestions = pgTable('social_suggestions', {
 
 // ── Analysis Requests (admin queue) ──────────────────────────────────────────
 
+// Proof a task was done (drizzle/task_proofs.sql): the link and a note on what changed
+export const taskProofs = pgTable('task_proofs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  itemId: uuid('item_id').references(() => moduleItems.id, { onDelete: 'cascade' }),
+  signalId: uuid('signal_id').references(() => brandSignals.id, { onDelete: 'cascade' }),
+  url: text('url'),
+  note: text('note'),
+  source: text('source').notNull(), // 'claude' | 'agent' | 'ai' | 'user'
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
 export const analysisRequests = pgTable('analysis_requests', {
   id: uuid('id').primaryKey().defaultRandom(),
   moduleId: uuid('module_id').notNull(),
