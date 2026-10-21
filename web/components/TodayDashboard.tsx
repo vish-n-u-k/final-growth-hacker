@@ -304,7 +304,9 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
     if (!reminderId) return
     setMarking(true)
     try {
-      await fetch(`/api/reminders/${reminderId}/done`, { method: 'POST' })
+      // Only drop the card once it's really marked done, or it comes back on the next load
+      const res = await fetch(`/api/reminders/${reminderId}/done`, { method: 'POST' })
+      if (!res.ok) throw new Error('mark done failed')
       onDone?.()
     } catch {
       setMarking(false)
@@ -1206,9 +1208,9 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         <div className="td-hero-left">
           <div className="td-hero-day">{dayLabel}</div>
           <div className="td-hero-tag">
-            {ready && !allGood && cards.length > 0
+            {ready && cards.length > 0
               ? `${cards.length} thing${cards.length === 1 ? ' needs' : 's need'} your attention`
-              : ready && allGood ? 'You\'re all caught up'
+              : ready && !refreshing ? 'You\'re all caught up'
               : <><Spinner size={12} />Checking your signals…</>}
           </div>
         </div>
@@ -1238,7 +1240,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
 
         {!ready || (refreshing && cards.length === 0) ? (
           <LoadingState />
-        ) : allGood && cards.length === 0 ? (
+        ) : cards.length === 0 ? (
           <>
             <AllGoodState cachedAt={cachedAt} onRefresh={() => fetchSignals(true)} refreshing={refreshing} />
             {impacts.length > 0 && (

@@ -290,6 +290,7 @@ export default function SocialStudioPage({
   const [autoPost, setAutoPost] = useState(initialAutoPost)
   const [autoMode, setAutoMode] = useState(frektoMeta.auto_post_mode)
   const [autoPostLoading, setAutoPostLoading] = useState(false)
+  const [autoPostError, setAutoPostError] = useState<string | null>(null)
 
   const [posts, setPosts] = useState<ScheduledPost[]>(initialPosts)
   const [busyPost, setBusyPost] = useState<string | null>(null)
@@ -341,16 +342,18 @@ export default function SocialStudioPage({
   // ── Auto-post ─────────────────────────────────────────────────────────────────
   const saveAutoPost = async (patch: { enabled?: boolean; mode?: 'approve' | 'auto' }) => {
     setAutoPostLoading(true)
+    setAutoPostError(null)
     try {
       const res = await fetch('/api/settings/frekto-auto-post', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
       })
-      if (res.ok) {
-        if (patch.enabled !== undefined) setAutoPost(patch.enabled)
-        if (patch.mode) setAutoMode(patch.mode)
-      }
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})) as { error?: string }).error ?? 'save failed')
+      if (patch.enabled !== undefined) setAutoPost(patch.enabled)
+      if (patch.mode) setAutoMode(patch.mode)
+    } catch (e) {
+      setAutoPostError(`Couldn't save: ${e instanceof Error ? e.message : 'try again'}.`)
     } finally {
       setAutoPostLoading(false)
     }
@@ -671,7 +674,9 @@ export default function SocialStudioPage({
           <button
             disabled={autoPostLoading}
             onClick={() => saveAutoPost({ enabled: !autoPost })}
-            aria-label={autoPost ? 'Turn auto-posting off' : 'Turn auto-posting on'}
+            role="switch"
+            aria-checked={autoPost}
+            aria-label="Auto-posting"
             style={{
               flexShrink: 0,
               width: '44px', height: '24px', borderRadius: '12px', border: 'none',
@@ -693,6 +698,7 @@ export default function SocialStudioPage({
             {([['approve', 'Ask me before posting'], ['auto', 'Post automatically']] as const).map(([m, label]) => (
               <button
                 key={m}
+                aria-pressed={autoMode === m}
                 disabled={autoPostLoading}
                 onClick={() => saveAutoPost({ mode: m })}
                 style={{ ...ghostBtn, ...(autoMode === m ? { borderColor: 'var(--green)', color: 'var(--green)', background: 'rgba(23,154,80,.06)' } : {}) }}
@@ -702,6 +708,7 @@ export default function SocialStudioPage({
             ))}
           </div>
         )}
+        {autoPostError && <p style={{ fontSize: 12, color: '#dc2626', margin: '10px 0 0' }}>{autoPostError}</p>}
       </div>
 
       {/* Section 2 — Drafts waiting for approval */}

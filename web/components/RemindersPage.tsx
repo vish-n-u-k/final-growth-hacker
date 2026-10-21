@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSmartBack } from '@/lib/useSmartBack'
 import ThemeToggle from '@/components/ThemeToggle'
@@ -68,9 +68,13 @@ const CAT_CLASS: Record<string, string> = {
 
 const CATEGORIES = REMINDER_CATEGORIES
 
-// Whole days until the date: due later today → 0, due an hour ago → -1 (overdue)
+// Calendar days until the date: due today (earlier or later) → 0, tomorrow → 1, yesterday → -1 (overdue)
 function daysUntil(isoDate: string): number {
-  return Math.floor((new Date(isoDate).getTime() - Date.now()) / 86400000)
+  const due = new Date(isoDate)
+  const now = new Date()
+  const dueDay = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  return Math.round((dueDay - today) / 86400000)
 }
 
 function isSnoozed(r: Reminder): boolean {
@@ -337,8 +341,10 @@ export default function RemindersPage({
   const availableChecks = commonChecks.filter(p => !existingTitles.has(p.title.toLowerCase()))
 
   // ── Card ──────────────────────────────────────────────────────────────────
+  // Plain render functions, not components: a component declared in here is a new type on every
+  // render, so React remounted the cards on each keystroke and the edit/compose inputs lost focus.
 
-  function ReminderCard({ r }: { r: Reminder }) {
+  function reminderCard(r: Reminder) {
     const days = daysUntil(r.nextDueAt)
     const isEditing = editId === r.id
     const isDoing = doneIds.has(r.id)
@@ -389,7 +395,7 @@ export default function RemindersPage({
                     : <span className="rm-due">in {days}d</span>
               }
               <div className="rm-menu-wrap">
-                <button className="rm-kebab" onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === r.id ? null : r.id) }}>&#8942;</button>
+                <button className="rm-kebab" aria-label="More actions" aria-haspopup="menu" aria-expanded={openMenu === r.id} onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === r.id ? null : r.id) }}>&#8942;</button>
                 {openMenu === r.id && (
                   <div className="rm-menu" onClick={e => e.stopPropagation()}>
                     <button onClick={() => startEdit(r)}>Edit</button>
@@ -550,7 +556,7 @@ export default function RemindersPage({
                   : <span className="rm-due">in {days}d</span>
             }
             <div className="rm-menu-wrap">
-              <button className="rm-kebab" onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === r.id ? null : r.id) }}>&#8942;</button>
+              <button className="rm-kebab" aria-label="More actions" aria-haspopup="menu" aria-expanded={openMenu === r.id} onClick={e => { e.stopPropagation(); setOpenMenu(openMenu === r.id ? null : r.id) }}>&#8942;</button>
               {openMenu === r.id && (
                 <div className="rm-menu" onClick={e => e.stopPropagation()}>
                   <button onClick={() => startEdit(r)}>Edit</button>
@@ -569,7 +575,7 @@ export default function RemindersPage({
 
   // ── Section ───────────────────────────────────────────────────────────────
 
-  function Section({ title, accent, items }: { title: string; accent?: string; items: Reminder[] }) {
+  function section(title: string, items: Reminder[], accent?: string) {
     if (items.length === 0) return null
     return (
       <div className="rm-section">
@@ -579,7 +585,7 @@ export default function RemindersPage({
           <span className="rm-section-count">{items.length}</span>
         </div>
         <div className="rm-section-body">
-          {items.map(r => <ReminderCard key={r.id} r={r} />)}
+          {items.map(r => <Fragment key={r.id}>{reminderCard(r)}</Fragment>)}
         </div>
       </div>
     )
@@ -587,10 +593,10 @@ export default function RemindersPage({
 
   // ── Change card (open signal) ─────────────────────────────────────────────
 
-  function ChangeCard({ c }: { c: Change }) {
+  function changeCard(c: Change) {
     const busy = resolving.has(c.id)
     return (
-      <div className={`rm-change${c.priority >= 3 ? ' rm-change-critical' : ''}`}>
+      <div key={c.id} className={`rm-change${c.priority >= 3 ? ' rm-change-critical' : ''}`}>
         <div className="rm-change-hd">
           <span className="rm-change-source">{c.source}</span>
           {c.priority >= 3 && <span className="rm-change-flag">Important</span>}
@@ -674,7 +680,7 @@ export default function RemindersPage({
               {changes.length > 0 && <span className="rm-section-count">{changes.length}</span>}
             </div>
             <div className="rm-section-body">
-              {changes.map(c => <ChangeCard key={c.id} c={c} />)}
+              {changes.map(changeCard)}
               {changes.length === 0 && (
                 <div className="rm-note">
                   {searchConnected
@@ -694,15 +700,15 @@ export default function RemindersPage({
                 <span className="rm-section-count">{groups.followups.length}</span>
               </div>
               <div className="rm-section-body">
-                {groups.followups.map(r => <ReminderCard key={r.id} r={r} />)}
+                {groups.followups.map(r => <Fragment key={r.id}>{reminderCard(r)}</Fragment>)}
               </div>
             </div>
           )}
 
           {/* 3. Recurring checks — chores the user chose */}
-          <Section title="Overdue checks" accent="#dc2626" items={groups.overdue} />
-          <Section title="Checks due this week" accent="#d97706" items={groups.thisWeek} />
-          <Section title="Upcoming checks" items={groups.upcoming} />
+          {section('Overdue checks', groups.overdue, '#dc2626')}
+          {section('Checks due this week', groups.thisWeek, '#d97706')}
+          {section('Upcoming checks', groups.upcoming)}
 
           {suggestions.length > 0 && (
             <div className="rm-section">
@@ -754,8 +760,8 @@ export default function RemindersPage({
             </div>
           )}
 
-          <Section title="Snoozed" items={groups.snoozed} />
-          <Section title="Disabled" items={groups.disabled} />
+          {section('Snoozed', groups.snoozed)}
+          {section('Disabled', groups.disabled)}
 
           {nothingYet && availableChecks.length === 0 && suggestions.length === 0 && (
             <div className="rm-empty-state">
