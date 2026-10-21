@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import type { analysisRequests } from '@/lib/db/schema'
+import type { AnalysisMode } from '@/lib/modules/analysis-mode'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
 
 type Request = typeof analysisRequests.$inferSelect
@@ -33,6 +34,7 @@ interface Props {
   requests: Request[]
   gmailAddress: string | null
   gmailParam?: string
+  analysisMode: AnalysisMode
 }
 
 function timeAgo(iso: Date | null): string {
@@ -51,7 +53,24 @@ interface SendResult {
   skipped?: string
 }
 
-export default function AdminDashboard({ requests: initial, gmailAddress, gmailParam }: Props) {
+export default function AdminDashboard({ requests: initial, gmailAddress, gmailParam, analysisMode }: Props) {
+  const [mode, setMode] = useState<AnalysisMode>(analysisMode)
+  const [modeSaving, setModeSaving] = useState(false)
+  const [modeError, setModeError] = useState<string | null>(null)
+  const changeMode = async (next: AnalysisMode) => {
+    setModeSaving(true)
+    setModeError(null)
+    try {
+      const res = await fetch('/api/admin/analysis-mode', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: next }) })
+      const data = await res.json().catch(() => ({})) as { mode?: AnalysisMode; error?: string }
+      if (!res.ok || !data.mode) throw new Error(data.error ?? `Save failed (${res.status})`)
+      setMode(data.mode)
+    } catch (e) {
+      setModeError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setModeSaving(false)
+    }
+  }
   const [tab, setTab] = useState<'queue' | 'users' | 'notes'>('queue')
   const [requests, setRequests] = useState(initial)
   const [running, setRunning] = useState<Record<string, boolean>>({})
@@ -178,6 +197,34 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
 
       {tab === 'queue' && (
         <>
+          {/* How Growth Path modules run when a user clicks Run */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 12,
+            padding: '12px 16px',
+            borderRadius: 8,
+            background: 'var(--card, #122620)',
+            border: '1px solid var(--line, #1e3830)',
+            marginBottom: 12,
+            fontSize: 13,
+          }}>
+            <span style={{ color: 'var(--text-dim, #8aa897)' }}>Module runs:</span>
+            <span style={{ fontWeight: 600 }}>
+              {mode === 'direct' ? 'Run straight away through the API' : 'Queued here for you to run'}
+            </span>
+            <button
+              type="button"
+              disabled={modeSaving}
+              onClick={() => changeMode(mode === 'direct' ? 'queue' : 'direct')}
+              style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--line, #1e3830)', borderRadius: 6, color: 'inherit', fontFamily: 'inherit', fontSize: 12, padding: '5px 12px', cursor: 'pointer' }}
+            >
+              {modeSaving ? 'Saving…' : mode === 'direct' ? 'Switch to queue' : 'Switch to API'}
+            </button>
+            {modeError && <span style={{ flexBasis: '100%', color: '#f87171', fontSize: 12 }}>{modeError}</span>}
+          </div>
+
           {/* Gmail connection status */}
           <div style={{
             display: 'flex',
