@@ -8,6 +8,16 @@ import { Spinner } from '@/components/ui/spinner'
 import TimezoneSelect, { deviceTimezone, canonicalTimezone } from '@/components/TimezoneSelect'
 import TimeField from '@/components/TimeField'
 
+// Reads a JSON reply. When the server crashed and sent an error page instead, say so rather than
+// letting the parse error read as "Network error".
+async function readJson<T extends { error?: string }>(res: Response): Promise<T> {
+  try {
+    return (await res.json()) as T
+  } catch {
+    return { error: `Something went wrong on GrowJin's side (error ${res.status}). Try again in a minute; if it keeps happening, let us know.` } as T
+  }
+}
+
 export type ScheduledPost = ClientPost
 
 interface PostSuggestion {
@@ -330,7 +340,7 @@ export default function SocialStudioPage({
       for (const id of rendering.split(',')) {
         try {
           const res = await fetch(`/api/social/posts/${id}`)
-          const data = await res.json() as { post?: ScheduledPost }
+          const data = await readJson<{ post?: ScheduledPost; error?: string }>(res)
           if (data.post && (data.post.outputUrl || data.post.status !== 'draft')) setPosts(list => list.map(x => x.id === id ? data.post! : x))
         } catch { /* try again next tick */ }
       }
@@ -366,7 +376,7 @@ export default function SocialStudioPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json() as { post?: ScheduledPost; error?: string; canRegenerate?: boolean }
+      const data = await readJson<{ post?: ScheduledPost; error?: string; canRegenerate?: boolean }>(res)
       if (!res.ok || !data.post) {
         setPostError({ id: post.id, message: data.error ?? 'Something went wrong.', canRegenerate: !!data.canRegenerate })
         return
@@ -374,7 +384,7 @@ export default function SocialStudioPage({
       setPosts(list => list.map(x => x.id === post.id ? data.post! : x))
       setReschedulingId(null)
     } catch {
-      setPostError({ id: post.id, message: 'Network error — please try again.', canRegenerate: false })
+      setPostError({ id: post.id, message: "Couldn't reach GrowJin. Check your connection and try again.", canRegenerate: false })
     } finally {
       setBusyPost(null)
     }
@@ -398,11 +408,11 @@ export default function SocialStudioPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ moduleId: socialModuleId }),
       })
-      const data = await res.json() as { suggestions?: PostSuggestion[]; error?: string }
+      const data = await readJson<{ suggestions?: PostSuggestion[]; error?: string }>(res)
       if (data.error) { setSuggestError(data.error); return }
       setSuggestions(data.suggestions ?? [])
     } catch {
-      setSuggestError('Network error — please try again.')
+      setSuggestError("Couldn't reach GrowJin. Check your connection and try again.")
     } finally {
       setSuggestLoading(false)
     }
@@ -418,12 +428,12 @@ export default function SocialStudioPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ suggestionId: s.id }),
       })
-      const data = await res.json() as { post?: ScheduledPost; error?: string }
+      const data = await readJson<{ post?: ScheduledPost; error?: string }>(res)
       if (!res.ok || !data.post) { setSuggestError(data.error ?? 'Could not create the preview.'); return }
       upsertPost(data.post)
       setSuggestions(list => list.filter(x => x.id !== s.id))
     } catch {
-      setSuggestError('Network error — please try again.')
+      setSuggestError("Couldn't reach GrowJin. Check your connection and try again.")
     } finally {
       setPreviewingId(null)
     }
@@ -451,11 +461,11 @@ export default function SocialStudioPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ moduleId: socialModuleId }),
       })
-      const data = await res.json() as { suggestions?: SeriesSuggestion[]; error?: string }
+      const data = await readJson<{ suggestions?: SeriesSuggestion[]; error?: string }>(res)
       if (data.error) { setSeriesError(data.error); return }
       setSeriesSuggestions((data.suggestions ?? []).filter(s => s.shouldPost))
     } catch {
-      setSeriesError('Network error — please try again.')
+      setSeriesError("Couldn't reach GrowJin. Check your connection and try again.")
     } finally {
       setSuggestSeriesLoading(false)
     }
@@ -481,12 +491,12 @@ export default function SocialStudioPage({
           brandId,
         }),
       })
-      const data = await res.json() as { rows?: ScheduledPost[]; error?: string }
+      const data = await readJson<{ rows?: ScheduledPost[]; error?: string }>(res)
       if (!res.ok || data.error) { setSeriesError(data.error ?? 'Could not launch the series.'); return }
       setPosts(list => [...(data.rows ?? []), ...list])
       setSeriesSuggestions(list => list.filter(x => (x.id ?? x.platform) !== key))
     } catch {
-      setSeriesError('Network error — please try again.')
+      setSeriesError("Couldn't reach GrowJin. Check your connection and try again.")
     } finally {
       setLaunchingId(null)
     }
@@ -503,12 +513,12 @@ export default function SocialStudioPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(manual),
       })
-      const data = await res.json() as { post?: ScheduledPost; error?: string }
+      const data = await readJson<{ post?: ScheduledPost; error?: string }>(res)
       if (!res.ok || !data.post) { setManualError(data.error ?? 'Could not create the preview.'); return }
       upsertPost(data.post)
       setManual(m => ({ ...m, topic: '' }))
     } catch {
-      setManualError('Network error — please try again.')
+      setManualError("Couldn't reach GrowJin. Check your connection and try again.")
     } finally {
       setManualBusy(false)
     }

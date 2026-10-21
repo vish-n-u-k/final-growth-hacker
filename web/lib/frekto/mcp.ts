@@ -23,6 +23,13 @@ async function readRpc(res: Response, id: number): Promise<Record<string, unknow
   try { return JSON.parse(body) as Record<string, unknown> } catch { return null }
 }
 
+// Short reason for a non-OK reply from Frekto's MCP endpoint; callers prefix what they were doing.
+function statusReason(status: number): string {
+  if (status === 429) return 'Frekto is limiting requests right now. Wait a minute and try again.'
+  if (status >= 500) return `Frekto had a problem on its side (error ${status}). Try again in a few minutes.`
+  return `Frekto's scheduler turned the request down (error ${status}).`
+}
+
 export async function callFrektoMcpTool(apiKey: string, name: string, args: Record<string, unknown>): Promise<McpResult> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -39,8 +46,8 @@ export async function callFrektoMcpTool(apiKey: string, name: string, args: Reco
     })
     if (!init.ok) {
       return { ok: false, status: init.status, error: init.status === 401 || init.status === 403
-        ? 'Frekto refused the connection. Frekto MCP scheduling needs the Agency plan and a valid API key.'
-        : `Frekto MCP returned ${init.status}` }
+        ? 'Frekto refused the connection. Scheduling through Frekto needs its Agency plan and a valid API key: check your plan in Frekto and the key in Settings → Integrations → Frekto.'
+        : statusReason(init.status) }
     }
     await readRpc(init, 1)
     const session = init.headers.get('mcp-session-id')
@@ -49,16 +56,18 @@ export async function callFrektoMcpTool(apiKey: string, name: string, args: Reco
     await post({ jsonrpc: '2.0', method: 'notifications/initialized' }, sessionHeader).catch(() => null)
 
     const call = await post({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name, arguments: args } }, sessionHeader)
-    if (!call.ok) return { ok: false, status: call.status, error: `Frekto MCP returned ${call.status}` }
+    if (!call.ok) return { ok: false, status: call.status, error: statusReason(call.status) }
 
     const msg = await readRpc(call, 2)
-    if (!msg) return { ok: false, error: 'Frekto MCP sent an unreadable response' }
-    if (msg.error) return { ok: false, error: (msg.error as { message?: string }).message ?? 'Frekto MCP error' }
+    if (!msg) return { ok: false, error: 'Frekto sent back a reply GrowJin couldn\'t read. Try again in a minute.' }
+    if (msg.error) return { ok: false, error: (msg.error as { message?: string }).message ?? 'Frekto reported an error but didn\'t say what it was. Try again in a minute.' }
 
     const result = msg.result as { content?: { type: string; text?: string }[]; isError?: boolean } | undefined
     const text = (result?.content ?? []).filter((c) => c.type === 'text').map((c) => c.text ?? '').join('\n')
-    return result?.isError ? { ok: false, error: text || 'Frekto could not schedule the post' } : { ok: true, text }
+    return result?.isError ? { ok: false, error: text || 'Frekto didn\'t say why. Try again in a minute.' } : { ok: true, text }
   } catch (e) {
-    return { ok: false, error: `Could not reach Frekto MCP: ${e instanceof Error ? e.message : String(e)}` }
+    console.error('[frekto-mcp] request failed:', e)
+    const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')
+    return { ok: false, error: timedOut ? 'Frekto took too long to respond. Try again in a minute.' : 'GrowJin couldn\'t reach Frekto. It may be down; try again in a few minutes.' }
   }
 }

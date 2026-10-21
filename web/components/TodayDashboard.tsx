@@ -752,7 +752,8 @@ function WeeklyBlogSection({ initialData, frektoConnected = false, onAddToSite, 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ replaceId: rid ?? replaceId ?? undefined, topic: topic || undefined, via: writer, frektoMode: mode }),
       })
-      const json = await res.json()
+      // A crashed or timed-out request returns an error page, not JSON: say that instead of a generic failure
+      const json = await res.json().catch(() => ({ error: res.status === 504 ? 'Writing the article took too long and was stopped. Try again.' : `Something went wrong on GrowJin's side (error ${res.status}). Try again in a minute.` }))
       if (json.atLimit) {
         setData(prev => ({ ...prev, activeCount: prev.limit, blogs: json.blogs }))
         return

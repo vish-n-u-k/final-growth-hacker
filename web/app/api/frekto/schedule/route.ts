@@ -5,12 +5,13 @@ import { db } from '@/lib/db'
 import { brands, brandIntegrations, frektoScheduledPosts } from '@/lib/db/schema'
 import { eq, and, desc, inArray } from 'drizzle-orm'
 import { utcToZoned, validTimezone } from '@/lib/frekto/drafts'
+import { frektoHttpError, frektoJobFailed, frektoNetworkError, frektoPollError } from '@/lib/frekto/errors'
 
 export const maxDuration = 90
 
 const FREKTO_BASE = 'https://api.frekto.ai'
 const POLL_INTERVAL_MS = 2500
-const MAX_POLLS = 36
+const MAX_POLLS = 30 // 75 seconds: stop before maxDuration (90s) kills the request with no message
 
 function getFormat(platform: string, postType: string): { format: string; outputFormat: string } {
   if (postType === 'video') return { format: '9:16', outputFormat: 'mp4' }
@@ -32,15 +33,15 @@ async function pollJob(jobId: string, apiKey: string): Promise<{ outputUrl: stri
       const res = await fetch(`${FREKTO_BASE}/jobs/${jobId}`, {
         headers: { Authorization: `Bearer ${apiKey}` },
       })
-      if (!res.ok) return { error: `Poll failed: ${res.status}` }
+      if (!res.ok) return { error: frektoPollError(res.status) }
       const data = await res.json() as { status: string; output_url?: string; error?: string | null }
       if (data.status === 'done' && data.output_url) return { outputUrl: data.output_url }
-      if (data.status === 'failed') return { error: data.error ?? 'Render failed' }
+      if (data.status === 'failed') return { error: frektoJobFailed(data.error, 'post') }
     } catch (e) {
-      return { error: e instanceof Error ? e.message : 'Network error' }
+      return { error: frektoNetworkError(e, 'check on it') }
     }
   }
-  return { error: 'Render timed out after 90 seconds' }
+  return { error: 'Frekto is still working on this after 75 seconds. It may still finish in Frekto; check there, or try again.' }
 }
 
 // GET ?brandId=xxx — last scheduled post per platform
@@ -161,13 +162,13 @@ export async function POST(request: NextRequest) {
     })
     if (!genRes.ok) {
       const err = await genRes.text()
-      return NextResponse.json({ error: `Frekto rejected request (${genRes.status}): ${err}` }, { status: 502 })
+      return NextResponse.json({ error: frektoHttpError(genRes.status, err, 'schedule the post') }, { status: 502 })
     }
     const genData = await genRes.json() as { job_id?: string }
     if (!genData.job_id) return NextResponse.json({ error: 'No job_id returned from Frekto' }, { status: 502 })
     jobId = genData.job_id
   } catch (e) {
-    return NextResponse.json({ error: `Could not reach Frekto: ${e instanceof Error ? e.message : String(e)}` }, { status: 502 })
+    return NextResponse.json({ error: frektoNetworkError(e, 'schedule the post') }, { status: 502 })
   }
 
   const result = await pollJob(jobId, frektoInt.apiKey)
