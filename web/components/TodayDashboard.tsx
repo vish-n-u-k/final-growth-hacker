@@ -84,6 +84,7 @@ interface Props {
   blogData: BlogData
   dailyEmailEnabled?: boolean
   dailyEmailTo?: string | null
+  earlyAccess?: boolean // lib/early-access.ts: coming-soon tools are live
 }
 
 // ── Type config ───────────────────────────────────────────────────────────────
@@ -1066,7 +1067,7 @@ function LoadingState() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function TodayDashboard({ initialData, brandName, websiteUrl = null, mcpLastUsedAt = null, githubRepo = null, gmailConnected, gmailAddress, prospectItems, gmailModuleId, frektoConnected, frektoDefaultPlatform, frektoTimezone = null, postIdeas, posthogConnected, blogData, dailyEmailEnabled = false, dailyEmailTo = null }: Props) {
+export default function TodayDashboard({ initialData, brandName, websiteUrl = null, mcpLastUsedAt = null, githubRepo = null, gmailConnected, gmailAddress, prospectItems, gmailModuleId, frektoConnected, frektoDefaultPlatform, frektoTimezone = null, postIdeas, posthogConnected, blogData, dailyEmailEnabled = false, dailyEmailTo = null, earlyAccess = false }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [expandedCard, setExpandedCard] = useState<string | null>(null)
@@ -1321,7 +1322,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
                         </button>
                       </div>
                     ) : (
-                      <GmailOutreachProspects items={prospectItems} gmailConnected={gmailConnected} />
+                      <GmailOutreachProspects items={prospectItems} gmailConnected={gmailConnected} earlyAccess={earlyAccess} />
                     )}
                   </div>
                 )}

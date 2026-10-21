@@ -3,6 +3,7 @@ import { after } from 'next/server'
 import { moduleScore } from '@/lib/modules/score'
 import { getSessionUser, getBrandForUser, getAccessCached } from '@/lib/server-session'
 import { isAdminEmail } from '@/lib/admin'
+import { hasEarlyAccess } from '@/lib/early-access'
 import { planLockedTypes } from '@/lib/billing/plan'
 import { db } from '@/lib/db'
 import { modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit, analysisRequests, itemLinks } from '@/lib/db/schema'
@@ -293,6 +294,7 @@ export default async function DashboardPage() {
       pendingModuleIds={pendingModuleIds}
       userEmail={user.email ?? ''}
       isAdmin={isAdminEmail(user.email)}
+      earlyAccess={hasEarlyAccess(user.email)}
       githubConnected={githubConnected}
       githubRepo={githubRepo}
       mcpLastUsedAt={mcpLastUsedAt}
