@@ -6,6 +6,7 @@ import { desc } from 'drizzle-orm'
 import AdminDashboard from './AdminDashboard'
 import { getAdminGmailAddress } from '@/lib/gmail/admin-token'
 import { getAnalysisMode } from '@/lib/modules/analysis-mode'
+import { getEarlyAccessEmails } from '@/lib/early-access'
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ gmail?: string }> }) {
   const supabase = await createClient()
@@ -16,12 +17,13 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
     redirect('/dashboard')
   }
 
-  const [requests, gmailAddress, analysisMode, { gmail: gmailParam }] = await Promise.all([
+  const [requests, gmailAddress, analysisMode, { gmail: gmailParam }, earlyAccess] = await Promise.all([
     db.select().from(analysisRequests).orderBy(desc(analysisRequests.requestedAt)),
     getAdminGmailAddress(),
     getAnalysisMode(),
     searchParams,
+    getEarlyAccessEmails().catch(() => [] as string[]),
   ])
 
-  return <AdminDashboard requests={requests} gmailAddress={gmailAddress} gmailParam={gmailParam} analysisMode={analysisMode} />
+  return <AdminDashboard requests={requests} gmailAddress={gmailAddress} gmailParam={gmailParam} analysisMode={analysisMode} earlyAccess={earlyAccess} />
 }

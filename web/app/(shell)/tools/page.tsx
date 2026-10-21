@@ -26,6 +26,7 @@ export default async function ToolsPage() {
   const brand = await getBrandForUser(user.id)
   if (!brand) redirect('/onboarding')
 
+  const earlyAccess = await hasEarlyAccess(user.email)
   const [gmailInteg] = await db
     .select({ status: brandIntegrations.status })
     .from(brandIntegrations)
@@ -136,7 +137,7 @@ export default async function ToolsPage() {
         <div className="tl-grid">
           {/* Live tools first; one calm colour for all of them (per-tool rainbow colours read as noise). */}
           {tools
-            .map(t => ({ ...t, color: 'var(--green)', glow: 'var(--green-glow)', comingSoon: t.comingSoon || isComingSoon(t.href, hasEarlyAccess(user.email)) }))
+            .map(t => ({ ...t, color: 'var(--green)', glow: 'var(--green-glow)', comingSoon: t.comingSoon || isComingSoon(t.href, earlyAccess) }))
             .sort((a, b) => Number(a.comingSoon) - Number(b.comingSoon))
             .map(tool => {
             const content = (
