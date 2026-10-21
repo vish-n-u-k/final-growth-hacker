@@ -188,7 +188,7 @@ export default async function TodayPage() {
       mcpLastUsedAt={mcpRow?.lastUsedAt ? new Date(mcpRow.lastUsedAt).toISOString() : null}
       githubRepo={githubRepo}
       gmailConnected={gmailConnected}
-      earlyAccess={hasEarlyAccess(user.email)}
+      earlyAccess={await hasEarlyAccess(user.email)}
       gmailAddress={gmailAddress}
       prospectItems={prospectItems}
       gmailModuleId={gmailModule?.id ?? null}

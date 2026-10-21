@@ -297,7 +297,7 @@ export default async function DashboardPage() {
       queueRuns={analysisMode === 'queue' && !isAdminEmail(user.email)}
       userEmail={user.email ?? ''}
       isAdmin={isAdminEmail(user.email)}
-      earlyAccess={hasEarlyAccess(user.email)}
+      earlyAccess={await hasEarlyAccess(user.email)}
       githubConnected={githubConnected}
       githubRepo={githubRepo}
       mcpLastUsedAt={mcpLastUsedAt}
