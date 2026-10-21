@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSessionUser, getBrandForUser, getAccessCached } from '@/lib/server-session'
 import { getLockedModuleTypes } from '@/lib/modules/lock-state'
+import { hasEarlyAccess } from '@/lib/early-access'
 import { getRoadmapModules } from '@/lib/modules/roadmap-data'
 import { MODULE_REGISTRY } from '@/lib/modules/registry'
 import { planLockedTypes } from '@/lib/billing/plan'
@@ -19,14 +20,15 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const brand = await getBrandForUser(user.id)
   if (!brand) redirect('/onboarding')
 
-  const [lockedSet, access] = await Promise.all([getLockedModuleTypes(brand.id), getAccessCached(brand.id, user.email)])
+  const earlyAccess = await hasEarlyAccess(user.email)
+  const [lockedSet, access] = await Promise.all([getLockedModuleTypes(brand.id, earlyAccess), getAccessCached(brand.id, user.email)])
   const lockedTypes = Array.from(lockedSet)
   const roadmap = await getRoadmapModules(brand.id, lockedSet, planLockedTypes(access, MODULE_REGISTRY.map(m => m.type)))
 
   return (
     <RoadmapProvider>
     <div className="app-shell">
-      <AppSidebar brandName={brand.name} lockedTypes={lockedTypes} plan={{ enabled: access.enabled, pro: access.pro }} roadmap={roadmap} />
+      <AppSidebar brandName={brand.name} lockedTypes={lockedTypes} plan={{ enabled: access.enabled, pro: access.pro }} roadmap={roadmap} earlyAccess={earlyAccess} />
       <div className="app-shell-main">
         {access.paymentFailed && (
           <div className="billing-banner" role="alert">

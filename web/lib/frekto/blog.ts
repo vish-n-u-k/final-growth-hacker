@@ -6,6 +6,7 @@
 import { db } from '@/lib/db'
 import { brandIntegrations } from '@/lib/db/schema'
 import { and, eq } from 'drizzle-orm'
+import { frektoHttpError, frektoNetworkError } from '@/lib/frekto/errors'
 
 const FREKTO_BASE = 'https://api.frekto.ai'
 
@@ -46,20 +47,20 @@ export async function generateFrektoBlog(apiKey: string, topic: string, mode: Fr
       signal: AbortSignal.timeout(55_000),
     })
   } catch (e) {
-    return { error: `Could not reach Frekto: ${e instanceof Error ? e.message : String(e)}` }
+    return { error: frektoNetworkError(e, 'write the article') }
   }
   if (!res.ok) {
-    const text = (await res.text().catch(() => '')).slice(0, 300)
+    const text = await res.text().catch(() => '')
     if (mode === 'blog' && /cms|blog|integration|connect/i.test(text)) {
       return { error: 'Frekto has no blog connected yet. In Frekto, go to Settings → Integrations and connect your blog, then try again.' }
     }
-    return { error: `Frekto couldn't write the article (${res.status})${text ? `: ${text}` : ''}` }
+    return { error: frektoHttpError(res.status, text, 'write the article') }
   }
   const d = await res.json().catch(() => null) as {
     job_id?: string; status?: string; wants_schedule?: boolean; heading?: string; body?: string
     hashtags?: string[]; meta_description?: string; primary_keyword?: string; error?: string
   } | null
-  if (!d?.body || !d.heading) return { error: d?.error ? `Frekto: ${d.error}` : 'Frekto returned an empty article. Try again.' }
+  if (!d?.body || !d.heading) return { error: d?.error ? `Frekto couldn't write the article: ${d.error}` : 'Frekto sent back an empty article. Try again.' }
   return {
     jobId: d.job_id ?? '',
     heading: d.heading,

@@ -46,7 +46,7 @@ async function classifyWebsiteType(url: string): Promise<string> {
     ? `Website URL: ${url}\n\nEXTRACTED TEXT:\n${text}`
     : `Website URL: ${url}\n\nNo readable text extracted. Infer from URL only.`
 
-  const raw = await callAI({
+  const raw = await callAI({ feature: 'admin-classify-brands',
     system: `You classify websites. Return ONLY one of these slugs (no other text): saas | event | ecommerce | agency | blog | local | nonprofit | portfolio\n\nGuide:\n- saas: software product, SaaS app, developer tool\n- event: conference, summit, hackathon\n- ecommerce: online store, retail, physical products\n- agency: consulting, design/marketing/dev firm\n- blog: blog, newsletter, media/news site\n- local: restaurant, clinic, gym, local service\n- nonprofit: NGO, charity, community org\n- portfolio: personal brand, freelancer, creator`,
     prompt,
     maxTokens: 10,

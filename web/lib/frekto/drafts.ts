@@ -10,6 +10,7 @@ import { and, eq } from 'drizzle-orm'
 import { callFrektoMcpTool } from '@/lib/frekto/mcp'
 import { zonedToUtc } from '@/lib/frekto/posts'
 import { validTimezone } from '@/lib/frekto/time'
+import { frektoJobFailed, frektoNetworkError, frektoResponseError } from '@/lib/frekto/errors'
 
 export { validTimezone, utcToZoned } from '@/lib/frekto/time'
 
@@ -65,7 +66,7 @@ export async function fetchJob(apiKey: string, jobId: string): Promise<FrektoJob
 
 // Copy what a finished/failed render gives us onto the row
 function jobFields(job: FrektoJob): Partial<typeof frektoScheduledPosts.$inferInsert> {
-  if (job.status === 'failed') return { status: 'failed', error: job.error ?? 'Frekto could not render this post' }
+  if (job.status === 'failed') return { status: 'failed', error: frektoJobFailed(job.error, 'post') }
   if (job.status !== 'done') return {}
   return {
     outputUrl: job.output_url ?? null,
@@ -124,13 +125,13 @@ export async function createDraft(brandId: string, opts: {
       body: JSON.stringify({ topic: opts.topic.trim().slice(0, 300), format, output_format: outputFormat, schedule: false }),
       signal: AbortSignal.timeout(20000),
     })
-    if (!res.ok) { await release(); return { ok: false, error: `Frekto rejected the request (${res.status}): ${(await res.text()).slice(0, 300)}`, status: 502 } }
+    if (!res.ok) { await release(); return { ok: false, error: await frektoResponseError(res, 'create the preview'), status: 502 } }
     const data = (await res.json()) as { job_id?: string }
     if (!data.job_id) { await release(); return { ok: false, error: 'Frekto did not return a job id.', status: 502 } }
     jobId = data.job_id
   } catch (e) {
     await release()
-    return { ok: false, error: `Could not reach Frekto: ${e instanceof Error ? e.message : String(e)}`, status: 502 }
+    return { ok: false, error: frektoNetworkError(e, 'create the preview'), status: 502 }
   }
 
   const [row] = await db.insert(frektoScheduledPosts).values({
@@ -247,7 +248,7 @@ export async function approvePost(brandId: string, postId: string, when: When, o
     })
     if (!res.ok) {
       await update(post.id, { status: 'draft' })
-      return { ok: false, error: `Frekto rejected the request (${res.status}): ${(await res.text()).slice(0, 300)}`, status: 502 }
+      return { ok: false, error: await frektoResponseError(res, 'schedule the post'), status: 502 }
     }
     const data = (await res.json()) as { job_id?: string }
     if (!data.job_id) { await update(post.id, { status: 'draft' }); return { ok: false, error: 'Frekto did not return a job id.', status: 502 } }
@@ -259,7 +260,7 @@ export async function approvePost(brandId: string, postId: string, when: When, o
     return { ok: true, post: saved }
   } catch (e) {
     await update(post.id, { status: 'draft' })
-    return { ok: false, error: `Could not reach Frekto: ${e instanceof Error ? e.message : String(e)}`, status: 502 }
+    return { ok: false, error: frektoNetworkError(e, 'schedule the post'), status: 502 }
   }
 }
 

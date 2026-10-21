@@ -91,7 +91,7 @@ export async function commitFile(
   branch: string,
   message: string,
   pat: string,
-): Promise<void> {
+): Promise<string | null> { // the commit's GitHub URL
   const body: Record<string, string> = {
     message,
     content: Buffer.from(content).toString('base64'),
@@ -108,6 +108,8 @@ export async function commitFile(
     const err = await res.json().catch(() => ({}))
     throw new Error(`GitHub: could not commit "${path}" (${res.status}): ${JSON.stringify(err)}`)
   }
+  const data = await res.json().catch(() => null) as { commit?: { html_url?: string } } | null
+  return data?.commit?.html_url ?? null
 }
 
 // ── Pull requests ─────────────────────────────────────────────────────────────

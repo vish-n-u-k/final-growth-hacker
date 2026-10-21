@@ -45,6 +45,8 @@ import { fetchEmailMarketingData } from '@/lib/modules/email-marketing/fetcher'
 import { analyzeEmailMarketing } from '@/lib/modules/email-marketing/agent'
 import { fetchAudienceDiscoveryData } from '@/lib/modules/audience-discovery/fetcher'
 import { analyzeAudienceDiscovery } from '@/lib/modules/audience-discovery/agent'
+import { getAnalysisMode } from '@/lib/modules/analysis-mode'
+import { queueAnalysisRequest } from '@/lib/modules/analysis-queue'
 import { generatePlaybook, type PlaybookData } from '@/lib/playbook/generator'
 import type { ModuleAnalysisResult, DynamicModuleAnalysisResult, ModuleCategoryDefinition, ModuleItemDefinition, ModuleDefinition } from '@/lib/modules/types'
 import { getAllItems } from '@/lib/modules/types'
@@ -268,6 +270,12 @@ export async function POST(request: NextRequest) {
   // Pro gate — a no-op unless BILLING_ENABLED=true. Admins analysing on a brand's behalf are exempt.
   if (!isAdmin && !canUseModule(await getAccess(brand.id, user.email), mod.type)) {
     return NextResponse.json({ error: `${def.name} is part of GrowJin Pro.`, upgrade: true }, { status: 402 })
+  }
+
+  // Module runs switched to the manual queue (admin page): queue it instead of running.
+  if (!isAdmin && mod.type !== 'foundation' && await getAnalysisMode() === 'queue') {
+    await queueAnalysisRequest({ userId: user.id, userEmail: user.email ?? '', moduleId, moduleName: def.name })
+    return NextResponse.json({ queued: true })
   }
 
   const background = (body as { background?: boolean }).background === true

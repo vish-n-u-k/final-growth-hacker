@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
+import type { TaskProof } from '@/lib/proofs'
 import ArrowIcon from '@/components/ArrowIcon'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useRoadmap } from '@/components/RoadmapContext'
@@ -83,8 +84,11 @@ interface Props {
   brand: { id: string; name: string; keywords?: string; websiteUrl?: string; logoUrl?: string; themeColor?: string; playbook?: Record<string, string> | null }
   allModulesData: ModuleData[]
   pendingModuleIds?: string[]
+  queueRuns?: boolean // module runs switched to the admin queue (admin page); Foundation always runs directly
+  proofs?: Record<string, TaskProof> // item id → link + note showing how a finished item was done (lib/proofs.ts)
   userEmail: string
   isAdmin?: boolean // GrowJin team: shows internal tools like Notes
+  earlyAccess?: boolean // lib/early-access.ts: no module locks, coming-soon tools live
   githubConnected: boolean
   githubRepo?: string | null
   mcpLastUsedAt?: string | null
@@ -351,7 +355,7 @@ function LevelRing({ score, pending = false }: { score: number; pending?: boolea
 
 const BILLING_OFF = { enabled: false, pro: true, planLocked: [] as string[] }
 
-export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], isAdmin = false, githubConnected, githubRepo = null, mcpLastUsedAt = null, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], queueRuns = false, proofs = {}, isAdmin = false, earlyAccess = false, githubConnected, githubRepo = null, mcpLastUsedAt = null, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
   const isPlanLocked = (m: Pick<ModuleData, 'type'>) => billing.planLocked.includes(m.type)
   const [notesOpen, setNotesOpen] = useState(false)
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
@@ -450,6 +454,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   }, [brand.themeColor])
 
   const [setupErrorMap, setSetupErrorMap] = useState<Record<string, string | null>>({})
+  // Modules whose direct run failed: offer to hand the run to the GrowJin team (admin queue) instead
+  const [runFailedMap, setRunFailedMap] = useState<Record<string, boolean>>({})
   const [generatingDraft, setGeneratingDraft] = useState<Set<string>>(new Set())
   const [skipPrompting, setSkipPrompting] = useState<Set<string>>(new Set())
   const [skipReasonDraft, setSkipReasonDraft] = useState<Record<string, string>>({})
@@ -569,7 +575,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   )
 
   const isModuleLocked = (modData: ModuleData): boolean => {
-    if (process.env.NEXT_PUBLIC_APP_ENV !== 'production') return false
+    if (earlyAccess || process.env.NEXT_PUBLIC_APP_ENV !== 'production') return false
     if (modData.order <= 3) return false  // Foundation, Website Audit, SEO always unlocked
     const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order && !p.definition?.comingSoon)
     return !prev || liveScores[prev.id] < 80
@@ -693,28 +699,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     if (modType && billing.planLocked.includes(modType)) { router.push('/pricing'); return }
 
     setSetupErrorMap(prev => ({ ...prev, [modId]: null }))
-    setReanalyzingMap(prev => ({ ...prev, [modId]: true }))
+    setRunFailedMap(prev => ({ ...prev, [modId]: false }))
 
-    if (process.env.NEXT_PUBLIC_APP_ENV === 'production' && modType !== 'foundation') {
-      const modName = allModulesData.find(m => m.id === modId)?.name ?? modId
-      try {
-        const res = await fetch('/api/request-analysis', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ moduleId: modId, moduleName: modName }),
-        })
-        if (res.ok) {
-          setRequestedMap(prev => ({ ...prev, [modId]: true }))
-          setShowRequestedModal(true)
-        } else {
-          const data = await res.json().catch(() => ({}))
-          setSetupErrorMap(prev => ({ ...prev, [modId]: (data as { error?: string }).error ?? 'Request failed. Please try again.' }))
-        }
-      } finally {
-        setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
-      }
+    if (queueRuns && modType !== 'foundation') {
+      await requestManualRun(modId)
       return
     }
+    setReanalyzingMap(prev => ({ ...prev, [modId]: true }))
 
     try {
     const body: Record<string, unknown> = { moduleId: modId, background: true }
@@ -731,15 +722,52 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       const { runId } = await res.json() as { runId: string | null }
       await pollAnalysis(modId, runId)
     } else if (res.ok) {
-      applyAnalysisResult(modId, await res.json() as AnalysisPayload)
+      const data = await res.json() as AnalysisPayload & { queued?: boolean }
+      setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
+      if (data.queued) {
+        // Runs were switched to the admin queue since this page loaded
+        setRequestedMap(prev => ({ ...prev, [modId]: true }))
+        setShowRequestedModal(true)
+      } else {
+        applyAnalysisResult(modId, data)
+      }
     } else {
       const data = await res.json().catch(() => ({}))
       setSetupErrorMap(prev => ({ ...prev, [modId]: (data as { error?: string }).error ?? 'Analysis failed. Please try again.' }))
+      // 4xx = something the user can fix (missing input, plan); anything else, offer the team fallback
+      if (res.status >= 500) setRunFailedMap(prev => ({ ...prev, [modId]: true }))
       setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
     }
     } catch {
       setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
       setSetupErrorMap(prev => ({ ...prev, [modId]: 'Network error. Please try again.' }))
+    }
+  }
+
+  // The manual route: the request lands in the admin queue and the GrowJin team runs it.
+  // reason = the error a failed direct run hit, so the team sees what went wrong.
+  const requestManualRun = async (modId: string, reason?: string) => {
+    const modName = allModulesData.find(m => m.id === modId)?.name ?? modId
+    setReanalyzingMap(prev => ({ ...prev, [modId]: true }))
+    try {
+      const res = await fetch('/api/request-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ moduleId: modId, moduleName: modName, reason }),
+      })
+      if (res.ok) {
+        setRequestedMap(prev => ({ ...prev, [modId]: true }))
+        setRunFailedMap(prev => ({ ...prev, [modId]: false }))
+        setSetupErrorMap(prev => ({ ...prev, [modId]: null }))
+        setShowRequestedModal(true)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setSetupErrorMap(prev => ({ ...prev, [modId]: (data as { error?: string }).error ?? 'Request failed. Please try again.' }))
+      }
+    } catch {
+      setSetupErrorMap(prev => ({ ...prev, [modId]: 'Network error. Please try again.' }))
+    } finally {
+      setReanalyzingMap(prev => ({ ...prev, [modId]: false }))
     }
   }
 
@@ -809,6 +837,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
         }
         if (data?.state === 'failed') {
           setSetupErrorMap(prev => ({ ...prev, [modId]: data?.error ?? 'Analysis failed. Please try again.' }))
+          setRunFailedMap(prev => ({ ...prev, [modId]: true }))
           return
         }
         if (data?.state === 'idle') return
@@ -1031,7 +1060,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       '',
       `1. Call get_module_detail with module_type "${mod?.type ?? ''}" and find the check "${clean(p.label)}" (slug ${p.slug}).`,
       `2. Fix it.${p.action ? ` Suggested fix: ${clean(p.action)}` : ''} If it needs a change to my website code, make it, or give me the exact change to apply.`,
-      `3. When it's fixed, call toggle_item with item_id "${p.itemId ?? ''}" and checked true so GrowJin marks it done.`,
+      `3. When it's fixed, call toggle_item with item_id "${p.itemId ?? ''}" and checked true so GrowJin marks it done. Pass link (the pull request or changed page) and note (one sentence on what you changed) so I can see the result.`,
     ].join('\n')
   }
   const fixWithClaude = (key: string, plain: string, ctx: { modId: string; itemId?: string | null; slug: string; label: string; action?: string | null }) => {
@@ -1536,6 +1565,24 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     return fallbackResults.length > 0 ? fallbackResults : null
   }
 
+  // How a finished item was done: the link (commit, pull request, live page) and what changed
+  const PROOF_BY: Record<TaskProof['source'], string> = { claude: 'Done by Claude', agent: 'Fixed by GrowJin', ai: 'Checked by AI', user: 'Done by you' }
+  const renderProof = (itemId: string | undefined) => {
+    const proof = itemId ? proofs[itemId] : undefined
+    if (!proof) return null
+    return (
+      <div className="md-item-proof" onClick={(e) => e.stopPropagation()}>
+        <span className="md-item-proof-by">{PROOF_BY[proof.source] ?? 'Done'}</span>
+        {proof.note && <span className="md-item-proof-note">{proof.note}</span>}
+        {proof.url && (
+          <a href={proof.url} target="_blank" rel="noreferrer" className="md-item-proof-link">
+            {proof.url.includes('github.com') ? 'View the change' : 'See it live'} ↗
+          </a>
+        )}
+      </div>
+    )
+  }
+
   // ── Dynamic item renderer ────────────────────────────────────────────────────
   // Convert **word** markers to <strong> in any text
   const parseBold = (text: string) =>
@@ -1626,6 +1673,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               )}
             </div>
           </div>
+          {done && renderProof(item.id)}
           {skipped && item.userSkipReason && (
             <p className="md-item-detail" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>{item.userSkipReason}</p>
           )}
@@ -1898,6 +1946,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               )}
             </div>
           </div>
+          {done && renderProof(s?.id)}
           {skipped && s?.userSkipReason && (
             <p className="md-item-detail" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>{s.userSkipReason}</p>
           )}
@@ -2241,8 +2290,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const analysedYet = lastAnalyzedAtMap[selectedModule.id] !== undefined ? lastAnalyzedAtMap[selectedModule.id] : selectedModule.lastAnalyzedAt
     if (!analysedYet) return null // nothing to measure until the first analysis lands
     const next = railModules.slice(selectedIdx + 1).find(p => !p.definition.comingSoon)
-    // Mirrors isModuleLocked: the first three modules never gate each other.
-    const unlocksNext = !!next && next.order > 3
+    // Mirrors isModuleLocked: the first three modules never gate each other, and nothing gates while all are open.
+    const unlocksNext = !earlyAccess && !!next && next.order > 3
     if (score >= 80) {
       return (
         <div className="gp-unlock gp-unlock--done">
@@ -2596,8 +2645,20 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
             const reqValues = reqValuesMap[modData.id] ?? {}
             const setupError = setupErrorMap[modData.id] ?? null
             const requested = requestedMap[modData.id] ?? false
-            // Foundation (and everything outside production) analyses directly; other modules go through an admin request
-            const runsDirect = process.env.NEXT_PUBLIC_APP_ENV !== 'production' || modData.type === 'foundation'
+            // Modules run through the API unless the admin switched runs to the queue (Foundation always runs directly)
+            const runsDirect = !queueRuns || modData.type === 'foundation'
+            const runFailed = (runFailedMap[modData.id] ?? false) && !requested && !reanalyzing
+            const teamFallback = runFailed && setupError ? (
+              <p className="md-setup-error gp-run-msg" style={{ marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => requestManualRun(modData.id, setupError)}
+                  style={{ background: 'none', border: 0, padding: 0, font: 'inherit', color: 'inherit', textDecoration: 'underline', cursor: 'pointer' }}
+                >
+                  Ask the GrowJin team to run it for you instead
+                </button>
+              </p>
+            ) : null
             const prUrl = prUrlMap[modData.id] ?? null
             const def = modData.definition
             const effectiveLastAnalyzedAt = lastAnalyzedAtMap[modData.id] !== undefined ? lastAnalyzedAtMap[modData.id] : modData.lastAnalyzedAt
@@ -2994,6 +3055,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                           )})}
                         </div>
                         {setupError && <p className="md-setup-error">{setupError}</p>}
+                        {teamFallback}
                         <Button
                           disabled={reanalyzing || requested || missingReqs.length > 0}
                           onClick={() => { if (!requested) handleReanalyze(modData.id, reqValues, reqValues) }}
@@ -3097,6 +3159,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         <GmailOutreachProspects
                           items={dynItems}
                           gmailConnected={true}
+                          earlyAccess={earlyAccess}
                         />
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '48px 28px 52px', textAlign: 'center' }}>
@@ -3131,6 +3194,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
 
                     {/* Outside the setup form so it's visible for modules that never show one (e.g. Foundation) */}
                     {setupError && !needsSetup && <p className="md-setup-error gp-run-msg" role="alert">{setupError}</p>}
+                    {!needsSetup && teamFallback}
                     {/* The top panel + floating pill already show the main run; this covers any other run going at the same time. */}
                     {reanalyzing && runsDirect && !setupError && liveMod?.id !== modData.id && (() => {
                       const rp = runProgress(modData)

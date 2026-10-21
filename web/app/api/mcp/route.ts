@@ -24,6 +24,7 @@ import { resolveSignal } from '@/lib/signals'
 import { getBlogPost, markBlogPublished } from '@/lib/mcp/tools/blog_posts'
 import { logActivity, touchMcp } from '@/lib/activity'
 import { createSocialPost, getSocialPostStatus, scheduleSocialPost } from '@/lib/frekto/posts'
+import { saveProof } from '@/lib/proofs'
 
 export const maxDuration = 300
 
@@ -76,7 +77,7 @@ async function dispatch(
       return analyzeModule(brandId, String(args['module_type'] ?? ''))
 
     case 'toggle_item':
-      return toggleItem(brandId, String(args['item_id'] ?? ''), Boolean(args['checked']))
+      return toggleItem(brandId, String(args['item_id'] ?? ''), Boolean(args['checked']), { link: args['link'], note: args['note'] })
 
     case 'get_blog_post':
       return getBlogPost(brandId, args['blog_id'] ? String(args['blog_id']) : undefined)
@@ -125,12 +126,14 @@ async function dispatch(
         allowRegenerate: args['allow_regenerate'] === true || args['allow_regenerate'] === 'true',
       })
 
-    case 'resolve_signal':
-      return resolveSignal(
-        brandId,
-        String(args['signal_id'] ?? ''),
-        args['status'] === 'dismissed' ? 'dismissed' : 'done',
-      )
+    case 'resolve_signal': {
+      const status = args['status'] === 'dismissed' ? 'dismissed' : 'done'
+      const result = await resolveSignal(brandId, String(args['signal_id'] ?? ''), status)
+      if ('ok' in result && status === 'done') {
+        await saveProof({ brandId, signalId: result.signalId, url: args['link'], note: args['note'], source: 'claude' })
+      }
+      return result
+    }
 
     case 'get_pending_items':
       return getPendingItems(brandId, args['module_type'] ? String(args['module_type']) : undefined)

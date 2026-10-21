@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     .map((i, idx) => `${idx + 1}. [${i.slug}] ${i.label}\n   Finding: ${i.aiDetail || 'Not analyzed'}\n   Action: ${i.aiAction || 'No action'}`)
     .join('\n\n')
 
-  const raw = await callAI({
+  const raw = await callAI({ feature: 'item-classify-export',
     system: 'You classify marketing audit findings by how they can be fixed in a Claude Code session. Be precise. Output only valid JSON.',
     prompt: `Brand: ${brand.name}
 Website: ${brand.websiteUrl ?? ''}

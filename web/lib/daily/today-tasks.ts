@@ -44,6 +44,7 @@ export interface TodayTask {
   moduleId: string | null
   category: string
   finding: string | null // why this task, with the numbers behind it
+  helps: string | null // how doing it helps the business
   action: string | null
   needsUserInput: boolean
   daysPending: number // days since this task was first shown (0 = new today)
@@ -64,6 +65,23 @@ export interface TodayTasks {
 }
 
 const WEIGHT_LABEL: Record<number, TodayTask['priority']> = { 3: 'critical', 2: 'important', 1: 'minor' }
+
+// How work in each area pays off, for alerts and plays (checklist items carry their own note).
+const AREA_BENEFIT: Record<string, string> = {
+  foundation: 'Solid basics let Google read your site properly and make visitors trust it.',
+  website: 'A faster, clearer site turns more of your visitors into sign-ups.',
+  seo: 'Better search rankings bring you more visitors without paying for ads.',
+  geo: 'Helps ChatGPT, Perplexity and other AI assistants find and recommend you.',
+  'social-media': 'Regular, on-topic posts grow your audience and bring people back to your site.',
+  'brand-audit': 'A consistent brand makes you look established and easier to trust.',
+  'content-audit': 'Fresh, focused pages keep your traffic from slipping and rank for more searches.',
+  'competitor-analysis': 'Shows where you can win customers your competitors are missing.',
+  'email-marketing': 'Gets your emails into inboxes instead of spam, so people actually read them.',
+  'user-analytics': 'Shows where people drop off, so you fix what actually loses users.',
+  'meta-ads': 'Puts your ad budget where it brings in customers.',
+  'gmail-outreach': 'Direct outreach gets you your first users and partners faster.',
+  diagnosis: 'Focuses you on the one thing holding your growth back right now.',
+}
 
 const CODE_MODULES = new Set(['foundation', 'seo', 'geo'])
 const CONTENT_MODULES = new Set(['social-media', 'content-audit'])
@@ -172,11 +190,12 @@ export async function getTodayTasks(
       kind: isPlay ? 'play' : 'alert',
       label: s.title,
       route: (s.route as TaskRoute) ?? 'manual',
-      module: isPlay ? 'Growth focus' : mod?.name ?? s.source,
+      module: isPlay ? 'Growth focus' : mod?.name ?? AGENT_PAGES[s.source]?.label ?? s.source,
       moduleType: s.source,
       moduleId: mod?.id ?? null,
       category: isPlay ? `Focus: ${stage}` : 'Alert',
       finding: s.detail,
+      helps: AREA_BENEFIT[s.source] ?? null,
       action: s.action,
       needsUserInput: false,
     }
@@ -238,6 +257,8 @@ export async function getTodayTasks(
       moduleId: mod.id,
       category: catMap.get(item.categoryId)?.label ?? 'Uncategorized',
       finding: item.aiDetail ?? null,
+      // aiNarrative is the check's "why this hurts the business" line, i.e. what fixing it gains
+      helps: item.aiNarrative ?? AREA_BENEFIT[mod.type] ?? null,
       action: item.aiAction ?? null,
       needsUserInput: item.exportType === 'needs_choice' && !item.userChoice,
       ...(isElementEvidence(item.aiData) || isPagePreview(item.aiData)
@@ -287,6 +308,12 @@ export async function getTodayTasks(
 
 // Cards for the in-app /today page. Plays the page can act on inline (outreach,
 // social post, blog) keep those card types so the existing inline panels open.
+// Signals raised by the AI Agents open that agent's page
+const AGENT_PAGES: Record<string, { label: string; url: string }> = {
+  'lead-agent': { label: 'Lead Agent', url: '/agents/leads' },
+  'search-agent': { label: 'Search Agent', url: '/agents/search' },
+}
+
 // Plays fixed in Settings → the integration they need
 const PLAY_SETTINGS: Record<string, string> = { 'connect-ga4': 'ga4_api', 'fix-ga4-tracking': 'ga4_api', 'fix-ga4-access': 'ga4_api' }
 
@@ -298,19 +325,20 @@ export function tasksToCards(today: TodayTasks): ActionCard[] {
     else if (t.key === 'blog-weekly' || t.key.startsWith('blog-query:')) type = 'blog'
 
     // Open that module on Growth Path, with a checklist item's check expanded
+    const agent = AGENT_PAGES[t.moduleType]
     const ctaUrl = t.moduleId
       ? `/dashboard?module=${encodeURIComponent(t.moduleType)}${t.kind === 'item' ? `&item=${encodeURIComponent(t.key)}` : ''}`
-      : PLAY_SETTINGS[t.key] ? connectUrl(PLAY_SETTINGS[t.key]) : '/dashboard'
+      : agent ? agent.url : PLAY_SETTINGS[t.key] ? connectUrl(PLAY_SETTINGS[t.key]) : '/dashboard'
     return {
       id: `${t.kind}-${t.id}`,
       type,
       priority: i,
       headline: t.label,
       reason: (t.overdue ? `Overdue: waiting ${t.daysPending} days. ` : '') + (t.finding ?? ''),
-      cta: t.moduleId ? `Open ${t.module}` : PLAY_SETTINGS[t.key] ? 'Open Google Analytics settings' : 'Open modules',
+      cta: t.moduleId ? `Open ${t.module}` : agent ? `Open ${agent.label}` : PLAY_SETTINGS[t.key] ? 'Open Google Analytics settings' : 'Open modules',
       ctaUrl,
       sourceModule: t.moduleId ?? undefined,
-      data: { taskKind: t.kind, taskId: t.id, slug: t.key, action: t.action, route: t.route, moduleType: t.moduleType, finding: t.finding, daysPending: t.daysPending, overdue: t.overdue, visual: t.visual ?? null, choiceOptions: t.choiceOptions ?? null },
+      data: { taskKind: t.kind, taskId: t.id, slug: t.key, action: t.action, route: t.route, moduleType: t.moduleType, finding: t.finding, helps: t.helps, daysPending: t.daysPending, overdue: t.overdue, visual: t.visual ?? null, choiceOptions: t.choiceOptions ?? null },
     }
   })
 }
@@ -326,6 +354,6 @@ export function buildTodayPrompt(t: Pick<TodayTasks, 'brandName' | 'websiteUrl' 
     '3. For each "content" task: draft the content (blog copy, emails). For social posts use create_social_post, show me the preview, and only call schedule_social_post after I approve. For a blog post already written in GrowJin, call get_blog_post, add it to the website, and call mark_blog_published once it is live.',
     '4. For each "manual" task: give me short step-by-step instructions.',
     '5. If a task needs real data from me (stats, testimonials, quotes), ask instead of inventing it.',
-    '6. When a task is done: if its kind is "item", call toggle_item with its id and checked=true; if its kind is "alert" or "play", call resolve_signal with its id and status="done".',
+    '6. When a task is done: if its kind is "item", call toggle_item with its id and checked=true; if its kind is "alert" or "play", call resolve_signal with its id and status="done". Either way pass link (the pull request, changed page or published post) and note (one sentence on what you changed) so I can see the result in GrowJin.',
   ].join('\n')
 }

@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       : `Website URL: ${url}\n\nNo readable text was extracted. Infer details from the URL only.`
 
   try {
-    const raw = await callAI({
+    const raw = await callAI({ feature: 'onboarding-prefill',
       system: SYSTEM_PROMPT,
       prompt: userPrompt,
       maxTokens: 400,

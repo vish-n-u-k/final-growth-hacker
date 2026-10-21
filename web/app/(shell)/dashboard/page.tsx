@@ -3,7 +3,10 @@ import { after } from 'next/server'
 import { moduleScore } from '@/lib/modules/score'
 import { getSessionUser, getBrandForUser, getAccessCached } from '@/lib/server-session'
 import { isAdminEmail } from '@/lib/admin'
+import { hasEarlyAccess } from '@/lib/early-access'
 import { planLockedTypes } from '@/lib/billing/plan'
+import { getAnalysisMode } from '@/lib/modules/analysis-mode'
+import { loadItemProofs } from '@/lib/proofs'
 import { db } from '@/lib/db'
 import { modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit, analysisRequests, itemLinks } from '@/lib/db/schema'
 import { eq, inArray, and } from 'drizzle-orm'
@@ -18,12 +21,13 @@ export default async function DashboardPage() {
 
   // Run brand lookup and pending analysis requests in parallel — both only need user.id
   // (the brand lookup is shared with the shell layout for this request)
-  const [brand, pendingRequestsRaw] = await Promise.all([
+  const [brand, pendingRequestsRaw, analysisMode] = await Promise.all([
     getBrandForUser(user.id),
     db.select({ moduleId: analysisRequests.moduleId })
       .from(analysisRequests)
       .where(and(eq(analysisRequests.userId, user.id), eq(analysisRequests.status, 'pending')))
       .catch(() => [] as { moduleId: string }[]),
+    getAnalysisMode(),
   ])
   const pendingModuleIds = pendingRequestsRaw.map(r => r.moduleId)
 
@@ -279,7 +283,7 @@ export default async function DashboardPage() {
   }
   allModulesData.sort((a, b) => a.order - b.order)
 
-  const access = await accessPromise
+  const [access, proofs] = await Promise.all([accessPromise, loadItemProofs(brand.id)])
   const billing = {
     enabled: access.enabled,
     pro: access.pro,
@@ -291,8 +295,11 @@ export default async function DashboardPage() {
       brand={{ id: brand.id, name: brand.name, keywords: brand.keywords ?? '', websiteUrl: brand.websiteUrl, logoUrl: brand.logoUrl ?? '', themeColor: brand.themeColor ?? '', playbook: (brand.playbook as Record<string, string> | null) ?? null }}
       allModulesData={allModulesData}
       pendingModuleIds={pendingModuleIds}
+      queueRuns={analysisMode === 'queue' && !isAdminEmail(user.email)}
+      proofs={proofs}
       userEmail={user.email ?? ''}
       isAdmin={isAdminEmail(user.email)}
+      earlyAccess={await hasEarlyAccess(user.email)}
       githubConnected={githubConnected}
       githubRepo={githubRepo}
       mcpLastUsedAt={mcpLastUsedAt}

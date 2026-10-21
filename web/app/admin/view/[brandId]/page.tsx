@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { loadItemProofs } from '@/lib/proofs'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit, analysisRequests, itemLinks } from '@/lib/db/schema'
@@ -268,6 +269,7 @@ export default async function AdminViewBrandPage({
         }}
         allModulesData={allModulesData}
         pendingModuleIds={[]}
+        proofs={await loadItemProofs(brand.id)}
         userEmail={viewedUserEmail}
         githubConnected={githubConnected}
         connectedIntegrations={connectedIntegrations}

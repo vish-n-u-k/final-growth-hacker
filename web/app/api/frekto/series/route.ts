@@ -5,8 +5,9 @@ import { db } from '@/lib/db'
 import { brands, brandIntegrations, frektoScheduledPosts, socialSuggestions } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { toClientPost } from '@/lib/frekto/drafts'
+import { frektoHttpError, frektoJobFailed, frektoNetworkError, frektoPollError } from '@/lib/frekto/errors'
 
-export const maxDuration = 90
+export const maxDuration = 210 // the series poll below runs for up to 3 minutes
 
 const FREKTO_BASE = 'https://api.frekto.ai'
 const POLL_INTERVAL_MS = 5000
@@ -39,15 +40,15 @@ async function pollSeries(
       const res = await fetch(`${FREKTO_BASE}/series/${seriesId}`, {
         headers: { Authorization: `Bearer ${apiKey}` },
       })
-      if (!res.ok) return { error: `Poll failed: ${res.status}` }
+      if (!res.ok) return { error: frektoPollError(res.status) }
       const data = await res.json() as FrektoSeriesStatus
       if (data.status === 'scheduled' || data.status === 'done') return { posts: data.posts ?? [] }
-      if (data.status === 'failed') return { error: data.error ?? 'Series generation failed' }
+      if (data.status === 'failed') return { error: frektoJobFailed(data.error, 'series') }
     } catch (e) {
-      return { error: e instanceof Error ? e.message : 'Network error' }
+      return { error: frektoNetworkError(e, 'check on it') }
     }
   }
-  return { error: 'Series timed out after 3 minutes' }
+  return { error: 'Frekto is still making this series after 3 minutes. It may still finish in Frekto; check there before trying again.' }
 }
 
 export async function POST(request: NextRequest) {
@@ -135,14 +136,14 @@ export async function POST(request: NextRequest) {
     if (!genRes.ok) {
       const err = await genRes.text()
       await release()
-      return NextResponse.json({ error: `Frekto rejected request (${genRes.status}): ${err}` }, { status: 502 })
+      return NextResponse.json({ error: frektoHttpError(genRes.status, err, 'start the series') }, { status: 502 })
     }
     const genData = await genRes.json() as { series_id?: string }
     if (!genData.series_id) { await release(); return NextResponse.json({ error: 'No series_id returned from Frekto' }, { status: 502 }) }
     seriesId = genData.series_id
   } catch (e) {
     await release()
-    return NextResponse.json({ error: `Could not reach Frekto: ${e instanceof Error ? e.message : String(e)}` }, { status: 502 })
+    return NextResponse.json({ error: frektoNetworkError(e, 'start the series') }, { status: 502 })
   }
 
   const result = await pollSeries(seriesId, frektoInt.apiKey)

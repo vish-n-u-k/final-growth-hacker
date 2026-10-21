@@ -6,6 +6,7 @@ import { brands, brandIntegrations, modules, moduleItems, moduleCategories } fro
 import { eq, and } from 'drizzle-orm'
 import { createSign } from 'crypto'
 import Anthropic from '@anthropic-ai/sdk'
+import { logAnthropicUsage } from '@/lib/ai/client'
 import { buildPostHogFilter } from '@/lib/posthog/filter'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -381,6 +382,7 @@ STYLE RULES
       system: systemPrompt,
       messages: [{ role: 'user', content: `Brand: ${brand.name} (${brand.websiteUrl})\n\n${lines.join('\n')}` }],
     })
+    logAnthropicUsage('analytics-summary', response)
     const text = (response.content[0] as { type: string; text: string }).text.trim()
     if (text.length > 20) return text
   } catch { /* fall through */ }

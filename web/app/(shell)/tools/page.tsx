@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSessionUser, getBrandForUser } from '@/lib/server-session'
 import Link from 'next/link'
 import { isComingSoon } from '@/lib/features'
+import { hasEarlyAccess } from '@/lib/early-access'
 import { db } from '@/lib/db'
 import { brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
@@ -25,6 +26,7 @@ export default async function ToolsPage() {
   const brand = await getBrandForUser(user.id)
   if (!brand) redirect('/onboarding')
 
+  const earlyAccess = await hasEarlyAccess(user.email)
   const [gmailInteg] = await db
     .select({ status: brandIntegrations.status })
     .from(brandIntegrations)
@@ -46,6 +48,20 @@ export default async function ToolsPage() {
         <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
           <rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
           <path d="M2 7l8 5 8-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
+      ),
+    },
+    {
+      href: '/agents',
+      title: 'AI Agents',
+      desc: 'A Search Agent and a Lead Agent that work for you every week.',
+      color: '#2563eb',
+      glow: 'rgba(37,99,235,0.25)',
+      icon: (
+        <svg viewBox="0 0 20 20" fill="none" width="18" height="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <rect x="4" y="7" width="12" height="9" rx="2.5" />
+          <path d="M10 4.5V7M7.6 11.4v.2M12.4 11.4v.2" />
+          <circle cx="10" cy="3.5" r="1" />
         </svg>
       ),
     },
@@ -135,7 +151,7 @@ export default async function ToolsPage() {
         <div className="tl-grid">
           {/* Live tools first; one calm colour for all of them (per-tool rainbow colours read as noise). */}
           {tools
-            .map(t => ({ ...t, color: 'var(--green)', glow: 'var(--green-glow)', comingSoon: t.comingSoon || isComingSoon(t.href) }))
+            .map(t => ({ ...t, color: 'var(--green)', glow: 'var(--green-glow)', comingSoon: t.comingSoon || isComingSoon(t.href, earlyAccess) }))
             .sort((a, b) => Number(a.comingSoon) - Number(b.comingSoon))
             .map(tool => {
             const content = (

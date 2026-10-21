@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import type { analysisRequests } from '@/lib/db/schema'
+import type { AnalysisMode } from '@/lib/modules/analysis-mode'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
+import AdminCosts from './AdminCosts'
 
 type Request = typeof analysisRequests.$inferSelect
 
@@ -33,6 +35,8 @@ interface Props {
   requests: Request[]
   gmailAddress: string | null
   gmailParam?: string
+  analysisMode: AnalysisMode
+  earlyAccess: string[]
 }
 
 function timeAgo(iso: Date | null): string {
@@ -51,8 +55,29 @@ interface SendResult {
   skipped?: string
 }
 
-export default function AdminDashboard({ requests: initial, gmailAddress, gmailParam }: Props) {
-  const [tab, setTab] = useState<'queue' | 'users' | 'notes'>('queue')
+export default function AdminDashboard({ requests: initial, gmailAddress, gmailParam, analysisMode, earlyAccess: initialEarlyAccess }: Props) {
+  const [mode, setMode] = useState<AnalysisMode>(analysisMode)
+  const [modeSaving, setModeSaving] = useState(false)
+  const [modeError, setModeError] = useState<string | null>(null)
+  const changeMode = async (next: AnalysisMode) => {
+    setModeSaving(true)
+    setModeError(null)
+    try {
+      const res = await fetch('/api/admin/analysis-mode', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: next }) })
+      const data = await res.json().catch(() => ({})) as { mode?: AnalysisMode; error?: string }
+      if (!res.ok || !data.mode) throw new Error(data.error ?? `Save failed (${res.status})`)
+      setMode(data.mode)
+    } catch (e) {
+      setModeError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setModeSaving(false)
+    }
+  }
+  const [tab, setTab] = useState<'queue' | 'users' | 'notes' | 'costs' | 'access'>('queue')
+  const [earlyAccess, setEarlyAccess] = useState<string[]>(initialEarlyAccess)
+  const [accessInput, setAccessInput] = useState('')
+  const [accessSaving, setAccessSaving] = useState(false)
+  const [accessError, setAccessError] = useState('')
   const [requests, setRequests] = useState(initial)
   const [running, setRunning] = useState<Record<string, boolean>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -67,6 +92,40 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
   const [notesError, setNotesError] = useState('')
   const [notesSearch, setNotesSearch] = useState('')
   const [expandedNote, setExpandedNote] = useState<string | null>(null)
+
+  // Replaces the whole early-access list; the server cleans it (lowercase, no duplicates).
+  async function saveEarlyAccess(emails: string[]): Promise<boolean> {
+    setAccessSaving(true)
+    setAccessError('')
+    try {
+      const res = await fetch('/api/admin/early-access', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emails }),
+      })
+      const data = await res.json() as { emails?: string[]; error?: string }
+      if (!res.ok || !data.emails) { setAccessError(data.error ?? 'Failed to save'); return false }
+      setEarlyAccess(data.emails)
+      return true
+    } catch {
+      setAccessError('Network error')
+      return false
+    } finally {
+      setAccessSaving(false)
+    }
+  }
+
+  async function addEarlyAccess() {
+    const added = accessInput.split(/[\s,;]+/).map(s => s.trim().toLowerCase()).filter(Boolean)
+    if (added.length === 0) return
+    const bad = added.filter(e => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e))
+    if (bad.length > 0) { setAccessError(`Not an email: ${bad.join(', ')}`); return }
+    if (await saveEarlyAccess([...earlyAccess, ...added])) setAccessInput('')
+  }
+
+  const hasAccess = (email: string) => earlyAccess.includes(email.toLowerCase())
+  const toggleEarlyAccess = (email: string) =>
+    saveEarlyAccess(hasAccess(email) ? earlyAccess.filter(e => e !== email.toLowerCase()) : [...earlyAccess, email])
 
   async function handleSendDailyEmail() {
     setSending(true)
@@ -152,8 +211,8 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
       <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 16 }}>Admin</h1>
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid var(--line, #1e3830)', paddingBottom: 0 }}>
-        {(['queue', 'users', 'notes'] as const).map(t => (
+      <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid var(--line, #1e3830)', paddingBottom: 0, overflowX: 'auto' }}>
+        {(['queue', 'users', 'notes', 'costs', 'access'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -169,15 +228,45 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
               cursor: 'pointer',
               marginBottom: -1,
               textTransform: 'capitalize',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
             }}
           >
-            {t === 'queue' ? `Analysis Queue (${pending.length} pending)` : t === 'users' ? 'Users' : 'Notes'}
+            {t === 'queue' ? `Analysis Queue (${pending.length} pending)` : t === 'users' ? 'Users' : t === 'notes' ? 'Notes' : t === 'costs' ? 'AI Costs' : `Early access (${earlyAccess.length})`}
           </button>
         ))}
       </div>
 
       {tab === 'queue' && (
         <>
+          {/* How Growth Path modules run when a user clicks Run */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: 12,
+            padding: '12px 16px',
+            borderRadius: 8,
+            background: 'var(--card, #122620)',
+            border: '1px solid var(--line, #1e3830)',
+            marginBottom: 12,
+            fontSize: 13,
+          }}>
+            <span style={{ color: 'var(--text-dim, #8aa897)' }}>Module runs:</span>
+            <span style={{ fontWeight: 600 }}>
+              {mode === 'direct' ? 'Run straight away through the API' : 'Queued here for you to run'}
+            </span>
+            <button
+              type="button"
+              disabled={modeSaving}
+              onClick={() => changeMode(mode === 'direct' ? 'queue' : 'direct')}
+              style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--line, #1e3830)', borderRadius: 6, color: 'inherit', fontFamily: 'inherit', fontSize: 12, padding: '5px 12px', cursor: 'pointer' }}
+            >
+              {modeSaving ? 'Saving…' : mode === 'direct' ? 'Switch to queue' : 'Switch to API'}
+            </button>
+            {modeError && <span style={{ flexBasis: '100%', color: '#f87171', fontSize: 12 }}>{modeError}</span>}
+          </div>
+
           {/* Gmail connection status */}
           <div style={{
             display: 'flex',
@@ -325,6 +414,8 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
         </>
       )}
 
+      {tab === 'costs' && <AdminCosts />}
+
       {tab === 'notes' && (
         <section>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
@@ -412,6 +503,73 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
         </section>
       )}
 
+      {tab === 'access' && (
+        <section>
+          <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-dim, #8aa897)', lineHeight: 1.6 }}>
+            People on this list get every Growth Path module open (no &ldquo;reach 80% on the previous module&rdquo; lock)
+            and the Coming soon tools (Outreach, Lead Finder) as live tools. Changes apply on their next page load.
+          </p>
+
+          <form
+            onSubmit={e => { e.preventDefault(); addEarlyAccess() }}
+            style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}
+          >
+            <input
+              type="text"
+              value={accessInput}
+              onChange={e => { setAccessInput(e.target.value); setAccessError('') }}
+              placeholder="name@company.com (several: separate with commas)"
+              aria-label="Email to give early access"
+              style={{
+                flex: '1 1 260px', minWidth: 0, background: 'var(--card, #122620)', border: '1px solid var(--line, #1e3830)',
+                borderRadius: 8, padding: '8px 12px', fontSize: 13, color: 'var(--text, #e8f3ec)', fontFamily: 'inherit',
+              }}
+            />
+            <button
+              type="submit"
+              disabled={accessSaving || !accessInput.trim()}
+              style={{
+                background: 'var(--green, #2fbf71)', color: '#000', border: 'none', borderRadius: 8, padding: '8px 18px',
+                fontSize: 13, fontWeight: 600, cursor: accessSaving || !accessInput.trim() ? 'not-allowed' : 'pointer',
+                opacity: accessSaving || !accessInput.trim() ? 0.6 : 1,
+              }}
+            >
+              {accessSaving ? <><Spinner />Saving…</> : 'Add'}
+            </button>
+          </form>
+
+          {accessError && <p style={{ fontSize: 13, color: '#f87171', margin: '0 0 12px' }}>{accessError}</p>}
+
+          {earlyAccess.length === 0 ? (
+            <p style={{ color: 'var(--text-dim, #8aa897)', fontSize: 14 }}>No one has early access yet.</p>
+          ) : (
+            <div style={{ border: '1px solid var(--line, #1e3830)', borderRadius: 10, overflow: 'hidden' }}>
+              {earlyAccess.map((email, i) => (
+                <div
+                  key={email}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', fontSize: 13,
+                    borderTop: i === 0 ? 'none' : '1px solid var(--line, #1e3830)',
+                  }}
+                >
+                  <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{email}</span>
+                  <button
+                    onClick={() => saveEarlyAccess(earlyAccess.filter(e => e !== email))}
+                    disabled={accessSaving}
+                    style={{
+                      background: 'none', border: '1px solid var(--line, #1e3830)', borderRadius: 6, padding: '4px 10px',
+                      fontSize: 12, color: 'var(--text-dim, #8aa897)', cursor: accessSaving ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {tab === 'users' && (
         <section>
           {/* Send daily email */}
@@ -478,6 +636,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
                   <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>Website</th>
                   <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>Modules</th>
                   <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>Last Active</th>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}>Early access</th>
                   <th style={{ textAlign: 'left', padding: '8px 12px', fontWeight: 500 }}></th>
                 </tr>
               </thead>
@@ -494,6 +653,23 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
                     <td style={{ padding: '10px 12px', color: 'var(--text-dim, #8aa897)' }}>{u.moduleCount}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--text-dim, #8aa897)' }}>
                       {u.lastActive ? timeAgo(new Date(u.lastActive)) : '—'}
+                    </td>
+                    <td style={{ padding: '10px 12px' }}>
+                      {!u.userEmail.includes('@') ? <span style={{ color: 'var(--text-dim, #8aa897)' }}>—</span> : <button
+                        onClick={() => toggleEarlyAccess(u.userEmail)}
+                        disabled={accessSaving}
+                        aria-pressed={hasAccess(u.userEmail)}
+                        title={hasAccess(u.userEmail) ? 'Remove early access' : 'Give early access'}
+                        style={{
+                          background: hasAccess(u.userEmail) ? 'var(--green, #2fbf71)' : 'none',
+                          color: hasAccess(u.userEmail) ? '#000' : 'var(--text-dim, #8aa897)',
+                          border: '1px solid ' + (hasAccess(u.userEmail) ? 'var(--green, #2fbf71)' : 'var(--line, #1e3830)'),
+                          borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                          cursor: accessSaving ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {hasAccess(u.userEmail) ? 'On' : 'Off'}
+                      </button>}
                     </td>
                     <td style={{ padding: '10px 12px' }}>
                       <a

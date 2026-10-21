@@ -1,7 +1,9 @@
 // Tools that are parked for now: shown as "Coming soon" in the sidebar and the Tools page,
 // and their pages show a coming-soon screen. Remove a route from this list to bring it back.
-export const COMING_SOON_ROUTES = ['/gmail-hub', '/lead-finder'] as const
+// Early-access users (lib/early-access.ts) see them as live.
+export const COMING_SOON_ROUTES: readonly string[] = ['/gmail-hub', '/lead-finder', '/agents']
 
-export function isComingSoon(href: string): boolean {
-  return (COMING_SOON_ROUTES as readonly string[]).some(r => href === r || href.startsWith(r + '/'))
+export function isComingSoon(href: string, earlyAccess = false): boolean {
+  if (earlyAccess) return false
+  return COMING_SOON_ROUTES.some(r => href === r || href.startsWith(r + '/'))
 }

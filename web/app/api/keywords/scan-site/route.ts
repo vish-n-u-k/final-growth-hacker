@@ -69,7 +69,7 @@ export async function POST() {
       h3s.length  && `H3 headings: ${h3s.map(h => `"${h}"`).join(' · ')}`,
     ].filter(Boolean).join('\n')
 
-    const raw = await callAI({
+    const raw = await callAI({ feature: 'keywords-scan',
       model: 'claude-haiku-4-5-20251001',
       maxTokens: 600,
       system: 'Extract search keyword phrases from web page elements. Return only valid JSON arrays, nothing else.',

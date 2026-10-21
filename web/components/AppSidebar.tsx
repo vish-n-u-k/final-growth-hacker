@@ -31,6 +31,7 @@ const NAV: NavGroup[] = [
     { href: '/today', label: 'Today', icon: 'sun', pro: true },
   ]},
   { label: 'Work', items: [
+    { href: '/agents', label: 'AI Agents', icon: 'bot', pro: true },
     { href: '/gmail-hub', label: 'Outreach', icon: 'mail', lockedType: 'gmail-outreach', pro: true },
     { href: '/social', label: 'Social Studio', icon: 'image', pro: true },
     { href: '/dashboard/meta-ads/blueprint', label: 'Meta Ads', icon: 'megaphone', pro: true }, // live for everyone (no Growth Path progress lock)
@@ -53,6 +54,7 @@ const ICON: Record<string, JSX.Element> = {
   chart: <path d="M3 16.5h14M5.8 16.5v-5M10 16.5v-9M14.2 16.5V4.5" />,
   logout: <><path d="M8 17.5H5a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 5 2.5h3" /><path d="M13 14l4-4-4-4M17 10H8" /></>,
   install: <><path d="M10 3v9M6.5 8.5 10 12l3.5-3.5" /><path d="M4 13.5v1.5A1.5 1.5 0 0 0 5.5 16.5h9a1.5 1.5 0 0 0 1.5-1.5v-1.5" /></>,
+  bot: <><rect x="4" y="7" width="12" height="9" rx="2.5" /><path d="M10 4.5V7M7.6 11.4v.2M12.4 11.4v.2M2.5 11v2M17.5 11v2" /><circle cx="10" cy="3.5" r="1" /></>,
   // Cog (Lucide 'settings', drawn on a 24 grid and scaled to this 20 grid) so it doesn't look like Today's sun.
   gear: <g transform="scale(0.8333)" strokeWidth="1.9"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915" /><circle cx="12" cy="12" r="3" /></g>,
 }
@@ -177,12 +179,15 @@ export default function AppSidebar({
   lockedTypes,
   plan = { enabled: false, pro: true },
   roadmap = [],
+  earlyAccess = false,
 }: {
   brandName: string
   lockedTypes: string[]
   plan?: { enabled: boolean; pro: boolean }
   roadmap?: RoadmapModule[]
+  earlyAccess?: boolean
 }) {
+  const isSoon = (href: string) => isComingSoon(href, earlyAccess)
   // Free users (billing on): the Pro tools move into one "Pro" group with a single Upgrade link,
   // rather than a badge on every item. The pages themselves show the upgrade screen.
   const showPro = plan.enabled && !plan.pro
@@ -202,10 +207,10 @@ export default function AppSidebar({
   // Today ("what do I do now?") always sits first, above the roadmap, whether it is live or parked.
   const todayItem = allItems.find(i => i.href === '/today')
   const notToday = (i: NavItem) => i.href !== '/today'
-  const soonItems = NAV.flatMap(g => g.items).filter(i => isComingSoon(i.href) && notToday(i))
+  const soonItems = NAV.flatMap(g => g.items).filter(i => isSoon(i.href) && notToday(i))
   const groups: (NavGroup & { pro?: boolean; soon?: boolean })[] = [
     ...(todayItem ? [{ label: '', items: [todayItem] }] : []),
-    ...baseGroups.map(g => ({ ...g, items: g.items.filter(i => !isComingSoon(i.href) && notToday(i)) })).filter(g => g.items.length > 0),
+    ...baseGroups.map(g => ({ ...g, items: g.items.filter(i => !isSoon(i.href) && notToday(i)) })).filter(g => g.items.length > 0),
     ...(soonItems.length ? [{ label: 'Coming soon', items: soonItems, soon: true }] : []),
   ]
   const actualPath = usePathname()
@@ -308,7 +313,7 @@ export default function AppSidebar({
             if (item.href === '/dashboard' && roadmap.length > 0) {
               return <RoadmapNav key={item.href} modules={roadmap} pathname={pathname} onNavigate={closeOnNav} showUpgrade={showPro} />
             }
-            if (isComingSoon(item.href)) {
+            if (isSoon(item.href)) {
               return (
                 <span className="app-navitem app-navitem-locked app-navitem-soon" key={item.href} title="Coming soon">
                   <NavIcon name={item.icon} />
