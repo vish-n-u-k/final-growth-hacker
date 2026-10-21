@@ -1,0 +1,73 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { agentAccess } from '@/lib/agents/access'
+import { loadBrandContext } from '@/lib/agents/context'
+import { LOCATION_CODES } from '@/lib/agents/dataforseo'
+import { runSearchResearch, runSearchWrite, searchFallback, setTopicStatus } from '@/lib/agents/search-agent'
+import { readSearchData, updateSearchData, type AgentTask, type SearchSettings, type Topic } from '@/lib/agents/store'
+import { clearSignals } from '@/lib/signals'
+
+export const dynamic = 'force-dynamic'
+export const maxDuration = 300
+
+export async function GET() {
+  const a = await agentAccess()
+  if (a.error) return a.error
+  const b = await loadBrandContext(a.brandId)
+  if (!b) return NextResponse.json({ error: 'No brand' }, { status: 404 })
+  return NextResponse.json({ data: (await readSearchData(a.brandId)) ?? searchFallback(b)() })
+}
+
+const lines = (v: unknown, max: number, len: number) =>
+  Array.isArray(v) ? v.map(x => String(x).trim()).filter(Boolean).map(x => x.slice(0, len)).slice(0, max) : null
+
+export async function POST(req: NextRequest) {
+  const a = await agentAccess()
+  if (a.error) return a.error
+  const brandId = a.brandId
+  const b = await loadBrandContext(brandId)
+  if (!b) return NextResponse.json({ error: 'No brand' }, { status: 404 })
+  const fallback = searchFallback(b)
+  const body = await req.json().catch(() => ({})) as {
+    op?: string; settings?: Partial<SearchSettings>; keyword?: string; status?: string; key?: string
+  }
+
+  switch (body.op) {
+    case 'settings': {
+      const s = body.settings ?? {}
+      const data = await updateSearchData(brandId, fallback, d => {
+        if (typeof s.enabled === 'boolean') d.settings.enabled = s.enabled
+        if (typeof s.country === 'string' && LOCATION_CODES[s.country]) d.settings.country = s.country
+        d.settings.seeds = lines(s.seeds, 10, 60) ?? d.settings.seeds
+        d.settings.questions = lines(s.questions, 15, 200) ?? d.settings.questions
+      })
+      if (!data.settings.enabled) await clearSignals(brandId, 'search-agent', data.tasks.map(t => t.key)).catch(() => {})
+      return NextResponse.json({ data })
+    }
+    case 'research': {
+      const result = await runSearchResearch(brandId)
+      return NextResponse.json({ result, data: await readSearchData(brandId) })
+    }
+    case 'write': {
+      const result = await runSearchWrite(brandId)
+      return NextResponse.json({ result, data: await readSearchData(brandId) })
+    }
+    case 'topic': {
+      const allowed: Topic['status'][] = ['approved', 'published', 'skipped', 'picked']
+      if (!body.keyword || !allowed.includes(body.status as Topic['status'])) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+      await setTopicStatus(brandId, body.keyword, body.status as Topic['status'])
+      return NextResponse.json({ data: await readSearchData(brandId) })
+    }
+    case 'task': {
+      const allowed: AgentTask['status'][] = ['open', 'done', 'dismissed']
+      if (!body.key || !allowed.includes(body.status as AgentTask['status'])) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+      const data = await updateSearchData(brandId, fallback, d => {
+        const t = d.tasks.find(x => x.key === body.key)
+        if (t) t.status = body.status as AgentTask['status']
+      })
+      if (body.status !== 'open') await clearSignals(brandId, 'search-agent', [body.key]).catch(() => {})
+      return NextResponse.json({ data })
+    }
+    default:
+      return NextResponse.json({ error: 'Unknown op' }, { status: 400 })
+  }
+}

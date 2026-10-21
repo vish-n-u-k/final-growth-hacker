@@ -172,7 +172,7 @@ export async function getTodayTasks(
       kind: isPlay ? 'play' : 'alert',
       label: s.title,
       route: (s.route as TaskRoute) ?? 'manual',
-      module: isPlay ? 'Growth focus' : mod?.name ?? s.source,
+      module: isPlay ? 'Growth focus' : mod?.name ?? AGENT_PAGES[s.source]?.label ?? s.source,
       moduleType: s.source,
       moduleId: mod?.id ?? null,
       category: isPlay ? `Focus: ${stage}` : 'Alert',
@@ -287,6 +287,12 @@ export async function getTodayTasks(
 
 // Cards for the in-app /today page. Plays the page can act on inline (outreach,
 // social post, blog) keep those card types so the existing inline panels open.
+// Signals raised by the AI Agents open that agent's page
+const AGENT_PAGES: Record<string, { label: string; url: string }> = {
+  'lead-agent': { label: 'Lead Agent', url: '/agents/leads' },
+  'search-agent': { label: 'Search Agent', url: '/agents/search' },
+}
+
 // Plays fixed in Settings → the integration they need
 const PLAY_SETTINGS: Record<string, string> = { 'connect-ga4': 'ga4_api', 'fix-ga4-tracking': 'ga4_api', 'fix-ga4-access': 'ga4_api' }
 
@@ -298,16 +304,17 @@ export function tasksToCards(today: TodayTasks): ActionCard[] {
     else if (t.key === 'blog-weekly' || t.key.startsWith('blog-query:')) type = 'blog'
 
     // Open that module on Growth Path, with a checklist item's check expanded
+    const agent = AGENT_PAGES[t.moduleType]
     const ctaUrl = t.moduleId
       ? `/dashboard?module=${encodeURIComponent(t.moduleType)}${t.kind === 'item' ? `&item=${encodeURIComponent(t.key)}` : ''}`
-      : PLAY_SETTINGS[t.key] ? connectUrl(PLAY_SETTINGS[t.key]) : '/dashboard'
+      : agent ? agent.url : PLAY_SETTINGS[t.key] ? connectUrl(PLAY_SETTINGS[t.key]) : '/dashboard'
     return {
       id: `${t.kind}-${t.id}`,
       type,
       priority: i,
       headline: t.label,
       reason: (t.overdue ? `Overdue: waiting ${t.daysPending} days. ` : '') + (t.finding ?? ''),
-      cta: t.moduleId ? `Open ${t.module}` : PLAY_SETTINGS[t.key] ? 'Open Google Analytics settings' : 'Open modules',
+      cta: t.moduleId ? `Open ${t.module}` : agent ? `Open ${agent.label}` : PLAY_SETTINGS[t.key] ? 'Open Google Analytics settings' : 'Open modules',
       ctaUrl,
       sourceModule: t.moduleId ?? undefined,
       data: { taskKind: t.kind, taskId: t.id, slug: t.key, action: t.action, route: t.route, moduleType: t.moduleType, finding: t.finding, daysPending: t.daysPending, overdue: t.overdue, visual: t.visual ?? null, choiceOptions: t.choiceOptions ?? null },

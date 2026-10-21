@@ -225,6 +225,36 @@ export async function checkFollowup(r: Reminder, accessToken: string): Promise<C
   return { reminderId: r.id, outcome: 'none' }
 }
 
+/**
+ * Checks one sent thread without a reminder (the Lead Agent's emails): has the recipient replied,
+ * opted out or bounced since `sinceMs`? Opt-outs and bounces are added to email_suppressions.
+ */
+export async function checkThreadReply(
+  brandId: string, accessToken: string, threadId: string, recipient: string, sinceMs: number,
+): Promise<{ outcome: 'replied' | 'opted_out' | 'bounced' | 'none' | 'untracked'; note?: string }> {
+  const messages = await fetchThread(accessToken, threadId)
+  if (messages === null) return { outcome: 'untracked' }
+  const fresh = messages.filter(m => Number(m.internalDate ?? 0) > sinceMs)
+  let human = fresh.filter(m => !m.labelIds?.includes('SENT') && !isBounce(m) && !isAutoReply(m))
+  if (!human.length && recipient.includes('@')) {
+    const other = await searchOtherReplies(accessToken, recipient, sinceMs, threadId).catch(() => [])
+    human = other.filter(m => !isBounce(m) && !isAutoReply(m))
+  }
+  if (human.length) {
+    const latest = [...human].sort((a, b) => Number(a.internalDate ?? 0) - Number(b.internalDate ?? 0))[human.length - 1]
+    const text = await replyText(accessToken, latest)
+    const outcome = await classifyReply(text)
+    if (outcome === 'opted_out' && recipient) await suppressEmail(brandId, recipient, 'opted_out', latest.snippet)
+    return { outcome, note: (latest.snippet || text).slice(0, 280) }
+  }
+  const bounce = fresh.find(isBounce)
+  if (bounce) {
+    if (recipient) await suppressEmail(brandId, recipient, 'bounced', bounce.snippet)
+    return { outcome: 'bounced', note: (bounce.snippet ?? 'Delivery failed').slice(0, 280) }
+  }
+  return { outcome: 'none' }
+}
+
 /** Checks every open Gmail follow-up for a brand. Skips ones checked in the last 10 minutes unless forced. */
 export async function checkBrandFollowups(
   brandId: string,

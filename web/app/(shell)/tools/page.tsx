@@ -52,6 +52,20 @@ export default async function ToolsPage() {
       ),
     },
     {
+      href: '/agents',
+      title: 'AI Agents',
+      desc: 'A Search Agent and a Lead Agent that work for you every week.',
+      color: '#2563eb',
+      glow: 'rgba(37,99,235,0.25)',
+      icon: (
+        <svg viewBox="0 0 20 20" fill="none" width="18" height="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <rect x="4" y="7" width="12" height="9" rx="2.5" />
+          <path d="M10 4.5V7M7.6 11.4v.2M12.4 11.4v.2" />
+          <circle cx="10" cy="3.5" r="1" />
+        </svg>
+      ),
+    },
+    {
       href: '/lead-finder',
       title: 'Find Leads',
       desc: 'Turn reviews into warm prospects.',
