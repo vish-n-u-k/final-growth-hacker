@@ -8112,3 +8112,75 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
   .ag-hd-actions { margin-left: 0; }
   .ag-meta-right { margin-left: 0; }
 }
+
+/* ── Tool pages: one shared frame, header, buttons and cards ─────────────────
+   Used by Tools, Today, Social Studio, Reminders and Meta Ads so moving between them in the
+   sidebar keeps the same title position, type scale and controls. Status colours reuse the
+   Growth Path tokens (--warn, --crit) plus --info, so they follow light/dark mode. */
+:root { --info: #7cb4f8; --info-soft: #14233a; }
+html.light { --info: #1d4ed8; --info-soft: #e8efff; }
+
+.tool-page { width: 100%; max-width: 1140px; margin: 0 auto; padding: 0 36px 80px; box-sizing: border-box; }
+.tool-col { max-width: 820px; }
+.tool-hd {
+  display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 14px 20px;
+  padding: 32px 0 20px; margin-bottom: 24px; border-bottom: 1px solid var(--line);
+}
+.tool-hd-main { min-width: 0; }
+.tool-title {
+  font-family: var(--font-display); font-size: 28px; font-weight: 600; letter-spacing: -.5px;
+  line-height: 1.15; color: var(--text); margin: 0;
+}
+.tool-sub { font-size: 13.5px; color: var(--text-dim); margin: 6px 0 0; }
+.tool-hd-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tool-label {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 12px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--text-faint);
+}
+.tool-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; }
+.tool-card-title { font-size: 15px; font-weight: 700; color: var(--text); margin: 0 0 4px; }
+.tool-card-sub { font-size: 13px; color: var(--text-dim); margin: 0 0 16px; line-height: 1.5; }
+.tool-error { font-size: 13px; color: var(--crit); margin: 10px 0 0; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 36px; padding: 0 16px; border-radius: 9px; box-sizing: border-box;
+  font-family: var(--font-body); font-size: 13px; font-weight: 600; line-height: 1; white-space: nowrap;
+  text-decoration: none; cursor: pointer; transition: background .15s, border-color .15s, color .15s, opacity .15s;
+}
+.btn-primary { background: var(--green); border: 1px solid var(--green); color: #fff; }
+.btn-primary:hover:not(:disabled) { opacity: .9; }
+.btn-ghost { background: var(--card); border: 1px solid var(--line); color: var(--text-dim); }
+.btn-ghost:hover:not(:disabled) { border-color: var(--green); color: var(--text); }
+.btn-ghost[aria-pressed="true"] { border-color: var(--green); color: var(--green); background: var(--accent); }
+.btn-link { background: none; border: none; height: auto; padding: 4px 0; color: var(--text-dim); font-weight: 500; }
+.btn-link:hover:not(:disabled) { color: var(--text); }
+.btn-sm { height: 30px; padding: 0 12px; font-size: 12.5px; border-radius: 8px; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+@media (max-width: 760px) {
+  .tool-page { padding: 0 16px 60px; }
+  .tool-hd { padding: 22px 0 16px; margin-bottom: 18px; }
+  .tool-title { font-size: 24px; }
+  .tool-card { padding: 18px 16px; }
+}
+
+/* Older per-tool classes, brought onto the same scale */
+.tool-page .tl-grid { padding-top: 0; }
+.rm-btn-ghost { color: var(--text-dim); background: var(--card); }
+.rm-btn-ghost:hover:not(:disabled) { color: var(--text); }
+.rm-section-hd { font-size: 11px; letter-spacing: .1em; }
+.bp-section-hd { font-size: 11px; letter-spacing: .1em; }
+.bp-analyse-btn, .bp-demo-btn { height: 36px; padding: 0 16px; border-radius: 9px; }
+/* Category badges: one neutral style (colour-per-category read as noise, as on the Tools page) */
+.rm-cat-badge.rm-cat-marketplace, .rm-cat-badge.rm-cat-appstore, .rm-cat-badge.rm-cat-directory,
+.rm-cat-badge.rm-cat-profile, .rm-cat-badge.rm-cat-custom { color: var(--text-dim); background: var(--bg-soft); border-color: var(--line); }
+.rm-cat-badge.rm-cat-outreach, .rm-cat-badge.rm-cat-audit { color: var(--accent-foreground); background: var(--accent); border-color: transparent; }
+.rm-due-overdue { color: var(--crit); }
+.rm-due-today, .rm-due-urgent { color: var(--warn); }
+.rm-card-overdue { border-left-color: var(--crit) !important; }
+.rm-card-urgent, .rm-card-soon { border-left-color: var(--warn) !important; }
+.tool-stack { display: flex; flex-direction: column; gap: 16px; }
+.tool-page .bp-content { padding: 0; }
+.tool-page > .bp-analyse-error { margin: 0 0 16px; color: var(--crit); background: var(--crit-soft); border-color: transparent; }
+.tool-page > .bp-analyse-error .bp-error-settings-link { color: var(--crit); }

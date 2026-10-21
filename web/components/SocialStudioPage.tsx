@@ -90,13 +90,13 @@ function PlatformPill({ platform, size = 'sm' }: { platform: string; size?: 'sm'
 function StatusPill({ post, now }: { post: ScheduledPost; now: number }) {
   const due = post.scheduledAt ? new Date(post.scheduledAt).getTime() <= now : false
   const configs: Record<string, { bg: string; color: string; border: string; label: string }> = {
-    done: { bg: 'rgba(23,154,80,.10)', color: 'var(--green)', border: 'rgba(23,154,80,.25)', label: 'Posted' },
+    done: { bg: 'var(--accent)', color: 'var(--accent-foreground)', border: 'transparent', label: 'Posted' },
     scheduled: due
       ? { bg: 'var(--frekto-soft)', color: 'var(--frekto-ink)', border: 'color-mix(in srgb, var(--frekto) 30%, transparent)', label: 'Sent to Frekto' }
-      : { bg: 'rgba(122,90,8,.08)', color: 'var(--gold)', border: 'rgba(122,90,8,.25)', label: 'Scheduled' },
-    scheduling: { bg: 'rgba(122,90,8,.08)', color: 'var(--gold)', border: 'rgba(122,90,8,.25)', label: 'Scheduling…' },
-    draft: { bg: 'rgba(37,99,235,.08)', color: '#2563eb', border: 'rgba(37,99,235,.25)', label: 'Needs approval' },
-    failed: { bg: 'rgba(220,38,38,.08)', color: '#dc2626', border: 'rgba(220,38,38,.25)', label: 'Failed' },
+      : { bg: 'var(--warn-soft)', color: 'var(--warn)', border: 'transparent', label: 'Scheduled' },
+    scheduling: { bg: 'var(--warn-soft)', color: 'var(--warn)', border: 'transparent', label: 'Scheduling…' },
+    draft: { bg: 'var(--info-soft)', color: 'var(--info)', border: 'transparent', label: 'Needs approval' },
+    failed: { bg: 'var(--crit-soft)', color: 'var(--crit)', border: 'transparent', label: 'Failed' },
     cancelled: { bg: 'var(--bg-soft)', color: 'var(--text-faint)', border: 'var(--line)', label: 'Cancelled' },
   }
   const cfg = configs[post.status] ?? configs.scheduled
@@ -114,43 +114,11 @@ const SOURCE_LABELS: Record<string, string> = {
   suggestion: 'AI suggestion', series: 'Series', auto: 'Auto-post', claude: 'From Claude', manual: 'Manual',
 }
 
-const card: React.CSSProperties = {
-  background: 'var(--card)',
-  border: '1px solid var(--line)',
-  borderRadius: '12px',
-  padding: '24px',
-  marginBottom: '20px',
-}
-
-const sectionTitle: React.CSSProperties = {
-  fontSize: '15px',
-  fontWeight: 700,
-  color: 'var(--text)',
-  marginBottom: '4px',
-}
-
-const sectionSub: React.CSSProperties = {
-  fontSize: '12px',
-  color: 'var(--text-faint)',
-  marginBottom: '16px',
-}
-
-const primaryBtn = (disabled = false): React.CSSProperties => ({
-  padding: '6px 14px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, border: 'none',
-  cursor: disabled ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
-  background: disabled ? 'var(--bg-soft)' : 'var(--green)', color: disabled ? 'var(--text-dim)' : '#fff',
-  fontFamily: 'var(--font-body)',
-})
-
-const ghostBtn: React.CSSProperties = {
-  padding: '6px 12px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap',
-  border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer',
-  fontFamily: 'var(--font-body)',
-}
+// Cards, buttons and headings use the shared tool classes in globals.css (.tool-card, .btn, …)
 
 const inputStyle: React.CSSProperties = {
-  padding: '5px 8px', borderRadius: '7px', border: '1px solid var(--line)', background: 'var(--bg)',
-  color: 'var(--text)', fontSize: '12px', fontFamily: 'var(--font-body)',
+  padding: '7px 10px', borderRadius: '9px', border: '1px solid var(--line)', background: 'var(--card)',
+  color: 'var(--text)', fontSize: '13px', fontFamily: 'var(--font-body)',
 }
 
 const isVideoUrl = (url: string | null) => !!url && /\.(mp4|mov|webm)(\?|$)/i.test(url)
@@ -244,16 +212,16 @@ function PreviewModal({ post, timezone, onClose }: { post: ScheduledPost; timezo
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
           <PlatformPill platform={post.platform} size="md" />
           <span style={{ fontSize: 12, color: 'var(--text-faint)' }}>{formatInZone(post.scheduledAt, timezone)}</span>
-          <button onClick={onClose} style={{ ...ghostBtn, marginLeft: 'auto' }}>Close</button>
+          <button onClick={onClose} className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}>Close</button>
         </div>
         {url && (isVideoUrl(url)
           ? <video src={url} controls playsInline style={{ width: '100%', borderRadius: 8, background: '#000' }} />
           : <img src={url} alt={post.topic} style={{ width: '100%', borderRadius: 8, display: 'block' }} />)}
         {slides && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 8 }}>
-            <button style={ghostBtn} disabled={i === 0} onClick={() => setI(i - 1)}>‹ Prev</button>
+            <button className="btn btn-ghost btn-sm" disabled={i === 0} onClick={() => setI(i - 1)}>‹ Prev</button>
             <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Slide {i + 1} of {slides.length}</span>
-            <button style={ghostBtn} disabled={i === slides.length - 1} onClick={() => setI(i + 1)}>Next ›</button>
+            <button className="btn btn-ghost btn-sm" disabled={i === slides.length - 1} onClick={() => setI(i + 1)}>Next ›</button>
           </div>
         )}
         <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginTop: 12 }}>{post.topic}</div>
@@ -288,11 +256,11 @@ function WhenPicker({ initialIso, timezone, onTimezone, busy, confirmLabel, onCo
       <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} aria-label="Date" />
       <TimeField value={time} onChange={setTime} disabled={busy} />
       <TimezoneSelect compact value={timezone} onChange={onTimezone} disabled={busy} style={{ maxWidth: 240 }} ariaLabel="Timezone for this time" />
-      <button style={primaryBtn(busy || !date || !time)} disabled={busy || !date || !time} onClick={() => onConfirm({ date, time, timezone })}>
+      <button className="btn btn-primary btn-sm" disabled={busy || !date || !time} onClick={() => onConfirm({ date, time, timezone })}>
         {busy ? '…' : confirmLabel}
       </button>
-      {onPostNow && <button style={ghostBtn} disabled={busy} onClick={onPostNow}>Post now</button>}
-      {onCancel && <button style={ghostBtn} disabled={busy} onClick={onCancel}>Back</button>}
+      {onPostNow && <button className="btn btn-ghost btn-sm" disabled={busy} onClick={onPostNow}>Post now</button>}
+      {onCancel && <button className="btn btn-ghost btn-sm" disabled={busy} onClick={onCancel}>Back</button>}
     </div>
   )
 }
@@ -577,47 +545,46 @@ export default function SocialStudioPage({
   }
 
   const header = (
-    <div style={{ marginBottom: '28px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px 12px', flexWrap: 'wrap', marginBottom: 4 }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)', margin: 0, fontFamily: 'var(--font-display)' }}>
-          Social Studio
-        </h1>
-        <FrektoBadge />
+    <div className="tool-hd">
+      <div className="tool-hd-main">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px 12px', flexWrap: 'wrap' }}>
+          <h1 className="tool-title">Social Studio</h1>
+          <FrektoBadge />
+        </div>
+        <p className="tool-sub">GrowJin plans what to post for {brandName}; Frekto creates and publishes it.</p>
+        <HowItWorks />
       </div>
-      <p style={{ fontSize: '13px', color: 'var(--text-faint)', margin: 0 }}>
-        GrowJin plans what to post for {brandName}; Frekto creates and publishes it.
-      </p>
-      <HowItWorks />
-      {frektoConnected && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 10px', marginTop: 12, fontSize: 13, color: 'var(--text-dim)' }}>
+    </div>
+  )
+
+  const timezoneRow = frektoConnected && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 10px', fontSize: 13, color: 'var(--text-dim)' }}>
           <span>Times are shown and scheduled in</span>
           <TimezoneSelect value={tz} onChange={changeTz} style={{ maxWidth: 300 }} />
           {deviceTz && deviceTz !== tz && (
-            <button type="button" style={{ ...ghostBtn, fontSize: 12 }} onClick={() => changeTz(deviceTz)}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => changeTz(deviceTz)}>
               Use my timezone ({deviceTz.replace(/_/g, ' ')})
             </button>
           )}
-          {tzError && <span style={{ flexBasis: '100%', fontSize: 12, color: '#dc2626' }}>{tzError}</span>}
+          {tzError && <span style={{ flexBasis: '100%', fontSize: 12, color: 'var(--crit)' }}>{tzError}</span>}
         </div>
-      )}
-    </div>
   )
 
   // Not connected: one clear card instead of five greyed-out sections each saying "connect Frekto".
   if (!frektoConnected) {
     return (
-      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 16px' }}>
+      <div className="tool-page">
         {header}
-        <div style={{ ...card, padding: '22px' }}>
-          <div style={sectionTitle}>Connect Frekto to start posting</div>
-          <p style={{ ...sectionSub, marginBottom: '14px' }}>GrowJin plans your posts; Frekto creates and publishes them from your Frekto account. Once it&apos;s connected, Social Studio can:</p>
+        <div className="tool-card tool-col">
+          <h2 className="tool-card-title">Connect Frekto to start posting</h2>
+          <p className="tool-card-sub">GrowJin plans your posts; Frekto creates and publishes them from your Frekto account. Once it&apos;s connected, Social Studio can:</p>
           <ul style={{ margin: '0 0 18px', paddingLeft: '18px', listStyle: 'disc', fontSize: '13.5px', color: 'var(--text-dim)', lineHeight: 1.8 }}>
             <li>Suggest one ready-to-post idea per platform from your audit</li>
             <li>Show you each post before it&apos;s scheduled</li>
             <li>Plan a whole content series</li>
             <li>Keep a queue you can reschedule or cancel</li>
           </ul>
-          <a href="/settings?tab=integrations" style={{ display: 'inline-block', padding: '10px 18px', borderRadius: '10px', background: 'var(--frekto)', color: '#fff', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}>
+          <a href="/settings?tab=integrations" className="btn btn-primary" style={{ background: 'var(--frekto)', borderColor: 'var(--frekto)' }}>
             Connect Frekto →
           </a>
         </div>
@@ -626,13 +593,13 @@ export default function SocialStudioPage({
   }
 
   const errorFor = (id: string) => postError?.id === id ? (
-    <div style={{ marginTop: 8, fontSize: 12, color: '#dc2626' }}>
+    <div style={{ marginTop: 8, fontSize: 12, color: 'var(--crit)' }}>
       {postError.message}
       {postError.canRegenerate && (
         <div style={{ marginTop: 6, color: 'var(--text-dim)' }}>
           You can schedule a fresh render of the same topic instead — it may look different from this preview.{' '}
           <button
-            style={{ ...ghostBtn, padding: '3px 8px', marginLeft: 4 }}
+            className="btn btn-ghost btn-sm" style={{ marginLeft: 4 }}
             onClick={() => {
               const p = posts.find(x => x.id === id)
               const at = p?.scheduledAt && new Date(p.scheduledAt).getTime() > Date.now() ? new Date(p.scheduledAt) : new Date(Date.now() + 864e5)
@@ -675,14 +642,14 @@ export default function SocialStudioPage({
               {p.error && p.status !== 'failed' ? ` · ${p.error}` : ''}
             </div>
           )}
-          {p.status === 'failed' && p.error && <div style={{ fontSize: '11px', color: '#dc2626', marginTop: 2 }}>{p.error}</div>}
+          {p.status === 'failed' && p.error && <div style={{ fontSize: '11px', color: 'var(--crit)', marginTop: 2 }}>{p.error}</div>}
         </div>
         {!compact && p.status === 'scheduled' && reschedulingId !== p.id && (
           <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 'auto' }}>
             {p.canManage ? (
               <>
-                <button style={ghostBtn} disabled={busyPost === p.id} onClick={() => { setReschedulingId(p.id); setPostError(null) }}>Reschedule</button>
-                <button style={ghostBtn} disabled={busyPost === p.id} onClick={() => cancelPost(p)}>{busyPost === p.id ? '…' : 'Cancel'}</button>
+                <button className="btn btn-ghost btn-sm" disabled={busyPost === p.id} onClick={() => { setReschedulingId(p.id); setPostError(null) }}>Reschedule</button>
+                <button className="btn btn-ghost btn-sm" disabled={busyPost === p.id} onClick={() => cancelPost(p)}>{busyPost === p.id ? '…' : 'Cancel'}</button>
               </>
             ) : (
               <a href="https://app.frekto.ai" target="_blank" rel="noreferrer" style={{ fontSize: 11, color: 'var(--text-faint)', whiteSpace: 'nowrap' }}>Manage in Frekto ↗</a>
@@ -707,18 +674,20 @@ export default function SocialStudioPage({
   const platformsSet = !!frektoMeta.auto_post_platforms.trim()
 
   return (
-    <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 16px' }}>
+    <div className="tool-page">
       {header}
+      <div className="tool-col tool-stack">
+      {timezoneRow}
 
       {/* Section 1 — Auto-Post Control (Frekto's feature, so in Frekto's colours) */}
-      <div style={{ ...card, borderColor: 'color-mix(in srgb, var(--frekto) 30%, var(--line))' }}>
+      <div className="tool-card" style={{ borderColor: 'color-mix(in srgb, var(--frekto) 30%, var(--line))' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
           <div>
-            <div style={{ ...sectionTitle, display: 'flex', alignItems: 'center', gap: 8 }}><FrektoLogo size={20} />Auto-posting with Frekto</div>
+            <h2 className="tool-card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}><FrektoLogo size={20} />Auto-posting with Frekto</h2>
             <p style={{ fontSize: 12, fontWeight: 600, margin: '0 0 4px', color: autoPost ? 'var(--frekto-ink)' : 'var(--text-faint)' }}>
               {!autoPost ? 'Off' : autoMode === 'approve' ? 'On · asks you before anything is posted' : 'On · posts automatically'}
             </p>
-            <p style={{ ...sectionSub, marginBottom: 0 }}>
+            <p className="tool-card-sub" style={{ marginBottom: 0 }}>
               {!autoPost
                 ? 'Turn on to have a post made for you every day: GrowJin picks the topic, Frekto designs it and publishes it.'
                 : autoMode === 'approve'
@@ -731,7 +700,7 @@ export default function SocialStudioPage({
               </p>
             )}
             {autoPost && !platformsSet && (
-              <p style={{ fontSize: '12px', color: '#dc2626', margin: '6px 0 0' }}>
+              <p style={{ fontSize: '12px', color: 'var(--crit)', margin: '6px 0 0' }}>
                 No platforms chosen, so nothing will be made.{' '}
                 <a href="/settings?tab=integrations" style={{ color: 'var(--green)', textDecoration: 'none' }}>Set auto-post platforms in Settings → Integrations → Frekto</a>
               </p>
@@ -771,21 +740,22 @@ export default function SocialStudioPage({
                 aria-pressed={autoMode === m}
                 disabled={autoPostLoading}
                 onClick={() => saveAutoPost({ mode: m })}
-                style={{ ...ghostBtn, ...(autoMode === m ? { borderColor: 'var(--frekto)', color: 'var(--frekto-ink)', background: 'var(--frekto-soft)' } : {}) }}
+                className="btn btn-ghost btn-sm"
+                style={autoMode === m ? { borderColor: 'var(--frekto)', color: 'var(--frekto-ink)', background: 'var(--frekto-soft)' } : undefined}
               >
                 {label}
               </button>
             ))}
           </div>
         )}
-        {autoPostError && <p style={{ fontSize: 12, color: '#dc2626', margin: '10px 0 0' }}>{autoPostError}</p>}
+        {autoPostError && <p className="tool-error">{autoPostError}</p>}
       </div>
 
       {/* Section 2 — Drafts waiting for approval */}
       {drafts.length > 0 && (
-        <div style={{ ...card, borderColor: 'rgba(37,99,235,.35)' }}>
-          <div style={sectionTitle}>Waiting for your approval ({drafts.length})</div>
-          <p style={sectionSub}>Check each post, then schedule it, post it now, or discard it. Nothing is published until you approve.</p>
+        <div className="tool-card" style={{ borderColor: 'color-mix(in srgb, var(--info) 40%, var(--line))' }}>
+          <h2 className="tool-card-title">Waiting for your approval ({drafts.length})</h2>
+          <p className="tool-card-sub">Check each post, then schedule it, post it now, or discard it. Nothing is published until you approve.</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {drafts.map(p => (
               <div key={p.id} style={{ padding: '14px', borderRadius: '10px', border: '1px solid var(--line)', background: 'var(--bg)' }}>
@@ -812,7 +782,7 @@ export default function SocialStudioPage({
                     ) : (
                       <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>Frekto is still rendering this preview. It will appear here automatically.</div>
                     )}
-                    <button style={{ ...ghostBtn, marginTop: 8, border: 'none', padding: '4px 0', color: 'var(--text-faint)' }} disabled={busyPost === p.id} onClick={() => cancelPost(p)}>
+                    <button className="btn btn-link" style={{ marginTop: 8 }} disabled={busyPost === p.id} onClick={() => cancelPost(p)}>
                       Discard
                     </button>
                     {errorFor(p.id)}
@@ -825,9 +795,9 @@ export default function SocialStudioPage({
       )}
 
       {/* Section 3 — Upcoming queue */}
-      <div style={card}>
-        <div style={sectionTitle}>Upcoming</div>
-        <p style={sectionSub}>Scheduled with Frekto. Click a picture to see the full post.</p>
+      <div className="tool-card">
+        <h2 className="tool-card-title">Upcoming</h2>
+        <p className="tool-card-sub">Scheduled with Frekto. Click a picture to see the full post.</p>
         {upcomingGroups.length === 0 ? (
           <p style={{ fontSize: '13px', color: 'var(--text-faint)', margin: 0 }}>
             Nothing scheduled — use AI Suggest below to make your next post.
@@ -847,7 +817,7 @@ export default function SocialStudioPage({
 
         {history.length > 0 && (
           <div style={{ marginTop: 16 }}>
-            <button style={{ ...ghostBtn, border: 'none', padding: 0 }} onClick={() => setShowHistory(v => !v)}>
+            <button className="btn btn-link" onClick={() => setShowHistory(v => !v)}>
               {showHistory ? '▾' : '▸'} Past posts ({history.length})
             </button>
             {showHistory && (
@@ -865,9 +835,9 @@ export default function SocialStudioPage({
       </div>
 
       {/* Section 4 — AI Suggest (single posts) */}
-      <div style={card}>
-        <div style={sectionTitle}>AI Suggest — single posts</div>
-        <p style={sectionSub}>One post idea per platform from your audit. Ideas you&apos;ve already posted, queued or turned down aren&apos;t suggested again. You&apos;ll see a preview before anything is scheduled.</p>
+      <div className="tool-card">
+        <h2 className="tool-card-title">AI Suggest — single posts</h2>
+        <p className="tool-card-sub">One post idea per platform from your audit. Ideas you&apos;ve already posted, queued or turned down aren&apos;t suggested again. You&apos;ll see a preview before anything is scheduled.</p>
 
         {!socialModuleId ? (
           <p style={{ fontSize: '13px', color: 'var(--text-faint)', margin: 0 }}>
@@ -875,12 +845,12 @@ export default function SocialStudioPage({
           </p>
         ) : (
           <>
-            <button disabled={suggestLoading} onClick={fetchSuggestions} style={{ ...primaryBtn(suggestLoading), padding: '8px 18px', fontSize: 13 }}>
+            <button disabled={suggestLoading} onClick={fetchSuggestions} className="btn btn-primary">
               {suggestLoading ? <><Spinner />Thinking…</> : suggestions.some(s => s.id) ? 'Get new suggestions' : 'Get suggestions'}
             </button>
 
             {suggestError && (
-              <p style={{ fontSize: '13px', color: '#ef4444', margin: '12px 0 0' }}>{suggestError}</p>
+              <p className="tool-error">{suggestError}</p>
             )}
 
             {suggestions.length > 0 && (
@@ -921,8 +891,8 @@ export default function SocialStudioPage({
                       </div>
                       {s.shouldPost && s.id && (
                         <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                          <button style={ghostBtn} disabled={previewingId === s.id} onClick={() => dismissSuggestion(s.id, 'post')}>Not interested</button>
-                          <button style={primaryBtn(previewingId !== null)} disabled={previewingId !== null} onClick={() => createPreview(s)}>
+                          <button className="btn btn-ghost btn-sm" disabled={previewingId === s.id} onClick={() => dismissSuggestion(s.id, 'post')}>Not interested</button>
+                          <button className="btn btn-primary btn-sm" disabled={previewingId !== null} onClick={() => createPreview(s)}>
                             {previewingId === s.id ? <><Spinner />Rendering… (up to 1 min)</> : 'Create preview'}
                           </button>
                         </div>
@@ -937,9 +907,9 @@ export default function SocialStudioPage({
       </div>
 
       {/* Section 5 — Series Suggest */}
-      <div style={card}>
-        <div style={sectionTitle}>Series Suggest</div>
-        <p style={sectionSub}>Plan a full content series — GrowJin writes the brief, Frekto makes and schedules every post. You can cancel or move any of them under Upcoming.</p>
+      <div className="tool-card">
+        <h2 className="tool-card-title">Series Suggest</h2>
+        <p className="tool-card-sub">Plan a full content series — GrowJin writes the brief, Frekto makes and schedules every post. You can cancel or move any of them under Upcoming.</p>
 
         {!socialModuleId ? (
           <p style={{ fontSize: '13px', color: 'var(--text-faint)', margin: 0 }}>
@@ -947,12 +917,12 @@ export default function SocialStudioPage({
           </p>
         ) : (
           <>
-            <button disabled={seriesLoading} onClick={fetchSeriesSuggestions} style={{ ...primaryBtn(seriesLoading), padding: '8px 18px', fontSize: 13 }}>
+            <button disabled={seriesLoading} onClick={fetchSeriesSuggestions} className="btn btn-primary">
               {seriesLoading ? <><Spinner />Planning…</> : 'Plan a content series'}
             </button>
 
             {seriesError && (
-              <p style={{ fontSize: '13px', color: '#ef4444', margin: '12px 0 0' }}>{seriesError}</p>
+              <p className="tool-error">{seriesError}</p>
             )}
 
             {seriesSuggestions.length > 0 && (
@@ -977,11 +947,11 @@ export default function SocialStudioPage({
                           )}
                         </div>
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                          <button style={ghostBtn} disabled={launchingId === key} onClick={() => dismissSuggestion(s.id, 'series')}>Not interested</button>
+                          <button className="btn btn-ghost btn-sm" disabled={launchingId === key} onClick={() => dismissSuggestion(s.id, 'series')}>Not interested</button>
                           <button
                             disabled={launchingId !== null}
                             onClick={() => { if (window.confirm(`Frekto will make and schedule ${s.count} ${s.platform} posts starting ${s.startDate}. Continue?`)) launchSeries(s) }}
-                            style={primaryBtn(launchingId !== null)}
+                            className="btn btn-primary btn-sm"
                           >
                             {launchingId === key ? <><Spinner />Generating… (up to 3 min)</> : 'Launch series'}
                           </button>
@@ -997,9 +967,9 @@ export default function SocialStudioPage({
       </div>
 
       {/* Section 6 — Manual Create */}
-      <div style={card}>
-        <div style={sectionTitle}>Create a post manually</div>
-        <p style={sectionSub}>Describe a post; Frekto renders a preview and it waits for your approval above.</p>
+      <div className="tool-card">
+        <h2 className="tool-card-title">Create a post manually</h2>
+        <p className="tool-card-sub">Describe a post; Frekto renders a preview and it waits for your approval above.</p>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
           <select value={manual.platform} onChange={e => setManual(m => ({ ...m, platform: e.target.value }))} style={inputStyle} aria-label="Platform">
             {MANUAL_PLATFORMS.map(p => <option key={p} value={p}>{socialBrand(p)?.name ?? p}</option>)}
@@ -1017,12 +987,13 @@ export default function SocialStudioPage({
           maxLength={300}
           style={{ ...inputStyle, width: '100%', boxSizing: 'border-box', fontSize: 13, resize: 'vertical' }}
         />
-        <button disabled={manualBusy || !manual.topic.trim()} onClick={createManual} style={{ ...primaryBtn(manualBusy || !manual.topic.trim()), marginTop: 8 }}>
+        <button disabled={manualBusy || !manual.topic.trim()} onClick={createManual} className="btn btn-primary" style={{ marginTop: 10 }}>
           {manualBusy ? <><Spinner />Rendering… (up to 1 min)</> : 'Create preview'}
         </button>
-        {manualError && <p style={{ fontSize: '13px', color: '#ef4444', margin: '10px 0 0' }}>{manualError}</p>}
+        {manualError && <p className="tool-error">{manualError}</p>}
       </div>
 
+      </div>
       {openPost && <PreviewModal post={openPost} timezone={tz} onClose={() => setOpenPost(null)} />}
     </div>
   )

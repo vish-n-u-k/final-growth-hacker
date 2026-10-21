@@ -67,6 +67,10 @@ const CAT_CLASS: Record<string, string> = {
 }
 
 const CATEGORIES = REMINDER_CATEGORIES
+const CATEGORY_LABELS: Record<string, string> = {
+  marketplace: 'Marketplace', 'app-store': 'App store', directory: 'Directory', profile: 'Profile', outreach: 'Outreach', custom: 'Custom',
+}
+const categoryLabel = (c: string) => CATEGORY_LABELS[c] ?? c
 
 // Calendar days until the date: due today (earlier or later) → 0, tomorrow → 1, yesterday → -1 (overdue)
 function daysUntil(isoDate: string): number {
@@ -384,7 +388,7 @@ export default function RemindersPage({
         <div className={`rm-card rm-card-outreach${days < 0 ? ' rm-card-overdue' : days <= 2 ? ' rm-card-urgent' : days <= 7 ? ' rm-card-soon' : ''}`}>
           {/* Top row: due badge + kebab menu */}
           <div className="rm-card-row" style={{ paddingBottom: 8 }}>
-            <span className={`rm-cat-badge ${CAT_CLASS['outreach']}`}>outreach</span>
+            <span className={`rm-cat-badge ${CAT_CLASS['outreach']}`}>{categoryLabel('outreach')}</span>
             <div className="rm-card-right" style={{ marginLeft: 'auto' }}>
               {days < 0
                 ? <span className="rm-due rm-due-overdue">{Math.abs(days)}d overdue</span>
@@ -543,7 +547,7 @@ export default function RemindersPage({
           )}
           {source
             ? <span className="rm-cat-badge rm-cat-audit">{source}</span>
-            : <span className={`rm-cat-badge ${CAT_CLASS[r.category] ?? 'rm-cat-custom'}`}>{r.category}</span>}
+            : <span className={`rm-cat-badge ${CAT_CLASS[r.category] ?? 'rm-cat-custom'}`}>{categoryLabel(r.category)}</span>}
           <span className="rm-card-meta">{r.intervalDays}d</span>
 
           <div className="rm-card-right">
@@ -634,10 +638,10 @@ export default function RemindersPage({
         </div>
       </header>
 
-      <div className="wrap">
+      <div className="tool-page">
         {/* Page header */}
-        <div className="st-page-hd" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+        <div className="tool-hd">
+          <div className="tool-hd-main" style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
             <button
               className="shell-dup-back"
               onClick={goBack}
@@ -649,8 +653,8 @@ export default function RemindersPage({
               </svg>
             </button>
             <div>
-              <h1 className="st-page-title">Reminders</h1>
-              <p className="st-page-sub">
+              <h1 className="tool-title">Reminders</h1>
+              <p className="tool-sub">
                 {brandProfile.name}
                 {changes.length > 0 ? ` · ${changes.length} change${changes.length !== 1 ? 's' : ''} to act on` : ''}
                 {groups.followups.length > 0 ? ` · ${groups.followups.length} follow-up${groups.followups.length !== 1 ? 's' : ''}` : ''}
@@ -658,12 +662,12 @@ export default function RemindersPage({
               </p>
             </div>
           </div>
-          <div className="rm-actions" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', paddingTop: 6 }}>
-            <button className="rm-btn-primary" onClick={() => openAdd()}>+ Add check</button>
+          <div className="tool-hd-actions">
+            <button className="btn btn-primary" onClick={() => openAdd()}>+ Add check</button>
           </div>
         </div>
 
-        <div style={{ paddingTop: 28, paddingBottom: 80 }}>
+        <div>
 
           {toast && (
             <div className={`rm-toast rm-toast-${toast.kind}`} role="status">
@@ -675,7 +679,7 @@ export default function RemindersPage({
           {/* 1. What changed — raised from the brand's own data */}
           <div className="rm-section">
             <div className="rm-section-hd">
-              <span className="rm-section-dot" style={{ background: '#dc2626' }} />
+              <span className="rm-section-dot" style={{ background: 'var(--crit)' }} />
               What changed
               {changes.length > 0 && <span className="rm-section-count">{changes.length}</span>}
             </div>
@@ -706,8 +710,8 @@ export default function RemindersPage({
           )}
 
           {/* 3. Recurring checks — chores the user chose */}
-          {section('Overdue checks', groups.overdue, '#dc2626')}
-          {section('Checks due this week', groups.thisWeek, '#d97706')}
+          {section('Overdue checks', groups.overdue, 'var(--crit)')}
+          {section('Checks due this week', groups.thisWeek, 'var(--warn)')}
           {section('Upcoming checks', groups.upcoming)}
 
           {suggestions.length > 0 && (
@@ -794,7 +798,7 @@ export default function RemindersPage({
               <div className="rm-field" style={{ flex: 1 }}>
                 <label className="rm-label">Category</label>
                 <select className="rm-input rm-select" value={addForm.category} onChange={e => setAddForm(f => ({ ...f, category: e.target.value as ReminderCategory }))}>
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {CATEGORIES.map(c => <option key={c} value={c}>{categoryLabel(c)}</option>)}
                 </select>
               </div>
               <div className="rm-field" style={{ width: 120 }}>

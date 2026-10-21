@@ -138,13 +138,11 @@ export default async function ToolsPage() {
   ]
 
   return (
-    <div className="gh-page">
-      <div className="gh-inner">
-        <div className="gh-header">
-          <div>
-            <Link href="/dashboard" className="gh-back">← Dashboard</Link>
-            <div className="gh-title">Tools</div>
-            <div className="gh-subtitle">{brand.name} — every growth tool in one place</div>
+    <div className="tool-page">
+        <div className="tool-hd">
+          <div className="tool-hd-main">
+            <h1 className="tool-title">Tools</h1>
+            <p className="tool-sub">{brand.name} — every growth tool in one place</p>
           </div>
         </div>
 
@@ -180,7 +178,6 @@ export default async function ToolsPage() {
             )
           })}
         </div>
-      </div>
     </div>
   )
 }

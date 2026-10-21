@@ -90,16 +90,17 @@ interface Props {
 
 // ── Type config ───────────────────────────────────────────────────────────────
 
+// Same four status colours as the other tools (tokens in globals.css), so they follow light/dark mode
 const TYPE_CONFIG: Record<string, { label: string; dot: string; border: string }> = {
-  outreach:      { label: 'Traffic signal',  dot: '#d97706', border: '#d97706' },
-  social:        { label: 'Social signal',   dot: '#7c3aed', border: '#7c3aed' },
-  seo:           { label: 'SEO signal',      dot: '#179a50', border: '#179a50' },
-  content:       { label: 'Content signal',  dot: '#0284c7', border: '#0284c7' },
-  'module-item': { label: 'Quick win',       dot: '#dc2626', border: '#dc2626' },
-  alert:         { label: 'Alert',           dot: '#dc2626', border: '#dc2626' },
-  play:          { label: 'Growth focus',    dot: '#179a50', border: '#179a50' },
-  blog:          { label: 'Blog signal',     dot: '#0891b2', border: '#0891b2' },
-  reminder:      { label: 'Reminder',        dot: '#f59e0b', border: '#f59e0b' },
+  outreach:      { label: 'Traffic signal',  dot: 'var(--warn)',  border: 'var(--warn)' },
+  social:        { label: 'Social signal',   dot: 'var(--info)',  border: 'var(--info)' },
+  seo:           { label: 'SEO signal',      dot: 'var(--green)', border: 'var(--green)' },
+  content:       { label: 'Content signal',  dot: 'var(--info)',  border: 'var(--info)' },
+  'module-item': { label: 'Quick win',       dot: 'var(--crit)',  border: 'var(--crit)' },
+  alert:         { label: 'Alert',           dot: 'var(--crit)',  border: 'var(--crit)' },
+  play:          { label: 'Growth focus',    dot: 'var(--green)', border: 'var(--green)' },
+  blog:          { label: 'Blog signal',     dot: 'var(--info)',  border: 'var(--info)' },
+  reminder:      { label: 'Reminder',        dot: 'var(--warn)',  border: 'var(--warn)' },
 }
 
 const TYPE_WHY: Record<string, string> = {
@@ -115,9 +116,9 @@ const TYPE_WHY: Record<string, string> = {
 }
 
 const IMPACT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  'keyword-gain':   { label: 'SEO',     color: '#179a50', bg: 'rgba(23,154,80,.1)' },
-  'traffic-growth': { label: 'Traffic', color: '#0284c7', bg: 'rgba(2,132,199,.1)' },
-  'social-traffic': { label: 'Social',  color: '#7c3aed', bg: 'rgba(124,58,237,.1)' },
+  'keyword-gain':   { label: 'SEO',     color: 'var(--accent-foreground)', bg: 'var(--accent)' },
+  'traffic-growth': { label: 'Traffic', color: 'var(--info)', bg: 'var(--info-soft)' },
+  'social-traffic': { label: 'Social',  color: 'var(--info)', bg: 'var(--info-soft)' },
 }
 
 const IMPACT_WHY: Record<string, string> = {
@@ -1214,18 +1215,19 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         </div>
       )}
 
-      {/* Hero */}
-      <div className="td-hero">
-        <div className="td-hero-left">
-          <div className="td-hero-day">{dayLabel}</div>
-          <div className="td-hero-tag">
+      <div className="tool-page">
+      {/* Header */}
+      <div className="tool-hd">
+        <div className="tool-hd-main">
+          <h1 className="tool-title">{dayLabel}</h1>
+          <p className="tool-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {ready && cards.length > 0
               ? `${cards.length} thing${cards.length === 1 ? ' needs' : 's need'} your attention`
               : ready && !refreshing ? 'You\'re all caught up'
               : <><Spinner size={12} />Checking your signals…</>}
-          </div>
+          </p>
         </div>
-        <div className="td-hero-right">
+        <div className="tool-hd-actions td-hero-right">
           <AnalyticsBar />
           {streak > 0 && (
             <div className="td-streak-pill">
@@ -1384,22 +1386,9 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           </>
         )}
       </div>
+      </div>
 
       <style>{`
-        /* tokens */
-        :root {
-          --td-amber-bg:   rgba(217,119,6,.07);
-          --td-amber-line: rgba(217,119,6,.25);
-          --td-violet-bg:  rgba(124,58,237,.07);
-          --td-violet-line:rgba(124,58,237,.25);
-          --td-green-bg:   rgba(23,154,80,.07);
-          --td-green-line: rgba(23,154,80,.25);
-          --td-blue-bg:    rgba(2,132,199,.07);
-          --td-blue-line:  rgba(2,132,199,.25);
-          --td-red-bg:     rgba(220,38,38,.07);
-          --td-red-line:   rgba(220,38,38,.25);
-        }
-
         /* shell */
         .td-root { min-height: 100vh; background: var(--bg); display: flex; flex-direction: column; }
 
@@ -1477,7 +1466,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .tsp-link { background: none; border: none; padding: 6px 2px; color: var(--text-dim); font-size: 13.5px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
         .tsp-link:hover { color: var(--text); }
         .tsp-hint { font-size: 12.5px; color: var(--text-faint); margin: 0; }
-        .tsp-error { margin: 0; font-size: 13.5px; color: #dc2626; }
+        .tsp-error { margin: 0; font-size: 13.5px; color: var(--crit); }
         .tsp-progress { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-radius: 10px; background: var(--bg-soft); }
         .tsp-progress b { font-size: 14px; color: var(--text); }
         .tsp-progress p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-faint); }
@@ -1522,25 +1511,16 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           padding: 10px 24px; font-size: 13px; font-weight: 500;
           border-bottom: 1px solid var(--line);
         }
-        .td-oauth-banner--ok { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
-        .td-oauth-banner--error { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
+        .td-oauth-banner--ok { background: var(--accent); color: var(--accent-foreground); }
+        .td-oauth-banner--error { background: var(--crit-soft); color: var(--crit); }
         .td-oauth-banner-close {
           background: none; border: none; cursor: pointer; font-size: 14px;
           color: inherit; opacity: 0.6; padding: 0 4px;
         }
         .td-oauth-banner-close:hover { opacity: 1; }
 
-        /* hero */
-        .td-hero {
-          display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
-          padding: 36px clamp(20px, 3.2vw, 48px) 0; max-width: 1680px; width: 100%; margin: 0 auto; box-sizing: border-box;
-        }
-        .td-hero-day {
-          font-family: var(--font-display, serif); font-size: 30px; font-weight: 700;
-          color: var(--text); letter-spacing: -0.6px; line-height: 1;
-        }
-        .td-hero-tag { font-size: 14px; color: var(--text-dim); margin-top: 6px; }
-        .td-hero-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding-top: 4px; }
+        /* header: the page frame and title come from the shared .tool-page / .tool-hd */
+        .td-hero-right { gap: 10px; }
 
         /* analytics bar */
         .td-analytics-bar {
@@ -1560,8 +1540,8 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-analytics-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); }
         .td-analytics-num { font-weight: 700; color: var(--text); }
         .td-analytics-delta { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 99px; }
-        .td-analytics-delta--up { background: rgba(23,154,80,.12); color: var(--green); }
-        .td-analytics-delta--dn { background: rgba(220,38,38,.1); color: #dc2626; }
+        .td-analytics-delta--up { background: var(--accent); color: var(--accent-foreground); }
+        .td-analytics-delta--dn { background: var(--crit-soft); color: var(--crit); }
         .td-analytics-channel { color: var(--text-faint); font-size: 12px; }
 
         /* streak */
@@ -1574,11 +1554,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-streak-txt { font-size: 12px; color: var(--text-dim); }
 
         /* body */
-        .td-body {
-          max-width: 1680px; width: 100%; margin: 0 auto;
-          padding: 24px clamp(20px, 3.2vw, 48px) 80px; box-sizing: border-box;
-          display: flex; flex-direction: column; gap: 14px;
-        }
+        .td-body { display: flex; flex-direction: column; gap: 14px; }
 
         .td-journey .gp-journey { margin-bottom: 0; }
 
@@ -1643,7 +1619,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         /* CTA button */
         .td-cta-btn {
           display: inline-flex; align-items: center; align-self: flex-start;
-          font-size: 13px; font-weight: 600; padding: 9px 18px;
+          font-size: 13px; font-weight: 600; height: 36px; padding: 0 16px; box-sizing: border-box;
           border-radius: 9px; background: var(--green); color: #fff;
           border: none; text-decoration: none; cursor: pointer;
           transition: opacity .15s; margin-top: 4px;
@@ -1655,7 +1631,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         /* ghost button */
         .td-ghost-btn {
           display: inline-flex; align-items: center;
-          font-size: 13px; font-weight: 500; padding: 9px 18px;
+          font-size: 13px; font-weight: 600; height: 36px; padding: 0 16px; box-sizing: border-box;
           border-radius: 9px; background: var(--card); color: var(--text-dim);
           border: 1px solid var(--line); text-decoration: none; cursor: pointer;
           transition: background .12s, border-color .12s, color .12s;
@@ -1711,9 +1687,9 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           font-size: 11px; font-weight: 600; flex-shrink: 0;
           padding: 2px 8px; border-radius: 99px;
         }
-        .td-feed-status--done      { background: rgba(23,154,80,.1);  color: #179a50; }
-        .td-feed-status--scheduled { background: rgba(2,132,199,.1);  color: #0284c7; }
-        .td-feed-status--failed    { background: rgba(220,38,38,.1);  color: #dc2626; }
+        .td-feed-status--done      { background: var(--accent); color: var(--accent-foreground); }
+        .td-feed-status--scheduled { background: var(--warn-soft); color: var(--warn); }
+        .td-feed-status--failed    { background: var(--crit-soft); color: var(--crit); }
 
         /* all good */
         .td-allgood {
@@ -1822,18 +1798,12 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-connect-btn:hover { border-color: var(--green); background: var(--bg-soft); }
         .td-connect-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
-        /* light overrides */
-        html.light .td-analytics-delta--up { background: #d0eadb; color: #179a50; }
-        html.light .td-cta-btn { background: #179a50; }
-        html.light .td-streak-num { color: #179a50; }
-        html.light .td-allgood-ring { border-color: #179a50; color: #179a50; }
-        html.light .td-feed-status--done { background: #d0eadb; color: #179a50; }
 
         /* weekly blog */
         .td-blog-section { display: flex; flex-direction: column; gap: 10px; }
         .td-blog-limit-badge {
           font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px;
-          background: rgba(220,38,38,.1); color: #dc2626; text-transform: none;
+          background: var(--crit-soft); color: var(--crit); text-transform: none;
           letter-spacing: 0; margin-left: 4px;
         }
         .td-blog-card {
@@ -1844,7 +1814,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-blog-no-blog { font-size: 13px; color: var(--text-dim); margin: 0; }
         .td-blog-next-due { font-size: 13px; color: var(--text-dim); margin: 0; }
         .td-blog-at-limit-msg { font-size: 13px; color: var(--text-dim); margin: 0; }
-        .td-blog-error { font-size: 12px; color: #dc2626; margin: 0; }
+        .td-blog-error { font-size: 13px; color: var(--crit); margin: 0; }
 
         .td-blog-replace-list { display: flex; flex-direction: column; gap: 8px; }
         .td-blog-replace-row {
@@ -1865,17 +1835,19 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         }
         .td-blog-latest-label { font-weight: 600; flex-shrink: 0; }
         .td-blog-latest-title { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .td-ghost-btn--sm { padding: 5px 12px; font-size: 12px; }
+        .td-ghost-btn--sm { height: 30px; padding: 0 12px; font-size: 12.5px; border-radius: 8px; }
+        .td-blog-write-now { align-self: flex-start; }
 
         .td-blog-status {
           font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; flex-shrink: 0;
         }
-        .td-blog-status--draft     { background: rgba(2,132,199,.1);  color: #0284c7; }
-        .td-blog-status--published { background: rgba(23,154,80,.1);  color: #179a50; }
-        .td-blog-status--replaced  { background: rgba(107,114,128,.1); color: #6b7280; }
+        .td-blog-status--draft     { background: var(--info-soft); color: var(--info); }
+        .td-blog-status--scheduled { background: var(--warn-soft); color: var(--warn); }
+        .td-blog-status--published { background: var(--accent); color: var(--accent-foreground); }
+        .td-blog-status--replaced  { background: var(--bg-soft); color: var(--text-faint); }
 
         .td-blog-result {
-          background: var(--card); border: 1px solid var(--line); border-left: 3px solid #0891b2;
+          background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--info);
           border-radius: 14px; padding: 20px 24px;
           display: flex; flex-direction: column; gap: 12px;
         }
@@ -1916,23 +1888,20 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         }
         .td-blog-verify-live {
           display: inline-flex; align-items: center; gap: 5px;
-          font-size: 12px; font-weight: 600; color: #179a50;
-          background: rgba(23,154,80,.1); padding: 3px 10px; border-radius: 99px;
+          font-size: 12px; font-weight: 600; color: var(--accent-foreground);
+          background: var(--accent); padding: 3px 10px; border-radius: 99px;
         }
         .td-blog-verify-notfound {
           font-size: 12px; color: var(--text-faint);
         }
         .td-blog-live-link {
-          font-size: 12px; color: #0891b2; text-decoration: none;
+          font-size: 12px; color: var(--info); text-decoration: none;
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px;
         }
         .td-blog-live-link:hover { text-decoration: underline; }
 
         /* responsive */
         @media (max-width: 640px) {
-          .td-hero { flex-direction: column; gap: 14px; padding: 24px 16px 0; }
-          .td-hero-day { font-size: 24px; }
-          .td-body { padding: 18px 16px 60px; }
           .td-hero-right { flex-wrap: wrap; }
           .td-feed-row { flex-wrap: wrap; gap: 6px; }
           .td-card, .td-blog-card, .td-impact-card { padding: 18px 16px; }

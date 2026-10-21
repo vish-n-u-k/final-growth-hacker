@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useSmartBack } from '@/lib/useSmartBack'
 import type { DBItemFull } from '@/lib/modules/types'
 import MetaAdLaunchPanel from '@/components/MetaAdLaunchPanel'
 import type { CampaignBrief } from '@/components/MetaAdLaunchPanel'
@@ -234,7 +233,6 @@ function isCredentialError(msg: string) {
 
 export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, brandName, websiteUrl, lastAnalyzedAt, items, ogTags, pixelStatus }: Props) {
   const router = useRouter()
-  const goBack = useSmartBack('/dashboard')
   const [analysing, setAnalysing] = useState(moduleStatus === 'analyzing')
   const [analyseError, setAnalyseError] = useState<string | null>(null)
   const [demoMode, setDemoMode] = useState(false)
@@ -271,44 +269,27 @@ export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, bran
   }
 
   return (
-    <div className="bp-page">
-      {/* Top bar */}
-      <div className="bp-topbar">
-        <button onClick={goBack} className="bp-back">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-          Back
-        </button>
-        <div className="bp-topbar-center">
-          <span className="bp-topbar-title">Meta Ads</span>
-          <span className="bp-dot">·</span>
-          <span className="bp-topbar-brand">{brandName}</span>
-          <span className="bp-dot">·</span>
-          <span className="bp-topbar-updated">{analysing ? <><Spinner />Analysing…</> : timeAgo(lastAnalyzedAt)}</span>
+    <div className="tool-page">
+      {/* Header — same frame as the other tools; the sidebar replaces the old Back button */}
+      <div className="tool-hd">
+        <div className="tool-hd-main">
+          <h1 className="tool-title">Meta Ads</h1>
+          <p className="tool-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {brandName} · {analysing ? <><Spinner />Analysing…</> : lastAnalyzedAt ? `Analysed ${timeAgo(lastAnalyzedAt).toLowerCase()}` : 'Not analysed yet'}
+          </p>
         </div>
-        <div className="bp-topbar-actions">
-          {isLocked ? (
-            <span className="bp-locked-note">Complete earlier modules to unlock.</span>
-          ) : (
-            <div className="bp-action-row">
-              {!hasBrief && !analysing && (
-                <button className="bp-demo-btn" onClick={() => setDemoMode(true)}>Try Demo</button>
-              )}
-              <button className="bp-analyse-btn" onClick={runAudit} disabled={analysing}>
-                {analysing ? (
-                  <>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ animation: 'md-spin .7s linear infinite' }}>
-                      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/>
-                      <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
-                    </svg>
-                    Analysing…
-                  </>
-                ) : hasBrief ? 'Re-run' : 'Run Audit'}
-              </button>
-            </div>
-          )}
-        </div>
+        {isLocked ? (
+          <span className="bp-locked-note">Complete earlier modules to unlock.</span>
+        ) : (
+          <div className="tool-hd-actions">
+            {!hasBrief && !analysing && (
+              <button className="btn btn-ghost" onClick={() => setDemoMode(true)}>Try Demo</button>
+            )}
+            <button className="btn btn-primary" onClick={runAudit} disabled={analysing}>
+              {analysing ? <><Spinner />Analysing…</> : hasBrief ? 'Re-run' : 'Run Audit'}
+            </button>
+          </div>
+        )}
       </div>
 
       {analyseError && (
@@ -320,7 +301,7 @@ export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, bran
         </div>
       )}
 
-      <div className="bp-content">
+      <div className="bp-content tool-col">
         {/* Audit results */}
         {hasAudit && (
           <div className="bp-audit-group">

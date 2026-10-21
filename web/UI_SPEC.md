@@ -132,6 +132,24 @@ Shell-specific classes already in `app/globals.css`: `.app-shell`,
 `.app-sidebar-foot`, `.app-sidebar-workspace`, `.app-sidebar-avatar`,
 `.app-sidebar-wsname`, `.app-shell-main`.
 
+### Tool page kit (Tier 1 — built)
+
+Every tool page (Tools, Today, Social Studio, Reminders, Meta Ads) uses the shared classes at the
+end of `app/globals.css`, so switching tools in the sidebar keeps the same title position, type
+scale and controls. Use them for any new tool page instead of inline styles or new per-page classes:
+
+- Frame: `.tool-page` (max 1140px, 36px gutters / 16px on phones); `.tool-col` (820px) for
+  single-column flows; `.tool-stack` for a vertical stack of cards with 16px gaps.
+- Header: `.tool-hd` > `.tool-hd-main` (`h1.tool-title` + `p.tool-sub`) and `.tool-hd-actions`.
+  No Back buttons inside the shell; the sidebar is the navigation.
+- Content: `.tool-card` (+ `.tool-card-title`, `.tool-card-sub`), `.tool-label` for small
+  uppercase section labels, `.tool-error` for inline errors.
+- Buttons: `.btn` + `.btn-primary` / `.btn-ghost` / `.btn-link`, `.btn-sm` for row actions
+  (36px / 30px tall). `aria-pressed="true"` styles a selected ghost button.
+- Status colours: `--crit`/`--crit-soft`, `--warn`/`--warn-soft`, `--info`/`--info-soft`, and
+  `--accent`/`--accent-foreground` for success. No hard-coded reds/blues/ambers; they don't follow
+  dark mode. Frekto-owned UI keeps the `--frekto*` tokens.
+
 ## 4. Page-by-page (mix of built, partially built, and pending — see PROGRESS.md)
 
 **Growth Path** (`/dashboard`, `components/AllModulesDashboard.tsx`) — **redesigned
