@@ -1,7 +1,5 @@
-import ComingSoonPage from '@/components/ComingSoonPage'
+import ProGate from '@/components/ProGate'
 
-// Parked for now (lib/features.ts). The page itself stays in the codebase; restore the ProGate
-// wrapper from git history when bringing it back.
-export default function Layout() {
-  return <ComingSoonPage feature="Lead Finder" blurb="Turn competitor reviews into a list of prospects who already need what you sell." />
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return <ProGate feature="Lead Finder" blurb="Mine competitor reviews for unhappy customers that fit your product, scored and ready for outreach.">{children}</ProGate>
 }
