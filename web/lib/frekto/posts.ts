@@ -8,6 +8,7 @@ import { brandIntegrations, brandSignals, frektoScheduledPosts } from '@/lib/db/
 import { and, eq } from 'drizzle-orm'
 import { callFrektoMcpTool } from '@/lib/frekto/mcp'
 import { zonedToUtc } from '@/lib/frekto/time'
+import { frektoJobFailed, frektoNetworkError, frektoResponseError } from '@/lib/frekto/errors'
 export { zonedToUtc }
 
 const FREKTO_BASE = 'https://api.frekto.ai'
@@ -85,7 +86,7 @@ async function inlineImage(url: string | undefined): Promise<PostPreview['_image
 
 async function toPreview(job: FrektoJob, jobId: string, extra: Partial<PostPreview> = {}): Promise<PostPreview> {
   if (job.status === 'failed') {
-    return { job_id: jobId, status: 'failed', error: job.error ?? 'Frekto could not render this post', next_step: 'Tell the user it failed and offer to try again with create_social_post.', ...extra }
+    return { job_id: jobId, status: 'failed', error: frektoJobFailed(job.error, 'post'), next_step: 'Tell the user it failed and offer to try again with create_social_post.', ...extra }
   }
   if (job.status !== 'done') {
     return { job_id: jobId, status: 'rendering', next_step: 'Still rendering. Wait ~20 seconds, then call get_social_post_status with this job_id.', ...extra }
@@ -142,12 +143,12 @@ export async function createSocialPost(
       }),
       signal: AbortSignal.timeout(20000),
     })
-    if (!res.ok) return { error: `Frekto rejected the request (${res.status}): ${(await res.text()).slice(0, 300)}` }
+    if (!res.ok) return { error: await frektoResponseError(res, 'create the preview') }
     const data = (await res.json()) as { job_id?: string }
     if (!data.job_id) return { error: 'Frekto did not return a job id.' }
     jobId = data.job_id
   } catch (e) {
-    return { error: `Could not reach Frekto: ${e instanceof Error ? e.message : String(e)}` }
+    return { error: frektoNetworkError(e, 'create the preview') }
   }
 
   const job = await pollUntilDone(frekto.apiKey, jobId)
@@ -224,13 +225,13 @@ export async function scheduleSocialPost(
         }),
         signal: AbortSignal.timeout(20000),
       })
-      if (!res.ok) return { error: `Frekto rejected the request (${res.status}): ${(await res.text()).slice(0, 300)}` }
+      if (!res.ok) return { error: await frektoResponseError(res, 'schedule the post') }
       const data = (await res.json()) as { job_id?: string }
       if (!data.job_id) return { error: 'Frekto did not return a job id.' }
       finalJobId = data.job_id
       regenerated = true
     } catch (e) {
-      return { error: `Could not reach Frekto: ${e instanceof Error ? e.message : String(e)}` }
+      return { error: frektoNetworkError(e, 'schedule the post') }
     }
   } else {
     return {

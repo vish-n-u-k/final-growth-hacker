@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { frektoHttpError, frektoJobFailed, frektoNetworkError, frektoPollError } from '@/lib/frekto/errors'
 
 export const maxDuration = 90
 
 const FREKTO_BASE = 'https://api.frekto.ai'
 const POLL_INTERVAL_MS = 2500
-const MAX_POLLS = 36
+const MAX_POLLS = 30 // 75 seconds: stop before maxDuration (90s) kills the request with no message
 
 async function pollJob(
   jobId: string,
@@ -17,15 +18,15 @@ async function pollJob(
       const res = await fetch(`${FREKTO_BASE}/jobs/${jobId}`, {
         headers: { Authorization: `Bearer ${apiKey}` },
       })
-      if (!res.ok) return { error: `Poll failed: ${res.status} ${res.statusText}` }
+      if (!res.ok) return { error: frektoPollError(res.status) }
       const data = await res.json() as { status: string; output_url?: string; error?: string | null }
       if (data.status === 'done' && data.output_url) return { outputUrl: data.output_url }
-      if (data.status === 'failed') return { error: data.error ?? 'Render failed' }
+      if (data.status === 'failed') return { error: frektoJobFailed(data.error, 'test post') }
     } catch (e) {
-      return { error: `Network error while polling: ${e instanceof Error ? e.message : String(e)}` }
+      return { error: frektoNetworkError(e, 'check on it') }
     }
   }
-  return { error: 'Render timed out after 90s' }
+  return { error: 'Frekto is still working on this after 75 seconds. It may still finish in Frekto; check there, or try again.' }
 }
 
 export async function POST(request: NextRequest) {
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest) {
     if (!genRes.ok) {
       const errText = await genRes.text()
       return NextResponse.json(
-        { error: `Frekto rejected request (${genRes.status}): ${errText}` },
+        { error: frektoHttpError(genRes.status, errText, 'make the test post') },
         { status: 502 },
       )
     }
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     jobId = genData.job_id
   } catch (e) {
     return NextResponse.json(
-      { error: `Could not reach Frekto: ${e instanceof Error ? e.message : String(e)}` },
+      { error: frektoNetworkError(e, 'make the test post') },
       { status: 502 },
     )
   }

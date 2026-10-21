@@ -72,12 +72,12 @@ export default function MetaAdLaunchPanel({ moduleId, item, demo = false }: Prop
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ moduleId, brief }),
       })
-      const data = await res.json() as { images?: { url: string; index: number }[]; error?: string }
-      if (!res.ok || data.error) { setError(data.error ?? 'Creative generation failed'); setState('error'); return }
+      const data = await res.json().catch(() => ({ error: `Something went wrong on GrowJin's side (error ${res.status}). Try again in a minute.` })) as { images?: { url: string; index: number }[]; error?: string }
+      if (!res.ok || data.error) { setError(data.error ?? 'Frekto couldn\'t make the ad creative. Try again.'); setState('error'); return }
       setImages(data.images ?? [])
       setState('creative-ready')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Network error')
+      setError(e instanceof Error && e.name !== 'TypeError' ? e.message : 'Couldn\'t reach GrowJin. Check your connection and try again.')
       setState('error')
     }
   }

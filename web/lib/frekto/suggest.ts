@@ -40,7 +40,8 @@ export interface PostSuggestion {
   topic: string
   postType: string
   scheduledAt: string
-  reason: string
+  reason: string // why this was suggested (the data behind it)
+  helps?: string // what the post should do for the brand
 }
 
 const PLATFORMS: readonly string[] = PUBLISHABLE_PLATFORMS
@@ -200,7 +201,8 @@ Generate ONE post suggestion per platform. For each:
 2. If shouldPost true: a specific, compelling topic tied to the brand's actual industry and audience. If content strategy pillars are listed above, the topic MUST map to one of those pillars — name which pillar it maps to in the reason. Prioritize repurpose pages if listed. Weave in a GSC page-2 keyword if relevant and natural.
 3. postType "image" or "video" — video for YouTube/Instagram Reels, image for LinkedIn/Facebook
 4. scheduledAt — use the suggested time above
-5. reason — one sentence. State which content pillar this maps to (if pillars exist). If a competitor strength is relevant, explain how this post counters it.
+5. reason — one sentence on WHY you suggest it, citing what it's based on (the content pillar, audit finding, GSC keyword, competitor strength or repurpose page above). No generic claims.
+6. helps — one sentence on HOW this post helps the business: the concrete result to expect (e.g. reach a new audience segment, build trust with buyers comparing options, bring searchers to a page that ranks on page 2). Plain words, no hype.
 
 Return a JSON array of exactly ${PLATFORMS.length} objects in this order: ${PLATFORMS.join(', ')}
 
@@ -211,7 +213,8 @@ Return a JSON array of exactly ${PLATFORMS.length} objects in this order: ${PLAT
     "topic": "specific compelling topic here",
     "postType": "video",
     "scheduledAt": "2026-07-16T10:00:00.000Z",
-    "reason": "one sentence reason"
+    "reason": "one sentence: why this was suggested",
+    "helps": "one sentence: how it helps the business"
   }
 ]`
 

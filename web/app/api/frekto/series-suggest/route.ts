@@ -221,10 +221,11 @@ For each platform return:
    - instruction — compelling 1-2 sentence series brief for Frekto (max 400 chars). Specify the post FORMAT (carousel/stat drop/quote card/short reel/framework etc.) and topic. Prioritise repurpose pages, GSC keywords, competitor gaps, brand voice. For video platforms always specify short-form (under 60 seconds).
    - count — recommended posts: 2-5
    - cadence, format, outputFormat, startDate — use the values above exactly
-   - reason — array of exactly 3 bullet strings:
+   - reason — array of exactly 4 bullet strings:
      "**Platform:** <why this platform suits the brand — max 12 words>"
      "**Posts:** <why this count and cadence — max 12 words>"
      "**Brief:** <why this content direction, cite data sources — max 15 words>"
+     "**How it helps:** <the concrete result for the business, e.g. who it reaches or what it builds — max 15 words>"
      Each must start with the bold label (double asterisks).
 3. If shouldPost false: set instruction="", count=0, cadence="", format="", outputFormat="", startDate="", reason=[]
 
@@ -240,7 +241,7 @@ Return a JSON array of exactly ${ALL_PLATFORMS.length} objects in this order: ${
     "format": "4:5",
     "outputFormat": "mp4",
     "startDate": "${startDates.instagram}",
-    "reason": ["**Platform:** reason here", "**Posts:** reason here", "**Brief:** reason here"]
+    "reason": ["**Platform:** reason here", "**Posts:** reason here", "**Brief:** reason here", "**How it helps:** result here"]
   }
 ]`
 

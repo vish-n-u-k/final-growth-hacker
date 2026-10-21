@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
+import type { TaskProof } from '@/lib/proofs'
 import ArrowIcon from '@/components/ArrowIcon'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useRoadmap } from '@/components/RoadmapContext'
@@ -84,6 +85,7 @@ interface Props {
   allModulesData: ModuleData[]
   pendingModuleIds?: string[]
   queueRuns?: boolean // module runs switched to the admin queue (admin page); Foundation always runs directly
+  proofs?: Record<string, TaskProof> // item id → link + note showing how a finished item was done (lib/proofs.ts)
   userEmail: string
   isAdmin?: boolean // GrowJin team: shows internal tools like Notes
   earlyAccess?: boolean // lib/early-access.ts: no module locks, coming-soon tools live
@@ -353,7 +355,7 @@ function LevelRing({ score, pending = false }: { score: number; pending?: boolea
 
 const BILLING_OFF = { enabled: false, pro: true, planLocked: [] as string[] }
 
-export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], queueRuns = false, isAdmin = false, earlyAccess = false, githubConnected, githubRepo = null, mcpLastUsedAt = null, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
+export default function AllModulesDashboard({ brand, allModulesData, pendingModuleIds = [], queueRuns = false, proofs = {}, isAdmin = false, earlyAccess = false, githubConnected, githubRepo = null, mcpLastUsedAt = null, connectedIntegrations, conflictLinks = [], billing = BILLING_OFF }: Props) {
   const isPlanLocked = (m: Pick<ModuleData, 'type'>) => billing.planLocked.includes(m.type)
   const [notesOpen, setNotesOpen] = useState(false)
   const [statesMap, setStatesMap] = useState<Record<string, Record<string, DBItemState>>>(() =>
@@ -1058,7 +1060,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
       '',
       `1. Call get_module_detail with module_type "${mod?.type ?? ''}" and find the check "${clean(p.label)}" (slug ${p.slug}).`,
       `2. Fix it.${p.action ? ` Suggested fix: ${clean(p.action)}` : ''} If it needs a change to my website code, make it, or give me the exact change to apply.`,
-      `3. When it's fixed, call toggle_item with item_id "${p.itemId ?? ''}" and checked true so GrowJin marks it done.`,
+      `3. When it's fixed, call toggle_item with item_id "${p.itemId ?? ''}" and checked true so GrowJin marks it done. Pass link (the pull request or changed page) and note (one sentence on what you changed) so I can see the result.`,
     ].join('\n')
   }
   const fixWithClaude = (key: string, plain: string, ctx: { modId: string; itemId?: string | null; slug: string; label: string; action?: string | null }) => {
@@ -1563,6 +1565,24 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     return fallbackResults.length > 0 ? fallbackResults : null
   }
 
+  // How a finished item was done: the link (commit, pull request, live page) and what changed
+  const PROOF_BY: Record<TaskProof['source'], string> = { claude: 'Done by Claude', agent: 'Fixed by GrowJin', ai: 'Checked by AI', user: 'Done by you' }
+  const renderProof = (itemId: string | undefined) => {
+    const proof = itemId ? proofs[itemId] : undefined
+    if (!proof) return null
+    return (
+      <div className="md-item-proof" onClick={(e) => e.stopPropagation()}>
+        <span className="md-item-proof-by">{PROOF_BY[proof.source] ?? 'Done'}</span>
+        {proof.note && <span className="md-item-proof-note">{proof.note}</span>}
+        {proof.url && (
+          <a href={proof.url} target="_blank" rel="noreferrer" className="md-item-proof-link">
+            {proof.url.includes('github.com') ? 'View the change' : 'See it live'} ↗
+          </a>
+        )}
+      </div>
+    )
+  }
+
   // ── Dynamic item renderer ────────────────────────────────────────────────────
   // Convert **word** markers to <strong> in any text
   const parseBold = (text: string) =>
@@ -1653,6 +1673,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               )}
             </div>
           </div>
+          {done && renderProof(item.id)}
           {skipped && item.userSkipReason && (
             <p className="md-item-detail" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>{item.userSkipReason}</p>
           )}
@@ -1925,6 +1946,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
               )}
             </div>
           </div>
+          {done && renderProof(s?.id)}
           {skipped && s?.userSkipReason && (
             <p className="md-item-detail" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>{s.userSkipReason}</p>
           )}

@@ -8,6 +8,16 @@ import { Spinner } from '@/components/ui/spinner'
 import TimezoneSelect, { deviceTimezone, canonicalTimezone } from '@/components/TimezoneSelect'
 import TimeField from '@/components/TimeField'
 
+// Reads a JSON reply. When the server crashed and sent an error page instead, say so rather than
+// letting the parse error read as "Network error".
+async function readJson<T extends { error?: string }>(res: Response): Promise<T> {
+  try {
+    return (await res.json()) as T
+  } catch {
+    return { error: `Something went wrong on GrowJin's side (error ${res.status}). Try again in a minute; if it keeps happening, let us know.` } as T
+  }
+}
+
 export type ScheduledPost = ClientPost
 
 interface PostSuggestion {
@@ -18,6 +28,7 @@ interface PostSuggestion {
   postType: string
   scheduledAt: string
   reason: string
+  helps?: string
 }
 
 interface SeriesSuggestion {
@@ -81,7 +92,7 @@ function StatusPill({ post, now }: { post: ScheduledPost; now: number }) {
   const configs: Record<string, { bg: string; color: string; border: string; label: string }> = {
     done: { bg: 'rgba(23,154,80,.10)', color: 'var(--green)', border: 'rgba(23,154,80,.25)', label: 'Posted' },
     scheduled: due
-      ? { bg: 'var(--bg-soft)', color: 'var(--text-dim)', border: 'var(--line)', label: 'Sent to Frekto' }
+      ? { bg: 'var(--frekto-soft)', color: 'var(--frekto-ink)', border: 'color-mix(in srgb, var(--frekto) 30%, transparent)', label: 'Sent to Frekto' }
       : { bg: 'rgba(122,90,8,.08)', color: 'var(--gold)', border: 'rgba(122,90,8,.25)', label: 'Scheduled' },
     scheduling: { bg: 'rgba(122,90,8,.08)', color: 'var(--gold)', border: 'rgba(122,90,8,.25)', label: 'Scheduling…' },
     draft: { bg: 'rgba(37,99,235,.08)', color: '#2563eb', border: 'rgba(37,99,235,.25)', label: 'Needs approval' },
@@ -145,6 +156,54 @@ const inputStyle: React.CSSProperties = {
 const isVideoUrl = (url: string | null) => !!url && /\.(mp4|mov|webm)(\?|$)/i.test(url)
 
 // ── Preview of the rendered post (image, video or carousel) ──────────────────
+
+const FREKTO_URL = 'https://app.frekto.ai'
+
+// Frekto does the making and publishing; GrowJin decides what and when. Shown so it's clear
+// whose account the posts come from and where to manage connected social accounts.
+function FrektoLogo({ size = 18 }: { size?: number }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src="/integrations/frekto.png" alt="" width={size} height={size} style={{ borderRadius: Math.round(size / 4), display: 'block', flexShrink: 0 }} />
+}
+
+function FrektoBadge() {
+  return (
+    <a
+      href={FREKTO_URL}
+      target="_blank"
+      rel="noreferrer"
+      title="Open Frekto"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px 3px 4px', borderRadius: 999,
+        border: '1px solid color-mix(in srgb, var(--frekto) 35%, transparent)', background: 'var(--frekto-soft)', color: 'var(--frekto-ink)',
+        fontSize: 12, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap',
+      }}
+    >
+      <FrektoLogo />
+      Powered by Frekto ↗
+    </a>
+  )
+}
+
+const HOW_IT_WORKS: { title: string; body: string }[] = [
+  { title: 'GrowJin picks the idea', body: 'From your audit, keywords and what is working, with the reason shown on each suggestion.' },
+  { title: 'Frekto makes the post', body: 'It designs the image or video and writes the caption and hashtags.' },
+  { title: 'Frekto publishes it', body: 'At the time you choose, to the social accounts connected in your Frekto account.' },
+]
+
+// Kept out of the way: a small "How it works" toggle, not a section of its own
+function HowItWorks() {
+  return (
+    <details style={{ marginTop: 6, fontSize: 12.5, color: 'var(--text-faint)' }}>
+      <summary style={{ cursor: 'pointer', width: 'fit-content', color: 'var(--frekto-ink)', fontWeight: 600 }}>How it works</summary>
+      <ol style={{ margin: '6px 0 0', paddingLeft: 18, lineHeight: 1.6, color: 'var(--text-dim)' }}>
+        {HOW_IT_WORKS.map(step => (
+          <li key={step.title}><strong style={{ fontWeight: 600, color: 'var(--text)' }}>{step.title}.</strong> {step.body}</li>
+        ))}
+      </ol>
+    </details>
+  )
+}
 
 function Preview({ post, size, onOpen }: { post: ScheduledPost; size: number; onOpen?: () => void }) {
   const src = post.thumbnailUrl ?? (isVideoUrl(post.outputUrl) ? null : post.outputUrl)
@@ -330,7 +389,7 @@ export default function SocialStudioPage({
       for (const id of rendering.split(',')) {
         try {
           const res = await fetch(`/api/social/posts/${id}`)
-          const data = await res.json() as { post?: ScheduledPost }
+          const data = await readJson<{ post?: ScheduledPost; error?: string }>(res)
           if (data.post && (data.post.outputUrl || data.post.status !== 'draft')) setPosts(list => list.map(x => x.id === id ? data.post! : x))
         } catch { /* try again next tick */ }
       }
@@ -366,7 +425,7 @@ export default function SocialStudioPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      const data = await res.json() as { post?: ScheduledPost; error?: string; canRegenerate?: boolean }
+      const data = await readJson<{ post?: ScheduledPost; error?: string; canRegenerate?: boolean }>(res)
       if (!res.ok || !data.post) {
         setPostError({ id: post.id, message: data.error ?? 'Something went wrong.', canRegenerate: !!data.canRegenerate })
         return
@@ -374,7 +433,7 @@ export default function SocialStudioPage({
       setPosts(list => list.map(x => x.id === post.id ? data.post! : x))
       setReschedulingId(null)
     } catch {
-      setPostError({ id: post.id, message: 'Network error — please try again.', canRegenerate: false })
+      setPostError({ id: post.id, message: "Couldn't reach GrowJin. Check your connection and try again.", canRegenerate: false })
     } finally {
       setBusyPost(null)
     }
@@ -398,11 +457,11 @@ export default function SocialStudioPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ moduleId: socialModuleId }),
       })
-      const data = await res.json() as { suggestions?: PostSuggestion[]; error?: string }
+      const data = await readJson<{ suggestions?: PostSuggestion[]; error?: string }>(res)
       if (data.error) { setSuggestError(data.error); return }
       setSuggestions(data.suggestions ?? [])
     } catch {
-      setSuggestError('Network error — please try again.')
+      setSuggestError("Couldn't reach GrowJin. Check your connection and try again.")
     } finally {
       setSuggestLoading(false)
     }
@@ -418,12 +477,12 @@ export default function SocialStudioPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ suggestionId: s.id }),
       })
-      const data = await res.json() as { post?: ScheduledPost; error?: string }
+      const data = await readJson<{ post?: ScheduledPost; error?: string }>(res)
       if (!res.ok || !data.post) { setSuggestError(data.error ?? 'Could not create the preview.'); return }
       upsertPost(data.post)
       setSuggestions(list => list.filter(x => x.id !== s.id))
     } catch {
-      setSuggestError('Network error — please try again.')
+      setSuggestError("Couldn't reach GrowJin. Check your connection and try again.")
     } finally {
       setPreviewingId(null)
     }
@@ -451,11 +510,11 @@ export default function SocialStudioPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ moduleId: socialModuleId }),
       })
-      const data = await res.json() as { suggestions?: SeriesSuggestion[]; error?: string }
+      const data = await readJson<{ suggestions?: SeriesSuggestion[]; error?: string }>(res)
       if (data.error) { setSeriesError(data.error); return }
       setSeriesSuggestions((data.suggestions ?? []).filter(s => s.shouldPost))
     } catch {
-      setSeriesError('Network error — please try again.')
+      setSeriesError("Couldn't reach GrowJin. Check your connection and try again.")
     } finally {
       setSuggestSeriesLoading(false)
     }
@@ -481,12 +540,12 @@ export default function SocialStudioPage({
           brandId,
         }),
       })
-      const data = await res.json() as { rows?: ScheduledPost[]; error?: string }
+      const data = await readJson<{ rows?: ScheduledPost[]; error?: string }>(res)
       if (!res.ok || data.error) { setSeriesError(data.error ?? 'Could not launch the series.'); return }
       setPosts(list => [...(data.rows ?? []), ...list])
       setSeriesSuggestions(list => list.filter(x => (x.id ?? x.platform) !== key))
     } catch {
-      setSeriesError('Network error — please try again.')
+      setSeriesError("Couldn't reach GrowJin. Check your connection and try again.")
     } finally {
       setLaunchingId(null)
     }
@@ -503,12 +562,12 @@ export default function SocialStudioPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(manual),
       })
-      const data = await res.json() as { post?: ScheduledPost; error?: string }
+      const data = await readJson<{ post?: ScheduledPost; error?: string }>(res)
       if (!res.ok || !data.post) { setManualError(data.error ?? 'Could not create the preview.'); return }
       upsertPost(data.post)
       setManual(m => ({ ...m, topic: '' }))
     } catch {
-      setManualError('Network error — please try again.')
+      setManualError("Couldn't reach GrowJin. Check your connection and try again.")
     } finally {
       setManualBusy(false)
     }
@@ -516,12 +575,16 @@ export default function SocialStudioPage({
 
   const header = (
     <div style={{ marginBottom: '28px' }}>
-      <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)', margin: '0 0 4px', fontFamily: 'var(--font-display)' }}>
-        Social Studio
-      </h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px 12px', flexWrap: 'wrap', marginBottom: 4 }}>
+        <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)', margin: 0, fontFamily: 'var(--font-display)' }}>
+          Social Studio
+        </h1>
+        <FrektoBadge />
+      </div>
       <p style={{ fontSize: '13px', color: 'var(--text-faint)', margin: 0 }}>
-        AI-driven post scheduling powered by Frekto — {brandName}
+        GrowJin plans what to post for {brandName}; Frekto creates and publishes it.
       </p>
+      <HowItWorks />
       {frektoConnected && (
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 10px', marginTop: 12, fontSize: 13, color: 'var(--text-dim)' }}>
           <span>Times are shown and scheduled in</span>
@@ -544,14 +607,14 @@ export default function SocialStudioPage({
         {header}
         <div style={{ ...card, padding: '22px' }}>
           <div style={sectionTitle}>Connect Frekto to start posting</div>
-          <p style={{ ...sectionSub, marginBottom: '14px' }}>Frekto creates and publishes the posts. Once it&apos;s connected, Social Studio can:</p>
+          <p style={{ ...sectionSub, marginBottom: '14px' }}>GrowJin plans your posts; Frekto creates and publishes them from your Frekto account. Once it&apos;s connected, Social Studio can:</p>
           <ul style={{ margin: '0 0 18px', paddingLeft: '18px', listStyle: 'disc', fontSize: '13.5px', color: 'var(--text-dim)', lineHeight: 1.8 }}>
             <li>Suggest one ready-to-post idea per platform from your audit</li>
             <li>Show you each post before it&apos;s scheduled</li>
             <li>Plan a whole content series</li>
             <li>Keep a queue you can reschedule or cancel</li>
           </ul>
-          <a href="/settings?tab=integrations" style={{ display: 'inline-block', padding: '10px 18px', borderRadius: '10px', background: 'var(--green)', color: '#fff', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}>
+          <a href="/settings?tab=integrations" style={{ display: 'inline-block', padding: '10px 18px', borderRadius: '10px', background: 'var(--frekto)', color: '#fff', fontSize: '14px', fontWeight: 600, textDecoration: 'none' }}>
             Connect Frekto →
           </a>
         </div>
@@ -644,17 +707,20 @@ export default function SocialStudioPage({
     <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 16px' }}>
       {header}
 
-      {/* Section 1 — Auto-Post Control */}
-      <div style={card}>
+      {/* Section 1 — Auto-Post Control (Frekto's feature, so in Frekto's colours) */}
+      <div style={{ ...card, borderColor: 'color-mix(in srgb, var(--frekto) 30%, var(--line))' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
           <div>
-            <div style={sectionTitle}>Auto-posting</div>
+            <div style={{ ...sectionTitle, display: 'flex', alignItems: 'center', gap: 8 }}><FrektoLogo size={20} />Auto-posting with Frekto</div>
+            <p style={{ fontSize: 12, fontWeight: 600, margin: '0 0 4px', color: autoPost ? 'var(--frekto-ink)' : 'var(--text-faint)' }}>
+              {!autoPost ? 'Off' : autoMode === 'approve' ? 'On · asks you before anything is posted' : 'On · posts automatically'}
+            </p>
             <p style={{ ...sectionSub, marginBottom: 0 }}>
               {!autoPost
-                ? 'Enable to let GrowJin make a post for you every day via Frekto.'
+                ? 'Turn on to have a post made for you every day: GrowJin picks the topic, Frekto designs it and publishes it.'
                 : autoMode === 'approve'
-                  ? 'Every day GrowJin makes new posts and puts them under "Waiting for your approval". Nothing goes out until you approve it.'
-                  : 'Every day GrowJin makes new posts and schedules them straight away, without asking.'}
+                  ? 'Every day GrowJin picks topics and Frekto makes the posts. They wait under "Waiting for your approval"; nothing goes out until you approve it.'
+                  : 'Every day GrowJin picks topics, and Frekto makes the posts and schedules them straight away, without asking.'}
             </p>
             {autoPost && platformsSet && (
               <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: '6px 0 0' }}>
@@ -667,6 +733,10 @@ export default function SocialStudioPage({
                 <a href="/settings?tab=integrations" style={{ color: 'var(--green)', textDecoration: 'none' }}>Set auto-post platforms in Settings → Integrations → Frekto</a>
               </p>
             )}
+            <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: '6px 0 0' }}>
+              Posts are published from your Frekto account.{' '}
+              <a href={FREKTO_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--frekto-ink)' }}>Manage connected accounts in Frekto ↗</a>
+            </p>
           </div>
           <button
             disabled={autoPostLoading}
@@ -676,7 +746,7 @@ export default function SocialStudioPage({
               flexShrink: 0,
               width: '44px', height: '24px', borderRadius: '12px', border: 'none',
               cursor: autoPostLoading ? 'not-allowed' : 'pointer',
-              background: autoPost ? 'var(--green)' : 'var(--line)',
+              background: autoPost ? 'var(--frekto)' : 'var(--line)',
               position: 'relative', transition: 'background .2s',
             }}
           >
@@ -695,7 +765,7 @@ export default function SocialStudioPage({
                 key={m}
                 disabled={autoPostLoading}
                 onClick={() => saveAutoPost({ mode: m })}
-                style={{ ...ghostBtn, ...(autoMode === m ? { borderColor: 'var(--green)', color: 'var(--green)', background: 'rgba(23,154,80,.06)' } : {}) }}
+                style={{ ...ghostBtn, ...(autoMode === m ? { borderColor: 'var(--frekto)', color: 'var(--frekto-ink)', background: 'var(--frekto-soft)' } : {}) }}
               >
                 {label}
               </button>
@@ -823,8 +893,18 @@ export default function SocialStudioPage({
                               {s.topic}
                             </div>
                             <div style={{ fontSize: '11px', color: 'var(--text-faint)' }}>
-                              {s.postType} · {formatInZone(s.scheduledAt || null, tz)} · {s.reason}
+                              {s.postType} · {formatInZone(s.scheduledAt || null, tz)}
                             </div>
+                            {s.reason && (
+                              <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 4 }}>
+                                <strong>Why:</strong> {s.reason}
+                              </div>
+                            )}
+                            {s.helps && (
+                              <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 2 }}>
+                                <strong>How it helps:</strong> {s.helps}
+                              </div>
+                            )}
                           </>
                         ) : (
                           <div style={{ fontSize: '12px', color: 'var(--text-faint)', paddingTop: '2px' }}>

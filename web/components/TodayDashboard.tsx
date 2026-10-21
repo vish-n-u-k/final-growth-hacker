@@ -1,6 +1,7 @@
 'use client'
 
 import RoadToFiveHundred from '@/components/RoadToFiveHundred'
+import RecentlyDone from '@/components/RecentlyDone'
 import { useClaudeHandoff, repoLine, type HandoffArgs } from '@/components/useClaudeHandoff'
 import SocialIcon, { socialBrand } from '@/components/SocialIcon'
 import { useState, useEffect, useCallback } from 'react'
@@ -216,8 +217,8 @@ function taskHandoff(card: ActionCard, c: SiteCtx): HandoffArgs {
   const action = typeof d.action === 'string' ? d.action : ''
   const finding = typeof d.finding === 'string' ? d.finding : card.reason
   const done = kind === 'item'
-    ? `call toggle_item with item_id "${id}" and checked true`
-    : `call resolve_signal with signal_id "${id}" and status "done"`
+    ? `call toggle_item with item_id "${id}" and checked true, passing link (the pull request, changed page or published post) and note (one sentence on what you changed) so I can see the result in GrowJin`
+    : `call resolve_signal with signal_id "${id}" and status "done", passing link (the pull request, changed page or published post) and note (one sentence on what you changed) so I can see the result in GrowJin`
   const mcp = [
     `Use the GrowJin connector to do one of today's growth tasks for ${c.brandName}${where(c)}.`,
     repoLine(c.githubRepo),
@@ -289,6 +290,7 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
   const [marking, setMarking] = useState(false)
   const [completing, setCompleting] = useState<TaskStatus | null>(null)
   const action = typeof card.data?.action === 'string' ? card.data.action : null
+  const helps = typeof card.data?.helps === 'string' && card.data.helps.trim() ? card.data.helps : null
   const taskKind = card.data?.taskKind as string | undefined
 
   async function handleComplete(status: TaskStatus) {
@@ -323,7 +325,7 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
       </div>
 
       <h3 className="td-card-headline">{card.headline}</h3>
-      <p className="td-card-reason">{withBold(card.reason)}</p>
+      <p className="td-card-reason">{helps && card.reason ? <strong>Why: </strong> : null}{withBold(card.reason)}</p>
 
       {/* The module check's picture: the failing elements on the page, or the Google / share preview */}
       {card.data?.visual != null && (
@@ -334,12 +336,18 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
       )}
 
       {expanded && composer ? composer : <>
-      {action ? (
+      {action && (
         <div className="td-card-why">
           <span className="td-why-label">What to do</span>
           {withBold(action)}
         </div>
-      ) : TYPE_WHY[card.type] && (
+      )}
+      {helps ? (
+        <div className="td-card-why">
+          <span className="td-why-label">How it helps</span>
+          {withBold(helps)}
+        </div>
+      ) : !action && TYPE_WHY[card.type] && (
         <div className="td-card-why">
           <span className="td-why-label">Why this matters</span>
           {TYPE_WHY[card.type]}
@@ -657,7 +665,7 @@ function BlogComposer({ frektoConnected, generating, topic, setTopic, mode, setM
   setMode: (m: BlogMode) => void
   onWrite: (via: 'frekto' | 'growjin') => void
 }) {
-  const [ideas, setIdeas] = useState<{ topic: string; why: string }[] | null>(null)
+  const [ideas, setIdeas] = useState<{ topic: string; why: string; helps?: string }[] | null>(null)
   useEffect(() => {
     let alive = true
     fetch('/api/blogs/topics').then(r => r.ok ? r.json() : null).then(d => { if (alive) setIdeas(d?.ideas ?? []) }).catch(() => { if (alive) setIdeas([]) })
@@ -681,9 +689,10 @@ function BlogComposer({ frektoConnected, generating, topic, setTopic, mode, setM
       ) : ideas.length > 0 && (
         <div className="td-blog-ideas">
           {ideas.map(i => (
-            <button key={i.topic} type="button" className={`td-blog-idea${topic === i.topic ? ' is-on' : ''}`} onClick={() => setTopic(i.topic)} title={i.why}>
+            <button key={i.topic} type="button" className={`td-blog-idea${topic === i.topic ? ' is-on' : ''}`} onClick={() => setTopic(i.topic)} title={i.helps ? `${i.why}. ${i.helps}` : i.why}>
               <span>{i.topic}</span>
-              <small>{i.why}</small>
+              <small>Why: {i.why}</small>
+              {i.helps && <small>How it helps: {i.helps}</small>}
             </button>
           ))}
         </div>
@@ -752,7 +761,8 @@ function WeeklyBlogSection({ initialData, frektoConnected = false, onAddToSite, 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ replaceId: rid ?? replaceId ?? undefined, topic: topic || undefined, via: writer, frektoMode: mode }),
       })
-      const json = await res.json()
+      // A crashed or timed-out request returns an error page, not JSON: say that instead of a generic failure
+      const json = await res.json().catch(() => ({ error: res.status === 504 ? 'Writing the article took too long and was stopped. Try again.' : `Something went wrong on GrowJin's side (error ${res.status}). Try again in a minute.` }))
       if (json.atLimit) {
         setData(prev => ({ ...prev, activeCount: prev.limit, blogs: json.blogs }))
         return
@@ -1253,6 +1263,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
                 <div className="td-cards">{impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}</div>
               </>
             )}
+            <RecentlyDone />
             <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
             <SocialAnalytics />
             <SocialFeed posts={recentPosts} />
@@ -1355,6 +1366,8 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
                 <div className="td-cards">{impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}</div>
               </>
             )}
+
+            <RecentlyDone />
 
             {/* Weekly blog */}
             <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
