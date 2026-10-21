@@ -156,6 +156,48 @@ const isVideoUrl = (url: string | null) => !!url && /\.(mp4|mov|webm)(\?|$)/i.te
 
 // ── Preview of the rendered post (image, video or carousel) ──────────────────
 
+const FREKTO_URL = 'https://app.frekto.ai'
+
+// Frekto does the making and publishing; GrowJin decides what and when. Shown so it's clear
+// whose account the posts come from and where to manage connected social accounts.
+function FrektoBadge() {
+  return (
+    <a
+      href={FREKTO_URL}
+      target="_blank"
+      rel="noreferrer"
+      title="Open Frekto"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px 3px 6px', borderRadius: 999,
+        border: '1px solid var(--line)', background: 'var(--bg-soft)', color: 'var(--text-dim)',
+        fontSize: 12, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap',
+      }}
+    >
+      <span aria-hidden="true" style={{ display: 'grid', placeItems: 'center', width: 18, height: 18, borderRadius: 5, background: 'var(--text)', color: 'var(--bg)', fontSize: 11, fontWeight: 800 }}>F</span>
+      Auto-posting by Frekto ↗
+    </a>
+  )
+}
+
+const HOW_IT_WORKS: { title: string; body: string }[] = [
+  { title: 'GrowJin picks the idea', body: 'From your audit, keywords and what is working, with the reason shown on each suggestion.' },
+  { title: 'Frekto makes the post', body: 'It designs the image or video and writes the caption and hashtags.' },
+  { title: 'Frekto publishes it', body: 'At the time you choose, to the social accounts connected in your Frekto account.' },
+]
+
+function HowItWorks() {
+  return (
+    <ol style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10, listStyle: 'none', padding: 0, margin: '14px 0 0' }}>
+      {HOW_IT_WORKS.map((step, i) => (
+        <li key={step.title} style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg)' }}>
+          <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{i + 1}. {step.title}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2, lineHeight: 1.45 }}>{step.body}</div>
+        </li>
+      ))}
+    </ol>
+  )
+}
+
 function Preview({ post, size, onOpen }: { post: ScheduledPost; size: number; onOpen?: () => void }) {
   const src = post.thumbnailUrl ?? (isVideoUrl(post.outputUrl) ? null : post.outputUrl)
   const box: React.CSSProperties = {
@@ -526,12 +568,16 @@ export default function SocialStudioPage({
 
   const header = (
     <div style={{ marginBottom: '28px' }}>
-      <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)', margin: '0 0 4px', fontFamily: 'var(--font-display)' }}>
-        Social Studio
-      </h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px 12px', flexWrap: 'wrap', marginBottom: 4 }}>
+        <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text)', margin: 0, fontFamily: 'var(--font-display)' }}>
+          Social Studio
+        </h1>
+        <FrektoBadge />
+      </div>
       <p style={{ fontSize: '13px', color: 'var(--text-faint)', margin: 0 }}>
-        AI-driven post scheduling powered by Frekto — {brandName}
+        GrowJin plans what to post for {brandName}; Frekto creates and publishes it.
       </p>
+      <HowItWorks />
       {frektoConnected && (
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 10px', marginTop: 12, fontSize: 13, color: 'var(--text-dim)' }}>
           <span>Times are shown and scheduled in</span>
@@ -554,7 +600,7 @@ export default function SocialStudioPage({
         {header}
         <div style={{ ...card, padding: '22px' }}>
           <div style={sectionTitle}>Connect Frekto to start posting</div>
-          <p style={{ ...sectionSub, marginBottom: '14px' }}>Frekto creates and publishes the posts. Once it&apos;s connected, Social Studio can:</p>
+          <p style={{ ...sectionSub, marginBottom: '14px' }}>GrowJin plans your posts; Frekto creates and publishes them from your Frekto account. Once it&apos;s connected, Social Studio can:</p>
           <ul style={{ margin: '0 0 18px', paddingLeft: '18px', listStyle: 'disc', fontSize: '13.5px', color: 'var(--text-dim)', lineHeight: 1.8 }}>
             <li>Suggest one ready-to-post idea per platform from your audit</li>
             <li>Show you each post before it&apos;s scheduled</li>
@@ -658,13 +704,16 @@ export default function SocialStudioPage({
       <div style={card}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
           <div>
-            <div style={sectionTitle}>Auto-posting</div>
+            <div style={sectionTitle}>Auto-posting with Frekto</div>
+            <p style={{ fontSize: 12, fontWeight: 600, margin: '0 0 4px', color: autoPost ? 'var(--green)' : 'var(--text-faint)' }}>
+              {!autoPost ? 'Off' : autoMode === 'approve' ? 'On · asks you before anything is posted' : 'On · posts automatically'}
+            </p>
             <p style={{ ...sectionSub, marginBottom: 0 }}>
               {!autoPost
-                ? 'Enable to let GrowJin make a post for you every day via Frekto.'
+                ? 'Turn on to have a post made for you every day: GrowJin picks the topic, Frekto designs it and publishes it.'
                 : autoMode === 'approve'
-                  ? 'Every day GrowJin makes new posts and puts them under "Waiting for your approval". Nothing goes out until you approve it.'
-                  : 'Every day GrowJin makes new posts and schedules them straight away, without asking.'}
+                  ? 'Every day GrowJin picks topics and Frekto makes the posts. They wait under "Waiting for your approval"; nothing goes out until you approve it.'
+                  : 'Every day GrowJin picks topics, and Frekto makes the posts and schedules them straight away, without asking.'}
             </p>
             {autoPost && platformsSet && (
               <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: '6px 0 0' }}>
@@ -677,6 +726,10 @@ export default function SocialStudioPage({
                 <a href="/settings?tab=integrations" style={{ color: 'var(--green)', textDecoration: 'none' }}>Set auto-post platforms in Settings → Integrations → Frekto</a>
               </p>
             )}
+            <p style={{ fontSize: '11px', color: 'var(--text-faint)', margin: '6px 0 0' }}>
+              Posts are published from your Frekto account.{' '}
+              <a href={FREKTO_URL} target="_blank" rel="noreferrer" style={{ color: 'var(--text-dim)' }}>Manage connected accounts in Frekto ↗</a>
+            </p>
           </div>
           <button
             disabled={autoPostLoading}
