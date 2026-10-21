@@ -128,8 +128,9 @@ Caution: never auto-publish. Google's "scaled content abuse" policy targets mass
 
 ## 4. Launch plan (from the "100+ places to share your product" repo post)
 
-Lists like [awesome-producthunt-alternatives](https://github.com/DirectorySurf/awesome-producthunt-alternatives)
-and [LaunchDB](https://www.producthunt.com/p/launchdb/launchdb-2) list launch sites (Product Hunt,
+The repo from the post: [mmccaff/PlacesToPostYourStartup](https://github.com/mmccaff/PlacesToPostYourStartup)
+("100 ways to get users"). Similar lists: [awesome-producthunt-alternatives](https://github.com/DirectorySurf/awesome-producthunt-alternatives),
+[LaunchDB](https://www.producthunt.com/p/launchdb/launchdb-2). They list launch sites (Product Hunt,
 BetaList, Uneed, Peerlist, Indie Hackers), subreddits (r/SideProject, r/startups, r/SaaS), directories
 (G2, AlternativeTo, SaaSHub) and newsletters. Advice: spread launches over several weeks.
 
