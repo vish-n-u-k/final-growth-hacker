@@ -294,7 +294,7 @@ export default async function DashboardPage() {
       pendingModuleIds={pendingModuleIds}
       userEmail={user.email ?? ''}
       isAdmin={isAdminEmail(user.email)}
-      earlyAccess={hasEarlyAccess(user.email)}
+      earlyAccess={await hasEarlyAccess(user.email)}
       githubConnected={githubConnected}
       githubRepo={githubRepo}
       mcpLastUsedAt={mcpLastUsedAt}

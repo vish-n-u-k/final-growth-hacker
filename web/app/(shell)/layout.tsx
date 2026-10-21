@@ -20,7 +20,7 @@ export default async function ShellLayout({ children }: { children: React.ReactN
   const brand = await getBrandForUser(user.id)
   if (!brand) redirect('/onboarding')
 
-  const earlyAccess = hasEarlyAccess(user.email)
+  const earlyAccess = await hasEarlyAccess(user.email)
   const [lockedSet, access] = await Promise.all([getLockedModuleTypes(brand.id, earlyAccess), getAccessCached(brand.id, user.email)])
   const lockedTypes = Array.from(lockedSet)
   const roadmap = await getRoadmapModules(brand.id, lockedSet, planLockedTypes(access, MODULE_REGISTRY.map(m => m.type)))
