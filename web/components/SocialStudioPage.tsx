@@ -28,6 +28,7 @@ interface PostSuggestion {
   postType: string
   scheduledAt: string
   reason: string
+  helps?: string
 }
 
 interface SeriesSuggestion {
@@ -886,8 +887,18 @@ export default function SocialStudioPage({
                               {s.topic}
                             </div>
                             <div style={{ fontSize: '11px', color: 'var(--text-faint)' }}>
-                              {s.postType} · {formatInZone(s.scheduledAt || null, tz)} · {s.reason}
+                              {s.postType} · {formatInZone(s.scheduledAt || null, tz)}
                             </div>
+                            {s.reason && (
+                              <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 4 }}>
+                                <strong>Why:</strong> {s.reason}
+                              </div>
+                            )}
+                            {s.helps && (
+                              <div style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: 2 }}>
+                                <strong>How it helps:</strong> {s.helps}
+                              </div>
+                            )}
                           </>
                         ) : (
                           <div style={{ fontSize: '12px', color: 'var(--text-faint)', paddingTop: '2px' }}>

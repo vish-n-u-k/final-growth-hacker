@@ -289,6 +289,7 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
   const [marking, setMarking] = useState(false)
   const [completing, setCompleting] = useState<TaskStatus | null>(null)
   const action = typeof card.data?.action === 'string' ? card.data.action : null
+  const helps = typeof card.data?.helps === 'string' && card.data.helps.trim() ? card.data.helps : null
   const taskKind = card.data?.taskKind as string | undefined
 
   async function handleComplete(status: TaskStatus) {
@@ -323,7 +324,7 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
       </div>
 
       <h3 className="td-card-headline">{card.headline}</h3>
-      <p className="td-card-reason">{withBold(card.reason)}</p>
+      <p className="td-card-reason">{helps && card.reason ? <strong>Why: </strong> : null}{withBold(card.reason)}</p>
 
       {/* The module check's picture: the failing elements on the page, or the Google / share preview */}
       {card.data?.visual != null && (
@@ -334,12 +335,18 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
       )}
 
       {expanded && composer ? composer : <>
-      {action ? (
+      {action && (
         <div className="td-card-why">
           <span className="td-why-label">What to do</span>
           {withBold(action)}
         </div>
-      ) : TYPE_WHY[card.type] && (
+      )}
+      {helps ? (
+        <div className="td-card-why">
+          <span className="td-why-label">How it helps</span>
+          {withBold(helps)}
+        </div>
+      ) : !action && TYPE_WHY[card.type] && (
         <div className="td-card-why">
           <span className="td-why-label">Why this matters</span>
           {TYPE_WHY[card.type]}
@@ -657,7 +664,7 @@ function BlogComposer({ frektoConnected, generating, topic, setTopic, mode, setM
   setMode: (m: BlogMode) => void
   onWrite: (via: 'frekto' | 'growjin') => void
 }) {
-  const [ideas, setIdeas] = useState<{ topic: string; why: string }[] | null>(null)
+  const [ideas, setIdeas] = useState<{ topic: string; why: string; helps?: string }[] | null>(null)
   useEffect(() => {
     let alive = true
     fetch('/api/blogs/topics').then(r => r.ok ? r.json() : null).then(d => { if (alive) setIdeas(d?.ideas ?? []) }).catch(() => { if (alive) setIdeas([]) })
@@ -681,9 +688,10 @@ function BlogComposer({ frektoConnected, generating, topic, setTopic, mode, setM
       ) : ideas.length > 0 && (
         <div className="td-blog-ideas">
           {ideas.map(i => (
-            <button key={i.topic} type="button" className={`td-blog-idea${topic === i.topic ? ' is-on' : ''}`} onClick={() => setTopic(i.topic)} title={i.why}>
+            <button key={i.topic} type="button" className={`td-blog-idea${topic === i.topic ? ' is-on' : ''}`} onClick={() => setTopic(i.topic)} title={i.helps ? `${i.why}. ${i.helps}` : i.why}>
               <span>{i.topic}</span>
-              <small>{i.why}</small>
+              <small>Why: {i.why}</small>
+              {i.helps && <small>How it helps: {i.helps}</small>}
             </button>
           ))}
         </div>

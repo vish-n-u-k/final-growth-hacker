@@ -44,6 +44,7 @@ export interface TodayTask {
   moduleId: string | null
   category: string
   finding: string | null // why this task, with the numbers behind it
+  helps: string | null // how doing it helps the business
   action: string | null
   needsUserInput: boolean
   daysPending: number // days since this task was first shown (0 = new today)
@@ -64,6 +65,23 @@ export interface TodayTasks {
 }
 
 const WEIGHT_LABEL: Record<number, TodayTask['priority']> = { 3: 'critical', 2: 'important', 1: 'minor' }
+
+// How work in each area pays off, for alerts and plays (checklist items carry their own note).
+const AREA_BENEFIT: Record<string, string> = {
+  foundation: 'Solid basics let Google read your site properly and make visitors trust it.',
+  website: 'A faster, clearer site turns more of your visitors into sign-ups.',
+  seo: 'Better search rankings bring you more visitors without paying for ads.',
+  geo: 'Helps ChatGPT, Perplexity and other AI assistants find and recommend you.',
+  'social-media': 'Regular, on-topic posts grow your audience and bring people back to your site.',
+  'brand-audit': 'A consistent brand makes you look established and easier to trust.',
+  'content-audit': 'Fresh, focused pages keep your traffic from slipping and rank for more searches.',
+  'competitor-analysis': 'Shows where you can win customers your competitors are missing.',
+  'email-marketing': 'Gets your emails into inboxes instead of spam, so people actually read them.',
+  'user-analytics': 'Shows where people drop off, so you fix what actually loses users.',
+  'meta-ads': 'Puts your ad budget where it brings in customers.',
+  'gmail-outreach': 'Direct outreach gets you your first users and partners faster.',
+  diagnosis: 'Focuses you on the one thing holding your growth back right now.',
+}
 
 const CODE_MODULES = new Set(['foundation', 'seo', 'geo'])
 const CONTENT_MODULES = new Set(['social-media', 'content-audit'])
@@ -177,6 +195,7 @@ export async function getTodayTasks(
       moduleId: mod?.id ?? null,
       category: isPlay ? `Focus: ${stage}` : 'Alert',
       finding: s.detail,
+      helps: AREA_BENEFIT[s.source] ?? null,
       action: s.action,
       needsUserInput: false,
     }
@@ -238,6 +257,8 @@ export async function getTodayTasks(
       moduleId: mod.id,
       category: catMap.get(item.categoryId)?.label ?? 'Uncategorized',
       finding: item.aiDetail ?? null,
+      // aiNarrative is the check's "why this hurts the business" line, i.e. what fixing it gains
+      helps: item.aiNarrative ?? AREA_BENEFIT[mod.type] ?? null,
       action: item.aiAction ?? null,
       needsUserInput: item.exportType === 'needs_choice' && !item.userChoice,
       ...(isElementEvidence(item.aiData) || isPagePreview(item.aiData)
@@ -310,7 +331,7 @@ export function tasksToCards(today: TodayTasks): ActionCard[] {
       cta: t.moduleId ? `Open ${t.module}` : PLAY_SETTINGS[t.key] ? 'Open Google Analytics settings' : 'Open modules',
       ctaUrl,
       sourceModule: t.moduleId ?? undefined,
-      data: { taskKind: t.kind, taskId: t.id, slug: t.key, action: t.action, route: t.route, moduleType: t.moduleType, finding: t.finding, daysPending: t.daysPending, overdue: t.overdue, visual: t.visual ?? null, choiceOptions: t.choiceOptions ?? null },
+      data: { taskKind: t.kind, taskId: t.id, slug: t.key, action: t.action, route: t.route, moduleType: t.moduleType, finding: t.finding, helps: t.helps, daysPending: t.daysPending, overdue: t.overdue, visual: t.visual ?? null, choiceOptions: t.choiceOptions ?? null },
     }
   })
 }

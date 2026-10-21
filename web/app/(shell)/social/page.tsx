@@ -57,6 +57,7 @@ export default async function SocialPage() {
     postType: s.postType ?? 'image',
     scheduledAt: s.suggestedAt?.toISOString() ?? '',
     reason: s.reason ?? '',
+    helps: typeof (s.payload as Record<string, unknown> | null)?.helps === 'string' ? (s.payload as { helps: string }).helps : '',
   }))
   const seriesSuggestions = openSuggestions.filter(s => s.kind === 'series').map(s => {
     const p = (s.payload ?? {}) as Record<string, unknown>
