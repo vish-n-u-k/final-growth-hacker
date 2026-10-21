@@ -2,6 +2,7 @@
 
 import { Fragment, useState, useCallback, useEffect, useRef, useMemo, JSX } from 'react'
 import ArrowIcon from '@/components/ArrowIcon'
+import { UNLOCK_ALL_MODULES } from '@/lib/features'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useRoadmap } from '@/components/RoadmapContext'
 import { progressColor as ringColor, GROWTH_PHASES } from '@/lib/modules/roadmap'
@@ -569,7 +570,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
   )
 
   const isModuleLocked = (modData: ModuleData): boolean => {
-    if (process.env.NEXT_PUBLIC_APP_ENV !== 'production') return false
+    if (UNLOCK_ALL_MODULES || process.env.NEXT_PUBLIC_APP_ENV !== 'production') return false
     if (modData.order <= 3) return false  // Foundation, Website Audit, SEO always unlocked
     const prev = [...sortedByOrder].reverse().find(p => p.order < modData.order && !p.definition?.comingSoon)
     return !prev || liveScores[prev.id] < 80
@@ -2241,8 +2242,8 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
     const analysedYet = lastAnalyzedAtMap[selectedModule.id] !== undefined ? lastAnalyzedAtMap[selectedModule.id] : selectedModule.lastAnalyzedAt
     if (!analysedYet) return null // nothing to measure until the first analysis lands
     const next = railModules.slice(selectedIdx + 1).find(p => !p.definition.comingSoon)
-    // Mirrors isModuleLocked: the first three modules never gate each other.
-    const unlocksNext = !!next && next.order > 3
+    // Mirrors isModuleLocked: the first three modules never gate each other, and nothing gates while all are open.
+    const unlocksNext = !UNLOCK_ALL_MODULES && !!next && next.order > 3
     if (score >= 80) {
       return (
         <div className="gp-unlock gp-unlock--done">
