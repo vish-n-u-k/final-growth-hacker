@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
   ].filter(Boolean)
 
   try {
-    const text = await callAI({
+    const text = await callAI({ feature: 'analytics-summary',
       model: 'claude-haiku-4-5-20251001',
       system: SYSTEM_PROMPT,
       prompt: lines.join('\n'),

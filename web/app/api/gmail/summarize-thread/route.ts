@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     .map(m => `[${m.isSelf ? 'You' : m.from}] ${m.time}\n${m.body}`)
     .join('\n\n---\n\n')
 
-  const raw = await callAI({
+  const raw = await callAI({ feature: 'gmail-summarize',
     system: 'You are a sharp business analyst. Be concise and specific. Return only valid JSON.',
     prompt: `Email thread subject: "${subject}"
 

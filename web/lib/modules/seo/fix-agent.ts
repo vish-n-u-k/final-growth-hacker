@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
+import { logAnthropicUsage } from '@/lib/ai/client'
 import * as cheerio from 'cheerio'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -267,6 +268,7 @@ Return ONLY the JSON object. No <script> tags, no markdown fences, no explanatio
     max_tokens: maxTokens,
     messages: [{ role: 'user', content: prompt }],
   })
+  logAnthropicUsage('seo-fix', message)
   const result = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
   console.log(`[getValueFromAI] ── RESPONSE (${message.usage.output_tokens} tokens) ──\n${result}`)
   console.log(`${'─'.repeat(60)}\n`)
@@ -460,6 +462,7 @@ Return ONLY a valid JSON array. No markdown fences, no explanation.`
     max_tokens: 600,
     messages: [{ role: 'user', content: prompt }],
   })
+  logAnthropicUsage('seo-fix', message)
 
   const inputTokens = message.usage.input_tokens
   const outputTokens = message.usage.output_tokens
@@ -584,6 +587,7 @@ Rules:
     max_tokens: 800,
     messages: [{ role: 'user', content: prompt }],
   })
+  logAnthropicUsage('seo-fix', message)
 
   const result = message.content[0].type === 'text' ? message.content[0].text.trim() : ''
   console.log(`[getFooterPatch] response (${message.usage.input_tokens} in / ${message.usage.output_tokens} out tokens):\n${result}`)
@@ -668,6 +672,7 @@ Return ONLY valid JSON. No markdown fences, no explanation.`
     max_tokens: 1000,
     messages: [{ role: 'user', content: prompt }],
   })
+  logAnthropicUsage('seo-fix', message)
 
   const raw = message.content[0].type === 'text' ? message.content[0].text : '{}'
   console.log(`[planFix] ── RESPONSE (${message.usage.output_tokens} tokens) ──\n${raw}`)
@@ -755,6 +760,7 @@ No markdown fences, no explanation, no text outside the array.`
     max_tokens: 16000,
     messages: [{ role: 'user', content: prompt }],
   })
+  logAnthropicUsage('seo-fix', message)
 
   const raw = message.content[0].type === 'text' ? message.content[0].text : '[]'
   console.log(`[generateFix] ── RESPONSE (${message.usage.input_tokens} in / ${message.usage.output_tokens} out tokens) ──`)

@@ -88,7 +88,7 @@ export async function getRelevantContext(
 
   if (!factsForHaiku && !ctx.summary) return ''
 
-  const raw = await callAI({
+  const raw = await callAI({ feature: 'brain',
     system: 'You are a concise analyst. Extract only what is relevant. Return plain text bullet points or "No prior context."',
     prompt: `Accumulated knowledge about this brand from previous module analyses:
 
@@ -245,7 +245,7 @@ async function extractDynamicFacts(
     .map((r) => `[${r.verified ? 'PASS' : 'FAIL'}] ${r.label}: ${r.detail}`)
     .join('\n')
 
-  const raw = await callAI({
+  const raw = await callAI({ feature: 'brain',
     system: 'You extract structured facts from audit results. Return only a flat JSON object, no markdown, no explanation.',
     prompt: `Given these ${moduleType} audit findings, extract 5–10 key facts that would be useful context for future marketing modules.
 
@@ -279,7 +279,7 @@ async function buildSummary(
   const pass = results.filter((r) => r.verified).length
   const lines = results.map((r) => `[${r.verified ? '✓' : '✗'}] ${r.detail}`).join('\n')
 
-  const text = await callAI({
+  const text = await callAI({ feature: 'brain',
     system: 'You write concise brand health summaries. Be specific. No preamble.',
     prompt: `Prior summary: "${prior}"
 
