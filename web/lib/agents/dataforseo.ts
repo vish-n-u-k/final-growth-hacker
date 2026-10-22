@@ -232,6 +232,63 @@ export async function referringDomains(target: string, meter?: UsageMeter, limit
   return (r.items ?? []).map(i => (i.domain ?? '').replace(/^www\./, '').toLowerCase()).filter(Boolean)
 }
 
+// ── Trustpilot reviews (Business Data API; queued: post a task, then collect it) ──
+// Trustpilot blocks direct reading from servers, so reviews come from here when DataForSEO is set up.
+
+export interface TrustpilotReview { name: string; rating: number; text: string; date: string | null; url: string | null }
+
+function dfsAuth(): string {
+  if (!dataForSeoConfigured()) throw new Error('DataForSEO is not set up (DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD).')
+  return `Basic ${Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString('base64')}`
+}
+
+/** Starts a high-priority task (about a minute) for the newest `depth` reviews. Returns its id. */
+export async function trustpilotReviewsTask(domain: string, meter?: UsageMeter, depth = 60): Promise<string> {
+  const res = await fetch(`${BASE}/business_data/trustpilot/reviews/task_post`, {
+    method: 'POST',
+    headers: { Authorization: dfsAuth(), 'Content-Type': 'application/json' },
+    body: JSON.stringify([{ domain: domain.replace(/^https?:\/\//, '').replace(/\/.*$/, ''), depth, sort_by: 'recency', priority: 2 }]),
+    signal: AbortSignal.timeout(30_000),
+  })
+  const j = await res.json().catch(() => null) as DfsResponse<unknown> & { tasks?: { id?: string; status_code?: number; status_message?: string; cost?: number }[] } | null
+  const t = j?.tasks?.[0]
+  if (!res.ok || !t?.id || (t.status_code !== 20100 && t.status_code !== 20000)) {
+    const why = t?.status_message ?? j?.status_message ?? `HTTP ${res.status}`
+    console.error(`[dataforseo] trustpilot task_post → ${why}`)
+    throw new Error(`DataForSEO: ${why}`)
+  }
+  if (meter) meter.dataforseo += t.cost ?? 0
+  return t.id
+}
+
+/** The task's reviews, or null while DataForSEO is still collecting them. */
+export async function trustpilotReviewsResult(id: string): Promise<TrustpilotReview[] | null> {
+  const res = await fetch(`${BASE}/business_data/trustpilot/reviews/task_get/${encodeURIComponent(id)}`, {
+    headers: { Authorization: dfsAuth() },
+    signal: AbortSignal.timeout(30_000),
+    cache: 'no-store',
+  })
+  type Item = { rating?: { value?: number } | null; review_text?: string | null; title?: string | null; user_profile?: { name?: string } | null; timestamp?: string | null; url?: string | null }
+  const j = await res.json().catch(() => null) as { status_code?: number; status_message?: string; tasks?: { status_code?: number; status_message?: string; result?: { items?: Item[] | null }[] | null }[] } | null
+  const t = j?.tasks?.[0]
+  // 40601 "Task Handed", 40602 "Task In Queue": not ready yet
+  if (t?.status_code === 40601 || t?.status_code === 40602) return null
+  if (!res.ok || t?.status_code !== 20000) {
+    const why = t?.status_message ?? j?.status_message ?? `HTTP ${res.status}`
+    console.error(`[dataforseo] trustpilot task_get → ${why}`)
+    throw new Error(`DataForSEO: ${why}`)
+  }
+  return (t.result?.[0]?.items ?? [])
+    .filter(i => (i.review_text ?? i.title ?? '').trim().length > 0)
+    .map(i => ({
+      name: i.user_profile?.name?.trim() || 'Trustpilot reviewer',
+      rating: i.rating?.value ?? 0,
+      text: [i.title, i.review_text].filter(Boolean).join('. ').slice(0, 400),
+      date: i.timestamp ? i.timestamp.slice(0, 10) : null,
+      url: i.url ?? null,
+    }))
+}
+
 // ── AI answers (ChatGPT, Perplexity, Gemini) ──────────────────────────────────
 
 export type AiEngine = 'chat_gpt' | 'perplexity' | 'gemini'

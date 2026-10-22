@@ -4,6 +4,8 @@ import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import LeadFinder from '@/components/LeadFinder'
+import { loadBrandContext } from '@/lib/agents/context'
+import { dataForSeoConfigured } from '@/lib/agents/dataforseo'
 
 export default async function LeadFinderPage() {
   const supabase = await createClient()
@@ -23,11 +25,14 @@ export default async function LeadFinderPage() {
     .limit(1)
 
   const gmailConnected = integration?.status === 'connected'
+  const ctx = await loadBrandContext(brand.id).catch(() => null)
 
   return (
     <LeadFinder
       brandName={brand.name}
       gmailConnected={gmailConnected}
+      competitors={(ctx?.competitors ?? []).map(c => c.domain).slice(0, 4)}
+      trustpilotReady={dataForSeoConfigured()}
     />
   )
 }
