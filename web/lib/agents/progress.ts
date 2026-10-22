@@ -5,7 +5,9 @@ import { getSnapshot, saveSnapshot } from '@/lib/signals'
 
 // warn: the step worked and found a problem the user should look at
 export type StepStatus = 'pending' | 'running' | 'done' | 'warn' | 'skipped' | 'error'
-export interface ProgressStep { key: string; label: string; status: StepStatus; detail?: string }
+// detail: one line on what the step found; items: the findings themselves (keywords, sites…), shown as chips
+export interface ProgressStep { key: string; label: string; status: StepStatus; detail?: string; items?: string[] }
+type Found = string | { detail?: string; items?: string[] } | undefined
 export interface RunProgress { runId: string; startedAt: string; finishedAt?: string; title: string; steps: ProgressStep[]; summary?: string }
 
 const keyOf = (agent: 'lead' | 'search') => `agent:progress:${agent}`
@@ -25,16 +27,20 @@ export class Progress {
     this.saving = this.saving.then(() => saveSnapshot(this.brandId, keyOf(this.agent), snapshot)).catch(() => {})
   }
 
-  set(key: string, status: StepStatus, detail?: string) {
+  set(key: string, status: StepStatus, found?: Found) {
     const s = this.doc.steps.find(x => x.key === key)
     if (!s) return
     s.status = status
-    if (detail !== undefined) s.detail = detail
+    if (typeof found === 'string') s.detail = found
+    else if (found) {
+      if (found.detail !== undefined) s.detail = found.detail
+      if (found.items) s.items = found.items.filter(Boolean).slice(0, 6)
+    }
     this.save()
   }
 
   /** Marks the step running, runs `fn`, then done (with the detail it returns) or error. */
-  async step<T>(key: string, fn: () => Promise<T>, detail?: (r: T) => string | undefined): Promise<T> {
+  async step<T>(key: string, fn: () => Promise<T>, detail?: (r: T) => Found): Promise<T> {
     this.set(key, 'running')
     try {
       const r = await fn()

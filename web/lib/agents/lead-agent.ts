@@ -382,14 +382,14 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
     const known = new Set([...d.leads.map(l => l.id), ...(d.rejected ?? [])])
     let candidates: Candidate[] = []
     try {
-      const queries = s.sources.reddit ? await pr.step('queries', () => searchQueries(b, s, d), q => q.slice(0, 3).map(x => `“${x}”`).join(', ')) : []
+      const queries = s.sources.reddit ? await pr.step('queries', () => searchQueries(b, s, d), q => ({ detail: `${n(q.length, 'search phrase')} to look for`, items: q.slice(0, 4) })) : []
       // One failing source (e.g. a search error) shouldn't stop the others; it's reported on the page
       const source = <T>(label: string, p: Promise<T[]>) => p.catch(e => { errors.push(`${label}: ${e instanceof Error ? e.message : 'failed'}`); return [] as T[] })
       const fresh = (x: Candidate) => !known.has(idOf(x.url))
       const found = await Promise.all([
-        s.sources.reddit ? source('Reddit search', pr.step('reddit', async () => [...await findReddit(queries, s.country, meter), ...await findHackerNews(queries)], r => `${n(r.length, 'post')} found, ${r.filter(fresh).length} new`)) : [],
-        s.sources.reviews ? source('Competitor reviews', pr.step('reviews', () => findReviews(s.competitors), r => `${n(r.length, 'unhappy review')} in the last 3 months, ${r.filter(fresh).length} new`)) : [],
-        s.sources.local ? source('Google Maps search', pr.step('local', () => findLocal(s.localQuery, s.country, meter), r => `${n(r.length, 'business', 'businesses')} with a need (no website, low rating or few reviews)`)) : [],
+        s.sources.reddit ? source('Reddit search', pr.step('reddit', async () => [...await findReddit(queries, s.country, meter), ...await findHackerNews(queries)], r => ({ detail: `${n(r.length, 'post')} found, ${r.filter(fresh).length} new`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
+        s.sources.reviews ? source('Competitor reviews', pr.step('reviews', () => findReviews(s.competitors), r => ({ detail: `${n(r.length, 'unhappy review')} in the last 3 months, ${r.filter(fresh).length} new`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
+        s.sources.local ? source('Google Maps search', pr.step('local', () => findLocal(s.localQuery, s.country, meter), r => ({ detail: `${n(r.length, 'business', 'businesses')} with a need (no website, low rating or few reviews)`, items: r.slice(0, 3).map(x => x.title) }))) : [],
       ])
       candidates = found.flat().filter((c, i, a) => !known.has(idOf(c.url)) && a.findIndex(x => x.url === c.url) === i).slice(0, 30)
     } catch (e) {

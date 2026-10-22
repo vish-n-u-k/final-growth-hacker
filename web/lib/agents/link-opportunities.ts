@@ -228,14 +228,14 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
     const found = new Map<string, Candidate>()
 
     const sites = (source: Candidate['source']) => [...found.values()].filter(c => c.source === source)
-    const sample = (list: Candidate[]) => list.slice(0, 3).map(c => c.domain).join(', ')
+    const sample = (list: Candidate[]) => list.slice(0, 4).map(c => c.domain)
     if (!b.competitors.length) {
       notes.push('add competitors in Settings to find sites that link to them')
       p.set('gap', 'skipped', 'Add competitors in Settings first')
     } else {
       await p.step('gap', () => findGap(b, isSkipped, meter, found), () => {
         const g = sites('gap')
-        return g.length ? `${n(g.length, 'site')} link to them, not you: ${sample(g)}${g.length > 3 ? '…' : ''}` : 'None found this time'
+        return g.length ? { detail: `${n(g.length, 'site')} link to them, not to you`, items: sample(g) } : 'None found this time'
       }).catch(e => {
         const msg = e instanceof Error ? e.message : 'failed'
         errors.push(`Competitor links: ${msg}${/access|subscri|40[0-9]{3}/i.test(msg) ? ' (this needs DataForSEO\'s Backlinks subscription; list articles still work)' : ''}`)
@@ -243,7 +243,7 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
     }
     await p.step('lists', () => findLists(b, d, isSkipped, meter, found, errors), () => {
       const l = sites('list')
-      return l.length ? `${n(l.length, 'article')}: ${sample(l)}${l.length > 3 ? '…' : ''}` : 'None found this time'
+      return l.length ? { detail: `${n(l.length, 'article')} list options like yours`, items: sample(l) } : 'None found this time'
     }).catch(e => errors.push(`List articles: ${e instanceof Error ? e.message : 'failed'}`))
 
     // Strongest first: sites naming more competitors, list articles, then authority
@@ -266,7 +266,7 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
           status: 'new', foundAt: now,
         })
       })
-      p.set('pick', 'done', `${n(fresh.length, 'site')} worth pitching${fresh.length ? `: ${fresh.slice(0, 3).map(l => l.domain).join(', ')}` : ''}`)
+      p.set('pick', 'done', { detail: `${n(fresh.length, 'site')} worth pitching`, items: fresh.slice(0, 4).map(l => l.domain) })
       // Contacts: Hunter for a named person, else a mailto: on their own pages
       p.set('contacts', fresh.length ? 'running' : 'skipped')
       let lookups = 0

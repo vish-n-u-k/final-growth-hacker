@@ -274,7 +274,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
     const ads = demo ? null : await readGoogleAdsCreds(brandId).catch(() => null)
     if (!demo && !ads) p.set('ads', 'skipped', 'Google Ads isn\'t connected')
     const [ideas, ranked, answers, desc, wasted] = await Promise.all([
-      p.step('keywords', () => keywordIdeas(s.seeds, s.country, meter), r => [`${n(r.length, 'keyword idea')} found`, ...r.slice(0, 3).map(i => `“${i.keyword}” ${i.volume.toLocaleString('en-US')}/mo`)].join(' · '))
+      p.step('keywords', () => keywordIdeas(s.seeds, s.country, meter), r => ({ detail: `${n(r.length, 'keyword idea')} found. Top searches a month:`, items: r.slice(0, 4).map(i => `${i.keyword} · ${i.volume.toLocaleString('en-US')}`) }))
         .catch(e => { errors.push(`Keywords: ${e instanceof Error ? e.message : e}`); return [] as KeywordIdea[] }),
       p.step('ranks', () => rankedKeywords(b.domain, s.country, meter), r => `${b.domain} shows up for ${n(r.length, 'search', 'searches')}, ${r.filter(x => x.rank <= 10).length} on page 1`)
         .catch(e => { errors.push(`Rankings: ${e instanceof Error ? e.message : e}`); return null }),
@@ -291,14 +291,14 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
     const rows = ranked ?? []
     const changes = ranked ? rankChanges(d.ranks, rows, d.topics) : d.rankChanges
     const picks = pickTopics(b, d, ideas, rows)
-    p.set('topics', 'done', picks.length ? picks.map(t => `“${t.keyword}”`).join(', ') : 'No new topics this week (3 still waiting)')
+    p.set('topics', 'done', picks.length ? { detail: `${n(picks.length, 'new topic')} to write about`, items: picks.map(t => t.keyword) } : 'No new topics this week (3 still waiting)')
     const fresh = buildTasks(b, answers, changes, desc)
     const listings = fresh.filter(t => t.kind === 'listing').map(t => t.key.replace(/^listing:/, ''))
-    p.set('tasks', 'done', [
-      listings.length ? `Get listed on ${listings.join(', ')}` : null,
+    p.set('tasks', 'done', { items: listings, detail: [
+      listings.length ? `${n(listings.length, 'site')} to get listed on` : null,
       fresh.some(t => t.kind === 'refresh') ? `${n(fresh.filter(t => t.kind === 'refresh').length, 'page')} to refresh` : null,
       fresh.some(t => t.kind === 'write') ? `${n(fresh.filter(t => t.kind === 'write').length, 'question')} to answer` : null,
-    ].filter(Boolean).join(' · ') || 'Nothing new')
+    ].filter(Boolean).join(' · ') || 'Nothing new' })
 
     const tips: AdsTip[] = ideas
       .filter(i => (i.difficulty ?? 0) >= 60 && i.volume >= 100 && i.cpc && i.cpc < 3)
@@ -399,7 +399,7 @@ export async function runSearchWrite(brandId: string): Promise<{ ok: boolean; su
     try {
       const serp = searchDataReady()
         ? await p.step('serp', async () => (await googleResults(topic.keyword, d.settings.country, meter).catch(() => [])).filter(r => domainOf(r.url) !== b.domain).slice(0, 3),
-            r => r.length ? r.map(x => `#${x.rank} ${x.domain}`).join(', ') : 'No results to compare with')
+            r => r.length ? { detail: 'The pages to beat:', items: r.map(x => `#${x.rank} ${x.domain}`) } : 'No results to compare with')
         : (p.set('serp', 'skipped', 'Search data isn\'t set up'), [])
       const pages = await p.step('read', () => Promise.all(serp.map(async r => `#${r.rank} ${r.url}\n${await readPage(r.url)}`)), r => `${r.length} page${r.length === 1 ? '' : 's'} read`)
       p.set('write', 'running')
