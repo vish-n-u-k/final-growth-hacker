@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { reminders } from '@/lib/db/schema'
+import { outreachEmails, reminders } from '@/lib/db/schema'
 import { getValidGmailToken } from '@/lib/gmail/token'
 import { isSuppressed } from '@/lib/gmail/suppression'
 
@@ -41,10 +41,15 @@ export function buildRawMessage(
     .replace(/=+$/, '')
 }
 
-/** Sends an HTML email from the brand's connected Gmail account. */
+/**
+ * Sends an HTML email from the brand's connected Gmail account. With `log`, the sent email is
+ * also saved to outreach_emails so it shows in Email Outreach's sent list (the agents use this;
+ * the Email Outreach routes save their own rows).
+ */
 export async function sendGmailMessage(
   brandId: string,
   { to, subject, body, threadId, inReplyTo }: { to: string; subject: string; body: string; threadId?: string | null; inReplyTo?: string | null },
+  log?: { source: string; toName?: string | null },
 ): Promise<{ id: string; threadId: string }> {
   const blocked = await isSuppressed(brandId, to)
   if (blocked) {
@@ -84,7 +89,14 @@ export async function sendGmailMessage(
     throw new GmailSendError('Gmail API error — could not send email', 'api_error')
   }
 
-  return await res.json() as { id: string; threadId: string }
+  const sent = await res.json() as { id: string; threadId: string }
+  if (log) {
+    await db.insert(outreachEmails).values({
+      brandId, toEmail: to, toName: log.toName ?? parseRecipientName(to), subject, body, status: 'sent', source: log.source,
+      gmailMessageId: sent.id, gmailThreadId: sent.threadId, sentAt: new Date(),
+    }).catch(e => console.error('[gmail/send] could not save the sent email:', e instanceof Error ? e.message : e))
+  }
+  return sent
 }
 
 export function parseRecipientName(to: string): string | null {

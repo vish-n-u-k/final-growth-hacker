@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import ToolHeader from '@/components/ToolHeader'
 import { Spinner } from '@/components/ui/spinner'
@@ -35,12 +35,11 @@ interface Lead {
   fresh?: boolean
 }
 interface Step { state: StepState; detail?: string; progress?: number }
-interface Scan { platform: Platform; competitor: string; reviewsRead: number; unhappy: number; others: number; scannedAt: string }
+interface Scan { id: string; platform: Platform; competitor: string; reviewsRead: number; unhappy: number; others: number; scannedAt: string; leadCount?: number }
 
 const GOOD = 7          // a "good fit" is 7+ out of 10
 const MAX_UNHAPPY = 30  // reviewers scored per scan (cost and time)
 const BATCH = 6
-const STORE_KEY = 'competitor-leads:last'
 
 const STEP_TITLES = (brand: string) => [
   'Reading reviews',
@@ -64,6 +63,11 @@ function Stars({ n }: { n: number }) {
   return <span className="cl-stars" aria-label={`${r} out of 5 stars`}>{'★'.repeat(r)}<s>{'★'.repeat(5 - r)}</s></span>
 }
 
+// Saves a scan summary or a lead change (app/api/lead-finder/saved). Best-effort: the page keeps working if it fails.
+function persist(method: 'POST' | 'PATCH', payload: Record<string, unknown>) {
+  fetch('/api/lead-finder/saved', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
+}
+
 async function step<T>(payload: Record<string, unknown>): Promise<T> {
   const res = await fetch('/api/lead-finder/step', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
   const j = await res.json().catch(() => ({})) as T & { error?: string; upgrade?: boolean }
@@ -71,21 +75,27 @@ async function step<T>(payload: Record<string, unknown>): Promise<T> {
   return j
 }
 
-export default function LeadFinder({ brandName, gmailConnected, competitors = [], trustpilotReady = false }: {
+export default function LeadFinder({ brandName, gmailConnected, competitors = [], trustpilotReady = false, initialScan = null, initialLeads = [], history: initialHistory = [] }: {
   brandName: string
   gmailConnected: boolean
   competitors?: string[]
   trustpilotReady?: boolean
+  initialScan?: Scan | null      // the latest saved scan (lib/lead-finder/saved.ts)
+  initialLeads?: Lead[]
+  history?: Scan[]               // earlier scans, newest first
 }) {
-  const [platform, setPlatform] = useState<Platform>('trustpilot')
+  const [platform, setPlatform] = useState<Platform>(initialScan?.platform ?? 'trustpilot')
   const [input, setInput] = useState('')
-  const [phase, setPhase] = useState<'empty' | 'running' | 'done' | 'failed'>('empty')
+  const [phase, setPhase] = useState<'empty' | 'running' | 'done' | 'failed'>(initialScan ? 'done' : 'empty')
   const [steps, setSteps] = useState<Step[]>([])
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [scan, setScan] = useState<Scan | null>(null)
+  const [leads, setLeads] = useState<Lead[]>(initialLeads)
+  const [scan, setScan] = useState<Scan | null>(initialScan)
+  const [history, setHistory] = useState<Scan[]>(initialHistory)
+  const [loadingScan, setLoadingScan] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
   const stopRef = useRef(false)
+  const scanIdRef = useRef('')
   const titles = STEP_TITLES(brandName)
 
   // Filters (finished scans only)
@@ -95,18 +105,24 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
   const [contact, setContact] = useState<'any' | 'email' | 'none'>('any')
   const [sort, setSort] = useState<'fit' | 'new' | 'low' | 'name'>('fit')
 
-  // Bring back the last scan from this browser
-  useEffect(() => {
+  // Scans are saved as they run; this records the summary and keeps the "Earlier scans" list current
+  const saveScan = (s: Scan, leadCount: number) => {
+    persist('POST', { scan: s })
+    setHistory(prev => [{ ...s, leadCount }, ...prev.filter(x => x.id !== s.id)].slice(0, 20))
+  }
+  const saveLead = (id: string, change: { status?: 'sent' | 'skipped' | null; email?: string; draft?: { subject: string; body: string } }) =>
+    persist('PATCH', { leadId: id, ...change })
+
+  async function openScan(id: string) {
+    const s = history.find(x => x.id === id)
+    if (!s || s.id === scan?.id) return
+    setLoadingScan(true); setOpenId(null)
     try {
-      const saved = JSON.parse(localStorage.getItem(STORE_KEY) ?? 'null') as { scan: Scan; leads: Lead[] } | null
-      if (saved?.scan && Array.isArray(saved.leads)) {
-        setScan(saved.scan); setLeads(saved.leads.map(l => ({ ...l, fresh: false }))); setPlatform(saved.scan.platform); setPhase('done')
-      }
-    } catch { /* nothing saved */ }
-  }, [])
-  const save = (s: Scan, ls: Lead[]) => { try { localStorage.setItem(STORE_KEY, JSON.stringify({ scan: s, leads: ls })) } catch { /* storage full or blocked */ } }
-  // Keep the saved copy in step with sends, skips and edits
-  useEffect(() => { if (phase === 'done' && scan) save(scan, leads) }, [phase, scan, leads])
+      const res = await fetch(`/api/lead-finder/saved?scan=${encodeURIComponent(id)}`)
+      const j = await res.json() as { leads?: Lead[] }
+      setScan(s); setPlatform(s.platform); setInput(s.competitor); setLeads(j.leads ?? []); setPhase('done')
+    } catch { /* keep the current scan */ } finally { setLoadingScan(false) }
+  }
 
   const setStep = (i: number, s: Partial<Step>) => setSteps(prev => prev.map((x, k) => (k === i ? { ...x, ...s } : x)))
   const patchLead = (id: string, p: Partial<Lead>) => setLeads(prev => prev.map(l => (l.id === id ? { ...l, ...p } : l)))
@@ -115,13 +131,14 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
     stopRef.current = true
     setPhase('empty'); setSteps([]); setLeads([]); setScan(null); setFailure(null); setOpenId(null)
     setQ(''); setMinFit(GOOD); setStars([]); setContact('any'); setSort('fit')
-    try { localStorage.removeItem(STORE_KEY) } catch { /* ignore */ }
   }
 
   async function run(target = input) {
     const competitor = target.trim()
     if (!competitor) return
     stopRef.current = false
+    const scanId = crypto.randomUUID()
+    scanIdRef.current = scanId
     setInput(competitor); setPhase('running'); setFailure(null); setOpenId(null); setLeads([])
     setSteps(titles.map((_, i) => ({ state: i === 0 ? 'run' : 'wait' })))
     const stopped = () => stopRef.current
@@ -146,7 +163,8 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
       setStep(1, { state: 'run', detail: 'Keeping 1–3 star reviews' })
       const unhappy = reviews.filter(x => x.rating < 4).slice(0, MAX_UNHAPPY)
       setStep(1, { state: 'done', detail: `${unhappy.length} unhappy reviewer${unhappy.length === 1 ? '' : 's'}` })
-      const baseScan: Scan = { platform, competitor, reviewsRead: reviews.length, unhappy: unhappy.length, others: 0, scannedAt: new Date().toISOString() }
+      const baseScan: Scan = { id: scanId, platform, competitor, reviewsRead: reviews.length, unhappy: unhappy.length, others: 0, scannedAt: new Date().toISOString() }
+      saveScan(baseScan, 0)
       if (!unhappy.length) {
         setSteps(prev => prev.map((x, i) => (i > 1 ? { state: 'skip' } : x)))
         setScan(baseScan); setPhase('done'); return
@@ -160,12 +178,12 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
       for (let b = 0; b < unhappy.length; b += BATCH) {
         if (stopped()) return
         const batch = unhappy.slice(b, b + BATCH)
-        const { scored: res } = await step<{ scored: (Review & { fitScore: number; fitReason: string; painPoints: string[] })[] }>({ op: 'score', reviews: batch })
+        const { scored: res } = await step<{ scored: (Review & { fitScore: number; fitReason: string; painPoints: string[]; leadId?: string })[] }>({ op: 'score', reviews: batch, scanId })
         scored += batch.length
         for (const x of res) {
           if (x.fitScore < GOOD) { others += 1; continue }
           const lead: Lead = {
-            id: `${x.company}|${x.reviewDate ?? ''}|${good.length}`, name: x.company, rating: x.rating, date: x.reviewDate, reviewUrl: x.reviewUrl,
+            id: x.leadId ?? `${scanId}:${good.length}`, name: x.company, rating: x.rating, date: x.reviewDate, reviewUrl: x.reviewUrl,
             text: x.reviewText, fit: x.fitScore, why: x.fitReason, pains: x.painPoints, stage: 'scored', fresh: true,
           }
           good.push(lead)
@@ -176,6 +194,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
       }
       setStep(2, { state: 'done', detail: `${good.length} good fit${good.length === 1 ? '' : 's'} (${GOOD}+ out of 10) · ${others} didn't fit`, progress: undefined })
       const doneScan = { ...baseScan, others }
+      saveScan(doneScan, good.length)
       if (!good.length) {
         setSteps(prev => prev.map((x, i) => (i > 2 ? { state: 'skip' } : x)))
         setScan(doneScan); setPhase('done'); return
@@ -188,7 +207,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
       for (const [i, l] of good.entries()) {
         if (stopped()) return
         patchLead(l.id, { stage: 'contact', fresh: false })
-        const { contact: c } = await step<{ contact: { website: string | null; email: string | null; verified: boolean } }>({ op: 'contact', platform, name: l.name })
+        const { contact: c } = await step<{ contact: { website: string | null; email: string | null; verified: boolean } }>({ op: 'contact', platform, name: l.name, leadId: l.id })
           .catch(() => ({ contact: { website: null, email: null, verified: false } }))
         Object.assign(l, { website: c.website, email: c.email, verified: c.verified, stage: 'contacted' as Stage })
         if (c.email) found += 1
@@ -204,7 +223,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
         if (stopped()) return
         patchLead(l.id, { stage: 'drafting' })
         try {
-          const { draft } = await step<{ draft: { subject: string; body: string } }>({ op: 'draft', platform, name: l.name, painPoints: l.pains, fitReason: l.why })
+          const { draft } = await step<{ draft: { subject: string; body: string } }>({ op: 'draft', platform, name: l.name, painPoints: l.pains, fitReason: l.why, leadId: l.id })
           l.draft = draft
           patchLead(l.id, { draft, stage: 'drafted' })
         } catch (e) {
@@ -227,8 +246,13 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
   function stop() {
     stopRef.current = true
     if (leads.length) {
-      setScan({ platform, competitor: input, reviewsRead: 0, unhappy: 0, others: 0, scannedAt: new Date().toISOString() })
-      setLeads(prev => prev.map(l => ({ ...l, stage: l.stage === 'contact' || l.stage === 'drafting' ? 'contacted' : l.stage })))
+      const stopped: Scan = { id: scanIdRef.current, platform, competitor: input, reviewsRead: 0, unhappy: 0, others: 0, scannedAt: new Date().toISOString() }
+      const known = history.find(x => x.id === stopped.id)
+      setScan(known ? { ...known, leadCount: leads.length } : stopped)
+      if (!known) saveScan(stopped, leads.length)
+      else setHistory(prev => prev.map(x => (x.id === stopped.id ? { ...x, leadCount: leads.length } : x)))
+      // Leads the scan didn't finish can still be emailed by hand
+      setLeads(prev => prev.map(l => (l.stage === 'drafted' ? l : { ...l, stage: 'drafted', fresh: false, draftError: l.draft ? undefined : 'The scan stopped before this email was written. Write your own below.' })))
       setPhase('done')
     } else {
       setPhase('empty'); setSteps([])
@@ -321,17 +345,19 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
           {phase !== 'running' && l.stage === 'drafted' && l.status !== 'sent' && (
             <>
               {l.status === 'skipped'
-                ? <button className="btn btn-link" type="button" onClick={() => patchLead(l.id, { status: undefined })}>Undo skip</button>
+                ? <button className="btn btn-link" type="button" onClick={() => { patchLead(l.id, { status: undefined }); saveLead(l.id, { status: null }) }}>Undo skip</button>
                 : <>
                     <button className={`btn btn-sm ${l.email ? 'btn-primary' : 'btn-ghost'}`} type="button" onClick={() => setOpenId(open ? null : l.id)}>
                       {open ? 'Close' : l.email ? 'Review email' : 'Add email'}
                     </button>
-                    <button className="btn btn-link" type="button" onClick={() => { patchLead(l.id, { status: 'skipped' }); if (open) setOpenId(null) }}>Skip</button>
+                    <button className="btn btn-link" type="button" onClick={() => { patchLead(l.id, { status: 'skipped' }); saveLead(l.id, { status: 'skipped' }); if (open) setOpenId(null) }}>Skip</button>
                   </>}
             </>
           )}
         </div>
-        {open && <Editor lead={l} gmailConnected={gmailConnected} onSent={(email, d) => { patchLead(l.id, { status: 'sent', email, draft: d }); setOpenId(null) }} />}
+        {open && <Editor lead={l} gmailConnected={gmailConnected}
+          onEdit={(email, d) => { patchLead(l.id, { email: email || l.email, draft: d }); saveLead(l.id, { email: email || undefined, draft: d }) }}
+          onSent={(email, d) => { patchLead(l.id, { status: 'sent', email, draft: d }); saveLead(l.id, { status: 'sent', email, draft: d }); setOpenId(null) }} />}
       </article>
     )
   }
@@ -427,7 +453,14 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
 
         {phase === 'done' && scan && (
           <>
-            {scanBar(<span className="cl-muted">{[scan.reviewsRead ? `${scan.reviewsRead} reviews read` : null, `scanned ${ago(scan.scannedAt)}`].filter(Boolean).join(' · ')}</span>)}
+            {scanBar(<>
+              <span className="cl-muted">{[scan.reviewsRead ? `${scan.reviewsRead} reviews read` : null, `scanned ${ago(scan.scannedAt)}`].filter(Boolean).join(' · ')}</span>
+              {history.length > 1 && (
+                <select className="cl-sel cl-hist" value={scan.id} disabled={loadingScan} onChange={e => openScan(e.target.value)} aria-label="Earlier scans">
+                  {history.map(h => <option key={h.id} value={h.id}>{h.competitor} · {fmtDate(h.scannedAt)} · {h.leadCount ?? 0} lead{h.leadCount === 1 ? '' : 's'}</option>)}
+                </select>
+              )}
+            </>)}
             {leads.length === 0 ? (
               <div className="cl-none">
                 <h3>{scan.unhappy === 0 ? 'No unhappy reviewers' : 'No good fits this time'}</h3>
@@ -456,8 +489,14 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
   )
 }
 
-function Editor({ lead, gmailConnected, onSent }: { lead: Lead; gmailConnected: boolean; onSent: (email: string, d: { subject: string; body: string }) => void }) {
+function Editor({ lead, gmailConnected, onSent, onEdit }: {
+  lead: Lead; gmailConnected: boolean
+  onSent: (email: string, d: { subject: string; body: string }) => void
+  onEdit: (email: string, d: { subject: string; body: string }) => void   // saves edits when a field loses focus
+}) {
   const hi = firstName(lead.name) ? `Hi ${firstName(lead.name)},` : 'Hi,'
+  // The saved draft is kept without the greeting, which is added back here
+  const bare = (b: string) => b.startsWith(`${hi}\n\n`) ? b.slice(hi.length + 2) : b
   const [to, setTo] = useState(lead.email ?? '')
   const [subject, setSubject] = useState(lead.draft?.subject ?? '')
   const [body, setBody] = useState(lead.draft ? `${hi}\n\n${lead.draft.body}` : '')
@@ -475,7 +514,7 @@ function Editor({ lead, gmailConnected, onSent }: { lead: Lead; gmailConnected: 
       })
       const j = await res.json().catch(() => ({})) as { error?: string; message?: string }
       if (!res.ok) throw new Error(j.message ?? j.error ?? 'Couldn’t send.')
-      onSent(to.trim(), { subject, body })
+      onSent(to.trim(), { subject, body: bare(body) })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Couldn’t send.')
     } finally {
@@ -484,7 +523,8 @@ function Editor({ lead, gmailConnected, onSent }: { lead: Lead; gmailConnected: 
   }
 
   return (
-    <form className="cl-editor" onSubmit={send}>
+    <form className="cl-editor" onSubmit={send}
+      onBlur={() => { if (to.trim() !== (lead.email ?? '') || subject !== (lead.draft?.subject ?? '') || bare(body) !== (lead.draft?.body ?? '')) onEdit(to.trim(), { subject, body: bare(body) }) }}>
       <label>To<input type="email" required value={to} onChange={e => setTo(e.target.value)} placeholder="name@company.com" /></label>
       <label>Subject<input required value={subject} onChange={e => setSubject(e.target.value)} /></label>
       <label>Message<textarea required rows={8} value={body} onChange={e => setBody(e.target.value)} /></label>

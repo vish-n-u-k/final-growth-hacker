@@ -155,7 +155,7 @@ async function checkSent(brandId: string, b: BrandContext, links: LinkOpportunit
       if (!l.followupSent && l.nextFollowUpAt && Date.parse(l.nextFollowUpAt) <= Date.now() && l.pitch) {
         const subject = /^re:/i.test(l.pitch.subject) ? l.pitch.subject : `Re: ${l.pitch.subject}`
         const body = `${greet(l.contactName)}\n\nJust bringing this back up in case it got buried. Happy to send anything that makes it easier to add ${b.name}.\n\n${b.name}\n\n${OPT_OUT}`
-        if (!demo) await sendGmailMessage(brandId, { to: l.email!, subject, body: textToHtml(body), threadId: l.threadId })
+        if (!demo) await sendGmailMessage(brandId, { to: l.email!, subject, body: textToHtml(body), threadId: l.threadId }, { source: 'search-agent', toName: l.contactName ?? null })
         patches.set(l.id, { followupSent: true, nextFollowUpAt: undefined })
       }
     } catch (e) {
@@ -338,7 +338,7 @@ export async function sendLinkPitch(brandId: string, id: string, edits?: { subje
   let patch: Partial<LinkOpportunity>
   try {
     // Demo mode: recorded as sent, nothing leaves GrowJin
-    const sent = agentsDemo() ? demoSend() : await sendGmailMessage(brandId, { to: email, subject, body: textToHtml(text) })
+    const sent = agentsDemo() ? demoSend() : await sendGmailMessage(brandId, { to: email, subject, body: textToHtml(text) }, { source: 'search-agent', toName: l.contactName ?? null })
     const now = new Date().toISOString()
     patch = { status: 'sent', email, pitch: { subject, body }, sentAt: now, threadId: sent.threadId, followupSent: false, nextFollowUpAt: daysFrom(now, FOLLOW_UP_DAYS), error: undefined }
   } catch (e) {

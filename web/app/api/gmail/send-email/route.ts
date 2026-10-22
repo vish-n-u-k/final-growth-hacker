@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { markOutreachDrafts } from '@/lib/tool-suggestions'
 import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
@@ -45,6 +46,7 @@ export async function POST(req: NextRequest) {
       followUpDays: followUpDays && followUpDays > 0 ? followUpDays : null,
       source: source ?? 'outreach', campaignInstruction: campaignInstruction ?? null,
     }).returning({ id: outreachEmails.id })
+    await markOutreachDrafts(brand.id, to, 'scheduled')
 
     return NextResponse.json({ id: row.id, scheduled: true, scheduledAt: when.toISOString() })
   }
@@ -71,6 +73,7 @@ export async function POST(req: NextRequest) {
     gmailMessageId: sent.id, gmailThreadId: sent.threadId,
     source: source ?? 'outreach', campaignInstruction: campaignInstruction ?? null,
   }).catch(e => console.error('[send-email] DB log error:', e))
+  await markOutreachDrafts(brand.id, to, 'sent')
 
   // Auto-create follow-up reminder if requested
   if (followUpDays && followUpDays > 0) {

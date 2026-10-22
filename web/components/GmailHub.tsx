@@ -22,6 +22,10 @@ interface Thread {
 interface Prospect { id: string; name: string; email: string; company: string; title: string }
 interface ProspectState { status: ProspectStatus; subject: string; body: string; toEmail?: string; error?: string; editingHtml?: boolean }
 interface CampaignProspect { id: string; email: string; name: string; domain: string }
+// Which tool an email in the sent list came from (outreach_emails.source)
+const SOURCE_LABEL: Record<string, string> = {
+  'lead-agent': 'Lead Agent', 'search-agent': 'Search Agent', 'competitor-leads': 'Competitor Leads', campaign: 'Campaign',
+}
 interface EmailHistoryItem { id: string; toEmail: string; toName: string | null; subject: string; status: string; source: string | null; scheduledAt: string | null; sentAt: string | null; lastError: string | null; createdAt: string }
 type CampaignStatus = 'idle' | 'generating' | 'ready' | 'sending' | 'sent' | 'scheduled' | 'error'
 interface CampaignState { status: CampaignStatus; subject: string; body: string; error?: string; toEmail?: string; editingHtml?: boolean; confirming?: boolean; scheduledAt?: string; scheduledId?: string }
@@ -1409,7 +1413,10 @@ export default function GmailHub({
                   {emailHistory.map(e => (
                     <tr key={e.id} className="gh-history-tr">
                       <td className="gh-history-td">{e.toName ? `${e.toName} <${e.toEmail}>` : e.toEmail}</td>
-                      <td className="gh-history-td">{e.subject}</td>
+                      <td className="gh-history-td">
+                        {e.subject}
+                        {e.source && SOURCE_LABEL[e.source] && <span className="gh-history-src">{SOURCE_LABEL[e.source]}</span>}
+                      </td>
                       <td className="gh-history-td">
                         <span className={`gh-history-badge gh-history-badge-${e.status}`} title={e.lastError ?? undefined}>{e.status}</span>
                         {(e.status === 'scheduled' || e.status === 'failed') && (

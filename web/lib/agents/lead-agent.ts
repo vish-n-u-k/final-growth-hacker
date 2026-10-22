@@ -42,7 +42,7 @@ async function sendFirstEmail(brandId: string, lead: Lead, followUpDays: number[
   if (!lead.email || !lead.draft) return { error: 'No email or draft.' }
   try {
     // Demo mode: recorded as sent, nothing leaves GrowJin
-    const sent = agentsDemo() ? demoSend() : await sendGmailMessage(brandId, { to: lead.email, subject: lead.draft.subject, body: textToHtml(`${lead.draft.body}\n\n${OPT_OUT}`) })
+    const sent = agentsDemo() ? demoSend() : await sendGmailMessage(brandId, { to: lead.email, subject: lead.draft.subject, body: textToHtml(`${lead.draft.body}\n\n${OPT_OUT}`) }, { source: 'lead-agent', toName: lead.name ?? null })
     const now = new Date().toISOString()
     return {
       status: 'sent', sentAt: now, threadId: sent.threadId, followupsSent: 0, error: undefined,
@@ -129,7 +129,7 @@ async function processSentLeads(brandId: string, b: BrandContext, d: LeadAgentDa
       const due = lead.nextFollowUpAt && Date.parse(lead.nextFollowUpAt) <= Date.now()
       if (due && lead.followupsSent < d.settings.followUpDays.length && lead.draft) {
         const subject = /^re:/i.test(lead.draft.subject) ? lead.draft.subject : `Re: ${lead.draft.subject}`
-        if (!demo) await sendGmailMessage(brandId, { to: lead.email!, subject, body: textToHtml(`${followUpText(lead.followupsSent, lead, b)}\n\n${OPT_OUT}`), threadId: lead.threadId })
+        if (!demo) await sendGmailMessage(brandId, { to: lead.email!, subject, body: textToHtml(`${followUpText(lead.followupsSent, lead, b)}\n\n${OPT_OUT}`), threadId: lead.threadId }, { source: 'lead-agent', toName: lead.name ?? null })
         const n = lead.followupsSent + 1
         const next = d.settings.followUpDays[n]
         patches.set(lead.id, { followupsSent: n, nextFollowUpAt: next ? daysFrom(lead.sentAt!, next) : undefined })

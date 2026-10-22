@@ -6,6 +6,7 @@ import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { aiUsageLogs } from '@/lib/db/schema'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
+import { changedItems, saveSuggestions } from '@/lib/tool-suggestions'
 
 export const LEAD_KEY = 'agent:lead'
 export const SEARCH_KEY = 'agent:search'
@@ -237,7 +238,14 @@ export async function readSearchData(brandId: string): Promise<SearchAgentData |
 /** Re-reads the saved document, applies `change` and saves it. Returns the saved document. */
 export async function updateLeadData(brandId: string, fallback: () => LeadAgentData, change: (d: LeadAgentData) => void): Promise<LeadAgentData> {
   const d = (await readLeadData(brandId)) ?? fallback()
+  const before = structuredClone(d.leads)
   change(d)
+  // Every lead also gets its own row before the list below is trimmed, so none is ever lost
+  if (!d.demo) {
+    await saveSuggestions(brandId, 'lead_agent', changedItems(before, d.leads, l => l.id).map(l => ({
+      kind: 'lead', externalId: l.id, title: l.name || l.company || l.title, payload: { ...l }, status: l.status,
+    })))
+  }
   // Keep the list bounded: drop the oldest finished leads first
   if (d.leads.length > 300) {
     const finished = new Set<LeadStatus>(['skipped', 'posted', 'bounced', 'opted_out'])
@@ -253,7 +261,22 @@ export async function updateLeadData(brandId: string, fallback: () => LeadAgentD
 
 export async function updateSearchData(brandId: string, fallback: () => SearchAgentData, change: (d: SearchAgentData) => void): Promise<SearchAgentData> {
   const d = (await readSearchData(brandId)) ?? fallback()
+  const before = structuredClone({ topics: d.topics, links: d.links, tasks: d.tasks })
   change(d)
+  // Topics, link targets and to-dos also get their own rows before the lists below are trimmed
+  if (!d.demo) {
+    await saveSuggestions(brandId, 'search_agent', [
+      ...changedItems(before.topics, d.topics, t => t.keyword).map(t => ({
+        kind: 'topic' as const, externalId: `topic:${t.keyword.toLowerCase()}`, title: t.keyword, payload: { ...t }, status: t.status,
+      })),
+      ...changedItems(before.links, d.links, l => l.id).map(l => ({
+        kind: 'link' as const, externalId: `link:${l.id}`, title: l.domain, payload: { ...l }, status: l.status,
+      })),
+      ...changedItems(before.tasks, d.tasks, t => t.key).map(t => ({
+        kind: 'task' as const, externalId: `task:${t.key}`, title: t.title, payload: { ...t }, status: t.status,
+      })),
+    ])
+  }
   d.topics = d.topics.slice(-60)
   // Keep the list bounded: skipped ones go first, then the oldest
   if (d.links && d.links.length > 150) d.links = [...d.links.filter(l => l.status !== 'skipped'), ...d.links.filter(l => l.status === 'skipped')].slice(0, 150)

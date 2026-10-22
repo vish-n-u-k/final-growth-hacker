@@ -6,6 +6,7 @@ import { brands, reminders, brainContext } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getValidGmailToken } from '@/lib/gmail/token'
 import { checkFollowup } from '@/lib/gmail/reply-check'
+import { saveSuggestions } from '@/lib/tool-suggestions'
 import { writeFollowupCopy, buildFollowupHTML, brandContextFor, firstName } from '@/lib/email/followup'
 
 // ── Minimal Gmail types (mirrored from thread/[id]/route.ts) ──────────────────
@@ -156,6 +157,10 @@ export async function POST(req: NextRequest) {
   }
 
   const bodyHtml = buildFollowupHTML(copy, brand)
+  await saveSuggestions(brand.id, 'email_outreach', [{
+    kind: 'email', externalId: `followup:${reminderId}`, groupId: reminderId, title: rawSubject ? `Re: ${rawSubject}` : 'Follow-up',
+    payload: { to: recipientEmail.match(/<([^>]+)>/)?.[1] ?? recipientEmail, subject: rawSubject ? `Re: ${rawSubject}` : '', body: bodyHtml, reminderId, followUp: true },
+  }])
 
   return NextResponse.json({
     to: recipientEmail,

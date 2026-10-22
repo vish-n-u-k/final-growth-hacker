@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { brands, brainContext } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { callAI } from '@/lib/ai/client'
+import { saveSuggestions } from '@/lib/tool-suggestions'
 
 interface EmailCopy {
   subject: string
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { prospectName, prospectCompany, prospectTitle, prospectContext } =
+  const { prospectName, prospectEmail, prospectCompany, prospectTitle, prospectContext } =
     await req.json() as {
       prospectName: string
       prospectEmail: string
@@ -210,6 +211,11 @@ Return ONLY this JSON (no markdown, no code fences, no extra text):
     copy.bullets     = copy.bullets.map(noEmDash)
     copy.closing     = noEmDash(copy.closing)
     const body  = buildEmailHTML(copy, brand.name, brand.websiteUrl ?? '', brand.logoUrl, brand.themeColor)
+    // Keep every written email, sent or not (marked sent by /api/gmail/send-email)
+    await saveSuggestions(brand.id, 'email_outreach', [{
+      kind: 'email', externalId: `email:${crypto.randomUUID()}`, title: copy.subject,
+      payload: { to: prospectEmail ?? '', toName: prospectName, company: prospectCompany, role: prospectTitle, context: prospectContext ?? null, subject: copy.subject, body },
+    }])
     return NextResponse.json({ subject: copy.subject, body })
   } catch (e) {
     console.error('[generate-email] parse error:', e instanceof Error ? e.message : e, '\nraw:', raw.slice(0, 500))

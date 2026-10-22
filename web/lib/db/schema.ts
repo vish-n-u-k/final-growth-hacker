@@ -374,6 +374,28 @@ export const socialSuggestions = pgTable('social_suggestions', {
   brandStatusIdx: index('social_suggestions_brand_status_idx').on(table.brandId, table.status),
 }))
 
+// ── Tool Suggestions ─────────────────────────────────────────────────────────
+// What the other tools come up with (leads, email drafts, topics, link targets), one row
+// each, so nothing is lost on refresh or when an agent trims its working list
+// (drizzle/tool_suggestions.sql, lib/tool-suggestions.ts).
+
+export const toolSuggestions = pgTable('tool_suggestions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+  tool: text('tool').notNull(),              // 'competitor_leads' | 'lead_agent' | 'search_agent' | 'email_outreach'
+  kind: text('kind').notNull(),              // 'scan' | 'lead' | 'email' | 'topic' | 'link'
+  externalId: text('external_id').notNull(), // the tool's own id for it, so saves update the same row
+  groupId: text('group_id'),                 // e.g. the Competitor Leads scan it came from
+  title: text('title').notNull(),
+  payload: jsonb('payload').$type<Record<string, unknown>>(), // the full item as the tool has it
+  status: text('status').notNull().default('suggested'),     // the tool's own status ('sent', 'skipped', …)
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  uniq: unique('tool_suggestions_unique').on(table.brandId, table.tool, table.externalId),
+  brandToolIdx: index('tool_suggestions_brand_tool_idx').on(table.brandId, table.tool, table.kind, table.createdAt),
+}))
+
 // ── Analysis Requests (admin queue) ──────────────────────────────────────────
 
 // Proof a task was done (drizzle/task_proofs.sql): the link and a note on what changed
