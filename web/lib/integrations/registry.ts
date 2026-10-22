@@ -654,11 +654,14 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
     group: 'social',
     docsUrl: 'https://developers.facebook.com/docs/marketing-api/get-started',
     setupSteps: [
-      'Go to [developers.facebook.com](https://developers.facebook.com/apps) → My Apps → Create App → choose "Business" type',
-      'Add the "Marketing API" product to your app',
-      '[Graph API Explorer](https://developers.facebook.com/tools/explorer/) → select your app → generate a token with ads_management, pages_read_engagement, and instagram_basic scopes',
-      'Find your Ad Account ID: [Meta Ads Manager](https://adsmanager.facebook.com) → top-left account selector → copy the numeric ID (without the "act_" prefix)',
-      'Paste the token and Ad Account ID above and click Connect',
+      'Before you start: you need a Facebook Page, a Meta Business portfolio you are an Admin of (it must own the Page and the ad account), and a payment method on the ad account',
+      'Ad Account ID: [Meta Ads Manager](https://adsmanager.facebook.com) → click the account name top-left → copy the number (with or without "act_")',
+      'Page ID: [Business settings → Accounts → Pages](https://business.facebook.com/settings/pages) → click your Page → copy the number under its name',
+      'Create an app at [developers.facebook.com → Create App](https://developers.facebook.com/apps/creation/) → type "Business" → link it to your Business portfolio → Add product → Marketing API',
+      'Create a system user: [Business settings → Users → System users](https://business.facebook.com/settings/system-users) → Add → role Admin',
+      'Assign assets to the system user: your ad account, your Page and your app, each with Full control',
+      'Generate new token → pick your app → expiry "Never" → tick ads_management, ads_read, business_management, pages_show_list, pages_read_engagement, pages_manage_ads (+ instagram_basic for Instagram ads) → copy the EAA… token',
+      'Paste the token, Ad Account ID and Page ID above and click Connect. Don\'t use a Graph API Explorer token: it expires within hours',
     ],
     fields: [
       {
@@ -666,7 +669,7 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
         label: 'Meta Access Token',
         placeholder: 'EAAxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
         inputType: 'password',
-        helpText: 'From developers.facebook.com → Graph API Explorer → select your app → generate token with ads_management, pages_read_engagement, and instagram_basic scopes.',
+        helpText: 'A system user token from Business settings → Users → System users → Generate new token (expiry: Never). See the steps above.',
       },
       {
         key: 'ad_account_id',
@@ -681,7 +684,7 @@ export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
         label: 'Facebook Page ID',
         placeholder: '123456789012345',
         inputType: 'text',
-        helpText: 'Numeric ID. Found in your Facebook Page → About → Page Transparency section.',
+        helpText: 'Needed to launch campaigns. Business settings → Accounts → Pages → click your Page, or Facebook Page → About → Page transparency.',
         isMetadata: true,
         optional: true,
       },

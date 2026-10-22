@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getSessionUser, getBrandForUser } from '@/lib/server-session'
 import { db } from '@/lib/db'
-import { modules, moduleCategories, moduleItems } from '@/lib/db/schema'
+import { modules, moduleCategories, moduleItems, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import NextCampaignBlueprintPage from '@/components/NextCampaignBlueprintPage'
 import type { DBItemFull } from '@/lib/modules/types'
@@ -71,12 +71,29 @@ export default async function BlueprintPage() {
 
   const catMap = new Map(allCats.map((c) => [c.id, c.slug]))
 
-  const [rawItems, { ogTags, pixelStatus }] = await Promise.all([
+  const [rawItems, { ogTags, pixelStatus }, [metaInt]] = await Promise.all([
     allCats.length > 0
       ? db.select().from(moduleItems).where(eq(moduleItems.moduleId, metaMod.id))
       : Promise.resolve([]),
     fetchWebsiteData(brand.websiteUrl ?? ''),
+    db.select({ accessToken: brandIntegrations.accessToken, metadata: brandIntegrations.metadata })
+      .from(brandIntegrations)
+      .where(and(
+        eq(brandIntegrations.brandId, brand.id),
+        eq(brandIntegrations.provider, 'meta_ads'),
+        eq(brandIntegrations.status, 'connected'),
+      ))
+      .limit(1),
   ])
+
+  // Only flags + IDs go to the client — never the token itself
+  const metaMeta = (metaInt?.metadata ?? null) as Record<string, string> | null
+  const metaConnection = {
+    connected: !!metaInt?.accessToken,
+    adAccountId: metaMeta?.['ad_account_id'] || null,
+    pageId: metaMeta?.['page_id'] || (metaMod.requirements as Record<string, string> | null)?.['page_id'] || null,
+    instagramId: metaMeta?.['instagram_account_id'] || null,
+  }
 
   const items: DBItemFull[] = rawItems.map((item) => ({
     id: item.id,
@@ -114,6 +131,7 @@ export default async function BlueprintPage() {
       items={items}
       ogTags={ogTags}
       pixelStatus={pixelStatus}
+      metaConnection={metaConnection}
     />
   )
 }

@@ -10,6 +10,8 @@ import type { OGTagResult, PixelStatus } from '@/app/(shell)/dashboard/meta-ads/
 import { connectUrl } from '@/lib/integrations/connect-url'
 import { Spinner } from '@/components/ui/spinner'
 import ToolIntro from '@/components/ToolIntro'
+import MetaConnectGuide from '@/components/MetaConnectGuide'
+import type { MetaConnection } from '@/components/MetaConnectGuide'
 
 const AUDIT_CATEGORIES = [
   { slug: 'campaign-performance', label: 'Campaigns' },
@@ -109,15 +111,16 @@ function PixelStatusCard({ status }: { status: PixelStatus }) {
             : "We couldn't check your website. Make sure your pixel is installed — without it Meta can only optimise for clicks, not actual results."
           }
         </p>
-        {found === false && (
-          <a
-            href="https://business.facebook.com/events_manager"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bp-pixel-link"
-          >
-            Set it up in Meta Events Manager →
-          </a>
+        {found !== true && (
+          <ol className="bp-pixel-steps">
+            <li>
+              Open <a href="https://business.facebook.com/events_manager2/overview" target="_blank" rel="noopener noreferrer" className="bp-pixel-link">Meta Events Manager ↗</a> → Connect data sources → Web → name your pixel → Create.
+            </li>
+            <li>When it asks, link the pixel to the same ad account you connected to GrowJin.</li>
+            <li>Choose &quot;Install code manually&quot; and copy the base code.</li>
+            <li>Paste it inside the <code>&lt;head&gt;</code> of every page on your site. If you use Google Tag Manager, Shopify, WordPress or Webflow, pick that option in Meta instead.</li>
+            <li>Check it with the Meta Pixel Helper extension or Events Manager → Test events, then click Run Audit again.</li>
+          </ol>
         )}
       </div>
     </div>
@@ -197,6 +200,7 @@ interface Props {
   items: DBItemFull[]
   ogTags: OGTagResult[]
   pixelStatus: PixelStatus
+  metaConnection: MetaConnection
 }
 
 const DEMO_BRIEF: CampaignBrief = {
@@ -232,7 +236,7 @@ function isCredentialError(msg: string) {
   return /token|credential|expired|invalid|auth|permission|oauth/i.test(msg)
 }
 
-export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, brandName, websiteUrl, lastAnalyzedAt, items, ogTags, pixelStatus }: Props) {
+export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, brandName, websiteUrl, lastAnalyzedAt, items, ogTags, pixelStatus, metaConnection }: Props) {
   const router = useRouter()
   const [analysing, setAnalysing] = useState(moduleStatus === 'analyzing')
   const [analyseError, setAnalyseError] = useState<string | null>(null)
@@ -294,6 +298,10 @@ export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, bran
       </div>
 
       <ToolIntro id="metaAds" />
+
+      <div className="tool-col">
+        <MetaConnectGuide connection={metaConnection} />
+      </div>
 
       {analyseError && (
         <div className="bp-analyse-error">
