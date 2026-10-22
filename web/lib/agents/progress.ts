@@ -5,9 +5,10 @@ import { getSnapshot, saveSnapshot } from '@/lib/signals'
 
 // warn: the step worked and found a problem the user should look at
 export type StepStatus = 'pending' | 'running' | 'done' | 'warn' | 'skipped' | 'error'
-// detail: one line on what the step found; items: the findings themselves (keywords, sites…), shown as chips
-export interface ProgressStep { key: string; label: string; status: StepStatus; detail?: string; items?: string[] }
-type Found = string | { detail?: string; items?: string[] } | undefined
+// label: 2-4 words; hint: what it does, shown while it runs; detail: the short result (a few words);
+// items: the findings themselves (keywords, sites…) and note: a longer remark, both shown on demand
+export interface ProgressStep { key: string; label: string; hint?: string; status: StepStatus; detail?: string; items?: string[]; note?: string }
+type Found = string | { detail?: string; items?: string[]; note?: string } | undefined
 export interface RunProgress { runId: string; startedAt: string; finishedAt?: string; title: string; steps: ProgressStep[]; summary?: string }
 
 const keyOf = (agent: 'lead' | 'search') => `agent:progress:${agent}`
@@ -16,7 +17,7 @@ export class Progress {
   private doc: RunProgress
   private saving: Promise<void> = Promise.resolve()
 
-  constructor(private brandId: string, private agent: 'lead' | 'search', title: string, steps: { key: string; label: string }[]) {
+  constructor(private brandId: string, private agent: 'lead' | 'search', title: string, steps: { key: string; label: string; hint?: string }[]) {
     this.doc = { runId: `${Date.now()}`, startedAt: new Date().toISOString(), title, steps: steps.map(s => ({ ...s, status: 'pending' })) }
     this.save()
   }
@@ -35,6 +36,7 @@ export class Progress {
     else if (found) {
       if (found.detail !== undefined) s.detail = found.detail
       if (found.items) s.items = found.items.filter(Boolean).slice(0, 6)
+      if (found.note) s.note = found.note
     }
     this.save()
   }
