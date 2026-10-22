@@ -15,6 +15,7 @@ import { openSignal, clearSignals } from '@/lib/signals'
 import { fetchHtml } from '@/lib/lead-finder/reviews'
 import { googleResults, linkingSites, referringDomains, searchDataReady, type LinkingSite } from './dataforseo'
 import { agentsDemo, demoReply, demoSend, setDemoContext } from './demo'
+import { Progress } from './progress'
 import { hunterConfigured, findEmail } from './hunter'
 import { emailFromWebsite } from './lead-agent'
 import {
@@ -204,9 +205,20 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
   const meter = newMeter()
   const errors: string[] = []
   const notes: string[] = []
+  const n = (x: number, one: string, many = `${one}s`) => `${x} ${x === 1 ? one : many}`
+  const rivals = b.competitors.map(c => c.domain).slice(0, 3).join(', ')
+  const p = new Progress(brandId, 'search', 'Finding sites that could link to you', [
+    { key: 'replies', label: 'Checking pitches you sent for replies' },
+    { key: 'gap', label: rivals ? `Finding sites that link to ${rivals} but not to you` : 'Finding sites that link to your competitors' },
+    { key: 'lists', label: 'Finding “best of” list articles that leave you out' },
+    { key: 'pick', label: 'Picking the strongest sites and drafting a short pitch for each' },
+    { key: 'contacts', label: 'Finding who to email (Hunter, then their websites)' },
+  ])
 
   return withAIContext({ brandId, moduleType: 'search-agent', websiteUrl: b.websiteUrl }, async () => {
-    const { patches, replies, error: gmailError } = await checkSent(brandId, b, d.links ?? [])
+    const sent = (d.links ?? []).filter(l => l.status === 'sent').length
+    const { patches, replies, error: gmailError } = await p.step('replies', () => checkSent(brandId, b, d.links ?? []),
+      r => sent ? `${n(sent, 'pitch', 'pitches')} checked · ${n(r.replies.length, 'reply', 'replies')}` : 'No pitches sent yet')
     if (gmailError) errors.push(`Gmail: ${gmailError}`)
 
     // Never suggest the brand, its competitors, big platforms or sites already on the list
@@ -214,14 +226,24 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
     const isSkipped = (dom: string) => skip.has(dom) || PLATFORM.test(dom)
     const found = new Map<string, Candidate>()
 
-    if (!b.competitors.length) notes.push('add competitors in Settings to find sites that link to them')
-    else {
-      await findGap(b, isSkipped, meter, found).catch(e => {
+    const sites = (source: Candidate['source']) => [...found.values()].filter(c => c.source === source)
+    const sample = (list: Candidate[]) => list.slice(0, 3).map(c => c.domain).join(', ')
+    if (!b.competitors.length) {
+      notes.push('add competitors in Settings to find sites that link to them')
+      p.set('gap', 'skipped', 'Add competitors in Settings first')
+    } else {
+      await p.step('gap', () => findGap(b, isSkipped, meter, found), () => {
+        const g = sites('gap')
+        return g.length ? `${n(g.length, 'site')} link to them, not you: ${sample(g)}${g.length > 3 ? '…' : ''}` : 'None found this time'
+      }).catch(e => {
         const msg = e instanceof Error ? e.message : 'failed'
         errors.push(`Competitor links: ${msg}${/access|subscri|40[0-9]{3}/i.test(msg) ? ' (this needs DataForSEO\'s Backlinks subscription; list articles still work)' : ''}`)
       })
     }
-    await findLists(b, d, isSkipped, meter, found, errors).catch(e => errors.push(`List articles: ${e instanceof Error ? e.message : 'failed'}`))
+    await p.step('lists', () => findLists(b, d, isSkipped, meter, found, errors), () => {
+      const l = sites('list')
+      return l.length ? `${n(l.length, 'article')}: ${sample(l)}${l.length > 3 ? '…' : ''}` : 'None found this time'
+    }).catch(e => errors.push(`List articles: ${e instanceof Error ? e.message : 'failed'}`))
 
     // Strongest first: sites naming more competitors, list articles, then authority
     const ranked = [...found.values()]
@@ -230,7 +252,7 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
 
     const fresh: LinkOpportunity[] = []
     if (ranked.length) {
-      const drafts = await draftPitches(b, ranked).catch(e => { errors.push(`Drafting: ${e instanceof Error ? e.message : 'failed'}`); return new Map<number, Drafted>() })
+      const drafts = await p.step('pick', () => draftPitches(b, ranked)).catch(e => { errors.push(`Drafting: ${e instanceof Error ? e.message : 'failed'}`); return new Map<number, Drafted>() })
       const now = new Date().toISOString()
       ranked.forEach((c, i) => {
         const x = drafts.get(i)
@@ -243,7 +265,9 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
           status: 'new', foundAt: now,
         })
       })
+      p.set('pick', 'done', `${n(fresh.length, 'site')} worth pitching${fresh.length ? `: ${fresh.slice(0, 3).map(l => l.domain).join(', ')}` : ''}`)
       // Contacts: Hunter for a named person, else a mailto: on their own pages
+      p.set('contacts', fresh.length ? 'running' : 'skipped')
       let lookups = 0
       for (const l of fresh) {
         const viaHunter = lookups < MAX_LOOKUPS && hunterConfigured() ? await findEmail(l.domain, undefined, meter).catch(() => null) : null
@@ -254,6 +278,7 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
         }
         if (l.email && l.pitch) l.status = 'ready'
       }
+      if (fresh.length) p.set('contacts', 'done', `Email found for ${fresh.filter(l => l.email).length} of ${n(fresh.length, 'site')}`)
     }
     notes.unshift(`${fresh.length} new link opportunit${fresh.length === 1 ? 'y' : 'ies'}`)
 
@@ -283,7 +308,11 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
     } catch { /* Today cards are optional */ }
     await replyCards(brandId, replies)
 
+    await p.finish([notes.join(' · '), errors.join(' · ')].filter(Boolean).join(' · '))
     return { ok: !errors.length, summary: notes.join(' · '), error: errors.join(' · ') || undefined }
+  }).catch(async e => {
+    await p.finish(`Stopped: ${e instanceof Error ? e.message : 'failed'}`, true)
+    throw e
   })
 }
 

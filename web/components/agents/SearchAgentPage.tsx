@@ -432,7 +432,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
           )}
         </>
       )}
-      <RunProgress agent="search" active={busy === 'research' || busy === 'write'} title={busy === 'write' ? 'Writing a draft' : 'Search Agent research'} />
+      <RunProgress agent="search" active={busy === 'research' || busy === 'write' || busy === 'links'} title={busy === 'write' ? 'Writing a draft' : busy === 'links' ? 'Finding link opportunities' : 'Search Agent research'} />
       <Toast text={toast} />
     </div>
   )
