@@ -109,18 +109,42 @@
   .step.bad .d { color: var(--crit); }
   .bar { height: 4px; border-radius: 99px; background: var(--bg-soft); margin-top: 7px; max-width: 260px; overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--green); border-radius: 99px; transition: width .3s; }
-  .summary { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; padding: 11px 14px; border-radius: 12px; background: var(--accent); color: var(--accent-fg); font-size: 13.5px; margin-bottom: 16px; }
-  .summary b { font-weight: 700; }
-  .summary .grow { flex: 1; }
-  .summary button { border: 0; background: none; color: var(--accent-fg); font: 600 13px var(--body); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  /* Option B: one-line description under the header */
+  .strip { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; background: var(--bg-soft); font-size: 13px; color: var(--text-dim); margin: -8px 0 18px; }
+  .strip .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .frame.phone .strip .t { white-space: normal; }
+  .strip button { border: 0; background: none; font: 600 12.5px var(--body); color: var(--accent-fg); cursor: pointer; white-space: nowrap; padding: 0; }
+  .strip .x { color: var(--text-faint); font-size: 16px; line-height: 1; }
+  .strip-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: -10px 0 18px; }
+  .frame.phone .strip-steps { grid-template-columns: 1fr; }
+  .strip-steps div { display: flex; gap: 8px; font-size: 12.5px; color: var(--text-dim); line-height: 1.45; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+  .strip-steps b { color: var(--text); }
+  .num { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--green); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+
+  /* filter + sort bar */
+  .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; background: var(--card); }
+  .search { flex: 1 1 200px; min-width: 160px; height: 34px; border: 1px solid var(--line); border-radius: 9px; padding: 0 10px 0 30px; font: 400 13px var(--body); color: var(--text);
+            background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 20 20' fill='none' stroke='%236f7c72' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='8.8' cy='8.8' r='5.3'/%3E%3Cpath d='M12.7 12.7 17 17'/%3E%3C/svg%3E") no-repeat 10px center; }
+  .search:focus, .sel:focus { outline: none; border-color: var(--green); }
+  .sel { height: 34px; border: 1px solid var(--line); border-radius: 9px; padding: 0 28px 0 10px; font: 500 13px var(--body); color: var(--text-dim); background: #fff; appearance: none;
+         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%236f7c72' stroke-width='3'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; cursor: pointer; }
+  .sel.on { border-color: var(--green); color: var(--accent-fg); background-color: var(--accent); font-weight: 600; }
+  .starf { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; height: 34px; }
+  .starf button { border: 0; border-left: 1px solid var(--line); background: #fff; padding: 0 10px; font: 600 12.5px var(--body); color: var(--text-dim); cursor: pointer; }
+  .starf button:first-child { border-left: 0; }
+  .starf button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+  .starf button span { color: var(--star); }
+  .tools .sep { width: 1px; height: 22px; background: var(--line); }
+  .frame.phone .tools .sep { display: none; }
+  .count { font-size: 13px; color: var(--text-faint); display: flex; align-items: center; gap: 10px; margin: 0 2px 10px; }
+  .count button { border: 0; background: none; color: var(--accent-fg); font: 600 13px var(--body); cursor: pointer; padding: 0; }
+  .nomatch { text-align: center; padding: 22px; border: 1px dashed var(--line); border-radius: 14px; font-size: 13.5px; color: var(--text-dim); }
 
   /* ── results ── */
   .rhd { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 10px; }
   .rhd h2 { font-size: 15px; margin: 0; }
-  .filters { display: flex; gap: 4px; margin-left: auto; }
-  .filters button { border: 1px solid var(--line); background: #fff; border-radius: 99px; padding: 4px 10px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
-  .filters button[aria-pressed="true"] { border-color: var(--green); color: var(--accent-fg); background: var(--accent); font-weight: 600; }
-  .lead { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; animation: in .35s ease both; }
+  .lead { border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; }
+  .lead.fresh { animation: in .35s ease both; }
   @keyframes in { from { opacity: 0; transform: translateY(6px); } }
   .lead-top { display: flex; gap: 12px; align-items: flex-start; }
   .av { flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--bg-soft); display: grid; place-items: center; font-weight: 700; font-size: 13px; color: var(--text-dim); }
@@ -193,17 +217,17 @@
 const NOTES = {
   empty: '<b>Empty state</b> (no scan yet): one clear sentence, the form, and your own competitors as one-click chips. Click a chip, then <b>Find leads</b> to watch it run.',
   run: '<b>Running:</b> each step shows what it is doing and what it found, <b>one at a time</b>. Leads appear the moment they are scored, then get their email and draft as those steps finish, so there is something to look at within seconds.',
-  done: '<b>Done:</b> the steps fold into one green summary (with time and cost). Leads are filtered by “Ready to email / Needs a contact”. <b>Review email</b> opens the draft in place.',
+  done: '<b>Done:</b> the steps disappear and the leads get a <b>filter and sort bar</b>: search, minimum fit, star rating, has-an-email, and sort by best fit / newest / lowest rating / name. Try them. <b>Review email</b> opens the draft in place.',
   blocked: '<b>A step fails:</b> it says which step, why, in plain words, and what to do, instead of silently showing “0 reviews” (what happens today when Trustpilot blocks us).',
   nothing: '<b>Nothing found:</b> the scan worked but no reviewer was a good fit. Says so, and suggests the next thing to try.',
 }
 
 const LEADS = [
-  { n: 'Maya Chen', co: 'Bloom & Twig Florist', stars: 2, date: 'Oct 14', fit: 9, why: 'Designs every post in Canva, then schedules in Buffer. Frekto would do both for her in a minute.', pains: ['Slow to design posts', 'Posts failing to publish'], quote: 'Buffer keeps failing to publish my Instagram posts and I still have to design everything myself in Canva. I’m losing five hours a week on social media.', email: 'maya@bloomandtwig.co', verified: true },
-  { n: 'Daniel Ortiz', co: 'Ortiz Coaching', stars: 1, date: 'Oct 9', fit: 8, why: 'Wants captions written for him; found Buffer’s AI assistant generic.', pains: ['Generic AI captions'], quote: 'The AI assistant writes the same bland captions for everything. I wanted something that actually sounds like my brand.', email: 'daniel@ortizcoaching.com', verified: false },
-  { n: 'Priya Nair', co: 'Nair Bakes', stars: 3, date: 'Oct 3', fit: 8, why: 'Small bakery posting daily by hand; asked for “something that just makes the post”.', pains: ['No time to post daily'], quote: 'Fine for scheduling but I still need to make every single post. I just want something that makes the post for me.', email: null },
-  { n: 'Tom Becker', co: 'Becker Fitness', stars: 2, date: 'Sep 28', fit: 7, why: 'Runs three locations and struggles to keep posts on-brand across them.', pains: ['Inconsistent branding'], quote: 'Hard to keep posts consistent across our three studios. Every location does its own thing.', email: 'tom@beckerfit.de', verified: true },
-  { n: 'Lena Fischer', co: 'Studio Lena', stars: 1, date: 'Sep 22', fit: 7, why: 'Left Buffer over price; looking for one tool for writing and scheduling.', pains: ['Price', 'Too many tools'], quote: 'Paying for Buffer plus Canva plus ChatGPT is too much for a one-person studio.', email: null },
+  { n: 'Maya Chen', iso: '2026-10-14', co: 'Bloom & Twig Florist', stars: 2, date: 'Oct 14', fit: 9, why: 'Designs every post in Canva, then schedules in Buffer. Frekto would do both for her in a minute.', pains: ['Slow to design posts', 'Posts failing to publish'], quote: 'Buffer keeps failing to publish my Instagram posts and I still have to design everything myself in Canva. I’m losing five hours a week on social media.', email: 'maya@bloomandtwig.co', verified: true },
+  { n: 'Daniel Ortiz', iso: '2026-10-09', co: 'Ortiz Coaching', stars: 1, date: 'Oct 9', fit: 8, why: 'Wants captions written for him; found Buffer’s AI assistant generic.', pains: ['Generic AI captions'], quote: 'The AI assistant writes the same bland captions for everything. I wanted something that actually sounds like my brand.', email: 'daniel@ortizcoaching.com', verified: false },
+  { n: 'Priya Nair', iso: '2026-10-18', co: 'Nair Bakes', stars: 3, date: 'Oct 18', fit: 8, why: 'Small bakery posting daily by hand; asked for “something that just makes the post”.', pains: ['No time to post daily'], quote: 'Fine for scheduling but I still need to make every single post. I just want something that makes the post for me.', email: null },
+  { n: 'Tom Becker', iso: '2026-09-28', co: 'Becker Fitness', stars: 2, date: 'Sep 28', fit: 7, why: 'Runs three locations and struggles to keep posts on-brand across them.', pains: ['Inconsistent branding'], quote: 'Hard to keep posts consistent across our three studios. Every location does its own thing.', email: 'tom@beckerfit.de', verified: true },
+  { n: 'Lena Fischer', iso: '2026-09-22', co: 'Studio Lena', stars: 1, date: 'Sep 22', fit: 7, why: 'Left Buffer over price; looking for one tool for writing and scheduling.', pains: ['Price', 'Too many tools'], quote: 'Paying for Buffer plus Canva plus ChatGPT is too much for a one-person studio.', email: null },
 ]
 
 const STEPS = [
@@ -214,7 +238,9 @@ const STEPS = [
   { t: 'Drafting a personal email to each', d: '', done: '3 emails ready to review' },
 ]
 
-let state = 'empty', w = 'desk', platform = 'trustpilot', comp = '', filter = 'all', openEditor = null, showSteps = false
+let state = 'empty', w = 'desk', platform = 'trustpilot', comp = '', openEditor = null, stripOpen = false, stripHidden = false
+const F0 = () => ({ q: '', fit: 0, stars: [], contact: 'any', sort: 'fit' })
+let f = F0()
 let run = null // live run: { step, progress, leads: [{...lead, stage}] }
 let timers = []
 
@@ -226,11 +252,16 @@ function header() {
   return `<header class="hd">
     <div class="hd-l">
       <span class="hd-ic"><svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3.4"/></svg></span>
-      <h1>Competitor Leads</h1><span class="chip">Beta</span>
-      <button class="q" aria-label="What this does">?</button>
+      <h1>Competitor Leads</h1><span class="chip">Beta</span><span class="chip ok">Gmail connected</span>
     </div>
-    <div class="hd-r"><span class="chip ok">Gmail connected</span><a class="link" href="#">Email Outreach →</a></div>
-  </header>`
+    <div class="hd-r"><a class="link" href="#">Email Outreach →</a>${state !== 'empty' ? '<button class="btn pri sm" id="new">New scan</button>' : ''}</div>
+  </header>
+  ${stripHidden ? '' : `<div class="strip"><span class="t">Turns a competitor’s bad reviews into a list of people to contact. Their unhappy customers are often looking for something like yours.</span>
+    <button id="how">${stripOpen ? 'Hide steps ▴' : 'How it works ▾'}</button><button class="x" id="hide" aria-label="Hide">×</button></div>
+    ${stripOpen ? `<div class="strip-steps">
+      <div><span class="num">1</span><span><b>Paste a link.</b> A competitor’s Trustpilot or Shopify App Store page.</span></div>
+      <div><span class="num">2</span><span><b>Score reviewers.</b> GrowJin reads the 1–3 star reviews and scores how well you fit each one.</span></div>
+      <div><span class="num">3</span><span><b>Email the best.</b> It finds their email and drafts a note; you send it from Gmail.</span></div></div>` : ''}`}`
 }
 
 function emptyView() {
@@ -274,7 +305,7 @@ function stepsView(r) {
   }).join('')}</div>`
 }
 
-function leadCard(l, i, stage) {
+function leadCard(l, i, stage, fresh = false) {
   // stage: 'scored' → 'contact' (looking) → 'contacted' → 'drafted'
   const contact = stage === 'scored' ? `<span class="contact looking">Waiting to look for an email…</span>`
     : stage === 'contact' ? `<span class="contact looking"><span class="mini"></span>Looking for an email on their website…</span>`
@@ -295,7 +326,7 @@ Would it help if I set up a week of posts for ${l.co} so you can see if it fits?
 Frekto</textarea></label>
       <div class="acts"><button class="btn pri">Send from Gmail</button><button class="btn">Copy</button><span class="hint">One follow-up in 5 days unless they reply.</span></div>
     </div>` : ''
-  return `<article class="lead">
+  return `<article class="lead${fresh ? ' fresh' : ''}">
     <div class="lead-top">
       <span class="av" aria-hidden="true">${initials(l.n)}</span>
       <div class="lead-main"><div class="lead-name">${l.n} <span class="co">· ${l.co}</span></div>
@@ -310,17 +341,44 @@ Frekto</textarea></label>
   </article>`
 }
 
+function applyFilters(list) {
+  const q = f.q.trim().toLowerCase()
+  const out = list.filter(({ l }) =>
+    (!q || [l.n, l.co, l.quote, l.why, ...l.pains].join(' ').toLowerCase().includes(q)) &&
+    l.fit >= f.fit &&
+    (!f.stars.length || f.stars.includes(l.stars)) &&
+    (f.contact === 'any' || (f.contact === 'email' ? !!l.email : !l.email)))
+  const by = { fit: (a, b) => b.l.fit - a.l.fit, new: (a, b) => b.l.iso.localeCompare(a.l.iso), low: (a, b) => a.l.stars - b.l.stars || b.l.fit - a.l.fit, name: (a, b) => a.l.n.localeCompare(b.l.n) }
+  return out.sort(by[f.sort])
+}
+const active = () => !!f.q || f.fit > 0 || f.stars.length > 0 || f.contact !== 'any'
+
+function toolbar() {
+  return `<div class="tools" role="search">
+    <input class="search" id="fq" placeholder="Search name, company or review" value="${esc(f.q)}" aria-label="Search leads" />
+    <select class="sel ${f.fit ? 'on' : ''}" id="ffit" aria-label="Minimum fit">
+      ${[[0, 'Any fit'], [7, 'Fit 7+'], [8, 'Fit 8+'], [9, 'Fit 9+']].map(([v, t]) => `<option value="${v}" ${f.fit === v ? 'selected' : ''}>${t}</option>`).join('')}
+    </select>
+    <span class="starf" role="group" aria-label="Star rating">${[1, 2, 3].map(n => `<button data-star="${n}" aria-pressed="${f.stars.includes(n)}">${n}<span>★</span></button>`).join('')}</span>
+    <select class="sel ${f.contact !== 'any' ? 'on' : ''}" id="fcon" aria-label="Contact">
+      <option value="any" ${f.contact === 'any' ? 'selected' : ''}>Anyone</option>
+      <option value="email" ${f.contact === 'email' ? 'selected' : ''}>Has an email</option>
+      <option value="none" ${f.contact === 'none' ? 'selected' : ''}>Needs a contact</option>
+    </select>
+    <span class="sep"></span>
+    <select class="sel" id="fsort" aria-label="Sort">
+      ${[['fit', 'Sort: Best fit'], ['new', 'Sort: Newest review'], ['low', 'Sort: Lowest rating'], ['name', 'Sort: Name A–Z']].map(([v, t]) => `<option value="${v}" ${f.sort === v ? 'selected' : ''}>${t}</option>`).join('')}
+    </select>
+  </div>`
+}
+
 function resultsView(list, live) {
-  const withEmail = list.filter(x => x.l.email && x.stage === 'drafted').length
-  const needs = list.filter(x => !x.l.email && x.stage === 'drafted').length
-  const shown = live ? list : list.filter(x => filter === 'all' || (filter === 'ready' ? x.l.email : !x.l.email))
-  return `<div class="rhd"><h2>${live ? `Good fits so far (${list.length})` : `Good fits (${list.length})`}</h2>
-    ${live ? '' : `<div class="filters" role="group" aria-label="Filter">
-      <button data-f="all" aria-pressed="${filter === 'all'}">All ${list.length}</button>
-      <button data-f="ready" aria-pressed="${filter === 'ready'}">Ready to email ${withEmail}</button>
-      <button data-f="needs" aria-pressed="${filter === 'needs'}">Needs a contact ${needs}</button></div>`}</div>
-    ${shown.map(x => leadCard(x.l, LEADS.indexOf(x.l), x.stage)).join('')}
-    ${live ? '' : '<p class="more">12 other reviewers didn’t fit Frekto · <button>show them</button></p>'}`
+  // Only a lead that just arrived fades in; re-renders (progress ticks) don't replay it
+  if (live) return `<div class="rhd"><h2>Good fits so far (${list.length})</h2></div>${list.map(x => { const h = leadCard(x.l, LEADS.indexOf(x.l), x.stage, x.fresh); x.fresh = false; return h }).join('')}`
+  const shown = applyFilters(list)
+  return toolbar() +
+    `<div class="count">${active() ? `Showing ${shown.length} of ${list.length} leads <button id="clear">Clear filters</button>` : `${list.length} good fits · 12 other reviewers didn’t fit Frekto`}</div>` +
+    (shown.length ? shown.map(x => leadCard(x.l, LEADS.indexOf(x.l), x.stage)).join('') : `<div class="nomatch">No leads match these filters. <button class="link" id="clear2" style="border:0;background:none;cursor:pointer;font:inherit">Clear filters</button></div>`)
 }
 
 function render() {
@@ -331,19 +389,16 @@ function render() {
     html += scanBar('<button class="btn sm" id="cancel">Stop</button>') + stepsView(run)
     if (run.leads.length) html += resultsView(run.leads, true)
   } else if (state === 'done') {
-    html += scanBar('<button class="btn sm" id="new">New scan</button>')
-    html += `<div class="summary"><span>✓ <b>Done in 52s</b> · 5 good fits · 3 ready to email · 2 need a contact · cost 2¢</span><span class="grow"></span><button id="toggle">${showSteps ? 'Hide steps' : 'Show steps'}</button></div>`
-    if (showSteps) html += stepsView({ step: 5 })
+    html += scanBar('<span class="meta" style="font-size:12.5px;color:var(--text-faint)">60 reviews read · scanned just now</span>')
     html += resultsView(LEADS.map(l => ({ l, stage: 'drafted' })), false)
   } else if (state === 'blocked') {
-    html += scanBar('<button class="btn sm" id="new">New scan</button>')
+    html += scanBar('')
     html += stepsView({ step: 0, failed: 'Trustpilot blocked the request, so no reviews could be read.' })
     html += `<div class="prob"><h3>We couldn’t read buffer.com’s Trustpilot reviews</h3>
       <p>Trustpilot sometimes blocks automatic reading. Nothing was charged. Try again in a few minutes; if it keeps happening, scan the competitor’s Shopify App Store page instead.</p>
       <div class="acts"><button class="btn pri">Try again</button><button class="btn">Use Shopify App Store</button></div></div>`
   } else if (state === 'nothing') {
-    html += scanBar('<button class="btn sm" id="new">New scan</button>')
-    html += `<div class="summary"><span>✓ <b>Done in 31s</b> · 60 reviews read · 17 unhappy · 0 good fits</span><span class="grow"></span></div>`
+    html += scanBar('<span class="meta" style="font-size:12.5px;color:var(--text-faint)">60 reviews read · 17 unhappy · 0 good fits</span>')
     html += `<div class="none"><h3>No good fits this time</h3><p>buffer.com’s unhappy reviewers mostly complained about billing and team permissions, which Frekto doesn’t solve. Try another competitor, or a competitor closer to what Frekto does.</p>
       <button class="btn pri" id="new2">Scan another competitor</button></div>`
   }
@@ -359,12 +414,18 @@ function bind() {
   const $ = id => document.getElementById(id)
   document.querySelectorAll('[data-p]').forEach(b => b.onclick = () => { platform = b.dataset.p; render() })
   document.querySelectorAll('[data-c]').forEach(b => b.onclick = () => { comp = b.dataset.c; render(); $('comp').focus() })
-  document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { filter = b.dataset.f; render() })
+  document.querySelectorAll('[data-star]').forEach(b => b.onclick = () => { const n = +b.dataset.star; f.stars = f.stars.includes(n) ? f.stars.filter(x => x !== n) : [...f.stars, n]; render() })
+  if ($('fq')) $('fq').oninput = e => { f.q = e.target.value; const pos = e.target.selectionStart; render(); const el = $('fq'); el.focus(); el.setSelectionRange(pos, pos) }
+  if ($('ffit')) $('ffit').onchange = e => { f.fit = +e.target.value; render() }
+  if ($('fcon')) $('fcon').onchange = e => { f.contact = e.target.value; render() }
+  if ($('fsort')) $('fsort').onchange = e => { f.sort = e.target.value; render() }
+  ;['clear', 'clear2'].forEach(id => { if ($(id)) $(id).onclick = () => { f = { ...F0(), sort: f.sort }; render() } })
+  if ($('how')) $('how').onclick = () => { stripOpen = !stripOpen; render() }
+  if ($('hide')) $('hide').onclick = () => { stripHidden = true; render() }
   document.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => { const i = +b.dataset.ed; openEditor = openEditor === i ? null : i; render() })
   if ($('comp')) $('comp').oninput = e => { comp = e.target.value }
   if ($('go')) $('go').onclick = () => { if (!comp) comp = 'buffer.com'; startRun() }
   if ($('cancel')) $('cancel').onclick = () => { stop(); state = 'empty'; render() }
-  if ($('toggle')) $('toggle').onclick = () => { showSteps = !showSteps; render() }
   ;['new', 'new2'].forEach(id => { if ($(id)) $(id).onclick = () => { stop(); state = 'empty'; comp = ''; render() } })
 }
 
@@ -373,7 +434,7 @@ const at = (ms, fn) => timers.push(setTimeout(() => { fn(); render() }, ms))
 
 function startRun() {
   stop()
-  state = 'run'; openEditor = null; filter = 'all'
+  state = 'run'; openEditor = null; f = F0()
   run = { step: 0, progress: null, detail: null, leads: [] }
   render()
   let t = 0
@@ -388,7 +449,7 @@ function startRun() {
     at(t += 260, () => {
       scored = k; run.progress = Math.round(k / 17 * 100); run.detail = `Scored ${k} of 17 · ${run.leads.length} good fit${run.leads.length === 1 ? '' : 's'} so far`
       const hit = { 3: 0, 6: 1, 9: 2, 12: 3, 15: 4 }[k]
-      if (hit !== undefined) { run.leads.push({ l: LEADS[hit], stage: 'scored' }); run.detail = `Scored ${k} of 17 · ${run.leads.length} good fit${run.leads.length === 1 ? '' : 's'} so far` }
+      if (hit !== undefined) { run.leads.push({ l: LEADS[hit], stage: 'scored', fresh: true }); run.detail = `Scored ${k} of 17 · ${run.leads.length} good fit${run.leads.length === 1 ? '' : 's'} so far` }
     })
   }
   // 4. contacts, one lead at a time
@@ -400,11 +461,11 @@ function startRun() {
   // 5. drafting
   at(t += 500, () => { run.step = 4; run.progress = 0; run.detail = 'Writing one email at a time' })
   LEADS.forEach((l, i) => at(t += 450, () => { run.leads[i].stage = 'drafted'; run.progress = Math.round((i + 1) / 5 * 100) }))
-  at(t += 700, () => { state = 'done'; showSteps = false; run = null })
+  at(t += 700, () => { state = 'done'; run = null })
 }
 
 document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => {
-  stop(); openEditor = null; filter = 'all'
+  stop(); openEditor = null; f = F0()
   if (b.dataset.s === 'run') { comp = comp || 'buffer.com'; startRun(); return }
   state = b.dataset.s; if (state !== 'empty' && !comp) comp = 'buffer.com'
   if (state === 'done') openEditor = 0
