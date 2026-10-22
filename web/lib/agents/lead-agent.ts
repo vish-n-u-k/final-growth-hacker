@@ -339,17 +339,17 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
 
   const n = (x: number, one: string, many = `${one}s`) => `${x} ${x === 1 ? one : many}`
   const pr = new Progress(brandId, 'lead', 'Lead Agent run', [
-    { key: 'replies', label: 'Checking sent emails for replies, and sending due follow-ups' },
-    { key: 'queued', label: 'Sending approved emails that waited for today\'s limit' },
+    { key: 'replies', label: 'Checking replies', hint: 'Replies to emails you sent, and follow-ups that are due' },
+    { key: 'queued', label: 'Sending queued emails', hint: 'Approved emails that waited for today\'s limit' },
     ...(s.sources.reddit ? [
-      { key: 'queries', label: 'Working out how your buyers ask for help' },
-      { key: 'reddit', label: 'Searching Reddit and Hacker News for people asking' },
+      { key: 'queries', label: 'Picking search phrases', hint: 'How your buyers ask for help online' },
+      { key: 'reddit', label: 'Searching Reddit & HN', hint: 'People asking for a tool like yours' },
     ] : []),
-    ...(s.sources.reviews ? [{ key: 'reviews', label: `Reading 1–3 star reviews of ${s.competitors.join(', ') || 'your competitors'}` }] : []),
-    ...(s.sources.local ? [{ key: 'local', label: `Finding businesses on Google Maps: “${s.localQuery}”` }] : []),
-    { key: 'score', label: 'Scoring each find for fit with your product' },
-    { key: 'emails', label: 'Finding contact emails (Hunter, then their websites)' },
-    { key: 'drafts', label: 'Drafting personal emails and forum replies' },
+    ...(s.sources.reviews ? [{ key: 'reviews', label: 'Reading competitor reviews', hint: `1–3 star reviews of ${s.competitors.join(', ') || 'your competitors'}` }] : []),
+    ...(s.sources.local ? [{ key: 'local', label: 'Searching Google Maps', hint: `“${s.localQuery}”: businesses with no website or low ratings` }] : []),
+    { key: 'score', label: 'Scoring leads', hint: 'How well each one fits your product' },
+    { key: 'emails', label: 'Finding emails', hint: 'Hunter first, then their own website' },
+    { key: 'drafts', label: 'Drafting messages', hint: 'Personal emails and forum replies for your OK' },
   ])
 
   return withAIContext({ brandId, moduleType: 'lead-agent', websiteUrl: b.websiteUrl }, async () => {
@@ -361,7 +361,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
     if (replies.length) notes.push(`${replies.length} new repl${replies.length === 1 ? 'y' : 'ies'}`)
     const followups = [...patches.values()].filter(x => x.followupsSent !== undefined && !x.status).length
     pr.set('replies', gmailError && sentBefore ? 'error' : 'done', sentBefore
-      ? `${n(sentBefore, 'email')} checked · ${n(replies.length, 'reply', 'replies')} · ${n(followups, 'follow-up')} sent`
+      ? { detail: `${n(replies.length, 'new reply', 'new replies')}${followups ? ` · ${n(followups, 'follow-up')}` : ''}`, note: `${n(sentBefore, 'sent email')} checked.` }
       : 'Nothing sent yet')
 
     // 2. Approved emails that waited for today's limit
@@ -376,20 +376,20 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       if (p.status === 'sent') { sentNow += 1; d.sentLog.push(p.sentAt!) }
     }
 
-    if (queued) pr.set('queued', 'done', `${n(sentNow - sentAtStart, 'email')} sent${queued > sentNow - sentAtStart ? `, ${queued - (sentNow - sentAtStart)} wait for tomorrow` : ''}`)
+    if (queued) pr.set('queued', 'done', { detail: `${sentNow - sentAtStart} sent`, note: queued > sentNow - sentAtStart ? `${queued - (sentNow - sentAtStart)} wait for tomorrow's limit.` : undefined })
 
     // 3. Find new leads
     const known = new Set([...d.leads.map(l => l.id), ...(d.rejected ?? [])])
     let candidates: Candidate[] = []
     try {
-      const queries = s.sources.reddit ? await pr.step('queries', () => searchQueries(b, s, d), q => ({ detail: `${n(q.length, 'search phrase')} to look for`, items: q.slice(0, 4) })) : []
+      const queries = s.sources.reddit ? await pr.step('queries', () => searchQueries(b, s, d), q => ({ detail: n(q.length, 'phrase'), items: q.slice(0, 4) })) : []
       // One failing source (e.g. a search error) shouldn't stop the others; it's reported on the page
       const source = <T>(label: string, p: Promise<T[]>) => p.catch(e => { errors.push(`${label}: ${e instanceof Error ? e.message : 'failed'}`); return [] as T[] })
       const fresh = (x: Candidate) => !known.has(idOf(x.url))
       const found = await Promise.all([
-        s.sources.reddit ? source('Reddit search', pr.step('reddit', async () => [...await findReddit(queries, s.country, meter), ...await findHackerNews(queries)], r => ({ detail: `${n(r.length, 'post')} found, ${r.filter(fresh).length} new`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
-        s.sources.reviews ? source('Competitor reviews', pr.step('reviews', () => findReviews(s.competitors), r => ({ detail: `${n(r.length, 'unhappy review')} in the last 3 months, ${r.filter(fresh).length} new`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
-        s.sources.local ? source('Google Maps search', pr.step('local', () => findLocal(s.localQuery, s.country, meter), r => ({ detail: `${n(r.length, 'business', 'businesses')} with a need (no website, low rating or few reviews)`, items: r.slice(0, 3).map(x => x.title) }))) : [],
+        s.sources.reddit ? source('Reddit search', pr.step('reddit', async () => [...await findReddit(queries, s.country, meter), ...await findHackerNews(queries)], r => ({ detail: `${r.filter(fresh).length} new posts`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
+        s.sources.reviews ? source('Competitor reviews', pr.step('reviews', () => findReviews(s.competitors), r => ({ detail: `${r.filter(fresh).length} new reviewers`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
+        s.sources.local ? source('Google Maps search', pr.step('local', () => findLocal(s.localQuery, s.country, meter), r => ({ detail: n(r.length, 'business', 'businesses'), items: r.slice(0, 3).map(x => x.title) }))) : [],
       ])
       candidates = found.flat().filter((c, i, a) => !known.has(idOf(c.url)) && a.findIndex(x => x.url === c.url) === i).slice(0, 30)
     } catch (e) {
@@ -401,7 +401,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
     if (candidates.length && Date.now() < deadline) {
       const scored = await pr.step('score', () => scoreCandidates(b, s, candidates)).catch(() => [] as Scored[])
       const good = scored.filter(x => x.score >= MIN_SCORE).sort((x, y) => y.score - x.score).slice(0, MAX_NEW_PER_RUN)
-      pr.set('score', 'done', `${n(candidates.length, 'find')} scored · ${good.length} good fit (7+/10)`)
+      pr.set('score', 'done', { detail: `${good.length} of ${candidates.length} fit`, note: 'A good fit scores 7 or more out of 10.', items: good.slice(0, 3).map(g => candidates[g.i].title) })
       // Remember the ones that didn't make it so tomorrow's run doesn't pay to score them again
       const keptIdx = new Set(good.map(g => g.i))
       rejected.push(...scored.filter(x => !keptIdx.has(x.i)).map(x => idOf(candidates[x.i].url)))
@@ -431,14 +431,14 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
         }
       }
       const businesses = fresh.filter(l => l.source === 'review' || l.source === 'local')
-      if (!fresh.length) pr.set('emails', 'skipped', 'No good fits to contact this time')
+      if (!fresh.length) pr.set('emails', 'skipped', 'No good fits')
       else pr.set('emails', 'done', businesses.length
-        ? `Found for ${businesses.filter(l => l.email).length} of ${n(businesses.length, 'business', 'businesses')}${euBlocked ? ' (EU: not emailed)' : ''}`
-        : 'Only forum posts this time: you reply on the post')
+        ? { detail: `${businesses.filter(l => l.email).length} of ${businesses.length} found`, note: euBlocked ? 'EU leads are not emailed (your setting).' : undefined }
+        : { detail: 'Not needed', note: 'Only forum posts this time: you reply on the post.' })
       // Drafts
       const toDraft = fresh.filter(l => l.email || l.source === 'reddit' || l.source === 'forum')
       if (!toDraft.length) pr.set('drafts', 'skipped', 'Nothing to draft')
-      const drafts = Date.now() < deadline && toDraft.length ? await pr.step('drafts', () => draftMessages(b, s, toDraft), r => `${n(r.size, 'draft')} ready for your OK`).catch(() => new Map()) : new Map()
+      const drafts = Date.now() < deadline && toDraft.length ? await pr.step('drafts', () => draftMessages(b, s, toDraft), r => `${n(r.size, 'draft')} ready`).catch(() => new Map()) : new Map()
       for (const l of fresh) {
         const x = drafts.get(l.id)
         if (x?.reply) { l.reply = x.reply; l.status = 'ready' }
@@ -447,7 +447,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       notes.push(`${fresh.length} new lead${fresh.length === 1 ? '' : 's'}`)
     } else if (!errors.length) {
       notes.push('no new leads')
-      pr.set('score', 'skipped', 'Nothing new to score')
+      pr.set('score', 'skipped', 'Nothing new')
     }
 
     // 4. Auto mode: send strong email leads without asking once the user has approved 20
