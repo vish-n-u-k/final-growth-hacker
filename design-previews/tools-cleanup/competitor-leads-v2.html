@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Competitor Leads v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #ffffff; --bg-soft: #eef1ee; --card: #ffffff; --line: #dfe4df;
+    --text: #16201a; --text-dim: #4c5a50; --text-faint: #6f7c72;
+    --green: #15803d; --accent: #e3f3e8; --accent-fg: #0f5a2b;
+    --warn: #b45309; --warn-soft: #fdf0dc; --star: #e2a400;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9ece9; color: var(--text); font-family: var(--body); }
+  button, input, textarea, select { font-family: inherit; }
+
+  /* mockup controls */
+  .ctl { position: sticky; top: 0; z-index: 60; background: #1d2620; color: #e8f0ea; padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+  .ctl h1 { font: 600 15px var(--body); margin: 0 12px 0 0; }
+  .ctl .grp { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl .lbl { font-size: 12px; color: #9fb0a5; margin-right: 4px; }
+  .ctl button { font: 500 13px var(--body); border: 1px solid #3a4a40; background: transparent; color: #e8f0ea; padding: 6px 11px; border-radius: 8px; cursor: pointer; }
+  .ctl button[aria-pressed="true"] { background: #e8f0ea; color: #16201a; border-color: #e8f0ea; }
+  .note { max-width: 1180px; margin: 14px auto 0; padding: 0 20px; font-size: 13.5px; color: #3c4a41; line-height: 1.55; }
+  .note b { color: #16201a; }
+
+  /* app frame */
+  .frame { position: relative; max-width: 1180px; margin: 14px auto 40px; background: var(--bg); border-radius: 14px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.08); display: flex; min-height: 860px; }
+  .frame.phone { max-width: 390px; }
+  .side { width: 200px; flex: none; background: var(--bg-soft); border-right: 1px solid var(--line); padding: 16px 12px; font-size: 13px; }
+  .frame.phone .side { display: none; }
+  .side .logo { font: 600 15px var(--display); display: flex; gap: 8px; align-items: center; margin: 0 6px 18px; }
+  .side .logo i { width: 20px; height: 20px; border-radius: 6px; background: var(--green); display: inline-block; }
+  .side .g { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); margin: 16px 8px 6px; }
+  .side a { display: block; padding: 6px 8px; border-radius: 7px; color: var(--text-dim); }
+  .side a.on { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+  .main { flex: 1; min-width: 0; padding: 0 32px 40px; }
+  .frame.phone .main { padding: 0 16px 32px; }
+  .col { max-width: 880px; }
+
+  /* header (Option B, as built) */
+  .hd { position: sticky; top: 0; z-index: 5; background: rgba(255,255,255,.94); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; padding: 14px 0; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .hd-l, .hd-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .hd-ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--accent); color: var(--accent-fg); }
+  .hd h1 { font: 600 20px/1.2 var(--display); margin: 0; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: var(--bg-soft); color: var(--text-dim); white-space: nowrap; }
+  .chip.ok { background: var(--accent); color: var(--accent-fg); }
+  .chip.ok::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .link { font-size: 13px; font-weight: 600; color: var(--accent-fg); text-decoration: none; white-space: nowrap; background: none; border: 0; cursor: pointer; padding: 0; }
+  .strip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg-soft); font-size: 13px; color: var(--text-dim); margin-bottom: 18px; }
+  .strip span { flex: 1; }
+
+  .btn { height: 36px; padding: 0 16px; border-radius: 9px; font: 600 13px var(--body); border: 1px solid var(--line); background: #fff; color: var(--text-dim); cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .btn.pri { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.sm { height: 30px; padding: 0 12px; font-size: 12.5px; border-radius: 8px; }
+  .btn.ghost { border-color: transparent; background: none; }
+  .btn:disabled { opacity: .55; cursor: default; }
+
+  /* scan bar + toolbar */
+  .scanbar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 14px; margin-bottom: 12px; border: 1px solid var(--line); border-radius: 12px; font-size: 13.5px; }
+  .scanbar .grow { flex: 1; }
+  .muted { color: var(--text-faint); font-size: 12.5px; }
+  .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; }
+  .search { flex: 1 1 200px; min-width: 150px; height: 34px; border: 1px solid var(--line); border-radius: 9px; padding: 0 10px; font-size: 13px; }
+  .sel { height: 34px; border: 1px solid var(--line); border-radius: 9px; padding: 0 10px; font: 500 13px var(--body); color: var(--text-dim); background: #fff; }
+  .starf { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; height: 34px; }
+  .starf button { border: 0; border-left: 1px solid var(--line); background: #fff; padding: 0 10px; font: 600 12.5px var(--body); color: var(--text-dim); cursor: pointer; }
+  .starf button:first-child { border-left: 0; }
+  .starf button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+  .starf button span { color: var(--star); }
+  .count { font-size: 12.5px; color: var(--text-faint); margin: 0 2px 10px; }
+
+  /* review rows */
+  .rv { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin-bottom: 10px; background: #fff; transition: border-color .15s; }
+  .rv.sel-on { border-color: var(--green); box-shadow: 0 0 0 3px var(--accent); }
+  .rv.done { background: #fafcfa; }
+  .av { flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--bg-soft); display: grid; place-items: center; font-weight: 700; font-size: 13px; color: var(--text-dim); }
+  .rv-main { flex: 1; min-width: 0; }
+  .rv-name { font-size: 14.5px; font-weight: 600; }
+  .rv-sub { font-size: 12.5px; color: var(--text-faint); margin-top: 1px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .stars { color: var(--star); letter-spacing: 1px; font-size: 12px; }
+  .stars s { color: #d9ddd9; text-decoration: none; }
+  .rv-text { font-size: 13.5px; color: var(--text-dim); line-height: 1.5; margin: 8px 0 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .rv-act { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .tag { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--bg-soft); color: var(--text-dim); white-space: nowrap; }
+  .tag.ok { background: var(--accent); color: var(--accent-fg); }
+  .frame.phone .rv { flex-wrap: wrap; }
+  .frame.phone .rv-act { flex-direction: row; width: 100%; justify-content: flex-end; }
+
+  /* stepper (shared by drawer + page) */
+  .stp-head { display: flex; align-items: flex-start; gap: 12px; }
+  .stp-head h2 { font: 600 19px/1.25 var(--display); margin: 0; }
+  .stp-head .sub { font-size: 12.5px; color: var(--text-faint); margin-top: 2px; }
+  .x { margin-left: auto; width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; color: var(--text-dim); font-size: 15px; flex: none; }
+  .bar { display: flex; gap: 6px; margin: 16px 0 18px; }
+  .bar div { flex: 1; }
+  .bar i { display: block; height: 4px; border-radius: 3px; background: var(--line); }
+  .bar div.on i, .bar div.past i { background: var(--green); }
+  .bar span { display: block; font-size: 11.5px; color: var(--text-faint); margin-top: 6px; font-weight: 500; }
+  .bar div.on span { color: var(--accent-fg); font-weight: 700; }
+  .quote { font-size: 13.5px; color: var(--text-dim); line-height: 1.55; border-left: 3px solid var(--line); padding: 2px 0 2px 12px; margin: 0 0 14px; }
+  .q { font: 600 16px/1.35 var(--body); margin: 0 0 6px; }
+  .why { font-size: 13.5px; color: var(--text-dim); line-height: 1.5; margin: 0 0 14px; }
+  .pains { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .pains span { font-size: 12px; padding: 3px 9px; border-radius: 99px; background: var(--bg-soft); color: var(--text-dim); }
+  .fitline { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 10px; }
+  .acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 18px; }
+  .working { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--text-dim); padding: 14px; border-radius: 10px; background: var(--bg-soft); }
+  .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--green); animation: sp .8s linear infinite; flex: none; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  label.f { display: block; font-size: 12px; font-weight: 600; color: var(--text-dim); margin-bottom: 10px; }
+  label.f input, label.f textarea { display: block; width: 100%; margin-top: 4px; border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; font-size: 13.5px; color: var(--text); background: #fff; }
+  label.f textarea { line-height: 1.5; resize: vertical; }
+  .found { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; font-size: 13.5px; }
+  .hint { font-size: 12.5px; color: var(--text-faint); line-height: 1.5; }
+  .ok-big { text-align: center; padding: 20px 10px 6px; }
+  .ok-big .tick { width: 48px; height: 48px; border-radius: 50%; background: var(--accent); color: var(--green); display: grid; place-items: center; margin: 0 auto 12px; font-size: 22px; font-weight: 700; }
+  .ok-big h3 { font: 600 18px var(--display); margin: 0 0 6px; }
+  .ok-big p { font-size: 13.5px; color: var(--text-dim); margin: 0 0 16px; line-height: 1.5; }
+
+  /* Option A: drawer */
+  .scrim { position: absolute; inset: 0; background: rgba(20,30,24,.28); z-index: 20; }
+  .drawer { position: absolute; top: 0; right: 0; bottom: 0; width: 460px; max-width: 100%; background: #fff; z-index: 21; box-shadow: -8px 0 24px rgba(0,0,0,.12); padding: 20px 22px; overflow: auto; animation: din .2s ease; }
+  @keyframes din { from { transform: translateX(30px); opacity: 0; } }
+  .frame.phone .drawer { width: 100%; }
+
+  /* Option B: page */
+  .back { margin: 4px 0 14px; }
+  .page { border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; max-width: 680px; }
+  .frame.phone .page { padding: 16px; }
+</style>
+</head>
+<body>
+<div class="ctl">
+  <h1>Competitor Leads: reviews first</h1>
+  <div class="grp"><span class="lbl">Reach out opens</span>
+    <button data-k="mode" data-v="drawer" aria-pressed="true">A · Side panel</button>
+    <button data-k="mode" data-v="page" aria-pressed="false">B · Own page</button>
+  </div>
+  <div class="grp"><span class="lbl">Width</span>
+    <button data-k="size" data-v="desk" aria-pressed="true">Desktop</button>
+    <button data-k="size" data-v="phone" aria-pressed="false">Phone</button>
+  </div>
+  <div class="grp"><button id="reset">Reset demo</button></div>
+</div>
+<p class="note">
+  <b>How it works now:</b> the scan only reads the reviews, which takes seconds and costs almost nothing, then shows them all. Nothing is scored or emailed up front.
+  Press <b>Reach out</b> on any review to start 3 short steps for that one person:
+  <b>1 · Do you want to email them?</b> (shows why they might switch) → <b>2 · Their email</b> (we look it up, or you type it) → <b>3 · Review and send</b>.
+  The AI only runs for the people you pick, so a scan stays cheap. Try it on Maya or Daniel below.
+</p>
+
+<div class="frame" id="frame">
+  <aside class="side">
+    <div class="logo"><i></i>GrowJin</div>
+    <div class="g">Leads</div><a>Lead Agent</a><a class="on">Competitor Leads</a><a>Email Outreach</a>
+    <div class="g">Growth</div><a>Search Agent</a><a>Social Studio</a><a>Meta Ads</a>
+  </aside>
+  <main class="main"><div class="col" id="view"></div></main>
+  <div id="overlay"></div>
+</div>
+
+<script>
+const BRAND = 'Frekto'
+const REVIEWS = [
+  { id: 1, name: 'Maya Chen', rating: 1, date: 'Oct 19', text: 'Buffer keeps failing to publish my posts and I still design everything in Canva. Losing hours every week and support takes days to answer.', why: 'She designs every post by hand and then schedules it. Frekto makes the posts and schedules them, so she gets those hours back.', pains: ['Designs posts by hand', 'Posts fail to publish'], email: 'maya@chenbakery.com', fit: 9 },
+  { id: 2, name: 'Daniel Ortiz', rating: 2, date: 'Oct 17', text: 'The price went up again and the analytics are still basic. I just want something that makes posting less of a chore for my shop.', why: 'He wants posting to feel like less work for a small shop. Frekto writes and designs on-brand posts in under a minute.', pains: ['Posting feels like a chore', 'Price went up'], email: null, fit: 8 },
+  { id: 3, name: 'Priya Nair', rating: 2, date: 'Oct 15', text: 'Instagram integration broke twice this month. Had to re-connect everything. Not reliable for a small team.', why: 'Reliability is her main problem, not making content, so Frekto is a weaker fit.', pains: ['Connections break'], email: 'priya@nairdesigns.co', fit: 6 },
+  { id: 4, name: 'Tom Becker', rating: 3, date: 'Oct 12', text: 'It does the job but I spend ages making images for every post. Wish it helped with the actual content.', why: 'He wants help with the content itself. That is exactly what Frekto does.', pains: ['Making images takes ages'], email: null, fit: 9 },
+  { id: 5, name: 'Lena Fischer', rating: 1, date: 'Oct 9', text: 'Cancelled after the billing mix-up. Charged twice and no refund for two weeks.', why: 'Her complaint is about billing, which Frekto does not change.', pains: ['Billing problems'], email: null, fit: 3 },
+  { id: 6, name: 'Sam Rivera', rating: 4, date: 'Oct 8', text: 'Good scheduler overall, the queue view is nice. Would love AI captions.', why: 'Mostly happy, but wants AI captions, which Frekto has.', pains: ['Wants AI captions'], email: null, fit: 6 },
+  { id: 7, name: 'Ana Silva', rating: 5, date: 'Oct 6', text: 'Love it, been using it for 3 years.', why: 'Happy customer, unlikely to switch.', pains: [], email: null, fit: 1 },
+]
+const S = { mode: 'drawer', size: 'desk', open: null, step: 1, busy: false, stars: [1, 2, 3], q: '', sort: 'new', emails: {}, sent: {}, skipped: {}, to: '', subj: '', body: '' }
+
+const $ = s => document.querySelector(s)
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+const stars = n => `<span class="stars">${'★'.repeat(n)}<s>${'★'.repeat(5 - n)}</s></span>`
+const ini = n => n.split(' ').map(x => x[0]).join('')
+const first = n => n.split(' ')[0]
+const later = (fn, ms) => setTimeout(() => { fn(); render() }, ms)
+
+function list() {
+  const q = S.q.trim().toLowerCase()
+  let r = REVIEWS.filter(x => (!S.stars.length || S.stars.includes(x.rating)) && (!q || (x.name + ' ' + x.text).toLowerCase().includes(q)))
+  const by = { new: () => 0, low: (a, b) => a.rating - b.rating, name: (a, b) => a.name.localeCompare(b.name) }
+  return [...r].sort(by[S.sort])
+}
+
+function reviewsView() {
+  const rows = list()
+  const sentN = Object.keys(S.sent).length
+  return `
+    <div class="scanbar"><span>Trustpilot · <b>buffer.com</b></span><span class="grow"></span>
+      <span class="muted">${REVIEWS.length} newest reviews · read just now</span>
+      <button class="btn sm">New scan</button></div>
+    <div class="tools">
+      <input class="search" id="q" placeholder="Search name or review" value="${esc(S.q)}" />
+      <span class="starf">${[1,2,3,4,5].map(n => `<button data-star="${n}" aria-pressed="${S.stars.includes(n)}">${n}<span>★</span></button>`).join('')}</span>
+      <select class="sel" id="sort"><option value="new">Newest first</option><option value="low" ${S.sort==='low'?'selected':''}>Lowest rating</option><option value="name" ${S.sort==='name'?'selected':''}>Name A–Z</option></select>
+    </div>
+    <div class="count">Showing ${rows.length} of ${REVIEWS.length} reviews${S.stars.length && S.stars.length < 5 ? ' (1–3 stars: the unhappy ones)' : ''}${sentN ? ` · ${sentN} emailed` : ''}</div>
+    ${rows.map(r => {
+      const sent = S.sent[r.id], skip = S.skipped[r.id]
+      return `<article class="rv ${S.open === r.id ? 'sel-on' : ''} ${sent ? 'done' : ''}">
+        <span class="av">${ini(r.name)}</span>
+        <div class="rv-main">
+          <div class="rv-name">${r.name}</div>
+          <div class="rv-sub">${stars(r.rating)}<span>${r.date}</span><a class="link" href="#">Read on Trustpilot ↗</a></div>
+          <p class="rv-text">${esc(r.text)}</p>
+        </div>
+        <div class="rv-act">
+          ${sent ? `<span class="tag ok">Emailed · ${sent}</span><button class="btn sm ghost" data-open="${r.id}">View</button>`
+            : skip ? `<span class="tag">Not a fit</span><button class="btn sm ghost" data-open="${r.id}">Reach out</button>`
+            : `<button class="btn sm ${r.rating <= 3 ? 'pri' : ''}" data-open="${r.id}">Reach out →</button>`}
+        </div>
+      </article>`
+    }).join('') || '<p class="muted">No reviews match these filters.</p>'}`
+}
+
+function stepper(r) {
+  const labels = ['Email them?', 'Their email', 'Review & send']
+  const done = S.sent[r.id]
+  const bar = `<div class="bar">${labels.map((l, i) => `<div class="${done || i + 1 < S.step ? 'past' : i + 1 === S.step ? 'on' : ''}"><i></i><span>${i + 1} · ${l}</span></div>`).join('')}</div>`
+  const head = `<div class="stp-head"><span class="av">${ini(r.name)}</span><div><h2>${r.name}</h2><div class="sub">${stars(r.rating)} · ${r.date} · reviewed buffer.com</div></div>
+    ${S.mode === 'drawer' ? '<button class="x" data-close>✕</button>' : ''}</div>`
+  let body = ''
+  if (done) {
+    body = `<div class="ok-big"><div class="tick">✓</div><h3>Email sent to ${first(r.name)}</h3>
+      <p>Sent from your Gmail to <b>${esc(S.emails[r.id])}</b>.<br>We'll remind you to follow up in 5 days if they don't reply. It's also in Email Outreach.</p>
+      <div class="acts" style="justify-content:center">${nextBtn(r)}<button class="btn" data-close>Back to reviews</button></div></div>`
+  } else if (S.step === 1) {
+    body = `<blockquote class="quote">“${esc(r.text)}”</blockquote>
+      ${S.busy ? `<div class="working"><span class="spin"></span>Reading the review and checking how ${BRAND} could help…</div>` : `
+      <div class="fitline"><span class="tag ${r.fit >= 7 ? 'ok' : ''}">${r.fit >= 7 ? 'Good fit' : 'Weak fit'} · ${r.fit}/10</span></div>
+      <p class="why">${r.why}</p>
+      ${r.pains.length ? `<div class="pains">${r.pains.map(p => `<span>${p}</span>`).join('')}</div>` : ''}
+      <p class="q">Do you want to send ${first(r.name)} an email?</p>
+      <div class="acts"><button class="btn pri" data-go="2">Yes, write an email</button><button class="btn ghost" data-skip>No, not a fit</button></div>`}`
+  } else if (S.step === 2) {
+    body = S.busy ? `<div class="working"><span class="spin"></span>Looking for ${first(r.name)}'s email address…</div>` : `
+      ${r.email ? `<div class="found">✉ <b>${r.email}</b><span class="tag ok">Verified</span></div><p class="hint">Found from their business website. You can change it.</p>`
+        : `<p class="why">We couldn't find a public email for ${first(r.name)}. Trustpilot reviewers are often people, not businesses. If you know it (from their review profile or website), paste it here.</p>`}
+      <label class="f">Email address<input id="to" type="email" placeholder="name@company.com" value="${esc(S.to)}" /></label>
+      <div class="acts"><button class="btn pri" data-go="3" ${S.to.includes('@') ? '' : 'disabled'} id="toNext">Continue</button><button class="btn ghost" data-back="1">Back</button></div>`
+  } else {
+    body = S.busy ? `<div class="working"><span class="spin"></span>Writing a short, personal email to ${first(r.name)}…</div>` : `
+      <label class="f">To<input id="to2" value="${esc(S.to)}" /></label>
+      <label class="f">Subject<input id="subj" value="${esc(S.subj)}" /></label>
+      <label class="f">Message<textarea id="body" rows="9">${esc(S.body)}</textarea></label>
+      <p class="hint">Plain and short, from your Gmail. It doesn't mention their review. Edit anything you like.</p>
+      <div class="acts"><button class="btn pri" data-send>Send email</button><button class="btn ghost" data-back="2">Back</button><button class="btn ghost" data-rewrite>Rewrite</button></div>`
+  }
+  return head + bar + body
+}
+
+function nextBtn(r) {
+  const next = list().find(x => x.id !== r.id && !S.sent[x.id] && !S.skipped[x.id] && x.rating <= 3)
+  return next ? `<button class="btn pri" data-open="${next.id}">Next review: ${first(next.name)} →</button>` : ''
+}
+
+function render() {
+  const frame = $('#frame'); frame.classList.toggle('phone', S.size === 'phone')
+  const r = REVIEWS.find(x => x.id === S.open)
+  const header = `<header class="hd"><div class="hd-l"><span class="hd-ic">◎</span><h1>Competitor Leads</h1><span class="chip">Beta</span><span class="chip ok">Gmail connected</span></div>
+    <div class="hd-r"><a class="link" href="#">Email Outreach →</a></div></header>
+    <div class="strip"><span>Read a competitor's newest reviews, and email the unhappy customers ${BRAND} could help.</span><a class="link">How it works ▾</a></div>`
+  if (S.mode === 'page' && r) {
+    $('#view').innerHTML = header + `<div class="back"><button class="link" data-close>← All reviews (buffer.com)</button></div><section class="page">${stepper(r)}</section>`
+    $('#overlay').innerHTML = ''
+  } else {
+    $('#view').innerHTML = header + reviewsView()
+    $('#overlay').innerHTML = S.mode === 'drawer' && r ? `<div class="scrim" data-close></div><aside class="drawer">${stepper(r)}</aside>` : ''
+  }
+  document.querySelectorAll('.ctl [data-k]').forEach(b => b.setAttribute('aria-pressed', S[b.dataset.k] === b.dataset.v))
+}
+
+function open(id) {
+  const r = REVIEWS.find(x => x.id === id)
+  Object.assign(S, { open: id, step: 1, busy: !S.sent[id], to: S.emails[id] ?? '', subj: '', body: '' })
+  render()
+  if (!S.sent[id]) later(() => { S.busy = false }, 900)
+}
+function go(step) {
+  const r = REVIEWS.find(x => x.id === S.open)
+  S.step = step
+  if (step === 2 && !S.to) { S.busy = true; later(() => { S.busy = false; S.to = r.email ?? '' }, 900) }
+  if (step === 3 && !S.body) { S.busy = true; later(() => {
+    S.busy = false
+    S.subj = r.pains[0] ? `${r.pains[0].replace(/^./, c => c.toLowerCase())}? quick idea` : 'A quick idea'
+    S.body = `Hi ${first(r.name)},\n\n${BRAND} makes your social posts for you, on-brand and ready to schedule, usually in under a minute. A lot of small shops use it to stop spending evenings in Canva.\n\nWould a free week of posts help? Happy to set it up.\n\n${BRAND}`
+  }, 1100) }
+  render()
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('button, [data-close]'); if (!t) return
+  if (t.dataset.k) { S[t.dataset.k] = t.dataset.v; render(); return }
+  if (t.id === 'reset') { Object.assign(S, { open: null, sent: {}, skipped: {}, emails: {} }); render(); return }
+  if (t.dataset.star) { const n = +t.dataset.star; S.stars = S.stars.includes(n) ? S.stars.filter(x => x !== n) : [...S.stars, n]; render(); return }
+  if (t.dataset.open) { open(+t.dataset.open); return }
+  if ('close' in t.dataset) { S.open = null; render(); return }
+  if (t.dataset.go) { if (t.dataset.go === '3') S.emails[S.open] = S.to; go(+t.dataset.go); return }
+  if (t.dataset.back) { S.step = +t.dataset.back; render(); return }
+  if ('skip' in t.dataset) { S.skipped[S.open] = true; S.open = null; render(); return }
+  if ('rewrite' in t.dataset) { S.body = ''; go(3); return }
+  if ('send' in t.dataset) { t.disabled = true; t.innerHTML = '<span class="spin"></span>Sending…'; S.emails[S.open] = S.to; later(() => { S.sent[S.open] = 'just now'; delete S.skipped[S.open] }, 900) }
+})
+document.addEventListener('input', e => {
+  if (e.target.id === 'q') { S.q = e.target.value; const pos = e.target.selectionStart; render(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos) }
+  if (e.target.id === 'to' || e.target.id === 'to2') { S.to = e.target.value; const b = $('#toNext'); if (b) b.disabled = !S.to.includes('@') }
+  if (e.target.id === 'subj') S.subj = e.target.value
+  if (e.target.id === 'body') S.body = e.target.value
+})
+document.addEventListener('change', e => { if (e.target.id === 'sort') { S.sort = e.target.value; render() } })
+render()
+</script>
+</body>
+</html>
