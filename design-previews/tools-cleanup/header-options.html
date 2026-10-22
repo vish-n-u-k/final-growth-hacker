@@ -124,6 +124,7 @@
     <button data-v="b">Option B · compact + one-line strip</button>
   </div>
   <div class="grp"><span class="lbl">Tool</span>
+    <button data-t="leads">Competitor Leads</button>
     <button data-t="search">Search Agent</button>
     <button data-t="social">Social Studio</button>
     <button data-t="reminders">Reminders</button>
@@ -140,7 +141,7 @@
   <nav class="side" aria-label="Sidebar (mock)">
     <div class="logo"><i></i>GrowJin</div>
     <a>Today</a><a>Growth Path</a>
-    <div class="g">Get customers</div><a>Lead Agent</a><a>Competitor Leads</a><a>Email Outreach</a>
+    <div class="g">Get customers</div><a>Lead Agent</a><a data-nav="leads">Competitor Leads</a><a>Email Outreach</a>
     <div class="g">Get seen</div><a data-nav="search">Search Agent</a><a data-nav="social">Social Studio</a><a>Meta Ads</a>
     <div class="g">Keep track</div><a data-nav="reminders">Reminders</a><a>Analytics</a>
   </nav>
@@ -149,6 +150,7 @@
 
 <script>
 const ICON = {
+  leads: '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3.4"/></svg>',
   search: '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8.8" cy="8.8" r="5.3"/><path d="M12.7 12.7 17 17"/></svg>',
   social: '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3.5" width="15" height="13" rx="2"/><circle cx="7" cy="8" r="1.4"/><path d="M4 14l3.5-3.5L10 13l3-3.5 3 3.5"/></svg>',
   reminders: '<svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7.5a4 4 0 0 1 8 0c0 3.5 1.2 4.7 1.5 5.3H4.5C4.8 12.2 6 11 6 7.5Z"/><path d="M8.3 15.5a1.8 1.8 0 0 0 3.4 0"/></svg>',
@@ -156,6 +158,23 @@ const ICON = {
 }
 
 const TOOLS = {
+  leads: {
+    title: 'Competitor Leads', chip: ['', 'Beta'], meta: 'Gmail connected',
+    oldSub: 'Scan competitor reviews · AI scores each merchant for product fit · generate targeted outreach',
+    actions: [['', 'Email Outreach →'], ['pri', 'New scan']],
+    what: "Turns a competitor's bad reviews into a list of people to contact. Their unhappy customers are often looking for something like yours.",
+    steps: [['Paste a link', "A competitor's Trustpilot or Shopify App Store page."], ['Score reviewers', 'GrowJin reads the 1–3 star reviews and scores how well you fit each one.'], ['Email the best', 'It finds their email and drafts a note; you send it from Gmail.']],
+    note: 'Nothing is sent until you approve it.',
+    content: () => `
+      <div class="card" style="display:flex;align-items:center;gap:10px;padding:11px 14px"><span>Trustpilot · <b>buffer.com</b></span></div>
+      <div class="card" style="background:var(--accent);border-color:transparent;color:var(--accent-fg);padding:11px 14px">✓ <b>Done in 52s</b> · 5 good fits · 3 ready to email · 2 need a contact · cost 2¢</div>
+      <div class="card"><h3>Maya Chen · Bloom &amp; Twig Florist <span class="tag" style="float:right;background:var(--accent);color:var(--accent-fg)">Fit 9/10</span></h3>
+        <p>Designs every post in Canva, then schedules in Buffer. Frekto would do both for her in a minute.</p>
+        <div class="row"><span class="grow">✉ maya@bloomandtwig.co</span><button class="btn pri">Review email</button></div></div>
+      <div class="card"><h3>Daniel Ortiz · Ortiz Coaching <span class="tag" style="float:right;background:var(--accent);color:var(--accent-fg)">Fit 8/10</span></h3>
+        <p>Wants captions written for him; found Buffer's AI assistant generic.</p>
+        <div class="row"><span class="grow">✉ daniel@ortizcoaching.com</span><button class="btn pri">Review email</button></div></div>`,
+  },
   search: {
     title: 'Search Agent', chip: ['on', 'On · weekly'], meta: 'Last research 2 h ago',
     oldSub: 'Last research 2 h ago.',
@@ -202,7 +221,7 @@ const NOTES = {
   b: '<b>Option B:</b> the same slim row, plus a one-line description under it with “How it works” to expand the 3 steps. Easier to discover than A, but always takes one extra line. The × hides the line for good.',
 }
 
-let v = 'a', t = 'search', w = 'desk', popOpen = true, stripOpen = false, stripHidden = false
+let v = 'a', t = 'leads', w = 'desk', popOpen = true, stripOpen = false, stripHidden = false
 
 const btns = (tool) => [
   ...(tool.gear ? [`<button class="btn icon" aria-label="Settings">${ICON.gear}</button>`] : []),
