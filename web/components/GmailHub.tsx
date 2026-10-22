@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, Fragment } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import Link from 'next/link'
 import FollowUpsTab from '@/components/FollowUpsTab'
 import ToolHeader from '@/components/ToolHeader'
@@ -337,6 +337,41 @@ export default function GmailHub({
     loadSavedProspects()
     loadEmailHistory()
   }, [loadSavedProspects, loadEmailHistory])
+
+  // ── Campaign autosave (app/api/outreach/campaign) ─────────────────────────
+  // The instruction, recipients and every written or edited email are saved as they
+  // change and brought back when the page opens, so a refresh loses nothing.
+  const campaignRestored = useRef(false)
+  useEffect(() => {
+    fetch('/api/outreach/campaign').then(r => r.ok ? r.json() : null).then((d: { campaign?: {
+      instruction?: string; prospects?: CampaignProspect[]; emails?: Record<string, { subject: string; body: string; toEmail?: string; status: string; scheduledAt?: string }>
+    } | null } | null) => {
+      const c = d?.campaign
+      if (c) {
+        if (c.instruction) setCampaignInstruction(prev => prev || c.instruction!)
+        if (c.prospects?.length) setCampaignProspects(prev => prev.length ? prev : c.prospects!)
+        if (c.emails) {
+          setCampaignStates(prev => Object.keys(prev).length ? prev : Object.fromEntries(Object.entries(c.emails!).map(([id, e]) => [id, {
+            status: (e.status === 'sent' || e.status === 'scheduled' ? e.status : 'ready') as CampaignStatus,
+            subject: e.subject, body: e.body, toEmail: e.toEmail, scheduledAt: e.scheduledAt,
+          }])))
+        }
+      }
+    }).catch(() => {}).finally(() => { campaignRestored.current = true })
+  }, [])
+  useEffect(() => {
+    if (!campaignRestored.current) return
+    const t = setTimeout(() => {
+      const emails = Object.fromEntries(Object.entries(campaignStates)
+        .filter(([, st]) => st.subject || st.body)
+        .map(([id, st]) => [id, { subject: st.subject, body: st.body, toEmail: st.toEmail, status: st.status, scheduledAt: st.scheduledAt }]))
+      fetch('/api/outreach/campaign', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instruction: campaignInstruction, prospects: campaignProspects, emails }),
+      }).catch(() => {})
+    }, 1200)
+    return () => clearTimeout(t)
+  }, [campaignInstruction, campaignProspects, campaignStates])
 
   async function fetchMessages(threadId: string) {
     setLoadingMsgs(prev => new Set(prev).add(threadId))

@@ -7,7 +7,7 @@ import { db } from '@/lib/db'
 import { toolSuggestions } from '@/lib/db/schema'
 
 export type SuggestionTool = 'competitor_leads' | 'lead_agent' | 'search_agent' | 'email_outreach'
-export type SuggestionKind = 'scan' | 'lead' | 'email' | 'topic' | 'link' | 'task'
+export type SuggestionKind = 'scan' | 'lead' | 'email' | 'campaign' | 'topic' | 'link' | 'task'
 
 export interface SuggestionInput {
   kind: SuggestionKind

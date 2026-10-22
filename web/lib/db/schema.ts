@@ -383,7 +383,7 @@ export const toolSuggestions = pgTable('tool_suggestions', {
   id: uuid('id').primaryKey().defaultRandom(),
   brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
   tool: text('tool').notNull(),              // 'competitor_leads' | 'lead_agent' | 'search_agent' | 'email_outreach'
-  kind: text('kind').notNull(),              // 'scan' | 'lead' | 'email' | 'topic' | 'link'
+  kind: text('kind').notNull(),              // 'scan' | 'lead' | 'email' | 'campaign' | 'topic' | 'link' | 'task'
   externalId: text('external_id').notNull(), // the tool's own id for it, so saves update the same row
   groupId: text('group_id'),                 // e.g. the Competitor Leads scan it came from
   title: text('title').notNull(),
