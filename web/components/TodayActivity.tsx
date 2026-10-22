@@ -7,6 +7,7 @@ import PersonPanel, { ago } from '@/components/PersonPanel'
 import SocialIcon from '@/components/SocialIcon'
 import { ArrowRight } from 'lucide-react'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import LastRefreshed from '@/components/LastRefreshed'
 
 // "What happened" on Today: visitors, new signups (and where each came from), returning users
 // and top sources for the last 24 hours or 7 days. Data: /api/today/activity (PostHog).
@@ -89,6 +90,7 @@ export default function TodayActivity() {
       </div>
       <Link href="/analytics" className="ta-connect ta-head-link">Full analytics <ArrowRight size={13} aria-hidden="true" /></Link>
     </div>
+    {data?.fetchedAt && <LastRefreshed at={data.fetchedAt} prefix="Numbers from PostHog, fetched" staleAfterHours={1} className="ta-fetched" />}
     <section className="ta" aria-busy={loading}>
 
       {loading && !data ? (

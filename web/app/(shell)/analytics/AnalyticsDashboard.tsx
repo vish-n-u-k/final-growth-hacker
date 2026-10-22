@@ -16,6 +16,7 @@ import ProjectedMrr from '@/components/ProjectedMrr'
 import type { MrrSettings } from '@/lib/mrr-shared'
 import { connectUrl } from '@/lib/integrations/connect-url'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
+import LastRefreshed from '@/components/LastRefreshed'
 import DailyEmailToggle from '@/components/DailyEmailToggle'
 
 /* ── Types ────────────────────────────────────────────── */
@@ -85,6 +86,7 @@ interface DashboardData {
   webAnalytics: WebAnalytics | null
   gsc: GscData
   ga4: Ga4Data
+  snapshotAt?: string // when these numbers were fetched (the server reuses them for up to an hour)
 }
 
 interface TrafficStats { activeUsers: number; newUsers: number; returningUsers: number }
@@ -485,6 +487,8 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [trafficData, setTrafficData] = useState<TrafficData | null>(null)
   const [trafficLoading, setTrafficLoading] = useState(true)
+  const [trafficAt, setTrafficAt] = useState<string | null>(null)
+  const [trafficNonce, setTrafficNonce] = useState(0) // bumped by Refresh to refetch website numbers
 
   // Fetch analytics data
   useEffect(() => {
@@ -502,10 +506,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
     setTrafficLoading(true)
     fetch(`/api/analytics/ga4-traffic?brandId=${brand.id}&period=${period}`)
       .then(r => r.json())
-      .then((d: TrafficData) => setTrafficData(d))
+      .then((d: TrafficData) => { setTrafficData(d); setTrafficAt(new Date().toISOString()) })
       .catch(() => setTrafficData(null))
       .finally(() => setTrafficLoading(false))
-  }, [brand.id, range])
+  }, [brand.id, range, trafficNonce])
 
   // Generate summary once analytics fetch is done (success or failure)
   // phLoading going false is our signal that data is settled
@@ -599,6 +603,13 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                         </span>
                       ))}
               </div>
+              {/* When the numbers on screen were fetched, so stale data is easy to spot */}
+              {(view === 'users' ? data?.snapshotAt : trafficAt) && <LastRefreshed
+                at={view === 'users' ? data?.snapshotAt : trafficAt}
+                prefix={view === 'users' ? 'App data updated' : 'Website data fetched'}
+                staleAfterHours={view === 'users' ? 2 : 1}
+                className="an-refreshed"
+              />}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
@@ -643,7 +654,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               <ArrowRight size={12} /> <span style={{ whiteSpace: 'nowrap' }}>Acquisition &amp; Journeys</span>
             </button>
             <button
-              onClick={() => { setPhLoading(true); fetch(`/api/analytics/auth-dashboard?brandId=${brand.id}&force=true`).then(r => r.json()).then((d: DashboardData) => setData(d)).finally(() => setPhLoading(false)) }}
+              onClick={() => { setPhLoading(true); setTrafficNonce(n => n + 1); fetch(`/api/analytics/auth-dashboard?brandId=${brand.id}&force=true`).then(r => r.json()).then((d: DashboardData) => setData(d)).finally(() => setPhLoading(false)) }}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600,
                 padding: '7px 14px', borderRadius: 99, border: '1px solid var(--line)',

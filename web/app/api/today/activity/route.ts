@@ -37,6 +37,7 @@ export interface TodayActivity {
   // PostHog covers the app; the website is measured with Google Analytics / Search Console.
   // 'connect-ga' = Google Analytics isn't connected, so nothing measures the website.
   website: { status: 'ok' | 'connect-ga'; host: string }
+  fetchedAt?: string // when PostHog was asked (responses are cached for a few minutes)
 }
 
 // Short per-instance cache: Today can be reloaded often and each load is 9 PostHog queries.
@@ -195,6 +196,7 @@ export async function GET(request: NextRequest) {
     pages: (pageRows ?? []).map(r => ({ path: String(r[0]), visitors: n(r[1]) })),
     website,
   }
+  data.fetchedAt = new Date().toISOString()
   cache.set(cacheKey, { at: Date.now(), data })
   return NextResponse.json(data)
 }

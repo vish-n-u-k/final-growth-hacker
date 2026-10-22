@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import GmailOutreachProspects from '@/components/GmailOutreachProspects'
 import TodaySocialPost, { type PostIdea } from '@/components/TodaySocialPost'
+import LastRefreshed from '@/components/LastRefreshed'
 import TodayActivity from '@/components/TodayActivity'
 import ElementEvidence from '@/components/ElementEvidence'
 import PagePreview from '@/components/PagePreview'
@@ -1052,7 +1053,6 @@ function WeeklyBlogSection({ initialData, frektoConnected = false, onAddToSite, 
 // ── States ────────────────────────────────────────────────────────────────────
 
 function AllGoodState({ cachedAt, onRefresh, refreshing }: { cachedAt: string; onRefresh: () => void; refreshing: boolean }) {
-  const time = cachedAt ? new Date(cachedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
   return (
     <div className="td-allgood">
       <div className="td-allgood-ring">
@@ -1061,7 +1061,7 @@ function AllGoodState({ cachedAt, onRefresh, refreshing }: { cachedAt: string; o
         </svg>
       </div>
       <p className="td-allgood-headline">All signals clear</p>
-      <p className="td-allgood-sub">No action needed today.{time ? ` Checked at ${time}.` : ''}</p>
+      <p className="td-allgood-sub">No action needed today. {cachedAt && <LastRefreshed at={cachedAt} prefix="Checked" staleAfterHours={4.5} />}</p>
       <button className="td-ghost-btn" onClick={onRefresh} disabled={refreshing}>
         {refreshing ? <><Spinner />Checking...</> : 'Refresh'}
       </button>
@@ -1226,6 +1226,8 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
               : ready && !refreshing ? 'You\'re all caught up'
               : <><Spinner size={12} />Checking your signals…</>}
           </p>
+          {/* When the task list was last worked out (it's cached for up to 4 hours) */}
+          {cachedAt && <LastRefreshed at={cachedAt} prefix="Tasks updated" staleAfterHours={4.5} onRefresh={() => fetchSignals(true)} refreshing={refreshing} />}
         </div>
         <div className="tool-hd-actions td-hero-right">
           <AnalyticsBar />
@@ -1381,7 +1383,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
             <SocialFeed posts={recentPosts} />
 
             <button className="td-recheck" onClick={() => fetchSignals(true)} disabled={refreshing}>
-              {refreshing ? <><Spinner />Refreshing...</> : `Last updated ${cachedAt ? new Date(cachedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'} · Refresh`}
+              {refreshing ? <><Spinner />Refreshing...</> : 'Refresh tasks'}
             </button>
           </>
         )}
