@@ -1,9 +1,10 @@
-// Competitor Leads, one step at a time (the page calls each step and shows its progress):
+// Competitor Leads, one step at a time:
 //   reviews  → Shopify App Store pages are read directly; Trustpilot comes from DataForSEO (Trustpilot
 //              blocks servers), else a direct read that says plainly when it was blocked
-//   score    → Claude scores a small batch of unhappy reviewers for fit with the brand
+// Then, only for a review the user picks (app/(shell)/lead-finder/review/[id]):
+//   score    → Claude checks how well the brand fits that reviewer
 //   contact  → the reviewer's store website, then an email (Hunter, else the site's own pages)
-// Drafting uses the existing email writer (/api/gmail/generate-email).
+//   draft    → a short personal email
 
 import * as cheerio from 'cheerio'
 import { eq } from 'drizzle-orm'

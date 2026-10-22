@@ -6,7 +6,7 @@ import { eq, and } from 'drizzle-orm'
 import LeadFinder from '@/components/LeadFinder'
 import { loadBrandContext } from '@/lib/agents/context'
 import { dataForSeoConfigured } from '@/lib/agents/dataforseo'
-import { listScans, loadScanLeads } from '@/lib/lead-finder/saved'
+import { listScans, loadScanReviews } from '@/lib/lead-finder/saved'
 
 export default async function LeadFinderPage() {
   const supabase = await createClient()
@@ -28,7 +28,7 @@ export default async function LeadFinderPage() {
   const gmailConnected = integration?.status === 'connected'
   const [ctx, history] = await Promise.all([loadBrandContext(brand.id).catch(() => null), listScans(brand.id)])
   const latest = history[0] ?? null
-  const latestLeads = latest ? await loadScanLeads(brand.id, latest.id) : []
+  const latestReviews = latest ? await loadScanReviews(brand.id, latest.id) : []
 
   return (
     <LeadFinder
@@ -37,7 +37,7 @@ export default async function LeadFinderPage() {
       competitors={(ctx?.competitors ?? []).map(c => c.domain).slice(0, 4)}
       trustpilotReady={dataForSeoConfigured()}
       initialScan={latest}
-      initialLeads={latestLeads}
+      initialReviews={latestReviews}
       history={history}
     />
   )
