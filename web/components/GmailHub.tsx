@@ -751,7 +751,7 @@ export default function GmailHub({
             <div>
               <button onClick={goBack} className="gh-back">← Back</button>
               <div className="gh-title">
-                Gmail Intelligence Hub
+                Email Outreach
                 <span className="gh-badge-new">New</span>
               </div>
               <div className="gh-subtitle">{brandName} — turn your inbox into a growth engine</div>
@@ -878,19 +878,19 @@ export default function GmailHub({
           <div>
             <button onClick={goBack} className="gh-back">← Back</button>
             <div className="gh-title">
-              Gmail Intelligence Hub
+              Email Outreach
               <span className="gh-badge-new">New</span>
             </div>
-            <div className="gh-subtitle">{brandName} — inbox intelligence dashboard</div>
+            <div className="gh-subtitle">{brandName} — leads in your inbox, campaigns and follow-ups</div>
           </div>
           <div className="gh-header-right">
             <div className="gh-connected-badge">
               <span className="gh-connected-dot" />
               {gmailAddress ?? 'Gmail connected'}
             </div>
-            <span className="gh-sync-time">Synced 3 min ago</span>
-            <Link href="/lead-finder" className="gh-hbtn gh-hbtn-outline">Find Leads</Link>
-            <button className="gh-hbtn gh-hbtn-outline">Refresh</button>
+            <Link href="/agents/leads" className="gh-hbtn gh-hbtn-outline">Lead Agent</Link>
+            <Link href="/lead-finder" className="gh-hbtn gh-hbtn-outline">Competitor Leads</Link>
+            <button className="gh-hbtn gh-hbtn-outline" onClick={fetchInbox}>Refresh</button>
             <button
               className="gh-hbtn gh-hbtn-ghost"
               onClick={handleDisconnect}
@@ -956,7 +956,7 @@ export default function GmailHub({
         {/* Tabs */}
         <div className="gh-tabs">
           {([
-            ['inbox',       'Inbox Intelligence'],
+            ['inbox',       'Inbox'],
             ['campaign',    'Campaigns'],
             ['followups',   followUpDueCount > 0 ? `Follow-ups (${followUpDueCount})` : 'Follow-ups'],
           ] as [Tab, string][]).map(([key, label]) => (

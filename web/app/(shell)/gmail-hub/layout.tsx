@@ -7,7 +7,7 @@ import { hasEarlyAccess } from '@/lib/early-access'
 export default async function Layout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser()
   if (!await hasEarlyAccess(user?.email)) {
-    return <ComingSoonPage feature="Outreach" blurb="Find warm leads in your inbox, draft replies in your voice and follow up on deals that went quiet." />
+    return <ComingSoonPage feature="Email Outreach" blurb="Find warm leads in your inbox, draft replies in your voice and follow up on deals that went quiet." />
   }
-  return <ProGate feature="Outreach" blurb="Turn your inbox into a pipeline: leads tagged hot to cold, stalled threads flagged, replies drafted for you to send.">{children}</ProGate>
+  return <ProGate feature="Email Outreach" blurb="Turn your inbox into a pipeline: leads tagged hot to cold, stalled threads flagged, replies drafted for you to send.">{children}</ProGate>
 }

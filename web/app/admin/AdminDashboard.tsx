@@ -507,7 +507,7 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
         <section>
           <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-dim, #8aa897)', lineHeight: 1.6 }}>
             People on this list get every Growth Path module open (no &ldquo;reach 80% on the previous module&rdquo; lock)
-            and the Coming soon tools (Outreach, Lead Finder) as live tools. Changes apply on their next page load.
+            and the Coming soon tools (Email Outreach, Competitor Leads, the AI agents) as live tools. Changes apply on their next page load.
           </p>
 
           <form

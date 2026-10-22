@@ -8184,3 +8184,4 @@ html.light { --info: #1d4ed8; --info-soft: #e8efff; }
 .tool-page .bp-content { padding: 0; }
 .tool-page > .bp-analyse-error { margin: 0 0 16px; color: var(--crit); background: var(--crit-soft); border-color: transparent; }
 .tool-page > .bp-analyse-error .bp-error-settings-link { color: var(--crit); }
+.tl-group .tl-grid { padding: 0 0 32px; }
