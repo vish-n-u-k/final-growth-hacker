@@ -20,6 +20,7 @@ import {
 } from './dataforseo'
 import { readGoogleAdsCreds, wastedSearchTerms } from './google-ads'
 import { agentsDemo, demoWastedSpend, setDemoContext } from './demo'
+import { Progress } from './progress'
 import {
   addUsage, defaultSearchData, newMeter, readSearchData, updateSearchData,
   type AdsTip, type AgentTask, type AiAnswer, type RankChange, type SearchAgentData, type Topic,
@@ -245,24 +246,52 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
   const meter = newMeter()
   const errors: string[] = []
 
+  const n = (x: number, one: string, many = `${one}s`) => `${x.toLocaleString('en-US')} ${x === 1 ? one : many}`
+  const p = new Progress(brandId, 'search', 'Search Agent research', [
+    { key: 'setup', label: 'Reading your brand, keywords and competitors' },
+    { key: 'keywords', label: 'Getting keyword ideas with search volume and difficulty' },
+    { key: 'ranks', label: 'Checking where your site ranks on Google' },
+    { key: 'ai', label: 'Asking ChatGPT, Perplexity and Gemini what they recommend' },
+    { key: 'describe', label: 'Checking how ChatGPT describes you' },
+    { key: 'ads', label: 'Looking for wasted Google Ads spend' },
+    { key: 'topics', label: 'Picking blog topics you can win' },
+    { key: 'tasks', label: 'Finding sites to get listed on and pages to refresh' },
+  ])
+
   return withAIContext({ brandId, moduleType: 'search-agent', websiteUrl: b.websiteUrl }, async () => {
-    await ensureSeedsAndQuestions(b, d).catch(e => errors.push(e instanceof Error ? e.message : 'Setup failed'))
+    await p.step('setup', () => ensureSeedsAndQuestions(b, d), () => `${n(d.settings.seeds.length, 'starting keyword')}, ${n(d.settings.questions.length, 'buyer question')}`)
+      .catch(e => errors.push(e instanceof Error ? e.message : 'Setup failed'))
     setDemoContext({ brand: b.name, domain: b.domain, competitors: b.competitors, seeds: d.settings.seeds, round: d.mentionHistory.length })
     const s = d.settings
     const demo = agentsDemo()
     const ads = demo ? null : await readGoogleAdsCreds(brandId).catch(() => null)
+    if (!demo && !ads) p.set('ads', 'skipped', 'Google Ads isn\'t connected')
     const [ideas, ranked, answers, desc, wasted] = await Promise.all([
-      keywordIdeas(s.seeds, s.country, meter).catch(e => { errors.push(`Keywords: ${e instanceof Error ? e.message : e}`); return [] as KeywordIdea[] }),
-      rankedKeywords(b.domain, s.country, meter).catch(e => { errors.push(`Rankings: ${e instanceof Error ? e.message : e}`); return null }),
-      askEngines(b, s.questions, meter),
-      checkDescription(b, meter).catch(() => null),
-      demo ? Promise.resolve(demoWastedSpend())
-        : ads ? wastedSearchTerms(ads).catch(e => { errors.push(`Google Ads: ${e instanceof Error ? e.message : e}`); return null }) : Promise.resolve(null),
+      p.step('keywords', () => keywordIdeas(s.seeds, s.country, meter), r => [`${n(r.length, 'keyword idea')} found`, ...r.slice(0, 3).map(i => `“${i.keyword}” ${i.volume.toLocaleString('en-US')}/mo`)].join(' · '))
+        .catch(e => { errors.push(`Keywords: ${e instanceof Error ? e.message : e}`); return [] as KeywordIdea[] }),
+      p.step('ranks', () => rankedKeywords(b.domain, s.country, meter), r => `${b.domain} shows up for ${n(r.length, 'search', 'searches')}, ${r.filter(x => x.rank <= 10).length} on page 1`)
+        .catch(e => { errors.push(`Rankings: ${e instanceof Error ? e.message : e}`); return null }),
+      p.step('ai', () => askEngines(b, s.questions, meter), r => {
+        const ok = r.filter(a => !a.error)
+        return `${n(s.questions.length, 'question')} × 3 assistants: ${b.name} named in ${ok.filter(a => a.mentioned).length} of ${ok.length} answers`
+      }),
+      p.step('describe', () => checkDescription(b, meter), r => r?.issue ? `Problem: ${r.issue}` : 'Looks right').catch(() => null),
+      demo ? p.step('ads', () => Promise.resolve(demoWastedSpend()), r => `${r.currency} ${r.total} on ${n(r.terms.length, 'search term')} that never converted`)
+        : ads ? p.step('ads', () => wastedSearchTerms(ads), r => r.total ? `${r.currency} ${r.total} wasted on ${n(r.terms.length, 'search term')}` : 'No wasted spend found')
+          .catch(e => { errors.push(`Google Ads: ${e instanceof Error ? e.message : e}`); return null }) : Promise.resolve(null),
     ])
+    if (desc?.issue) p.set('describe', 'warn', `Problem: ${desc.issue}`)
     const rows = ranked ?? []
     const changes = ranked ? rankChanges(d.ranks, rows, d.topics) : d.rankChanges
     const picks = pickTopics(b, d, ideas, rows)
+    p.set('topics', 'done', picks.length ? picks.map(t => `“${t.keyword}”`).join(', ') : 'No new topics this week (3 still waiting)')
     const fresh = buildTasks(b, answers, changes, desc)
+    const listings = fresh.filter(t => t.kind === 'listing').map(t => t.key.replace(/^listing:/, ''))
+    p.set('tasks', 'done', [
+      listings.length ? `Get listed on ${listings.join(', ')}` : null,
+      fresh.some(t => t.kind === 'refresh') ? `${n(fresh.filter(t => t.kind === 'refresh').length, 'page')} to refresh` : null,
+      fresh.some(t => t.kind === 'write') ? `${n(fresh.filter(t => t.kind === 'write').length, 'question')} to answer` : null,
+    ].filter(Boolean).join(' · ') || 'Nothing new')
 
     const tips: AdsTip[] = ideas
       .filter(i => (i.difficulty ?? 0) >= 60 && i.volume >= 100 && i.cpc && i.cpc < 3)
@@ -318,7 +347,11 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       okAnswers.length ? `named in ${mentioned} of ${okAnswers.length} AI answers` : null,
       `${fresh.length} task${fresh.length === 1 ? '' : 's'}`,
     ].filter(Boolean).join(' · ')
+    await p.finish(summary)
     return { ok: !errors.length, summary, error: errors.join(' · ') || undefined }
+  }).catch(async e => {
+    await p.finish(`Stopped: ${e instanceof Error ? e.message : 'failed'}`, true)
+    throw e
   })
 }
 
@@ -346,14 +379,22 @@ export async function runSearchWrite(brandId: string): Promise<{ ok: boolean; su
   const topic = d.topics.find(t => t.status === 'picked')
   if (!topic) return { ok: true, summary: 'No topic waiting to be written.' }
   const meter = newMeter()
+  const p = new Progress(brandId, 'search', `Writing a post for “${topic.keyword}”`, [
+    { key: 'serp', label: `Finding today's top Google results for “${topic.keyword}”` },
+    { key: 'read', label: 'Reading those pages: length, sections, how current they are' },
+    { key: 'write', label: 'Writing an article that covers more (1,200–1,600 words, FAQ, table)' },
+    { key: 'save', label: 'Saving it as a blog draft for you to review' },
+  ])
 
   return withAIContext({ brandId, moduleType: 'search-agent', websiteUrl: b.websiteUrl }, async () => {
     await updateSearchData(brandId, fallback, x => { const t = x.topics.find(y => y.keyword === topic.keyword); if (t) t.status = 'writing' })
     try {
       const serp = searchDataReady()
-        ? (await googleResults(topic.keyword, d.settings.country, meter).catch(() => [])).filter(r => domainOf(r.url) !== b.domain).slice(0, 3)
-        : []
-      const pages = await Promise.all(serp.map(async r => `#${r.rank} ${r.url}\n${await readPage(r.url)}`))
+        ? await p.step('serp', async () => (await googleResults(topic.keyword, d.settings.country, meter).catch(() => [])).filter(r => domainOf(r.url) !== b.domain).slice(0, 3),
+            r => r.length ? r.map(x => `#${x.rank} ${x.domain}`).join(', ') : 'No results to compare with')
+        : (p.set('serp', 'skipped', 'Search data isn\'t set up'), [])
+      const pages = await p.step('read', () => Promise.all(serp.map(async r => `#${r.rank} ${r.url}\n${await readPage(r.url)}`)), r => `${r.length} page${r.length === 1 ? '' : 's'} read`)
+      p.set('write', 'running')
       const raw = await callAI({
         feature: 'search-agent',
         model: 'claude-sonnet-4-6',
@@ -378,7 +419,9 @@ Return:
 Article rules: 1,200-1,600 words; H2/H3 headings; answer the search in the first paragraph; practical examples; a comparison table if it helps; an FAQ with 3-4 questions; mention ${b.name} honestly where it fits (never more than 3 times) and end with a short call to action. No invented statistics, prices or quotes: if a number is needed, describe it without inventing it.`,
       })
       const j = parseJsonLoose<{ brief?: { top?: string; beats?: string[] }; title?: string; metaTitle?: string; metaDescription?: string; content?: string }>(raw, 'object')
-      if (!j?.title || !j.content) throw new Error('The writer returned no article.')
+      if (!j?.title || !j.content) { p.set('write', 'error', 'The writer returned no article.'); throw new Error('The writer returned no article.') }
+      p.set('write', 'done', `“${j.title}” · about ${j.content.split(/\s+/).length.toLocaleString('en-US')} words`)
+      p.set('save', 'running')
       const [blog] = await db.insert(brandBlogs).values({
         brandId, title: j.title, slug: slugify(j.title),
         metaTitle: j.metaTitle ?? null, metaDescription: j.metaDescription ?? null,
@@ -396,9 +439,12 @@ Article rules: 1,200-1,600 words; H2/H3 headings; answer the search in the first
         detail: `Written by your Search Agent for "${topic.keyword}" to beat today's #1 result.`,
         action: 'Read it in the Search Agent, then add it to your site.',
       }).catch(() => {})
+      p.set('save', 'done', 'Saved to your blog drafts')
+      await p.finish(`Draft ready: “${j.title}”`)
       return { ok: true, summary: `Drafted "${j.title}"` }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Writing failed'
+      await p.finish(`Stopped: ${msg}`, true)
       await updateSearchData(brandId, fallback, x => {
         const t = x.topics.find(y => y.keyword === topic.keyword)
         if (t && t.status === 'writing') t.status = 'picked'

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { AgentTask, SearchAgentData, SearchSettings, Topic } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
+import { RunProgress } from './RunProgress'
 import { Ago, Day, DemoBanner, Toast, useAgentApi } from './shared'
 
 export interface SearchAgentFlags { dataforseo: boolean; googleAds: boolean; demo: boolean }
@@ -329,6 +330,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
           )}
         </>
       )}
+      <RunProgress agent="search" active={busy === 'research' || busy === 'write'} title={busy === 'write' ? 'Writing a draft' : 'Search Agent research'} />
       <Toast text={toast} />
     </div>
   )

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import type { Lead, LeadAgentData, LeadSettings } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
+import { RunProgress } from './RunProgress'
 import { Ago, Day, DemoBanner, Toast, initials, useAgentApi } from './shared'
 
 export interface LeadAgentFlags { dataforseo: boolean; hunter: boolean; gmail: boolean; demo: boolean }
@@ -366,6 +367,7 @@ export default function LeadAgentPage({ initial, flags, competitorsHint }: { ini
           )}
         </>
       )}
+      <RunProgress agent="lead" active={busy === 'run' || busy === 'demo_skip'} title="Lead Agent" />
       <Toast text={toast} />
     </div>
   )
