@@ -29,8 +29,12 @@ import {
 } from './store'
 import { brandBlock, domainOf, idOf, loadBrandContext, parseJsonLoose, type BrandContext } from './context'
 import { runLinkFollowUps, runLinkOpportunities } from './link-opportunities'
+import { costNote } from './services'
 
 export const searchFallback = (b: BrandContext) => () => defaultSearchData(b)
+// Each question is asked to 3 AI engines, the costliest part of research. AGENTS_AI_QUESTIONS caps
+// how many are asked (e.g. 3 while testing on DataForSEO's trial credit); default 10.
+const aiQuestionLimit = () => Math.max(1, Math.min(15, Number(process.env.AGENTS_AI_QUESTIONS) || 10))
 const WEEK = 6.5 * 86_400_000
 
 // ── Setup the agent needs once ────────────────────────────────────────────────
@@ -274,7 +278,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
         .catch(e => { errors.push(`Keywords: ${e instanceof Error ? e.message : e}`); return [] as KeywordIdea[] }),
       p.step('ranks', () => rankedKeywords(b.domain, s.country, meter), r => `${b.domain} shows up for ${n(r.length, 'search', 'searches')}, ${r.filter(x => x.rank <= 10).length} on page 1`)
         .catch(e => { errors.push(`Rankings: ${e instanceof Error ? e.message : e}`); return null }),
-      p.step('ai', () => askEngines(b, s.questions, meter), r => {
+      p.step('ai', () => askEngines(b, s.questions.slice(0, aiQuestionLimit()), meter), r => {
         const ok = r.filter(a => !a.error)
         return `${n(s.questions.length, 'question')} × 3 assistants: ${b.name} named in ${ok.filter(a => a.mentioned).length} of ${ok.length} answers`
       }),
@@ -349,6 +353,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       `${picks.length} new topic${picks.length === 1 ? '' : 's'}`,
       okAnswers.length ? `named in ${mentioned} of ${okAnswers.length} AI answers` : null,
       `${fresh.length} task${fresh.length === 1 ? '' : 's'}`,
+      costNote(meter),
     ].filter(Boolean).join(' · ')
     await p.finish(summary)
     return { ok: !errors.length, summary, error: errors.join(' · ') || undefined }
@@ -444,7 +449,7 @@ Article rules: 1,200-1,600 words; H2/H3 headings; answer the search in the first
       }).catch(() => {})
       p.set('save', 'done', 'Saved to your blog drafts')
       await p.finish(`Draft ready: “${j.title}”`)
-      return { ok: true, summary: `Drafted "${j.title}"` }
+      return { ok: true, summary: [`Drafted "${j.title}"`, costNote(meter)].filter(Boolean).join(' · ') }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Writing failed'
       await p.finish(`Stopped: ${msg}`, true)

@@ -38,6 +38,9 @@ const earlyAccessList = cache(async (): Promise<string[]> => {
 })
 
 export async function hasEarlyAccess(email: string | null | undefined): Promise<boolean> {
+  // Local `next dev`: everything is open, so the parked tools (AI Agents, Email Outreach,
+  // Competitor Leads) can be tried without editing the early-access list. Never on a deployment.
+  if (process.env.NODE_ENV === 'development') return true
   if (!email) return false
   return (await earlyAccessList()).includes(email.toLowerCase())
 }

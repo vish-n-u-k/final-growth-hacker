@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { AgentUsage } from '@/lib/agents/store'
 import { DemoBanner, LeadIcon, SearchIcon } from './shared'
+import type { ServiceStatus } from '@/lib/agents/services'
 
 export interface AgentSummary {
   enabled: boolean
@@ -41,13 +42,43 @@ function AgentCard({ name, when, desc, icon, s, href }: { name: string; when: st
   )
 }
 
-export default function AgentsOverview({ search, lead, approvals, funnel, usage, demo }: {
+function ServicesCard({ s }: { s: ServiceStatus }) {
+  const d = s.dataforseo, h = s.hunter
+  const row = (state: 'on' | 'off' | 'bad', name: string, text: string) => (
+    <div className="ag-svc">
+      <span className={`ag-svc-dot ag-svc-dot--${state}`} aria-hidden="true" />
+      <b>{name}</b>
+      <span className="ag-meta">{text}</span>
+    </div>
+  )
+  return (
+    <section className="ag-card">
+      <div className="ag-row-actions">
+        <h2>Data services</h2>
+        <span className={`ag-pill ${s.demo ? 'ag-pill-warn' : 'ag-pill-on'}`}>{s.demo ? 'Demo data' : 'Real data'}</span>
+      </div>
+      {!d.configured
+        ? row('off', 'DataForSEO', 'Not set up (DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD), so search data is made up.')
+        : d.ok
+          ? row('on', 'DataForSEO', `Connected${d.balance !== null ? ` · balance $${d.balance.toFixed(2)}` : ''}. Google results, keywords, rankings, AI answers and backlinks are real.`)
+          : row('bad', 'DataForSEO', `Keys set but not working: ${d.error ?? 'unknown error'}. Check the API login and API password (not your account password).`)}
+      {!h.configured
+        ? row('off', 'Hunter', s.demo ? 'Not set up. In demo mode found emails are made up.' : 'Not set up (HUNTER_API_KEY). Emails are only found on websites\' own contact pages.')
+        : h.ok
+          ? row('on', 'Hunter', `Connected${h.plan ? ` · ${h.plan} plan` : ''}${h.left !== null ? ` · ${h.left}${h.total !== null ? ` of ${h.total}` : ''} credits left` : ''}.${s.demo ? ' Not used until DataForSEO is set up (demo mode).' : ''}`)
+          : row('bad', 'Hunter', `Key set but not working: ${h.error ?? 'unknown error'}.`)}
+    </section>
+  )
+}
+
+export default function AgentsOverview({ search, lead, approvals, funnel, usage, demo, services }: {
   search: AgentSummary
   lead: AgentSummary
   approvals: Approval[]
   funnel: [string, number][]
   usage: AgentUsage
   demo: boolean
+  services: ServiceStatus
 }) {
   const top = Math.max(1, funnel[0]?.[1] ?? 1)
   return (
@@ -57,6 +88,7 @@ export default function AgentsOverview({ search, lead, approvals, funnel, usage,
         <p className="st-page-sub">Two agents that work for you on a schedule. Nothing is published or sent until you approve it.</p>
       </div>
       {demo && <DemoBanner />}
+      <ServicesCard s={services} />
 
       <div className="ag-grid2">
         <AgentCard

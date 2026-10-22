@@ -17,6 +17,7 @@ import { googleResults, linkingSites, referringDomains, searchDataReady, type Li
 import { agentsDemo, demoReply, demoSend, setDemoContext } from './demo'
 import { Progress } from './progress'
 import { hunterConfigured, findEmail } from './hunter'
+import { costNote } from './services'
 import { emailFromWebsite } from './lead-agent'
 import {
   addUsage, defaultSearchData, newMeter, readSearchData, updateSearchData,
@@ -291,6 +292,8 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
       x.demo = demo
     })
     await addUsage(brandId, meter).catch(() => {})
+    const cost = costNote(meter)
+    if (cost) notes.push(cost)
 
     // Today card while pitches are waiting
     try {

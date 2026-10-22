@@ -6,6 +6,7 @@ import { searchFallback } from '@/lib/agents/search-agent'
 import { readLeadData, readSearchData, readUsage } from '@/lib/agents/store'
 import AgentsOverview, { type AgentSummary, type Approval } from '@/components/agents/AgentsOverview'
 import { agentsDemo } from '@/lib/agents/demo'
+import { serviceStatus } from '@/lib/agents/services'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,10 +18,11 @@ export default async function AgentsPage() {
   const b = await loadBrandContext(brand.id)
   if (!b) redirect('/onboarding')
 
-  const [leadSaved, searchSaved, usage] = await Promise.all([
+  const [leadSaved, searchSaved, usage, services] = await Promise.all([
     readLeadData(brand.id).catch(() => null),
     readSearchData(brand.id).catch(() => null),
     readUsage(brand.id).catch(() => ({ dataforseoUsd: 0, hunterLookups: 0, aiUsd: 0 })),
+    serviceStatus(),
   ])
   const ld = leadSaved ?? leadFallback(b)()
   const sd = searchSaved ?? searchFallback(b)()
@@ -63,5 +65,5 @@ export default async function AgentsPage() {
     ['Replied', replies],
   ]
 
-  return <AgentsOverview search={search} lead={lead} approvals={approvals} funnel={funnel} usage={usage} demo={agentsDemo()} />
+  return <AgentsOverview search={search} lead={lead} approvals={approvals} funnel={funnel} usage={usage} demo={agentsDemo()} services={services} />
 }

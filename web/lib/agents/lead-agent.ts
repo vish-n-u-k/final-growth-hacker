@@ -18,6 +18,7 @@ import { searchDataReady, googleResults, mapsBusinesses } from './dataforseo'
 import { agentsDemo, demoReply, demoSend, setDemoContext } from './demo'
 import { Progress } from './progress'
 import { hunterConfigured, findEmail } from './hunter'
+import { costNote } from './services'
 import {
   addUsage, defaultLeadData, newMeter, readLeadData, updateLeadData,
   type Lead, type LeadAgentData, type LeadSettings, type LeadSource, type UsageMeter,
@@ -477,6 +478,8 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       x.lastError = errors.length ? errors.join(' · ') : null
     })
     await addUsage(brandId, meter).catch(() => {})
+    const cost = costNote(meter)
+    if (cost) notes.push(cost)
 
     // 6. Today cards
     const waiting = saved.leads.filter(l => l.status === 'ready').length
