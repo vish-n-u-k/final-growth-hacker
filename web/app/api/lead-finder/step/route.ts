@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
 import { brandContextFor, draftEmail, findContact, scoreBatch, startReviews, trustpilotPoll, type Platform } from '@/lib/lead-finder/scan'
-import { loadReview, loadScan, saveScanReviews } from '@/lib/lead-finder/saved'
+import { loadReview, loadScan, loadScanReviews, saveScanReviews } from '@/lib/lead-finder/saved'
 import { patchSuggestion } from '@/lib/tool-suggestions'
 import { addUsage, newMeter } from '@/lib/agents/store'
 
@@ -10,6 +10,7 @@ import { addUsage, newMeter } from '@/lib/agents/store'
 // (lib/lead-finder/saved.ts):
 //   { op: 'reviews', platform, url, scanId }               → { scan, reviews } or { pending: taskId }
 //   { op: 'reviews_poll', taskId, platform, url, scanId }  → { scan, reviews } or { pending }
+//   { op: 'score', scanId, leadIds }                       → { reviews } with fit, for a small batch
 // Reaching out to one reviewer (leadId = the saved review's id), each → { review }:
 //   { op: 'assess', leadId }    how well the brand fits them
 //   { op: 'contact', leadId }   their email, if one can be found
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   const brand = await brandContextFor(user.id)
   if (!brand) return NextResponse.json({ error: 'No brand found' }, { status: 404 })
 
-  const body = await req.json().catch(() => ({})) as { op?: string; platform?: Platform; url?: string; taskId?: string; scanId?: string; leadId?: string }
+  const body = await req.json().catch(() => ({})) as { op?: string; platform?: Platform; url?: string; taskId?: string; scanId?: string; leadId?: string; leadIds?: string[] }
   const platform: Platform = body.platform === 'shopify' ? 'shopify' : 'trustpilot'
   const scanFor = () => ({ id: (body.scanId ?? crypto.randomUUID()).slice(0, 64), platform, competitor: (body.url ?? '').trim().slice(0, 200) })
 
@@ -43,6 +44,23 @@ export async function POST(req: NextRequest) {
         const reviews = await trustpilotPoll(body.taskId)
         if (!reviews) return NextResponse.json({ pending: body.taskId })
         return NextResponse.json(await saveScanReviews(brand.brandId, scanFor(), reviews))
+      }
+      case 'score': {
+        // How well the brand fits each unhappy reviewer, a few at a time so the list fills in as it goes
+        const ids = new Set((body.leadIds ?? []).slice(0, 8))
+        const batch = body.scanId ? (await loadScanReviews(brand.brandId, body.scanId)).filter(x => ids.has(x.id)) : []
+        if (!batch.length) return NextResponse.json({ reviews: [] })
+        const scored = await scoreBatch(batch.map(x => ({ company: x.name, reviewText: x.text, rating: x.rating, reviewDate: x.date, reviewUrl: x.reviewUrl })), brand.context)
+        if (!scored.length) throw new Error('Couldn’t check these reviewers. Try again.')
+        const reviews = []
+        for (const x of batch) {
+          const s = scored.find(y => y.reviewUrl === x.reviewUrl && y.company === x.name)
+          if (!s) continue
+          const change = { fit: s.fitScore, why: s.fitReason, pains: s.painPoints }
+          await patchSuggestion(brand.brandId, 'competitor_leads', x.id, { payload: change })
+          reviews.push({ ...x, ...change })
+        }
+        return NextResponse.json({ reviews })
       }
       case 'assess':
       case 'contact':

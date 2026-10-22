@@ -67,8 +67,8 @@ export const TOOL_INTROS = {
     icon: 'target',
     what: "Reads a competitor's newest reviews so you can email their unhappy customers, who are often looking for something like yours.",
     steps: [
-      { title: 'Read the reviews', body: "Paste a competitor's website or Shopify App Store link. GrowJin lists their newest reviews in seconds." },
-      { title: 'Pick a reviewer', body: 'Press Reach out on someone unhappy. GrowJin checks how well you fit them and looks for their email.' },
+      { title: 'Read the reviews', body: "Paste a competitor's website or Shopify App Store link. GrowJin reads their newest reviews and checks how well you fit each unhappy reviewer." },
+      { title: 'Pick a good fit', body: 'The best fits are at the top. Press Reach out on one, and GrowJin looks for their email.' },
       { title: 'Send the email', body: 'Review the short email written for them, edit it if you like, and send it from your Gmail.' },
     ],
   },
