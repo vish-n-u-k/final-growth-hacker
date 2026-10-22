@@ -106,74 +106,112 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
   }
 
   const done = r.status === 'sent'
-  const working = busy && <div className="cl-working"><Spinner size={16} />{busy}</div>
+  const working = busy && (
+    <div className="ro-working" aria-live="polite">
+      <Spinner size={16} /><span>{busy}</span>
+      <i /><i style={{ width: '82%' }} /><i style={{ width: '64%' }} />
+    </div>
+  )
   const problem = error && !busy && (
-    <div className="cl-err-box" role="alert"><span>{error}</span>{!sending && <button type="button" className="th-link" onClick={retry}>Try again</button>}</div>
+    <div className="ro-error" role="alert"><span>{error}</span>{!sending && <button type="button" className="btn btn-ghost btn-sm" onClick={retry}>Try again</button>}</div>
+  )
+  const fitTone = r.fit === undefined ? '' : r.fit >= 7 ? 'good' : r.fit >= 5 ? 'mid' : 'low'
+  const fitLabel = r.fit === undefined ? '' : r.fit >= 7 ? 'Good fit' : r.fit >= 5 ? 'Partial fit' : 'Weak fit'
+
+  const fitBlock = r.fit !== undefined && (
+    <div className={`ro-fit ro-fit--${fitTone}`}>
+      <div className="ro-fit-top"><b>{fitLabel}</b><span>{r.fit}/10</span></div>
+      <div className="ro-fit-meter" aria-hidden="true"><i style={{ width: `${r.fit * 10}%` }} /></div>
+      {r.why && <p>{r.why}</p>}
+      {!!r.pains?.length && <div className="cl-pains">{r.pains.map(p => <span key={p}>{p}</span>)}</div>}
+    </div>
   )
 
-  let content: React.ReactNode
+  // Each step: a plain question as its title, its content, and its actions in a footer
+  let title: string, hint: string | null = null, content: React.ReactNode, actions: React.ReactNode = null
   if (done) {
+    title = ''
     content = (
-      <div className="cl-done">
-        <div className="cl-done-tick" aria-hidden="true">✓</div>
-        <h3>Email sent to {name}</h3>
+      <div className="ro-done">
+        <div className="ro-done-tick" aria-hidden="true">✓</div>
+        <h3 className="ro-title">Email sent to {name}</h3>
         <p>Sent from your Gmail to <b>{r.email}</b>{r.sentAt ? ` on ${fmtDate(r.sentAt)}` : ''}. We’ll remind you to follow up in 5 days if they don’t reply. It’s also in Email Outreach.</p>
-        {r.draft && <details className="cl-sent-copy"><summary>See the email</summary><b>{r.draft.subject}</b><p>{hi}</p>{r.draft.body.split(/\n{2,}/).map((p, i) => <p key={i}>{p}</p>)}</details>}
-        <div className="cl-acts cl-acts--center">
-          {next && <Link className="btn btn-primary" href={reviewHref(next.id)}>Next review: {firstName(next.name) || next.name} →</Link>}
-          <Link className="btn btn-ghost" href="/lead-finder">Back to reviews</Link>
-        </div>
+        {r.draft && (
+          <div className="ro-mail ro-mail--read">
+            <div className="ro-mail-row"><span>To</span><b>{r.email}</b></div>
+            <div className="ro-mail-row"><span>Subject</span><b>{r.draft.subject}</b></div>
+            <div className="ro-mail-body">{hi}{'\n\n'}{r.draft.body}</div>
+          </div>
+        )}
       </div>
     )
+    actions = <>
+      {next && <Link className="btn btn-primary" href={reviewHref(next.id)}>Next review: {firstName(next.name) || next.name} →</Link>}
+      <Link className="btn btn-ghost" href="/lead-finder">Back to reviews</Link>
+    </>
   } else if (stepNo === 1) {
-    content = <>
-      <blockquote className="cl-quote cl-quote--full">“{r.text}”</blockquote>
-      {working || problem || (r.fit !== undefined && <>
-        <div className="cl-fitline"><span className={`cl-tag ${r.fit >= 7 ? 'cl-tag--ok' : ''}`}>{r.fit >= 7 ? 'Good fit' : r.fit >= 5 ? 'Partial fit' : 'Weak fit'} · {r.fit}/10</span></div>
-        {r.why && <p className="cl-why">{r.why}</p>}
-        {!!r.pains?.length && <div className="cl-pains">{r.pains.map(p => <span key={p}>{p}</span>)}</div>}
-        {r.status === 'skipped' && <p className="cl-muted">You marked this one as not a fit earlier.</p>}
-        <p className="cl-ask">Do you want to send {name} an email?</p>
-        <div className="cl-acts">
-          <button className="btn btn-primary" type="button" onClick={() => setStepNo(2)}>Yes, write an email</button>
-          {r.status !== 'skipped' && <button className="btn btn-ghost" type="button" onClick={notAFit}>No, not a fit</button>}
-        </div>
-      </>)}
+    title = `Do you want to email ${name}?`
+    hint = `GrowJin checks whether ${name}’s complaint is something ${brandName} actually fixes.`
+    content = working || problem || <>
+      {fitBlock}
+      {r.status === 'skipped' && <p className="ro-note">You marked {name} as not a fit earlier. You can still email them.</p>}
+    </>
+    if (!busy && !error && r.fit !== undefined) actions = <>
+      <button className="btn btn-primary" type="button" onClick={() => setStepNo(2)}>Yes, write an email →</button>
+      {r.status !== 'skipped' && <button className="btn btn-ghost" type="button" onClick={notAFit}>No, not a fit</button>}
     </>
   } else if (stepNo === 2) {
+    title = `Where should it go?`
+    hint = r.email ? null : r.contactChecked ? null : `Looking for a public email for ${name}.`
     content = working || <>
       {problem}
       {r.email ? (
-        <p className="cl-why">Found {name}’s email on {r.website ? <a className="th-link" href={r.website} target="_blank" rel="noopener noreferrer">their website ↗</a> : 'their website'}
-          {' '}{r.verified ? <span className="cl-tag cl-tag--ok">Verified</span> : <span className="cl-tag cl-tag--warn">Not verified</span>}. You can change it.</p>
+        <div className="ro-found">
+          <span className="ro-found-ic" aria-hidden="true">✉</span>
+          <div>
+            <b>Found {name}’s email</b>
+            <span>on {r.website ? <a className="th-link" href={r.website} target="_blank" rel="noopener noreferrer">their website ↗</a> : 'their website'} · {r.verified ? 'verified' : 'not verified, so double-check it'}</span>
+          </div>
+        </div>
       ) : r.contactChecked && (
-        <p className="cl-why">We couldn’t find a public email for {name}.{scan?.platform !== 'shopify' ? ' Trustpilot reviewers are often people, not businesses.' : ''} If you know it (from their {r.reviewUrl ? <a className="th-link" href={r.reviewUrl} target="_blank" rel="noopener noreferrer">review ↗</a> : 'review'}{r.website ? <> or <a className="th-link" href={r.website} target="_blank" rel="noopener noreferrer">website ↗</a></> : null}), paste it here.</p>
+        <div className="ro-found ro-found--none">
+          <span className="ro-found-ic" aria-hidden="true">?</span>
+          <div>
+            <b>No public email found</b>
+            <span>{scan?.platform !== 'shopify' ? 'Trustpilot reviewers are often people, not businesses. ' : ''}If you know it, from their {r.reviewUrl ? <a className="th-link" href={r.reviewUrl} target="_blank" rel="noopener noreferrer">review ↗</a> : 'review'}{r.website ? <> or <a className="th-link" href={r.website} target="_blank" rel="noopener noreferrer">website ↗</a></> : null}, paste it below.</span>
+          </div>
+        </div>
       )}
-      <form className="cl-editor cl-editor--flat" onSubmit={e => { e.preventDefault(); if (validEmail(to)) { saveEdits(); setStepNo(3) } }}>
-        <label>Email address<input type="email" value={to} onChange={e => setTo(e.target.value)} placeholder="name@company.com" autoFocus={!r.email} /></label>
-        <div className="cl-acts">
-          <button className="btn btn-primary" type="submit" disabled={!validEmail(to)}>Continue</button>
-          <button className="btn btn-ghost" type="button" onClick={() => setStepNo(1)}>Back</button>
+      <form id="ro-to" className="ro-field" onSubmit={e => { e.preventDefault(); if (validEmail(to)) { saveEdits(); setStepNo(3) } }}>
+        <label htmlFor="ro-to-in">Email address</label>
+        <input id="ro-to-in" type="email" value={to} onChange={e => setTo(e.target.value)} placeholder="name@company.com" autoFocus={!r.email} />
+      </form>
+    </>
+    if (!busy) actions = <>
+      <button className="btn btn-primary" type="submit" form="ro-to" disabled={!validEmail(to)}>Continue →</button>
+      <button className="btn btn-ghost" type="button" onClick={() => setStepNo(1)}>Back</button>
+    </>
+  } else {
+    title = 'Check the email, then send it'
+    hint = 'Short and plain, sent from your Gmail. It doesn’t mention their review. Edit anything you like.'
+    content = working || <>
+      {problem}
+      <form id="ro-mail" className="ro-mail" onSubmit={send} onBlur={saveEdits}>
+        <label className="ro-mail-row"><span>To</span><input type="email" required value={to} onChange={e => setTo(e.target.value)} /></label>
+        <label className="ro-mail-row"><span>Subject</span><input required value={subject} onChange={e => setSubject(e.target.value)} /></label>
+        <textarea className="ro-mail-body" aria-label="Message" required rows={11} value={body} onChange={e => setBody(e.target.value)} />
+        <div className="ro-mail-tools">
+          <button className="btn btn-ghost btn-sm" type="button" disabled={sending} onClick={() => run('draft', `Writing a new email to ${name}…`)}>↻ Rewrite</button>
+          <button className="btn btn-ghost btn-sm" type="button" onClick={async () => { try { await navigator.clipboard.writeText(`${subject}\n\n${body}`); setCopied(true); setTimeout(() => setCopied(false), 1800) } catch { /* ignore */ } }}>{copied ? '✓ Copied' : 'Copy'}</button>
+          <span className="cl-muted">Follow-up reminder in 5 days</span>
         </div>
       </form>
     </>
-  } else {
-    content = working || <>
-      {problem}
-      <form className="cl-editor cl-editor--flat" onSubmit={send} onBlur={saveEdits}>
-        <label>To<input type="email" required value={to} onChange={e => setTo(e.target.value)} /></label>
-        <label>Subject<input required value={subject} onChange={e => setSubject(e.target.value)} /></label>
-        <label>Message<textarea required rows={10} value={body} onChange={e => setBody(e.target.value)} /></label>
-        <p className="cl-muted">Plain and short, from your Gmail. It doesn’t mention their review. Edit anything you like.</p>
-        <div className="cl-acts">
-          {gmailConnected
-            ? <button className="btn btn-primary" type="submit" disabled={sending || !validEmail(to)}>{sending ? <><Spinner />Sending…</> : 'Send email'}</button>
-            : <Link className="btn btn-primary" href="/gmail-hub">Connect Gmail to send</Link>}
-          <button className="btn btn-ghost" type="button" onClick={() => setStepNo(2)}>Back</button>
-          <button className="btn btn-ghost" type="button" disabled={sending} onClick={() => run('draft', `Writing a new email to ${name}…`)}>Rewrite</button>
-          <button className="btn btn-ghost" type="button" onClick={async () => { try { await navigator.clipboard.writeText(`${subject}\n\n${body}`); setCopied(true); setTimeout(() => setCopied(false), 1800) } catch { /* ignore */ } }}>{copied ? 'Copied' : 'Copy'}</button>
-        </div>
-      </form>
+    if (!busy) actions = <>
+      {gmailConnected
+        ? <button className="btn btn-primary" type="submit" form="ro-mail" disabled={sending || !validEmail(to)}>{sending ? <><Spinner />Sending…</> : 'Send email'}</button>
+        : <Link className="btn btn-primary" href="/gmail-hub">Connect Gmail to send</Link>}
+      <button className="btn btn-ghost" type="button" onClick={() => setStepNo(2)}>Back</button>
     </>
   }
 
@@ -185,25 +223,48 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
         chips={<span className={`th-chip ${gmailConnected ? 'th-chip--on' : 'th-chip--warn'}`}>{gmailConnected ? 'Gmail connected' : 'Gmail not connected'}</span>}
         actions={<Link href="/gmail-hub" className="th-link">Email Outreach →</Link>}
       />
-      <div className="cl">
-        <p className="cl-back"><Link className="th-link" href="/lead-finder">← All reviews{scan ? ` (${scan.competitor})` : ''}</Link></p>
-        <section className="cl-ro">
-          <div className="cl-ro-head">
+      <nav className="ro-crumbs" aria-label="Breadcrumb">
+        <Link className="th-link" href="/lead-finder">← All reviews</Link>
+        {scan && <><span aria-hidden="true">/</span><span>{scan.competitor}</span></>}
+        <span aria-hidden="true">/</span><b>{r.name}</b>
+      </nav>
+
+      <div className="ro">
+        {/* Who they are and what they said; stays in view on wide screens */}
+        <aside className="ro-side">
+          <div className="ro-person">
             <span className="cl-av" aria-hidden="true">{initials(r.name)}</span>
             <div>
               <h2>{r.name}</h2>
-              <div className="cl-lead-sub"><Stars n={r.rating} />{r.date && <span>{fmtDate(r.date)}</span>}{scan && <span>reviewed {scan.competitor}</span>}
-                {r.reviewUrl && <a className="th-link" href={r.reviewUrl} target="_blank" rel="noopener noreferrer">Read review ↗</a>}</div>
+              <div className="cl-lead-sub"><Stars n={r.rating} />{r.date && <span>{fmtDate(r.date)}</span>}</div>
             </div>
           </div>
-          <ol className="cl-ro-bar" aria-label="Steps">
+          <blockquote className="ro-quote">“{r.text}”</blockquote>
+          <div className="ro-src">
+            {scan && <span>Review of <b>{scan.competitor}</b> on {scan.platform === 'shopify' ? 'the Shopify App Store' : 'Trustpilot'}</span>}
+            {r.reviewUrl && <a className="th-link" href={r.reviewUrl} target="_blank" rel="noopener noreferrer">Read it ↗</a>}
+          </div>
+          {(stepNo > 1 || done) && fitBlock}
+        </aside>
+
+        <section className="ro-main">
+          <ol className="ro-steps" aria-label="Steps">
             {STEPS.map((label, i) => {
               const n = i + 1
-              const state = done || n < stepNo ? 'past' : n === stepNo ? 'on' : ''
-              return <li key={label} className={state} aria-current={state === 'on' ? 'step' : undefined}><i /><span>{n} · {label}</span></li>
+              const state = done || n < stepNo ? 'past' : n === stepNo ? 'on' : 'todo'
+              return (
+                <li key={label} className={`ro-step ro-step--${state}`} aria-current={state === 'on' ? 'step' : undefined}>
+                  <span className="ro-step-n">{state === 'past' ? '✓' : n}</span><span className="ro-step-l">{label}</span>
+                </li>
+              )
             })}
           </ol>
-          {content}
+          <div className="ro-card">
+            {title && <h3 className="ro-title">{title}</h3>}
+            {hint && <p className="ro-hint">{hint}</p>}
+            {content}
+            {actions && <div className="ro-actions">{actions}</div>}
+          </div>
         </section>
       </div>
     </div>
