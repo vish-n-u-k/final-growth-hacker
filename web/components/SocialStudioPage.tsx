@@ -7,7 +7,7 @@ import { formatInZone, utcToZoned } from '@/lib/frekto/time'
 import { Spinner } from '@/components/ui/spinner'
 import TimezoneSelect, { deviceTimezone, canonicalTimezone } from '@/components/TimezoneSelect'
 import TimeField from '@/components/TimeField'
-import ToolIntro from '@/components/ToolIntro'
+import ToolHeader from '@/components/ToolHeader'
 
 // Reads a JSON reply. When the server crashed and sent an error page instead, say so rather than
 // letting the parse error read as "Network error".
@@ -526,15 +526,7 @@ export default function SocialStudioPage({
   }
 
   const header = (
-    <div className="tool-hd">
-      <div className="tool-hd-main">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px 12px', flexWrap: 'wrap' }}>
-          <h1 className="tool-title">Social Studio</h1>
-          <FrektoBadge />
-        </div>
-        <p className="tool-sub">GrowJin plans what to post for {brandName}; Frekto creates and publishes it.</p>
-      </div>
-    </div>
+    <ToolHeader icon="image" title="Social Studio" chips={<FrektoBadge />} meta={brandName} intro="social" />
   )
 
   const timezoneRow = frektoConnected && (
@@ -555,7 +547,6 @@ export default function SocialStudioPage({
     return (
       <div className="tool-page">
         {header}
-        <ToolIntro id="social" />
         <div className="tool-card tool-col">
           <h2 className="tool-card-title">Connect Frekto to start posting</h2>
           <p className="tool-card-sub">GrowJin plans your posts; Frekto creates and publishes them from your Frekto account. Once it&apos;s connected, Social Studio can:</p>
@@ -657,7 +648,6 @@ export default function SocialStudioPage({
   return (
     <div className="tool-page">
       {header}
-      <ToolIntro id="social" />
       <div className="tool-col tool-stack">
       {timezoneRow}
 

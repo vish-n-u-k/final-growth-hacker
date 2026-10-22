@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import ToolIntro from '@/components/ToolIntro'
+import ToolHeader from '@/components/ToolHeader'
 import type { Lead, LeadAgentData, LeadSettings } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
 import { RunProgress } from './RunProgress'
@@ -215,24 +215,23 @@ export default function LeadAgentPage({ initial, flags, competitorsHint }: { ini
 
   return (
     <div className="wrap ag-page">
-      <Link href="/agents" className="ag-back">← AI Agents</Link>
-      <div className="ag-hd">
-        <h1 className="st-page-title">Lead Agent</h1>
-        <span className={`ag-pill ${s.enabled ? 'ag-pill-on' : ''}`}>{s.enabled ? 'On · runs daily' : 'Off'}</span>
-        <div className="ag-hd-actions">
+      <ToolHeader
+        icon="bot"
+        title="Lead Agent"
+        intro="leadAgent"
+        chips={<span className={`th-chip ${s.enabled ? 'th-chip--on' : ''}`}>{s.enabled ? 'On · runs daily' : 'Off'}</span>}
+        meta={<>
+          {data.lastRunAt ? <span>Last run <Ago iso={data.lastRunAt} />{data.lastRunSummary ? `: ${data.lastRunSummary}` : ''}</span> : <span>Not run yet</span>}
+          <span aria-hidden="true">·</span><Link href="/agents" className="th-link">All agents</Link>
+        </>}
+        actions={<>
           {!firstTime && (
             <button className="ag-btn" type="button" disabled={!!busy} onClick={() => call('settings', { settings: { enabled: !s.enabled } })}>{s.enabled ? 'Pause' : 'Turn on'}</button>
           )}
-          <button className="ag-btn ag-btn-primary" type="button" disabled={!!busy || firstTime} onClick={() => call('run')}>{busy === 'run' ? <><Spinner />Looking for leads…</> : 'Run now'}</button>
           {!firstTime && <button className="ag-btn" type="button" aria-expanded={showSettings} onClick={() => setShowSettings(v => !v)}>Settings</button>}
-        </div>
-      </div>
-      {data.lastRunAt && (
-        <p className="st-page-sub" style={{ marginTop: -12 }}>
-          Last run <Ago iso={data.lastRunAt} />{data.lastRunSummary ? `: ${data.lastRunSummary}` : ''}.
-        </p>
-      )}
-      <ToolIntro id="leadAgent" />
+          <button className="ag-btn ag-btn-primary" type="button" disabled={!!busy || firstTime} onClick={() => call('run')}>{busy === 'run' ? <><Spinner />Looking for leads…</> : 'Run now'}</button>
+        </>}
+      />
       {busy === 'run' && <div className="ag-note">Searching, scoring and drafting usually takes 1–3 minutes. You can keep this page open.</div>}
 
       {flags.demo && (

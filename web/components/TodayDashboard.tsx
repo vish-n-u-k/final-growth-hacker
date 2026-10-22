@@ -19,7 +19,7 @@ import { connectUrl } from '@/lib/integrations/connect-url'
 import { Spinner } from '@/components/ui/spinner'
 import Link from 'next/link'
 import DailyEmailToggle from '@/components/DailyEmailToggle'
-import ToolIntro from '@/components/ToolIntro'
+import ToolHeader from '@/components/ToolHeader'
 import { BarChart3 } from 'lucide-react'
 
 interface TrafficData {
@@ -1217,20 +1217,23 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
       )}
 
       <div className="tool-page">
-      {/* Header */}
-      <div className="tool-hd">
-        <div className="tool-hd-main">
-          <h1 className="tool-title">{dayLabel}</h1>
-          <p className="tool-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <ToolHeader
+        icon="sun"
+        title="Today"
+        intro="today"
+        meta={<>
+          <span>{dayLabel}</span>
+          <span aria-hidden="true">·</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             {ready && cards.length > 0
               ? `${cards.length} thing${cards.length === 1 ? ' needs' : 's need'} your attention`
               : ready && !refreshing ? 'You\'re all caught up'
               : <><Spinner size={12} />Checking your signals…</>}
-          </p>
+          </span>
           {/* When the task list was last worked out (it's cached for up to 4 hours) */}
           {cachedAt && <LastRefreshed at={cachedAt} prefix="Tasks updated" staleAfterHours={4.5} onRefresh={() => fetchSignals(true)} refreshing={refreshing} />}
-        </div>
-        <div className="tool-hd-actions td-hero-right">
+        </>}
+        actions={<div className="td-hero-right" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <AnalyticsBar />
           {streak > 0 && (
             <div className="td-streak-pill">
@@ -1243,10 +1246,8 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
             <BarChart3 size={15} aria-hidden="true" />
             Analytics
           </Link>
-        </div>
-      </div>
-
-      <ToolIntro id="today" />
+        </div>}
+      />
 
       {/* Body */}
       <div className="td-body">

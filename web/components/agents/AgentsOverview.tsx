@@ -2,6 +2,7 @@ import Link from 'next/link'
 import type { AgentUsage } from '@/lib/agents/store'
 import { DemoBanner, LeadIcon, SearchIcon } from './shared'
 import type { ServiceStatus } from '@/lib/agents/services'
+import ToolHeader from '@/components/ToolHeader'
 
 export interface AgentSummary {
   enabled: boolean
@@ -83,10 +84,7 @@ export default function AgentsOverview({ search, lead, approvals, funnel, usage,
   const top = Math.max(1, funnel[0]?.[1] ?? 1)
   return (
     <div className="wrap ag-page">
-      <div className="st-page-hd">
-        <h1 className="st-page-title">AI Agents</h1>
-        <p className="st-page-sub">Two agents that work for you on a schedule. Nothing is published or sent until you approve it.</p>
-      </div>
+      <ToolHeader icon="bot" title="AI Agents" meta="Two agents that work on a schedule · nothing is sent or published until you approve it" />
       {demo && <DemoBanner />}
       <ServicesCard s={services} />
 

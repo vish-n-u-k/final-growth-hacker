@@ -18,7 +18,7 @@ import { connectUrl } from '@/lib/integrations/connect-url'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
 import LastRefreshed from '@/components/LastRefreshed'
 import DailyEmailToggle from '@/components/DailyEmailToggle'
-import ToolIntro from '@/components/ToolIntro'
+import ToolHeader from '@/components/ToolHeader'
 
 /* ── Types ────────────────────────────────────────────── */
 export interface ModuleHealth {
@@ -580,39 +580,34 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
         </div>
       )}
 
-      <div className="an-page" style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 28px' }}>
+      <div className="an-page" style={{ maxWidth: 1100, margin: '0 auto', padding: '0 28px 32px' }}>
 
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, marginBottom: 28 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div>
-              <h1 style={{
-                fontSize: 22, fontWeight: 700, letterSpacing: '-0.4px', color: 'var(--text)',
-                fontFamily: 'var(--font-display, Fraunces, serif)', margin: 0,
-              }}>
-                User Analytics
-              </h1>
-              <div className="an-sources">
-                <span>{brand.name}</span>
-                {health === null
-                  ? <span className="an-src an-src--checking"><Spinner size={10} />Checking connections…</span>
-                  : health.length === 0
-                    ? <span className="an-src">No integrations connected</span>
-                    : health.map(h => (
-                        <span key={h.provider} className={`an-src an-src--${h.status}`} title={h.detail}>
-                          <i aria-hidden="true" />{h.name}{h.status === 'error' ? ': not working' : h.status === 'no-data' ? ': no data' : ''}
-                        </span>
-                      ))}
-              </div>
-              {/* When the numbers on screen were fetched, so stale data is easy to spot */}
-              {(view === 'users' ? data?.snapshotAt : trafficAt) && <LastRefreshed
-                at={view === 'users' ? data?.snapshotAt : trafficAt}
-                prefix={view === 'users' ? 'App data updated' : 'Website data fetched'}
-                staleAfterHours={view === 'users' ? 2 : 1}
-                className="an-refreshed"
-              />}
-            </div>
-          </div>
+        <ToolHeader
+          icon="chart"
+          title="Analytics"
+          intro="analytics"
+          meta={<>
+            <span className="an-sources" style={{ margin: 0 }}>
+              <span>{brand.name}</span>
+              {health === null
+                ? <span className="an-src an-src--checking"><Spinner size={10} />Checking connections…</span>
+                : health.length === 0
+                  ? <span className="an-src">No integrations connected</span>
+                  : health.map(h => (
+                      <span key={h.provider} className={`an-src an-src--${h.status}`} title={h.detail}>
+                        <i aria-hidden="true" />{h.name}{h.status === 'error' ? ': not working' : h.status === 'no-data' ? ': no data' : ''}
+                      </span>
+                    ))}
+            </span>
+            {/* When the numbers on screen were fetched, so stale data is easy to spot */}
+            {(view === 'users' ? data?.snapshotAt : trafficAt) && <LastRefreshed
+              at={view === 'users' ? data?.snapshotAt : trafficAt}
+              prefix={view === 'users' ? 'App data updated' : 'Website data fetched'}
+              staleAfterHours={view === 'users' ? 2 : 1}
+              className="an-refreshed"
+            />}
+          </>}
+          actions={
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             {/* View toggle */}
             <div style={{ display: 'flex', padding: '3px', border: '1px solid var(--line)', borderRadius: 99, background: 'var(--bg-soft)' }}>
@@ -666,9 +661,8 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             </button>
             <DailyEmailToggle initialEnabled={initialDailyEmail} />
           </div>
-        </div>
-
-        <ToolIntro id="analytics" />
+          }
+        />
 
         {/* Summary + Todo — hidden for now */}
 

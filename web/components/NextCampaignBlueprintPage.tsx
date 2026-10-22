@@ -9,7 +9,7 @@ import type { CampaignBrief } from '@/components/MetaAdLaunchPanel'
 import type { OGTagResult, PixelStatus } from '@/app/(shell)/dashboard/meta-ads/blueprint/page'
 import { connectUrl } from '@/lib/integrations/connect-url'
 import { Spinner } from '@/components/ui/spinner'
-import ToolIntro from '@/components/ToolIntro'
+import ToolHeader from '@/components/ToolHeader'
 
 const AUDIT_CATEGORIES = [
   { slug: 'campaign-performance', label: 'Campaigns' },
@@ -271,29 +271,24 @@ export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, bran
 
   return (
     <div className="tool-page">
-      {/* Header — same frame as the other tools; the sidebar replaces the old Back button */}
-      <div className="tool-hd">
-        <div className="tool-hd-main">
-          <h1 className="tool-title">Meta Ads</h1>
-          <p className="tool-sub" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {brandName} · {analysing ? <><Spinner />Analysing…</> : lastAnalyzedAt ? `Analysed ${timeAgo(lastAnalyzedAt).toLowerCase()}` : 'Not analysed yet'}
-          </p>
-        </div>
-        {isLocked ? (
+      <ToolHeader
+        icon="megaphone"
+        title="Meta Ads"
+        intro="metaAds"
+        meta={<>{brandName} · {analysing ? <><Spinner />Analysing…</> : lastAnalyzedAt ? `Analysed ${timeAgo(lastAnalyzedAt).toLowerCase()}` : 'Not analysed yet'}</>}
+        actions={isLocked ? (
           <span className="bp-locked-note">Complete earlier modules to unlock.</span>
         ) : (
-          <div className="tool-hd-actions">
+          <>
             {!hasBrief && !analysing && (
               <button className="btn btn-ghost" onClick={() => setDemoMode(true)}>Try Demo</button>
             )}
             <button className="btn btn-primary" onClick={runAudit} disabled={analysing}>
               {analysing ? <><Spinner />Analysing…</> : hasBrief ? 'Re-run' : 'Run Audit'}
             </button>
-          </div>
+          </>
         )}
-      </div>
-
-      <ToolIntro id="metaAds" />
+      />
 
       {analyseError && (
         <div className="bp-analyse-error">

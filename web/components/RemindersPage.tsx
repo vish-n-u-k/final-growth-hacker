@@ -2,14 +2,13 @@
 
 import { useState, useEffect, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
-import { useSmartBack } from '@/lib/useSmartBack'
 import ThemeToggle from '@/components/ThemeToggle'
 import { connectUrl } from '@/lib/integrations/connect-url'
 import { REMINDER_CATEGORIES, type ReminderCategory, type ReminderPreset } from '@/lib/reminders/presets'
 import { Spinner } from '@/components/ui/spinner'
 import TimezoneSelect, { canonicalTimezone, deviceTimezone } from '@/components/TimezoneSelect'
 import TimeField from '@/components/TimeField'
-import ToolIntro from '@/components/ToolIntro'
+import ToolHeader from '@/components/ToolHeader'
 import { utcToZoned, zonedToUtc } from '@/lib/frekto/time'
 import { auditJobSource } from '@/lib/reminders/audit-source'
 import type { AuditJobSuggestion } from '@/lib/reminders/audit-jobs'
@@ -121,7 +120,6 @@ export default function RemindersPage({
   defaultTimezone?: string | null
 }) {
   const router = useRouter()
-  const goBack = useSmartBack('/dashboard')
   const [reminders, setReminders] = useState<Reminder[]>(initialReminders)
   const [changes, setChanges] = useState<Change[]>(initialChanges)
   const [resolving, setResolving] = useState<Set<string>>(new Set())
@@ -640,35 +638,18 @@ export default function RemindersPage({
       </header>
 
       <div className="tool-page">
-        {/* Page header */}
-        <div className="tool-hd">
-          <div className="tool-hd-main" style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-            <button
-              className="shell-dup-back"
-              onClick={goBack}
-              title="Back"
-              style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--line)', background: 'var(--card)', color: 'var(--text)', cursor: 'pointer', flexShrink: 0, marginTop: 4 }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            <div>
-              <h1 className="tool-title">Reminders</h1>
-              <p className="tool-sub">
-                {brandProfile.name}
-                {changes.length > 0 ? ` · ${changes.length} change${changes.length !== 1 ? 's' : ''} to act on` : ''}
-                {groups.followups.length > 0 ? ` · ${groups.followups.length} follow-up${groups.followups.length !== 1 ? 's' : ''}` : ''}
-                {totalActive > 0 ? ` · ${totalActive} recurring` : ''}
-              </p>
-            </div>
-          </div>
-          <div className="tool-hd-actions">
-            <button className="btn btn-primary" onClick={() => openAdd()}>+ Add check</button>
-          </div>
-        </div>
-
-        <ToolIntro id="reminders" />
+        <ToolHeader
+          icon="bell"
+          title="Reminders"
+          intro="reminders"
+          chips={groups.overdue.length > 0 ? <span className="th-chip th-chip--warn">{groups.overdue.length} overdue</span> : null}
+          meta={[
+            changes.length > 0 ? `${changes.length} change${changes.length !== 1 ? 's' : ''} to act on` : null,
+            groups.followups.length > 0 ? `${groups.followups.length} follow-up${groups.followups.length !== 1 ? 's' : ''}` : null,
+            totalActive > 0 ? `${totalActive} recurring` : null,
+          ].filter(Boolean).join(' · ') || brandProfile.name}
+          actions={<button className="btn btn-primary" onClick={() => openAdd()}>+ Add check</button>}
+        />
         <div>
 
           {toast && (

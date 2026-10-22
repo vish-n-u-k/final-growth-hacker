@@ -8,6 +8,7 @@ import { brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { TOOL_GROUPS } from '@/lib/tools'
 import ToolIcon from '@/components/ToolIcon'
+import ToolHeader from '@/components/ToolHeader'
 import ToolCardStatus from './ToolCardStatus'
 
 export default async function ToolsPage() {
@@ -27,12 +28,7 @@ export default async function ToolsPage() {
 
   return (
     <div className="tool-page">
-        <div className="tool-hd">
-          <div className="tool-hd-main">
-            <h1 className="tool-title">Tools</h1>
-            <p className="tool-sub">{brand.name} — every growth tool in one place</p>
-          </div>
-        </div>
+        <ToolHeader icon="grid" title="Tools" meta={`${brand.name} · every growth tool in one place`} />
 
         {/* Same groups, names and icons as the sidebar (lib/tools.ts); live tools first in each group. */}
         {TOOL_GROUPS.map(group => (

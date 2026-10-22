@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import ToolIntro from '@/components/ToolIntro'
+import ToolHeader from '@/components/ToolHeader'
 import { useRouter } from 'next/navigation'
 import type { AgentTask, LinkOpportunity, LinkStatus, SearchAgentData, SearchSettings, Topic } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
@@ -194,21 +194,22 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
 
   return (
     <div className="wrap ag-page">
-      <Link href="/agents" className="ag-back">← AI Agents</Link>
-      <div className="ag-hd">
-        <h1 className="st-page-title">Search Agent</h1>
-        <span className={`ag-pill ${s.enabled ? 'ag-pill-on' : ''}`}>{s.enabled ? 'On · weekly' : 'Off'}</span>
-        <div className="ag-hd-actions">
+      <ToolHeader
+        icon="search"
+        title="Search Agent"
+        intro="searchAgent"
+        chips={<span className={`th-chip ${s.enabled ? 'th-chip--on' : ''}`}>{s.enabled ? 'On · weekly' : 'Off'}</span>}
+        meta={<>
+          {data.lastResearchAt ? <span>Last research <Ago iso={data.lastResearchAt} /></span> : <span>Not run yet</span>}
+          <span aria-hidden="true">·</span><Link href="/agents" className="th-link">All agents</Link>
+        </>}
+        actions={<>
           {!firstTime && <button className="ag-btn" type="button" disabled={!!busy} onClick={() => call('settings', { settings: { enabled: !s.enabled } })}>{s.enabled ? 'Pause' : 'Turn on'}</button>}
-          <button className="ag-btn ag-btn-primary" type="button" disabled={!!busy || firstTime || !flags.dataforseo} onClick={() => call('research')}>{busy === 'research' ? <><Spinner />Researching…</> : 'Run research now'}</button>
-          <button className="ag-btn" type="button" disabled={!!busy || !waitingTopic} onClick={async () => { await call('write'); router.refresh() }}>{busy === 'write' ? <><Spinner />Writing…</> : 'Write next draft'}</button>
           {!firstTime && <button className="ag-btn" type="button" aria-expanded={showSettings} onClick={() => setShowSettings(v => !v)}>Settings</button>}
-        </div>
-      </div>
-      {data.lastResearchAt && (
-        <p className="st-page-sub" style={{ marginTop: -12 }}>Last research <Ago iso={data.lastResearchAt} />.</p>
-      )}
-      <ToolIntro id="searchAgent" />
+          <button className="ag-btn" type="button" disabled={!!busy || !waitingTopic} onClick={async () => { await call('write'); router.refresh() }}>{busy === 'write' ? <><Spinner />Writing…</> : 'Write next draft'}</button>
+          <button className="ag-btn ag-btn-primary" type="button" disabled={!!busy || firstTime || !flags.dataforseo} onClick={() => call('research')}>{busy === 'research' ? <><Spinner />Researching…</> : 'Run research'}</button>
+        </>}
+      />
       {(busy === 'research' || busy === 'write') && <div className="ag-note">{busy === 'research' ? 'Asking the AI assistants and checking Google usually takes 1–2 minutes.' : 'Reading today\'s top results and writing usually takes 1–2 minutes.'} You can keep this page open.</div>}
       {flags.demo && <DemoBanner>Run research again any time: rankings shift a little each run, so &ldquo;what moved&rdquo; has something to show.</DemoBanner>}
       {!flags.dataforseo && <div className="ag-note ag-note-warn">The Search Agent needs GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet. Settings can be saved now; research starts once it&apos;s connected.</div>}

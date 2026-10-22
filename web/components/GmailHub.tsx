@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useCallback, Fragment } from 'react'
 import Link from 'next/link'
-import { useSmartBack } from '@/lib/useSmartBack'
 import FollowUpsTab from '@/components/FollowUpsTab'
-import ToolIntro from '@/components/ToolIntro'
+import ToolHeader from '@/components/ToolHeader'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -206,7 +205,6 @@ export default function GmailHub({
   initialConnected?: boolean
   gmailAddress?: string | null
 }) {
-  const goBack = useSmartBack('/dashboard')
   const [isConnected, setIsConnected]         = useState(initialConnected)
   const [activeTab, setActiveTab]             = useState<Tab>('inbox')
   const [selectedId, setSelectedId]           = useState<string>('')
@@ -748,18 +746,7 @@ export default function GmailHub({
       <div className="gh-page">
         <div className="gh-inner">
 
-          <div className="gh-header">
-            <div>
-              <button onClick={goBack} className="gh-back">← Back</button>
-              <div className="gh-title">
-                Email Outreach
-                <span className="gh-badge-new">New</span>
-              </div>
-              <div className="gh-subtitle">{brandName} — turn your inbox into a growth engine</div>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 24 }}><ToolIntro id="emailOutreach" /></div>
+          <ToolHeader icon="mail" title="Email Outreach" chips={<span className="th-chip">New</span>} meta={brandName} intro="emailOutreach" />
 
           {/* 2-column connect layout */}
           <div className="gh-connect-outer">
@@ -876,35 +863,19 @@ export default function GmailHub({
     <div className="gh-page">
       <div className="gh-inner">
 
-        {/* Header */}
-        <div className="gh-header">
-          <div>
-            <button onClick={goBack} className="gh-back">← Back</button>
-            <div className="gh-title">
-              Email Outreach
-              <span className="gh-badge-new">New</span>
-            </div>
-            <div className="gh-subtitle">{brandName} — leads in your inbox, campaigns and follow-ups</div>
-          </div>
-          <div className="gh-header-right">
-            <div className="gh-connected-badge">
-              <span className="gh-connected-dot" />
-              {gmailAddress ?? 'Gmail connected'}
-            </div>
-            <Link href="/agents/leads" className="gh-hbtn gh-hbtn-outline">Lead Agent</Link>
-            <Link href="/lead-finder" className="gh-hbtn gh-hbtn-outline">Competitor Leads</Link>
-            <button className="gh-hbtn gh-hbtn-outline" onClick={fetchInbox}>Refresh</button>
-            <button
-              className="gh-hbtn gh-hbtn-ghost"
-              onClick={handleDisconnect}
-              disabled={disconnecting}
-            >
+        <ToolHeader
+          icon="mail"
+          title="Email Outreach"
+          intro="emailOutreach"
+          chips={<span className="th-chip th-chip--on">{gmailAddress ?? 'Gmail connected'}</span>}
+          meta={<>Find more leads: <Link href="/agents/leads" className="th-link">Lead Agent</Link> · <Link href="/lead-finder" className="th-link">Competitor Leads</Link></>}
+          actions={<>
+            <button className="btn btn-ghost btn-sm" onClick={fetchInbox}>Refresh</button>
+            <button className="btn btn-link" onClick={handleDisconnect} disabled={disconnecting}>
               {disconnecting ? <><Spinner />Disconnecting…</> : 'Disconnect'}
             </button>
-          </div>
-        </div>
-
-        <div style={{ marginTop: 24 }}><ToolIntro id="emailOutreach" /></div>
+          </>}
+        />
 
         {/* Follow-up reminder toast */}
         {followUpToast && (
