@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useSmartBack } from '@/lib/useSmartBack'
 import { Spinner } from '@/components/ui/spinner'
+import ToolIntro from '@/components/ToolIntro'
 
 interface ScrapedLead {
   id: string
@@ -176,6 +177,8 @@ export default function LeadFinder({
             <Link href="/gmail-hub" className="gh-hbtn gh-hbtn-outline">Email Outreach</Link>
           </div>
         </div>
+
+        <div style={{ marginTop: 24 }}><ToolIntro id="competitorLeads" /></div>
 
         {/* ── Search form ────────────────────────────────────────────── */}
         <div className="lf-form">

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import ToolIntro from '@/components/ToolIntro'
 import type { Lead, LeadAgentData, LeadSettings } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
 import { RunProgress } from './RunProgress'
@@ -226,10 +227,12 @@ export default function LeadAgentPage({ initial, flags, competitorsHint }: { ini
           {!firstTime && <button className="ag-btn" type="button" aria-expanded={showSettings} onClick={() => setShowSettings(v => !v)}>Settings</button>}
         </div>
       </div>
-      <p className="st-page-sub" style={{ marginTop: -12 }}>
-        Finds people who need what you sell, drafts a personal note, sends from your Gmail after you approve, and follows up.
-        {data.lastRunAt ? <> Last run <Ago iso={data.lastRunAt} />{data.lastRunSummary ? `: ${data.lastRunSummary}` : ''}.</> : null}
-      </p>
+      {data.lastRunAt && (
+        <p className="st-page-sub" style={{ marginTop: -12 }}>
+          Last run <Ago iso={data.lastRunAt} />{data.lastRunSummary ? `: ${data.lastRunSummary}` : ''}.
+        </p>
+      )}
+      <ToolIntro id="leadAgent" />
       {busy === 'run' && <div className="ag-note">Searching, scoring and drafting usually takes 1–3 minutes. You can keep this page open.</div>}
 
       {flags.demo && (

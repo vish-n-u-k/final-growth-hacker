@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Fragment } from 'react'
 import Link from 'next/link'
 import { useSmartBack } from '@/lib/useSmartBack'
 import FollowUpsTab from '@/components/FollowUpsTab'
+import ToolIntro from '@/components/ToolIntro'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -758,6 +759,8 @@ export default function GmailHub({
             </div>
           </div>
 
+          <div style={{ marginTop: 24 }}><ToolIntro id="emailOutreach" /></div>
+
           {/* 2-column connect layout */}
           <div className="gh-connect-outer">
 
@@ -900,6 +903,8 @@ export default function GmailHub({
             </button>
           </div>
         </div>
+
+        <div style={{ marginTop: 24 }}><ToolIntro id="emailOutreach" /></div>
 
         {/* Follow-up reminder toast */}
         {followUpToast && (

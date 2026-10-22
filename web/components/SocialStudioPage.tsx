@@ -7,6 +7,7 @@ import { formatInZone, utcToZoned } from '@/lib/frekto/time'
 import { Spinner } from '@/components/ui/spinner'
 import TimezoneSelect, { deviceTimezone, canonicalTimezone } from '@/components/TimezoneSelect'
 import TimeField from '@/components/TimeField'
+import ToolIntro from '@/components/ToolIntro'
 
 // Reads a JSON reply. When the server crashed and sent an error page instead, say so rather than
 // letting the parse error read as "Network error".
@@ -150,26 +151,6 @@ function FrektoBadge() {
       <FrektoLogo />
       Powered by Frekto ↗
     </a>
-  )
-}
-
-const HOW_IT_WORKS: { title: string; body: string }[] = [
-  { title: 'GrowJin picks the idea', body: 'From your audit, keywords and what is working, with the reason shown on each suggestion.' },
-  { title: 'Frekto makes the post', body: 'It designs the image or video and writes the caption and hashtags.' },
-  { title: 'Frekto publishes it', body: 'At the time you choose, to the social accounts connected in your Frekto account.' },
-]
-
-// Kept out of the way: a small "How it works" toggle, not a section of its own
-function HowItWorks() {
-  return (
-    <details style={{ marginTop: 6, fontSize: 12.5, color: 'var(--text-faint)' }}>
-      <summary style={{ cursor: 'pointer', width: 'fit-content', color: 'var(--frekto-ink)', fontWeight: 600 }}>How it works</summary>
-      <ol style={{ margin: '6px 0 0', paddingLeft: 18, lineHeight: 1.6, color: 'var(--text-dim)' }}>
-        {HOW_IT_WORKS.map(step => (
-          <li key={step.title}><strong style={{ fontWeight: 600, color: 'var(--text)' }}>{step.title}.</strong> {step.body}</li>
-        ))}
-      </ol>
-    </details>
   )
 }
 
@@ -552,7 +533,6 @@ export default function SocialStudioPage({
           <FrektoBadge />
         </div>
         <p className="tool-sub">GrowJin plans what to post for {brandName}; Frekto creates and publishes it.</p>
-        <HowItWorks />
       </div>
     </div>
   )
@@ -575,6 +555,7 @@ export default function SocialStudioPage({
     return (
       <div className="tool-page">
         {header}
+        <ToolIntro id="social" />
         <div className="tool-card tool-col">
           <h2 className="tool-card-title">Connect Frekto to start posting</h2>
           <p className="tool-card-sub">GrowJin plans your posts; Frekto creates and publishes them from your Frekto account. Once it&apos;s connected, Social Studio can:</p>
@@ -676,6 +657,7 @@ export default function SocialStudioPage({
   return (
     <div className="tool-page">
       {header}
+      <ToolIntro id="social" />
       <div className="tool-col tool-stack">
       {timezoneRow}
 

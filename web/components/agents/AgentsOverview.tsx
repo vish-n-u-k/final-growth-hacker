@@ -61,7 +61,7 @@ export default function AgentsOverview({ search, lead, approvals, funnel, usage,
       <div className="ag-grid2">
         <AgentCard
           name="Search Agent" when="Google + AI answers · weekly" href="/agents/search" s={search} icon={<SearchIcon />}
-          desc="Picks keywords you can win, writes posts that beat the #1 result, tracks your Google rank and whether ChatGPT, Perplexity and Gemini recommend you."
+          desc="Picks keywords you can win, writes posts that beat the #1 result, finds sites that link to your competitors but not you, and tracks your Google rank and whether ChatGPT, Perplexity and Gemini recommend you."
         />
         <AgentCard
           name="Lead Agent" when="Finds, emails and follows up · daily" href="/agents/leads" s={lead} icon={<LeadIcon />}

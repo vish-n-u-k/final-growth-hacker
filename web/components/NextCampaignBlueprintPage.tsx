@@ -9,6 +9,7 @@ import type { CampaignBrief } from '@/components/MetaAdLaunchPanel'
 import type { OGTagResult, PixelStatus } from '@/app/(shell)/dashboard/meta-ads/blueprint/page'
 import { connectUrl } from '@/lib/integrations/connect-url'
 import { Spinner } from '@/components/ui/spinner'
+import ToolIntro from '@/components/ToolIntro'
 
 const AUDIT_CATEGORIES = [
   { slug: 'campaign-performance', label: 'Campaigns' },
@@ -291,6 +292,8 @@ export default function NextCampaignBlueprintPage({ moduleId, moduleStatus, bran
           </div>
         )}
       </div>
+
+      <ToolIntro id="metaAds" />
 
       {analyseError && (
         <div className="bp-analyse-error">

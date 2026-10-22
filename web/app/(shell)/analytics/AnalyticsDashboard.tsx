@@ -18,6 +18,7 @@ import { connectUrl } from '@/lib/integrations/connect-url'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
 import LastRefreshed from '@/components/LastRefreshed'
 import DailyEmailToggle from '@/components/DailyEmailToggle'
+import ToolIntro from '@/components/ToolIntro'
 
 /* ── Types ────────────────────────────────────────────── */
 export interface ModuleHealth {
@@ -666,6 +667,8 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             <DailyEmailToggle initialEnabled={initialDailyEmail} />
           </div>
         </div>
+
+        <ToolIntro id="analytics" />
 
         {/* Summary + Todo — hidden for now */}
 

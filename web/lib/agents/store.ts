@@ -122,6 +122,39 @@ export interface AgentTask {
 
 export interface AdsTip { kind: 'try-ads' | 'wasted'; title: string; detail: string }
 
+// A site that should link to (or list) the brand: it links to competitors, or lists them in a
+// "best X" / "X alternatives" article, but leaves the brand out. Found weekly, pitched from Gmail.
+export type LinkSource = 'gap' | 'list'
+export type LinkStatus =
+  | 'new'        // found, no email yet (contact page only)
+  | 'ready'      // pitch drafted and an email found: waiting for the user
+  | 'sent' | 'replied' | 'bounced' | 'opted_out'
+  | 'won'        // the user got the link or the listing
+  | 'skipped'
+
+export interface LinkOpportunity {
+  id: string                    // idOf(domain)
+  domain: string
+  source: LinkSource
+  url: string                   // the page that links to / lists the competitors
+  title: string
+  authority: number | null      // 0-100 (DataForSEO domain rank / 10)
+  names: string[]               // competitors it links to or lists
+  why: string                   // one plain sentence
+  email?: string
+  emailVerified?: boolean
+  contactName?: string
+  pitch?: { subject: string; body: string }
+  status: LinkStatus
+  foundAt: string
+  sentAt?: string
+  threadId?: string
+  followupSent?: boolean
+  nextFollowUpAt?: string
+  replyNote?: string
+  error?: string
+}
+
 export interface SearchAgentData {
   settings: SearchSettings
   topics: Topic[]
@@ -132,9 +165,12 @@ export interface SearchAgentData {
   description: { text: string; issue: string | null; at: string } | null
   tasks: AgentTask[]
   adsTips: AdsTip[]
+  links?: LinkOpportunity[]     // link opportunities (lib/agents/link-opportunities.ts)
   demo?: boolean                // made with demo data (lib/agents/demo.ts)
   lastResearchAt?: string
   lastWriteAt?: string
+  lastLinksAt?: string
+  linksError?: string | null     // problem on the last link-opportunities run
   lastError?: string | null
 }
 
@@ -219,6 +255,8 @@ export async function updateSearchData(brandId: string, fallback: () => SearchAg
   const d = (await readSearchData(brandId)) ?? fallback()
   change(d)
   d.topics = d.topics.slice(-60)
+  // Keep the list bounded: skipped ones go first, then the oldest
+  if (d.links && d.links.length > 150) d.links = [...d.links.filter(l => l.status !== 'skipped'), ...d.links.filter(l => l.status === 'skipped')].slice(0, 150)
   d.mentionHistory = d.mentionHistory.slice(-26)
   await saveSnapshot(brandId, SEARCH_KEY, d)
   return d
