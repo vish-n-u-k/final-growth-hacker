@@ -9,6 +9,7 @@ import { REMINDER_CATEGORIES, type ReminderCategory, type ReminderPreset } from 
 import { Spinner } from '@/components/ui/spinner'
 import TimezoneSelect, { canonicalTimezone, deviceTimezone } from '@/components/TimezoneSelect'
 import TimeField from '@/components/TimeField'
+import ToolIntro from '@/components/ToolIntro'
 import { utcToZoned, zonedToUtc } from '@/lib/frekto/time'
 import { auditJobSource } from '@/lib/reminders/audit-source'
 import type { AuditJobSuggestion } from '@/lib/reminders/audit-jobs'
@@ -667,6 +668,7 @@ export default function RemindersPage({
           </div>
         </div>
 
+        <ToolIntro id="reminders" />
         <div>
 
           {toast && (

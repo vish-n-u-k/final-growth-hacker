@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import ToolIntro from '@/components/ToolIntro'
 import { useRouter } from 'next/navigation'
 import type { AgentTask, SearchAgentData, SearchSettings, Topic } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
@@ -124,10 +125,10 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
           {!firstTime && <button className="ag-btn" type="button" aria-expanded={showSettings} onClick={() => setShowSettings(v => !v)}>Settings</button>}
         </div>
       </div>
-      <p className="st-page-sub" style={{ marginTop: -12 }}>
-        Picks keywords you can win, writes posts that beat the #1 result, and tracks your Google rank and whether AI assistants recommend you.
-        {data.lastResearchAt ? <> Last research <Ago iso={data.lastResearchAt} />.</> : null}
-      </p>
+      {data.lastResearchAt && (
+        <p className="st-page-sub" style={{ marginTop: -12 }}>Last research <Ago iso={data.lastResearchAt} />.</p>
+      )}
+      <ToolIntro id="searchAgent" />
       {(busy === 'research' || busy === 'write') && <div className="ag-note">{busy === 'research' ? 'Asking the AI assistants and checking Google usually takes 1–2 minutes.' : 'Reading today\'s top results and writing usually takes 1–2 minutes.'} You can keep this page open.</div>}
       {flags.demo && <DemoBanner>Run research again any time: rankings shift a little each run, so &ldquo;what moved&rdquo; has something to show.</DemoBanner>}
       {!flags.dataforseo && <div className="ag-note ag-note-warn">The Search Agent needs GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet. Settings can be saved now; research starts once it&apos;s connected.</div>}

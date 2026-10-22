@@ -19,6 +19,7 @@ import { connectUrl } from '@/lib/integrations/connect-url'
 import { Spinner } from '@/components/ui/spinner'
 import Link from 'next/link'
 import DailyEmailToggle from '@/components/DailyEmailToggle'
+import ToolIntro from '@/components/ToolIntro'
 import { BarChart3 } from 'lucide-react'
 
 interface TrafficData {
@@ -1244,6 +1245,8 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           </Link>
         </div>
       </div>
+
+      <ToolIntro id="today" />
 
       {/* Body */}
       <div className="td-body">
