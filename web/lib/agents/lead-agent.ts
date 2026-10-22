@@ -272,7 +272,8 @@ Return [{"i":0,"score":8,"why":"one plain sentence a non-technical founder under
   return (parseJsonLoose<Scored[]>(raw, 'array') ?? []).filter(x => typeof x.i === 'number' && x.i >= 0 && x.i < list.length)
 }
 
-async function emailFromWebsite(domain: string): Promise<string | null> {
+/** A mailto: address on the site's home, contact or about page (no lookup service needed). */
+export async function emailFromWebsite(domain: string): Promise<string | null> {
   for (const path of ['', '/contact', '/about']) {
     const html = await fetchHtml(`https://${domain}${path}`)
     const m = html?.match(/mailto:([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/i)

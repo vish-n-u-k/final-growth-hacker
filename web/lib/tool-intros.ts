@@ -83,11 +83,11 @@ export const TOOL_INTROS = {
   },
   searchAgent: {
     icon: 'search',
-    what: 'Gets you found on Google and in AI answers like ChatGPT: it finds what people search for, writes posts to rank for it, and tracks the results.',
+    what: 'Gets you found on Google and in AI answers like ChatGPT: it finds what people search for, writes posts to rank for it, finds sites that should link to you, and tracks the results.',
     steps: [
       { title: 'Pick searches', body: 'It picks searches you have a real chance to rank for.' },
       { title: 'Write posts', body: 'It writes a blog post for each one for you to review and publish.' },
-      { title: 'Track results', body: 'Every week it checks your Google position and whether ChatGPT, Perplexity and Gemini recommend you.' },
+      { title: 'Get links & track', body: 'It finds sites that link to your competitors but not you, drafts a pitch for each, and checks your Google position and AI mentions every week.' },
     ],
   },
   analytics: {

@@ -4,6 +4,7 @@ import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
 import { runSearchResearch, runSearchWrite, searchFallback, setTopicStatus } from '@/lib/agents/search-agent'
 import { readSearchData, updateSearchData, type AgentTask, type SearchSettings, type Topic } from '@/lib/agents/store'
+import { runLinkOpportunities, sendLinkPitch, updateLink } from '@/lib/agents/link-opportunities'
 import { clearSignals } from '@/lib/signals'
 
 export const dynamic = 'force-dynamic'
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
   const fallback = searchFallback(b)
   const body = await req.json().catch(() => ({})) as {
     op?: string; settings?: Partial<SearchSettings>; keyword?: string; status?: string; key?: string
+    id?: string; email?: string; subject?: string; body?: string
   }
 
   switch (body.op) {
@@ -66,6 +68,28 @@ export async function POST(req: NextRequest) {
       })
       if (body.status !== 'open') await clearSignals(brandId, 'search-agent', [body.key]).catch(() => {})
       return NextResponse.json({ data })
+    }
+    case 'links': {
+      const result = await runLinkOpportunities(brandId)
+      return NextResponse.json({ result, data: await readSearchData(brandId) })
+    }
+    case 'link_send': {
+      if (!body.id) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+      const r = await sendLinkPitch(brandId, body.id, {
+        email: typeof body.email === 'string' ? body.email.slice(0, 200) : undefined,
+        subject: typeof body.subject === 'string' ? body.subject.slice(0, 200) : undefined,
+        body: typeof body.body === 'string' ? body.body.slice(0, 5000) : undefined,
+      })
+      return NextResponse.json({ ...(r.ok ? { message: r.message } : { error: r.message }), data: await readSearchData(brandId) })
+    }
+    case 'link': {
+      const allowed = ['won', 'skipped', 'new']
+      if (!body.id || (body.status && !allowed.includes(body.status))) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+      await updateLink(brandId, body.id, {
+        status: body.status as 'won' | 'skipped' | 'new' | undefined,
+        email: typeof body.email === 'string' ? body.email.slice(0, 200) : undefined,
+      })
+      return NextResponse.json({ data: await readSearchData(brandId) })
     }
     default:
       return NextResponse.json({ error: 'Unknown op' }, { status: 400 })

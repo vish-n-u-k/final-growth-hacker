@@ -5,6 +5,8 @@
 //     and turns the gaps into tasks (Today cards).
 //   write (the day after): reads today's top 3 Google results for the next topic and writes a
 //     draft that covers more, saved as a blog draft for the user to read and add to the site.
+//   links (weekly, on another day): sites that link to or list competitors but not the brand,
+//     each with a contact and a drafted pitch (lib/agents/link-opportunities.ts).
 
 import * as cheerio from 'cheerio'
 import { and, eq } from 'drizzle-orm'
@@ -25,6 +27,7 @@ import {
   type AdsTip, type AgentTask, type AiAnswer, type RankChange, type SearchAgentData, type Topic,
 } from './store'
 import { brandBlock, domainOf, idOf, loadBrandContext, parseJsonLoose, type BrandContext } from './context'
+import { runLinkFollowUps, runLinkOpportunities } from './link-opportunities'
 
 export const searchFallback = (b: BrandContext) => () => defaultSearchData(b)
 const WEEK = 6.5 * 86_400_000
@@ -238,7 +241,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
   if (saved && !!saved.demo !== agentsDemo()) {
     await updateSearchData(brandId, fallback, x => {
       x.topics = []; x.ranks = null; x.rankChanges = []; x.answers = null; x.mentionHistory = []
-      x.description = null; x.tasks = []; x.adsTips = []; x.lastError = null; x.demo = agentsDemo()
+      x.description = null; x.tasks = []; x.adsTips = []; x.links = []; x.lastError = null; x.demo = agentsDemo()
     })
   }
   const d = (await readSearchData(brandId)) ?? fallback()
@@ -409,12 +412,17 @@ Article rules: 1,200-1,600 words; H2/H3 headings; answer the search in the first
   })
 }
 
-/** Cron: research once a week; on other days write the next topic if one is waiting. */
+/** Cron: research once a week; on other days find link opportunities (weekly) or write the next topic. */
 export async function runSearchAgentScheduled(brandId: string): Promise<{ ok: boolean; summary: string; error?: string }> {
   const d = await readSearchData(brandId)
   if (!d?.settings.enabled) return { ok: true, summary: 'Agent is off.' }
+  // Every day: replies to link pitches and their one follow-up (nothing to do most days)
+  await runLinkFollowUps(brandId).catch(() => {})
   const last = d.lastResearchAt ? Date.parse(d.lastResearchAt) : 0
   if (Date.now() - last > WEEK) return runSearchResearch(brandId)
+  // Link opportunities weekly, on a day after the research (one heavy step per day)
+  const lastLinks = d.lastLinksAt ? Date.parse(d.lastLinksAt) : 0
+  if (Date.now() - lastLinks > WEEK) return runLinkOpportunities(brandId)
   const lastWrite = d.lastWriteAt ? Date.parse(d.lastWriteAt) : 0
   if (Date.now() - lastWrite > WEEK && d.topics.some(t => t.status === 'picked')) return runSearchWrite(brandId)
   return { ok: true, summary: 'Nothing due today.' }

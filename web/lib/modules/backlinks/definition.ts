@@ -11,7 +11,9 @@ export const BACKLINKS_MODULE: ModuleDefinition = {
   unlockThreshold: 80,
   dynamic: true,
   comingSoon: true,
-  comingSoonNote: 'Full link profile auditing — toxic link detection, competitor backlink gap analysis, anchor text distribution, and domain authority scoring — requires DataForSEO API integration. This module is in active development.',
+  // Link building lives in the Search Agent (lib/agents/link-opportunities.ts): sites that link to or list
+  // competitors but not the brand, each with a contact and a pitch. This module stays hidden.
+  comingSoonNote: 'Link building is part of the Search Agent: every week it finds sites that link to your competitors or list them in "best of" articles but leave you out, and drafts a pitch for each. Open AI Agents → Search Agent → Link opportunities.',
   requirements: [],
   systemPrompt: '',
   categories: [

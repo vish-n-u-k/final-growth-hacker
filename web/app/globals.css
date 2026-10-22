@@ -8253,3 +8253,7 @@ html.light { --info: #1d4ed8; --info-soft: #e8efff; }
   .ti-step:not(:last-child)::after { top: auto; bottom: -11px; right: auto; left: 27px; width: 2px; height: 10px; }
   .ti-note { display: flex; border-radius: 12px; }
 }
+/* Search Agent → Link opportunities: the pitch editor opens under the opportunity */
+.ag-link { align-items: flex-start; }
+.ag-link-editor { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg-soft); }
+.ag-link-editor .ag-input, .ag-link-editor .ag-textarea { background: var(--card); }

@@ -1,6 +1,6 @@
 // Demo mode for the AI Agents: try the whole flow before paying for DataForSEO and Hunter.
 // On when AGENTS_DEMO=true, or automatically while DataForSEO isn't set up. In demo mode:
-//   - Google results, rankings, keyword data, Maps businesses, AI answers (DataForSEO), email
+//   - Google results, rankings, keyword data, Maps businesses, AI answers, backlinks (DataForSEO), email
 //     lookups (Hunter) and Google Ads waste are made up, from the brand's own keywords and
 //     competitors, and shift a little between runs so "what moved" has something to show
 //   - no email is sent: sending, replies, opt-outs and bounces are simulated
@@ -8,7 +8,7 @@
 //     drafts show the real quality
 // Everything an agent saves in demo mode is marked, and cleared once real data is switched on.
 
-import type { AiAnswerRaw, KeywordIdea, MapsBusiness, RankedKeyword, SerpResult } from './dataforseo'
+import type { AiAnswerRaw, KeywordIdea, LinkingSite, MapsBusiness, RankedKeyword, SerpResult } from './dataforseo'
 import type { FoundEmail } from './hunter'
 import type { WastedSpend } from './google-ads'
 
@@ -107,11 +107,13 @@ export function demoGoogleResults(keyword: string): SerpResult[] {
       }
     })
   }
+  // "best X" searches: don't print "Best best X"
+  const topic = keyword.replace(/^best\s+/i, '')
   const sites = [
     ...rivals().map(c => ({ domain: c.domain, title: `${c.name}: ${keyword}` })),
-    { domain: 'g2.com', title: `Best ${keyword} software (reviews)` },
-    { domain: 'zapier.com', title: `The best ${keyword} tools this year` },
-    { domain: 'capterra.com', title: `${cap(keyword)} software comparison` },
+    { domain: 'g2.com', title: `Best ${topic} software (reviews)` },
+    { domain: 'zapier.com', title: `The best ${topic} tools this year` },
+    { domain: 'capterra.com', title: `${cap(topic)} software comparison` },
     { domain: 'hubspot.com', title: `${cap(keyword)}: a beginner's guide` },
     { domain: 'forbes.com', title: `${cap(keyword)} for small businesses` },
   ]
@@ -120,6 +122,45 @@ export function demoGoogleResults(keyword: string): SerpResult[] {
     url: `https://${s.domain}/${slug(keyword)}`,
     description: `A look at ${keyword}: features, prices and who each option is for.`,
   }))
+}
+
+// Sites that link to a domain: blogs, directories and "best tools" lists. Competitors share
+// some of them (so a site can link to two rivals), and the brand already has a couple.
+const LINK_SITES: [string, string][] = [
+  ['startupstash.com', 'Startup Stash: tools for {s}'],
+  ['saasworthy.com', '{S} software: compare top tools'],
+  ['alternativeto.net', 'Alternatives to popular {s} tools'],
+  ['betalist.com', 'New startups: {s}'],
+  ['indiehackers.com', 'How we picked our {s} stack'],
+  ['smallbizdaily.com', '{S}: 9 tools small businesses love'],
+  ['growthtools.io', 'The growth toolbox: {s}'],
+  ['toolfinder.co', 'Best {s} tools, tested'],
+  ['founderweekly.com', 'Founder Weekly #212: {s} picks'],
+  ['marketingbrew.com', 'What marketers use for {s}'],
+  ['sidehustlestack.com', '{S} for side projects'],
+  ['nocodelist.co', 'No-code {s} directory'],
+  ['bootstrappers.blog', 'Our honest {s} review'],
+  ['thesmallbusinesssite.com', 'Guide: getting started with {s}'],
+]
+const fillTitle = (t: string) => {
+  const s = ctx.seeds[0] ?? 'growth'
+  return t.replace('{s}', s).replace('{S}', cap(s))
+}
+
+export function demoLinkingSites(target: string): LinkingSite[] {
+  const r = rng(`links:${target}`)
+  return LINK_SITES.filter(() => r() < 0.55).map(([domain, title]) => ({
+    domain,
+    url: `https://${domain}/${slug(fillTitle(title))}`,
+    title: fillTitle(title),
+    rank: Math.floor(180 + r() * 500),
+    spam: Math.floor(r() * 25),
+  }))
+}
+
+export function demoReferringDomains(target: string): string[] {
+  const r = rng(`own-links:${target}`)
+  return LINK_SITES.map(([d]) => d).filter(() => r() < 0.15)
 }
 
 const BIZ_A = ['Brew', 'Bean', 'Urban', 'Corner', 'Green', 'Golden', 'Little', 'Blue Door', 'Daily', 'Sunny', 'Hidden', 'Old Town']

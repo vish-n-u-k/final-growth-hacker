@@ -29,7 +29,7 @@ export const TOOL_GROUPS: ToolGroup[] = [
   ]},
   { label: 'Get seen', items: [
     { href: '/agents/search', label: 'Search Agent', icon: 'search', pro: true,
-      desc: 'Picks keywords you can win, writes posts and tracks your Google and AI rank.' },
+      desc: 'Picks keywords you can win, writes posts, finds sites to get links from and tracks your Google and AI rank.' },
     { href: '/social', label: 'Social Studio', icon: 'image', pro: true,
       desc: 'Plan, preview and schedule social posts with Frekto.' },
     { href: '/dashboard/meta-ads/blueprint', label: 'Meta Ads', icon: 'megaphone', pro: true, // live for everyone (no Growth Path progress lock)

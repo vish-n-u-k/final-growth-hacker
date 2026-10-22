@@ -1,9 +1,9 @@
 // DataForSEO client for the AI Agents (keyword ideas, Google results, site rankings, Maps
-// businesses and AI answers). Uses GrowJin's own account: DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD.
+// businesses, AI answers and backlinks). Uses GrowJin's own account: DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD.
 // Every call adds its cost (USD, from the response) to the run's meter.
 
 import type { UsageMeter } from './store'
-import { agentsDemo, demoAiAnswer, demoGoogleResults, demoKeywordIdeas, demoMapsBusinesses, demoRankedKeywords } from './demo'
+import { agentsDemo, demoAiAnswer, demoGoogleResults, demoKeywordIdeas, demoLinkingSites, demoMapsBusinesses, demoRankedKeywords, demoReferringDomains } from './demo'
 
 const BASE = 'https://api.dataforseo.com/v3'
 
@@ -158,6 +158,46 @@ export async function mapsBusinesses(query: string, country: string, meter?: Usa
       address: i.address ?? null,
       mapsUrl: i.cid ? `https://maps.google.com/?cid=${i.cid}` : (i.check_url ?? null),
     }))
+}
+
+// ── Backlinks (DataForSEO's Backlinks API, a separate subscription) ──────────
+
+export interface LinkingSite { domain: string; url: string; title: string; rank: number | null; spam: number | null }
+
+/** Sites that link to `target`, one example page each, strongest first. */
+export async function linkingSites(target: string, meter?: UsageMeter, limit = 100): Promise<LinkingSite[]> {
+  if (agentsDemo()) return demoLinkingSites(target).slice(0, limit)
+  type Item = {
+    domain_from?: string; url_from?: string; page_from_title?: string | null
+    domain_from_rank?: number | null; backlink_spam_score?: number | null; is_lost?: boolean
+  }
+  const r = await post<{ items?: Item[] | null }>('/backlinks/backlinks/live', {
+    target: target.replace(/^www\./, ''),
+    mode: 'one_per_domain',
+    limit,
+    order_by: ['domain_from_rank,desc'],
+    filters: ['dofollow', '=', true],
+  }, meter)
+  return (r.items ?? [])
+    .filter(i => i.domain_from && i.url_from && !i.is_lost)
+    .map(i => ({
+      domain: i.domain_from!.replace(/^www\./, '').toLowerCase(),
+      url: i.url_from!,
+      title: i.page_from_title ?? '',
+      rank: i.domain_from_rank ?? null,
+      spam: i.backlink_spam_score ?? null,
+    }))
+}
+
+/** Domains that already link to `target` (so they aren't suggested again). */
+export async function referringDomains(target: string, meter?: UsageMeter, limit = 1000): Promise<string[]> {
+  if (agentsDemo()) return demoReferringDomains(target)
+  const r = await post<{ items?: { domain?: string }[] | null }>('/backlinks/referring_domains/live', {
+    target: target.replace(/^www\./, ''),
+    limit,
+    order_by: ['rank,desc'],
+  }, meter)
+  return (r.items ?? []).map(i => (i.domain ?? '').replace(/^www\./, '').toLowerCase()).filter(Boolean)
 }
 
 // ── AI answers (ChatGPT, Perplexity, Gemini) ──────────────────────────────────

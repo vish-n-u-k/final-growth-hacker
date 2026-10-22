@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import ToolIntro from '@/components/ToolIntro'
 import { useRouter } from 'next/navigation'
-import type { AgentTask, SearchAgentData, SearchSettings, Topic } from '@/lib/agents/store'
+import type { AgentTask, LinkOpportunity, LinkStatus, SearchAgentData, SearchSettings, Topic } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
 import { Ago, Day, DemoBanner, Toast, useAgentApi } from './shared'
 
@@ -89,12 +89,87 @@ function DraftCard({ topic, draft, busy, onStatus, say }: { topic: Topic; draft:
   )
 }
 
+const LINK_STATUS: Record<LinkStatus, [string, string]> = {
+  new: ['Find a contact', ''], ready: ['Pitch ready', 'ag-pill-warn'], sent: ['Sent', ''], replied: ['Replied', 'ag-pill-good'],
+  bounced: ['Bounced', 'ag-pill-crit'], opted_out: ['Said no', ''], won: ['Got the link', 'ag-pill-good'], skipped: ['Skipped', ''],
+}
+// Waiting on the user first, then live conversations, then finished ones
+const LINK_ORDER: LinkStatus[] = ['ready', 'new', 'replied', 'sent', 'won', 'bounced', 'opted_out', 'skipped']
+
+type Call = ReturnType<typeof useAgentApi<SearchAgentData>>['call']
+
+function LinkCard({ l, busy, call }: { l: LinkOpportunity; busy: string | null; call: Call }) {
+  const [open, setOpen] = useState(false)
+  const [email, setEmail] = useState(l.email ?? '')
+  const [subject, setSubject] = useState(l.pitch?.subject ?? '')
+  const [body, setBody] = useState(l.pitch?.body ?? '')
+  const key = `link:${l.id}`
+  const canPitch = l.status === 'ready' || l.status === 'new'
+  const done = l.status === 'won' || l.status === 'skipped' || l.status === 'opted_out' || l.status === 'bounced'
+  return (
+    <div className="ag-item ag-link" style={done ? { opacity: 0.65 } : undefined}>
+      <span className={`ag-pill ag-item-tag ${l.source === 'list' ? 'ag-pill-good' : ''}`}>{l.source === 'list' ? 'List article' : 'Links to rivals'}</span>
+      <div className="ag-item-main">
+        <div className="ag-item-title">
+          {l.domain}
+          {l.authority !== null && <span className="ag-meta" style={{ fontWeight: 400 }}> · authority {l.authority}/100</span>}
+          <span className={`ag-pill ${LINK_STATUS[l.status][1]}`} style={{ marginLeft: 8 }}>{LINK_STATUS[l.status][0]}</span>
+        </div>
+        <div className="ag-item-detail">{l.why}</div>
+        <div className="ag-item-detail">
+          <a href={l.url} target="_blank" rel="noopener noreferrer">{l.title || 'Open the page'} ↗</a>
+          {l.names.length > 0 && <> · names {l.names.join(', ')}</>}
+        </div>
+        {l.status === 'sent' && <div className="ag-item-detail">Sent to {l.email} <Day iso={l.sentAt} />{l.followupSent ? ' · followed up' : l.nextFollowUpAt ? <> · follow-up <Day iso={l.nextFollowUpAt} /> unless they reply</> : null}</div>}
+        {l.status === 'replied' && <div className="ag-note" style={{ marginTop: 6 }}><b>They replied:</b> {l.replyNote || 'Open Gmail to read it.'}</div>}
+        {l.error && !done && <div className="ag-item-detail" style={{ color: 'var(--crit)' }}>{l.error}</div>}
+
+        {open && canPitch && (
+          <form className="ag-link-editor" onSubmit={async e => {
+            e.preventDefault()
+            const r = await call('link_send', { id: l.id, email, subject, body }, key)
+            if (r && !r.error) setOpen(false)
+          }}>
+            <div className="ag-field">
+              <label className="ag-label" htmlFor={`le-${l.id}`}>To</label>
+              <input id={`le-${l.id}`} className="ag-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder={`name@${l.domain}`} required />
+              {!l.email && <span className="ag-meta">No email found. Check <a href={`https://${l.domain}/contact`} target="_blank" rel="noopener noreferrer">their contact page ↗</a>, or use their contact form and paste the message there.</span>}
+              {l.email && !l.emailVerified && <span className="ag-meta">Found on their website, not verified.</span>}
+            </div>
+            <div className="ag-field">
+              <label className="ag-label" htmlFor={`ls-${l.id}`}>Subject</label>
+              <input id={`ls-${l.id}`} className="ag-input" value={subject} onChange={e => setSubject(e.target.value)} required />
+            </div>
+            <div className="ag-field">
+              <label className="ag-label" htmlFor={`lb-${l.id}`}>Message</label>
+              <textarea id={`lb-${l.id}`} className="ag-textarea" rows={7} value={body} onChange={e => setBody(e.target.value)} required />
+              <span className="ag-meta">Sent from your Gmail, starting with &ldquo;Hi{l.contactName ? ` ${l.contactName.split(' ')[0]}` : ''},&rdquo;. One short follow-up goes out 5 days later unless they reply.</span>
+            </div>
+            <div className="ag-row-actions">
+              <button className="ag-btn ag-btn-primary" type="submit" disabled={!!busy}>{busy === key ? <><Spinner />Sending…</> : 'Send from Gmail'}</button>
+              <button className="ag-btn" type="button" onClick={async () => { try { await navigator.clipboard.writeText(`${subject}\n\n${body}`) } catch { /* ignore */ } }}>Copy</button>
+              <button className="ag-btn" type="button" onClick={() => setOpen(false)}>Cancel</button>
+            </div>
+          </form>
+        )}
+      </div>
+      <div className="ag-row-actions">
+        {canPitch && !open && <button className={`ag-btn ${l.status === 'ready' ? 'ag-btn-primary' : ''}`} type="button" disabled={!!busy} onClick={() => setOpen(true)}>{l.status === 'ready' ? 'Review & send' : 'Write to them'}</button>}
+        {!done && <button className="ag-btn" type="button" disabled={!!busy} onClick={() => call('link', { id: l.id, status: 'won' }, key)}>Got the link</button>}
+        {(canPitch || l.status === 'sent') && <button className="ag-btn" type="button" disabled={!!busy} onClick={() => call('link', { id: l.id, status: 'skipped' }, key)}>Skip</button>}
+        {l.status === 'skipped' && <button className="ag-btn" type="button" disabled={!!busy} onClick={() => call('link', { id: l.id, status: 'new' }, key)}>Bring back</button>}
+      </div>
+    </div>
+  )
+}
+
 export default function SearchAgentPage({ initial, flags, drafts, brandName }: { initial: SearchAgentData; flags: SearchAgentFlags; drafts: DraftInfo[]; brandName: string }) {
   const { data, busy, call, toast, say } = useAgentApi<SearchAgentData>('/api/agents/search', initial)
   const router = useRouter()
   const firstTime = !data.settings.enabled && !data.lastResearchAt
   const [showSettings, setShowSettings] = useState(firstTime)
-  const [tab, setTab] = useState<'week' | 'ranks' | 'ai'>('week')
+  const [tab, setTab] = useState<'week' | 'links' | 'ranks' | 'ai'>('week')
+  const [showSkipped, setShowSkipped] = useState(false)
   const s = data.settings
   const draftById = new Map(drafts.map(d => [d.id, d]))
 
@@ -111,6 +186,10 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   const draftTopics = data.topics.filter(t => (t.status === 'drafted' || t.status === 'approved') && t.blogId)
   const openTasks = data.tasks.filter(t => t.status === 'open')
   const waitingTopic = data.topics.some(t => t.status === 'picked')
+  const links = [...(data.links ?? [])].sort((x, y) => LINK_ORDER.indexOf(x.status) - LINK_ORDER.indexOf(y.status))
+  const linksShown = links.filter(l => showSkipped || l.status !== 'skipped')
+  const linksWaiting = links.filter(l => l.status === 'ready' || l.status === 'new').length
+  const linksSkipped = links.filter(l => l.status === 'skipped').length
 
   return (
     <div className="wrap ag-page">
@@ -163,7 +242,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
           ))}
 
           <div className="ag-tabs" role="tablist" aria-label="Search Agent sections">
-            {([['week', 'This week'], ['ranks', 'Google rankings'], ['ai', 'AI answers']] as const).map(([k, label]) => (
+            {([['week', 'This week'], ['links', linksWaiting ? `Link opportunities (${linksWaiting})` : 'Link opportunities'], ['ranks', 'Google rankings'], ['ai', 'AI answers']] as const).map(([k, label]) => (
               <button key={k} type="button" role="tab" className="ag-tab" aria-selected={tab === k} onClick={() => setTab(k)}>{label}</button>
             ))}
           </div>
@@ -234,6 +313,28 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
                 </section>
               )}
             </>
+          )}
+
+          {tab === 'links' && (
+            <section className="ag-card">
+              <div className="ag-row-actions">
+                <h2>Link opportunities</h2>
+                <button className="ag-btn ag-btn-primary ag-meta-right" type="button" disabled={!!busy || !flags.dataforseo} onClick={() => call('links')}>{busy === 'links' ? <><Spinner />Looking…</> : 'Find opportunities now'}</button>
+              </div>
+              <p className="ag-card-sub">
+                Websites that link to your competitors, or list them in &ldquo;best of&rdquo; articles, but leave {brandName} out. Getting on them helps Google and AI assistants find you.
+                {' '}Found weekly{data.lastLinksAt ? <>, last checked <Day iso={data.lastLinksAt} /></> : null}. Nothing is sent until you send it.
+              </p>
+              {busy === 'links' && <div className="ag-note">Checking who links to your competitors, reading list articles and drafting pitches usually takes 1–2 minutes.</div>}
+              {data.linksError && <div className="ag-note ag-note-warn">Last check had a problem: {data.linksError}</div>}
+              {links.length === 0 && busy !== 'links' && <p className="ag-meta">{data.lastLinksAt ? 'Nothing new this week. Adding more competitors in Settings widens the search.' : 'None yet. They are found after the weekly research, or press "Find opportunities now".'}</p>}
+              <div className="ag-list">
+                {linksShown.map(l => <LinkCard key={l.id} l={l} busy={busy} call={call} />)}
+              </div>
+              {linksSkipped > 0 && (
+                <button className="ag-btn" type="button" style={{ alignSelf: 'flex-start' }} onClick={() => setShowSkipped(v => !v)}>{showSkipped ? 'Hide skipped' : `Show skipped (${linksSkipped})`}</button>
+              )}
+            </section>
           )}
 
           {tab === 'ranks' && (
