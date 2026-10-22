@@ -14,7 +14,8 @@ import { getValidGmailToken } from '@/lib/gmail/token'
 import { checkThreadReply } from '@/lib/gmail/reply-check'
 import { openSignal, clearSignals } from '@/lib/signals'
 import { fetchHtml, scrapeTrustpilot } from '@/lib/lead-finder/reviews'
-import { dataForSeoConfigured, googleResults, mapsBusinesses } from './dataforseo'
+import { searchDataReady, googleResults, mapsBusinesses } from './dataforseo'
+import { agentsDemo, demoReply, demoSend, setDemoContext } from './demo'
 import { hunterConfigured, findEmail } from './hunter'
 import {
   addUsage, defaultLeadData, newMeter, readLeadData, updateLeadData,
@@ -38,7 +39,8 @@ export const sentToday = (d: LeadAgentData) => d.sentLog.filter(t => t.slice(0, 
 async function sendFirstEmail(brandId: string, lead: Lead, followUpDays: number[]): Promise<Partial<Lead>> {
   if (!lead.email || !lead.draft) return { error: 'No email or draft.' }
   try {
-    const sent = await sendGmailMessage(brandId, { to: lead.email, subject: lead.draft.subject, body: textToHtml(`${lead.draft.body}\n\n${OPT_OUT}`) })
+    // Demo mode: recorded as sent, nothing leaves GrowJin
+    const sent = agentsDemo() ? demoSend() : await sendGmailMessage(brandId, { to: lead.email, subject: lead.draft.subject, body: textToHtml(`${lead.draft.body}\n\n${OPT_OUT}`) })
     const now = new Date().toISOString()
     return {
       status: 'sent', sentAt: now, threadId: sent.threadId, followupsSent: 0, error: undefined,
@@ -103,16 +105,20 @@ async function processSentLeads(brandId: string, b: BrandContext, d: LeadAgentDa
   const replies: Lead[] = []
   const sent = d.leads.filter(l => l.status === 'sent' && l.threadId && l.email)
   if (!sent.length) return { patches, replies }
-  let token: string
-  try {
-    token = await getValidGmailToken(brandId)
-  } catch (e) {
-    return { patches, replies, error: e instanceof Error ? e.message : 'Gmail not connected' }
+  const demo = agentsDemo()
+  let token = ''
+  if (!demo) {
+    try {
+      token = await getValidGmailToken(brandId)
+    } catch (e) {
+      return { patches, replies, error: e instanceof Error ? e.message : 'Gmail not connected' }
+    }
   }
   for (const lead of sent) {
     if (Date.now() > deadline) break
     try {
-      const r = await checkThreadReply(brandId, token, lead.threadId!, lead.email!, Date.parse(lead.sentAt!) - 60_000)
+      const firstReply = demo && !replies.length && !d.leads.some(l => l.status === 'replied')
+      const r = demo ? demoReply(lead.id, lead.sentAt!, firstReply) : await checkThreadReply(brandId, token, lead.threadId!, lead.email!, Date.parse(lead.sentAt!) - 60_000)
       if (r.outcome === 'replied' || r.outcome === 'opted_out' || r.outcome === 'bounced') {
         patches.set(lead.id, { status: r.outcome, replyNote: r.note, repliedAt: new Date().toISOString(), nextFollowUpAt: undefined })
         if (r.outcome === 'replied') replies.push({ ...lead, replyNote: r.note })
@@ -121,7 +127,7 @@ async function processSentLeads(brandId: string, b: BrandContext, d: LeadAgentDa
       const due = lead.nextFollowUpAt && Date.parse(lead.nextFollowUpAt) <= Date.now()
       if (due && lead.followupsSent < d.settings.followUpDays.length && lead.draft) {
         const subject = /^re:/i.test(lead.draft.subject) ? lead.draft.subject : `Re: ${lead.draft.subject}`
-        await sendGmailMessage(brandId, { to: lead.email!, subject, body: textToHtml(`${followUpText(lead.followupsSent, lead, b)}\n\n${OPT_OUT}`), threadId: lead.threadId })
+        if (!demo) await sendGmailMessage(brandId, { to: lead.email!, subject, body: textToHtml(`${followUpText(lead.followupsSent, lead, b)}\n\n${OPT_OUT}`), threadId: lead.threadId })
         const n = lead.followupsSent + 1
         const next = d.settings.followUpDays[n]
         patches.set(lead.id, { followupsSent: n, nextFollowUpAt: next ? daysFrom(lead.sentAt!, next) : undefined })
@@ -163,7 +169,7 @@ async function searchQueries(b: BrandContext, s: LeadSettings, d: LeadAgentData)
 }
 
 async function findReddit(queries: string[], country: string, meter: UsageMeter): Promise<Candidate[]> {
-  if (!dataForSeoConfigured() || !queries.length) return []
+  if (!searchDataReady() || !queries.length) return []
   // Two phrases a day, rotating through the list
   const day = Math.floor(Date.now() / 86_400_000)
   const picks = [queries[day % queries.length], queries[(day + 1) % queries.length]].filter((q, i, a) => a.indexOf(q) === i)
@@ -219,7 +225,7 @@ async function findReviews(domains: string[]): Promise<Candidate[]> {
 }
 
 async function findLocal(query: string, country: string, meter: UsageMeter): Promise<Candidate[]> {
-  if (!dataForSeoConfigured() || !query.trim()) return []
+  if (!searchDataReady() || !query.trim()) return []
   const list = await mapsBusinesses(query, country, meter)
   return list
     .filter(x => !x.domain || (x.rating !== null && x.rating < 4.2) || (x.reviews !== null && x.reviews < 30))
@@ -312,7 +318,15 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
   const b = await loadBrandContext(brandId)
   if (!b) return { ok: false, summary: '', error: 'Brand not found.' }
   const fallback = leadFallback(b)
+  const demo = agentsDemo()
+  setDemoContext({ brand: b.name, domain: b.domain, competitors: b.competitors, seeds: (b.keywords ?? '').split(',').map(x => x.trim()).filter(Boolean), round: undefined })
+  // Switching between demo and real data: start the lead list afresh (settings are kept)
+  const saved = await readLeadData(brandId)
+  if (saved && !!saved.demo !== demo) {
+    await updateLeadData(brandId, fallback, x => { x.leads = []; x.sentLog = []; x.approvedCount = 0; x.rejected = []; x.lastError = null; x.demo = demo })
+  }
   const d = (await readLeadData(brandId)) ?? fallback()
+  d.demo = demo
   if (!d.settings.enabled && !opts.manual) return { ok: true, summary: 'Agent is off.' }
   const deadline = opts.deadline ?? Date.now() + 240_000
   const s = d.settings
@@ -419,6 +433,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       x.leads = [...fresh.filter(l => !have.has(l.id)), ...x.leads]
       x.sentLog = [...new Set([...x.sentLog, ...d.sentLog])].sort()
       if (d.queries) x.queries = d.queries
+      x.demo = demo
       if (rejected.length) x.rejected = [...(x.rejected ?? []), ...rejected]
       x.lastRunAt = new Date().toISOString()
       x.lastRunSummary = notes.join(' · ')
@@ -450,4 +465,18 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
 
     return { ok: !errors.length, summary: notes.join(' · '), error: errors.join(' · ') || undefined }
   })
+}
+
+/** Demo mode only: pretend `days` have passed (sent dates move back), then run, so follow-ups and replies show. */
+export async function demoSkipDays(brandId: string, days: number): Promise<RunResult> {
+  if (!agentsDemo()) return { ok: false, summary: '', error: 'Only available in demo mode.' }
+  const b = await loadBrandContext(brandId)
+  if (!b) return { ok: false, summary: '', error: 'Brand not found.' }
+  const back = (iso?: string) => iso ? new Date(Date.parse(iso) - days * 86_400_000).toISOString() : iso
+  await updateLeadData(brandId, leadFallback(b), x => {
+    for (const l of x.leads) { l.sentAt = back(l.sentAt); l.nextFollowUpAt = back(l.nextFollowUpAt); l.foundAt = back(l.foundAt)! }
+    x.sentLog = x.sentLog.map(t => back(t)!)
+  })
+  const r = await runLeadAgent(brandId, { manual: true })
+  return { ...r, summary: `Skipped ahead ${days} days · ${r.summary}` }
 }

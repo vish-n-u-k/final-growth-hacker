@@ -4,9 +4,9 @@ import { useState } from 'react'
 import Link from 'next/link'
 import type { Lead, LeadAgentData, LeadSettings } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
-import { Ago, Day, Toast, initials, useAgentApi } from './shared'
+import { Ago, Day, DemoBanner, Toast, initials, useAgentApi } from './shared'
 
-export interface LeadAgentFlags { dataforseo: boolean; hunter: boolean; gmail: boolean }
+export interface LeadAgentFlags { dataforseo: boolean; hunter: boolean; gmail: boolean; demo: boolean }
 
 const COUNTRIES: [string, string][] = [['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
 const SOURCE_LABEL: Record<Lead['source'], string> = { reddit: 'Reddit', forum: 'Hacker News', review: 'Unhappy reviewer', local: 'Google Maps' }
@@ -231,6 +231,12 @@ export default function LeadAgentPage({ initial, flags, competitorsHint }: { ini
       </p>
       {busy === 'run' && <div className="ag-note">Searching, scoring and drafting usually takes 1–3 minutes. You can keep this page open.</div>}
 
+      {flags.demo && (
+        <DemoBanner>
+          {!firstTime && <button className="ag-btn" type="button" disabled={!!busy} onClick={() => call('demo_skip')}>{busy === 'demo_skip' ? <><Spinner />Skipping ahead…</> : 'Skip ahead 3 days'}</button>}
+          {!firstTime && <span className="ag-meta" style={{ display: 'block', marginTop: 6 }}>Moves sent dates back 3 days and runs the agent, so you can see follow-ups go out and replies come in.</span>}
+        </DemoBanner>
+      )}
       {!flags.gmail && <div className="ag-note ag-note-warn">Connect Gmail so the agent can send approved emails from your address. <a href="/api/gmail/connect">Connect Gmail</a></div>}
       {!flags.dataforseo && (s.sources.reddit || s.sources.local) && <div className="ag-note ag-note-warn">Reddit and Google Maps search need GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet. Hacker News and competitor reviews still work.</div>}
       {!flags.hunter && <div className="ag-note">Verified emails (Hunter) aren&apos;t set up yet, so the agent only uses emails it finds on company websites.</div>}

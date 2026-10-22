@@ -15,10 +15,11 @@ import { openSignal, clearSignals } from '@/lib/signals'
 import { fetchHtml } from '@/lib/lead-finder/reviews'
 import { slugify } from '@/lib/frekto/blog'
 import {
-  AI_ENGINES, ENGINE_LABEL, aiAnswer, dataForSeoConfigured, googleResults, keywordIdeas, rankedKeywords,
+  AI_ENGINES, ENGINE_LABEL, aiAnswer, searchDataReady, googleResults, keywordIdeas, rankedKeywords,
   type AiEngine, type KeywordIdea, type RankedKeyword,
 } from './dataforseo'
 import { readGoogleAdsCreds, wastedSearchTerms } from './google-ads'
+import { agentsDemo, demoWastedSpend, setDemoContext } from './demo'
 import {
   addUsage, defaultSearchData, newMeter, readSearchData, updateSearchData,
   type AdsTip, type AgentTask, type AiAnswer, type RankChange, type SearchAgentData, type Topic,
@@ -230,22 +231,33 @@ function rankChanges(prev: SearchAgentData['ranks'], rows: RankedKeyword[], topi
 export async function runSearchResearch(brandId: string): Promise<{ ok: boolean; summary: string; error?: string }> {
   const b = await loadBrandContext(brandId)
   if (!b) return { ok: false, summary: '', error: 'Brand not found.' }
-  if (!dataForSeoConfigured()) return { ok: false, summary: '', error: 'DataForSEO is not set up yet (DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD).' }
+  if (!searchDataReady()) return { ok: false, summary: '', error: 'DataForSEO is not set up yet (DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD).' }
   const fallback = searchFallback(b)
+  // Switching between demo and real data: start the results afresh (settings are kept)
+  const saved = await readSearchData(brandId)
+  if (saved && !!saved.demo !== agentsDemo()) {
+    await updateSearchData(brandId, fallback, x => {
+      x.topics = []; x.ranks = null; x.rankChanges = []; x.answers = null; x.mentionHistory = []
+      x.description = null; x.tasks = []; x.adsTips = []; x.lastError = null; x.demo = agentsDemo()
+    })
+  }
   const d = (await readSearchData(brandId)) ?? fallback()
   const meter = newMeter()
   const errors: string[] = []
 
   return withAIContext({ brandId, moduleType: 'search-agent', websiteUrl: b.websiteUrl }, async () => {
     await ensureSeedsAndQuestions(b, d).catch(e => errors.push(e instanceof Error ? e.message : 'Setup failed'))
+    setDemoContext({ brand: b.name, domain: b.domain, competitors: b.competitors, seeds: d.settings.seeds, round: d.mentionHistory.length })
     const s = d.settings
-    const ads = await readGoogleAdsCreds(brandId).catch(() => null)
+    const demo = agentsDemo()
+    const ads = demo ? null : await readGoogleAdsCreds(brandId).catch(() => null)
     const [ideas, ranked, answers, desc, wasted] = await Promise.all([
       keywordIdeas(s.seeds, s.country, meter).catch(e => { errors.push(`Keywords: ${e instanceof Error ? e.message : e}`); return [] as KeywordIdea[] }),
       rankedKeywords(b.domain, s.country, meter).catch(e => { errors.push(`Rankings: ${e instanceof Error ? e.message : e}`); return null }),
       askEngines(b, s.questions, meter),
       checkDescription(b, meter).catch(() => null),
-      ads ? wastedSearchTerms(ads).catch(e => { errors.push(`Google Ads: ${e instanceof Error ? e.message : e}`); return null }) : Promise.resolve(null),
+      demo ? Promise.resolve(demoWastedSpend())
+        : ads ? wastedSearchTerms(ads).catch(e => { errors.push(`Google Ads: ${e instanceof Error ? e.message : e}`); return null }) : Promise.resolve(null),
     ])
     const rows = ranked ?? []
     const changes = ranked ? rankChanges(d.ranks, rows, d.topics) : d.rankChanges
@@ -285,6 +297,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       x.tasks = fresh.map(t => prev.get(t.key)?.status && prev.get(t.key)!.status !== 'open' ? { ...t, status: prev.get(t.key)!.status } : t)
       x.adsTips = tips
       x.lastResearchAt = new Date().toISOString()
+      x.demo = demo
       x.lastError = errors.length ? errors.join(' · ') : null
     })
     await addUsage(brandId, meter).catch(() => {})
@@ -312,6 +325,8 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
 // ── Write step ────────────────────────────────────────────────────────────────
 
 async function readPage(url: string): Promise<string> {
+  // Demo results point at made-up pages: describe a typical competitor article instead
+  if (agentsDemo()) return 'Title: A typical list article\nAbout 900 words. Newest year mentioned: 2024.\nSections: Intro | 8 tools | Pricing (no numbers) | Conclusion'
   const html = await fetchHtml(url)
   if (!html) return 'Could not read the page.'
   const $ = cheerio.load(html)
@@ -335,7 +350,7 @@ export async function runSearchWrite(brandId: string): Promise<{ ok: boolean; su
   return withAIContext({ brandId, moduleType: 'search-agent', websiteUrl: b.websiteUrl }, async () => {
     await updateSearchData(brandId, fallback, x => { const t = x.topics.find(y => y.keyword === topic.keyword); if (t) t.status = 'writing' })
     try {
-      const serp = dataForSeoConfigured()
+      const serp = searchDataReady()
         ? (await googleResults(topic.keyword, d.settings.country, meter).catch(() => [])).filter(r => domainOf(r.url) !== b.domain).slice(0, 3)
         : []
       const pages = await Promise.all(serp.map(async r => `#${r.rank} ${r.url}\n${await readPage(r.url)}`))

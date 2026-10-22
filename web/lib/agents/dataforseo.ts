@@ -3,11 +3,17 @@
 // Every call adds its cost (USD, from the response) to the run's meter.
 
 import type { UsageMeter } from './store'
+import { agentsDemo, demoAiAnswer, demoGoogleResults, demoKeywordIdeas, demoMapsBusinesses, demoRankedKeywords } from './demo'
 
 const BASE = 'https://api.dataforseo.com/v3'
 
 export function dataForSeoConfigured(): boolean {
   return !!(process.env.DATAFORSEO_LOGIN && process.env.DATAFORSEO_PASSWORD)
+}
+
+/** Search data is available: the real account, or demo mode (made-up data, see demo.ts). */
+export function searchDataReady(): boolean {
+  return agentsDemo() || dataForSeoConfigured()
 }
 
 // Google location codes for the countries an agent can target
@@ -49,6 +55,7 @@ export interface KeywordIdea { keyword: string; volume: number; cpc: number | nu
 
 export async function keywordIdeas(seeds: string[], country: string, meter?: UsageMeter, limit = 200): Promise<KeywordIdea[]> {
   if (!seeds.length) return []
+  if (agentsDemo()) return demoKeywordIdeas(seeds).slice(0, limit)
   type Item = {
     keyword?: string
     keyword_info?: { search_volume?: number | null; cpc?: number | null }
@@ -79,6 +86,7 @@ export async function keywordIdeas(seeds: string[], country: string, meter?: Usa
 export interface RankedKeyword { keyword: string; volume: number; rank: number; url: string }
 
 export async function rankedKeywords(domain: string, country: string, meter?: UsageMeter, limit = 200): Promise<RankedKeyword[]> {
+  if (agentsDemo()) return demoRankedKeywords(domain).slice(0, limit)
   type Item = {
     keyword_data?: { keyword?: string; keyword_info?: { search_volume?: number | null } }
     ranked_serp_element?: { serp_item?: { rank_absolute?: number; url?: string } }
@@ -105,6 +113,7 @@ export async function rankedKeywords(domain: string, country: string, meter?: Us
 export interface SerpResult { rank: number; url: string; domain: string; title: string; description: string }
 
 export async function googleResults(keyword: string, country: string, meter?: UsageMeter, opts: { depth?: number; recent?: boolean } = {}): Promise<SerpResult[]> {
+  if (agentsDemo()) return demoGoogleResults(keyword)
   type Item = { type?: string; rank_group?: number; url?: string; domain?: string; title?: string; description?: string }
   const task: Record<string, unknown> = { keyword, location_code: locationOf(country), language_code: 'en', depth: opts.depth ?? 10 }
   // Past month only (Google's own date filter); some setups reject it, so retry without
@@ -127,6 +136,7 @@ export async function googleResults(keyword: string, country: string, meter?: Us
 export interface MapsBusiness { title: string; url: string | null; domain: string | null; phone: string | null; rating: number | null; reviews: number | null; category: string | null; address: string | null; mapsUrl: string | null }
 
 export async function mapsBusinesses(query: string, country: string, meter?: UsageMeter): Promise<MapsBusiness[]> {
+  if (agentsDemo()) return demoMapsBusinesses(query)
   type Item = {
     type?: string; title?: string; url?: string | null; domain?: string | null; phone?: string | null
     rating?: { value?: number | null; votes_count?: number | null } | null
@@ -160,6 +170,7 @@ const ENGINE_MODEL: Record<AiEngine, string> = { chat_gpt: 'gpt-4.1-mini', perpl
 export interface AiAnswerRaw { text: string; citations: { url: string; title: string }[] }
 
 export async function aiAnswer(engine: AiEngine, prompt: string, meter?: UsageMeter): Promise<AiAnswerRaw> {
+  if (agentsDemo()) return demoAiAnswer(engine, prompt)
   type Section = { type?: string; text?: string | null; annotations?: { url?: string; direct_url?: string; title?: string }[] | null }
   type Item = { type?: string; sections?: Section[] | null }
   const task: Record<string, unknown> = { user_prompt: prompt.slice(0, 500), model_name: ENGINE_MODEL[engine], max_output_tokens: 1024 }

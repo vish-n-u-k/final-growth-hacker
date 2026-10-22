@@ -5,6 +5,7 @@ import { leadFallback } from '@/lib/agents/lead-agent'
 import { searchFallback } from '@/lib/agents/search-agent'
 import { readLeadData, readSearchData, readUsage } from '@/lib/agents/store'
 import AgentsOverview, { type AgentSummary, type Approval } from '@/components/agents/AgentsOverview'
+import { agentsDemo } from '@/lib/agents/demo'
 
 export const dynamic = 'force-dynamic'
 
@@ -62,5 +63,5 @@ export default async function AgentsPage() {
     ['Replied', replies],
   ]
 
-  return <AgentsOverview search={search} lead={lead} approvals={approvals} funnel={funnel} usage={usage} />
+  return <AgentsOverview search={search} lead={lead} approvals={approvals} funnel={funnel} usage={usage} demo={agentsDemo()} />
 }

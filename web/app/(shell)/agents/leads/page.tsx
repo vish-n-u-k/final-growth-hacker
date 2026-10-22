@@ -4,7 +4,8 @@ import { db } from '@/lib/db'
 import { brandIntegrations } from '@/lib/db/schema'
 import { getSessionUser, getBrandForUser } from '@/lib/server-session'
 import { loadBrandContext } from '@/lib/agents/context'
-import { dataForSeoConfigured } from '@/lib/agents/dataforseo'
+import { searchDataReady } from '@/lib/agents/dataforseo'
+import { agentsDemo } from '@/lib/agents/demo'
 import { hunterConfigured } from '@/lib/agents/hunter'
 import { leadFallback } from '@/lib/agents/lead-agent'
 import { readLeadData } from '@/lib/agents/store'
@@ -30,7 +31,7 @@ export default async function LeadAgent() {
   return (
     <LeadAgentPage
       initial={data ?? leadFallback(b)()}
-      flags={{ dataforseo: dataForSeoConfigured(), hunter: hunterConfigured(), gmail: !!gmail }}
+      flags={{ dataforseo: searchDataReady(), hunter: hunterConfigured(), gmail: agentsDemo() || !!gmail, demo: agentsDemo() }}
       competitorsHint={b.competitors.map(c => c.domain)}
     />
   )

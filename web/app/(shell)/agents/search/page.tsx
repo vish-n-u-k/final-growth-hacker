@@ -5,7 +5,8 @@ import { brandBlogs } from '@/lib/db/schema'
 import { getSessionUser, getBrandForUser } from '@/lib/server-session'
 import { blogMarkdownUrl } from '@/lib/blog-share'
 import { loadBrandContext } from '@/lib/agents/context'
-import { dataForSeoConfigured } from '@/lib/agents/dataforseo'
+import { searchDataReady } from '@/lib/agents/dataforseo'
+import { agentsDemo } from '@/lib/agents/demo'
 import { readGoogleAdsCreds } from '@/lib/agents/google-ads'
 import { searchFallback } from '@/lib/agents/search-agent'
 import { readSearchData } from '@/lib/agents/store'
@@ -36,7 +37,7 @@ export default async function SearchAgent() {
     <SearchAgentPage
       initial={data}
       brandName={b.name}
-      flags={{ dataforseo: dataForSeoConfigured(), googleAds: !!ads }}
+      flags={{ dataforseo: searchDataReady(), googleAds: !!ads, demo: agentsDemo() }}
       drafts={blogs.map(x => ({ ...x, mdUrl: blogMarkdownUrl(appUrl, x.id) }))}
     />
   )

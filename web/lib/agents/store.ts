@@ -70,6 +70,7 @@ export interface LeadAgentData {
   sentLog: string[]             // when first emails went out (daily limit)
   approvedCount: number         // first emails the user approved (auto mode unlocks at 20)
   rejected?: string[]           // ids of finds scored too low, so they aren't scored again
+  demo?: boolean                // made with demo data (lib/agents/demo.ts)
   queries?: { for: string; list: string[] }
   lastRunAt?: string
   lastRunSummary?: string
@@ -131,6 +132,7 @@ export interface SearchAgentData {
   description: { text: string; issue: string | null; at: string } | null
   tasks: AgentTask[]
   adsTips: AdsTip[]
+  demo?: boolean                // made with demo data (lib/agents/demo.ts)
   lastResearchAt?: string
   lastWriteAt?: string
   lastError?: string | null

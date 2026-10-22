@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { agentAccess } from '@/lib/agents/access'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
-import { approveLead, leadFallback, runLeadAgent } from '@/lib/agents/lead-agent'
+import { approveLead, demoSkipDays, leadFallback, runLeadAgent } from '@/lib/agents/lead-agent'
 import { readLeadData, updateLeadData, type LeadSettings } from '@/lib/agents/store'
 import { clearSignals } from '@/lib/signals'
 
@@ -62,7 +62,11 @@ export async function POST(req: NextRequest) {
       const result = await runLeadAgent(brandId, { manual: true, deadline: Date.now() + 270_000 })
       return NextResponse.json({ result, data: await readLeadData(brandId) })
     }
-    case 'approve': {
+    case 'demo_skip': {
+      const result = await demoSkipDays(brandId, 3)
+      return NextResponse.json({ result, data: await readLeadData(brandId) })
+    }
+        case 'approve': {
       if (!body.id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
       const r = await approveLead(brandId, body.id, { subject: body.subject, body: body.body })
       return NextResponse.json({ ...r, data: await readLeadData(brandId) }, { status: r.ok ? 200 : 400 })

@@ -2,11 +2,12 @@
 // call is added to the run's meter. Returns null when nothing usable is found.
 
 import type { UsageMeter } from './store'
+import { agentsDemo, demoFindEmail } from './demo'
 
 const BASE = 'https://api.hunter.io/v2'
 
 export function hunterConfigured(): boolean {
-  return !!process.env.HUNTER_API_KEY
+  return agentsDemo() || !!process.env.HUNTER_API_KEY
 }
 
 export interface FoundEmail { email: string; verified: boolean; name?: string; position?: string }
@@ -19,6 +20,7 @@ function splitName(name: string): { first: string; last: string } | null {
 /** Best email at a company domain: the named person if we know them, else its best personal (or generic) address. */
 export async function findEmail(domain: string, personName: string | undefined, meter?: UsageMeter): Promise<FoundEmail | null> {
   if (!hunterConfigured() || !domain) return null
+  if (agentsDemo()) return demoFindEmail(domain, personName)
   const key = process.env.HUNTER_API_KEY!
   const host = domain.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]
 

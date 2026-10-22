@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import type { AgentUsage } from '@/lib/agents/store'
-import { LeadIcon, SearchIcon } from './shared'
+import { DemoBanner, LeadIcon, SearchIcon } from './shared'
 
 export interface AgentSummary {
   enabled: boolean
@@ -41,12 +41,13 @@ function AgentCard({ name, when, desc, icon, s, href }: { name: string; when: st
   )
 }
 
-export default function AgentsOverview({ search, lead, approvals, funnel, usage }: {
+export default function AgentsOverview({ search, lead, approvals, funnel, usage, demo }: {
   search: AgentSummary
   lead: AgentSummary
   approvals: Approval[]
   funnel: [string, number][]
   usage: AgentUsage
+  demo: boolean
 }) {
   const top = Math.max(1, funnel[0]?.[1] ?? 1)
   return (
@@ -55,6 +56,7 @@ export default function AgentsOverview({ search, lead, approvals, funnel, usage 
         <h1 className="st-page-title">AI Agents</h1>
         <p className="st-page-sub">Two agents that work for you on a schedule. Nothing is published or sent until you approve it.</p>
       </div>
+      {demo && <DemoBanner />}
 
       <div className="ag-grid2">
         <AgentCard

@@ -5,9 +5,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { AgentTask, SearchAgentData, SearchSettings, Topic } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
-import { Ago, Day, Toast, useAgentApi } from './shared'
+import { Ago, Day, DemoBanner, Toast, useAgentApi } from './shared'
 
-export interface SearchAgentFlags { dataforseo: boolean; googleAds: boolean }
+export interface SearchAgentFlags { dataforseo: boolean; googleAds: boolean; demo: boolean }
 export interface DraftInfo { id: string; title: string; content: string; metaDescription: string | null; mdUrl: string }
 
 const COUNTRIES: [string, string][] = [['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
@@ -129,6 +129,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
         {data.lastResearchAt ? <> Last research <Ago iso={data.lastResearchAt} />.</> : null}
       </p>
       {(busy === 'research' || busy === 'write') && <div className="ag-note">{busy === 'research' ? 'Asking the AI assistants and checking Google usually takes 1–2 minutes.' : 'Reading today\'s top results and writing usually takes 1–2 minutes.'} You can keep this page open.</div>}
+      {flags.demo && <DemoBanner>Run research again any time: rankings shift a little each run, so &ldquo;what moved&rdquo; has something to show.</DemoBanner>}
       {!flags.dataforseo && <div className="ag-note ag-note-warn">The Search Agent needs GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet. Settings can be saved now; research starts once it&apos;s connected.</div>}
       {data.lastError && <div className="ag-note ag-note-crit">Last run had a problem: {data.lastError}</div>}
 
@@ -219,7 +220,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
               {data.adsTips.length > 0 && (
                 <section className="ag-card">
                   <h2>Google Ads tips</h2>
-                  {!flags.googleAds && <p className="ag-card-sub">Connect Google Ads in Settings → Integrations to also see wasted spend.</p>}
+                  {!flags.googleAds && !flags.demo && <p className="ag-card-sub">Connect Google Ads in Settings → Integrations to also see wasted spend.</p>}
                   <div className="ag-grid2" style={{ gap: 12 }}>
                     {data.adsTips.map(t => (
                       <div key={t.title} className="ag-note" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
