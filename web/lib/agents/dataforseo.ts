@@ -66,32 +66,51 @@ async function post<T>(path: string, task: Record<string, unknown>, meter?: Usag
 
 export interface KeywordIdea { keyword: string; volume: number; cpc: number | null; difficulty: number | null; intent: string | null }
 
+type IdeaItem = {
+  keyword?: string
+  keyword_info?: { search_volume?: number | null; cpc?: number | null }
+  keyword_properties?: { keyword_difficulty?: number | null }
+  search_intent_info?: { main_intent?: string | null }
+}
+
+const toIdeas = (items: IdeaItem[]): KeywordIdea[] => items
+  .filter(i => i.keyword && (i.keyword_info?.search_volume ?? 0) >= 30)
+  .map(i => ({
+    keyword: i.keyword!,
+    volume: i.keyword_info?.search_volume ?? 0,
+    cpc: i.keyword_info?.cpc ?? null,
+    difficulty: i.keyword_properties?.keyword_difficulty ?? null,
+    intent: i.search_intent_info?.main_intent ?? null,
+  }))
+
+/**
+ * Keyword ideas around the seeds, biggest first. Asks Labs keyword_ideas with the plainest request
+ * (volume filter and sorting are done here); if DataForSEO fails on it (it has returned
+ * "500 Internal Error" for some accounts), falls back to keyword_suggestions for up to 3 seeds.
+ */
 export async function keywordIdeas(seeds: string[], country: string, meter?: UsageMeter, limit = 200): Promise<KeywordIdea[]> {
   if (!seeds.length) return []
   if (agentsDemo()) return demoKeywordIdeas(seeds).slice(0, limit)
-  type Item = {
-    keyword?: string
-    keyword_info?: { search_volume?: number | null; cpc?: number | null }
-    keyword_properties?: { keyword_difficulty?: number | null }
-    search_intent_info?: { main_intent?: string | null }
+  const base = { location_code: locationOf(country), language_code: 'en' }
+  let ideas: KeywordIdea[]
+  try {
+    const r = await post<{ items?: IdeaItem[] | null }>('/dataforseo_labs/google/keyword_ideas/live', {
+      ...base, keywords: seeds.slice(0, 20).map(s => s.toLowerCase()), limit,
+    }, meter)
+    ideas = toIdeas(r.items ?? [])
+  } catch (e) {
+    console.error(`[dataforseo] keyword_ideas failed, trying keyword_suggestions: ${e instanceof Error ? e.message : e}`)
+    const settled = await Promise.allSettled(seeds.slice(0, 3).map(seed =>
+      post<{ items?: IdeaItem[] | null }>('/dataforseo_labs/google/keyword_suggestions/live', {
+        ...base, keyword: seed.toLowerCase(), limit: 70,
+      }, meter)))
+    const ok = settled.filter((x): x is PromiseFulfilledResult<{ items?: IdeaItem[] | null }> => x.status === 'fulfilled')
+    // Both ways failed: report the first error, it is the useful one
+    if (!ok.length) throw e
+    const seen = new Set<string>()
+    ideas = toIdeas(ok.flatMap(x => x.value.items ?? [])).filter(i => !seen.has(i.keyword) && !!seen.add(i.keyword))
   }
-  const r = await post<{ items?: Item[] | null }>('/dataforseo_labs/google/keyword_ideas/live', {
-    keywords: seeds.slice(0, 20).map(s => s.toLowerCase()),
-    location_code: locationOf(country),
-    language_code: 'en',
-    limit,
-    // Volume is filtered here, not with DataForSEO's `filters` (that request kept failing with a 500)
-    order_by: ['keyword_info.search_volume,desc'],
-  }, meter)
-  return (r.items ?? [])
-    .filter(i => i.keyword && (i.keyword_info?.search_volume ?? 0) >= 30)
-    .map(i => ({
-      keyword: i.keyword!,
-      volume: i.keyword_info?.search_volume ?? 0,
-      cpc: i.keyword_info?.cpc ?? null,
-      difficulty: i.keyword_properties?.keyword_difficulty ?? null,
-      intent: i.search_intent_info?.main_intent ?? null,
-    }))
+  return ideas.sort((x, y) => y.volume - x.volume).slice(0, limit)
 }
 
 // ── Where the site ranks ──────────────────────────────────────────────────────
