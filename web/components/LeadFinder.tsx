@@ -159,7 +159,7 @@ export default function LeadFinder({
           <div>
             <button onClick={goBack} className="gh-back">← Back</button>
             <h1 className="gh-title">
-              Lead Finder
+              Competitor Leads
               <span className="gh-badge-new">BETA</span>
             </h1>
             <p className="gh-subtitle">
@@ -173,7 +173,7 @@ export default function LeadFinder({
                 Gmail connected
               </span>
             )}
-            <Link href="/gmail-hub" className="gh-hbtn gh-hbtn-outline">Open Outreach</Link>
+            <Link href="/gmail-hub" className="gh-hbtn gh-hbtn-outline">Email Outreach</Link>
           </div>
         </div>
 

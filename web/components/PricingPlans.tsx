@@ -9,7 +9,7 @@ import { Spinner } from '@/components/ui/spinner'
 const PRO_FEATURES = [
   'Every Growth Path module after the free ones — GEO, competitors, social, brand, content, Meta Ads, outreach, analytics',
   'Today: what happened and what to do next, plus the daily email',
-  'Social Studio, Meta Ads and Reminders (Outreach and Lead Finder coming soon)',
+  'Social Studio, Meta Ads and Reminders (Email Outreach, Competitor Leads and the AI agents coming soon)',
   'Analytics: live users, retention and traffic',
 ]
 

@@ -46,20 +46,25 @@ Routes currently inside `app/(shell)/`: `dashboard` (+ `[moduleId]`, `keywords`,
 ## 2. Navigation (Tier 1 — built)
 
 `components/AppSidebar.tsx`. Real `<Link>`s, `usePathname()` for active state —
-no client-side fake nav switching.
+no client-side fake nav switching. The tools, their names and one-line descriptions come from
+`lib/tools.ts`, which the Tools page (`/tools`) also reads, so a tool is named the same everywhere.
+Groups are by job, in the order you'd do it (find people, then contact them):
 
 ```
-Grow
-  Growth Path     → /dashboard
   Today           → /today
-Work
-  Outreach        → /gmail-hub                    (locked if 'gmail-outreach' module is locked)
+  Growth Path     → /dashboard (roadmap)
+Get customers
+  Lead Agent      → /agents/leads                 (finds leads daily, emails and follows up)
+  Competitor Leads→ /lead-finder                  (one-off scan of a competitor's reviews)
+  Email Outreach  → /gmail-hub                    (locked if 'gmail-outreach' module is locked)
+Get seen
+  Search Agent    → /agents/search
   Social Studio   → /social
-  Meta Ads        → /dashboard/meta-ads/blueprint  (locked if 'meta-ads' module is locked)
-  Lead Finder     → /lead-finder
+  Meta Ads        → /dashboard/meta-ads/blueprint
+Keep track
   Reminders       → /reminders
-Insights
   Analytics       → /analytics
+Coming soon       (parked tools from lib/features.ts, greyed, at the bottom)
 — pinned at bottom —
   Settings        → /settings
   [workspace: avatar initial + brand name]

@@ -7,7 +7,7 @@ import { hasEarlyAccess } from '@/lib/early-access'
 export default async function Layout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser()
   if (!await hasEarlyAccess(user?.email)) {
-    return <ComingSoonPage feature="Lead Finder" blurb="Turn competitor reviews into a list of prospects who already need what you sell." />
+    return <ComingSoonPage feature="Competitor Leads" blurb="Turn competitor reviews into a list of prospects who already need what you sell." />
   }
-  return <ProGate feature="Lead Finder" blurb="Mine competitor reviews for unhappy customers that fit your product, scored and ready for outreach.">{children}</ProGate>
+  return <ProGate feature="Competitor Leads" blurb="Mine competitor reviews for unhappy customers that fit your product, scored and ready for outreach.">{children}</ProGate>
 }

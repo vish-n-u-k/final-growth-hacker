@@ -6,18 +6,9 @@ import { hasEarlyAccess } from '@/lib/early-access'
 import { db } from '@/lib/db'
 import { brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { TOOL_GROUPS } from '@/lib/tools'
+import ToolIcon from '@/components/ToolIcon'
 import ToolCardStatus from './ToolCardStatus'
-
-interface Tool {
-  href: string
-  title: string
-  desc: string
-  color: string
-  glow: string
-  icon: React.ReactNode
-  badge?: 'connected' | 'not-connected'
-  comingSoon?: boolean
-}
 
 export default async function ToolsPage() {
   const user = await getSessionUser()
@@ -32,110 +23,7 @@ export default async function ToolsPage() {
     .from(brandIntegrations)
     .where(and(eq(brandIntegrations.brandId, brand.id), eq(brandIntegrations.provider, 'gmail')))
     .limit(1)
-
   const gmailConnected = gmailInteg?.status === 'connected'
-  const gmailBadge: Tool['badge'] = gmailConnected ? 'connected' : 'not-connected'
-
-  const tools: Tool[] = [
-    {
-      href: '/gmail-hub',
-      title: 'Outreach',
-      desc: 'Leads, AI drafts and follow-ups.',
-      color: '#2563eb',
-      glow: 'rgba(37,99,235,0.25)',
-      badge: gmailBadge,
-      icon: (
-        <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
-          <rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M2 7l8 5 8-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-      ),
-    },
-    {
-      href: '/agents',
-      title: 'AI Agents',
-      desc: 'A Search Agent and a Lead Agent that work for you every week.',
-      color: '#2563eb',
-      glow: 'rgba(37,99,235,0.25)',
-      icon: (
-        <svg viewBox="0 0 20 20" fill="none" width="18" height="18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-          <rect x="4" y="7" width="12" height="9" rx="2.5" />
-          <path d="M10 4.5V7M7.6 11.4v.2M12.4 11.4v.2" />
-          <circle cx="10" cy="3.5" r="1" />
-        </svg>
-      ),
-    },
-    {
-      href: '/lead-finder',
-      title: 'Find Leads',
-      desc: 'Turn reviews into warm prospects.',
-      color: '#059669',
-      glow: 'rgba(5,150,105,0.25)',
-      badge: gmailBadge,
-      icon: (
-        <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
-          <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M17 17l-4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-      ),
-    },
-    {
-      href: '/dashboard/meta-ads/blueprint',
-      title: 'Meta Ads',
-      desc: 'Ready-to-launch ad campaigns.',
-      color: '#7c3aed',
-      glow: 'rgba(124,58,237,0.25)',
-      icon: (
-        <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
-          <rect x="3" y="3" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
-          <rect x="11" y="3" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
-          <rect x="3" y="11" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
-          <rect x="11" y="11" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
-        </svg>
-      ),
-    },
-    {
-      href: '/reminders',
-      title: 'Create Reminders',
-      desc: 'Never miss a follow-up.',
-      color: '#dc2626',
-      glow: 'rgba(220,38,38,0.25)',
-      icon: (
-        <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
-          <path d="M10 2a6 6 0 00-6 6v3l-1.5 2.5h15L16 11V8a6 6 0 00-6-6z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
-          <path d="M8.5 16.5a1.5 1.5 0 003 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-        </svg>
-      ),
-    },
-    {
-      href: '/social',
-      title: 'Social Studio',
-      desc: 'Create and schedule posts.',
-      color: '#db2777',
-      glow: 'rgba(219,39,119,0.25)',
-      icon: (
-        <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
-          <circle cx="5" cy="10" r="2.2" stroke="currentColor" strokeWidth="1.5"/>
-          <circle cx="15" cy="4.5" r="2.2" stroke="currentColor" strokeWidth="1.5"/>
-          <circle cx="15" cy="15.5" r="2.2" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M6.9 8.9l6.2-3.3M6.9 11.1l6.2 3.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-      ),
-    },
-    {
-      href: '/today',
-      title: 'Today',
-      desc: 'What happened, and what to do next.',
-      color: '#d97706',
-      glow: 'rgba(217,119,6,0.25)',
-      icon: (
-        <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
-          <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M10 6v4l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      ),
-    },
-  ]
 
   return (
     <div className="tool-page">
@@ -146,38 +34,41 @@ export default async function ToolsPage() {
           </div>
         </div>
 
-        <div className="tl-grid">
-          {/* Live tools first; one calm colour for all of them (per-tool rainbow colours read as noise). */}
-          {tools
-            .map(t => ({ ...t, color: 'var(--green)', glow: 'var(--green-glow)', comingSoon: t.comingSoon || isComingSoon(t.href, earlyAccess) }))
-            .sort((a, b) => Number(a.comingSoon) - Number(b.comingSoon))
-            .map(tool => {
-            const content = (
-              <>
-                <div className="tl-card-top">
-                  <div className="tl-card-icon">{tool.icon}</div>
-                  {tool.comingSoon ? (
-                    <span className="cs-badge">Coming Soon</span>
-                  ) : tool.badge && (
-                    <span className={`tl-card-badge ${tool.badge === 'connected' ? 'tl-card-badge--on' : 'tl-card-badge--off'}`}>
-                      {tool.badge === 'connected' ? 'Connected' : 'Not connected'}
-                    </span>
-                  )}
-                </div>
-                <div className="tl-card-title">{tool.title}</div>
-                <div className="tl-card-desc">{tool.desc}</div>
-                {!tool.comingSoon && <ToolCardStatus color={tool.color} />}
-              </>
-            )
-
-            const style = { '--tl-color': tool.color, '--tl-glow': tool.glow } as React.CSSProperties
-            return tool.comingSoon ? (
-              <div key={tool.href} className="tl-card tl-card--disabled" style={style}>{content}</div>
-            ) : (
-              <Link key={tool.href} href={tool.href} className="tl-card" style={style}>{content}</Link>
-            )
-          })}
-        </div>
+        {/* Same groups, names and icons as the sidebar (lib/tools.ts); live tools first in each group. */}
+        {TOOL_GROUPS.map(group => (
+          <section key={group.label} className="tl-group">
+            <h2 className="tool-label">{group.label}</h2>
+            <div className="tl-grid">
+              {group.items
+                .map(t => ({ ...t, comingSoon: isComingSoon(t.href, earlyAccess) }))
+                .sort((a, b) => Number(a.comingSoon) - Number(b.comingSoon))
+                .map(tool => {
+                  const content = (
+                    <>
+                      <div className="tl-card-top">
+                        <div className="tl-card-icon"><ToolIcon name={tool.icon} size={18} /></div>
+                        {tool.comingSoon ? (
+                          <span className="cs-badge">Coming Soon</span>
+                        ) : tool.gmail && (
+                          <span className={`tl-card-badge ${gmailConnected ? 'tl-card-badge--on' : 'tl-card-badge--off'}`}>
+                            {gmailConnected ? 'Gmail connected' : 'Gmail not connected'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="tl-card-title">{tool.label}</div>
+                      <div className="tl-card-desc">{tool.desc}</div>
+                      {!tool.comingSoon && <ToolCardStatus color="var(--green)" />}
+                    </>
+                  )
+                  return tool.comingSoon ? (
+                    <div key={tool.href} className="tl-card tl-card--disabled">{content}</div>
+                  ) : (
+                    <Link key={tool.href} href={tool.href} className="tl-card">{content}</Link>
+                  )
+                })}
+            </div>
+          </section>
+        ))}
     </div>
   )
 }
