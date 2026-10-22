@@ -38,12 +38,25 @@ async function post<T>(path: string, task: Record<string, unknown>, meter?: Usag
     body: JSON.stringify([task]),
     signal: AbortSignal.timeout(timeoutMs),
   })
-  if (!res.ok) throw new Error(`DataForSEO ${res.status}`)
+  if (!res.ok) {
+    // Keep DataForSEO's own explanation: a bare "500" can't be acted on
+    const body = await res.text().catch(() => '')
+    let why = ''
+    try { const j = JSON.parse(body) as DfsResponse<T>; why = j.tasks?.[0]?.status_message ?? j.status_message ?? '' } catch { why = body.slice(0, 200) }
+    console.error(`[dataforseo] ${path} → HTTP ${res.status}${why ? `: ${why}` : ''}`)
+    throw new Error(`DataForSEO ${res.status}${why ? `: ${why}` : ''} (${path.split('/').slice(-2).join('/')})`)
+  }
   const json = await res.json() as DfsResponse<T>
-  if (json.status_code !== 20000) throw new Error(`DataForSEO: ${json.status_message ?? json.status_code}`)
+  if (json.status_code !== 20000) {
+    console.error(`[dataforseo] ${path} → ${json.status_code}: ${json.status_message}`)
+    throw new Error(`DataForSEO: ${json.status_message ?? json.status_code}`)
+  }
   const t = json.tasks?.[0]
   if (meter) meter.dataforseo += t?.cost ?? 0
-  if (!t || t.status_code !== 20000) throw new Error(`DataForSEO: ${t?.status_message ?? 'no result'}`)
+  if (!t || t.status_code !== 20000) {
+    console.error(`[dataforseo] ${path} → task ${t?.status_code}: ${t?.status_message}`)
+    throw new Error(`DataForSEO: ${t?.status_message ?? 'no result'}`)
+  }
   const result = t.result?.[0]
   if (!result) throw new Error('DataForSEO: empty result')
   return result
@@ -67,11 +80,11 @@ export async function keywordIdeas(seeds: string[], country: string, meter?: Usa
     location_code: locationOf(country),
     language_code: 'en',
     limit,
-    filters: [['keyword_info.search_volume', '>=', 30]],
+    // Volume is filtered here, not with DataForSEO's `filters` (that request kept failing with a 500)
     order_by: ['keyword_info.search_volume,desc'],
   }, meter)
   return (r.items ?? [])
-    .filter(i => i.keyword)
+    .filter(i => i.keyword && (i.keyword_info?.search_volume ?? 0) >= 30)
     .map(i => ({
       keyword: i.keyword!,
       volume: i.keyword_info?.search_volume ?? 0,
