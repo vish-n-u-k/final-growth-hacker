@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { agentAccess } from '@/lib/agents/access'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
-import { approveLead, demoSkipDays, leadFallback, runLeadAgent } from '@/lib/agents/lead-agent'
+import { addLeadEmail, approveLead, demoSkipDays, leadFallback, runLeadAgent } from '@/lib/agents/lead-agent'
 import { readLeadData, updateLeadData, type LeadSettings } from '@/lib/agents/store'
 import { clearSignals } from '@/lib/signals'
 
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   if (!b) return NextResponse.json({ error: 'No brand' }, { status: 404 })
   const fallback = leadFallback(b)
   const body = await req.json().catch(() => ({})) as {
-    op?: string; id?: string; subject?: string; body?: string; reply?: string; settings?: Partial<LeadSettings>
+    op?: string; id?: string; subject?: string; body?: string; reply?: string; email?: string; settings?: Partial<LeadSettings>
   }
 
   switch (body.op) {
@@ -85,8 +85,15 @@ export async function POST(req: NextRequest) {
       const message = [sent ? `${sent} sent` : null, queued ? `${queued} queued for tomorrow` : null, failed.length ? `${failed.length} failed: ${failed[0]}` : null].filter(Boolean).join(' · ')
       return NextResponse.json({ ok: !failed.length, message: message || 'Nothing to send.', data: await readLeadData(brandId) })
     }
+    case 'email': {
+      const email = typeof body.email === 'string' ? body.email.trim().toLowerCase().slice(0, 200) : ''
+      if (!body.id || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: 'Add a valid email address.' }, { status: 400 })
+      const r = await addLeadEmail(brandId, body.id, email)
+      return NextResponse.json({ ...(r.ok ? {} : { error: r.message }), data: await readLeadData(brandId) }, { status: r.ok ? 200 : 400 })
+    }
     case 'save':
     case 'skip':
+    case 'handled':
     case 'posted':
     case 'restore': {
       if (!body.id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
@@ -95,7 +102,9 @@ export async function POST(req: NextRequest) {
         if (!l) return
         if (body.op === 'skip' && (l.status === 'ready' || l.status === 'needs_contact' || l.status === 'queued')) l.status = 'skipped'
         if (body.op === 'posted' && l.status === 'ready' && l.reply) l.status = 'posted'
+        if (body.op === 'handled' && l.status === 'replied') l.handledAt = new Date().toISOString()
         if (body.op === 'restore' && l.status === 'skipped') l.status = l.reply || (l.email && l.draft) ? 'ready' : 'needs_contact'
+        if (body.op === 'restore' && l.status === 'replied') delete l.handledAt
         if (body.op === 'save') {
           if (l.draft && typeof body.subject === 'string' && typeof body.body === 'string') l.draft = { subject: body.subject.slice(0, 200), body: body.body.slice(0, 4000) }
           if (typeof body.reply === 'string' && l.reply !== undefined) l.reply = body.reply.slice(0, 4000)

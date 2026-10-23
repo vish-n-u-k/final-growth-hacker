@@ -30,6 +30,8 @@ const MIN_SCORE = 7
 const MAX_NEW_PER_RUN = 12
 const OPT_OUT = 'If this isn\'t relevant, just reply "no" and I won\'t email again.'
 
+const PER_SOURCE = 10
+
 export const leadFallback = (b: BrandContext) => () => defaultLeadData(b, b.competitors.map(c => c.domain))
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -313,6 +315,27 @@ Return [{"i":0,"subject":"...","body":"..."}] or [{"i":1,"reply":"..."}]`,
   return out
 }
 
+/** The user added an email to a good lead that had none: save it and write the first email. */
+export async function addLeadEmail(brandId: string, leadId: string, email: string): Promise<{ ok: boolean; message: string }> {
+  const b = await loadBrandContext(brandId)
+  if (!b) return { ok: false, message: 'Brand not found.' }
+  const fallback = leadFallback(b)
+  const d = (await readLeadData(brandId)) ?? fallback()
+  const lead = d.leads.find(l => l.id === leadId)
+  if (!lead) return { ok: false, message: 'Lead not found.' }
+  if (lead.status !== 'needs_contact' && lead.status !== 'ready') return { ok: false, message: 'Already handled.' }
+  const draft = lead.draft ?? await withAIContext({ brandId, moduleType: 'lead-agent', websiteUrl: b.websiteUrl }, async () => {
+    const x = (await draftMessages(b, d.settings, [{ ...lead, email }])).get(lead.id)
+    return x?.subject && x.body ? { subject: x.subject, body: x.body } : undefined
+  })
+  if (!draft) return { ok: false, message: 'Couldn’t write the email. Try again.' }
+  await updateLeadData(brandId, fallback, x => {
+    const l = x.leads.find(y => y.id === leadId)
+    if (l) Object.assign(l, { email, emailVerified: false, draft, status: 'ready' })
+  })
+  return { ok: true, message: 'Email written.' }
+}
+
 // ── The run ───────────────────────────────────────────────────────────────────
 
 export interface RunResult { ok: boolean; summary: string; error?: string }
@@ -391,7 +414,13 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
         s.sources.reviews ? source('Competitor reviews', pr.step('reviews', () => findReviews(s.competitors), r => ({ detail: `${r.filter(fresh).length} new reviewers`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
         s.sources.local ? source('Google Maps search', pr.step('local', () => findLocal(s.localQuery, s.country, meter), r => ({ detail: n(r.length, 'business', 'businesses'), items: r.slice(0, 3).map(x => x.title) }))) : [],
       ])
-      candidates = found.flat().filter((c, i, a) => !known.has(idOf(c.url)) && a.findIndex(x => x.url === c.url) === i).slice(0, 30)
+      // Up to 10 new finds from each source, so a busy one (often Reddit) can't crowd out the rest
+      const seen = new Set<string>()
+      candidates = found.flatMap(list => list.filter(c => {
+        if (known.has(idOf(c.url)) || seen.has(c.url)) return false
+        seen.add(c.url)
+        return true
+      }).slice(0, PER_SOURCE))
     } catch (e) {
       errors.push(e instanceof Error ? e.message : 'Search failed')
     }

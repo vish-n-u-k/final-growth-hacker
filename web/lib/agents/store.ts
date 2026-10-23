@@ -62,6 +62,7 @@ export interface Lead {
   nextFollowUpAt?: string
   replyNote?: string
   repliedAt?: string
+  handledAt?: string            // the user answered their reply (moves it to Done)
   error?: string
 }
 

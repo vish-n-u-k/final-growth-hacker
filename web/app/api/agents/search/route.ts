@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ result, data: await readSearchData(brandId) })
     }
     case 'write': {
-      const result = await runSearchWrite(brandId)
+      const result = await runSearchWrite(brandId, typeof body.keyword === 'string' ? body.keyword : undefined)
       return NextResponse.json({ result, data: await readSearchData(brandId) })
     }
     case 'topic': {

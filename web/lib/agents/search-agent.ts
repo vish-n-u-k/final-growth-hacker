@@ -379,12 +379,13 @@ async function readPage(url: string): Promise<string> {
   return `Title: ${$('title').first().text().trim()}\nAbout ${words} words. Newest year mentioned: ${years.length ? Math.max(...years) : 'none'}.\nSections: ${heads.join(' | ') || 'none found'}`
 }
 
-export async function runSearchWrite(brandId: string): Promise<{ ok: boolean; summary: string; error?: string }> {
+export async function runSearchWrite(brandId: string, keyword?: string): Promise<{ ok: boolean; summary: string; error?: string }> {
   const b = await loadBrandContext(brandId)
   if (!b) return { ok: false, summary: '', error: 'Brand not found.' }
   const fallback = searchFallback(b)
   const d = (await readSearchData(brandId)) ?? fallback()
-  const topic = d.topics.find(t => t.status === 'picked')
+  // A topic the user picked to write now, else the next one in line
+  const topic = d.topics.find(t => t.status === 'picked' && (!keyword || t.keyword === keyword))
   if (!topic) return { ok: true, summary: 'No topic waiting to be written.' }
   const meter = newMeter()
   const p = new Progress(brandId, 'search', `Writing a post for “${topic.keyword}”`, [

@@ -8,13 +8,13 @@ import { Spinner } from '@/components/ui/spinner'
 import { Stars, competitorLabel, fmtDate, firstName, initials, reviewHref, saveReview, step } from '@/components/lead-finder/ui'
 import type { SavedReview, SavedScan } from '@/lib/lead-finder/saved'
 
-// Competitor Leads, step two: reach out to one reviewer in three steps, each saved as it's done
-// (app/api/lead-finder/step):
-//   1 · Email them?   how well the brand fits them, and a yes / not a fit
-//   2 · Their email   looked up, or typed in
-//   3 · Review & send the short email written for them, sent from the user's Gmail
+// Competitor Leads, step two: reach out to one reviewer in two steps, each saved as it's done
+// (app/api/lead-finder/step). The list already said how well they fit (shown on the left), so
+// the steps start at the work:
+//   1 · Their email   looked up, or typed in
+//   2 · Review & send the short email written for them, sent from the user's Gmail
 
-const STEPS = ['Email them?', 'Their email', 'Review & send']
+const STEPS = ['Their email', 'Review & send']
 const textToHtml = (t: string) => t.trim().split(/\n{2,}/).map(p => `<p>${p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p>`).join('')
 const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
 
@@ -60,15 +60,15 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
   useEffect(() => {
     if (r.status === 'sent') return
     const once = (key: string, fn: () => void) => { if (!started.current.has(key)) { started.current.add(key); fn() } }
-    if (stepNo === 1 && r.fit === undefined) once('assess', () => run('assess', `Reading the review and checking how ${brandName} could help…`))
-    if (stepNo === 2 && !r.contactChecked) once('contact', () => run('contact', `Looking for ${name}'s email address…`))
-    if (stepNo === 3 && !r.draft) once('draft', () => run('draft', `Writing a short, personal email to ${name}…`))
+    // Opened straight from a link before the fit was checked: check it quietly for the side panel
+    if (r.fit === undefined) once('assess', () => { step<{ review: SavedReview }>({ op: 'assess', leadId: r.id }).then(x => setR(prev => ({ ...prev, fit: x.review.fit, why: x.review.why, pains: x.review.pains }))).catch(() => {}) })
+    if (stepNo === 1 && !r.contactChecked) once('contact', () => run('contact', `Looking for ${name}'s email address…`))
+    if (stepNo === 2 && !r.draft) once('draft', () => run('draft', `Writing a short, personal email to ${name}…`))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepNo])
 
   function retry() {
-    if (stepNo === 1) run('assess', `Reading the review and checking how ${brandName} could help…`)
-    else if (stepNo === 2) run('contact', `Looking for ${name}'s email address…`)
+    if (stepNo === 1) run('contact', `Looking for ${name}'s email address…`)
     else run('draft', `Writing a short, personal email to ${name}…`)
   }
 
@@ -150,17 +150,6 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
       {next && <Link className="btn btn-primary" href={reviewHref(next.id)}>Next review: {firstName(next.name) || next.name} →</Link>}
     </>
   } else if (stepNo === 1) {
-    title = `Do you want to email ${name}?`
-    hint = `GrowJin checks whether ${name}’s complaint is something ${brandName} actually fixes.`
-    content = working || problem || <>
-      {fitBlock}
-      {r.status === 'skipped' && <p className="ro-note">You marked {name} as not a fit earlier. You can still email them.</p>}
-    </>
-    if (!busy && !error && r.fit !== undefined) actions = <>
-      {r.status !== 'skipped' && <button key="no" className="btn btn-ghost ro-back" type="button" onClick={notAFit}>No, not a fit</button>}
-      <button key="yes" className="btn btn-primary" type="button" onClick={() => setStepNo(2)}>Yes, write an email →</button>
-    </>
-  } else if (stepNo === 2) {
     title = `Where should it go?`
     hint = r.email ? null : r.contactChecked ? null : `Looking for a public email for ${name}.`
     content = working || <>
@@ -182,13 +171,15 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
           </div>
         </div>
       )}
-      <form id="ro-to" className="ro-field" onSubmit={e => { e.preventDefault(); if (validEmail(to)) { saveEdits(); setStepNo(3) } }}>
+      <form id="ro-to" className="ro-field" onSubmit={e => { e.preventDefault(); if (validEmail(to)) { saveEdits(); setStepNo(2) } }}>
         <label htmlFor="ro-to-in">Email address</label>
         <input id="ro-to-in" type="email" value={to} onChange={e => setTo(e.target.value)} placeholder="name@company.com" autoFocus={!r.email} />
       </form>
     </>
     if (!busy) actions = <>
-      <button key="back1" className="btn btn-ghost ro-back" type="button" onClick={() => setStepNo(1)}>← Back</button>
+      {r.status !== 'skipped'
+        ? <button key="skip" className="btn btn-ghost ro-back" type="button" onClick={notAFit}>Skip: not a fit</button>
+        : <span key="sp" className="ro-back" />}
       <button key="continue" className="btn btn-primary" type="submit" form="ro-to" disabled={!validEmail(to)}>Continue →</button>
     </>
   } else {
@@ -208,7 +199,7 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
       </form>
     </>
     if (!busy) actions = <>
-      <button key="back2" className="btn btn-ghost ro-back" type="button" onClick={() => setStepNo(2)}>← Back</button>
+      <button key="back2" className="btn btn-ghost ro-back" type="button" onClick={() => setStepNo(1)}>← Back</button>
       {gmailConnected
         ? <button key="send" className="btn btn-primary" type="submit" form="ro-mail" disabled={sending || !validEmail(to)}>{sending ? <><Spinner />Sending…</> : 'Send email →'}</button>
         : <Link className="btn btn-primary" href="/gmail-hub">Connect Gmail to send</Link>}
@@ -224,7 +215,7 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
         actions={<Link href="/gmail-hub" className="th-link">Email Outreach →</Link>}
       />
       <nav className="ro-crumbs" aria-label="Breadcrumb">
-        <Link className="th-link" href="/lead-finder">← All reviews</Link>
+        <Link className="th-link" href="/lead-finder">← Competitor Leads</Link>
         {scan && <><span aria-hidden="true">/</span><span>{competitorLabel(scan.competitor)}</span></>}
         <span aria-hidden="true">/</span><b>{r.name}</b>
       </nav>
@@ -244,7 +235,7 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
             {scan && <span>Review of <b>{competitorLabel(scan.competitor)}</b> on {scan.platform === 'shopify' ? 'the Shopify App Store' : 'Trustpilot'}</span>}
             {r.reviewUrl && <a className="th-link" href={r.reviewUrl} target="_blank" rel="noopener noreferrer">Read it ↗</a>}
           </div>
-          {(stepNo > 1 || done) && fitBlock}
+          {fitBlock}
         </aside>
 
         <section className="ro-main">

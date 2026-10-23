@@ -55,23 +55,25 @@ export const TOOL_INTROS = {
   },
   leadAgent: {
     icon: 'bot',
-    what: 'Finds new customers for you every day and emails them from your Gmail.',
+    what: 'Finds people who need your product, writes the first message, and follows up until they reply.',
     steps: [
-      { title: 'Find people', body: 'It searches the web for people asking for what you sell, and unhappy customers of your competitors.' },
-      { title: 'Write to them', body: 'It finds their email address and writes a personal note to each one.' },
-      { title: 'Approve & send', body: 'You approve; it sends from your Gmail and follows up if they don\'t reply.' },
+      { title: 'It searches', body: 'Competitors’ unhappy reviewers, Google Maps, Reddit and Hacker News.' },
+      { title: 'You approve', body: 'Every email and every forum reply is written for you to check.' },
+      { title: 'It follows up', body: 'Follow-ups go out on their own and stop when someone replies.' },
     ],
     note: 'Nothing is sent until you approve it.',
   },
+
   competitorLeads: {
     icon: 'target',
-    what: "Finds the people unhappy with a competitor who your product could actually help, so you can email them.",
+    what: 'Finds unhappy customers of a competitor who your product could actually help.',
     steps: [
-      { title: 'Read the reviews', body: "Paste a competitor's website or Shopify App Store link. GrowJin reads their newest reviews and checks how well you fit each unhappy reviewer." },
-      { title: 'See only good fits', body: 'Only reviewers you could really help are listed. Press Reach out on one, and GrowJin looks for their email.' },
-      { title: 'Send the email', body: 'Review the short email written for them, edit it if you like, and send it from your Gmail.' },
+      { title: 'Pick a competitor', body: 'Their website, Trustpilot or Shopify App Store link.' },
+      { title: 'See the good fits', body: 'GrowJin reads their newest reviews and keeps the people you could help.' },
+      { title: 'Email them', body: 'A short, personal email from your Gmail.' },
     ],
   },
+
   emailOutreach: {
     icon: 'mail',
     what: 'Send personal emails to a list of prospects from your Gmail, and follow up with anyone who doesn’t reply.',
@@ -83,13 +85,14 @@ export const TOOL_INTROS = {
   },
   searchAgent: {
     icon: 'search',
-    what: 'Gets you found on Google and in AI answers like ChatGPT: it finds what people search for, writes posts to rank for it, finds sites that should link to you, and tracks the results.',
+    what: 'Gets you found on Google and in AI answers: what to write, sites to get listed on, and where you rank.',
     steps: [
-      { title: 'Pick searches', body: 'It picks searches you have a real chance to rank for.' },
-      { title: 'Write posts', body: 'It writes a blog post for each one for you to review and publish.' },
-      { title: 'Get links & track', body: 'It finds sites that link to your competitors but not you, drafts a pitch for each, and checks your Google position and AI mentions every week.' },
+      { title: 'It researches weekly', body: 'What people search, where you rank, and what AI assistants say.' },
+      { title: 'You get a to-do list', body: 'Posts to write and sites to pitch, drafted for you.' },
+      { title: 'It tracks results', body: 'Your Google rank and AI mentions, every week.' },
     ],
   },
+
   analytics: {
     icon: 'chart',
     what: 'Shows how many people visit your website and sign up, and where they come from.',
