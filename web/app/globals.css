@@ -3719,6 +3719,21 @@ html.light .cs-module-icon { background: var(--bg-soft); border-color: var(--lin
 .gh-qa-green:hover { background: var(--bg-soft); border-color: var(--green-bright); }
 .gh-qa-danger { border-color: var(--gop-err-border); color: var(--gop-err-text); }
 .gh-qa-danger:hover { background: var(--gop-err-bg); }
+a.gh-qa-btn { text-decoration: none; display: inline-flex; align-items: center; }
+
+/* ── Inbox: conversations sent from GrowJin (components/InboxTab.tsx) ── */
+.gh-conv-group { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 16px 8px 20px; border: none; border-bottom: 1px solid var(--line); background: var(--bg-soft); font-family: inherit; font-size: 10.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-faint); text-align: left; }
+.gh-conv-group:not(:disabled) { cursor: pointer; }
+.gh-conv-group:disabled { cursor: default; opacity: 1; }
+.gh-conv-toggle { margin-left: auto; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--green-bright); }
+.gh-conv-source { font-size: 11.5px; color: var(--text-faint); }
+.gh-conv-empty { padding: 48px 28px; text-align: center; color: var(--text-faint); font-size: 13px; }
+.gh-conv-error { margin-bottom: 12px; padding: 10px 14px; border-radius: 10px; font-size: 13px; color: var(--gop-err-text); background: var(--gop-err-bg); border: 1px solid var(--gop-err-border); }
+.gh-conv-placeholder { align-items: center; justify-content: center; padding: 48px 28px; text-align: center; font-size: 13px; color: var(--text-faint); }
+@media (max-width: 760px) {
+  .gh-conv-layout { grid-template-columns: 1fr; }
+  .gh-conv-layout .gh-thread-list { border-right: none; border-bottom: 1px solid var(--line); max-height: 360px; }
+}
 
 /* ── Lead Pipeline ── */
 .gh-pipeline-wrap { margin-top: 24px; }

@@ -23,6 +23,12 @@ export type FollowupOutcome =
 
 export interface CheckResult { reminderId: string; outcome: FollowupOutcome; note?: string }
 
+/** What a human reply is about, so the Inbox can put the ones worth answering first. */
+export type ReplyIntent = 'meeting' | 'interested' | 'question' | 'objection' | 'later' | 'other'
+const INTENTS: Record<string, ReplyIntent> = {
+  MEETING: 'meeting', INTERESTED: 'interested', QUESTION: 'question', OBJECTION: 'objection', LATER: 'later', OTHER: 'other',
+}
+
 type Reminder = typeof reminders.$inferSelect
 
 interface GmailHeader { name: string; value: string }
@@ -60,18 +66,27 @@ function isAutoReply(m: GmailMsg): boolean {
     .test(header(m, 'Subject').replace(/^re:\s*/i, ''))
 }
 
-/** Asks the model whether a human reply is an opt-out. Defaults to 'replied' on any failure. */
-async function classifyReply(text: string): Promise<'replied' | 'opted_out'> {
+/** Asks the model whether a human reply is an opt-out, and if not, what it is about. Defaults to 'replied' / 'other' on any failure. */
+async function classifyReply(text: string): Promise<{ outcome: 'replied' | 'opted_out'; intent?: ReplyIntent }> {
   try {
     const raw = await callAI({ feature: 'gmail-reply-check',
       system: 'You classify replies to sales outreach emails. Answer with exactly one word.',
-      prompt: `Reply text:\n"""${text.slice(0, 2000)}"""\n\nIs the sender asking to stop contact or clearly not interested? Answer OPTOUT or REPLY.`,
+      prompt: `Reply text:\n"""${text.slice(0, 2000)}"""\n\nAnswer with one word:\n`
+        + 'OPTOUT - asks to stop contact or is clearly not interested\n'
+        + 'MEETING - wants a call, demo or meeting\n'
+        + 'INTERESTED - positive, wants to know more or try it\n'
+        + 'QUESTION - asks a question (pricing, features, details)\n'
+        + 'OBJECTION - pushes back (price, timing, already has a tool) but is still talking\n'
+        + 'LATER - not now, asks to check back later\n'
+        + 'OTHER - anything else',
       maxTokens: 5,
       model: 'claude-haiku-4-5-20251001',
     })
-    return /OPTOUT/i.test(raw) ? 'opted_out' : 'replied'
+    if (/OPTOUT/i.test(raw)) return { outcome: 'opted_out' }
+    const word = raw.trim().toUpperCase().match(/[A-Z]+/)?.[0] ?? ''
+    return { outcome: 'replied', intent: INTENTS[word] ?? 'other' }
   } catch {
-    return 'replied'
+    return { outcome: 'replied', intent: 'other' }
   }
 }
 
@@ -165,10 +180,10 @@ export async function checkFollowup(r: Reminder, accessToken: string): Promise<C
   const self = fresh.filter(x => x.m.labelIds?.includes('SENT'))
   const auto = fresh.filter(x => !x.m.labelIds?.includes('SENT') && isAutoReply(x.m))
 
-  const close = async (status: 'replied' | 'opted_out' | 'bounced', note: string) => {
+  const close = async (status: 'replied' | 'opted_out' | 'bounced', note: string, intent?: ReplyIntent) => {
     await db.update(reminders).set({
       enabled: false, lastDoneAt: now, snoozedUntil: null,
-      followupStatus: status, followupNote: note.slice(0, 280),
+      followupStatus: status, followupNote: note.slice(0, 280), followupIntent: intent ?? null,
       followupCheckedAt: now, followupLastSeenAt: lastSeen,
     }).where(eq(reminders.id, r.id))
   }
@@ -179,9 +194,9 @@ export async function checkFollowup(r: Reminder, accessToken: string): Promise<C
       ...human.slice(0, -1).map(x => x.m.snippet ?? ''),
       await replyText(accessToken, latest),
     ].join('\n').trim()
-    const outcome = await classifyReply(text)
+    const { outcome, intent } = await classifyReply(text)
     const note = (elsewhere ? 'Replied in a separate email: ' : '') + (latest.snippet ?? '')
-    await close(outcome, note)
+    await close(outcome, note, intent)
     if (outcome === 'opted_out') {
       // Never email them again — the original recipient and whoever replied for them
       if (recipient) await suppressEmail(r.brandId, recipient, 'opted_out', latest.snippet)
@@ -231,7 +246,7 @@ export async function checkFollowup(r: Reminder, accessToken: string): Promise<C
  */
 export async function checkThreadReply(
   brandId: string, accessToken: string, threadId: string, recipient: string, sinceMs: number,
-): Promise<{ outcome: 'replied' | 'opted_out' | 'bounced' | 'none' | 'untracked'; note?: string }> {
+): Promise<{ outcome: 'replied' | 'opted_out' | 'bounced' | 'none' | 'untracked'; note?: string; intent?: ReplyIntent }> {
   const messages = await fetchThread(accessToken, threadId)
   if (messages === null) return { outcome: 'untracked' }
   const fresh = messages.filter(m => Number(m.internalDate ?? 0) > sinceMs)
@@ -243,9 +258,9 @@ export async function checkThreadReply(
   if (human.length) {
     const latest = [...human].sort((a, b) => Number(a.internalDate ?? 0) - Number(b.internalDate ?? 0))[human.length - 1]
     const text = await replyText(accessToken, latest)
-    const outcome = await classifyReply(text)
+    const { outcome, intent } = await classifyReply(text)
     if (outcome === 'opted_out' && recipient) await suppressEmail(brandId, recipient, 'opted_out', latest.snippet)
-    return { outcome, note: (latest.snippet || text).slice(0, 280) }
+    return { outcome, intent, note: (latest.snippet || text).slice(0, 280) }
   }
   const bounce = fresh.find(isBounce)
   if (bounce) {

@@ -3,8 +3,7 @@
 import { useState, useEffect, useCallback, Fragment } from 'react'
 import { Spinner } from '@/components/ui/spinner'
 
-// Gmail follow-up reminders (created when an email is sent with "Follow up in N days",
-// or via the bell icon in the inbox). Lists what is due and lets the user draft + send,
+// Gmail follow-up reminders (created when an email is sent with "Follow up in N days"). Lists what is due and lets the user draft + send,
 // snooze, or close each one — individually or in bulk.
 
 interface Reminder {

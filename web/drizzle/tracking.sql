@@ -6,6 +6,7 @@ ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_status text;
 ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_note text;
 ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_checked_at timestamptz;
 ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_last_seen_at timestamptz;
+ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_intent text;
 
 CREATE TABLE IF NOT EXISTS email_suppressions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

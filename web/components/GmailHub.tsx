@@ -4,13 +4,14 @@ import { useState, useEffect, useCallback, Fragment } from 'react'
 import Link from 'next/link'
 import { useSmartBack } from '@/lib/useSmartBack'
 import FollowUpsTab from '@/components/FollowUpsTab'
+import InboxTab from '@/components/InboxTab'
 import ToolIntro from '@/components/ToolIntro'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type LeadTag = 'hot' | 'warm' | 'cold' | 'partnership' | 'press' | 'followup' | 'vendor'
-type Tab = 'outreach' | 'campaign' | 'followups'
+type Tab = 'inbox' | 'outreach' | 'campaign' | 'followups'
 type ProspectStatus = 'idle' | 'generating' | 'ready' | 'saving' | 'saved' | 'confirming' | 'sending' | 'sent' | 'error'
 
 interface Prospect { id: string; name: string; email: string; company: string; title: string }
@@ -117,7 +118,7 @@ export default function GmailHub({
 }) {
   const goBack = useSmartBack('/dashboard')
   const [isConnected, setIsConnected]         = useState(initialConnected)
-  const [activeTab, setActiveTab]             = useState<Tab>('campaign')
+  const [activeTab, setActiveTab]             = useState<Tab>('inbox')
   const [copied, setCopied]                   = useState<string | null>(null)
   const [disconnecting, setDisconnecting]     = useState(false)
   const [prospectStates, setProspectStates]     = useState<Record<string, ProspectState>>({})
@@ -129,6 +130,8 @@ export default function GmailHub({
   const [followUpToast, setFollowUpToast]       = useState<string | null>(null)
   // Reply-detected toast: { reminderId, threadId, name, hasReply? }[]
   const [followupNews, setFollowupNews]         = useState<string | null>(null)
+  // Bumped when the reply check finishes so the Inbox reloads with the new statuses
+  const [replyCheckKey, setReplyCheckKey]       = useState(0)
   // Campaign state
   const [campaignInstruction, setCampaignInstruction] = useState('')
   const [campaignImportText, setCampaignImportText]   = useState('')
@@ -176,6 +179,7 @@ export default function GmailHub({
         if (parts.length) setFollowupNews(`${parts.join(', ')}. Those follow-ups were closed automatically.`)
       })
       .catch(() => {})
+      .finally(() => setReplyCheckKey(k => k + 1))
   }, [isConnected])
 
   const loadEmailHistory = useCallback(() => {
@@ -694,7 +698,7 @@ export default function GmailHub({
               Email Outreach
               <span className="gh-badge-new">New</span>
             </div>
-            <div className="gh-subtitle">{brandName} — campaigns and follow-ups</div>
+            <div className="gh-subtitle">{brandName} — campaigns, replies and follow-ups</div>
           </div>
           <div className="gh-header-right">
             <div className="gh-connected-badge">
@@ -741,6 +745,7 @@ export default function GmailHub({
         {/* Tabs */}
         <div className="gh-tabs">
           {([
+            ['inbox',       'Inbox'],
             ['campaign',    'Campaigns'],
             ['followups',   followUpDueCount > 0 ? `Follow-ups (${followUpDueCount})` : 'Follow-ups'],
           ] as [Tab, string][]).map(([key, label]) => (
@@ -1835,6 +1840,10 @@ export default function GmailHub({
         )}
 
         {/* ── Follow-ups ── */}
+        {activeTab === 'inbox' && (
+          <InboxTab refreshKey={replyCheckKey} gmailAddress={gmailAddress} onOpenFollowups={() => setActiveTab('followups')} />
+        )}
+
         {activeTab === 'followups' && <FollowUpsTab onCountChange={setFollowUpDueCount} />}
 
       </div>

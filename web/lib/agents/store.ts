@@ -6,6 +6,7 @@ import { and, eq, gte, inArray, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { aiUsageLogs } from '@/lib/db/schema'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
+import type { ReplyIntent } from '@/lib/gmail/reply-check'
 
 export const LEAD_KEY = 'agent:lead'
 export const SEARCH_KEY = 'agent:search'
@@ -60,6 +61,7 @@ export interface Lead {
   followupsSent: number
   nextFollowUpAt?: string
   replyNote?: string
+  replyIntent?: ReplyIntent
   repliedAt?: string
   error?: string
 }
@@ -152,6 +154,7 @@ export interface LinkOpportunity {
   followupSent?: boolean
   nextFollowUpAt?: string
   replyNote?: string
+  replyIntent?: ReplyIntent
   error?: string
 }
 

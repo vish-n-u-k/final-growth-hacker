@@ -558,6 +558,7 @@ export const reminders = pgTable('reminders', {
   // Gmail follow-up reply tracking (lib/gmail/reply-check.ts)
   followupStatus:     text('followup_status'),      // 'replied' | 'opted_out' | 'bounced' | 'auto_reply' | 'untracked' | null
   followupNote:       text('followup_note'),        // snippet of the reply / reason
+  followupIntent:     text('followup_intent'),      // what a reply is about: 'meeting' | 'interested' | 'question' | 'objection' | 'later' | 'other' (ReplyIntent)
   followupCheckedAt:  timestamp('followup_checked_at', { withTimezone: true }),
   followupLastSeenAt: timestamp('followup_last_seen_at', { withTimezone: true }), // newest thread message already processed
 })

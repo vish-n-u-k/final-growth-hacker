@@ -11,6 +11,7 @@
 import type { AiAnswerRaw, KeywordIdea, LinkingSite, MapsBusiness, RankedKeyword, SerpResult } from './dataforseo'
 import type { FoundEmail } from './hunter'
 import type { WastedSpend } from './google-ads'
+import type { ReplyIntent } from '@/lib/gmail/reply-check'
 
 export function agentsDemo(): boolean {
   if (process.env.AGENTS_DEMO === 'true') return true
@@ -243,11 +244,19 @@ export function demoSend(): { id: string; threadId: string } {
 }
 
 /** What happened to a demo email: some reply, a few opt out or bounce, most stay quiet. */
-export function demoReply(leadId: string, sentAt: string, firstReply = false): { outcome: 'replied' | 'opted_out' | 'bounced' | 'none'; note?: string } {
+export function demoReply(leadId: string, sentAt: string, firstReply = false): { outcome: 'replied' | 'opted_out' | 'bounced' | 'none'; note?: string; intent?: ReplyIntent } {
   if (Date.now() - Date.parse(sentAt) < 20 * 3_600_000) return { outcome: 'none' } // give it a "day"
   // The first email to get a day old always gets a reply, so the demo shows what that looks like
   const x = firstReply ? 0 : rng(`reply:${leadId}`)()
-  if (x < 0.3) return { outcome: 'replied', note: pick(rng(`note:${leadId}`), ['Sounds interesting, can you show me how it works?', 'Yes please, send the free examples.', 'What does it cost for a small team?', 'Maybe next month, a bit busy right now.']) }
+  if (x < 0.3) {
+    const [note, intent] = pick(rng(`note:${leadId}`), [
+      ['Sounds interesting, can you show me how it works?', 'meeting'],
+      ['Yes please, send the free examples.', 'interested'],
+      ['What does it cost for a small team?', 'question'],
+      ['Maybe next month, a bit busy right now.', 'later'],
+    ] as [string, ReplyIntent][])
+    return { outcome: 'replied', note, intent }
+  }
   if (x < 0.38) return { outcome: 'opted_out', note: 'Not interested, thanks.' }
   if (x < 0.42) return { outcome: 'bounced', note: 'Address not found.' }
   return { outcome: 'none' }
