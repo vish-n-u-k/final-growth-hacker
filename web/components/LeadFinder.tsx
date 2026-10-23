@@ -18,6 +18,7 @@ type Show = 'all' | 'good' | 'new' | 'sent' | 'skipped'
 const GOOD = 7         // a good fit is 7+ out of 10
 const MAX_SCORED = 40  // unhappy reviewers checked per scan (time and cost)
 const BATCH = 6
+const PAGE_SIZE = 8     // reviews per page
 const needsScore = (r: SavedReview) => r.rating <= 3 && r.fit === undefined
 
 export default function LeadFinder({ brandName, gmailConnected, competitors = [], trustpilotReady = false, initialScan = null, initialReviews = [], history: initialHistory = [] }: {
@@ -49,6 +50,10 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
   const [stars, setStars] = useState<number[]>([1, 2, 3])
   const [show, setShow] = useState<Show>('all')
   const [sort, setSort] = useState<'fit' | 'new' | 'low' | 'name'>('fit')
+  const [page, setPage] = useState(1)
+  const listTop = useRef<HTMLDivElement>(null)
+  // Back to page 1 whenever the list itself changes
+  useEffect(() => { setPage(1) }, [q, stars, show, sort, scan?.id])
 
   async function scoreAll(scanId: string, list: SavedReview[]) {
     const todo = list.filter(needsScore).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).slice(0, MAX_SCORED)
@@ -147,6 +152,15 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
     }
     return [...list].sort(by[sort])
   }, [reviews, q, stars, show, sort])
+  const pages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE))
+  const cur = Math.min(page, pages)
+  const pageItems = shown.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE)
+  function goTo(n: number) {
+    setPage(n)
+    listTop.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+  // Page numbers to show: first, last, and the ones around the current page
+  const pageNums = Array.from({ length: pages }, (_, i) => i + 1).filter(n => n === 1 || n === pages || Math.abs(n - cur) <= 1)
   const emailed = reviews.filter(r => r.status === 'sent').length
   const goodFits = reviews.filter(r => (r.fit ?? 0) >= GOOD).length
   const checked = reviews.filter(r => r.fit !== undefined).length
@@ -328,7 +342,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
                 <button type="button" className="th-link" onClick={() => scan && scoreAll(scan.id, reviews)}>Try again</button>
               </div>
             )}
-            <div className="cl-count">
+            <div className="cl-count" ref={listTop}>
               {show === 'good' && !scoring ? <>
                 <b>{goodFits} good fit{goodFits === 1 ? '' : 's'}</b>: {goodFits === 1 ? 'the one reviewer' : 'reviewers'} {brandName} scored {GOOD}+ out of 10, from {checked} unhappy reviewer{checked === 1 ? '' : 's'} checked
                 {unhappy > checked ? ` (${unhappy - checked} more not checked yet)` : ''}. Happy reviews (4–5★) aren’t checked.
@@ -341,7 +355,24 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
               {filtersOn && <button type="button" onClick={clearFilters}>Show all</button>}
               </>}
             </div>
-            {shown.length ? shown.map(row) : (
+            {shown.length ? <>
+              {pageItems.map(row)}
+              {pages > 1 && (
+                <nav className="cl-pager" aria-label="Pages">
+                  <span className="cl-pager-info">{(cur - 1) * PAGE_SIZE + 1}–{Math.min(cur * PAGE_SIZE, shown.length)} of {shown.length}</span>
+                  <div className="cl-pager-btns">
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={cur === 1} onClick={() => goTo(cur - 1)}>← Previous</button>
+                    {pageNums.map((n, i) => (
+                      <span key={n} className="cl-pager-n">
+                        {i > 0 && n - pageNums[i - 1] > 1 && <span className="cl-pager-gap" aria-hidden="true">…</span>}
+                        <button type="button" className={`cl-pager-num${n === cur ? ' cl-pager-num--on' : ''}`} aria-current={n === cur ? 'page' : undefined} onClick={() => goTo(n)}>{n}</button>
+                      </span>
+                    ))}
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={cur === pages} onClick={() => goTo(cur + 1)}>Next →</button>
+                  </div>
+                </nav>
+              )}
+            </> : (
               <div className="cl-none">
                 <p>{show === 'good' && !scoring ? `No good fits in these reviews: the unhappy reviewers' complaints aren't things ${brandName} fixes. Try another competitor.` : reviews.some(r => r.rating <= 3) ? 'No reviews match these filters.' : `None of ${competitorLabel(scan.competitor)}'s newest reviews are 1–3 stars, so nobody is unhappy enough to reach out to right now.`}</p>
                 <button className="btn btn-ghost" type="button" onClick={clearFilters}>Show all reviews</button>

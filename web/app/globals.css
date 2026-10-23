@@ -8534,7 +8534,7 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .cl-starf button[aria-pressed="true"] { background: var(--accent); color: var(--accent-foreground); }
 .cl-starf button span { color: #e2a400; }
 .cl-sep { width: 1px; height: 22px; background: var(--line); }
-.cl-count { margin: 0 2px 10px; line-height: 1.5; font-size: 13px; color: var(--text-faint); }
+.cl-count { margin: 0 2px 10px; line-height: 1.5; scroll-margin-top: 90px; font-size: 13px; color: var(--text-faint); }
 .cl-count button { margin-left: 8px; border: 0; background: none; padding: 0; font: 600 13px var(--font-body); color: var(--accent-foreground); cursor: pointer; }
 
 .cl-av { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--bg-soft); color: var(--text-dim); font-size: 13px; font-weight: 700; }
@@ -8567,6 +8567,16 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .cl-fitb--wait { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: var(--text-faint); }
 .cl-newscan { height: 38px; padding: 0 18px; gap: 8px; font-size: 13.5px; box-shadow: 0 2px 8px color-mix(in srgb, var(--green) 28%, transparent); }
 .cl-scanbar:has(.cl-newscan) { padding: 10px 10px 10px 16px; }
+.cl-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 16px 0 4px; }
+.cl-pager-info { font-size: 13px; color: var(--text-faint); }
+.cl-pager-btns { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cl-pager-n { display: inline-flex; align-items: center; gap: 6px; }
+.cl-pager-gap { color: var(--text-faint); font-size: 13px; }
+.cl-pager-num { min-width: 32px; height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text-dim); font: 600 13px var(--font-body); cursor: pointer; }
+.cl-pager-num:hover { border-color: var(--green); color: var(--text); }
+.cl-pager-num--on { border-color: var(--green); background: var(--green); color: #fff; }
+.cl-pager-num--on:hover { color: #fff; }
+.cl-pager .btn:disabled { opacity: .45; cursor: default; }
 .cl-rv--sent { background: color-mix(in srgb, var(--green) 3%, var(--card)); }
 .cl-rv--dim { opacity: .65; }
 .cl-rv-why--good { background: var(--accent); color: var(--text); }
@@ -8673,6 +8683,7 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 }
 @media (max-width: 760px) {
   .cl-newscan { width: 100%; }
+  .cl-pager { justify-content: center; }
   .cl-rv-body { padding-left: 16px; }
   .cl-rv-head .cl-fitb { font-size: 11px; }
   .cl-inrow { flex-direction: column; }
