@@ -29,7 +29,7 @@ What each tool does today:
 |---|---|
 | **Lead Agent** | Two jobs, shown as two tabs. **Email**: finds businesses on Google Maps through DataForSEO, finds their email through Hunter, writes an email and you approve it. Follow-ups go out by themselves and stop when they reply. **Community**: finds Reddit and Hacker News posts asking for a tool like yours, writes a reply, and you post it yourself. It does **not** read competitor reviews any more; that is Competitor Leads' job. |
 | **Competitor Leads** | You pick a competitor. It reads their newest Trustpilot or Shopify App Store reviews, scores how well each unhappy reviewer fits, and you reach out in two steps (their email, then review & send). |
-| **Email Outreach** | Campaigns from your Gmail, as a list, each done in three steps: who gets it, write the emails, review & send. Also has follow-ups as cards, and a Done tab. The Inbox was removed. |
+| **Email Outreach** | Campaigns from your Gmail, as a list, each done in three steps: who gets it, write the emails, review & send. Recipients can be pasted or uploaded as a file (CSV, Excel, PDF, Word, text, .vcf). Also has follow-ups as cards, an Inbox limited to threads GrowJin sent (replies first, tagged by what they say), and a Done tab. |
 | **Search Agent** | Weekly research (DataForSEO plus AI answers), then a to-do list: posts to write (drafted for you), sites to pitch, and "other things to do". Those last ones are actionable: fix how AI describes you, get listed on G2 and similar, pitch article sites. Also Rankings and AI answers tabs. |
 
 ## 2. Code and stack
@@ -60,7 +60,7 @@ What each tool does today:
 | Lead Agent | `web/components/agents/LeadAgentPage.tsx`, `web/lib/agents/lead-agent.ts`, `web/app/api/agents/lead/route.ts` |
 | Search Agent | `web/components/agents/SearchAgentPage.tsx`, `web/lib/agents/search-agent.ts`, `link-opportunities.ts`, `task-help.ts` + `task-kinds.ts` (actionable to-dos), `web/app/api/agents/search/route.ts` |
 | Competitor Leads | `web/components/LeadFinder.tsx`, `web/components/lead-finder/ReachOut.tsx`, `web/app/api/lead-finder/*` |
-| Email Outreach | `web/components/GmailHub.tsx`, `web/components/email-outreach/*` (Campaigns, FollowUps, Done, shared), `web/lib/email-outreach/followups.ts`, `web/app/api/outreach/campaign/route.ts` |
+| Email Outreach | `web/components/GmailHub.tsx`, `web/components/email-outreach/*` (Campaigns, FollowUps, Done, shared), `web/components/InboxTab.tsx`, `web/lib/email-outreach/followups.ts`, `web/lib/gmail/conversations.ts` (Inbox list), `web/lib/outreach/file-contacts.ts` (file upload), `web/app/api/outreach/campaign/route.ts` |
 | Demo mode | `web/lib/agents/demo.ts` (`withDemo` / `agentsDemo` use AsyncLocalStorage, so the setting applies per brand, per request) |
 | Today | `web/components/TodayDashboard.tsx` |
 | Modules | `web/components/AllModulesDashboard.tsx`, `web/lib/modules/registry.ts` |
@@ -126,8 +126,9 @@ Gotchas:
 ## 4. What was done recently (all on `dev`)
 
 1. **Email Outreach rebuilt.**
-   - No Inbox.
-   - Tabs: Follow-ups / Campaigns / Done.
+   - Tabs: Follow-ups / Inbox / Campaigns / Done.
+   - Inbox lists only threads GrowJin sent, from our own records (`outreach_emails`, reminders, agent data); messages load from Gmail on open and aren't stored. The reply check tags replies (wants a call / interested / question / objection / later / other) in `reminders.followup_intent` — **run `web/drizzle/reminders.sql` before deploying**, or every reminders query fails.
+   - Campaign step 1 has "Upload a file": `/api/outreach/parse-file` takes emails straight from the file (no AI).
    - Campaigns are a list, each in 3 steps, autosaved.
    - The campaign API keeps one row per campaign.
    - Follow-ups are cards with Skip + Undo.
@@ -192,7 +193,8 @@ Gotchas:
 ## 6. Known open items
 
 - **Not tested against real services:** none of the recent work has been tried with real Gmail, DataForSEO, Hunter or Claude. Test on a test account before relying on it.
-- **Unused Inbox code:** the routes `/api/gmail/inbox`, `thread`, `summarize-thread`, `set-followup` and old `gh-*` CSS are no longer used. Delete them in a cleanup.
+- **Unused code:** `/api/gmail/set-followup` and some old `gh-*` CSS are no longer used (the old full-mailbox `inbox`, `thread` and `summarize-thread` routes were deleted). The new Inbox reuses the `gh-thread-*` / `gh-msg-*` styles.
+- **Inbox isn't "calm" yet:** it still uses coloured tags and avatars. Apply section 5's rules when Email Outreach gets its pass.
 - **Possibly lost feature:** the Search Agent's old "how often AI names you vs competitors" bar chart was dropped. Ask the owner whether they want it back.
 - **Unconfirmed vendor links:** some directory sign-up links in `web/lib/agents/task-kinds.ts` weren't confirmed. Unknown ones open the site's home page.
 - **Older design previews:** in `design-previews/tools-cleanup/`. `tool-pages.html` is the earlier approved layout, which the calm preview replaces for the tools.
