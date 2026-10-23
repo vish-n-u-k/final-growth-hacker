@@ -2,32 +2,26 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import ToolIntro from '@/components/ToolIntro'
+import ToolHeader from '@/components/ToolHeader'
 import { Spinner } from '@/components/ui/spinner'
-import ReachOut, { type Finish } from '@/components/lead-finder/ReachOut'
-import { competitorLabel, ago, fmtDate, firstName, saveReview, step } from '@/components/lead-finder/ui'
+import { Stars, competitorLabel, ago, fmtDate, initials, reviewHref, saveReview, step } from '@/components/lead-finder/ui'
 import { useToast } from '@/components/email-outreach/shared'
-import { AllCaughtUp, CalmHead, Pager, QuietRow, StartHere, usePages, useShowAll } from '@/components/tool-ui'
+import { Card, ListTools, Tabs, Tag, useShowAll } from '@/components/tool-ui'
 import type { SavedReview, SavedScan } from '@/lib/lead-finder/saved'
 
-// Competitor Leads: read a competitor's newest reviews, then check how well the brand fits each
-// unhappy (1–3 star) reviewer a few at a time. Laid out like the calm preview
-// (design-previews/tools-cleanup/all-tools-calm.html): the best fit is the one "Start here" step,
-// the other good fits are quiet rows, and the rest (another competitor, who was emailed, who
-// isn't a fit) sits behind links. A reviewer opens right here (components/lead-finder/ReachOut);
-// after sending or skipping, the next good fit opens by itself. Everything is saved as it
-// happens (lib/lead-finder/saved.ts).
+// Competitor Leads, step one: read a competitor's newest reviews, list them, then check how well
+// the brand fits each unhappy (1–3 star) reviewer a few at a time, so the best fits rise to the top
+// as they're found. "Reach out" on a review opens its own page (app/(shell)/lead-finder/review/[id])
+// that finds an email and writes one. Everything is saved as it happens (lib/lead-finder/saved.ts).
 
 type Platform = 'trustpilot' | 'shopify'
-type View = 'todo' | 'past' | 'nofit'
+type TabKey = 'good' | 'sent' | 'nofit'
 
 const GOOD = 7         // a good fit is 7+ out of 10
 const MAX_SCORED = 40  // unhappy reviewers checked per scan (time and cost)
 const BATCH = 6
-const SEARCH_FROM = 8  // a search box only once the list is longer than this
+const PAGE_SIZE = 8     // reviews per page
 const needsScore = (r: SavedReview) => r.rating <= 3 && r.fit === undefined
-const byFit = (a: SavedReview, b: SavedReview) => (b.fit ?? -1) - (a.fit ?? -1) || (b.date ?? '').localeCompare(a.date ?? '')
-const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n).trim()}…` : s)
 
 export default function LeadFinder({ brandName, gmailConnected, competitors = [], trustpilotReady = false, initialScan = null, initialReviews = [], history: initialHistory = [] }: {
   brandName: string
@@ -53,13 +47,18 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
   const [scoring, setScoring] = useState<{ done: number; total: number } | null>(null)
   const [scoreError, setScoreError] = useState<string | null>(null)
 
-  const [view, setView] = useState<View>('todo')
-  const [open, setOpen] = useState<string | null>(null)   // the reviewer being reached out to
-  const [sheet, setSheet] = useState(false)               // "Scan another competitor"
+  // Filters and sorting
   const [q, setQ] = useState('')
+  // Good fits first; who was emailed and who isn't a fit are the other two tabs
+  const [stars, setStars] = useState('')
+  const [tab, setTab] = useState<TabKey>('good')
+  const [page, setPage] = useState(1)
+  const [earlier, setEarlier] = useState(false)
   const [toast, notify] = useToast()
-  const scans = useShowAll(history, sheet, 5)
+  const scans = useShowAll(history, earlier, 5)
   const listTop = useRef<HTMLDivElement>(null)
+  // Back to page 1 whenever the list itself changes
+  useEffect(() => { setPage(1) }, [q, stars, tab, scan?.id])
 
   async function scoreAll(scanId: string, list: SavedReview[]) {
     const todo = list.filter(needsScore).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).slice(0, MAX_SCORED)
@@ -90,25 +89,6 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function setStatus(id: string, status: SavedReview['status']) {
-    setReviews(prev => prev.map(x => (x.id === id ? { ...x, status } : x)))
-  }
-  function undoSkip(id: string) {
-    setStatus(id, 'new')
-    saveReview(id, { status: null })
-  }
-
-  // Back from a reviewer's own page (/lead-finder/review/[id]) with nobody left: say what happened
-  useEffect(() => {
-    const p = new URLSearchParams(window.location.search)
-    const done = p.get('done'), id = p.get('id'), who = p.get('name') ?? ''
-    if (!done || !id) return
-    window.history.replaceState(null, '', window.location.pathname)
-    if (done === 'sent') notify(`Sent to ${who}`)
-    else notify(`Skipped ${who}`, () => undoSkip(id))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notify])
-
   function stop() {
     stopRef.current = true
     setPhase(scan ? 'done' : 'empty'); setFailure(null)
@@ -118,10 +98,10 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
     const competitor = target.trim()
     if (!competitor) return
     stopRef.current = false
-    scoringFor.current = null; setScoring(null); setSheet(false); setView('todo'); setOpen(null)
+    scoringFor.current = null; setScoring(null); setEarlier(false)
     const scanId = crypto.randomUUID()
     setInput(competitor); setPhase('running'); setFailure(null)
-    setDetail(platform === 'trustpilot' ? `Asking for ${competitorLabel(competitor)}'s newest Trustpilot reviews` : 'Reading the Shopify App Store review pages')
+    setDetail(platform === 'trustpilot' ? `Asking for ${competitor}'s newest Trustpilot reviews` : 'Reading the Shopify App Store review pages')
     try {
       const args = { platform, url: competitor, scanId }
       let r = await step<{ scan?: SavedScan; reviews?: SavedReview[]; pending?: string }>({ op: 'reviews', ...args })
@@ -136,7 +116,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
       if (!r.scan || !r.reviews?.length) throw new Error(`No reviews found for ${competitor}. Check the ${platform === 'trustpilot' ? 'website or Trustpilot link' : 'App Store link'}.`)
       const s = r.scan
       setScan(s); setReviews(r.reviews); setHistory(prev => [s, ...prev.filter(x => x.id !== s.id)].slice(0, 20))
-      setQ('')
+      setQ(''); setStars(''); setTab('good')
       setPhase('done')
       scoreAll(s.id, r.reviews)
     } catch (e) {
@@ -148,189 +128,214 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
 
   async function openScan(id: string) {
     const s = history.find(x => x.id === id)
-    if (!s || s.id === scan?.id) { setSheet(false); return }
+    if (!s || s.id === scan?.id) return
     setLoadingScan(true)
     try {
       const res = await fetch(`/api/lead-finder/saved?scan=${encodeURIComponent(id)}`)
       const j = await res.json() as { reviews?: SavedReview[] }
       scoringFor.current = null; setScoring(null)
       setScan(s); setPlatform(s.platform); setInput(s.competitor); setReviews(j.reviews ?? []); setPhase('done')
-      setQ(''); setView('todo'); setSheet(false); setOpen(null)
+      setQ(''); setStars(''); setTab('good'); setEarlier(false)
       scoreAll(s.id, j.reviews ?? [])
     } catch { /* keep the current scan */ } finally { setLoadingScan(false) }
   }
 
-  // ── Who's where ─────────────────────────────────────────────────────────────
-  // To do: good fits not emailed or skipped yet, best fit first. Past: emailed or skipped.
-  // Not a fit: checked, under 7.
-  const good = useMemo(() => reviews.filter(r => r.status === 'new' && (r.fit ?? 0) >= GOOD).sort(byFit), [reviews])
-  const past = useMemo(() => reviews.filter(r => r.status === 'sent' || r.status === 'skipped').sort((a, b) => (b.sentAt ?? '').localeCompare(a.sentAt ?? '')), [reviews])
-  const nofit = useMemo(() => reviews.filter(r => r.status === 'new' && r.fit !== undefined && r.fit < GOOD).sort(byFit), [reviews])
+  // ── Tabs, filters and pages ─────────────────────────────────────────────────
+  const tabOf = (r: SavedReview): TabKey | null =>
+    r.status === 'sent' ? 'sent'
+    : r.status === 'skipped' ? 'nofit'
+    : r.fit === undefined ? null                 // not checked yet (or a happy 4–5 star review)
+    : r.fit >= GOOD ? 'good' : 'nofit'
+  const inTab = useMemo(() => reviews.filter(r => tabOf(r) === tab), [reviews, tab])
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase()
+    return inTab
+      .filter(r => (!needle || `${r.name} ${r.text} ${r.why ?? ''}`.toLowerCase().includes(needle)) && (!stars || Math.round(r.rating) === Number(stars)))
+      .sort((a, b) => (tab === 'good' ? (b.fit ?? -1) - (a.fit ?? -1) : 0) || (b.date ?? '').localeCompare(a.date ?? ''))
+  }, [inTab, q, stars, tab])
+  const count = (k: TabKey) => reviews.filter(r => tabOf(r) === k).length
+  const pages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE))
+  const cur = Math.min(page, pages)
+  const pageItems = shown.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE)
+  function goTo(n: number) {
+    setPage(n)
+    listTop.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+  // Page numbers to show: first, last, and the ones around the current page
+  const pageNums = Array.from({ length: pages }, (_, i) => i + 1).filter(n => n === 1 || n === pages || Math.abs(n - cur) <= 1)
   const unhappy = reviews.filter(r => r.rating <= 3).length
-  const [first, ...rest] = good
-  const needle = q.trim().toLowerCase()
-  const shownRest = needle ? rest.filter(r => `${r.name} ${r.text} ${r.why ?? ''}`.toLowerCase().includes(needle)) : rest
-  const pages = usePages(shownRest, [needle, scan?.id])
-  const label = competitorLabel(scan?.competitor ?? input)
-  const opened = open ? reviews.find(r => r.id === open) : undefined
 
-  function openReview(id: string) {
-    setOpen(id); setSheet(false)
-    window.scrollTo({ top: 0 })
+  function setStatus(r: SavedReview, status: 'skipped' | null) {
+    setReviews(prev => prev.map(x => (x.id === r.id ? { ...x, status: status ?? 'new' } : x)))
+    saveReview(r.id, { status })
   }
-
-  // Sent or skipped: straight on to the next good fit, so there's never a moment of "now what?"
-  function finished(r: SavedReview, how: Finish) {
-    setReviews(prev => prev.map(x => (x.id === r.id ? r : x)))
-    const next = good.find(x => x.id !== r.id)
-    const who = firstName(r.name) || r.name
-    if (how === 'sent') notify(`Sent to ${who}`)
-    else notify(`Skipped ${who}`, () => undoSkip(r.id))
-    if (next) openReview(next.id)
-    else { setOpen(null); setView('todo'); window.scrollTo({ top: 0 }) }
-  }
-
-  function bringBack(r: SavedReview) {
-    undoSkip(r.id)
-    notify(`${r.name} is back in your list`)
+  function skip(r: SavedReview) {
+    setStatus(r, 'skipped')
+    notify(`${r.name} moved to Not a fit`, () => setStatus(r, null))
   }
 
   // ── Views ───────────────────────────────────────────────────────────────────
 
-  if (opened) {
-    return (
-      <div className="tool-page ca">
-        <ReachOut key={opened.id} review={opened} scan={scan} gmailConnected={gmailConnected}
-          onBack={r => { setReviews(prev => prev.map(x => (x.id === r.id ? r : x))); setOpen(null) }}
-          onDone={finished} />
-        {toast}
-      </div>
-    )
-  }
-
-  const checking = scoring ? scoring.total - scoring.done : 0
-  const head = (
-    <CalmHead title="Competitor Leads" line={[
-      scan && phase !== 'running' ? <span suppressHydrationWarning>{label} · {scan.reviewsRead} reviews read {ago(scan.scannedAt)}</span> : null,
-      checking > 0 ? `Still checking ${checking} reviewer${checking === 1 ? '' : 's'}` : null,
-      scoreError && !scoring && scan ? <>Couldn’t check some reviewers. <button type="button" className="ca-link" onClick={() => scoreAll(scan.id, reviews)}>Try again</button></> : null,
-      scan ? <button type="button" className="ca-link" aria-expanded={sheet} onClick={() => setSheet(v => !v)}>Scan another competitor</button> : null,
-    ]} />
+  const header = (
+    <ToolHeader
+      icon="target"
+      title="Competitor Leads"
+      intro="competitorLeads"
+      chips={<>
+        <span className="th-chip">Beta</span>
+        <span className={`th-chip ${gmailConnected ? 'th-chip--on' : 'th-chip--warn'}`}>{gmailConnected ? 'Gmail connected' : 'Gmail not connected'}</span>
+      </>}
+      actions={<Link href="/gmail-hub" className="th-link">Email Outreach →</Link>}
+    />
   )
 
-  // Picking a competitor: the whole page on a first visit, a quiet panel after that
-  const scanForm = (inSheet: boolean) => (
-    <form className={inSheet ? 'ca-sheet' : 'ca-pick'} onSubmit={e => { e.preventDefault(); run() }} aria-label="Scan a competitor">
-      {inSheet ? <h2>Scan another competitor</h2> : <>
-        <h2 className="ca-pick-title">Pick a competitor</h2>
-        <p className="ca-pick-text">GrowJin reads their newest reviews and lists the unhappy customers {brandName} could help, each with an email ready for your OK. Takes under a minute. Nothing is sent until you approve it.</p>
-      </>}
-      <label className="ca-field">Competitor
-        <input value={input} onChange={e => setInput(e.target.value)} placeholder={platform === 'trustpilot' ? 'competitor.com or their Trustpilot link' : 'apps.shopify.com/competitor-app'} />
-      </label>
-      <div className="ca-opts" role="radiogroup" aria-label="Where their reviews are">
-        {(['trustpilot', 'shopify'] as const).map(p => (
-          <label key={p}><input type="radio" name={inSheet ? 'cl-plat-sheet' : 'cl-plat'} checked={platform === p} onChange={() => setPlatform(p)} />{p === 'trustpilot' ? 'Trustpilot' : 'Shopify App Store'}</label>
-        ))}
+  // The competitor box is the tool, so it stays at the top
+  const scanForm = (
+    <form className="tu-scan" onSubmit={e => { e.preventDefault(); run() }}>
+      <div className="tu-scan-row">
+        <div className="cl-seg" role="group" aria-label="Where their reviews are">
+          {(['trustpilot', 'shopify'] as const).map(p => (
+            <button key={p} type="button" aria-pressed={platform === p} onClick={() => setPlatform(p)}>{p === 'trustpilot' ? 'Trustpilot' : 'Shopify App Store'}</button>
+          ))}
+        </div>
+        <input className="cl-in" value={input} onChange={e => setInput(e.target.value)} aria-label="Competitor"
+          placeholder={platform === 'trustpilot' ? 'competitor.com or their Trustpilot link' : 'apps.shopify.com/competitor-app'} />
+        {phase === 'running'
+          ? <button className="btn btn-ghost cl-go" type="button" onClick={stop}>Stop</button>
+          : <button className="btn btn-primary cl-go" type="submit" disabled={!input.trim()}>{scan && competitorLabel(input) === competitorLabel(scan.competitor) ? 'Scan again' : 'Find leads'}</button>}
       </div>
-      {platform === 'trustpilot' && competitors.length > 0 && (
-        <p className="ca-small">Your competitors: {competitors.map((c, i) => <span key={c}>{i > 0 && ' · '}<button type="button" className="ca-link" onClick={() => setInput(c)}>{c}</button></span>)}</p>
-      )}
-      {platform === 'trustpilot' && !trustpilotReady && <p className="ca-small">Trustpilot often blocks automatic reading unless DataForSEO is set up. The Shopify App Store works either way.</p>}
-      {inSheet && history.length > 1 && (
-        <div className="ca-earlier">
-          <p className="ca-small">Earlier scans</p>
+      <div className="tu-scan-sub">
+        {platform === 'trustpilot' && competitors.length > 0
+          ? <span className="cl-try">Your competitors:{competitors.map(c => <button key={c} type="button" onClick={() => setInput(c)}>{c}</button>)}</span>
+          : <span />}
+        {scan && phase !== 'running' && (
+          <span className="cl-muted">
+            {competitorLabel(scan.competitor)} · {scan.reviewsRead} reviews read {ago(scan.scannedAt)}
+            {history.length > 1 && <> · <button type="button" className="th-link tu-linkbtn" aria-expanded={earlier} onClick={() => setEarlier(v => !v)}>Earlier scans {earlier ? '▴' : '▾'}</button></>}
+          </span>
+        )}
+      </div>
+      {platform === 'trustpilot' && !trustpilotReady && <p className="cl-warn">Trustpilot often blocks automatic reading unless DataForSEO is set up. The Shopify App Store works either way.</p>}
+      {earlier && (
+        <div className="tu-hist">
           {scans.items.map(h => (
-            <button key={h.id} type="button" className="ca-link" disabled={loadingScan} aria-current={h.id === scan?.id ? 'true' : undefined} onClick={() => openScan(h.id)}>
-              {competitorLabel(h.competitor)} · {fmtDate(h.scannedAt)}{h.emailed ? ` · ${h.emailed} emailed` : ''}
+            <button key={h.id} type="button" disabled={loadingScan} aria-current={h.id === scan?.id ? 'true' : undefined} onClick={() => { openScan(h.id); setEarlier(false) }}>
+              {competitorLabel(h.competitor)}<span>{fmtDate(h.scannedAt)}{h.emailed ? ` · ${h.emailed} emailed` : ''}</span>
             </button>
           ))}
           {scans.toggle}
         </div>
       )}
-      {inSheet && <div className="ca-status">{gmailConnected ? 'Gmail connected. Emails go out from your Gmail.' : <>Gmail isn’t connected. <Link className="ca-link" href="/gmail-hub">Connect Gmail</Link></>}</div>}
-      <div className="ca-acts">
-        {inSheet && <button type="button" className="btn btn-link" onClick={() => setSheet(false)}>Close</button>}
-        <button className="btn btn-primary ca-go" type="submit" disabled={!input.trim()}>Find leads</button>
-      </div>
     </form>
   )
 
-  let body: React.ReactNode
-  if (phase === 'running') {
-    body = (
-      <div className="ca-note" aria-live="polite">
-        <Spinner size={16} />
-        <span className="ca-note-text"><b>Reading {competitorLabel(input)}’s reviews</b>{detail}</span>
-        <button type="button" className="ca-link" onClick={stop}>Stop</button>
-      </div>
+  // A review card: who and how well they fit, why, what they said; Skip and Reach out at the bottom
+  function row(r: SavedReview) {
+    const t = tabOf(r)
+    return (
+      <Card key={r.id} av={initials(r.name)} name={r.name}
+        sub={<><Stars n={r.rating} />{r.date && <span>{fmtDate(r.date)}</span>}
+          {r.reviewUrl && <a className="th-link" href={r.reviewUrl} target="_blank" rel="noopener noreferrer">Read review ↗</a>}</>}
+        badge={r.fit !== undefined && <span className={`cl-fitb cl-fitb--${r.fit >= GOOD ? 'good' : r.fit >= 5 ? 'mid' : 'low'}`}>{r.fit >= GOOD ? 'Good fit' : r.fit >= 5 ? 'Partial fit' : 'Weak fit'} · {r.fit}/10</span>}
+        why={r.why} quote={`“${r.text}”`}
+        state={r.status === 'sent' ? <Tag tone="ok">✓ Emailed{r.sentAt ? ` ${fmtDate(r.sentAt)}` : ''}</Tag> : r.status === 'skipped' ? <Tag>Marked not a fit</Tag> : null}
+        onSkip={t === 'good' ? () => skip(r) : undefined}
+        action={t === 'good'
+          ? <Link className="btn btn-primary btn-sm cl-reach" href={reviewHref(r.id)}>Reach out →</Link>
+          : <Link className="btn btn-sm cl-btn-outline" href={reviewHref(r.id)}>{t === 'sent' ? 'View email' : 'Reach out anyway'}</Link>} />
     )
-  } else if (phase === 'failed') {
-    body = (
-      <AllCaughtUp title="Couldn’t read the reviews" text={failure} action={
-        <div className="ca-acts ca-acts--center">
-          {platform === 'trustpilot' && <button className="btn btn-link" type="button" onClick={() => { setPlatform('shopify'); setInput(''); setPhase(scan ? 'done' : 'empty'); if (scan) setSheet(true) }}>Use Shopify App Store</button>}
-          {scan && <button className="btn btn-link" type="button" onClick={() => setPhase('done')}>Back to {label}</button>}
-          <button className="btn btn-primary ca-go" type="button" onClick={() => run(input)}>Try again</button>
-        </div>
-      } />
-    )
-  } else if (!scan) {
-    body = scanForm(false)
-  } else if (view !== 'todo') {
-    const list = view === 'past' ? past : nofit
-    body = <>
-      <button type="button" className="ca-link ca-back" onClick={() => setView('todo')}>← Back to what’s left</button>
-      <p className="ca-rest-h">{view === 'past' ? 'Emailed or skipped' : `Not a fit for ${brandName}`}</p>
-      {list.map(r => r.status === 'skipped'
-        ? <QuietRow key={r.id} name={r.name} why="Skipped" go={null} after={<button type="button" className="btn btn-link" onClick={() => bringBack(r)}>Bring back</button>} />
-        : <QuietRow key={r.id} onClick={() => openReview(r.id)} name={r.name}
-            why={r.status === 'sent' ? `Emailed${r.sentAt ? ` ${fmtDate(r.sentAt)}` : ''}. You’ll get a reminder to follow up in 5 days.` : r.why}
-            go={r.status === 'sent' ? 'View email' : 'Reach out anyway'} />)}
-      {!list.length && <p className="ca-small">Nobody here.</p>}
-    </>
-  } else {
-    const more = (nofit.length > 0 || past.length > 0) && (
-      <div className="ca-more">
-        {nofit.length > 0 && <button type="button" className="ca-link" onClick={() => setView('nofit')}>{nofit.length} {nofit.length === 1 ? 'wasn’t' : 'weren’t'} a fit</button>}
-        {past.length > 0 && <button type="button" className="ca-link" onClick={() => setView('past')}>{past.length} emailed or skipped</button>}
-      </div>
-    )
-    body = first ? <>
-      {!gmailConnected && <div className="ca-note"><span className="ca-note-text">Gmail isn’t connected, so emails can’t be sent yet.</span><Link className="ca-link" href="/gmail-hub">Connect Gmail</Link></div>}
-      <StartHere
-        title={`${good.length} unhappy ${label} customer${good.length === 1 ? '' : 's'} you could help`}
-        sub={`Start with ${short(first.name, 40)}.${good.length > 1 ? ' The best fit is first.' : ''}`}
-        action={<button type="button" className="btn btn-primary ca-go" onClick={() => openReview(first.id)}>Reach out →</button>} />
-      {rest.length > 0 && (
-        <div className="ca-rest" ref={listTop}>
-          <p className="ca-rest-h">Then</p>
-          {rest.length > SEARCH_FROM && <input className="ca-search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search" aria-label="Search" />}
-          {pages.items.map(r => <QuietRow key={r.id} onClick={() => openReview(r.id)} name={r.name} why={r.why || r.text} />)}
-          {needle && !shownRest.length && <p className="ca-small">Nothing matches.</p>}
-          <Pager p={pages} top={listTop} />
-        </div>
-      )}
-      {more}
-    </> : <>
-      {scoring
-        ? <div className="ca-note" aria-live="polite"><Spinner size={16} /><span className="ca-note-text"><b>Finding the best fits for {brandName}</b>Checked {scoring.done} of {scoring.total} unhappy reviewers. Good fits show up here as they’re found.</span></div>
-        : <AllCaughtUp
-            title={past.length ? 'All caught up' : 'No good fits this time'}
-            text={past.length ? `You’ve reached every good fit from ${label}’s reviews. Try another competitor.`
-              : unhappy ? `${label}’s unhappy reviewers complain about things ${brandName} doesn’t fix. Try another competitor.`
-              : `None of ${label}’s newest reviews are 1–3 stars, so nobody is unhappy enough to reach out to right now.`}
-            action={<button type="button" className="btn btn-primary ca-go" onClick={() => setSheet(true)}>Scan another competitor</button>} />}
-      {more}
-    </>
   }
 
+  const empty = tab === 'good'
+    ? (scoring ? 'Checking the unhappy reviewers. Good fits show up here as they’re found.'
+      : unhappy ? `No good fits this time: ${competitorLabel(scan?.competitor ?? '')}’s unhappy reviewers complain about things ${brandName} doesn’t fix. Try another competitor.`
+      : `None of ${competitorLabel(scan?.competitor ?? '')}’s newest reviews are 1–3 stars, so nobody is unhappy enough to reach out to right now.`)
+    : tab === 'sent' ? 'Nobody emailed yet. Emails you send from a good fit show up here.'
+    : 'Nobody here. Reviewers who aren’t a fit, or that you skip, show up here.'
+
   return (
-    <div className="tool-page ca">
-      {head}
-      {!scan && phase !== 'running' && <ToolIntro id="competitorLeads" />}
-      {sheet && scan && phase !== 'running' && scanForm(true)}
-      <div className="ca-body">{body}</div>
+    <div className="tool-page">
+      {header}
+      <div className="cl">
+        {scanForm}
+
+        {phase === 'empty' && !scan && (
+          <section className="tu-hello">
+            <div className="cl-art" aria-hidden="true">
+              <div className="cl-art-rv"><Stars n={2} /><i /><i style={{ width: '70%' }} /></div>
+              <span className="cl-art-ar">→</span>
+              <span className="cl-art-env"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="2.5" y="4.5" width="15" height="11" rx="2" /><path d="M3.5 6l6.5 5 6.5-5" /></svg></span>
+            </div>
+            <p>Pick a competitor above. GrowJin reads their newest reviews and lists the unhappy customers {brandName} could help, each with an email ready to send.</p>
+            <div className="cl-fine"><span>Takes under a minute</span><span>Costs a cent or two</span><span>Nothing is sent until you approve it</span></div>
+          </section>
+        )}
+
+        {phase === 'running' && (
+          <div className="cl-reading" aria-live="polite"><Spinner size={16} /><div><b>Reading reviews</b><span>{detail}</span></div></div>
+        )}
+
+        {phase === 'failed' && (
+          <div className="cl-prob" role="alert">
+            <h3>Couldn’t read the reviews</h3>
+            <p>{failure}</p>
+            <div className="cl-acts">
+              <button className="btn btn-primary" type="button" onClick={() => run(input)}>Try again</button>
+              {platform === 'trustpilot' && <button className="btn btn-ghost" type="button" onClick={() => { setPlatform('shopify'); setPhase(scan ? 'done' : 'empty'); setInput('') }}>Use Shopify App Store</button>}
+              {scan && <button className="btn btn-ghost" type="button" onClick={() => setPhase('done')}>Back to {competitorLabel(scan.competitor)}</button>}
+            </div>
+          </div>
+        )}
+
+        {(phase === 'done' || (phase === 'empty' && scan)) && scan && (
+          <>
+            {scoring && (
+              <div className="cl-scoring" aria-live="polite">
+                <Spinner size={14} />
+                <span>Finding the best fits for {brandName} · <b>{scoring.done} of {scoring.total}</b> checked{count('good') ? ` · ${count('good')} good fit${count('good') === 1 ? '' : 's'} so far` : ''}</span>
+                <span className="cl-scoring-bar"><i style={{ width: `${Math.round(scoring.done / scoring.total * 100)}%` }} /></span>
+              </div>
+            )}
+            {scoreError && !scoring && (
+              <div className="cl-scoring cl-scoring--bad" role="alert">
+                <span>{scoreError}</span>
+                <button type="button" className="th-link" onClick={() => scoreAll(scan.id, reviews)}>Try again</button>
+              </div>
+            )}
+            <Tabs value={tab} onChange={k => { setTab(k); setQ(''); setStars('') }} tabs={[
+              { key: 'good', label: 'Good fits', count: count('good') },
+              { key: 'sent', label: 'Emailed', count: count('sent') },
+              { key: 'nofit', label: 'Not a fit', count: count('nofit') },
+            ]} />
+            <div ref={listTop} className="tu-anchor" />
+            <ListTools q={q} setQ={setQ} shown={shown.length} total={inTab.length} onClear={() => { setQ(''); setStars('') }}
+              filter={
+                <select className={`cl-sel${stars ? ' cl-sel--on' : ''}`} value={stars} onChange={e => setStars(e.target.value)} aria-label="Stars">
+                  <option value="">All stars</option>
+                  {[1, 2, 3].map(n => <option key={n} value={n}>{n}★</option>)}
+                </select>
+              } />
+            {shown.length ? <>
+              {pageItems.map(row)}
+              {pages > 1 && (
+                <nav className="cl-pager" aria-label="Pages">
+                  <span className="cl-pager-info">{(cur - 1) * PAGE_SIZE + 1}–{Math.min(cur * PAGE_SIZE, shown.length)} of {shown.length}</span>
+                  <div className="cl-pager-btns">
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={cur === 1} onClick={() => goTo(cur - 1)}>← Previous</button>
+                    {pageNums.map((n, i) => (
+                      <span key={n} className="cl-pager-n">
+                        {i > 0 && n - pageNums[i - 1] > 1 && <span className="cl-pager-gap" aria-hidden="true">…</span>}
+                        <button type="button" className={`cl-pager-num${n === cur ? ' cl-pager-num--on' : ''}`} aria-current={n === cur ? 'page' : undefined} onClick={() => goTo(n)}>{n}</button>
+                      </span>
+                    ))}
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={cur === pages} onClick={() => goTo(cur + 1)}>Next →</button>
+                  </div>
+                </nav>
+              )}
+            </> : <div className="tu-empty">{inTab.length ? 'Nothing matches.' : empty}</div>}
+          </>
+        )}
+      </div>
       {toast}
     </div>
   )
