@@ -5,12 +5,22 @@ import { leadFallback } from '@/lib/agents/lead-agent'
 import { searchFallback } from '@/lib/agents/search-agent'
 import { readLeadData, readSearchData, readUsage } from '@/lib/agents/store'
 import AgentsOverview, { type AgentSummary, type Approval } from '@/components/agents/AgentsOverview'
-import { agentsDemo } from '@/lib/agents/demo'
+import { agentsDemo, demoForced, withDemo } from '@/lib/agents/demo'
+import { readDemoSwitch } from '@/lib/agents/store'
 import { serviceStatus } from '@/lib/agents/services'
 
 export const dynamic = 'force-dynamic'
 
-export default async function AgentsPage() {
+// Shown with the brand's demo-mode switch applied (lib/agents/demo.ts)
+export default async function AgentsRoute() {
+  const user = await getSessionUser()
+  if (!user) redirect('/login')
+  const brand = await getBrandForUser(user.id)
+  if (!brand) redirect('/onboarding')
+  return withDemo(await readDemoSwitch(brand.id), () => AgentsPage())
+}
+
+async function AgentsPage() {
   const user = await getSessionUser()
   if (!user) redirect('/login')
   const brand = await getBrandForUser(user.id)

@@ -1,21 +1,37 @@
 // Demo mode for the AI Agents: try the whole flow before paying for DataForSEO and Hunter.
-// On when AGENTS_DEMO=true, or automatically while DataForSEO isn't set up. In demo mode:
+// Each brand switches it on or off on the agent pages (saved per brand, applied per request with
+// withDemo). It's always on when AGENTS_DEMO=true or while DataForSEO isn't set up. In demo mode:
 //   - Google results, rankings, keyword data, Maps businesses, AI answers, backlinks (DataForSEO), email
 //     lookups (Hunter) and Google Ads waste are made up, from the brand's own keywords and
 //     competitors, and shift a little between runs so "what moved" has something to show
 //   - no email is sent: sending, replies, opt-outs and bounces are simulated
 //   - Claude and Hacker News are real (free or cheap), so scoring and
 //     drafts show the real quality
-// Everything an agent saves in demo mode is marked, and cleared once real data is switched on.
+// Demo data is saved apart from real data (lib/agents/store.ts), so switching back and forth loses
+// nothing.
 
+import { AsyncLocalStorage } from 'node:async_hooks'
 import type { AiAnswerRaw, KeywordIdea, LinkingSite, MapsBusiness, RankedKeyword, SerpResult } from './dataforseo'
 import type { FoundEmail } from './hunter'
 import type { WastedSpend } from './google-ads'
 
-export function agentsDemo(): boolean {
+/** Demo can't be switched off: forced by AGENTS_DEMO=true, or DataForSEO isn't set up. */
+export function demoForced(): boolean {
   if (process.env.AGENTS_DEMO === 'true') return true
   if (process.env.AGENTS_DEMO === 'false') return false
   return !(process.env.DATAFORSEO_LOGIN && process.env.DATAFORSEO_PASSWORD)
+}
+
+// The brand's own switch, for the request or run being handled
+const brandDemo = new AsyncLocalStorage<boolean>()
+
+/** Runs `fn` with the brand's demo switch applied (see readDemoSwitch). */
+export function withDemo<T>(on: boolean, fn: () => Promise<T>): Promise<T> {
+  return brandDemo.run(on, fn)
+}
+
+export function agentsDemo(): boolean {
+  return demoForced() || brandDemo.getStore() === true
 }
 
 // What the made-up data is built from (set by the agent before a run)

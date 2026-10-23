@@ -208,6 +208,17 @@ export function LiveProgress({ agent, active, fallback }: { agent: 'lead' | 'sea
   )
 }
 
+/** The demo-mode switch on the agent pages: made-up data, nothing sent (lib/agents/demo.ts). */
+export function DemoSwitch({ on, forced, busy, onChange }: { on: boolean; forced: boolean; busy: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className={`tu-switch${on ? ' is-on' : ''}`} title={forced ? 'Stays on until DataForSEO is set up' : 'Try the whole flow with made-up data. Nothing is sent.'}>
+      <input type="checkbox" role="switch" checked={on} disabled={forced || busy} onChange={e => onChange(e.target.checked)} />
+      <span className="tu-switch-track" aria-hidden="true"><i /></span>
+      Demo mode
+    </label>
+  )
+}
+
 /** Search box and filters above a list, and "Showing x of y · Clear" when something is filtered. */
 export function ListTools({ q, setQ, filter, shown, total, onClear }: {
   q: string; setQ: (v: string) => void; filter?: React.ReactNode; shown: number; total: number; onClear: () => void

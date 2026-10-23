@@ -1,16 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { agentAccess } from '@/lib/agents/access'
+import { demoForced, withDemo } from '@/lib/agents/demo'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
 import { runSearchResearch, runSearchWrite, searchFallback, setTopicStatus } from '@/lib/agents/search-agent'
 import { readSearchData, updateSearchData, type AgentTask, type SearchSettings, type Topic } from '@/lib/agents/store'
+import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
 import { runLinkOpportunities, sendLinkPitch, updateLink } from '@/lib/agents/link-opportunities'
 import { clearSignals } from '@/lib/signals'
 
 export const dynamic = 'force-dynamic'
+// Every request runs with the brand's demo-mode switch (lib/agents/demo.ts)
+async function inDemo<T extends Response>(fn: () => Promise<T>): Promise<T | Response> {
+  const a = await agentAccess()
+  if (a.error) return a.error
+  return withDemo(await readDemoSwitch(a.brandId), fn)
+}
+
 export const maxDuration = 300
 
-export async function GET() {
+export async function GET() { return inDemo(get) }
+async function get() {
   const a = await agentAccess()
   if (a.error) return a.error
   const b = await loadBrandContext(a.brandId)
@@ -21,7 +31,8 @@ export async function GET() {
 const lines = (v: unknown, max: number, len: number) =>
   Array.isArray(v) ? v.map(x => String(x).trim()).filter(Boolean).map(x => x.slice(0, len)).slice(0, max) : null
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest) { return inDemo(() => post(req)) }
+async function post(req: NextRequest) {
   const a = await agentAccess()
   if (a.error) return a.error
   const brandId = a.brandId
@@ -29,11 +40,18 @@ export async function POST(req: NextRequest) {
   if (!b) return NextResponse.json({ error: 'No brand' }, { status: 404 })
   const fallback = searchFallback(b)
   const body = await req.json().catch(() => ({})) as {
-    op?: string; settings?: Partial<SearchSettings>; keyword?: string; status?: string; key?: string
+    op?: string; on?: boolean; settings?: Partial<SearchSettings>; keyword?: string; status?: string; key?: string
     id?: string; email?: string; subject?: string; body?: string
   }
 
   switch (body.op) {
+    case 'demo': {
+      if (demoForced()) return NextResponse.json({ error: 'Demo mode stays on until DataForSEO is set up.' }, { status: 400 })
+      const on = body.on === true
+      await saveDemoSwitch(brandId, on)
+      const data = await withDemo(on, async () => (await readSearchData(brandId)) ?? fallback())
+      return NextResponse.json({ data, demo: on, message: on ? 'Demo mode on: made-up data, nothing is sent.' : 'Demo mode off: real data.' })
+    }
     case 'settings': {
       const s = body.settings ?? {}
       const data = await updateSearchData(brandId, fallback, d => {

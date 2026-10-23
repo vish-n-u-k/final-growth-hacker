@@ -6,7 +6,8 @@ import { getSessionUser, getBrandForUser } from '@/lib/server-session'
 import { blogMarkdownUrl } from '@/lib/blog-share'
 import { loadBrandContext } from '@/lib/agents/context'
 import { searchDataReady } from '@/lib/agents/dataforseo'
-import { agentsDemo } from '@/lib/agents/demo'
+import { agentsDemo, demoForced, withDemo } from '@/lib/agents/demo'
+import { readDemoSwitch } from '@/lib/agents/store'
 import { readGoogleAdsCreds } from '@/lib/agents/google-ads'
 import { searchFallback } from '@/lib/agents/search-agent'
 import { readSearchData } from '@/lib/agents/store'
@@ -14,7 +15,16 @@ import SearchAgentPage from '@/components/agents/SearchAgentPage'
 
 export const dynamic = 'force-dynamic'
 
-export default async function SearchAgent() {
+// Shown with the brand's demo-mode switch applied (lib/agents/demo.ts)
+export default async function SearchAgentRoute() {
+  const user = await getSessionUser()
+  if (!user) redirect('/login')
+  const brand = await getBrandForUser(user.id)
+  if (!brand) redirect('/onboarding')
+  return withDemo(await readDemoSwitch(brand.id), () => SearchAgent())
+}
+
+async function SearchAgent() {
   const user = await getSessionUser()
   if (!user) redirect('/login')
   const brand = await getBrandForUser(user.id)
@@ -37,7 +47,7 @@ export default async function SearchAgent() {
     <SearchAgentPage
       initial={data}
       brandName={b.name}
-      flags={{ dataforseo: searchDataReady(), googleAds: !!ads, demo: agentsDemo() }}
+      flags={{ dataforseo: searchDataReady(), googleAds: !!ads, demo: agentsDemo(), demoForced: demoForced() }}
       drafts={blogs.map(x => ({ ...x, mdUrl: blogMarkdownUrl(appUrl, x.id) }))}
     />
   )

@@ -6,7 +6,7 @@ import ToolHeader from '@/components/ToolHeader'
 import type { AgentTask, LinkOpportunity, SearchAgentData, SearchSettings, Topic } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
 import { useToast } from '@/components/email-outreach/shared'
-import { ActionBar, Card, Finished, Flow, ListTools, LiveProgress, Sec, Side, Src, Tabs, Tag } from '@/components/tool-ui'
+import { ActionBar, Card, DemoSwitch, Finished, Flow, ListTools, LiveProgress, Sec, Side, Src, Tabs, Tag } from '@/components/tool-ui'
 import { Day, DemoBanner, fmtAgo, fmtDate, useAgentApi } from './shared'
 
 // Search Agent: gets the brand found on Google and in AI answers. The bar at the top says what it
@@ -14,7 +14,7 @@ import { Day, DemoBanner, fmtAgo, fmtDate, useAgentApi } from './shared'
 // Tabs: To do (posts to write, sites to pitch, other fixes), Done, Rankings and AI answers.
 // A post or a site opens into two short steps, like the other tools.
 
-export interface SearchAgentFlags { dataforseo: boolean; googleAds: boolean; demo: boolean }
+export interface SearchAgentFlags { dataforseo: boolean; googleAds: boolean; demo: boolean; demoForced: boolean }
 export interface DraftInfo { id: string; title: string; content: string; metaDescription: string | null; mdUrl: string }
 
 type TabKey = 'todo' | 'done' | 'rank' | 'ai'
@@ -72,6 +72,9 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   const router = useRouter()
   const s = data.settings
   const draftById = new Map(drafts.map(d => [d.id, d]))
+  const [demo, setDemo] = useState(flags.demo)
+  // Demo data stands in for DataForSEO, so research works without it
+  const dataReady = flags.dataforseo || demo
   const [tab, setTab] = useState<TabKey>('todo')
   const [panel, setPanel] = useState(false)
   const [q, setQ] = useState('')
@@ -86,10 +89,10 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   const running = researching || busy === 'links'
   const auto = useRef(false)
   useEffect(() => {
-    if (auto.current || data.lastResearchAt || !flags.dataforseo) return
+    if (auto.current || data.lastResearchAt || !dataReady) return
     auto.current = true
     call('research')
-  }, [call, data.lastResearchAt, flags.dataforseo])
+  }, [call, data.lastResearchAt, dataReady])
 
   const items: Item[] = [
     ...data.topics.map(t => ({ kind: 'topic' as const, key: `t:${t.keyword}`, t })),
@@ -177,7 +180,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
             <div className="tu-sec-row">
               <Sec label={label} count={group.length} tone={tone} />
               {k === 'pitch' && (
-                <button type="button" className="btn btn-ghost btn-sm" disabled={!!busy || !flags.dataforseo} onClick={() => call('links')}>
+                <button type="button" className="btn btn-ghost btn-sm" disabled={!!busy || !dataReady} onClick={() => call('links')}>
                   {busy === 'links' ? <><Spinner />Looking…</> : 'Find more sites'}
                 </button>
               )}
@@ -344,7 +347,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       <p className="cl-muted tu-note">{data.ranks ? <>Checked <Day iso={data.ranks.at} />{s.enabled ? ', and every Monday' : ''}.</> : null}</p>
       {data.adsTips.length > 0 && <>
         <Sec label="Google Ads tips" count={data.adsTips.length} />
-        {!flags.googleAds && !flags.demo && <p className="cl-muted tu-note">Connect Google Ads in Settings → Integrations to also see wasted spend.</p>}
+        {!flags.googleAds && !demo && <p className="cl-muted tu-note">Connect Google Ads in Settings → Integrations to also see wasted spend.</p>}
         {data.adsTips.map(t => (
           <Card key={t.title} av="$" square name={t.title} sub={<Src label={t.kind === 'wasted' ? 'Wasted spend' : 'Try ads instead'} tone="amber" />} why={t.detail} />
         ))}
@@ -392,10 +395,16 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   return (
     <div className="tool-page">
       <ToolHeader icon="search" title="Search Agent" intro="searchAgent"
-        chips={s.enabled ? <span className="th-chip th-chip--on">Researches every week</span> : null} />
+        chips={s.enabled && !demo ? <span className="th-chip th-chip--on">Researches every week</span> : null}
+        actions={<DemoSwitch on={demo} forced={flags.demoForced} busy={!!busy} onChange={async on => {
+          const r = await call('demo', { on }) as { demo?: boolean; data?: SearchAgentData } | null
+          if (typeof r?.demo !== 'boolean') return
+          setDemo(r.demo); setOpenKey(null); setTab('todo')
+          // Never run in this mode yet (first time in demo): the first-visit search above starts it
+        }} />} />
       {open ? detail(open) : <>
-        {flags.demo && <DemoBanner>Run research again any time: rankings shift a little each run, so &ldquo;since last week&rdquo; has something to show.</DemoBanner>}
-        {!flags.dataforseo && <div className="ag-note ag-note-warn">The Search Agent needs GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet. Settings can be saved now; research starts once it&apos;s connected.</div>}
+        {demo && <DemoBanner>Run research again any time: rankings shift a little each run, so &ldquo;since last week&rdquo; has something to show.</DemoBanner>}
+        {!dataReady && <div className="ag-note ag-note-warn">The Search Agent needs GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet. Settings can be saved now; research starts once it&apos;s connected.</div>}
         {data.lastError && !running && <div className="ag-note ag-note-crit">The last research had a problem: {data.lastError}</div>}
         {data.linksError && !running && <div className="ag-note ag-note-warn">Finding sites to pitch had a problem: {data.linksError}</div>}
 
@@ -406,7 +415,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
           setup={seeds.length ? <>Tracking {seeds.map((x, n) => <span key={x}>{n ? ' and ' : ''}<b>{x}</b></span>)}{s.seeds.length > 2 ? ` and ${s.seeds.length - 2} more` : ''} in {country}</> : <>Keywords are picked from your site · {country}</>}
           onChange={() => setPanel(p => !p)}
           secondary={<button type="button" className="btn btn-ghost" aria-expanded={panel} onClick={() => setPanel(p => !p)}>Search settings</button>}
-          primary={<button type="button" className="btn btn-primary" disabled={!!busy || !flags.dataforseo} onClick={() => { setPanel(false); call('research') }}>{researching ? <><Spinner />Working…</> : 'Run research now'}</button>} />
+          primary={<button type="button" className="btn btn-primary" disabled={!!busy || !dataReady} onClick={() => { setPanel(false); call('research') }}>{researching ? <><Spinner />Working…</> : 'Run research now'}</button>} />
         <LiveProgress agent="search" active={running || writing} fallback={writing ? ['Checking top results', 'Reading them', 'Writing the article', 'Saving the draft'] : PROGRESS} />
 
         <Tabs value={tab} onChange={k => { setTab(k); setQ('') }} tabs={[
