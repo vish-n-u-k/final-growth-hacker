@@ -13,7 +13,7 @@ import { isDue, loadReminders, openFollowUps } from '@/lib/email-outreach/follow
 
 // Email Outreach: send personal emails to a list of prospects from the user's own Gmail, and
 // follow up with anyone who doesn't reply. Same layout as the other tools: the header with the
-// main action, then four tabs: Follow-ups (what needs you now; opens first when any are due),
+// main action, then four tabs, in this order: Inbox, Campaigns, Follow-ups, Done. (Follow-ups = what needs you now; opens first when any are due),
 // Inbox (only the threads GrowJin sent, replies first), Campaigns (a list, each one done in
 // three steps) and Done (closed follow-ups, sent emails).
 
@@ -266,9 +266,9 @@ export default function GmailHub({
 
       <div className="gh-tabs eo-tabs" role="tablist">
         {([
-          ['followups', 'Follow-ups', dueCount],
           ['inbox',     'Inbox',     0],
           ['campaigns', 'Campaigns', 0],
+          ['followups', 'Follow-ups', dueCount],
           ['done',      'Done',      0],
         ] as [Tab, string, number][]).map(([key, label, n]) => (
           <button key={key} type="button" role="tab" aria-selected={tab === key}
