@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lead Agent Layouts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #ffffff; --bg-soft: #eef1ee; --card: #ffffff; --line: #dfe4df;
+    --text: #16201a; --text-dim: #4c5a50; --text-faint: #6f7c72;
+    --green: #15803d; --accent: #e3f3e8; --accent-fg: #0f5a2b;
+    --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft: #fde8e6; --info: #1d4ed8; --info-soft: #e5edff;
+    --star: #e2a400;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9ece9; color: var(--text); font-family: var(--body); }
+  button, input, textarea, select { font-family: inherit; }
+  a { color: inherit; }
+
+  /* mockup controls */
+  .ctl { position: sticky; top: 0; z-index: 60; background: #1d2620; color: #e8f0ea; padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+  .ctl h1 { font: 600 15px var(--body); margin: 0 12px 0 0; }
+  .ctl .grp { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl .lbl { font-size: 12px; color: #9fb0a5; margin-right: 4px; }
+  .ctl button { font: 500 13px var(--body); border: 1px solid #3a4a40; background: transparent; color: #e8f0ea; padding: 6px 11px; border-radius: 8px; cursor: pointer; }
+  .ctl button[aria-pressed="true"] { background: #e8f0ea; color: #16201a; border-color: #e8f0ea; }
+  .note { max-width: 1180px; margin: 14px auto 0; padding: 0 20px; font-size: 13.5px; color: #3c4a41; line-height: 1.55; }
+  .note b { color: #16201a; }
+
+  /* app frame */
+  .frame { position: relative; max-width: 1180px; margin: 14px auto 40px; background: var(--bg); border-radius: 14px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.08); display: flex; min-height: 900px; }
+  .frame.phone { max-width: 390px; }
+  .side { width: 200px; flex: none; background: var(--bg-soft); border-right: 1px solid var(--line); padding: 16px 12px; font-size: 13px; }
+  .frame.phone .side { display: none; }
+  .side .logo { font: 600 15px var(--display); display: flex; gap: 8px; align-items: center; margin: 0 6px 18px; }
+  .side .logo i { width: 20px; height: 20px; border-radius: 6px; background: var(--green); display: inline-block; }
+  .side .g { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); margin: 16px 8px 6px; }
+  .side a { display: block; padding: 6px 8px; border-radius: 7px; color: var(--text-dim); text-decoration: none; }
+  .side a.on { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+  .main { flex: 1; min-width: 0; padding: 0 28px 40px; }
+  .frame.phone .main { padding: 0 16px 32px; }
+
+  /* header */
+  .hd { position: sticky; top: 0; z-index: 5; background: rgba(255,255,255,.95); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; padding: 14px 0; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .hd-l, .hd-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .hd-ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--accent); color: var(--accent-fg); }
+  .hd h1 { font: 600 20px/1.2 var(--display); margin: 0; }
+  .meta { font-size: 12.5px; color: var(--text-faint); }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: var(--bg-soft); color: var(--text-dim); white-space: nowrap; }
+  .chip.ok { background: var(--accent); color: var(--accent-fg); }
+  .chip.ok::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+  .link { font-size: 13px; font-weight: 600; color: var(--accent-fg); text-decoration: none; white-space: nowrap; background: none; border: 0; cursor: pointer; padding: 0; }
+  .strip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg-soft); font-size: 13px; color: var(--text-dim); margin-bottom: 14px; }
+  .strip span { flex: 1; }
+
+  .btn { height: 36px; padding: 0 16px; border-radius: 9px; font: 600 13px var(--body); border: 1px solid var(--line); background: #fff; color: var(--text-dim); cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; }
+  .btn.pri { background: var(--green); border-color: var(--green); color: #fff; box-shadow: 0 2px 8px rgba(21,128,61,.28); }
+  .btn.out { border: 1.5px solid var(--green); color: var(--green); }
+  .btn.sm { height: 32px; padding: 0 12px; font-size: 12.5px; border-radius: 8px; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .frame.phone .hd-r .btn { flex: 1; }
+
+  /* summary: what needs you */
+  .sum { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .frame.phone .sum { grid-template-columns: 1fr 1fr; }
+  .sum button { text-align: left; border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 12px 14px; cursor: pointer; }
+  .sum button b { display: block; font: 600 22px var(--display); }
+  .sum button span { font-size: 12.5px; color: var(--text-dim); }
+  .sum button[aria-pressed="true"] { border-color: var(--green); background: var(--accent); box-shadow: 0 0 0 3px rgba(21,128,61,.12); }
+  .sum button.hot b { color: var(--crit); }
+
+  /* toolbar */
+  .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; }
+  .search { flex: 1 1 200px; min-width: 150px; height: 34px; border: 1px solid var(--line); border-radius: 9px; padding: 0 10px; font-size: 13px; }
+  .sel { height: 34px; border: 1px solid var(--line); border-radius: 9px; padding: 0 10px; font: 500 13px var(--body); color: var(--text-dim); background: #fff; }
+  .count { font-size: 13px; color: var(--text-faint); margin: 0 2px 10px; }
+  .count b { color: var(--text); }
+
+  /* lead cards (same structure as Competitor Leads) */
+  .card { border: 1px solid var(--line); border-radius: 14px; background: #fff; margin-bottom: 10px; overflow: hidden; }
+  .card.sel-on { border-color: var(--green); box-shadow: 0 0 0 3px rgba(21,128,61,.12); }
+  .c-head { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px 0; }
+  .av { flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--bg-soft); display: grid; place-items: center; font-weight: 700; font-size: 13px; color: var(--text-dim); }
+  .who { flex: 1; min-width: 0; }
+  .name { font-size: 14.5px; font-weight: 600; }
+  .sub { font-size: 12.5px; color: var(--text-faint); margin-top: 2px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .src { font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 99px; background: var(--info-soft); color: var(--info); }
+  .src.reddit { background: #ffe9df; color: #c2410c; }
+  .src.maps { background: var(--warn-soft); color: var(--warn); }
+  .fit { flex: none; font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: var(--accent); color: var(--accent-fg); white-space: nowrap; }
+  .c-body { padding: 8px 16px 14px 64px; }
+  .frame.phone .c-body { padding-left: 16px; }
+  .said { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text-dim); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .why { margin: 8px 0 0; padding: 7px 10px; border-radius: 8px; background: var(--accent); font-size: 13px; line-height: 1.45; }
+  .c-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 8px 16px; border-top: 1px solid var(--line); background: #f7f9f7; }
+  .c-state { font-size: 12.5px; color: var(--text-faint); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--bg-soft); color: var(--text-dim); white-space: nowrap; }
+  .tag.ok { background: var(--accent); color: var(--accent-fg); }
+  .tag.warn { background: var(--warn-soft); color: var(--warn); }
+  .tag.crit { background: var(--crit-soft); color: var(--crit); }
+  .c-foot .btn { min-width: 132px; }
+  .pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; font-size: 13px; color: var(--text-faint); flex-wrap: wrap; }
+  .pager .nums { display: flex; gap: 6px; }
+  .pager .n { min-width: 32px; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-weight: 600; color: var(--text-dim); }
+  .pager .n.on { background: var(--green); border-color: var(--green); color: #fff; }
+
+  /* detail: steps (page in A, right pane in B) */
+  .crumbs { font-size: 13px; color: var(--text-faint); margin: 2px 0 14px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .crumbs b { color: var(--text); }
+  .steps { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 0; list-style: none; }
+  .step { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; font-size: 13px; color: var(--text-faint); }
+  .step:not(:last-child)::after { content: ''; flex: 1; height: 2px; background: var(--line); min-width: 10px; }
+  .step.past:not(:last-child)::after { background: var(--green); }
+  .step .n { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--line); background: #fff; font-size: 12px; font-weight: 700; }
+  .step.on { color: var(--text); font-weight: 700; }
+  .step.on .n { border-color: var(--green); color: var(--green); box-shadow: 0 0 0 4px rgba(21,128,61,.12); }
+  .step.past .n { background: var(--green); border-color: var(--green); color: #fff; }
+  .frame.phone .step:not(.on) .l { display: none; }
+  .pane { border: 1px solid var(--line); border-radius: 16px; background: #fff; overflow: hidden; }
+  .pane-in { padding: 20px 22px; }
+  .pane h3 { margin: 0; font: 600 19px/1.3 var(--display); }
+  .hint { margin: 6px 0 14px; font-size: 13.5px; color: var(--text-dim); line-height: 1.5; }
+  .quote { margin: 0 0 12px; padding: 12px 14px; border-radius: 12px; background: var(--bg-soft); font-size: 13.5px; line-height: 1.6; }
+  .fitbox { padding: 12px 14px; border-radius: 12px; background: var(--bg-soft); font-size: 13.5px; line-height: 1.5; }
+  .fitbox .top { display: flex; justify-content: space-between; font-weight: 700; color: var(--green); margin-bottom: 6px; }
+  .meter { height: 6px; border-radius: 99px; background: #fff; margin-bottom: 8px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--green); border-radius: 99px; }
+  .found { display: flex; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--accent); color: var(--accent-fg); font-size: 13px; margin-bottom: 12px; }
+  .found b { display: block; font-size: 14px; }
+  .mail { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .mail .row { display: flex; gap: 10px; align-items: center; padding: 0 14px; min-height: 42px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .mail .row span { width: 56px; color: var(--text-faint); font-size: 12.5px; }
+  .mail .row input { flex: 1; border: 0; font: 500 14px var(--body); outline: none; min-width: 0; }
+  .mail textarea { display: block; width: 100%; border: 0; padding: 14px; font: 400 14px/1.6 var(--body); resize: vertical; outline: none; }
+  .mail .tools2 { display: flex; gap: 6px; align-items: center; padding: 6px 8px; border-top: 1px solid var(--line); background: var(--bg-soft); font-size: 12.5px; color: var(--text-faint); }
+  .mail .tools2 .r { margin-left: auto; padding-right: 6px; }
+  .actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; padding: 12px 22px; border-top: 1px solid var(--line); background: #f7f9f7; }
+  .actions .back { margin-right: auto; }
+  .frame.phone .actions .btn { flex: 1 1 auto; }
+  .frame.phone .actions .back { flex: 0 1 auto; }
+  .done { text-align: center; padding: 10px 0; }
+  .done .tick { width: 46px; height: 46px; border-radius: 50%; background: var(--accent); color: var(--green); display: grid; place-items: center; font-size: 20px; font-weight: 700; margin: 0 auto 10px; }
+  .done p { font-size: 13.5px; color: var(--text-dim); margin: 6px 0 0; line-height: 1.5; }
+  .reply-box { white-space: pre-line; padding: 14px; border: 1px solid var(--line); border-radius: 12px; font-size: 14px; line-height: 1.6; }
+  .timeline { margin: 0; padding: 0; list-style: none; font-size: 13.5px; }
+  .timeline li { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+  .timeline li:last-child { border-bottom: 0; }
+  .timeline .d { width: 64px; flex: none; color: var(--text-faint); font-size: 12.5px; }
+
+  /* B: inbox split */
+  .split { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .split .list .card { cursor: pointer; }
+  .split .list .c-body { padding-left: 16px; }
+  .split .list .why { display: none; }
+  .split .list .c-foot { min-height: 40px; }
+  .split .list .c-foot .btn { display: none; }
+  .split .detail { position: sticky; top: 76px; }
+  .empty-pane { padding: 50px 24px; text-align: center; color: var(--text-faint); font-size: 14px; border: 1px dashed var(--line); border-radius: 16px; }
+  .frame.phone .split { grid-template-columns: 1fr; }
+</style>
+</head>
+<body>
+<div class="ctl">
+  <h1>Lead Agent: same structure as Competitor Leads</h1>
+  <div class="grp"><span class="lbl">Layout</span>
+    <button data-k="layout" data-v="A" aria-pressed="true">A · List, then own page</button>
+    <button data-k="layout" data-v="B" aria-pressed="false">B · Inbox (list + detail side by side)</button>
+  </div>
+  <div class="grp"><span class="lbl">Width</span>
+    <button data-k="size" data-v="desk" aria-pressed="true">Desktop</button>
+    <button data-k="size" data-v="phone" aria-pressed="false">Phone</button>
+  </div>
+  <div class="grp"><button id="reset">Reset demo</button></div>
+</div>
+<p class="note">
+  <b>What changes:</b> today the Lead Agent page is five stacked boxes (emails, forum replies, replies, sent, no email). Here it's one list of <b>only the leads that need you</b>, as cards like Competitor Leads: who and how good a fit at the top, what they said and why in the middle, one green button bottom-right.
+  The four boxes at the top switch the list: <b>Needs you</b> (default) · <b>Replied</b> · <b>Sent</b> · <b>No email</b>. 8 per page.
+  The button opens the steps for that lead: an email lead is <b>1 · Email them? → 2 · Their email → 3 · Review &amp; send</b>; a Reddit / Hacker News lead is <b>1 · Worth replying? → 2 · Check the reply → 3 · Post it</b>.
+  <b>A</b> opens the steps on their own page (like Competitor Leads). <b>B</b> keeps the list on the left and shows the steps on the right, like an inbox. Settings, Pause and Run now stay in the header.
+</p>
+
+<div class="frame" id="frame">
+  <aside class="side">
+    <div class="logo"><i></i>GrowJin</div>
+    <div class="g">Get customers</div><a class="on">Lead Agent</a><a>Competitor Leads</a><a>Email Outreach</a>
+    <div class="g">Get seen</div><a>Search Agent</a><a>Social Studio</a><a>Meta Ads</a>
+  </aside>
+  <main class="main" id="view"></main>
+</div>
+
+<script>
+const BRAND = 'Frekto'
+const LEADS = [
+  { id: 1, kind: 'email', src: 'Unhappy reviewer', cls: '', name: 'Maya Chen', co: 'Chen Bakery', fit: 9, found: 'Today', said: 'Buffer keeps failing to publish my posts and I still design everything in Canva. Losing hours every week.', why: 'She designs every post by hand, then schedules it. Frekto makes and schedules them.', email: 'maya@chenbakery.com', state: 'new' },
+  { id: 2, kind: 'reddit', src: 'Reddit', cls: 'reddit', name: 'u/cafe_owner_22', co: 'r/smallbusiness', fit: 9, found: 'Today', said: 'Any tool that makes Instagram posts for my café automatically? I don\'t have time to design every day.', why: 'Asking for exactly what Frekto does.', reply: 'I ran into the same thing with my shop. What helped was batching a week of posts on Sunday, and using a tool that makes the images for you from your menu photos.\n\nI use Frekto for that (it makes on-brand posts and schedules them), but even Canva templates + Buffer will save you a lot of time.', state: 'new' },
+  { id: 3, kind: 'email', src: 'Google Maps', cls: 'maps', name: 'Bloom Salon', co: 'Pune · 3.6★ · no website', fit: 8, found: 'Yesterday', said: '42 Google reviews, last Instagram post 5 months ago.', why: 'Busy salon with no time for social. Frekto keeps their Instagram going.', email: 'hello@bloomsalon.in', state: 'new' },
+  { id: 4, kind: 'email', src: 'Unhappy reviewer', cls: '', name: 'Daniel Ortiz', co: 'Ortiz Coffee', fit: 8, found: 'Yesterday', said: 'Price went up again and posting is still a chore for my shop.', why: 'Posting feels like a chore; Frekto takes it over.', email: null, state: 'new' },
+  { id: 5, kind: 'reddit', src: 'Hacker News', cls: '', name: 'jdoe', co: 'Ask HN', fit: 7, found: '2 days ago', said: 'Ask HN: How do you handle social media as a solo founder?', why: 'Solo founder short on time for social.', reply: 'As a solo founder I gave up on daily posting until I automated the boring part. Write one sentence about what you shipped, let a tool turn it into a post.\n\nDisclosure: I make Frekto, which does that.', state: 'new' },
+  { id: 6, kind: 'email', src: 'Unhappy reviewer', cls: '', name: 'Tom Becker', co: 'Becker Prints', fit: 8, found: '4 days ago', said: 'I spend ages making images for every post.', why: 'Wants help making the content itself.', email: 'tom@beckerprints.com', state: 'replied', note: '“Sounds interesting, can you send pricing?”', sent: 'Oct 19' },
+  { id: 7, kind: 'email', src: 'Google Maps', cls: 'maps', name: 'Lumen Candles', co: 'Mumbai', fit: 7, found: '5 days ago', said: 'No posts in 3 months.', why: 'Inactive social, small team.', email: 'hi@lumencandles.com', state: 'sent', sent: 'Oct 18', nextF: 'Follow-up 1 · Oct 21' },
+  { id: 8, kind: 'email', src: 'Google Maps', cls: 'maps', name: 'Green Bowl Café', co: 'Pune · +91 98xxxx', fit: 8, found: '3 days ago', said: 'No website, 4.1★, 80 reviews.', why: 'Popular café with no online presence beyond Maps.', email: null, state: 'nocontact' },
+]
+const S = { layout: 'A', size: 'desk', tab: 'needs', open: null, step: 1, busy: false, to: '', posted: {}, sent: {}, skipped: {} }
+const $ = s => document.querySelector(s)
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+const ini = n => n.replace(/[^A-Za-z ]/g, ' ').trim().split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase()
+const first = n => n.startsWith('u/') ? n : n.split(' ')[0]
+const later = (fn, ms) => setTimeout(() => { fn(); render() }, ms)
+
+const stateOf = l => S.sent[l.id] ? 'sent' : S.posted[l.id] ? 'posted' : S.skipped[l.id] ? 'skipped' : l.state
+const TABS = [
+  ['needs', 'Need you', l => stateOf(l) === 'new'],
+  ['replied', 'Replied', l => stateOf(l) === 'replied'],
+  ['sent', 'Sent · follow-ups', l => ['sent', 'posted'].includes(stateOf(l))],
+  ['nocontact', 'No email found', l => stateOf(l) === 'nocontact'],
+]
+const listFor = t => LEADS.filter(TABS.find(x => x[0] === t)[2])
+
+function header() {
+  return `<header class="hd"><div class="hd-l"><span class="hd-ic">◎</span><h1>Lead Agent</h1><span class="chip ok">On · runs daily</span><span class="meta">Last run 2 h ago: 5 new leads</span></div>
+    <div class="hd-r"><button class="btn sm">Pause</button><button class="btn sm">Settings</button><button class="btn sm pri">Run now</button></div></header>
+    <div class="strip"><span>Finds people who need ${BRAND} every day, writes to them, and follows up until they reply.</span><a class="link">How it works ▾</a></div>`
+}
+
+function summary() {
+  return `<div class="sum">${TABS.map(([k, label]) => {
+    const n = listFor(k).length
+    return `<button data-tab="${k}" aria-pressed="${S.tab === k}" class="${k === 'replied' && n ? 'hot' : ''}"><b>${n}</b><span>${label}</span></button>`
+  }).join('')}</div>`
+}
+
+function action(l) {
+  const st = stateOf(l)
+  if (st === 'replied') return `<button class="btn sm pri" data-open="${l.id}">Read reply →</button>`
+  if (st === 'sent' || st === 'posted') return `<button class="btn sm out" data-open="${l.id}">View</button>`
+  if (st === 'nocontact') return `<button class="btn sm pri" data-open="${l.id}">Add an email →</button>`
+  return l.kind === 'reddit' ? `<button class="btn sm pri" data-open="${l.id}">Write reply →</button>` : `<button class="btn sm pri" data-open="${l.id}">Review email →</button>`
+}
+function stateTag(l) {
+  const st = stateOf(l)
+  if (st === 'replied') return `<span class="tag crit">Replied</span> ${esc(l.note)}`
+  if (st === 'sent') return `<span class="tag ok">✓ Emailed · ${l.sent ?? 'just now'}</span> ${l.nextF ?? ''}`
+  if (st === 'posted') return `<span class="tag ok">✓ Reply posted</span>`
+  if (st === 'nocontact') return `<span class="tag warn">No email found</span>`
+  return l.kind === 'reddit' ? `<span class="tag">Reply drafted</span>` : l.email ? `<span class="tag">Email drafted</span>` : `<span class="tag warn">Needs an email</span>`
+}
+function card(l) {
+  return `<article class="card ${S.open === l.id ? 'sel-on' : ''}" data-pick="${l.id}">
+    <div class="c-head"><span class="av">${ini(l.name)}</span>
+      <div class="who"><div class="name">${esc(l.name)}</div><div class="sub"><span class="src ${l.cls}">${l.src}</span><span>${esc(l.co)}</span><span>· ${l.found}</span></div></div>
+      <span class="fit">Good fit · ${l.fit}/10</span></div>
+    <div class="c-body"><p class="said">${esc(l.said)}</p><p class="why">${esc(l.why)}</p></div>
+    <div class="c-foot"><span class="c-state">${stateTag(l)}</span>${action(l)}</div>
+  </article>`
+}
+
+function listView() {
+  const list = listFor(S.tab)
+  const label = TABS.find(x => x[0] === S.tab)[1]
+  const sub = { needs: 'Approve, edit or skip. Nothing is sent until you say so.', replied: 'People who wrote back. Answer them from Gmail.', sent: 'Follow-ups go out on their own and stop when they reply.', nocontact: 'Good fits with no email. Add one, or reach them another way.' }[S.tab]
+  return `${summary()}
+    <div class="tools"><input class="search" placeholder="Search name, company or what they said" />
+      <select class="sel"><option>All sources</option><option>Unhappy reviewers</option><option>Reddit / HN</option><option>Google Maps</option></select>
+      <select class="sel"><option>Best fit first</option><option>Newest first</option></select></div>
+    <div class="count" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span><b>${list.length} ${label.toLowerCase()}</b> · ${sub}</span>
+      ${S.tab === 'needs' ? `<button class="btn sm out" style="margin-left:auto">Send all ${list.filter(x => x.kind === 'email' && x.email).length} drafted emails</button>` : ''}</div>
+    ${list.length ? list.map(card).join('') : `<div class="empty-pane">Nothing here right now.</div>`}
+    ${list.length ? `<div class="pager"><span>1–${list.length} of ${list.length}</span><span class="nums"><button class="btn sm" disabled>← Previous</button><button class="n on">1</button><button class="btn sm" disabled>Next →</button></span></div>` : ''}`
+}
+
+function stepsFor(l) {
+  return l.kind === 'reddit' ? ['Worth replying?', 'Check the reply', 'Post it'] : ['Email them?', 'Their email', 'Review & send']
+}
+function detail(l) {
+  const st = stateOf(l)
+  const labels = stepsFor(l)
+  const finished = ['sent', 'posted'].includes(st)
+  const bar = st === 'replied' ? '' : `<ol class="steps">${labels.map((x, i) => {
+    const n = i + 1, c = finished || n < S.step ? 'past' : n === S.step ? 'on' : ''
+    return `<li class="step ${c}"><span class="n">${c === 'past' ? '✓' : n}</span><span class="l">${x}</span></li>`
+  }).join('')}</ol>`
+  let title = '', hint = '', body = '', acts = ''
+  const fitbox = `<div class="fitbox"><div class="top"><span>Good fit</span><span>${l.fit}/10</span></div><div class="meter"><i style="width:${l.fit * 10}%"></i></div>${esc(l.why)}</div>`
+  if (st === 'replied') {
+    title = `${first(l.name)} replied`; hint = 'Answer from Gmail. The agent stopped the follow-ups.'
+    body = `<div class="quote">${esc(l.note)}</div><ul class="timeline"><li><span class="d">${l.sent}</span>First email sent</li><li><span class="d">Oct 21</span>They replied · follow-ups stopped</li></ul>`
+    acts = `<button class="btn back" data-close>← Back</button><button class="btn pri">Open in Gmail →</button>`
+  } else if (finished) {
+    title = l.kind === 'reddit' ? 'Reply posted' : `Email sent to ${first(l.name)}`
+    body = `<div class="done"><div class="tick">✓</div><p>${l.kind === 'reddit' ? 'Marked as posted. Check back on the thread for answers.' : `Sent from your Gmail. ${l.nextF ?? 'Follow-up in 3 days if they don’t reply.'}`}</p></div>
+      ${l.kind === 'reddit' ? '' : `<ul class="timeline"><li><span class="d">${l.sent ?? 'Today'}</span>First email sent</li><li><span class="d">+3 days</span>Follow-up 1 (automatic, stops if they reply)</li><li><span class="d">+7 days</span>Follow-up 2</li></ul>`}`
+    acts = `<button class="btn back" data-close>← Back to leads</button>${nextBtn(l)}`
+  } else if (st === 'nocontact' && S.step < 2) {
+    title = `Find ${first(l.name)}'s email`; hint = 'The agent couldn’t find a public email. If you know it, add it and the agent writes the email.'
+    body = `<div class="quote">${esc(l.said)}</div>${fitbox}`
+    acts = `<button class="btn back" data-skip>Skip this lead</button><button class="btn pri" data-go="2">Add an email →</button>`
+  } else if (S.step === 1) {
+    title = l.kind === 'reddit' ? `Worth replying to ${first(l.name)}?` : `Do you want to email ${first(l.name)}?`
+    hint = l.kind === 'reddit' ? 'Reddit bans automated replies, so the agent drafts and you post.' : `Found by the agent: ${l.src.toLowerCase()} · ${l.found.toLowerCase()}.`
+    body = `<div class="quote">“${esc(l.said)}”</div>${fitbox}`
+    acts = `<button class="btn back" data-skip>No, skip</button><button class="btn pri" data-go="2">${l.kind === 'reddit' ? 'Yes, check the reply →' : 'Yes, write an email →'}</button>`
+  } else if (S.step === 2) {
+    if (l.kind === 'reddit') {
+      title = 'Check the reply'; hint = 'Helpful answer first, your product second. Edit it to sound like you.'
+      body = `<textarea class="reply-box" style="width:100%;min-height:180px;font:inherit">${esc(l.reply)}</textarea>`
+      acts = `<button class="btn back" data-back="1">← Back</button><button class="btn pri" data-go="3">Looks good →</button>`
+    } else {
+      title = 'Where should it go?'
+      body = (l.email ? `<div class="found"><span>✉</span><div><b>Found ${first(l.name)}'s email</b>on their website · verified</div></div>` : `<div class="found" style="background:var(--warn-soft);color:var(--warn)"><span>?</span><div><b>No public email found</b>Paste it if you know it.</div></div>`)
+        + `<div class="mail"><div class="row"><span>Email</span><input id="to" value="${esc(S.to || l.email || '')}" placeholder="name@company.com"></div></div>`
+      acts = `<button class="btn back" data-back="1">← Back</button><button class="btn pri" data-go="3">Continue →</button>`
+    }
+  } else {
+    if (l.kind === 'reddit') {
+      title = 'Post it'; hint = 'Copy the reply, open the post, paste it as a comment, then come back and mark it posted.'
+      body = `<div class="reply-box">${esc(l.reply)}</div>`
+      acts = `<button class="btn back" data-back="2">← Back</button><button class="btn out">Copy reply</button><button class="btn out">Open post ↗</button><button class="btn pri" data-posted>Mark as posted</button>`
+    } else {
+      title = 'Check the email, then send it'; hint = `From your Gmail. Follow-ups after 3 and 7 days stop when they reply.`
+      body = S.busy ? `<div class="quote">Writing a short email to ${first(l.name)}…</div>` : `<div class="mail"><div class="row"><span>To</span><input value="${esc(S.to || l.email || '')}"></div><div class="row"><span>Subject</span><input value="Posting without the hours in Canva"></div>
+        <textarea rows="8">Hi ${first(l.name)},\n\n${BRAND} makes your social posts for you, on-brand and ready to schedule, usually in under a minute.\n\nWould a free week of posts help?\n\n${BRAND}</textarea>
+        <div class="tools2"><button class="btn sm">↻ Rewrite</button><button class="btn sm">Copy</button><span class="r">+ an “if this isn’t relevant, reply no” line</span></div></div>`
+      acts = `<button class="btn back" data-back="2">← Back</button><button class="btn pri" data-send>Send email →</button>`
+    }
+  }
+  return `${bar}<section class="pane"><div class="pane-in"><h3>${title}</h3>${hint ? `<p class="hint">${hint}</p>` : '<div style="height:12px"></div>'}${body}</div><div class="actions">${acts}</div></section>`
+}
+function nextBtn(l) {
+  const n = LEADS.find(x => x.id !== l.id && stateOf(x) === 'new')
+  return n ? `<button class="btn pri" data-open="${n.id}">Next lead: ${esc(first(n.name))} →</button>` : ''
+}
+
+function render() {
+  $('#frame').classList.toggle('phone', S.size === 'phone')
+  const l = LEADS.find(x => x.id === S.open)
+  let html = header()
+  if (S.layout === 'A') {
+    html += l ? `<nav class="crumbs"><button class="link" data-close>← All leads</button><span>/</span><b>${esc(l.name)}</b></nav>${detail(l)}` : listView()
+  } else if (S.size === 'phone' && l) {
+    html += `<nav class="crumbs"><button class="link" data-close>← All leads</button><span>/</span><b>${esc(l.name)}</b></nav>${detail(l)}`
+  } else {
+    const list = listFor(S.tab)
+    html += `${summary()}<div class="split"><div class="list">
+      <div class="count"><b>${list.length} ${TABS.find(x => x[0] === S.tab)[1].toLowerCase()}</b> · tap one to see it</div>
+      ${list.map(card).join('') || '<div class="empty-pane">Nothing here right now.</div>'}</div>
+      <div class="detail">${l ? detail(l) : '<div class="empty-pane">Pick a lead on the left to see it here.</div>'}</div></div>`
+  }
+  $('#view').innerHTML = html
+  document.querySelectorAll('.ctl [data-k]').forEach(b => b.setAttribute('aria-pressed', S[b.dataset.k] === b.dataset.v))
+}
+
+function open(id) { Object.assign(S, { open: id, step: 1, busy: false, to: '' }); render() }
+document.addEventListener('click', e => {
+  const t = e.target.closest('button, [data-pick]'); if (!t) return
+  if (t.dataset.k) { S[t.dataset.k] = t.dataset.v; render(); return }
+  if (t.id === 'reset') { Object.assign(S, { open: null, tab: 'needs', posted: {}, sent: {}, skipped: {} }); render(); return }
+  if (t.dataset.tab) { S.tab = t.dataset.tab; S.open = null; render(); return }
+  if (t.dataset.open) { open(+t.dataset.open); return }
+  if (t.dataset.pick && S.layout === 'B') { open(+t.dataset.pick); return }
+  if ('close' in t.dataset) { S.open = null; render(); return }
+  if (t.dataset.back) { S.step = +t.dataset.back; render(); return }
+  if (t.dataset.go) { const v = $('#to'); if (v) S.to = v.value; S.step = +t.dataset.go; if (S.step === 3 && LEADS.find(x => x.id === S.open).kind !== 'reddit') { S.busy = true; later(() => { S.busy = false }, 700) } render(); return }
+  if ('skip' in t.dataset) { S.skipped[S.open] = true; S.open = null; render(); return }
+  if ('posted' in t.dataset) { S.posted[S.open] = true; render(); return }
+  if ('send' in t.dataset) { t.disabled = true; t.textContent = 'Sending…'; later(() => { S.sent[S.open] = true }, 700) }
+})
+render()
+</script>
+</body>
+</html>
