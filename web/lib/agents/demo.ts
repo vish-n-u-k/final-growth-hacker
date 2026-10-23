@@ -183,20 +183,26 @@ export function demoReferringDomains(target: string): string[] {
 const BIZ_A = ['Brew', 'Bean', 'Urban', 'Corner', 'Green', 'Golden', 'Little', 'Blue Door', 'Daily', 'Sunny', 'Hidden', 'Old Town']
 const BIZ_B = ['Lab', 'House', 'Studio', 'Co.', 'Room', 'Spot', 'Collective', 'Kitchen', 'Corner', 'Place']
 
+// A Google Maps search for demo mode when the brand hasn't set one, so the Email tab has businesses
+const DEMO_CITY: Record<string, string> = { IN: 'Pune', US: 'Austin', GB: 'Manchester', CA: 'Toronto', AU: 'Melbourne', DE: 'Berlin', FR: 'Lyon', AE: 'Dubai', SG: 'Singapore' }
+export function demoLocalQuery(country: string): string {
+  return `cafés and small shops in ${DEMO_CITY[country] ?? 'Pune'}`
+}
+
 export function demoMapsBusinesses(query: string): MapsBusiness[] {
   const r = rng(`maps:${query}`)
   const kind = cap((query.split(/\s+in\s+/i)[0] || 'business').replace(/s$/i, ''))
   const where = query.split(/\s+in\s+/i)[1] ?? ''
   return Array.from({ length: 12 }, (_, i) => {
     const title = `${pick(r, BIZ_A)} ${pick(r, BIZ_B)}`
-    const hasSite = r() > 0.35
+    const hasSite = r() > 0.15 // most have a website, so there's an email to find
     const domain = hasSite ? `${slug(title).replace(/-/g, '')}.example` : null
     return {
       title,
       url: domain ? `https://${domain}` : null,
       domain,
       phone: `+91 9${Math.floor(r() * 1e9).toString().padStart(9, '0')}`,
-      rating: Math.round((3.1 + r() * 1.8) * 10) / 10,
+      rating: Math.round((3.1 + r() * 1.4) * 10) / 10, // mostly under 4.2, which the Lead Agent looks for
       reviews: Math.floor(4 + r() * 380),
       category: kind,
       address: where ? `${pick(r, ['Main Road', 'Market Street', 'Station Road', 'High Street'])}, ${where}` : null,
