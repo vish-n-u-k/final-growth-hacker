@@ -149,9 +149,18 @@
   .step.past .n { background: var(--green); border-color: var(--green); color: #fff; }
   .frame.phone .step:not(.on) .l { display: none; }
   .pane { border: 1px solid var(--line); border-radius: 16px; background: #fff; overflow: hidden; }
-  .steps-in { margin: 0; padding: 14px 22px; border-bottom: 1px solid var(--line); background: #fafcfa; }
-  .steps-in .step:last-child { flex: none; }
-  .frame.phone .steps-in { padding: 12px 16px; }
+  .steps .step:last-child { flex: none; }
+  .ro { display: grid; grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .frame.phone .ro, .split .ro { grid-template-columns: 1fr; }
+  .ro-side { position: sticky; top: 76px; display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--bg-soft); }
+  .frame.phone .ro-side, .split .ro-side { position: static; }
+  .ro-person { display: flex; align-items: center; gap: 10px; }
+  .ro-person .av { width: 42px; height: 42px; background: #fff; }
+  .ro-person h2 { margin: 0; font: 600 17px/1.25 var(--display); }
+  .ro-quote { margin: 0; padding: 12px 14px; border-radius: 12px; background: #fff; font-size: 13.5px; line-height: 1.6; }
+  .ro-src { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-faint); }
+  .ro-src b { color: var(--text-dim); }
+  .fitbox--side { background: #fff; border: 1px solid var(--line); }
   .pane-in .hint { min-height: 1.5em; }
   .setp { border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; background: #fff; }
   .setp h3 { margin: 0; font: 600 18px var(--display); }
@@ -408,7 +417,7 @@ function detail(l) {
   const st = stateOf(l)
   const labels = stepsFor(l)
   const finished = ['sent', 'posted'].includes(st)
-  const bar = st === 'replied' ? '' : `<ol class="steps steps-in">${labels.map((x, i) => {
+  const bar = st === 'replied' ? '' : `<ol class="steps">${labels.map((x, i) => {
     const n = i + 1, c = finished || n < S.step ? 'past' : n === S.step ? 'on' : ''
     return `<li class="step ${c}"><span class="n">${c === 'past' ? '✓' : n}</span><span class="l">${x}</span></li>`
   }).join('')}</ol>`
@@ -421,7 +430,7 @@ function detail(l) {
   } else if (st === 'posted') {
     title = l.answers ? `${l.answers} people answered you` : 'Your reply is posted'
     hint = `In ${l.where} · posted ${l.postedOn}. The agent checks the thread every day.`
-    body = `<div class="quote"><b>${esc(l.name)}</b></div>${l.answers ? `<ul class="timeline"><li><span class="d">${l.postedOn}</span>You posted your reply</li><li><span class="d">Today</span>${esc(l.lastAnswer)}</li></ul>` : '<p class="hint">No answers yet.</p>'}`
+    body = `${l.answers ? `<ul class="timeline"><li><span class="d">${l.postedOn}</span>You posted your reply</li><li><span class="d">Today</span>${esc(l.lastAnswer)}</li></ul>` : '<p class="hint">No answers yet.</p>'}`
     acts = `<button class="btn back" data-close>← Back</button><button class="btn pri">Open thread ↗</button>`
   } else if (finished) {
     title = l.kind === 'reddit' ? 'Reply posted' : `Email sent to ${first(l.name)}`
@@ -430,14 +439,12 @@ function detail(l) {
     acts = `<button class="btn back" data-close>← Back to leads</button>${nextBtn(l)}`
   } else if (st === 'nocontact' && S.step < 2) {
     title = `Find ${first(l.name)}'s email`; hint = 'The agent couldn’t find a public email. If you know it, add it and the agent writes the email.'
-    body = `<div class="quote">${esc(l.said)}</div>${fitbox}`
+    body = fitbox
     acts = `<button class="btn back" data-skip>Skip this lead</button><button class="btn pri" data-go="2">Add an email →</button>`
   } else if (S.step === 1) {
     title = l.kind === 'reddit' ? 'Worth replying to this post?' : `Do you want to email ${first(l.name)}?`
     hint = l.kind === 'reddit' ? 'Reddit bans automated replies, so the agent drafts and you post.' : `Found by the agent: ${l.src.toLowerCase()} · ${l.found.toLowerCase()}.`
-    body = l.kind === 'reddit'
-      ? `<div class="post"><div class="post-top"><span class="src ${l.cls}">${esc(l.where)}</span><span>${esc(l.by)} · ${l.found}</span></div><b>${esc(l.name)}</b><p>${esc(l.said)}</p><div class="post-stats">▲ ${l.votes} · ${l.comments} comments</div></div>${fitbox}`
-      : `<div class="quote">“${esc(l.said)}”</div>${fitbox}`
+    body = fitbox
     acts = `<button class="btn back" data-skip>No, skip</button><button class="btn pri" data-go="2">${l.kind === 'reddit' ? 'Yes, check the reply →' : 'Yes, write an email →'}</button>`
   } else if (S.step === 2) {
     if (l.kind === 'reddit') {
@@ -463,7 +470,17 @@ function detail(l) {
       acts = `<button class="btn back" data-back="2">← Back</button><button class="btn pri" data-send>Send email →</button>`
     }
   }
-  return `<section class="pane">${bar}<div class="pane-in"><h3>${title}</h3>${hint ? `<p class="hint">${hint}</p>` : ''}${body}</div><div class="actions">${acts}</div></section>`
+  // Same layout as the Competitor Leads reach-out page: who they are on the left, the steps on the right
+  const side = isEmail(l)
+    ? `<aside class="ro-side"><div class="ro-person"><span class="av">${ini(l.name)}</span><div><h2>${esc(l.name)}</h2><div class="sub">${esc(l.co)}</div></div></div>
+        <blockquote class="ro-quote">“${esc(l.said)}”</blockquote>
+        <div class="ro-src"><span>Found: <b>${esc(l.src)}</b> · ${l.found}</span><a class="link" href="#">See it ↗</a></div>
+        ${S.step > 1 || st !== 'new' ? fitbox.replace('class="fitbox"', 'class="fitbox fitbox--side"') : ''}</aside>`
+    : `<aside class="ro-side"><div class="ro-person"><span class="av av-c ${l.cls}">${l.src === 'Reddit' ? 'r/' : 'Y'}</span><div><h2>${esc(l.where)}</h2><div class="sub">${esc(l.by)} · ${l.found}</div></div></div>
+        <div class="ro-quote"><b>${esc(l.name)}</b><p style="margin:6px 0 0">${esc(l.said)}</p></div>
+        <div class="ro-src"><span>▲ ${l.votes} · ${l.comments} comments</span><a class="link" href="#">Open post ↗</a></div>
+        ${S.step > 1 || st !== 'new' ? fitbox.replace('class="fitbox"', 'class="fitbox fitbox--side"') : ''}</aside>`
+  return `<div class="ro">${side}<div class="ro-main">${bar}<section class="pane"><div class="pane-in"><h3>${title}</h3>${hint ? `<p class="hint">${hint}</p>` : ''}${body}</div><div class="actions">${acts}</div></section></div></div>`
 }
 function nextBtn(l) {
   const n = LEADS.find(x => x.id !== l.id && stateOf(x) === 'new' && x.kind === l.kind)
