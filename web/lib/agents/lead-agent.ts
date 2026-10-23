@@ -13,7 +13,7 @@ import { sendGmailMessage, GmailSendError } from '@/lib/gmail/send'
 import { getValidGmailToken } from '@/lib/gmail/token'
 import { checkThreadReply } from '@/lib/gmail/reply-check'
 import { openSignal, clearSignals } from '@/lib/signals'
-import { fetchHtml, scrapeTrustpilot } from '@/lib/lead-finder/reviews'
+import { fetchHtml } from '@/lib/lead-finder/reviews'
 import { searchDataReady, googleResults, mapsBusinesses } from './dataforseo'
 import { agentsDemo, demoReply, demoSend, setDemoContext } from './demo'
 import { Progress } from './progress'
@@ -209,25 +209,6 @@ async function findHackerNews(queries: string[]): Promise<Candidate[]> {
   }
 }
 
-async function findReviews(domains: string[]): Promise<Candidate[]> {
-  const cutoff = Date.now() - 90 * 86_400_000
-  const lists = await Promise.all(domains.slice(0, 3).map(async (dom) => {
-    const reviews = await scrapeTrustpilot(dom).catch(() => [])
-    return reviews
-      .filter(r => r.rating > 0 && r.rating < 4 && (!r.reviewDate || Date.parse(r.reviewDate) >= cutoff))
-      .slice(0, 12)
-      .map(r => ({
-        source: 'review' as const,
-        url: r.reviewUrl ?? `https://www.trustpilot.com/review/${dom}`,
-        title: `${r.company} on ${dom}`,
-        snippet: r.reviewText,
-        name: r.company,
-        rating: r.rating,
-      }))
-  }))
-  return lists.flat()
-}
-
 async function findLocal(query: string, country: string, meter: UsageMeter): Promise<Candidate[]> {
   if (!searchDataReady() || !query.trim()) return []
   const list = await mapsBusinesses(query, country, meter)
@@ -368,7 +349,6 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       { key: 'queries', label: 'Picking search phrases', hint: 'How your buyers ask for help online' },
       { key: 'reddit', label: 'Searching Reddit & HN', hint: 'People asking for a tool like yours' },
     ] : []),
-    ...(s.sources.reviews ? [{ key: 'reviews', label: 'Reading competitor reviews', hint: `1–3 star reviews of ${s.competitors.join(', ') || 'your competitors'}` }] : []),
     ...(s.sources.local ? [{ key: 'local', label: 'Searching Google Maps', hint: `“${s.localQuery}”: businesses with no website or low ratings` }] : []),
     { key: 'score', label: 'Scoring leads', hint: 'How well each one fits your product' },
     { key: 'emails', label: 'Finding emails', hint: 'Hunter first, then their own website' },
@@ -411,7 +391,6 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       const fresh = (x: Candidate) => !known.has(idOf(x.url))
       const found = await Promise.all([
         s.sources.reddit ? source('Reddit search', pr.step('reddit', async () => [...await findReddit(queries, s.country, meter), ...await findHackerNews(queries)], r => ({ detail: `${r.filter(fresh).length} new posts`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
-        s.sources.reviews ? source('Competitor reviews', pr.step('reviews', () => findReviews(s.competitors), r => ({ detail: `${r.filter(fresh).length} new reviewers`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
         s.sources.local ? source('Google Maps search', pr.step('local', () => findLocal(s.localQuery, s.country, meter), r => ({ detail: n(r.length, 'business', 'businesses'), items: r.slice(0, 3).map(x => x.title) }))) : [],
       ])
       // Up to 10 new finds from each source, so a busy one (often Reddit) can't crowd out the rest

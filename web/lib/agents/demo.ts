@@ -4,7 +4,7 @@
 //     lookups (Hunter) and Google Ads waste are made up, from the brand's own keywords and
 //     competitors, and shift a little between runs so "what moved" has something to show
 //   - no email is sent: sending, replies, opt-outs and bounces are simulated
-//   - Claude, Trustpilot reviews and Hacker News are real (free or cheap), so scoring and
+//   - Claude and Hacker News are real (free or cheap), so scoring and
 //     drafts show the real quality
 // Everything an agent saves in demo mode is marked, and cleared once real data is switched on.
 

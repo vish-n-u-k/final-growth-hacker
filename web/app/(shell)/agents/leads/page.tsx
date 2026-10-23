@@ -32,7 +32,6 @@ export default async function LeadAgent() {
     <LeadAgentPage
       initial={data ?? leadFallback(b)()}
       flags={{ dataforseo: searchDataReady(), hunter: hunterConfigured(), gmail: agentsDemo() || !!gmail, demo: agentsDemo() }}
-      competitorsHint={b.competitors.map(c => c.domain)}
     />
   )
 }

@@ -18,8 +18,9 @@ export interface LeadSettings {
   enabled: boolean
   customer: string              // who the brand sells to, in plain words
   country: string               // ISO code (see LOCATION_CODES)
+  // reviews / competitors: no longer used. Competitor reviews are Competitor Leads' job (lib/lead-finder)
   sources: { reddit: boolean; reviews: boolean; local: boolean }
-  competitors: string[]         // domains whose unhappy Trustpilot reviewers become leads
+  competitors: string[]
   localQuery: string            // e.g. "cafés in Pune"
   dailyLimit: number            // new first emails a day
   followUpDays: number[]        // days after the first email, e.g. [3, 7]
@@ -193,7 +194,7 @@ export function defaultLeadData(brand: { websiteUrl?: string | null; targetAudie
       enabled: false,
       customer: brand.targetAudience ?? '',
       country: defaultCountry(brand.websiteUrl),
-      sources: { reddit: true, reviews: competitorDomains.length > 0, local: false },
+      sources: { reddit: true, reviews: false, local: true },
       competitors: competitorDomains.slice(0, 3),
       localQuery: '',
       dailyLimit: 15,

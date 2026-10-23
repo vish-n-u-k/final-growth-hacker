@@ -8,8 +8,9 @@ import { useToast } from '@/components/email-outreach/shared'
 import { ActionBar, Card, Finished, Flow, ListTools, LiveProgress, Sec, Side, Src, Tabs, Tag } from '@/components/tool-ui'
 import { Day, DemoBanner, fmtAgo, fmtDate, initials, useAgentApi } from './shared'
 
-// Lead Agent: finds people who need the product, writes the first message, and follows up until
-// they reply. The bar at the top says what it searches for (Change opens the settings); it searches
+// Lead Agent: finds people who need the product in two places, Reddit / Hacker News posts (a reply
+// to post yourself) and Google Maps businesses (an email to approve), and follows up until they
+// reply. Competitor reviews are Competitor Leads' job, not this one's. The bar at the top says what it searches for (Change opens the settings); it searches
 // by itself the first time the page is opened. Leads sit in three tabs: Needs you (replies to
 // answer, emails to approve, forum replies to post), Waiting (sent, follow-ups running) and Done.
 // A lead opens into two short steps, the same as Competitor Leads' reach-out page.
@@ -23,7 +24,7 @@ const COUNTRIES: [string, string][] = [['US', 'United States'], ['IN', 'India'],
 const SOURCE: Record<Lead['source'], [string, 'orange' | 'amber' | undefined]> = {
   review: ['Unhappy reviewer', undefined], local: ['Google Maps', 'amber'], reddit: ['Reddit', 'orange'], forum: ['Hacker News', 'orange'],
 }
-const PROGRESS = ['Checking replies', 'Reading competitor reviews', 'Searching Google Maps', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies']
+const PROGRESS = ['Checking replies', 'Searching Google Maps', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies']
 
 const isForum = (l: Lead) => l.source === 'reddit' || l.source === 'forum'
 const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
@@ -39,17 +40,16 @@ const nameOf = (l: Lead) => (isForum(l) ? l.title : l.name || l.company || l.tit
 const firstOf = (l: Lead) => (isForum(l) ? 'them' : (l.name || l.company || l.title).split(/\s+/)[0])
 const where = (l: Lead) => { try { return new URL(l.url).hostname.replace(/^www\./, '') } catch { return '' } }
 
-function Settings({ initial, competitorsHint, saving, onSave, onCancel }: {
-  initial: LeadSettings; competitorsHint: string[]; saving: boolean; onSave: (s: LeadSettings) => void; onCancel: () => void
+function Settings({ initial, saving, onSave, onCancel }: {
+  initial: LeadSettings; saving: boolean; onSave: (s: LeadSettings) => void; onCancel: () => void
 }) {
   const [s, setS] = useState<LeadSettings>(initial)
-  const [comps, setComps] = useState(initial.competitors.join(', '))
   const [days, setDays] = useState(initial.followUpDays.join(', '))
   const set = <K extends keyof LeadSettings>(k: K, v: LeadSettings[K]) => setS(x => ({ ...x, [k]: v }))
   return (
     <form className="tu-panel" onSubmit={e => {
       e.preventDefault()
-      onSave({ ...s, competitors: comps.split(/[,\s]+/).map(x => x.trim()).filter(Boolean), followUpDays: days.split(/[,\s]+/).map(Number).filter(n => n > 0) })
+      onSave({ ...s, followUpDays: days.split(/[,\s]+/).map(Number).filter(n => n > 0) })
     }}>
       <h3>Search settings</h3>
       <p className="tu-hint">Filled in from your brand. Change anything.</p>
@@ -57,18 +57,13 @@ function Settings({ initial, competitorsHint, saving, onSave, onCancel }: {
         <label className="tu-full">Who is your customer?
           <textarea rows={2} value={s.customer} onChange={e => set('customer', e.target.value)} placeholder="e.g. Small business owners (cafés, salons, shops) who post on Instagram and struggle to make content" />
         </label>
-        <label>Competitors (up to 3)
-          <input value={comps} onChange={e => setComps(e.target.value)} placeholder={competitorsHint.slice(0, 3).join(', ') || 'competitor.com, other.com'} />
-        </label>
-        <label>Google Maps search
+        <label className="tu-full">Google Maps search
           <input value={s.localQuery} onChange={e => set('localQuery', e.target.value)} placeholder="e.g. cafés in Pune" />
         </label>
-        <label className="tu-chk tu-full"><input type="checkbox" checked={s.sources.reviews} onChange={e => set('sources', { ...s.sources, reviews: e.target.checked })} />
-          <span>Unhappy customers of your competitors<small>1–3 star Trustpilot reviews from the last 3 months</small></span></label>
         <label className="tu-chk tu-full"><input type="checkbox" checked={s.sources.local} onChange={e => set('sources', { ...s.sources, local: e.target.checked })} />
-          <span>Local businesses on Google Maps<small>No website, few reviews or a low rating</small></span></label>
+          <span>Email: businesses on Google Maps<small>No website, few reviews or a low rating. You approve each email.</small></span></label>
         <label className="tu-chk tu-full"><input type="checkbox" checked={s.sources.reddit} onChange={e => set('sources', { ...s.sources, reddit: e.target.checked })} />
-          <span>Reddit and Hacker News<small>Posts asking for a tool like yours. You post the reply yourself.</small></span></label>
+          <span>Community: Reddit and Hacker News<small>Posts asking for a tool like yours. You post the reply yourself.</small></span></label>
         <label className="tu-chk tu-full"><input type="checkbox" checked={s.enabled} onChange={e => set('enabled', e.target.checked)} />
           <span>Search every morning automatically<small>New leads are waiting each day. Nothing is sent without you.</small></span></label>
       </div>
@@ -98,7 +93,7 @@ function Settings({ initial, competitorsHint, saving, onSave, onCancel }: {
   )
 }
 
-export default function LeadAgentPage({ initial, flags, competitorsHint }: { initial: LeadAgentData; flags: LeadAgentFlags; competitorsHint: string[] }) {
+export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentData; flags: LeadAgentFlags }) {
   const { data, busy, call, toast: said } = useAgentApi<LeadAgentData>('/api/agents/lead', initial)
   const [toast, notify] = useToast()
   // What the server says back (errors, "Sent", the search summary) shows in the toast
@@ -185,7 +180,6 @@ export default function LeadAgentPage({ initial, flags, competitorsHint }: { ini
         filter={
           <select className={`cl-sel${src ? ' cl-sel--on' : ''}`} value={src} onChange={e => setSrc(e.target.value as typeof src)} aria-label="Source">
             <option value="">All sources</option>
-            <option value="review">Unhappy reviewers</option>
             <option value="local">Google Maps</option>
             <option value="reddit">Reddit</option>
             <option value="forum">Hacker News</option>
@@ -346,8 +340,7 @@ export default function LeadAgentPage({ initial, flags, competitorsHint }: { ini
   // ── Page ───────────────────────────────────────────────────────────────────
 
   const sources = [
-    s.sources.reviews && s.competitors.length ? `${s.competitors.join(', ')} reviews` : null,
-    s.sources.local && s.localQuery ? `Google Maps “${s.localQuery}”` : null,
+    s.sources.local ? (s.localQuery ? `Google Maps “${s.localQuery}”` : 'Google Maps (add a search)') : null,
     s.sources.reddit ? 'Reddit and Hacker News' : null,
   ].filter(Boolean)
   const customer = (s.customer || 'your customers').split(/[.(]/)[0].trim().slice(0, 70)
@@ -373,7 +366,7 @@ export default function LeadAgentPage({ initial, flags, competitorsHint }: { ini
         {!flags.dataforseo && (s.sources.reddit || s.sources.local) && <div className="ag-note ag-note-warn">Reddit and Google Maps search need GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet. Hacker News and competitor reviews still work.</div>}
         {data.lastError && !running && <div className="ag-note ag-note-crit">The last search had a problem: {data.lastError}</div>}
 
-        {panel && <Settings initial={s} competitorsHint={competitorsHint} saving={busy === 'settings'} onCancel={() => setPanel(false)}
+        {panel && <Settings initial={s} saving={busy === 'settings'} onCancel={() => setPanel(false)}
           onSave={async next => { const r = await call('settings', { settings: next }); if (r?.data) { setPanel(false); notify('Saved') } }} />}
         <ActionBar
           status={running ? (data.lastRunAt ? 'Looking for new leads…' : 'Running your first search…') : data.lastRunAt ? `Last search ${fmtAgo(data.lastRunAt)}${data.lastRunSummary ? ` · ${data.lastRunSummary}` : ''}` : 'Not searched yet'}

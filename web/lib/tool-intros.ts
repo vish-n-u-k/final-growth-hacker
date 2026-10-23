@@ -57,7 +57,7 @@ export const TOOL_INTROS = {
     icon: 'bot',
     what: 'Finds people who need your product, writes the first message, and follows up until they reply.',
     steps: [
-      { title: 'It searches', body: 'Competitors’ unhappy reviewers, Google Maps, Reddit and Hacker News.' },
+      { title: 'It searches', body: 'Reddit and Hacker News posts asking for a tool like yours, and businesses on Google Maps.' },
       { title: 'You approve', body: 'Every email and every forum reply is written for you to check.' },
       { title: 'It follows up', body: 'Follow-ups go out on their own and stop when someone replies.' },
     ],
