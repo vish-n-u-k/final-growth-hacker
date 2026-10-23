@@ -1,6 +1,6 @@
 # GrowJin: handoff for the next session
 
-Last updated 23 Oct 2026. Read this first. It covers what the app is, how the code is laid out, what was built recently, and what we are in the middle of.
+Last updated 23 Oct 2026 (later the same day: Competitor Leads made calm). Read this first. It covers what the app is, how the code is laid out, what was built recently, and what we are in the middle of.
 
 ## 1. What the app is
 
@@ -183,11 +183,16 @@ Gotchas:
 - Published: https://claude.ai/artifact/VBumsgS9fSHqmntQyJMSBq (private to the owner; share from the page)
 - The owner is showing it to the people from the demo.
 
+**Preview of all tools and Today calm:** `design-previews/tools-cleanup/all-tools-calm.html`, published at https://claude.ai/artifact/NgrFCxQwAwnNaZDBRsXbXC.
+
+**Built so far:** Competitor Leads (`LeadFinder.tsx`, `lead-finder/ReachOut.tsx`). It uses the shared calm parts in `tool-ui.tsx` (`CalmHead`, `StartHere`, `QuietRow`, `AllCaughtUp`) and the `ca-*` CSS at the end of `globals.css`. Reuse these for the other tools.
+
+- After sending or skipping on a reviewer's page, the next good fit opens by itself. The `?done=sent|skipped&id=&name=` query shows the toast (with Undo for a skip) on the page that opens.
+
 **Next steps:**
 
-1. Wait for the owner's feedback on the calm preview, then change it if needed.
-2. Build the calm version into the real Lead Agent (`LeadAgentPage.tsx` + `tool-ui.tsx` + CSS). Keep the current data and API; this is a UI change.
-3. Apply the same rules to Competitor Leads, Email Outreach, Search Agent and Today, one at a time, checking each in the preview harness at desktop and phone width.
+1. Build the calm version of the Lead Agent, Email Outreach, Search Agent and Today the same way, one at a time, checking each in the preview harness at desktop and phone width. Keep the current data and API; this is a UI change.
+2. The owner liked the Competitor Leads preview. Ask about the open questions in the all-tools preview (merging Follow-ups and Inbox replies in Email Outreach, the AI-names-you chart, the streak moving to Settings).
 4. Push to `dev`. Push to `main` only when the owner asks.
 
 ## 6. Known open items

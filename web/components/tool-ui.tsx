@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import type { RunProgress } from '@/lib/agents/progress'
 import { Spinner } from '@/components/ui/spinner'
+import { GROUP } from '@/components/ToolHeader'
 
 // The pieces every tool page is built from (Lead Agent, Search Agent, Competitor Leads), so they
 // look and work the same: underline tabs with counts, the action bar of an agent, item cards
@@ -284,4 +286,49 @@ export function useShowAll<T>(list: T[], reset: unknown, size = PAGE_SIZE) {
       ? <button type="button" className="th-link tu-linkbtn tu-showall" onClick={() => setAll(a => !a)}>{all ? 'Show fewer' : `Show all ${list.length}`}</button>
       : null,
   }
+}
+
+// ── Calm pages ────────────────────────────────────────────────────────────────
+// The calmer layout (design-previews/tools-cleanup/all-tools-calm.html), one tool at a time:
+// the name and one grey line on top, one "Start here" panel holding the only green button,
+// the rest as quiet rows (a name and one line on why), details only once an item is opened.
+
+/** The tool's name and one grey line under it: status first, then quiet links. */
+export function CalmHead({ title, line }: { title: string; line: React.ReactNode[] }) {
+  return (
+    <div className="ca-top">
+      {GROUP[title] && <nav className="ca-crumbs" aria-label="Breadcrumb">{GROUP[title]} › {title}</nav>}
+      <h1 className="ca-title">{title}</h1>
+      <div className="ca-line">{line.filter(Boolean).map((x, i) => <span key={i}>{x}</span>)}</div>
+    </div>
+  )
+}
+
+/** The next thing to do. Red only when someone replied. */
+export function StartHere({ title, sub, action, reply }: { title: React.ReactNode; sub?: React.ReactNode; action: React.ReactNode; reply?: boolean }) {
+  return (
+    <section className={`ca-next${reply ? ' ca-next--reply' : ''}`} aria-label="Start here">
+      <div className="ca-next-text"><b>{title}</b>{sub && <span>{sub}</span>}</div>
+      {action}
+    </section>
+  )
+}
+
+/** One quiet row: a name and one line on why. Opens on click. */
+export function QuietRow({ href, onClick, name, why, go = 'Open', dot, after }: {
+  href?: string; onClick?: () => void; name: React.ReactNode; why?: React.ReactNode; go?: React.ReactNode; dot?: boolean; after?: React.ReactNode
+}) {
+  const inner = <>
+    {dot && <span className="ca-dot" title="Replied" />}
+    <span className="ca-row-main"><span className="ca-row-name">{name}</span>{why && <span className="ca-row-why">{why}</span>}</span>
+    {go && <span className="ca-row-go">{go}</span>}
+  </>
+  if (href) return <Link className="ca-row" href={href}>{inner}</Link>
+  if (onClick) return <button type="button" className="ca-row" onClick={onClick}>{inner}</button>
+  return <div className="ca-row ca-row--still">{inner}{after}</div>
+}
+
+/** Nothing left to do: one line, one button. */
+export function AllCaughtUp({ title = 'All caught up', text, action }: { title?: string; text: React.ReactNode; action?: React.ReactNode }) {
+  return <section className="ca-empty"><b>{title}</b><p>{text}</p>{action}</section>
 }

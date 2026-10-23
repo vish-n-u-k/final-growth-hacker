@@ -7,7 +7,7 @@ import type { ToolIntroId } from '@/lib/tool-intros'
 // "what this does" strip.
 
 // The sidebar group each tool sits in (components/AppSidebar), for the breadcrumb
-const GROUP: Record<string, string> = {
+export const GROUP: Record<string, string> = {
   'Lead Agent': 'Get customers', 'Competitor Leads': 'Get customers', 'Email Outreach': 'Get customers', 'AI Agents': 'Get customers',
   'Search Agent': 'Get seen', 'Social Studio': 'Get seen', 'Meta Ads': 'Get seen',
   Reminders: 'Keep track', Analytics: 'Keep track',
