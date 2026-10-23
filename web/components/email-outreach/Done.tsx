@@ -6,6 +6,7 @@ import {
   CLOSED_WINDOW_DAYS, OUTCOME_LABEL, closedFollowUps, gmailLink, loadReminders, reopenReminder, type Closed,
 } from '@/lib/email-outreach/followups'
 import { fmtDate, initials, type Notify } from './shared'
+import { Pager, usePages } from '@/components/tool-ui'
 
 // Email Outreach → Done: follow-ups closed in the last two weeks (a reply, opt-out or bounce
 // found in Gmail, or skipped by the user, which can be restored) and every email sent or
@@ -41,6 +42,8 @@ export default function Done({ reloadKey, sent, notify, onChanged, onCancel }: {
     setLoading(false)
   }, [])
   useEffect(() => { load() }, [load, reloadKey])
+  const closedPg = usePages(closed, null)
+  const sentPg = usePages(sent, null)
 
   async function restore(c: Closed) {
     setBusy(c.id)
@@ -57,7 +60,7 @@ export default function Done({ reloadKey, sent, notify, onChanged, onCancel }: {
         : closed.length === 0 ? <p className="eo-empty">Nothing in the last {CLOSED_WINDOW_DAYS} days. When someone replies, opts out or bounces, the follow-up closes by itself and shows up here.</p>
         : (
           <div className="eo-list">
-            {closed.map(c => (
+            {closedPg.items.map(c => (
               <div key={c.id} className="eo-row">
                 <span className="cl-av eo-av-sm" aria-hidden="true">{initials(c.recipient)}</span>
                 <span className="eo-row-main">
@@ -75,11 +78,12 @@ export default function Done({ reloadKey, sent, notify, onChanged, onCancel }: {
             ))}
           </div>
         )}
+      <Pager p={closedPg} />
 
       <h2 className="eo-h">Emails sent <span className="eo-count">{sent.length}</span></h2>
       {sent.length === 0 ? <p className="eo-empty">Emails you send from any GrowJin tool show up here.</p> : (
         <div className="eo-list">
-          {sent.map(e => (
+          {sentPg.items.map(e => (
             <div key={e.id} className="eo-row">
               <span className="cl-av eo-av-sm" aria-hidden="true">{initials(e.toName || e.toEmail)}</span>
               <span className="eo-row-main">
@@ -100,6 +104,7 @@ export default function Done({ reloadKey, sent, notify, onChanged, onCancel }: {
           ))}
         </div>
       )}
+      <Pager p={sentPg} />
     </div>
   )
 }

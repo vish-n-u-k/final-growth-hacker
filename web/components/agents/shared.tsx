@@ -79,9 +79,9 @@ export function DemoBanner({ children }: { children?: React.ReactNode }) {
   return (
     <div className="ag-demo" role="note">
       <p style={{ margin: 0 }}>
-        <b>Demo mode.</b>{' '}Google results, rankings, AI answers and found emails are made up because DataForSEO and Hunter
-        aren&apos;t connected yet, and{' '}<b>no email is actually sent</b>{' '}(replies are simulated). Claude really scores leads and
-        writes the drafts, so their quality is real.
+        <b>Demo mode.</b>{' '}Businesses, Google results, rankings, AI answers and emails are made up, and{' '}
+        <b>no email is actually sent</b>{' '}(replies are simulated). Claude really scores leads and writes the drafts, so their
+        quality is real. Turn Demo mode off for your real data.
       </p>
       {children && <div style={{ marginTop: 8 }}>{children}</div>}
     </div>

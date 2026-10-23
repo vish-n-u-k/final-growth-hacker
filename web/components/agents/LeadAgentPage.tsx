@@ -5,7 +5,7 @@ import ToolHeader from '@/components/ToolHeader'
 import type { Lead, LeadAgentData, LeadSettings } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
 import { useToast } from '@/components/email-outreach/shared'
-import { ActionBar, Card, Finished, Flow, ListTools, LiveProgress, Sec, Side, Src, Tabs, Tag } from '@/components/tool-ui'
+import { ActionBar, Card, DemoSwitch, Pager, usePages, Finished, Flow, ListTools, LiveProgress, Sec, Side, Src, Tabs, Tag } from '@/components/tool-ui'
 import { Day, DemoBanner, fmtAgo, fmtDate, initials, useAgentApi } from './shared'
 
 // Lead Agent: finds people who need the product in two places, Reddit / Hacker News posts (a reply
@@ -16,7 +16,7 @@ import { Day, DemoBanner, fmtAgo, fmtDate, initials, useAgentApi } from './share
 // answer, emails to approve, forum replies to post), Waiting (sent, follow-ups running) and Done.
 // A lead opens into two short steps, the same as Competitor Leads' reach-out page.
 
-export interface LeadAgentFlags { dataforseo: boolean; hunter: boolean; gmail: boolean; demo: boolean }
+export interface LeadAgentFlags { dataforseo: boolean; hunter: boolean; gmail: boolean; demo: boolean; demoForced: boolean }
 
 type TabKey = 'needs' | 'waiting' | 'done'
 type Lane = 'community' | 'email'
@@ -104,6 +104,9 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
   const s = data.settings
   // Open on the job with something to do: email first (replies wait there), else community
   const [lane, setLane] = useState<Lane>(() => initial.leads.some(l => tabOf(l) === 'needs' && laneOf(l) === 'email') || !initial.leads.some(l => tabOf(l) === 'needs') ? 'email' : 'community')
+  const [demo, setDemo] = useState(flags.demo)
+  // In demo mode nothing is really sent, so Gmail isn't needed
+  const gmail = flags.gmail || demo
   const [tab, setTab] = useState<TabKey>('needs')
   const [panel, setPanel] = useState(false)
   const [q, setQ] = useState('')
@@ -131,6 +134,16 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
   const inLane = (ln: Lane, k: TabKey) => leads.filter(l => laneOf(l) === ln && tabOf(l) === k)
   const byTab = (k: TabKey) => inLane(lane, k)
   const hot = leads.some(l => tabOf(l) === 'needs' && l.status === 'replied')
+
+  // The list on screen: this tab, searched, in section order (replies first), a page at a time
+  const SECTIONS = ['replied', 'approve', 'post'] as const
+  const tabAll = byTab(tab)
+  const needle = q.trim().toLowerCase()
+  const shown = tabAll
+    .filter(l => !needle || `${nameOf(l)} ${l.why} ${l.snippet}`.toLowerCase().includes(needle))
+    .sort((a, b) => (tab === 'needs' ? SECTIONS.indexOf(sectionOf(a)) - SECTIONS.indexOf(sectionOf(b)) : 0))
+  const pg = usePages(shown, [lane, tab, needle])
+  const listTop = useRef<HTMLDivElement>(null)
   const open = openId ? leads.find(l => l.id === openId) ?? null : null
 
   function openLead(l: Lead) {
@@ -177,10 +190,9 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
   }
 
   function list() {
-    const all = byTab(tab)
-    const needle = q.trim().toLowerCase()
-    const shown = all.filter(l => !needle || `${nameOf(l)} ${l.why} ${l.snippet}`.toLowerCase().includes(needle))
+    const all = tabAll
     const tools = <>
+      <div ref={listTop} className="tu-anchor" />
       <div className="tu-filter">
         <div className="cl-seg" role="group" aria-label="Show">
           {([['needs', 'To do'], ['waiting', 'Waiting'], ['done', 'Done']] as const).map(([k, label]) => (
@@ -200,19 +212,20 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
         : tab === 'waiting' ? (lane === 'email' ? 'Nothing waiting. Emails you send show up here until they reply.' : 'Nothing waiting. Replies you post show up here.')
         : 'Nothing here yet.'}</div></>
     }
-    if (tab !== 'needs') return <>{tools}{shown.map(card)}</>
+    if (tab !== 'needs') return <>{tools}{pg.items.map(card)}<Pager p={pg} top={listTop} /></>
     const approvable = shown.filter(l => l.status === 'ready' && !l.reply && l.email && l.draft).length
     return <>{tools}
       {([['replied', 'Replied: answer while they’re interested', 'crit'], ['approve', 'Emails to approve', undefined], ['post', 'Replies to post', undefined]] as const).map(([k, label, tone]) => {
-        const items = shown.filter(l => sectionOf(l) === k)
+        // This page's cards of the section; the heading counts the whole section
+        const items = pg.items.filter(l => sectionOf(l) === k)
         if (!items.length) return null
         // Community has only one kind, so no heading
         if (k === 'post') return <div key={k}>{items.map(card)}</div>
         return (
           <div key={k}>
             <div className="tu-sec-row">
-              <Sec label={label} count={items.length} tone={tone} />
-              {k === 'approve' && approvable > 1 && flags.gmail && (
+              <Sec label={label} count={shown.filter(l => sectionOf(l) === k).length} tone={tone} />
+              {k === 'approve' && approvable > 1 && gmail && (
                 <button type="button" className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => act('approve_all', {}, 'approve_all')}>
                   {busy === 'approve_all' ? <><Spinner />Sending…</> : `Approve all ${approvable}`}
                 </button>
@@ -222,6 +235,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
           </div>
         )
       })}
+      <Pager p={pg} top={listTop} />
     </>
   }
 
@@ -327,7 +341,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     const sending = busy === `approve:${l.id}`
     return flow(2, 'Check the email, then send it', 'Short and plain, from your Gmail. Edit anything.',
       <>
-        {!flags.gmail && <div className="ro-error"><span>Connect Gmail so the email goes out from your address.</span><a className="btn btn-primary btn-sm" href="/api/gmail/connect">Connect Gmail</a></div>}
+        {!gmail && <div className="ro-error"><span>Connect Gmail so the email goes out from your address.</span><a className="btn btn-primary btn-sm" href="/api/gmail/connect">Connect Gmail</a></div>}
         <div className="ro-mail">
           <label className="ro-mail-row"><span>To</span><input value={to} readOnly /></label>
           <label className="ro-mail-row"><span>Subject</span><input value={subject} onChange={e => setSubject(e.target.value)} /></label>
@@ -339,7 +353,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
       </>,
       <>
         <button key="b" type="button" className="btn btn-ghost ro-back" disabled={sending} onClick={() => setStepNo(1)}>← Back</button>
-        <button key="send" type="button" className="btn btn-primary" disabled={sending || !flags.gmail || !subject.trim() || !body.trim()}
+        <button key="send" type="button" className="btn btn-primary" disabled={sending || !gmail || !subject.trim() || !body.trim()}
           onClick={() => act('approve', { id: l.id, subject, body }, `approve:${l.id}`)}>
           {sending ? <><Spinner />Sending…</> : 'Send email →'}
         </button>
@@ -361,17 +375,24 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
         title="Lead Agent"
         intro="leadAgent"
         chips={<>
-          <span className={`th-chip ${flags.gmail ? 'th-chip--on' : 'th-chip--warn'}`}>{flags.gmail ? 'Gmail connected' : 'Gmail not connected'}</span>
-          {s.enabled && <span className="th-chip">Searches every morning</span>}
+          {demo ? <span className="th-chip th-chip--warn">Demo: nothing is sent</span>
+            : <span className={`th-chip ${gmail ? 'th-chip--on' : 'th-chip--warn'}`}>{gmail ? 'Gmail connected' : 'Gmail not connected'}</span>}
+          {s.enabled && !demo && <span className="th-chip">Searches every morning</span>}
         </>}
+        actions={<DemoSwitch on={demo} forced={flags.demoForced} busy={!!busy} onChange={async on => {
+          const r = await call('demo', { on }) as { demo?: boolean; data?: LeadAgentData } | null
+          if (typeof r?.demo !== 'boolean') return
+          setDemo(r.demo); setOpenId(null); setTab('needs')
+          // Never run in this mode yet (first time in demo): the first-visit search above starts it
+        }} />}
       />
       {open ? detail(open) : <>
-        {flags.demo && (
+        {demo && (
           <DemoBanner>
             {data.lastRunAt && <button className="btn btn-ghost btn-sm" type="button" disabled={!!busy} onClick={() => call('demo_skip')}>{busy === 'demo_skip' ? <><Spinner />Skipping ahead…</> : 'Skip ahead 3 days'}</button>}
           </DemoBanner>
         )}
-        {!flags.gmail && <div className="ag-note ag-note-warn">Connect Gmail so approved emails go out from your address. <a href="/api/gmail/connect">Connect Gmail</a></div>}
+        {!gmail && <div className="ag-note ag-note-warn">Connect Gmail so approved emails go out from your address. <a href="/api/gmail/connect">Connect Gmail</a></div>}
         {!flags.dataforseo && (s.sources.reddit || s.sources.local) && <div className="ag-note ag-note-warn">Reddit and Google Maps search need GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet. Hacker News and competitor reviews still work.</div>}
         {data.lastError && !running && <div className="ag-note ag-note-crit">The last search had a problem: {data.lastError}</div>}
 

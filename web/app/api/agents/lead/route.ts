@@ -1,15 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { agentAccess } from '@/lib/agents/access'
+import { demoForced, withDemo } from '@/lib/agents/demo'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
 import { addLeadEmail, approveLead, demoSkipDays, leadFallback, runLeadAgent } from '@/lib/agents/lead-agent'
 import { readLeadData, updateLeadData, type LeadSettings } from '@/lib/agents/store'
+import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
 import { clearSignals } from '@/lib/signals'
 
 export const dynamic = 'force-dynamic'
+// Every request runs with the brand's demo-mode switch (lib/agents/demo.ts)
+async function inDemo<T extends Response>(fn: () => Promise<T>): Promise<T | Response> {
+  const a = await agentAccess()
+  if (a.error) return a.error
+  return withDemo(await readDemoSwitch(a.brandId), fn)
+}
+
 export const maxDuration = 300
 
-export async function GET() {
+export async function GET() { return inDemo(get) }
+async function get() {
   const a = await agentAccess()
   if (a.error) return a.error
   const b = await loadBrandContext(a.brandId)
@@ -41,7 +51,8 @@ function cleanSettings(cur: LeadSettings, s: Partial<LeadSettings>): LeadSetting
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: NextRequest) { return inDemo(() => post(req)) }
+async function post(req: NextRequest) {
   const a = await agentAccess()
   if (a.error) return a.error
   const brandId = a.brandId
@@ -49,10 +60,17 @@ export async function POST(req: NextRequest) {
   if (!b) return NextResponse.json({ error: 'No brand' }, { status: 404 })
   const fallback = leadFallback(b)
   const body = await req.json().catch(() => ({})) as {
-    op?: string; id?: string; subject?: string; body?: string; reply?: string; email?: string; settings?: Partial<LeadSettings>
+    op?: string; on?: boolean; id?: string; subject?: string; body?: string; reply?: string; email?: string; settings?: Partial<LeadSettings>
   }
 
   switch (body.op) {
+    case 'demo': {
+      if (demoForced()) return NextResponse.json({ error: 'Demo mode stays on until DataForSEO is set up.' }, { status: 400 })
+      const on = body.on === true
+      await saveDemoSwitch(brandId, on)
+      const data = await withDemo(on, async () => (await readLeadData(brandId)) ?? fallback())
+      return NextResponse.json({ data, demo: on, message: on ? 'Demo mode on: made-up leads, nothing is sent.' : 'Demo mode off: real leads.' })
+    }
     case 'settings': {
       const data = await updateLeadData(brandId, fallback, d => { d.settings = cleanSettings(d.settings, body.settings ?? {}) })
       if (!data.settings.enabled) await clearSignals(brandId, 'lead-agent', ['approvals']).catch(() => {})

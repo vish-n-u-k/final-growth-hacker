@@ -6,7 +6,7 @@ import ToolHeader from '@/components/ToolHeader'
 import { Spinner } from '@/components/ui/spinner'
 import { Stars, competitorLabel, ago, fmtDate, initials, reviewHref, saveReview, step } from '@/components/lead-finder/ui'
 import { useToast } from '@/components/email-outreach/shared'
-import { Card, ListTools, Tabs, Tag } from '@/components/tool-ui'
+import { Card, ListTools, Tabs, Tag, useShowAll } from '@/components/tool-ui'
 import type { SavedReview, SavedScan } from '@/lib/lead-finder/saved'
 
 // Competitor Leads, step one: read a competitor's newest reviews, list them, then check how well
@@ -55,6 +55,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
   const [page, setPage] = useState(1)
   const [earlier, setEarlier] = useState(false)
   const [toast, notify] = useToast()
+  const scans = useShowAll(history, earlier, 5)
   const listTop = useRef<HTMLDivElement>(null)
   // Back to page 1 whenever the list itself changes
   useEffect(() => { setPage(1) }, [q, stars, tab, scan?.id])
@@ -217,11 +218,12 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
       {platform === 'trustpilot' && !trustpilotReady && <p className="cl-warn">Trustpilot often blocks automatic reading unless DataForSEO is set up. The Shopify App Store works either way.</p>}
       {earlier && (
         <div className="tu-hist">
-          {history.map(h => (
+          {scans.items.map(h => (
             <button key={h.id} type="button" disabled={loadingScan} aria-current={h.id === scan?.id ? 'true' : undefined} onClick={() => { openScan(h.id); setEarlier(false) }}>
               {competitorLabel(h.competitor)}<span>{fmtDate(h.scannedAt)}{h.emailed ? ` · ${h.emailed} emailed` : ''}</span>
             </button>
           ))}
+          {scans.toggle}
         </div>
       )}
     </form>

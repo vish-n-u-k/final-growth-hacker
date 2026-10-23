@@ -1,13 +1,12 @@
 import ProGate from '@/components/ProGate'
-import ComingSoonPage from '@/components/ComingSoonPage'
+import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/server-session'
 import { hasEarlyAccess } from '@/lib/early-access'
+import { isComingSoon } from '@/lib/features'
 
-// Parked as Coming soon (lib/features.ts), except for early-access users (lib/early-access.ts).
+// Parked for now (lib/features.ts): only early-access users (lib/early-access.ts) can open it.
 export default async function Layout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser()
-  if (!await hasEarlyAccess(user?.email)) {
-    return <ComingSoonPage feature="Competitor Leads" blurb="Turn competitor reviews into a list of prospects who already need what you sell." />
-  }
+  if (isComingSoon('/lead-finder', await hasEarlyAccess(user?.email))) redirect('/tools')
   return <ProGate feature="Competitor Leads" blurb="Mine competitor reviews for unhappy customers that fit your product, scored and ready for outreach.">{children}</ProGate>
 }

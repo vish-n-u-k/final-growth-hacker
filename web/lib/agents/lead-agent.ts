@@ -351,7 +351,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
     ] : []),
     ...(s.sources.local ? [{ key: 'local', label: 'Searching Google Maps', hint: `“${s.localQuery}”: businesses with no website or low ratings` }] : []),
     { key: 'score', label: 'Scoring leads', hint: 'How well each one fits your product' },
-    { key: 'emails', label: 'Finding emails', hint: 'Hunter first, then their own website' },
+    { key: 'emails', label: 'Finding emails', hint: 'Looked up with Hunter' },
     { key: 'drafts', label: 'Drafting messages', hint: 'Personal emails and forum replies for your OK' },
   ])
 
@@ -431,12 +431,9 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
         if (Date.now() > deadline) break
         if (l.source === 'reddit' || l.source === 'forum' || !l.website || euBlocked) continue
         const person = l.source === 'review' ? l.name : undefined
+        // Emails come from Hunter only (businesses come from DataForSEO)
         const found = lookups < 10 && hunterConfigured() ? await findEmail(l.website, person, meter).catch(() => null) : null
         if (found) { lookups += 1; l.email = found.email; l.emailVerified = found.verified; if (found.name && l.source !== 'review') l.name = found.name }
-        else {
-          const site = await emailFromWebsite(l.website).catch(() => null)
-          if (site) { l.email = site; l.emailVerified = false }
-        }
       }
       const businesses = fresh.filter(l => l.source === 'review' || l.source === 'local')
       if (!fresh.length) pr.set('emails', 'skipped', 'No good fits')

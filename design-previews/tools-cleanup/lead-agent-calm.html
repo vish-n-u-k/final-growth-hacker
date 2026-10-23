@@ -1,0 +1,278 @@
+<title>Calm Lead Agent</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: the app frame (sidebar + one quiet column). One green button per screen = the next step. */
+  :root {
+    --bg: #ffffff; --soft: #f3f5f3; --line: #e3e7e3; --text: #16201a; --dim: #4f5c53; --faint: #86918a;
+    --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --red: #b42318; --red-soft: #fdeceb;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; color-scheme: dark }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--body); }
+  button, input, textarea { font: inherit; color: inherit; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+  /* App frame */
+  .frame { display: flex; min-height: 100vh; }
+  .side { width: 232px; flex: none; background: var(--soft); border-right: 1px solid var(--line); padding: 18px 12px; font-size: 13.5px; }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 4px 8px 20px; font: 600 16px var(--display); }
+  .grp { margin-bottom: 18px; }
+  .gl { padding: 0 10px 6px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .nav { display: block; padding: 7px 10px; border-radius: 8px; color: var(--dim); text-decoration: none; }
+  .nav.on { background: var(--green-soft); color: var(--green-ink); font-weight: 600; }
+  .main { flex: 1; min-width: 0; }
+  .page { max-width: 880px; padding-block: 28px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); margin: 0 auto; }
+  .mbar { display: none; }
+  @media (max-width: 760px) {
+    .side { display: none; }
+    .mbar { display: flex; align-items: center; gap: 9px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--soft); font: 600 15px var(--display); }
+    .page { padding-block: 18px 56px; }
+  }
+
+  /* Header: the name, and one grey line. Nothing else competes. */
+  .crumbs { font-size: 13px; color: var(--faint); margin-bottom: 18px; }
+  h1 { margin: 0; font: 600 32px/1.15 var(--display); letter-spacing: -.01em; }
+  .line { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 14px; color: var(--faint); }
+  .link { border: 0; background: none; padding: 0; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; }
+  .link:hover { color: var(--text); text-decoration-color: currentColor; }
+
+  /* Tabs: one level only */
+  .tabs { display: flex; gap: 4px; margin: 28px 0 22px; border-bottom: 1px solid var(--line); }
+  .tab { padding: 10px 14px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; font-size: 15px; color: var(--faint); cursor: pointer; }
+  .tab[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--text); }
+  .tab .n { margin-left: 6px; font-size: 13px; color: var(--faint); font-weight: 500; }
+
+  /* Start here: the only highlighted thing on the page */
+  .next { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px 22px; border-radius: 14px; background: var(--green-soft); }
+  .next-text { flex: 1 1 260px; min-width: 0; }
+  .next-text b { display: block; font-size: 17px; font-weight: 600; }
+  .next-text span { color: var(--dim); font-size: 14px; }
+  .next.reply { background: var(--red-soft); }
+  .btn { height: 42px; padding: 0 20px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn.go { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.go:hover { filter: brightness(1.06); }
+  .btn.quiet { border-color: transparent; background: none; color: var(--dim); padding: 0 12px; }
+  .btn.quiet:hover { color: var(--text); }
+
+  /* The rest of the list: quiet rows, no badges */
+  .rest { margin-top: 26px; }
+  .rest-h { margin: 0 0 6px; font-size: 13px; color: var(--faint); }
+  .row { display: flex; align-items: center; gap: 14px; padding: 14px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .row:hover .row-name { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .row-main { flex: 1; min-width: 0; }
+  .row-name { font-weight: 600; }
+  .row-why { color: var(--dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-go { color: var(--faint); font-size: 14px; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
+  .more { margin-top: 18px; font-size: 14px; color: var(--faint); }
+  .empty { padding: 36px 22px; border-radius: 14px; background: var(--soft); text-align: center; }
+  .empty b { display: block; font-size: 17px; margin-bottom: 4px; }
+  .empty p { margin: 0 0 16px; color: var(--dim); }
+
+  /* One lead opened: what to know on the left, the step on the right */
+  .back { margin-bottom: 20px; }
+  .open { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 32px; align-items: start; }
+  .who h2 { margin: 0 0 4px; font: 600 22px/1.25 var(--display); }
+  .who .src { font-size: 13px; color: var(--faint); }
+  .who .why { margin: 16px 0 0; font-size: 14.5px; }
+  .who blockquote { margin: 14px 0 0; padding-left: 12px; border-left: 2px solid var(--line); color: var(--dim); font-size: 14px; }
+  .step-of { font-size: 13px; color: var(--faint); margin-bottom: 6px; }
+  .step h3 { margin: 0 0 6px; font: 600 24px/1.25 var(--display); }
+  .step .hint { margin: 0 0 18px; color: var(--dim); font-size: 14px; }
+  .field { display: grid; gap: 6px; font-size: 13px; color: var(--dim); }
+  .field input { height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 15px; }
+  .found { margin-bottom: 14px; font-size: 14px; color: var(--dim); }
+  .found b { color: var(--text); }
+  .mail { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .mail label { display: flex; gap: 12px; align-items: center; padding: 0 14px; min-height: 44px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .mail label span { width: 56px; color: var(--faint); }
+  .mail input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 14.5px; }
+  .mail textarea { display: block; width: 100%; min-height: 200px; padding: 14px; border: 0; background: none; resize: vertical; outline: none; font-size: 14.5px; line-height: 1.65; }
+  .acts { display: flex; align-items: center; gap: 8px; margin-top: 22px; }
+  .acts .btn.go { margin-left: auto; }
+  .note { margin-top: 10px; font-size: 13px; color: var(--faint); }
+  .copyrow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  @media (max-width: 760px) { .open { grid-template-columns: 1fr; gap: 20px; } }
+
+  /* Settings: a quiet panel, only when asked for */
+  .sheet { margin-top: 18px; padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; }
+  .sheet h3 { margin: 0 0 14px; font-size: 16px; }
+  .opt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; font-size: 14.5px; }
+  .opt input[type="checkbox"] { margin-top: 4px; accent-color: var(--green); }
+  .opt small { display: block; color: var(--faint); font-size: 13px; }
+  .sheet .field { margin-top: 10px; }
+  .status { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 14px; color: var(--dim); }
+
+  .toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); padding: 10px 16px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 14px; z-index: 20; }
+  .toast button { margin-left: 10px; border: 0; background: none; color: var(--bg); font-weight: 600; text-decoration: underline; cursor: pointer; }
+  @media (prefers-reduced-motion: no-preference) { .row, .btn { transition: background .15s, color .15s; } }
+</style>
+
+<div class="frame">
+  <nav class="side" aria-label="Main">
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#12A664"/><path d="M6 17.5 L10.5 12 L14 15 L20 7.5" stroke="#fff" stroke-width="2.4" fill="none"/><circle cx="20" cy="7.5" r="2.4" fill="#FF6A50"/></svg>GrowJin</div>
+    <div class="grp"><a class="nav" href="#">Today</a></div>
+    <div class="grp"><div class="gl">Get customers</div><a class="nav on" href="#">Lead Agent</a><a class="nav" href="#">Competitor Leads</a><a class="nav" href="#">Email Outreach</a></div>
+    <div class="grp"><div class="gl">Get seen</div><a class="nav" href="#">Search Agent</a><a class="nav" href="#">Social Studio</a></div>
+    <div class="grp"><div class="gl">Keep track</div><a class="nav" href="#">Reminders</a><a class="nav" href="#">Analytics</a></div>
+  </nav>
+  <main class="main">
+    <div class="mbar"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#12A664"/><path d="M6 17.5 L10.5 12 L14 15 L20 7.5" stroke="#fff" stroke-width="2.4" fill="none"/></svg>GrowJin</div>
+    <div class="page" id="view"></div>
+  </main>
+</div>
+<div id="toast"></div>
+
+<script>
+const BRAND = 'Frekto'
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+
+// Example leads (made up for the preview)
+const LEADS = [
+  { id: 'r1', lane: 'email', kind: 'reply', name: 'Tom Becker', src: 'Google Maps · Becker Prints', why: 'Asked for pricing.', quote: 'Sounds interesting, can you send pricing?', email: 'tom@beckerprints.com' },
+  { id: 'e1', lane: 'email', kind: 'email', name: 'Bloom Salon', src: 'Google Maps · Pune · 3.6★', why: 'Busy salon, last Instagram post 5 months ago.', quote: '42 Google reviews, no posts since May.', email: 'hello@bloomsalon.in', subject: 'Your Instagram', body: `Hi,\n\nI noticed Bloom Salon has great reviews but hasn't posted on Instagram since May.\n\n${BRAND} makes on-brand posts for salons in under a minute. Want three free examples for Bloom?\n\n${BRAND}` },
+  { id: 'e2', lane: 'email', kind: 'email', name: 'Lumen Candles', src: 'Google Maps · Mumbai · 4.0★', why: 'No posts in three months.', quote: 'Shop with 28 reviews and an inactive Instagram.', email: 'hi@lumencandles.com', subject: 'Posts for Lumen', body: `Hi,\n\nLumen's candles look lovely, but your Instagram has been quiet for three months.\n\n${BRAND} turns product photos into ready posts. Want a free week of them?\n\n${BRAND}` },
+  { id: 'e3', lane: 'email', kind: 'email', name: 'Ortiz Coffee', src: 'Google Maps · Pune · 3.9★', why: 'Café with no website and few posts.', quote: 'No website listed on Google Maps.', email: null, subject: 'Quick idea for Ortiz', body: `Hi,\n\nOrtiz Coffee gets good reviews but posts rarely.\n\n${BRAND} makes daily café posts from your menu photos. Want to see a few?\n\n${BRAND}` },
+  { id: 'c1', lane: 'community', kind: 'post', name: 'Any tool that makes Instagram posts for my café?', src: 'Reddit · r/smallbusiness · 3 h ago', why: 'Asking for exactly what Frekto does.', quote: "I don't have time to design posts every day.", url: 'https://www.reddit.com/r/smallbusiness/', reply: `Same problem with my shop. What helped: batch a week of posts on Sunday, and use a tool that makes the images from your menu photos.\n\nFull disclosure, I make ${BRAND}, which does that.` },
+  { id: 'c2', lane: 'community', kind: 'post', name: 'Ask HN: How do you handle social media as a solo founder?', src: 'Hacker News · yesterday', why: 'Solo founder short on time for social.', quote: 'I know I should post, but every week it slips.', url: 'https://news.ycombinator.com/', reply: `I gave up on daily posting until I automated the boring part: one hour on Sunday, posts scheduled for the week.\n\nDisclosure: I make ${BRAND}, which does that.` },
+]
+const S = { lane: 'email', done: {}, open: null, step: 1, sheet: false, past: false, toast: null, gmail: true }
+const todo = lane => LEADS.filter(l => l.lane === lane && !S.done[l.id])
+const finished = lane => LEADS.filter(l => l.lane === lane && S.done[l.id])
+
+function toast(msg, undo) {
+  S.toast = { msg, undo }
+  clearTimeout(toast.t); toast.t = setTimeout(() => { S.toast = null; paint() }, 4000)
+}
+
+function header() {
+  return `<div class="crumbs">Get customers › Lead Agent</div>
+    <h1>Lead Agent</h1>
+    <div class="line"><span>Last search 2 h ago</span><button class="link" data-a="sheet">Settings</button><button class="link" data-a="search">Find new leads</button></div>
+    ${S.sheet ? sheet() : ''}`
+}
+
+function sheet() {
+  return `<section class="sheet" aria-label="Settings"><h3>Settings</h3>
+    <label class="opt"><input id="o-maps" type="checkbox" checked><span>Email: businesses on Google Maps<small>You approve every email before it goes.</small></span></label>
+    <label class="field">Google Maps search<input id="o-q" value="cafés in Pune"></label>
+    <label class="opt"><input id="o-reddit" type="checkbox" checked><span>Community: Reddit and Hacker News<small>You post every reply yourself.</small></span></label>
+    <label class="opt"><input id="o-daily" type="checkbox"><span>Search every morning<small>New leads are waiting each day.</small></span></label>
+    <label class="opt"><input id="o-demo" type="checkbox"><span>Demo mode<small>Made-up leads, nothing is sent.</small></span></label>
+    <div class="status">Sending from <b>me@frekto.com</b> · Gmail connected</div>
+    <div class="acts"><button class="btn quiet" data-a="sheet">Close</button><button class="btn go" data-a="save">Save</button></div></section>`
+}
+
+function tabs() {
+  const n = l => todo(l).length
+  return `<div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="${S.lane === 'email'}" data-lane="email">Email<span class="n">${n('email')}</span></button>
+    <button class="tab" role="tab" aria-selected="${S.lane === 'community'}" data-lane="community">Community<span class="n">${n('community')}</span></button></div>`
+}
+
+function list() {
+  const items = todo(S.lane), past = finished(S.lane)
+  if (S.past) {
+    return `<button class="link back" data-a="today">← Back to what's left</button>
+      <p class="rest-h">${S.lane === 'email' ? 'Sent' : 'Posted'}</p>
+      ${past.map(l => `<div class="row"><div class="row-main"><div class="row-name">${esc(l.name)}</div><div class="row-why">${S.done[l.id] === 'skip' ? 'Skipped' : S.lane === 'email' ? 'Emailed today. A follow-up goes out in 3 days if they don’t reply.' : 'Posted today.'}</div></div>${S.done[l.id] === 'skip' ? `<button class="btn quiet" data-undo="${l.id}">Bring back</button>` : ''}</div>`).join('')}`
+  }
+  const more = past.length ? `<div class="more"><button class="link" data-a="past">${past.length} ${S.lane === 'email' ? 'sent' : 'posted'} or skipped</button></div>` : ''
+  if (!items.length) {
+    return `<div class="empty"><b>All caught up</b><p>${S.lane === 'email' ? 'New businesses to email appear after the next search.' : 'New posts to answer appear after the next search.'}</p><button class="btn go" data-a="search">Find new leads</button></div>${more}`
+  }
+  const [first, ...rest] = items
+  const reply = first.kind === 'reply'
+  const what = reply ? `${esc(first.name)} replied`
+    : S.lane === 'email' ? `${items.length} email${items.length === 1 ? '' : 's'} ready for your OK`
+    : `${items.length} post${items.length === 1 ? '' : 's'} to answer`
+  const sub = reply ? 'Answer while they’re interested.' : `Start with ${esc(first.name.length > 40 ? first.name.slice(0, 40) + '…' : first.name)}.`
+  return `<div class="next${reply ? ' reply' : ''}"><div class="next-text"><b>${what}</b><span>${sub}</span></div><button class="btn go" data-open="${first.id}">${reply ? 'Answer' : S.lane === 'email' ? 'Review the email' : 'Write the reply'} →</button></div>
+    ${rest.length ? `<div class="rest"><p class="rest-h">Then</p>${rest.map(l => `<div class="row" data-open="${l.id}" role="button" tabindex="0">${l.kind === 'reply' ? '<span class="dot" title="Replied"></span>' : ''}<div class="row-main"><div class="row-name">${esc(l.name)}</div><div class="row-why">${esc(l.why)}</div></div><span class="row-go">Open</span></div>`).join('')}</div>` : ''}
+    ${more}`
+}
+
+function detail(l) {
+  const left = `<aside class="who"><h2>${esc(l.name)}</h2><div class="src">${esc(l.src)}</div><p class="why">${esc(l.why)}</p><blockquote>${esc(l.quote)}</blockquote></aside>`
+  let step
+  if (l.kind === 'reply') {
+    step = `<div class="step-of">Reply</div><h3>${esc(l.name)} wrote back</h3><p class="hint">Answer from your Gmail, in the same thread.</p>
+      <blockquote style="margin:0;padding:14px 16px;border-radius:12px;background:var(--soft);font-size:15px">“${esc(l.quote)}”</blockquote>
+      <div class="copyrow"><a class="btn" href="https://mail.google.com/" target="_blank" rel="noopener">Open in Gmail ↗</a></div>
+      <div class="acts"><button class="btn quiet" data-a="close">Later</button><button class="btn go" data-a="finish">I’ve answered</button></div>`
+  } else if (l.kind === 'post') {
+    step = S.step === 1
+      ? `<div class="step-of">Step 1 of 2</div><h3>Check the reply</h3><p class="hint">Helpful answer first, your product second. Make it sound like you.</p>
+        <div class="mail"><textarea id="t-reply" aria-label="Reply">${esc(l.reply)}</textarea></div>
+        <div class="acts"><button class="btn quiet" data-a="skip">Skip</button><button class="btn go" data-a="next">Looks good →</button></div>`
+      : `<div class="step-of">Step 2 of 2</div><h3>Post it</h3><p class="hint">Reddit and Hacker News don’t allow posting for you. Copy the reply, open the post, paste it.</p>
+        <div class="copyrow"><button class="btn" data-a="copy">Copy reply</button><a class="btn" href="${esc(l.url)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;text-decoration:none">Open the post ↗</a></div>
+        <div class="acts"><button class="btn quiet" data-a="prev">← Back</button><button class="btn go" data-a="finish">I’ve posted it</button></div>`
+  } else {
+    step = S.step === 1
+      ? `<div class="step-of">Step 1 of 2</div><h3>Where should it go?</h3>
+        <p class="found">${l.email ? `Found <b>${esc(l.email)}</b> on their website.` : 'No email found on their website. Paste one if you know it.'}</p>
+        <label class="field" for="t-to">Email address<input id="t-to" type="email" value="${esc(l.email ?? '')}" placeholder="name@business.com"></label>
+        <div class="acts"><button class="btn quiet" data-a="skip">Skip</button><button class="btn go" data-a="next">Continue →</button></div>`
+      : `<div class="step-of">Step 2 of 2</div><h3>Check the email, then send it</h3><p class="hint">Short and plain, from your Gmail. Edit anything.</p>
+        <div class="mail"><label><span>To</span><input id="t-mto" value="${esc(l.email ?? '')}" readonly></label><label><span>Subject</span><input id="t-sub" value="${esc(l.subject)}"></label><textarea id="t-body" aria-label="Message">${esc(l.body)}</textarea></div>
+        <p class="note">If they don’t reply, a short follow-up goes out in 3 days.</p>
+        <div class="acts"><button class="btn quiet" data-a="prev">← Back</button><button class="btn go" data-a="finish">Send email</button></div>`
+  }
+  return `<button class="link back" data-a="close">← Lead Agent</button><div class="open">${left}<section class="step">${step}</section></div>`
+}
+
+function paint() {
+  const l = S.open && LEADS.find(x => x.id === S.open)
+  document.getElementById('view').innerHTML = l ? detail(l) : header() + tabs() + list()
+  const t = document.getElementById('toast')
+  t.innerHTML = S.toast ? `<div class="toast" role="status">${esc(S.toast.msg)}${S.toast.undo ? '<button data-a="undo">Undo</button>' : ''}</div>` : ''
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-a],[data-open],[data-lane],[data-undo]'); if (!b) return
+  const d = b.dataset, l = S.open && LEADS.find(x => x.id === S.open)
+  if (d.lane) { S.lane = d.lane; S.past = false }
+  else if (d.open) { S.open = d.open; S.step = 1; window.scrollTo({ top: 0 }) }
+  else if (d.undo) { delete S.done[d.undo]; toast('Back in your list') }
+  else switch (d.a) {
+    case 'sheet': S.sheet = !S.sheet; break
+    case 'save': S.sheet = false; toast('Saved'); break
+    case 'search': toast('Searching for new leads… (preview)'); break
+    case 'past': S.past = true; break
+    case 'today': S.past = false; break
+    case 'close': S.open = null; break
+    case 'next': S.step = 2; break
+    case 'prev': S.step = 1; break
+    case 'copy': {
+      const text = document.getElementById('t-reply')?.value ?? l.reply
+      navigator.clipboard?.writeText(text).then(() => toast('Reply copied'), () => toast('Select the text to copy it'))
+      break
+    }
+    case 'skip': { const id = l.id; S.done[id] = 'skip'; S.open = null; toast(`Skipped ${l.name.length > 30 ? 'it' : l.name}`, () => { delete S.done[id] }); break }
+    case 'finish': {
+      S.done[l.id] = 'done'
+      const next = todo(l.lane)[0]
+      toast(l.kind === 'email' ? `Sent to ${l.name}` : l.kind === 'post' ? 'Marked as posted' : 'Marked as answered')
+      // Straight on to the next one, so there's never a moment of "now what?"
+      if (next) { S.open = next.id; S.step = 1 } else S.open = null
+      window.scrollTo({ top: 0 })
+      break
+    }
+    case 'undo': S.toast?.undo?.(); S.toast = null; break
+  }
+  paint()
+})
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.row[data-open]')) e.target.click() })
+paint()
+</script>

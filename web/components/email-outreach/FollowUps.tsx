@@ -6,6 +6,7 @@ import {
   closeReminder, dueLabel, isDue, loadReminders, openFollowUps, reopenReminder, type FollowUp,
 } from '@/lib/email-outreach/followups'
 import { EmailEditor, Steps, fmtDate, initials, type Mail, type Notify } from './shared'
+import { Pager, usePages } from '@/components/tool-ui'
 
 // Email Outreach → Follow-ups: one card per email still waiting on a reply, due ones first.
 // Write follow-up opens two steps on the card (check the draft, then send it into the original
@@ -58,6 +59,8 @@ export default function FollowUps({ reloadKey, notify, onCount, onNewCampaign }:
 
   const due = rows.filter(isDue)
   const later = rows.filter(f => !isDue(f))
+  const duePg = usePages(due, null)
+  const laterPg = usePages(later, null)
   useEffect(() => { if (!loading) onCount(due.length) }, [due.length, loading, onCount])
 
   const setDraft = (id: string, patch: Partial<Draft>) =>
@@ -394,7 +397,7 @@ export default function FollowUps({ reloadKey, notify, onCount, onNewCampaign }:
       )}
 
       {due.length > 0
-        ? due.map(card)
+        ? <>{duePg.items.map(card)}<Pager p={duePg} /></>
         : <div className="cl-none"><h3>You’re all caught up</h3><p>Nothing needs a follow-up today.{later.length > 0 && ` The next one is due ${dueLabel(later[0]).text.toLowerCase()}.`}</p></div>}
 
       {later.length > 0 && (
@@ -402,7 +405,7 @@ export default function FollowUps({ reloadKey, notify, onCount, onNewCampaign }:
           <button type="button" className="eo-later-toggle" aria-expanded={showLater} onClick={() => setShowLater(s => !s)}>
             Coming up <span className="eo-count">{later.length}</span><span className="cl-grow" />{showLater ? 'Hide' : 'Show'}
           </button>
-          {showLater && later.map(f => (
+          {showLater && laterPg.items.map(f => (
             <div key={f.id} className="eo-row">
               <span className="cl-av eo-av-sm" aria-hidden="true">{initials(f.recipient)}</span>
               <span className="eo-row-main"><b>{f.recipient}</b><span className="eo-ellip">{f.subject}</span></span>
@@ -410,6 +413,7 @@ export default function FollowUps({ reloadKey, notify, onCount, onNewCampaign }:
               <button type="button" className="btn btn-link" disabled={busy.has(f.id) || locked} onClick={() => skip(f)}>Skip</button>
             </div>
           ))}
+          {showLater && <div className="eo-pager-in"><Pager p={laterPg} /></div>}
         </section>
       )}
     </div>

@@ -5,7 +5,8 @@ import { brandIntegrations } from '@/lib/db/schema'
 import { getSessionUser, getBrandForUser } from '@/lib/server-session'
 import { loadBrandContext } from '@/lib/agents/context'
 import { searchDataReady } from '@/lib/agents/dataforseo'
-import { agentsDemo } from '@/lib/agents/demo'
+import { agentsDemo, demoForced, withDemo } from '@/lib/agents/demo'
+import { readDemoSwitch } from '@/lib/agents/store'
 import { hunterConfigured } from '@/lib/agents/hunter'
 import { leadFallback } from '@/lib/agents/lead-agent'
 import { readLeadData } from '@/lib/agents/store'
@@ -13,7 +14,16 @@ import LeadAgentPage from '@/components/agents/LeadAgentPage'
 
 export const dynamic = 'force-dynamic'
 
-export default async function LeadAgent() {
+// Shown with the brand's demo-mode switch applied (lib/agents/demo.ts)
+export default async function LeadAgentRoute() {
+  const user = await getSessionUser()
+  if (!user) redirect('/login')
+  const brand = await getBrandForUser(user.id)
+  if (!brand) redirect('/onboarding')
+  return withDemo(await readDemoSwitch(brand.id), () => LeadAgent())
+}
+
+async function LeadAgent() {
   const user = await getSessionUser()
   if (!user) redirect('/login')
   const brand = await getBrandForUser(user.id)
@@ -31,7 +41,7 @@ export default async function LeadAgent() {
   return (
     <LeadAgentPage
       initial={data ?? leadFallback(b)()}
-      flags={{ dataforseo: searchDataReady(), hunter: hunterConfigured(), gmail: agentsDemo() || !!gmail, demo: agentsDemo() }}
+      flags={{ dataforseo: searchDataReady(), hunter: hunterConfigured(), gmail: !!gmail, demo: agentsDemo(), demoForced: demoForced() }}
     />
   )
 }

@@ -7,11 +7,24 @@ import { db } from '@/lib/db'
 import { aiUsageLogs } from '@/lib/db/schema'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { changedItems, saveSuggestions } from '@/lib/tool-suggestions'
+import { agentsDemo } from './demo'
 import type { ReplyIntent } from '@/lib/gmail/reply-check'
 
 export const LEAD_KEY = 'agent:lead'
 export const SEARCH_KEY = 'agent:search'
 const USAGE_KEY = 'agent:usage'
+const DEMO_KEY = 'agent:demo'
+// Demo data lives under its own keys, so turning demo mode on or off never loses real leads
+const leadKey = () => (agentsDemo() ? `${LEAD_KEY}:demo` : LEAD_KEY)
+const searchKey = () => (agentsDemo() ? `${SEARCH_KEY}:demo` : SEARCH_KEY)
+
+/** The brand's demo-mode switch on the agent pages (lib/agents/demo.ts). */
+export async function readDemoSwitch(brandId: string): Promise<boolean> {
+  return (await getSnapshot<{ on?: boolean }>(brandId, DEMO_KEY).catch(() => null))?.on === true
+}
+export async function saveDemoSwitch(brandId: string, on: boolean) {
+  await saveSnapshot(brandId, DEMO_KEY, { on })
+}
 
 // ── Lead Agent ────────────────────────────────────────────────────────────────
 
@@ -123,6 +136,8 @@ export interface AgentTask {
   detail: string
   url?: string
   status: 'open' | 'done' | 'dismissed'
+  // 'Fix how AI describes you': new wording for the site, written on request (lib/agents/task-help.ts)
+  copy?: { headline: string; meta: string; about: string }
 }
 
 export interface AdsTip { kind: 'try-ads' | 'wasted'; title: string; detail: string }
@@ -233,11 +248,11 @@ export function defaultSearchData(brand: { websiteUrl?: string | null; keywords?
 // ── Read / write ──────────────────────────────────────────────────────────────
 
 export async function readLeadData(brandId: string): Promise<LeadAgentData | null> {
-  return getSnapshot<LeadAgentData>(brandId, LEAD_KEY)
+  return getSnapshot<LeadAgentData>(brandId, leadKey())
 }
 
 export async function readSearchData(brandId: string): Promise<SearchAgentData | null> {
-  return getSnapshot<SearchAgentData>(brandId, SEARCH_KEY)
+  return getSnapshot<SearchAgentData>(brandId, searchKey())
 }
 
 /** Re-reads the saved document, applies `change` and saves it. Returns the saved document. */
@@ -260,7 +275,7 @@ export async function updateLeadData(brandId: string, fallback: () => LeadAgentD
   }
   d.sentLog = d.sentLog.slice(-200)
   if (d.rejected) d.rejected = d.rejected.slice(-600)
-  await saveSnapshot(brandId, LEAD_KEY, d)
+  await saveSnapshot(brandId, leadKey(), d)
   return d
 }
 
@@ -286,7 +301,7 @@ export async function updateSearchData(brandId: string, fallback: () => SearchAg
   // Keep the list bounded: skipped ones go first, then the oldest
   if (d.links && d.links.length > 150) d.links = [...d.links.filter(l => l.status !== 'skipped'), ...d.links.filter(l => l.status === 'skipped')].slice(0, 150)
   d.mentionHistory = d.mentionHistory.slice(-26)
-  await saveSnapshot(brandId, SEARCH_KEY, d)
+  await saveSnapshot(brandId, searchKey(), d)
   return d
 }
 

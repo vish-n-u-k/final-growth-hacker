@@ -208,6 +208,17 @@ export function LiveProgress({ agent, active, fallback }: { agent: 'lead' | 'sea
   )
 }
 
+/** The demo-mode switch on the agent pages: made-up data, nothing sent (lib/agents/demo.ts). */
+export function DemoSwitch({ on, forced, busy, onChange }: { on: boolean; forced: boolean; busy: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className={`tu-switch${on ? ' is-on' : ''}`} title={forced ? 'Stays on until DataForSEO is set up' : 'Try the whole flow with made-up data. Nothing is sent.'}>
+      <input type="checkbox" role="switch" checked={on} disabled={forced || busy} onChange={e => onChange(e.target.checked)} />
+      <span className="tu-switch-track" aria-hidden="true"><i /></span>
+      Demo mode
+    </label>
+  )
+}
+
 /** Search box and filters above a list, and "Showing x of y · Clear" when something is filtered. */
 export function ListTools({ q, setQ, filter, shown, total, onClear }: {
   q: string; setQ: (v: string) => void; filter?: React.ReactNode; shown: number; total: number; onClear: () => void
@@ -219,4 +230,58 @@ export function ListTools({ q, setQ, filter, shown, total, onClear }: {
     </div>
     {shown !== total && <div className="cl-count">Showing {shown} of {total} <button type="button" onClick={onClear}>Clear</button></div>}
   </>
+}
+
+// ── Pages ─────────────────────────────────────────────────────────────────────
+// Any list longer than PAGE_SIZE is shown a page at a time, with the same pager everywhere
+// (the one Competitor Leads started with). `reset` is anything that changes the list itself
+// (a tab, a search): it goes back to page 1.
+
+export const PAGE_SIZE = 8
+
+export function usePages<T>(list: T[], reset: unknown, size = PAGE_SIZE) {
+  const [page, setPage] = useState(1)
+  const key = JSON.stringify(reset ?? null)
+  const [lastKey, setLastKey] = useState(key)
+  if (key !== lastKey) { setLastKey(key); setPage(1) }
+  const pages = Math.max(1, Math.ceil(list.length / size))
+  const cur = Math.min(page, pages)
+  return { items: list.slice((cur - 1) * size, cur * size), page: cur, pages, total: list.length, size, setPage }
+}
+
+export function Pager({ p, top }: { p: { page: number; pages: number; total: number; size: number; setPage: (n: number) => void }; top?: React.RefObject<HTMLElement | null> }) {
+  if (p.pages <= 1) return null
+  const go = (n: number) => { p.setPage(n); (top?.current ?? null)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+  // First, last, and the ones around the current page
+  const nums = Array.from({ length: p.pages }, (_, i) => i + 1).filter(n => n === 1 || n === p.pages || Math.abs(n - p.page) <= 1)
+  return (
+    <nav className="cl-pager" aria-label="Pages">
+      <span className="cl-pager-info">{(p.page - 1) * p.size + 1}–{Math.min(p.page * p.size, p.total)} of {p.total}</span>
+      <div className="cl-pager-btns">
+        <button type="button" className="btn btn-ghost btn-sm" disabled={p.page === 1} onClick={() => go(p.page - 1)}>← Previous</button>
+        {nums.map((n, i) => (
+          <span key={n} className="cl-pager-n">
+            {i > 0 && n - nums[i - 1] > 1 && <span className="cl-pager-gap" aria-hidden="true">…</span>}
+            <button type="button" className={`cl-pager-num${n === p.page ? ' cl-pager-num--on' : ''}`} aria-current={n === p.page ? 'page' : undefined} onClick={() => go(n)}>{n}</button>
+          </span>
+        ))}
+        <button type="button" className="btn btn-ghost btn-sm" disabled={p.page === p.pages} onClick={() => go(p.page + 1)}>Next →</button>
+      </div>
+    </nav>
+  )
+}
+
+/** Tables and short lists: the first few, then "Show all N". */
+export function useShowAll<T>(list: T[], reset: unknown, size = PAGE_SIZE) {
+  const [all, setAll] = useState(false)
+  const key = JSON.stringify(reset ?? null)
+  const [lastKey, setLastKey] = useState(key)
+  if (key !== lastKey) { setLastKey(key); setAll(false) }
+  const more = list.length - size
+  return {
+    items: all ? list : list.slice(0, size),
+    toggle: more > 0
+      ? <button type="button" className="th-link tu-linkbtn tu-showall" onClick={() => setAll(a => !a)}>{all ? 'Show fewer' : `Show all ${list.length}`}</button>
+      : null,
+  }
 }
