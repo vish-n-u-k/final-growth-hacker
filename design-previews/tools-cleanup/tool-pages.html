@@ -253,10 +253,10 @@
   .gh-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 228px)); gap: 14px; }
   .gh-stat { border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; position: relative; overflow: hidden; }
   .gh-stat::before { content: ''; position: absolute; inset: 0 0 auto; height: 3px; }
-  .gh-stat.hot::before { background: #e5484d; } .gh-stat.stall::before { background: #a16207; } .gh-stat.rep::before { background: #2563eb; }
+  .gh-stat.sent::before { background: var(--green); } .gh-stat.stall::before { background: #a16207; } .gh-stat.rep::before { background: #2563eb; }
   .gh-stat small { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); font-weight: 600; }
   .gh-stat b { display: block; font: 700 30px/1 var(--display); margin-top: 10px; }
-  .gh-stat.hot b { color: #e5484d; } .gh-stat.stall b { color: #a16207; } .gh-stat.rep b { color: #2563eb; }
+  .gh-stat.sent b { color: var(--green); } .gh-stat.stall b { color: #a16207; } .gh-stat.rep b { color: #2563eb; }
   .gh-stat span { display: block; font-size: 12px; color: var(--text-faint); margin-top: 8px; }
   .gh-stat span.up { color: var(--green); font-weight: 600; }
   .gh-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: 26px 0 18px; }
@@ -267,25 +267,6 @@
   .gh-pill.on { background: var(--accent); border-color: var(--green); color: var(--green); }
   .gh-pill i { font-style: normal; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 99px; background: var(--bg-soft); border: 1px solid var(--line); }
   .gh-pills .meta { margin-left: auto; }
-  .gh-split { display: grid; grid-template-columns: 340px minmax(0, 1fr); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; min-height: 460px; }
-  .gh-list { border-right: 1px solid var(--line); }
-  .gh-item { display: flex; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); cursor: pointer; background: #fff; text-align: left; width: 100%; border-left: 3px solid transparent; font: inherit; color: inherit; border-top: 0; border-right: 0; }
-  .gh-item:hover { background: var(--bg-tint); }
-  .gh-item.on { background: var(--accent); border-left-color: var(--green); }
-  .gh-item .av { width: 36px; height: 36px; font-size: 12px; }
-  .gh-item.unread .from { font-weight: 700; }
-  .gh-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px; }
-  .gh-top span { font-size: 12px; color: var(--text-faint); white-space: nowrap; }
-  .gh-subj { font-size: 13px; font-weight: 600; margin-top: 3px; }
-  .gh-prev { font-size: 12.5px; color: var(--text-faint); margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-  .gtag { display: inline-block; margin-top: 7px; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
-  .gtag.hot { background: #fde8e8; color: #c22; } .gtag.warm { background: #fdf0dc; color: #b45309; } .gtag.press { background: #e8efff; color: #1d4ed8; } .gtag.partnership { background: #efe8ff; color: #6d28d9; } .gtag.followup { background: var(--accent); color: var(--accent-fg); }
-  .gh-detail { padding: 22px 26px; display: grid; gap: 16px; align-content: start; }
-  .gh-detail h3 { margin: 0; font: 600 19px var(--display); }
-  .gh-sum { padding: 14px 16px; border-radius: 12px; background: var(--bg-soft); font-size: 13.5px; line-height: 1.55; }
-  .gh-sum b { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 6px; }
-  .gh-msg { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; font-size: 14px; line-height: 1.6; }
-  .gh-msg .meta { display: block; margin-bottom: 6px; }
   .gh-reply textarea { width: 100%; min-height: 120px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font: 400 14px/1.6 var(--body); resize: vertical; }
   .gh-acts { display: flex; gap: 8px; flex-wrap: wrap; }
   .gh-sec { border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin-bottom: 14px; }
@@ -303,9 +284,7 @@
   .gh-fu b { display: block; font-size: 14px; }
   @media (max-width: 760px) {
     .gh-stats { grid-template-columns: 1fr; }
-    .gh-split { grid-template-columns: 1fr; }
-    .gh-list { border-right: 0; }
-    .gh-tab { padding: 12px 14px; }
+        .gh-tab { padding: 12px 14px; }
   }
 
   /* one tab style everywhere: underline, like Email Outreach */
@@ -509,7 +488,7 @@ const TOOLS = {
       <div class="acts"><button class="btn" data-close-panel>Cancel</button><button class="btn pri" data-close-panel data-toast="Saved">Save</button></div></div>`,
     after: { topic: 'done', pitch: 'done' },
   },
-  em: { how: [['Connect Gmail', 'Incoming emails are sorted into hot, warm and cold leads.'], ['Write or run a campaign', 'One email, or a personal email to a whole list.'], ['Never forget a follow-up', 'If they don’t reply, a follow-up is ready to send.']] },
+  em: { how: [['Connect Gmail', 'Emails go out from your own address, so replies land in your inbox.'], ['Write or run a campaign', 'One email, or a personal email to a whole list.'], ['Never forget a follow-up', 'If they don’t reply, a follow-up is ready to send.']] },
 }
 const RANKS = [['ai instagram post generator', 8, '▲ 3', '1.3k', 'frekto.ai/instagram-posts'], ['instagram post maker', 12, '▲ 1', '6.6k', 'frekto.ai'], ['social media scheduler', 19, '▼ 4', '9.9k', 'frekto.ai'], ['how to schedule instagram posts', 34, '—', '2.4k', 'not ranking yet']]
 const AI = [['Best tool to make Instagram posts for a café?', true, false], ['Cheapest way to post on Instagram every day?', true, true], ['Alternatives to Buffer for small business?', false, false]]
@@ -636,12 +615,6 @@ function toolView() {
 
 // ── Email Outreach (as it is in the app) is spliced in here ──
 // ── Email Outreach, as it is in the app ──
-const THREADS = [
-  { id: 't1', av: 'PS', from: 'Priya Shah', time: '9:14 AM', subj: 'Interested in pricing?', prev: 'Hi, we run 3 cafés and want to try Frekto for all of them…', tag: 'hot', unread: true, sum: 'Runs 3 cafés and asked for pricing and a call this week. Ready to buy.', msg: 'Hi, we run 3 cafés and want to try Frekto for all of them. What would pricing look like, and can we talk this week?', draft: 'Hi Priya,\n\nHappy to. For 3 locations it’s $49 a month, and the first week is free. Does Thursday at 11 work for a quick call?\n\nFrekto' },
-  { id: 't2', av: 'MW', from: 'Marcus Webb', time: 'Yesterday', subj: 'Re: Following up', prev: 'Does it work with Shopify? We sell candles…', tag: 'warm', sum: 'Asked if it works with Shopify. Interested, needs one answer.', msg: 'Thanks for the note. Does it work with Shopify? We sell candles and post product photos.', draft: 'Hi Marcus,\n\nYes: it pulls your Shopify products and turns them into posts, ready to schedule.\n\nFrekto' },
-  { id: 't3', av: 'TB', from: 'The Brew Weekly', time: 'Mon', subj: 'Feature request: small-business tools', prev: 'We’re writing about tools for indie cafés…', tag: 'press', sum: 'A newsletter writing about tools for indie cafés. Wants a quote.', msg: 'We’re writing about tools for indie cafés and would love a short quote from you.', draft: 'Hi,\n\nThanks for thinking of us. Here’s a quote you can use: …\n\nFrekto' },
-  { id: 't4', av: 'CA', from: 'Canva Partners', time: 'Oct 18', subj: 'Partnership idea', prev: 'Would you be open to a template partnership?', tag: 'partnership', sum: 'Proposes a template partnership.', msg: 'Would you be open to a template partnership for small businesses?', draft: 'Hi,\n\nSounds interesting. Could you share more about how it would work?\n\nFrekto' },
-]
 const FU = [
   { av: 'DP', name: 'Daniel Park', subj: 'Posting without the hours', when: 'No reply in 8 days' },
   { av: 'MW', name: 'Marcus Webb', subj: 'Quick idea for Webb & Co', when: 'No reply in 7 days' },
@@ -649,28 +622,17 @@ const FU = [
 ]
 function emView() {
   const e = S.em
-  e.tab ||= 'inbox'; e.thread ||= 't1'; e.filter ||= 'all'
+  e.tab ||= 'camp'
   const head = `<header class="hd"><div class="hd-l"><span class="hd-ic">✉</span><h1>Email Outreach</h1><span class="chip ok">● me@frekto.com</span>
       <span class="meta">Find more leads: <a class="link" href="#" data-goto="la">Lead Agent</a> · <a class="link" href="#" data-goto="cl">Competitor Leads</a></span></div>
     <div class="hd-r"><button class="btn sm" data-toast="Inbox refreshed">Refresh</button><button class="btn sm" data-toast="This would disconnect Gmail">Disconnect</button></div></header>
-    <div class="intro"><span>Your sales inbox: it reads your Gmail to spot people likely to buy, helps you email new prospects, and reminds you to follow up.</span><button class="link" data-how>${S.em.how ? 'Hide steps ▴' : 'How it works ▾'}</button></div>
+    <div class="intro"><span>Send personal emails to a list of prospects from your Gmail, and follow up with anyone who doesn’t reply.</span><button class="link" data-how>${S.em.how ? 'Hide steps ▴' : 'How it works ▾'}</button></div>
     ${S.em.how ? `<div class="how">${TOOLS.em.how.map(([b, x], i) => `<div><b><i>${i + 1}</i>${b}</b>${x}</div>`).join('')}</div>` : ''}
     ${e.banner === false ? '' : `<div class="gh-banner">🕓 <span><b>3 stalled threads</b> haven't had a reply in 7+ days, including Marcus Webb and Daniel Park.</span><button class="btn sm" data-emtab="follow">View leads</button><button class="x" aria-label="Dismiss" data-nobanner>✕</button></div>`}
-    <div class="gh-stats"><div class="gh-stat hot"><small>Hot leads</small><b>1</b><span>in inbox right now</span></div><div class="gh-stat stall"><small>Stalled threads</small><b>3</b><span>no reply 7+ days</span></div><div class="gh-stat rep"><small>Replied this week</small><b>12</b><span class="up">↑ 4 vs last week</span></div></div>
-    <div class="gh-tabs" role="tablist">${[['inbox', 'Inbox'], ['camp', 'Campaigns'], ['follow', 'Follow-ups (3)']].map(([k, l]) => `<button class="gh-tab ${e.tab === k ? 'on' : ''}" data-emtab="${k}">${l}</button>`).join('')}</div>`
+    <div class="gh-stats"><div class="gh-stat sent"><small>Sent this week</small><b>12</b><span>from me@frekto.com</span></div><div class="gh-stat stall"><small>Stalled threads</small><b>3</b><span>no reply 7+ days</span></div><div class="gh-stat rep"><small>Replied this week</small><b>3</b><span class="up">↑ 4 vs last week</span></div></div>
+    <div class="gh-tabs" role="tablist">${[['camp', 'Campaigns'], ['follow', 'Follow-ups (3)']].map(([k, l]) => `<button class="gh-tab ${e.tab === k ? 'on' : ''}" data-emtab="${k}">${l}</button>`).join('')}</div>`
   let body = ''
-  if (e.tab === 'inbox') {
-    const list = THREADS.filter(t => e.filter === 'all' || (e.filter === 'leads' ? ['hot', 'warm'].includes(t.tag) : t.tag === e.filter))
-    const t = THREADS.find(x => x.id === e.thread) ?? THREADS[0]
-    const pills = [['all', 'All', THREADS.length], ['leads', 'Leads', 2], ['press', 'Press', 1], ['partnership', 'Partners', 1]]
-    body = `<div class="gh-pills">${pills.map(([k, l, n]) => `<button class="gh-pill ${e.filter === k ? 'on' : ''}" data-emfilter="${k}">${l}<i>${n}</i></button>`).join('')}<span class="meta">${list.length} threads</span></div>
-      <div class="gh-split"><div class="gh-list">${list.map(x => `<button class="gh-item ${x.id === t.id ? 'on' : ''} ${x.unread && !e.read?.[x.id] ? 'unread' : ''}" data-thread="${x.id}"><span class="av">${x.av}</span><span style="flex:1;min-width:0"><span class="gh-top"><span class="from" style="font-size:13.5px;color:var(--text)">${x.from}</span><span>${x.time}</span></span><div class="gh-subj">${x.subj}</div><div class="gh-prev">${x.prev}</div><span class="gtag ${x.tag}">${{ hot: 'Hot Lead', warm: 'Warm Lead', press: 'Press', partnership: 'Partnership' }[x.tag]}</span></span></button>`).join('')}</div>
-      <div class="gh-detail"><div><h3>${t.subj}</h3><span class="meta">${t.from} · ${t.time}</span></div>
-        <div class="gh-sum"><b>AI summary</b>${t.sum}</div>
-        <div class="gh-msg"><span class="meta">${t.from} wrote</span>${t.msg}</div>
-        <div class="gh-reply"><b style="font-size:13px">Drafted reply</b><textarea aria-label="Reply">${esc(t.draft)}</textarea></div>
-        <div class="gh-acts"><button class="btn pri" data-toast="Reply sent from your Gmail">Send reply</button><button class="btn" data-toast="Copied">Copy</button><button class="btn" data-toast="Follow-up reminder set for 5 days">🔔 Remind me in 5 days</button></div></div></div>`
-  } else if (e.tab === 'camp') {
+  if (e.tab === 'camp') {
     const st = e.camp ?? 'idle'
     body = `<div class="gh-sec"><h4><i>1</i>What is this campaign about?</h4><textarea rows="2" aria-label="Campaign">Offer café owners a free week of on-brand Instagram posts.</textarea></div>
       <div class="gh-sec"><h4><i>2</i>Who should get it?</h4><input aria-label="Recipients" placeholder="alice@acme.com, Alice Johnson, acme.com"><div class="gh-chips"><span>alice@acme.com</span><span>bob@brewhouse.co</span><span>hi@lumencandles.com</span></div></div>
@@ -691,8 +653,6 @@ function emClick(b, d) {
   const e = S.em
   if ('how' in d) { e.how = !e.how; render(); return }
   if (d.emtab) { e.tab = d.emtab; render(); return }
-  if (d.emfilter) { e.filter = d.emfilter; render(); return }
-  if (d.thread) { e.thread = d.thread; (e.read ||= {})[d.thread] = true; render(); return }
   if ('nobanner' in d) { e.banner = false; render(); return }
   if (d.camp) { e.camp = d.camp; render(); if (d.camp === 'sent') toast('3 emails sent from your Gmail'); return }
   if (d.fudraft) { (e.fu ||= {})[d.fudraft] = 'draft'; render(); return }
