@@ -149,6 +149,9 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
   }, [reviews, q, stars, show, sort])
   const emailed = reviews.filter(r => r.status === 'sent').length
   const goodFits = reviews.filter(r => (r.fit ?? 0) >= GOOD).length
+  const checked = reviews.filter(r => r.fit !== undefined).length
+  const unhappy = reviews.filter(r => r.rating <= 3).length
+  const count = (v: Show) => (v === 'all' ? reviews.length : v === 'good' ? goodFits : reviews.filter(r => r.status === v).length)
 
   // ── Views ───────────────────────────────────────────────────────────────────
 
@@ -161,10 +164,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
         <span className="th-chip">Beta</span>
         <span className={`th-chip ${gmailConnected ? 'th-chip--on' : 'th-chip--warn'}`}>{gmailConnected ? 'Gmail connected' : 'Gmail not connected'}</span>
       </>}
-      actions={<>
-        <Link href="/gmail-hub" className="th-link">Email Outreach →</Link>
-        {phase !== 'empty' && <button className="btn btn-primary btn-sm" type="button" onClick={reset}>+ New scan</button>}
-      </>}
+      actions={<Link href="/gmail-hub" className="th-link">Email Outreach →</Link>}
     />
   )
 
@@ -222,11 +222,11 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
         ))}
       </span>
       <select className={`cl-sel${show !== 'all' ? ' cl-sel--on' : ''}`} value={show} onChange={e => setShow(e.target.value as Show)} aria-label="Show">
-        <option value="all">Everyone</option>
-        <option value="good">Good fits ({GOOD}+)</option>
-        <option value="new">Not contacted</option>
-        <option value="sent">Emailed</option>
-        <option value="skipped">Not a fit</option>
+        <option value="all">Everyone ({count('all')})</option>
+        <option value="good">Good fits only ({count('good')})</option>
+        <option value="new">Not contacted ({count('new')})</option>
+        <option value="sent">Emailed ({count('sent')})</option>
+        <option value="skipped">Marked not a fit ({count('skipped')})</option>
       </select>
       <span className="cl-sep" aria-hidden="true" />
       <select className="cl-sel" value={sort} onChange={e => setSort(e.target.value as typeof sort)} aria-label="Sort">
@@ -309,6 +309,10 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
                   {history.map(h => <option key={h.id} value={h.id}>{competitorLabel(h.competitor)} · {fmtDate(h.scannedAt)}{h.emailed ? ` · ${h.emailed} emailed` : ''}</option>)}
                 </select>
               )}
+              <button className="btn btn-sm cl-newscan" type="button" onClick={reset}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+                Scan another competitor
+              </button>
             </>)}
             {toolbar}
             {scoring && (
@@ -325,11 +329,17 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
               </div>
             )}
             <div className="cl-count">
+              {show === 'good' && !scoring ? <>
+                <b>{goodFits} good fit{goodFits === 1 ? '' : 's'}</b>: {goodFits === 1 ? 'the one reviewer' : 'reviewers'} {brandName} scored {GOOD}+ out of 10, from {checked} unhappy reviewer{checked === 1 ? '' : 's'} checked
+                {unhappy > checked ? ` (${unhappy - checked} more not checked yet)` : ''}. Happy reviews (4–5★) aren’t checked.
+                <button type="button" onClick={clearFilters}>Show everyone</button>
+              </> : <>
               Showing {shown.length} of {reviews.length} reviews
               {stars.length > 0 && stars.every(n => n <= 3) ? ' (the unhappy ones)' : ''}
               {!scoring && goodFits ? ` · ${goodFits} good fit${goodFits === 1 ? '' : 's'}` : ''}
               {emailed ? ` · ${emailed} emailed` : ''}
               {filtersOn && <button type="button" onClick={clearFilters}>Show all</button>}
+              </>}
             </div>
             {shown.length ? shown.map(row) : (
               <div className="cl-none">

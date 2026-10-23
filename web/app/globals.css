@@ -8534,8 +8534,8 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .cl-starf button[aria-pressed="true"] { background: var(--accent); color: var(--accent-foreground); }
 .cl-starf button span { color: #e2a400; }
 .cl-sep { width: 1px; height: 22px; background: var(--line); }
-.cl-count { display: flex; align-items: center; gap: 10px; margin: 0 2px 10px; font-size: 13px; color: var(--text-faint); }
-.cl-count button { border: 0; background: none; padding: 0; font: 600 13px var(--font-body); color: var(--accent-foreground); cursor: pointer; }
+.cl-count { margin: 0 2px 10px; line-height: 1.5; font-size: 13px; color: var(--text-faint); }
+.cl-count button { margin-left: 8px; border: 0; background: none; padding: 0; font: 600 13px var(--font-body); color: var(--accent-foreground); cursor: pointer; }
 
 .cl-av { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--bg-soft); color: var(--text-dim); font-size: 13px; font-weight: 700; }
 .cl-lead-name { font-size: 14.5px; font-weight: 600; color: var(--text); }
@@ -8565,6 +8565,8 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .cl-rv-state { min-width: 0; }
 .cl-rv-foot .btn { min-width: 118px; }
 .cl-fitb--wait { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; color: var(--text-faint); }
+.cl-newscan { gap: 6px; border: 1.5px solid var(--green); padding: 0 12px; background: var(--card); color: var(--green); font-weight: 600; }
+.cl-newscan:hover { background: var(--accent); }
 .cl-rv--sent { background: color-mix(in srgb, var(--green) 3%, var(--card)); }
 .cl-rv--dim { opacity: .65; }
 .cl-rv-why--good { background: var(--accent); color: var(--text); }
