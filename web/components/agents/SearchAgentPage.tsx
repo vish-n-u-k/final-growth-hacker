@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ToolHeader from '@/components/ToolHeader'
+import { DIRECTORIES, helpOf, listingDomain } from '@/lib/agents/task-kinds'
 import type { AgentTask, LinkOpportunity, SearchAgentData, SearchSettings, Topic } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
 import { useToast } from '@/components/email-outreach/shared'
@@ -24,6 +25,8 @@ const COUNTRIES: [string, string][] = [['US', 'United States'], ['IN', 'India'],
 const ENGINE: Record<string, string> = { chat_gpt: 'ChatGPT', perplexity: 'Perplexity', gemini: 'Gemini' }
 const TASK: Record<AgentTask['kind'], [string, string]> = { write: ['✍', 'Write'], listing: ['🔗', 'Get listed'], refresh: ['↻', 'Refresh'], fix: ['!', 'Fix'], ads: ['$', 'Ads'] }
 const PROGRESS = ['Finding what people search', 'Checking where you rank', 'Asking ChatGPT and Perplexity about you', 'Finding sites that list competitors']
+// Article sites are pitched and Reddit is joined, not "listed"
+const taskLabel = (k: AgentTask) => ({ article: 'Pitch', reddit: 'Reddit' } as Record<string, string>)[helpOf(k)] ?? TASK[k.kind][1]
 const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
 
 function tabOf(i: Item): 'todo' | 'done' {
@@ -83,6 +86,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   const [to, setTo] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
+  const [reviewUrl, setReviewUrl] = useState('')
 
   const researching = busy === 'research'
   const writing = busy?.startsWith('write') ?? false
@@ -116,7 +120,19 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   function openItem(i: Item) {
     setOpenKey(i.key); setStepNo(i.kind === 'topic' && i.t.status === 'approved' ? 2 : 1)
     if (i.kind === 'link') { setTo(i.l.email ?? ''); setSubject(i.l.pitch?.subject ?? ''); setBody(i.l.pitch?.body ?? '') }
+    // The new wording is written the first time the fix is opened
+    if (i.kind === 'task' && helpOf(i.k) === 'describe' && !i.k.copy && i.k.status === 'open') call('task_copy', {}, 'task_copy')
+    setReviewUrl('')
     window.scrollTo({ top: 0 })
+  }
+  // An article site becomes a site to pitch, and opens straight in the pitch steps
+  async function pitchTask(k: AgentTask) {
+    const r = await call('task_pitch', { key: k.key }, `task:t:${k.key}`) as { linkId?: string; data?: SearchAgentData } | null
+    const l = r?.data?.links?.find(x => x.id === r.linkId)
+    if (l) openItem({ kind: 'link', key: `l:${l.id}`, l })
+  }
+  const copyText = async (text: string, what = 'Copied') => {
+    try { await navigator.clipboard.writeText(text); notify(what) } catch { notify('Couldn’t copy. Select the text and copy it.') }
   }
   function skip(i: Item) {
     if (openKey === i.key) setOpenKey(null)
@@ -162,12 +178,20 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       )
     }
     const k = i.k
+    const help = helpOf(k)
+    const dir = DIRECTORIES[listingDomain(k).replace(/^www\./, '')]
+    const pitching = busy === `task:t:${k.key}`
     return (
       <Card key={i.key} av={TASK[k.kind][0]} square name={k.title}
-        sub={<Src label={TASK[k.kind][1]} tone={k.kind === 'fix' ? 'red' : k.kind === 'refresh' ? 'amber' : undefined} />}
-        why={k.detail} state={k.status === 'done' ? <Tag tone="ok">✓ Done</Tag> : k.status === 'dismissed' ? <Tag>Skipped</Tag> : k.url ? <a className="th-link" href={k.url} target="_blank" rel="noopener noreferrer">Open the page ↗</a> : null}
+        sub={<Src label={taskLabel(k)} tone={k.kind === 'fix' ? 'red' : k.kind === 'refresh' ? 'amber' : helpOf(k) === 'reddit' ? 'orange' : undefined} />}
+        why={k.detail} state={k.status === 'done' ? <Tag tone="ok">✓ Done</Tag> : k.status === 'dismissed' ? <Tag>Skipped</Tag> : help === 'other' && k.url ? <a className="th-link" href={k.url} target="_blank" rel="noopener noreferrer">Open the page ↗</a> : null}
         onSkip={isTodo ? () => skip(i) : undefined}
-        action={isTodo
+        action={!isTodo ? view
+          : help === 'describe' ? <button type="button" className="btn btn-primary btn-sm cl-reach" onClick={() => openItem(i)}>Fix it →</button>
+          : help === 'directory' ? <button type="button" className="btn btn-primary btn-sm cl-reach" onClick={() => openItem(i)}>Get listed on {dir?.name ?? 'it'} →</button>
+          : help === 'article' ? <button type="button" className="btn btn-primary btn-sm cl-reach" disabled={!!busy} onClick={() => pitchTask(k)}>{pitching ? <><Spinner />Writing a pitch…</> : 'Pitch them →'}</button>
+          : help === 'reddit' ? <button type="button" className="btn btn-primary btn-sm cl-reach" onClick={() => openItem(i)}>Join in →</button>
+          : isTodo
           ? <button type="button" className="btn btn-primary btn-sm cl-reach" disabled={!!busy} onClick={() => { call('task', { key: k.key, status: 'done' }, `task:${i.key}`); notify('Marked as done', () => { call('task', { key: k.key, status: 'open' }) }) }}>Mark as done</button>
           : <button type="button" className="btn btn-sm cl-btn-outline" disabled={!!busy} onClick={() => call('task', { key: k.key, status: 'open' }, `task:${i.key}`)}>Bring it back</button>} />
     )
@@ -210,7 +234,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   function detail(i: Item) {
     const back = { label: 'Search Agent', onClick: () => setOpenKey(null) }
     const backBtn = <button key="back" type="button" className="btn btn-ghost ro-back" onClick={() => setOpenKey(null)}>← Back to the list</button>
-    const next = todo.find(x => x.key !== i.key && x.kind !== 'task')
+    const next = todo.find(x => x.key !== i.key && (x.kind !== 'task' || helpOf(x.k) !== 'other'))
     const nextBtn = next && <button key="next" type="button" className="btn btn-primary" onClick={() => openItem(next)}>Next: {nameOf(next).slice(0, 30)}{nameOf(next).length > 30 ? '…' : ''} →</button>
 
     if (i.kind === 'topic') {
@@ -326,7 +350,110 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
             onClick={() => call('link_send', { id: l.id, email: to, subject, body }, `send:${l.id}`)}>{sending ? <><Spinner />Sending…</> : 'Send pitch →'}</button>
         </>)
     }
-    return null
+
+    // ── Other things to do ─────────────────────────────────────────────────
+    const k = i.k
+    const help = helpOf(k)
+    const dom = listingDomain(k).replace(/^www\./, '')
+    const dir = DIRECTORIES[dom]
+    const side = <Side av={TASK[k.kind][0]} square name={k.title} sub={<Src label={taskLabel(k)} tone={k.kind === 'fix' ? 'red' : undefined} />} why={k.detail} whyLabel="Why this matters" />
+    const steps = help === 'describe' ? ['New wording', 'Put it on your site'] : help === 'directory' ? ['Get listed', 'Ask for reviews'] : ['Do it']
+    const flow = (at: number, title: string, hint: React.ReactNode, content: React.ReactNode, actions: React.ReactNode) =>
+      <Flow back={back} crumb={k.title} side={side} steps={steps} at={at} title={title} hint={hint} actions={actions} stepKey={`${i.key}:${at}:${k.status}`}>{content}</Flow>
+    const done = (msg: string) => { call('task', { key: k.key, status: 'done' }, `task:${i.key}`); notify(msg) }
+    const skipBtn = <button key="skip" type="button" className="btn btn-ghost ro-back" onClick={() => skip(i)}>Skip</button>
+
+    if (k.status !== 'open') {
+      return flow(steps.length + 1, '', null, k.status === 'done'
+        ? <Finished title="Done" text={help === 'describe' ? 'The next research checks how ChatGPT describes you now.' : 'Nice. It helps AI assistants and Google find you.'} />
+        : <Finished grey title="Skipped" text="You skipped this one. Bring it back if you change your mind." />, <>
+        {backBtn}
+        <button key="r" type="button" className="btn cl-btn-outline" onClick={() => call('task', { key: k.key, status: 'open' }, `task:${i.key}`)}>Bring it back</button>
+        {nextBtn}
+      </>)
+    }
+
+    const copyBox = (label: string, text: string, note?: string) => (
+      <div className="tu-copy">
+        <div className="tu-copy-hd"><b>{label}</b>{note && <span className="cl-muted">{note}</span>}<button type="button" className="btn btn-ghost btn-sm" onClick={() => copyText(text, `${label} copied`)}>Copy</button></div>
+        <p>{text}</p>
+      </div>
+    )
+
+    if (help === 'describe') {
+      const c = k.copy
+      if (stepNo === 1) {
+        const writing = busy === 'task_copy'
+        return flow(1, 'Say what you are, in your own words', <>AI assistants describe you from your own site. Here is wording that says what {brandName} really is.</>,
+          writing ? <div className="ro-working"><Spinner /><span>Writing the new wording…</span><i /></div>
+          : c ? <>
+            {copyBox('Homepage headline', c.headline)}
+            {copyBox('Search description', c.meta, `${c.meta.length} characters`)}
+            {copyBox('About paragraph', c.about)}
+          </> : <button type="button" className="btn cl-btn-outline tu-self" onClick={() => call('task_copy', {}, 'task_copy')}>Write it</button>,
+          writing ? null : <>
+            {skipBtn}
+            {c && <button key="w" type="button" className="btn btn-ghost" onClick={() => call('task_copy', {}, 'task_copy')}>↻ Rewrite</button>}
+            <button key="n" type="button" className="btn btn-primary" disabled={!c} onClick={() => setStepNo(2)}>Next: where to put it →</button>
+          </>)
+      }
+      return flow(2, 'Put it on your site', 'Four places, a few minutes each. AI assistants pick up the change over the next few weeks.',
+        <ol className="tu-steps-list">
+          <li><b>Homepage headline</b>The big line at the top of your homepage.</li>
+          <li><b>Search description</b>In your site builder&apos;s SEO settings for the homepage (Webflow, Wix, Shopify and WordPress all have one).</li>
+          <li><b>About page</b>Make the About paragraph its first lines.</li>
+          <li><b>Your social bios</b>Instagram, LinkedIn and X: the same one-line description.</li>
+        </ol>,
+        <>
+          <button key="b" type="button" className="btn btn-ghost ro-back" onClick={() => setStepNo(1)}>← Back</button>
+          <button key="d" type="button" className="btn btn-primary" disabled={!!busy} onClick={() => done('Marked as done. The next research checks it.')}>I’ve updated my site</button>
+        </>)
+    }
+
+    if (help === 'directory') {
+      const name = dir?.name ?? dom
+      if (stepNo === 1) {
+        return flow(1, `List ${brandName} on ${name}`, 'It’s free. AI assistants read these sites when people ask which tool to use.',
+          <>
+            <a className="btn btn-primary tu-self" href={dir?.add ?? `https://${dom}`} target="_blank" rel="noopener noreferrer">Open {name}{dir?.add ? '’s sign-up' : ''} ↗</a>
+            <ol className="tu-steps-list">
+              <li><b>Create a free vendor account</b>{dir?.add ? 'The link above goes straight to it.' : `On ${name}, look for “List your product” or “For vendors”.`}</li>
+              <li><b>Add {brandName}</b>Name, website, category, and a short description that says what it is.</li>
+              <li><b>Add screenshots and your logo</b>Listings with pictures get more clicks and more reviews.</li>
+            </ol>
+            {data.tasks.find(t => t.key === 'fix:description')?.copy && copyBox('A description you can use', data.tasks.find(t => t.key === 'fix:description')!.copy!.about)}
+          </>,
+          <>
+            {skipBtn}
+            <button key="n" type="button" className="btn btn-primary" onClick={() => setStepNo(2)}>I’ve listed it →</button>
+          </>)
+      }
+      const ask = `Hi,\n\nThanks for using ${brandName}. Would you leave a short review on ${name}? It takes two minutes and helps other people find us.\n\n${reviewUrl.trim() || `[your ${name} listing link]`}\n\nThank you,\n${brandName}`
+      return flow(2, 'Ask a few happy customers for a review', `A listing with reviews shows up far more. Send this to 3–5 customers who like ${brandName}.`,
+        <>
+          <form className="ro-field" onSubmit={e => e.preventDefault()}>
+            <label htmlFor="tu-review-url">Your {name} listing link</label>
+            <input id="tu-review-url" value={reviewUrl} onChange={e => setReviewUrl(e.target.value)} placeholder={`https://${dom}/products/…`} />
+          </form>
+          {copyBox('Email to customers', ask)}
+        </>,
+        <>
+          <button key="b" type="button" className="btn btn-ghost ro-back" onClick={() => setStepNo(1)}>← Back</button>
+          <button key="d" type="button" className="btn btn-primary" disabled={!!busy} onClick={() => done(`Done. ${name} is on your list.`)}>Done</button>
+        </>)
+    }
+
+    // Reddit threads, and anything else: what to do, and done
+    return flow(1, help === 'reddit' ? 'Join the threads AI answers cite' : k.title,
+      help === 'reddit' ? 'Answer helpfully where people already ask. Say you make it, keep it short.' : k.detail,
+      <div className="tu-stack">
+        {k.url && <a className="btn cl-btn-outline tu-self" href={k.url} target="_blank" rel="noopener noreferrer">{help === 'reddit' ? 'Open the threads ↗' : 'Open the page ↗'}</a>}
+        {help === 'reddit' && <p className="cl-muted">The Lead Agent&apos;s Community tab finds posts like these every day and drafts a reply for each. <a className="th-link" href="/agents/leads">Open the Lead Agent →</a></p>}
+      </div>,
+      <>
+        {skipBtn}
+        <button key="d" type="button" className="btn btn-primary" disabled={!!busy} onClick={() => done('Marked as done')}>Mark as done</button>
+      </>)
   }
 
   // ── Rankings and AI answers ────────────────────────────────────────────────

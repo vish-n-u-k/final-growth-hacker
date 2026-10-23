@@ -7,6 +7,7 @@ import { runSearchResearch, runSearchWrite, searchFallback, setTopicStatus } fro
 import { readSearchData, updateSearchData, type AgentTask, type SearchSettings, type Topic } from '@/lib/agents/store'
 import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
 import { runLinkOpportunities, sendLinkPitch, updateLink } from '@/lib/agents/link-opportunities'
+import { taskToPitch, writeDescription } from '@/lib/agents/task-help'
 import { clearSignals } from '@/lib/signals'
 
 export const dynamic = 'force-dynamic'
@@ -86,6 +87,15 @@ async function post(req: NextRequest) {
       })
       if (body.status !== 'open') await clearSignals(brandId, 'search-agent', [body.key]).catch(() => {})
       return NextResponse.json({ data })
+    }
+    case 'task_copy': {
+      const r = await writeDescription(brandId)
+      return NextResponse.json({ ...(r.ok ? {} : { error: r.message }), data: await readSearchData(brandId) })
+    }
+    case 'task_pitch': {
+      if (!body.key) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+      const r = await taskToPitch(brandId, body.key)
+      return NextResponse.json({ ...(r.ok ? { linkId: r.linkId } : { error: r.message }), data: await readSearchData(brandId) })
     }
     case 'links': {
       const result = await runLinkOpportunities(brandId)

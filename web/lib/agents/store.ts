@@ -134,6 +134,8 @@ export interface AgentTask {
   detail: string
   url?: string
   status: 'open' | 'done' | 'dismissed'
+  // 'Fix how AI describes you': new wording for the site, written on request (lib/agents/task-help.ts)
+  copy?: { headline: string; meta: string; about: string }
 }
 
 export interface AdsTip { kind: 'try-ads' | 'wasted'; title: string; detail: string }

@@ -8984,3 +8984,12 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .tu-switch:has(input:disabled) { opacity: .6; cursor: default; }
 .tu-showall { display: inline-block; margin: 10px 2px 0; font-size: 13px; }
 .eo-pager-in { padding: 0 14px 10px; }
+.tu-copy { border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.tu-copy-hd { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--line); background: var(--bg-soft); border-radius: 12px 12px 0 0; font-size: 13px; }
+.tu-copy-hd b { color: var(--text); }
+.tu-copy-hd .btn { margin-left: auto; }
+.tu-copy p { margin: 0; padding: 12px 14px; font-size: 14px; line-height: 1.6; color: var(--text); white-space: pre-wrap; }
+.tu-steps-list { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 10px; }
+.tu-steps-list li { counter-increment: s; display: grid; gap: 2px; padding: 10px 14px 10px 46px; position: relative; border: 1px solid var(--line); border-radius: 12px; font-size: 13.5px; color: var(--text-dim); line-height: 1.5; }
+.tu-steps-list li::before { content: counter(s); position: absolute; left: 14px; top: 11px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-foreground); font-size: 12px; font-weight: 700; }
+.tu-steps-list b { color: var(--text); font-size: 14px; }
