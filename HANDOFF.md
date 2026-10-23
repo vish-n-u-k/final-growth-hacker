@@ -193,7 +193,7 @@ Gotchas:
 
 1. Build the calm version of the Lead Agent, Email Outreach, Search Agent and Today the same way, one at a time, checking each in the preview harness at desktop and phone width. Keep the current data and API; this is a UI change.
 2. The owner liked the Competitor Leads preview. Ask about the open questions in the all-tools preview (merging Follow-ups and Inbox replies in Email Outreach, the AI-names-you chart, the streak moving to Settings).
-4. Push to `dev`. Push to `main` only when the owner asks.
+3. Push to `dev`. Push to `main` only when the owner asks.
 
 ## 6. Known open items
 
