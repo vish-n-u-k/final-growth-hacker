@@ -8624,6 +8624,7 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .ro-main { min-width: 0; }
 .ro-steps { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 0; list-style: none; }
 .ro-step { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; font-size: 13px; color: var(--text-faint); }
+.ro-step:last-child { flex: none; }
 .ro-step:not(:last-child)::after { content: ''; flex: 1; height: 2px; border-radius: 2px; background: var(--line); min-width: 12px; }
 .ro-step--past:not(:last-child)::after { background: var(--green); }
 .ro-step-n { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--line); background: var(--card); font-size: 12px; font-weight: 700; }

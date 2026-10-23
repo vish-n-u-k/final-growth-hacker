@@ -149,6 +149,30 @@
   .step.past .n { background: var(--green); border-color: var(--green); color: #fff; }
   .frame.phone .step:not(.on) .l { display: none; }
   .pane { border: 1px solid var(--line); border-radius: 16px; background: #fff; overflow: hidden; }
+  .steps-in { margin: 0; padding: 14px 22px; border-bottom: 1px solid var(--line); background: #fafcfa; }
+  .steps-in .step:last-child { flex: none; }
+  .frame.phone .steps-in { padding: 12px 16px; }
+  .pane-in .hint { min-height: 1.5em; }
+  .setp { border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin-bottom: 14px; background: #fff; }
+  .setp h3 { margin: 0; font: 600 18px var(--display); }
+  .setgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .frame.phone .setgrid { grid-template-columns: 1fr; }
+  .f { display: grid; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--text-dim); }
+  .f.full { grid-column: 1 / -1; }
+  .f input, .f textarea { border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font: 400 13.5px var(--body); color: var(--text); }
+  .chk { display: flex; gap: 10px; align-items: flex-start; font-weight: 500; font-size: 13.5px; color: var(--text); padding: 6px 0; }
+  .chk small { display: block; font-weight: 400; color: var(--text-faint); font-size: 12.5px; margin-top: 2px; }
+  .chk input[type=checkbox] { margin-top: 3px; accent-color: var(--green); width: 16px; height: 16px; }
+  .inl { border: 1px solid var(--line); border-radius: 7px; padding: 4px 8px; font: inherit; color: var(--text); width: 200px; max-width: 100%; margin-left: 4px; }
+  .auto { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: var(--accent); }
+  .setacts { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .prog { border: 1px solid var(--green); background: var(--accent); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; }
+  .prog-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .prog ol { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13px; color: var(--text-faint); }
+  .prog li.p-done { color: var(--accent-fg); }
+  .prog li.p-on { color: var(--text); font-weight: 700; }
+  .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; border-top-color: var(--green); animation: sp .8s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
   .pane-in { padding: 20px 22px; }
   .pane h3 { margin: 0; font: 600 19px/1.3 var(--display); }
   .hint { margin: 6px 0 14px; font-size: 13.5px; color: var(--text-dim); line-height: 1.5; }
@@ -208,7 +232,7 @@
   <b>What changes:</b> today the Lead Agent page is five stacked boxes. Here it splits into two lanes at the top: <b>Email leads</b> (unhappy reviewers and Google Maps businesses to email) and <b>Community</b> (Reddit and Hacker News posts asking for a tool like yours, where the agent drafts a reply you post yourself).
   Each lane has its own tabs. Email: <b>Emails to approve · Replied · Sent · No email found</b>. Community: <b>Posts to reply to · New answers to you · Replies posted</b>.
   Every lead is a card like Competitor Leads, with one green button bottom-right. The button opens 3 steps: email leads go <b>Email them? → Their email → Review &amp; send</b>; community posts go <b>Worth replying? → Check the reply (with that community's rules) → Post it</b>, and the agent then watches the thread for answers.
-  <b>A</b> opens the steps on their own page. <b>B</b> shows list and steps side by side.
+  <b>A</b> opens the steps on their own page. <b>B</b> shows list and steps side by side. The header is <b>Find new leads</b> + <b>Search settings</b>; searching every morning is an option you turn on in the settings.
 </p>
 
 <div class="frame" id="frame">
@@ -247,7 +271,7 @@ const LEADS = [
   { id: 11, kind: 'reddit', src: 'Hacker News', cls: 'hn', where: 'Ask HN', name: 'Ask HN: Tools you pay for as a one-person company?', by: 'mkr', votes: 88, comments: 64, found: '5 days ago', fit: 7,
     said: 'Curious what tools solo founders actually pay for.', why: 'Lists tools solo founders use.', reply: 'Social posting is the one I automated…', state: 'posted', postedOn: 'Oct 18', answers: 0 },
 ]
-const S = { layout: 'A', size: 'desk', lane: 'email', tab: 'needs', open: null, step: 1, busy: false, to: '', posted: {}, sent: {}, skipped: {} }
+const S = { autoSearch: false, settings: false, searching: false, searchStep: 0, lastSearch: '2 h ago: 6 new leads', layout: 'A', size: 'desk', lane: 'email', tab: 'needs', open: null, step: 1, busy: false, to: '', posted: {}, sent: {}, skipped: {} }
 const $ = s => document.querySelector(s)
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
 const ini = n => n.replace(/[^A-Za-z ]/g, ' ').trim().split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase()
@@ -290,9 +314,42 @@ function lanes() {
 }
 
 function header() {
-  return `<header class="hd"><div class="hd-l"><span class="hd-ic">◎</span><h1>Lead Agent</h1><span class="chip ok">On · runs daily</span><span class="meta">Last run 2 h ago: 3 email leads, 3 posts</span></div>
-    <div class="hd-r"><button class="btn sm">Pause</button><button class="btn sm">Settings</button><button class="btn sm pri">Run now</button></div></header>
-    <div class="strip"><span>Every day it finds people who need ${BRAND}: some to email, and some asking on Reddit or Hacker News, where it drafts a reply for you to post.</span><a class="link">How it works ▾</a></div>`
+  const auto = S.autoSearch
+  return `<header class="hd"><div class="hd-l"><span class="hd-ic">◎</span><h1>Lead Agent</h1>
+      ${auto ? '<span class="chip ok">Searches every morning</span>' : ''}
+      <span class="meta">${S.searching ? 'Searching now…' : `Last search ${S.lastSearch}`}</span></div>
+    <div class="hd-r"><button class="btn sm" data-settings aria-expanded="${S.settings}">Search settings</button>
+      <button class="btn sm pri" data-find ${S.searching ? 'disabled' : ''}>${S.searching ? 'Searching…' : '🔍 Find new leads'}</button></div></header>
+    <div class="strip"><span>Press <b>Find new leads</b> and GrowJin looks for people who need ${BRAND}: some to email, and some asking on Reddit or Hacker News. You approve every email and post every reply yourself.</span><a class="link">How it works ▾</a></div>
+    ${S.settings ? settingsPanel() : ''}
+    ${S.searching ? searchProgress() : ''}`
+}
+
+function settingsPanel() {
+  return `<section class="setp">
+    <h3>Search settings</h3><p class="hint">What Find new leads looks for. Pre-filled from your brand.</p>
+    <div class="setgrid">
+      <label class="f full">Who is your customer?<textarea rows="2">Small business owners (cafés, salons, shops) who post on Instagram and struggle to make content every day</textarea></label>
+      <div class="f full">Where to look
+        <label class="chk"><input type="checkbox" checked> <span>Unhappy customers of your competitors<small>1–3★ reviews of <input value="buffer.com, later.com" class="inl"></small></span></label>
+        <label class="chk"><input type="checkbox" checked> <span>Businesses on Google Maps<small>Search for <input value="cafés in Pune" class="inl"></small></span></label>
+        <label class="chk"><input type="checkbox" checked> <span>Reddit and Hacker News<small>Posts asking for a tool like yours</small></span></label>
+      </div>
+      <label class="f">Max new emails a day<input value="10"></label>
+      <label class="f">Follow up after (days)<input value="3, 7"></label>
+    </div>
+    <div class="auto">
+      <label class="chk"><input type="checkbox" data-auto ${S.autoSearch ? 'checked' : ''}> <span><b>Search every morning automatically</b><small>New leads are waiting for you each day. Nothing is sent without your OK.</small></span></label>
+      <label class="chk"><input type="checkbox" checked> <span><b>Send follow-ups automatically</b><small>To people you've emailed, after 3 and 7 days. Stops as soon as they reply.</small></span></label>
+    </div>
+    <div class="setacts"><button class="btn" data-settings>Cancel</button><button class="btn pri" data-settings>Save</button></div>
+  </section>`
+}
+
+function searchProgress() {
+  const steps = ['Reading competitor reviews', 'Searching Google Maps', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies']
+  return `<section class="prog"><div class="prog-top"><span class="spin"></span><b>Finding new leads</b><span class="meta">Usually 1–3 minutes. You can keep using the page.</span></div>
+    <ol>${steps.map((x, i) => `<li class="${i < S.searchStep ? 'p-done' : i === S.searchStep ? 'p-on' : ''}">${i < S.searchStep ? '✓' : i === S.searchStep ? '•' : '○'} ${x}</li>`).join('')}</ol></section>`
 }
 
 
@@ -351,7 +408,7 @@ function detail(l) {
   const st = stateOf(l)
   const labels = stepsFor(l)
   const finished = ['sent', 'posted'].includes(st)
-  const bar = st === 'replied' ? '' : `<ol class="steps">${labels.map((x, i) => {
+  const bar = st === 'replied' ? '' : `<ol class="steps steps-in">${labels.map((x, i) => {
     const n = i + 1, c = finished || n < S.step ? 'past' : n === S.step ? 'on' : ''
     return `<li class="step ${c}"><span class="n">${c === 'past' ? '✓' : n}</span><span class="l">${x}</span></li>`
   }).join('')}</ol>`
@@ -388,7 +445,7 @@ function detail(l) {
       body = `<div class="rule">📌 ${esc(l.rule)}</div>`+`<textarea class="reply-box" style="width:100%;min-height:180px;font:inherit">${esc(l.reply)}</textarea>`
       acts = `<button class="btn back" data-back="1">← Back</button><button class="btn pri" data-go="3">Looks good →</button>`
     } else {
-      title = 'Where should it go?'
+      title = 'Where should it go?'; hint = 'The agent looked up their email. Check it, or paste the right one.'
       body = (l.email ? `<div class="found"><span>✉</span><div><b>Found ${first(l.name)}'s email</b>on their website · verified</div></div>` : `<div class="found" style="background:var(--warn-soft);color:var(--warn)"><span>?</span><div><b>No public email found</b>Paste it if you know it.</div></div>`)
         + `<div class="mail"><div class="row"><span>Email</span><input id="to" value="${esc(S.to || l.email || '')}" placeholder="name@company.com"></div></div>`
       acts = `<button class="btn back" data-back="1">← Back</button><button class="btn pri" data-go="3">Continue →</button>`
@@ -406,7 +463,7 @@ function detail(l) {
       acts = `<button class="btn back" data-back="2">← Back</button><button class="btn pri" data-send>Send email →</button>`
     }
   }
-  return `${bar}<section class="pane"><div class="pane-in"><h3>${title}</h3>${hint ? `<p class="hint">${hint}</p>` : '<div style="height:12px"></div>'}${body}</div><div class="actions">${acts}</div></section>`
+  return `<section class="pane">${bar}<div class="pane-in"><h3>${title}</h3>${hint ? `<p class="hint">${hint}</p>` : ''}${body}</div><div class="actions">${acts}</div></section>`
 }
 function nextBtn(l) {
   const n = LEADS.find(x => x.id !== l.id && stateOf(x) === 'new' && x.kind === l.kind)
@@ -433,10 +490,15 @@ function render() {
 }
 
 function open(id) { Object.assign(S, { open: id, step: 1, busy: false, to: '' }); render() }
+document.addEventListener('change', e => { if ('auto' in e.target.dataset) { S.autoSearch = e.target.checked; render() } })
 document.addEventListener('click', e => {
   const t = e.target.closest('button, [data-pick]'); if (!t) return
   if (t.dataset.k) { S[t.dataset.k] = t.dataset.v; render(); return }
-  if (t.id === 'reset') { Object.assign(S, { open: null, lane: 'email', tab: 'needs', posted: {}, sent: {}, skipped: {} }); render(); return }
+  if (t.id === 'reset') { Object.assign(S, { autoSearch: false, settings: false, searching: false, lastSearch: '2 h ago: 6 new leads', open: null, lane: 'email', tab: 'needs', posted: {}, sent: {}, skipped: {} }); render(); return }
+  if ('settings' in t.dataset) { S.settings = !S.settings; render(); return }
+  if ('find' in t.dataset) { S.searching = true; S.searchStep = 0; S.settings = false; render()
+    const tick = () => { S.searchStep++; if (S.searchStep >= 5) { S.searching = false; S.lastSearch = 'just now: 2 new leads' } render(); if (S.searching) setTimeout(tick, 700) }
+    setTimeout(tick, 700); return }
   if (t.dataset.lane) { S.lane = t.dataset.lane; S.tab = TABS[S.lane][0][0]; S.open = null; render(); return }
   if (t.dataset.tab) { S.tab = t.dataset.tab; S.open = null; render(); return }
   if (t.dataset.open) { open(+t.dataset.open); return }
