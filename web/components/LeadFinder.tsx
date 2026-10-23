@@ -193,7 +193,6 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
   // A review card: who and how well they fit at the top, what they said in the middle, and the
   // status and actions in a footer, so buttons sit in the same place on every card
   function row(r: SavedReview) {
-    const good = r.fit === undefined ? r.rating <= 3 : r.fit >= GOOD
     return (
       <article key={r.id} className={`cl-rv${r.status === 'sent' ? ' cl-rv--sent' : ''}${r.status === 'skipped' ? ' cl-rv--dim' : ''}`}>
         <div className="cl-rv-head">
@@ -220,8 +219,8 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
               : null}
           </span>
           {r.status === 'sent'
-            ? <Link className="btn btn-ghost btn-sm" href={reviewHref(r.id)}>View email</Link>
-            : <Link className={`btn btn-sm ${good && r.status !== 'skipped' ? 'btn-primary' : 'btn-ghost'}`} href={reviewHref(r.id)}>Reach out →</Link>}
+            ? <Link className="btn btn-sm cl-btn-outline" href={reviewHref(r.id)}>View email</Link>
+            : <Link className="btn btn-primary btn-sm cl-reach" href={reviewHref(r.id)}>Reach out →</Link>}
         </div>
       </article>
     )

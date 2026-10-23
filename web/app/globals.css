@@ -8578,7 +8578,11 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .cl-pager-num--on:hover { color: #fff; }
 .cl-pager .btn:disabled { opacity: .45; cursor: default; }
 .cl-rv--sent { background: color-mix(in srgb, var(--green) 3%, var(--card)); }
-.cl-rv--dim { opacity: .65; }
+.cl-rv--dim .cl-rv-head, .cl-rv--dim .cl-rv-body { opacity: .6; }
+.cl-reach { box-shadow: 0 2px 8px color-mix(in srgb, var(--green) 28%, transparent); }
+.cl-reach:hover { box-shadow: 0 4px 12px color-mix(in srgb, var(--green) 36%, transparent); }
+.cl-btn-outline { border: 1.5px solid var(--green); background: var(--card); color: var(--green); }
+.cl-btn-outline:hover { background: var(--accent); }
 .cl-rv-why--good { background: var(--accent); color: var(--text); }
 .cl-fitb { padding: 2px 9px; border-radius: 99px; font-size: 11.5px; font-weight: 700; white-space: nowrap; background: var(--bg-soft); color: var(--text-dim); }
 .cl-fitb--good { background: var(--accent); color: var(--accent-foreground); }
