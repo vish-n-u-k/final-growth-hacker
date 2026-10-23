@@ -1,13 +1,12 @@
 import ProGate from '@/components/ProGate'
-import ComingSoonPage from '@/components/ComingSoonPage'
+import { redirect } from 'next/navigation'
 import { getSessionUser } from '@/lib/server-session'
 import { hasEarlyAccess } from '@/lib/early-access'
+import { isComingSoon } from '@/lib/features'
 
-// Parked as Coming soon (lib/features.ts), except for early-access users (lib/early-access.ts).
+// Parked for now (lib/features.ts): only early-access users (lib/early-access.ts) can open it.
 export default async function Layout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser()
-  if (!await hasEarlyAccess(user?.email)) {
-    return <ComingSoonPage feature="Email Outreach" blurb="Find warm leads in your inbox, draft replies in your voice and follow up on deals that went quiet." />
-  }
+  if (isComingSoon('/gmail-hub', await hasEarlyAccess(user?.email))) redirect('/tools')
   return <ProGate feature="Email Outreach" blurb="Turn your inbox into a pipeline: leads tagged hot to cold, stalled threads flagged, replies drafted for you to send.">{children}</ProGate>
 }

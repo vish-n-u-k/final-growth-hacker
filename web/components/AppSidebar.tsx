@@ -168,15 +168,13 @@ export default function AppSidebar({
         { label: 'Pro', items: NAV.flatMap(g => g.items).filter(i => i.pro), pro: true },
       ].filter(g => g.items.length > 0)
     : NAV
-  // Parked tools sit together in one quiet group at the bottom instead of between the live ones.
-  // Today ("what do I do now?") always sits first, above the roadmap, whether it is live or parked.
+  // Parked tools (lib/features.ts) are left out. Today ("what do I do now?") always sits first,
+  // above the roadmap.
   const todayItem = allItems.find(i => i.href === '/today')
   const notToday = (i: NavItem) => i.href !== '/today'
-  const soonItems = NAV.flatMap(g => g.items).filter(i => isSoon(i.href) && notToday(i))
-  const groups: (NavGroup & { pro?: boolean; soon?: boolean })[] = [
+  const groups: (NavGroup & { pro?: boolean })[] = [
     ...(todayItem ? [{ label: '', items: [todayItem] }] : []),
     ...baseGroups.map(g => ({ ...g, items: g.items.filter(i => !isSoon(i.href) && notToday(i)) })).filter(g => g.items.length > 0),
-    ...(soonItems.length ? [{ label: 'Coming soon', items: soonItems, soon: true }] : []),
   ]
   const actualPath = usePathname()
   // The link just clicked counts as active straight away, so the menu reacts before the page arrives.
@@ -277,14 +275,6 @@ export default function AppSidebar({
             // Growth Path expands into the roadmap (stages and their modules).
             if (item.href === '/dashboard' && roadmap.length > 0) {
               return <RoadmapNav key={item.href} modules={roadmap} pathname={pathname} onNavigate={closeOnNav} showUpgrade={showPro} />
-            }
-            if (isSoon(item.href)) {
-              return (
-                <span className="app-navitem app-navitem-locked app-navitem-soon" key={item.href} title="Coming soon">
-                  <NavIcon name={item.icon} />
-                  {item.label}
-                </span>
-              )
             }
             const proTagged = showPro && item.pro
             // Plan beats progress: a Pro tool shows as Pro (clickable → upgrade screen), not padlocked.
