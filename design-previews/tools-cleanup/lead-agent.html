@@ -72,6 +72,27 @@
   .sum button[aria-pressed="true"] { border-color: var(--green); background: var(--accent); box-shadow: 0 0 0 3px rgba(21,128,61,.12); }
   .sum button.hot b { color: var(--crit); }
 
+  /* lanes: email vs community */
+  .lanes { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  .frame.phone .lanes { grid-template-columns: 1fr; }
+  .lanes button { display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 14px; background: #fff; cursor: pointer; }
+  .lanes button[aria-selected="true"] { border-color: var(--green); background: var(--accent); }
+  .lanes b { display: block; font-size: 15px; }
+  .lanes small { display: block; font-size: 12.5px; color: var(--text-dim); margin-top: 2px; }
+  .lanes em { margin-left: auto; font-style: normal; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: var(--green); color: #fff; white-space: nowrap; }
+  .lane-ic { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--bg-soft); font-size: 16px; }
+  .sum.sum-3 { grid-template-columns: repeat(3, 1fr); }
+  .frame.phone .sum.sum-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .av-c { border-radius: 10px; font-size: 12px; background: #ffe9df; color: #c2410c; }
+  .av-c.hn { background: #ff6600; color: #fff; }
+  .src.hn { background: #fff0e5; color: #c2410c; }
+  .post { padding: 14px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; }
+  .post-top { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--text-faint); margin-bottom: 8px; }
+  .post b { font-size: 15px; }
+  .post p { margin: 6px 0 8px; font-size: 13.5px; line-height: 1.55; color: var(--text-dim); }
+  .post-stats { font-size: 12.5px; color: var(--text-faint); }
+  .rule { padding: 10px 12px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); font-size: 13px; margin-bottom: 12px; line-height: 1.45; }
+
   /* toolbar */
   .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; }
   .search { flex: 1 1 200px; min-width: 150px; height: 34px; border: 1px solid var(--line); border-radius: 9px; padding: 0 10px; font-size: 13px; }
@@ -176,10 +197,10 @@
   <div class="grp"><button id="reset">Reset demo</button></div>
 </div>
 <p class="note">
-  <b>What changes:</b> today the Lead Agent page is five stacked boxes (emails, forum replies, replies, sent, no email). Here it's one list of <b>only the leads that need you</b>, as cards like Competitor Leads: who and how good a fit at the top, what they said and why in the middle, one green button bottom-right.
-  The four boxes at the top switch the list: <b>Needs you</b> (default) · <b>Replied</b> · <b>Sent</b> · <b>No email</b>. 8 per page.
-  The button opens the steps for that lead: an email lead is <b>1 · Email them? → 2 · Their email → 3 · Review &amp; send</b>; a Reddit / Hacker News lead is <b>1 · Worth replying? → 2 · Check the reply → 3 · Post it</b>.
-  <b>A</b> opens the steps on their own page (like Competitor Leads). <b>B</b> keeps the list on the left and shows the steps on the right, like an inbox. Settings, Pause and Run now stay in the header.
+  <b>What changes:</b> today the Lead Agent page is five stacked boxes. Here it splits into two lanes at the top: <b>Email leads</b> (unhappy reviewers and Google Maps businesses to email) and <b>Community</b> (Reddit and Hacker News posts asking for a tool like yours, where the agent drafts a reply you post yourself).
+  Each lane has its own boxes. Email: <b>Emails to approve · Replied · Sent · No email found</b>. Community: <b>Posts to reply to · New answers to you · Replies posted</b>.
+  Every lead is a card like Competitor Leads, with one green button bottom-right. The button opens 3 steps: email leads go <b>Email them? → Their email → Review &amp; send</b>; community posts go <b>Worth replying? → Check the reply (with that community's rules) → Post it</b>, and the agent then watches the thread for answers.
+  <b>A</b> opens the steps on their own page. <b>B</b> shows list and steps side by side.
 </p>
 
 <div class="frame" id="frame">
@@ -195,15 +216,30 @@
 const BRAND = 'Frekto'
 const LEADS = [
   { id: 1, kind: 'email', src: 'Unhappy reviewer', cls: '', name: 'Maya Chen', co: 'Chen Bakery', fit: 9, found: 'Today', said: 'Buffer keeps failing to publish my posts and I still design everything in Canva. Losing hours every week.', why: 'She designs every post by hand, then schedules it. Frekto makes and schedules them.', email: 'maya@chenbakery.com', state: 'new' },
-  { id: 2, kind: 'reddit', src: 'Reddit', cls: 'reddit', name: 'u/cafe_owner_22', co: 'r/smallbusiness', fit: 9, found: 'Today', said: 'Any tool that makes Instagram posts for my café automatically? I don\'t have time to design every day.', why: 'Asking for exactly what Frekto does.', reply: 'I ran into the same thing with my shop. What helped was batching a week of posts on Sunday, and using a tool that makes the images for you from your menu photos.\n\nI use Frekto for that (it makes on-brand posts and schedules them), but even Canva templates + Buffer will save you a lot of time.', state: 'new' },
   { id: 3, kind: 'email', src: 'Google Maps', cls: 'maps', name: 'Bloom Salon', co: 'Pune · 3.6★ · no website', fit: 8, found: 'Yesterday', said: '42 Google reviews, last Instagram post 5 months ago.', why: 'Busy salon with no time for social. Frekto keeps their Instagram going.', email: 'hello@bloomsalon.in', state: 'new' },
   { id: 4, kind: 'email', src: 'Unhappy reviewer', cls: '', name: 'Daniel Ortiz', co: 'Ortiz Coffee', fit: 8, found: 'Yesterday', said: 'Price went up again and posting is still a chore for my shop.', why: 'Posting feels like a chore; Frekto takes it over.', email: null, state: 'new' },
-  { id: 5, kind: 'reddit', src: 'Hacker News', cls: '', name: 'jdoe', co: 'Ask HN', fit: 7, found: '2 days ago', said: 'Ask HN: How do you handle social media as a solo founder?', why: 'Solo founder short on time for social.', reply: 'As a solo founder I gave up on daily posting until I automated the boring part. Write one sentence about what you shipped, let a tool turn it into a post.\n\nDisclosure: I make Frekto, which does that.', state: 'new' },
   { id: 6, kind: 'email', src: 'Unhappy reviewer', cls: '', name: 'Tom Becker', co: 'Becker Prints', fit: 8, found: '4 days ago', said: 'I spend ages making images for every post.', why: 'Wants help making the content itself.', email: 'tom@beckerprints.com', state: 'replied', note: '“Sounds interesting, can you send pricing?”', sent: 'Oct 19' },
   { id: 7, kind: 'email', src: 'Google Maps', cls: 'maps', name: 'Lumen Candles', co: 'Mumbai', fit: 7, found: '5 days ago', said: 'No posts in 3 months.', why: 'Inactive social, small team.', email: 'hi@lumencandles.com', state: 'sent', sent: 'Oct 18', nextF: 'Follow-up 1 · Oct 21' },
   { id: 8, kind: 'email', src: 'Google Maps', cls: 'maps', name: 'Green Bowl Café', co: 'Pune · +91 98xxxx', fit: 8, found: '3 days ago', said: 'No website, 4.1★, 80 reviews.', why: 'Popular café with no online presence beyond Maps.', email: null, state: 'nocontact' },
+
+  { id: 2, kind: 'reddit', src: 'Reddit', cls: 'reddit', where: 'r/smallbusiness', name: 'Any tool that makes Instagram posts for my café automatically?', by: 'u/cafe_owner_22', votes: 14, comments: 9, found: '3 h ago', fit: 9,
+    said: 'I run a small café and I don\'t have time to design posts every day. Tried Canva but it still takes an hour. Anything that just does it?', why: 'Asking for exactly what Frekto does. Few answers so far, so a good reply gets seen.',
+    rule: 'r/smallbusiness allows naming a tool in a comment if you say you made it. No links in the first line.',
+    reply: 'Same problem with my shop. What helped: batch a week of posts on Sunday, and use a tool that makes the images from your menu photos so you\'re not designing from scratch.\n\nFull disclosure, I make Frekto, which does that (on-brand posts, scheduled for you). But even Canva templates + Buffer will save you a lot of time.', state: 'new' },
+  { id: 5, kind: 'reddit', src: 'Hacker News', cls: 'hn', where: 'Ask HN', name: 'Ask HN: How do you handle social media as a solo founder?', by: 'jdoe', votes: 41, comments: 27, found: 'Yesterday', fit: 7,
+    said: 'I know I should post, but every week it slips. What do other solo founders do?', why: 'Solo founder short on time for social. HN likes plain, useful answers with a clear disclosure.',
+    rule: 'Hacker News: answer the question first, say you built the tool, no marketing language.',
+    reply: 'I gave up on daily posting until I automated the boring part: write one sentence about what you shipped, and let a tool turn it into a post.\n\nDisclosure: I make Frekto, which does that.', state: 'new' },
+  { id: 9, kind: 'reddit', src: 'Reddit', cls: 'reddit', where: 'r/Entrepreneur', name: 'What do you use to keep Instagram consistent?', by: 'u/jules_makes', votes: 6, comments: 3, found: '6 h ago', fit: 8,
+    said: 'Running a candle business alone. Instagram is the first thing I drop when busy.', why: 'Solo maker who drops posting when busy. Frekto keeps it going.',
+    rule: 'r/Entrepreneur: self-promotion only in comments, and say it\'s yours.',
+    reply: 'Totally relatable. Two things that worked for me: reuse product photos you already have, and schedule a week at once.\n\nI built Frekto for exactly this (it makes the posts and schedules them). Happy to share a free week if useful.', state: 'new' },
+  { id: 10, kind: 'reddit', src: 'Reddit', cls: 'reddit', where: 'r/smallbusiness', name: 'Best way to post daily without hiring someone?', by: 'u/bakery_bea', votes: 22, comments: 15, found: '3 days ago', fit: 8,
+    said: 'Can\'t afford a social media manager yet. Need posts every day.', why: 'Wants daily posts without hiring.', reply: 'I was in the same spot…', state: 'posted', postedOn: 'Oct 20', answers: 2, lastAnswer: '“Trying this now, thanks!” · u/bakery_bea' },
+  { id: 11, kind: 'reddit', src: 'Hacker News', cls: 'hn', where: 'Ask HN', name: 'Ask HN: Tools you pay for as a one-person company?', by: 'mkr', votes: 88, comments: 64, found: '5 days ago', fit: 7,
+    said: 'Curious what tools solo founders actually pay for.', why: 'Lists tools solo founders use.', reply: 'Social posting is the one I automated…', state: 'posted', postedOn: 'Oct 18', answers: 0 },
 ]
-const S = { layout: 'A', size: 'desk', tab: 'needs', open: null, step: 1, busy: false, to: '', posted: {}, sent: {}, skipped: {} }
+const S = { layout: 'A', size: 'desk', lane: 'email', tab: 'needs', open: null, step: 1, busy: false, to: '', posted: {}, sent: {}, skipped: {} }
 const $ = s => document.querySelector(s)
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
 const ini = n => n.replace(/[^A-Za-z ]/g, ' ').trim().split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase()
@@ -211,31 +247,49 @@ const first = n => n.startsWith('u/') ? n : n.split(' ')[0]
 const later = (fn, ms) => setTimeout(() => { fn(); render() }, ms)
 
 const stateOf = l => S.sent[l.id] ? 'sent' : S.posted[l.id] ? 'posted' : S.skipped[l.id] ? 'skipped' : l.state
-const TABS = [
-  ['needs', 'Need you', l => stateOf(l) === 'new'],
-  ['replied', 'Replied', l => stateOf(l) === 'replied'],
-  ['sent', 'Sent · follow-ups', l => ['sent', 'posted'].includes(stateOf(l))],
-  ['nocontact', 'No email found', l => stateOf(l) === 'nocontact'],
-]
-const listFor = t => LEADS.filter(TABS.find(x => x[0] === t)[2])
+const isEmail = l => l.kind === 'email'
+const TABS = {
+  email: [
+    ['needs', 'Emails to approve', l => isEmail(l) && stateOf(l) === 'new'],
+    ['replied', 'Replied', l => isEmail(l) && stateOf(l) === 'replied'],
+    ['sent', 'Sent · follow-ups', l => isEmail(l) && stateOf(l) === 'sent'],
+    ['nocontact', 'No email found', l => isEmail(l) && stateOf(l) === 'nocontact'],
+  ],
+  community: [
+    ['toreply', 'Posts to reply to', l => !isEmail(l) && stateOf(l) === 'new'],
+    ['answers', 'New answers to you', l => !isEmail(l) && stateOf(l) === 'posted' && l.answers > 0],
+    ['posted', 'Replies posted', l => !isEmail(l) && stateOf(l) === 'posted'],
+  ],
+}
+const tabsNow = () => TABS[S.lane]
+const listFor = t => LEADS.filter((tabsNow().find(x => x[0] === t) ?? tabsNow()[0])[2])
+
+function lanes() {
+  const n = (lane, k) => LEADS.filter(TABS[lane].find(x => x[0] === k)[2]).length
+  return `<div class="lanes" role="tablist">
+    <button role="tab" data-lane="email" aria-selected="${S.lane === 'email'}"><span class="lane-ic">✉</span><span><b>Email leads</b><small>People to email: unhappy reviewers, Google Maps businesses</small></span><em>${n('email', 'needs')} to approve</em></button>
+    <button role="tab" data-lane="community" aria-selected="${S.lane === 'community'}"><span class="lane-ic lane-ic--c">💬</span><span><b>Community</b><small>Reddit and Hacker News posts asking for a tool like yours</small></span><em>${n('community', 'toreply')} to reply</em></button>
+  </div>`
+}
 
 function header() {
-  return `<header class="hd"><div class="hd-l"><span class="hd-ic">◎</span><h1>Lead Agent</h1><span class="chip ok">On · runs daily</span><span class="meta">Last run 2 h ago: 5 new leads</span></div>
+  return `<header class="hd"><div class="hd-l"><span class="hd-ic">◎</span><h1>Lead Agent</h1><span class="chip ok">On · runs daily</span><span class="meta">Last run 2 h ago: 3 email leads, 3 posts</span></div>
     <div class="hd-r"><button class="btn sm">Pause</button><button class="btn sm">Settings</button><button class="btn sm pri">Run now</button></div></header>
-    <div class="strip"><span>Finds people who need ${BRAND} every day, writes to them, and follows up until they reply.</span><a class="link">How it works ▾</a></div>`
+    <div class="strip"><span>Every day it finds people who need ${BRAND}: some to email, and some asking on Reddit or Hacker News, where it drafts a reply for you to post.</span><a class="link">How it works ▾</a></div>`
 }
 
 function summary() {
-  return `<div class="sum">${TABS.map(([k, label]) => {
+  return `<div class="sum sum-${tabsNow().length}">${tabsNow().map(([k, label]) => {
     const n = listFor(k).length
-    return `<button data-tab="${k}" aria-pressed="${S.tab === k}" class="${k === 'replied' && n ? 'hot' : ''}"><b>${n}</b><span>${label}</span></button>`
+    return `<button data-tab="${k}" aria-pressed="${S.tab === k}" class="${(k === 'replied' || k === 'answers') && n ? 'hot' : ''}"><b>${n}</b><span>${label}</span></button>`
   }).join('')}</div>`
 }
 
 function action(l) {
   const st = stateOf(l)
   if (st === 'replied') return `<button class="btn sm pri" data-open="${l.id}">Read reply →</button>`
-  if (st === 'sent' || st === 'posted') return `<button class="btn sm out" data-open="${l.id}">View</button>`
+  if (st === 'posted') return l.answers ? `<button class="btn sm pri" data-open="${l.id}">See answers →</button>` : `<button class="btn sm out" data-open="${l.id}">View thread</button>`
+  if (st === 'sent') return `<button class="btn sm out" data-open="${l.id}">View</button>`
   if (st === 'nocontact') return `<button class="btn sm pri" data-open="${l.id}">Add an email →</button>`
   return l.kind === 'reddit' ? `<button class="btn sm pri" data-open="${l.id}">Write reply →</button>` : `<button class="btn sm pri" data-open="${l.id}">Review email →</button>`
 }
@@ -243,11 +297,18 @@ function stateTag(l) {
   const st = stateOf(l)
   if (st === 'replied') return `<span class="tag crit">Replied</span> ${esc(l.note)}`
   if (st === 'sent') return `<span class="tag ok">✓ Emailed · ${l.sent ?? 'just now'}</span> ${l.nextF ?? ''}`
-  if (st === 'posted') return `<span class="tag ok">✓ Reply posted</span>`
+  if (st === 'posted') return `<span class="tag ok">✓ Posted ${l.postedOn ?? 'just now'}</span>${l.answers ? `<span class="tag crit">${l.answers} new answers</span>` : 'No answers yet'}`
   if (st === 'nocontact') return `<span class="tag warn">No email found</span>`
-  return l.kind === 'reddit' ? `<span class="tag">Reply drafted</span>` : l.email ? `<span class="tag">Email drafted</span>` : `<span class="tag warn">Needs an email</span>`
+  return l.kind === 'reddit' ? `<span class="tag">Reply drafted</span> ${l.comments} comments so far` : l.email ? `<span class="tag">Email drafted</span>` : `<span class="tag warn">Needs an email</span>`
 }
 function card(l) {
+  if (!isEmail(l)) return `<article class="card ${S.open === l.id ? 'sel-on' : ''}" data-pick="${l.id}">
+    <div class="c-head"><span class="av av-c ${l.cls}">${l.src === 'Reddit' ? 'r/' : 'Y'}</span>
+      <div class="who"><div class="name">${esc(l.name)}</div><div class="sub"><span class="src ${l.cls}">${esc(l.where)}</span><span>${esc(l.by)}</span><span>· ▲ ${l.votes} · ${l.comments} comments · ${l.found}</span></div></div>
+      <span class="fit">Good fit · ${l.fit}/10</span></div>
+    <div class="c-body"><p class="said">${esc(l.said)}</p><p class="why">${esc(l.why)}</p></div>
+    <div class="c-foot"><span class="c-state">${stateTag(l)}</span>${action(l)}</div>
+  </article>`
   return `<article class="card ${S.open === l.id ? 'sel-on' : ''}" data-pick="${l.id}">
     <div class="c-head"><span class="av">${ini(l.name)}</span>
       <div class="who"><div class="name">${esc(l.name)}</div><div class="sub"><span class="src ${l.cls}">${l.src}</span><span>${esc(l.co)}</span><span>· ${l.found}</span></div></div>
@@ -259,14 +320,15 @@ function card(l) {
 
 function listView() {
   const list = listFor(S.tab)
-  const label = TABS.find(x => x[0] === S.tab)[1]
-  const sub = { needs: 'Approve, edit or skip. Nothing is sent until you say so.', replied: 'People who wrote back. Answer them from Gmail.', sent: 'Follow-ups go out on their own and stop when they reply.', nocontact: 'Good fits with no email. Add one, or reach them another way.' }[S.tab]
-  return `${summary()}
-    <div class="tools"><input class="search" placeholder="Search name, company or what they said" />
-      <select class="sel"><option>All sources</option><option>Unhappy reviewers</option><option>Reddit / HN</option><option>Google Maps</option></select>
+  const label = tabsNow().find(x => x[0] === S.tab)[1]
+  const sub = { needs: 'Approve, edit or skip. Nothing is sent until you say so.', replied: 'People who wrote back. Answer them from Gmail.', sent: 'Follow-ups go out on their own and stop when they reply.', nocontact: 'Good fits with no email. Add one, or reach them another way.',
+    toreply: 'Reddit bans automated replies, so the agent drafts and you post. Fresh posts with few answers first.', answers: 'People answered your comment. Reply while the thread is active.', posted: 'Comments you posted. The agent checks the threads for answers every day.' }[S.tab]
+  return `${lanes()}${summary()}
+    <div class="tools"><input class="search" placeholder="${S.lane === 'email' ? 'Search name, company or what they said' : 'Search posts'}" />
+      ${S.lane === 'email' ? '<select class="sel"><option>All sources</option><option>Unhappy reviewers</option><option>Google Maps</option></select>' : '<select class="sel"><option>All communities</option><option>Reddit</option><option>Hacker News</option></select>'}
       <select class="sel"><option>Best fit first</option><option>Newest first</option></select></div>
     <div class="count" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span><b>${list.length} ${label.toLowerCase()}</b> · ${sub}</span>
-      ${S.tab === 'needs' ? `<button class="btn sm out" style="margin-left:auto">Send all ${list.filter(x => x.kind === 'email' && x.email).length} drafted emails</button>` : ''}</div>
+      ${S.lane === 'email' && S.tab === 'needs' ? `<button class="btn sm out" style="margin-left:auto">Send all ${list.filter(x => x.kind === 'email' && x.email).length} drafted emails</button>` : ''}</div>
     ${list.length ? list.map(card).join('') : `<div class="empty-pane">Nothing here right now.</div>`}
     ${list.length ? `<div class="pager"><span>1–${list.length} of ${list.length}</span><span class="nums"><button class="btn sm" disabled>← Previous</button><button class="n on">1</button><button class="btn sm" disabled>Next →</button></span></div>` : ''}`
 }
@@ -288,6 +350,11 @@ function detail(l) {
     title = `${first(l.name)} replied`; hint = 'Answer from Gmail. The agent stopped the follow-ups.'
     body = `<div class="quote">${esc(l.note)}</div><ul class="timeline"><li><span class="d">${l.sent}</span>First email sent</li><li><span class="d">Oct 21</span>They replied · follow-ups stopped</li></ul>`
     acts = `<button class="btn back" data-close>← Back</button><button class="btn pri">Open in Gmail →</button>`
+  } else if (st === 'posted') {
+    title = l.answers ? `${l.answers} people answered you` : 'Your reply is posted'
+    hint = `In ${l.where} · posted ${l.postedOn}. The agent checks the thread every day.`
+    body = `<div class="quote"><b>${esc(l.name)}</b></div>${l.answers ? `<ul class="timeline"><li><span class="d">${l.postedOn}</span>You posted your reply</li><li><span class="d">Today</span>${esc(l.lastAnswer)}</li></ul>` : '<p class="hint">No answers yet.</p>'}`
+    acts = `<button class="btn back" data-close>← Back</button><button class="btn pri">Open thread ↗</button>`
   } else if (finished) {
     title = l.kind === 'reddit' ? 'Reply posted' : `Email sent to ${first(l.name)}`
     body = `<div class="done"><div class="tick">✓</div><p>${l.kind === 'reddit' ? 'Marked as posted. Check back on the thread for answers.' : `Sent from your Gmail. ${l.nextF ?? 'Follow-up in 3 days if they don’t reply.'}`}</p></div>
@@ -300,12 +367,14 @@ function detail(l) {
   } else if (S.step === 1) {
     title = l.kind === 'reddit' ? `Worth replying to ${first(l.name)}?` : `Do you want to email ${first(l.name)}?`
     hint = l.kind === 'reddit' ? 'Reddit bans automated replies, so the agent drafts and you post.' : `Found by the agent: ${l.src.toLowerCase()} · ${l.found.toLowerCase()}.`
-    body = `<div class="quote">“${esc(l.said)}”</div>${fitbox}`
+    body = l.kind === 'reddit'
+      ? `<div class="post"><div class="post-top"><span class="src ${l.cls}">${esc(l.where)}</span><span>${esc(l.by)} · ${l.found}</span></div><b>${esc(l.name)}</b><p>${esc(l.said)}</p><div class="post-stats">▲ ${l.votes} · ${l.comments} comments</div></div>${fitbox}`
+      : `<div class="quote">“${esc(l.said)}”</div>${fitbox}`
     acts = `<button class="btn back" data-skip>No, skip</button><button class="btn pri" data-go="2">${l.kind === 'reddit' ? 'Yes, check the reply →' : 'Yes, write an email →'}</button>`
   } else if (S.step === 2) {
     if (l.kind === 'reddit') {
       title = 'Check the reply'; hint = 'Helpful answer first, your product second. Edit it to sound like you.'
-      body = `<textarea class="reply-box" style="width:100%;min-height:180px;font:inherit">${esc(l.reply)}</textarea>`
+      body = `<div class="rule">📌 ${esc(l.rule)}</div>`+`<textarea class="reply-box" style="width:100%;min-height:180px;font:inherit">${esc(l.reply)}</textarea>`
       acts = `<button class="btn back" data-back="1">← Back</button><button class="btn pri" data-go="3">Looks good →</button>`
     } else {
       title = 'Where should it go?'
@@ -315,7 +384,7 @@ function detail(l) {
     }
   } else {
     if (l.kind === 'reddit') {
-      title = 'Post it'; hint = 'Copy the reply, open the post, paste it as a comment, then come back and mark it posted.'
+      title = 'Post it'; hint = `Copy the reply, open the post, paste it as a comment in ${l.where}, then come back and mark it posted. The agent then watches the thread for answers.`
       body = `<div class="reply-box">${esc(l.reply)}</div>`
       acts = `<button class="btn back" data-back="2">← Back</button><button class="btn out">Copy reply</button><button class="btn out">Open post ↗</button><button class="btn pri" data-posted>Mark as posted</button>`
     } else {
@@ -329,8 +398,8 @@ function detail(l) {
   return `${bar}<section class="pane"><div class="pane-in"><h3>${title}</h3>${hint ? `<p class="hint">${hint}</p>` : '<div style="height:12px"></div>'}${body}</div><div class="actions">${acts}</div></section>`
 }
 function nextBtn(l) {
-  const n = LEADS.find(x => x.id !== l.id && stateOf(x) === 'new')
-  return n ? `<button class="btn pri" data-open="${n.id}">Next lead: ${esc(first(n.name))} →</button>` : ''
+  const n = LEADS.find(x => x.id !== l.id && stateOf(x) === 'new' && x.kind === l.kind)
+  return n ? `<button class="btn pri" data-open="${n.id}">${isEmail(n) ? `Next lead: ${esc(first(n.name))}` : 'Next post'} →</button>` : ''
 }
 
 function render() {
@@ -338,13 +407,13 @@ function render() {
   const l = LEADS.find(x => x.id === S.open)
   let html = header()
   if (S.layout === 'A') {
-    html += l ? `<nav class="crumbs"><button class="link" data-close>← All leads</button><span>/</span><b>${esc(l.name)}</b></nav>${detail(l)}` : listView()
+    html += l ? `<nav class="crumbs"><button class="link" data-close>← All leads</button><span>/</span><b>${esc(isEmail(l) ? l.name : l.where)}</b></nav>${detail(l)}` : listView()
   } else if (S.size === 'phone' && l) {
-    html += `<nav class="crumbs"><button class="link" data-close>← All leads</button><span>/</span><b>${esc(l.name)}</b></nav>${detail(l)}`
+    html += `<nav class="crumbs"><button class="link" data-close>← All leads</button><span>/</span><b>${esc(isEmail(l) ? l.name : l.where)}</b></nav>${detail(l)}`
   } else {
     const list = listFor(S.tab)
-    html += `${summary()}<div class="split"><div class="list">
-      <div class="count"><b>${list.length} ${TABS.find(x => x[0] === S.tab)[1].toLowerCase()}</b> · tap one to see it</div>
+    html += `${lanes()}${summary()}<div class="split"><div class="list">
+      <div class="count"><b>${list.length} ${tabsNow().find(x => x[0] === S.tab)[1].toLowerCase()}</b> · tap one to see it</div>
       ${list.map(card).join('') || '<div class="empty-pane">Nothing here right now.</div>'}</div>
       <div class="detail">${l ? detail(l) : '<div class="empty-pane">Pick a lead on the left to see it here.</div>'}</div></div>`
   }
@@ -356,7 +425,8 @@ function open(id) { Object.assign(S, { open: id, step: 1, busy: false, to: '' })
 document.addEventListener('click', e => {
   const t = e.target.closest('button, [data-pick]'); if (!t) return
   if (t.dataset.k) { S[t.dataset.k] = t.dataset.v; render(); return }
-  if (t.id === 'reset') { Object.assign(S, { open: null, tab: 'needs', posted: {}, sent: {}, skipped: {} }); render(); return }
+  if (t.id === 'reset') { Object.assign(S, { open: null, lane: 'email', tab: 'needs', posted: {}, sent: {}, skipped: {} }); render(); return }
+  if (t.dataset.lane) { S.lane = t.dataset.lane; S.tab = TABS[S.lane][0][0]; S.open = null; render(); return }
   if (t.dataset.tab) { S.tab = t.dataset.tab; S.open = null; render(); return }
   if (t.dataset.open) { open(+t.dataset.open); return }
   if (t.dataset.pick && S.layout === 'B') { open(+t.dataset.pick); return }
