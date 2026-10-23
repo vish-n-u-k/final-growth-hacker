@@ -580,7 +580,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
         </div>
       )}
 
-      <div className="an-page" style={{ maxWidth: 1100, margin: '0 auto', padding: '0 28px 32px' }}>
+      <div className="an-page tool-page">
 
         <ToolHeader
           icon="chart"
