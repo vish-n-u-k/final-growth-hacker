@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import ToolHeader from '@/components/ToolHeader'
 import { Spinner } from '@/components/ui/spinner'
-import { Stars, ago, fmtDate, initials, reviewHref, step } from '@/components/lead-finder/ui'
+import { Stars, competitorLabel, ago, fmtDate, initials, reviewHref, step } from '@/components/lead-finder/ui'
 import type { SavedReview, SavedScan } from '@/lib/lead-finder/saved'
 
 // Competitor Leads, step one: read a competitor's newest reviews, list them, then check how well
@@ -167,7 +167,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
 
   const scanBar = (right: React.ReactNode) => (
     <div className="cl-scanbar">
-      <span>{(phase === 'done' ? scan?.platform : platform) === 'shopify' ? 'Shopify App Store' : 'Trustpilot'} · <b>{phase === 'done' ? scan?.competitor : input}</b></span>
+      <span>{(phase === 'done' ? scan?.platform : platform) === 'shopify' ? 'Shopify App Store' : 'Trustpilot'} · <b>{competitorLabel((phase === 'done' ? scan?.competitor : input) ?? '')}</b></span>
       <span className="cl-grow" />
       {right}
     </div>
@@ -263,7 +263,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
             </form>
             <div className="cl-fine"><span>Takes under a minute</span><span>Costs a cent or two</span><span>Nothing is sent until you approve it</span></div>
             {scan && (
-              <p className="cl-back"><button type="button" className="th-link" onClick={() => setPhase('done')}>← Back to {scan.competitor}</button></p>
+              <p className="cl-back"><button type="button" className="th-link" onClick={() => setPhase('done')}>← Back to {competitorLabel(scan.competitor)}</button></p>
             )}
           </section>
         )}
@@ -296,7 +296,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
               <span className="cl-muted">{scan.reviewsRead} newest reviews · read {ago(scan.scannedAt)}</span>
               {history.length > 1 && (
                 <select className="cl-sel cl-hist" value={scan.id} disabled={loadingScan} onChange={e => openScan(e.target.value)} aria-label="Earlier scans">
-                  {history.map(h => <option key={h.id} value={h.id}>{h.competitor} · {fmtDate(h.scannedAt)}{h.emailed ? ` · ${h.emailed} emailed` : ''}</option>)}
+                  {history.map(h => <option key={h.id} value={h.id}>{competitorLabel(h.competitor)} · {fmtDate(h.scannedAt)}{h.emailed ? ` · ${h.emailed} emailed` : ''}</option>)}
                 </select>
               )}
               <button className="btn btn-ghost btn-sm" type="button" onClick={reset}>New scan</button>
@@ -324,7 +324,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
             </div>
             {shown.length ? shown.map(row) : (
               <div className="cl-none">
-                <p>{show === 'good' && !scoring ? `No good fits in these reviews: the unhappy reviewers' complaints aren't things ${brandName} fixes. Try another competitor.` : reviews.some(r => r.rating <= 3) ? 'No reviews match these filters.' : `None of ${scan.competitor}'s newest reviews are 1–3 stars, so nobody is unhappy enough to reach out to right now.`}</p>
+                <p>{show === 'good' && !scoring ? `No good fits in these reviews: the unhappy reviewers' complaints aren't things ${brandName} fixes. Try another competitor.` : reviews.some(r => r.rating <= 3) ? 'No reviews match these filters.' : `None of ${competitorLabel(scan.competitor)}'s newest reviews are 1–3 stars, so nobody is unhappy enough to reach out to right now.`}</p>
                 <button className="btn btn-ghost" type="button" onClick={clearFilters}>Show all reviews</button>
               </div>
             )}

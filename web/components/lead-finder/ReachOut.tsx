@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ToolHeader from '@/components/ToolHeader'
 import { Spinner } from '@/components/ui/spinner'
-import { Stars, fmtDate, firstName, initials, reviewHref, saveReview, step } from '@/components/lead-finder/ui'
+import { Stars, competitorLabel, fmtDate, firstName, initials, reviewHref, saveReview, step } from '@/components/lead-finder/ui'
 import type { SavedReview, SavedScan } from '@/lib/lead-finder/saved'
 
 // Competitor Leads, step two: reach out to one reviewer in three steps, each saved as it's done
@@ -225,7 +225,7 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
       />
       <nav className="ro-crumbs" aria-label="Breadcrumb">
         <Link className="th-link" href="/lead-finder">← All reviews</Link>
-        {scan && <><span aria-hidden="true">/</span><span>{scan.competitor}</span></>}
+        {scan && <><span aria-hidden="true">/</span><span>{competitorLabel(scan.competitor)}</span></>}
         <span aria-hidden="true">/</span><b>{r.name}</b>
       </nav>
 
@@ -241,7 +241,7 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
           </div>
           <blockquote className="ro-quote">“{r.text}”</blockquote>
           <div className="ro-src">
-            {scan && <span>Review of <b>{scan.competitor}</b> on {scan.platform === 'shopify' ? 'the Shopify App Store' : 'Trustpilot'}</span>}
+            {scan && <span>Review of <b>{competitorLabel(scan.competitor)}</b> on {scan.platform === 'shopify' ? 'the Shopify App Store' : 'Trustpilot'}</span>}
             {r.reviewUrl && <a className="th-link" href={r.reviewUrl} target="_blank" rel="noopener noreferrer">Read it ↗</a>}
           </div>
           {(stepNo > 1 || done) && fitBlock}

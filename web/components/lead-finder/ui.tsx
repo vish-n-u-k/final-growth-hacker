@@ -13,6 +13,14 @@ export const ago = (iso: string) => {
   return m < 2 ? 'just now' : m < 60 ? `${m} min ago` : m < 1440 ? `${Math.round(m / 60)} h ago` : fmtDate(iso)
 }
 export const firstName = (n: string) => { const f = n.trim().split(/\s+/)[0]; return /^[\p{L}'-]{2,}$/u.test(f) && n.trim().includes(' ') ? f : '' }
+/** A short name for what was scanned: "buffer.com", or the app name for a Shopify App Store link. */
+export function competitorLabel(c: string): string {
+  const t = c.trim().replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/[?#].*$/, '').replace(/\/+$/, '')
+  const app = t.match(/^apps\.shopify\.com\/([^/]+)/i)?.[1]
+  if (app) return app.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  const tp = t.match(/trustpilot\.com\/review\/([^/]+)/i)?.[1]
+  return tp ?? t.split('/')[0]
+}
 export const reviewHref = (id: string) => `/lead-finder/review/${encodeURIComponent(id)}`
 
 /** Calls one Competitor Leads step (app/api/lead-finder/step) and throws its plain error message. */
