@@ -1,0 +1,197 @@
+<title>Today in Blocks</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: app frame, one quiet column. A "Start here" panel, then six equal blocks. Open a block to see its list. */
+  :root {
+    --bg: #ffffff; --soft: #f3f5f3; --line: #e3e7e3; --text: #16201a; --dim: #4f5c53; --faint: #86918a;
+    --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --red: #b42318; --red-soft: #fdeceb;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; color-scheme: dark }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--body); }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+  .frame { display: flex; min-height: 100vh; }
+  .side { width: 232px; flex: none; background: var(--soft); border-right: 1px solid var(--line); padding: 18px 12px; font-size: 13.5px; }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 4px 8px 20px; font: 600 16px var(--display); }
+  .grp { margin-bottom: 18px; }
+  .gl { padding: 0 10px 6px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .nav { display: block; padding: 7px 10px; border-radius: 8px; color: var(--dim); text-decoration: none; }
+  .nav.on { background: var(--green-soft); color: var(--green-ink); font-weight: 600; }
+  .main { flex: 1; min-width: 0; }
+  .page { max-width: 880px; padding-block: 28px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); margin: 0 auto; }
+  .mbar { display: none; }
+  @media (max-width: 760px) {
+    .side { display: none; }
+    .mbar { display: flex; align-items: center; gap: 9px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--soft); font: 600 15px var(--display); }
+    .page { padding-block: 18px 56px; }
+  }
+
+  .crumbs { font-size: 13px; color: var(--faint); margin-bottom: 18px; }
+  h1 { margin: 0; font: 600 32px/1.15 var(--display); letter-spacing: -.01em; }
+  .line { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 14px; color: var(--faint); }
+  .link { border: 0; background: none; padding: 0; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; }
+  .link:hover { color: var(--text); text-decoration-color: currentColor; }
+
+  /* Start here: the only green thing */
+  .next { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 28px; padding: 20px 22px; border-radius: 14px; background: var(--green-soft); }
+  .next.reply { background: var(--red-soft); }
+  .next-text { flex: 1 1 260px; min-width: 0; }
+  .eyebrow { display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+  .next-text b { display: block; font-size: 17px; font-weight: 600; }
+  .next-text span.s { color: var(--dim); font-size: 14px; }
+  .btn { height: 42px; padding: 0 20px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn.go { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.go:hover { filter: brightness(1.06); }
+
+  /* Blocks: same size, grey, one number each */
+  .h2 { margin: 30px 0 12px; font-size: 13px; color: var(--faint); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+  .block { display: flex; flex-direction: column; gap: 4px; min-height: 148px; padding: 18px 18px 14px; text-align: left; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); cursor: pointer; }
+  .block:hover { background: var(--soft); }
+  .block.reply { background: var(--red-soft); border-color: transparent; }
+  .block .t { font-size: 13px; color: var(--faint); }
+  .block .n { font: 600 34px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+  .block .d { color: var(--dim); font-size: 14px; flex: 1; }
+  .block .o { font-size: 13.5px; color: var(--dim); }
+  .block.zero .n { color: var(--faint); }
+  .block.zero { cursor: default; }
+  .block.zero:hover { background: var(--bg); }
+  .foot { margin-top: 22px; font-size: 14px; color: var(--faint); }
+
+  /* An opened block */
+  .back { margin-bottom: 20px; }
+  .rows h2 { margin: 0 0 4px; font: 600 26px/1.2 var(--display); }
+  .rows .sub { margin: 0 0 18px; color: var(--dim); font-size: 14px; }
+  .row { display: flex; align-items: center; gap: 14px; padding: 14px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .row:first-of-type { border-top: 1px solid var(--line); }
+  .row:hover .row-name { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .row-main { flex: 1; min-width: 0; }
+  .row-name { font-weight: 600; }
+  .row-why { color: var(--dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-go { color: var(--faint); font-size: 14px; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
+  .empty { padding: 36px 22px; border-radius: 14px; background: var(--soft); text-align: center; margin-top: 28px; }
+  .empty b { display: block; font-size: 17px; margin-bottom: 4px; }
+  .empty p { margin: 0 0 16px; color: var(--dim); }
+  .toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); padding: 10px 16px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 14px; }
+  .toast button { margin-left: 10px; border: 0; background: none; color: var(--bg); font-weight: 600; text-decoration: underline; cursor: pointer; }
+  @media (prefers-reduced-motion: no-preference) { .block, .row, .btn { transition: background .15s, color .15s; } }
+</style>
+
+<div class="frame">
+  <nav class="side" aria-label="Main">
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#12A664"/><path d="M6 17.5 L10.5 12 L14 15 L20 7.5" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>GrowJin</div>
+    <div class="grp"><a class="nav on" href="#">Today</a><a class="nav" href="#">Your roadmap</a></div>
+    <div class="grp"><div class="gl">Get customers</div><a class="nav" href="#">Lead Agent</a><a class="nav" href="#">Competitor Leads</a><a class="nav" href="#">Email Outreach</a></div>
+    <div class="grp"><div class="gl">Get seen</div><a class="nav" href="#">Search Agent</a><a class="nav" href="#">Social Studio</a></div>
+    <div class="grp"><div class="gl">Keep track</div><a class="nav" href="#">Reminders</a><a class="nav" href="#">Analytics</a></div>
+  </nav>
+  <main class="main">
+    <div class="mbar"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#12A664"/><path d="M6 17.5 L10.5 12 L14 15 L20 7.5" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>GrowJin</div>
+    <div class="page" id="view"></div>
+  </main>
+</div>
+<div id="toast"></div>
+
+<script>
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+
+// Made-up example data. Order of BLOCKS = order of priority for "Start here".
+const BLOCKS = [
+  { id: 'replies', title: 'Replies', one: 'person replied', many: 'people replied', desc: 'Answer while they are still interested.', cta: 'Answer', red: true, items: [
+    { id: 'a1', name: 'Tom Becker', why: '"Sounds interesting, can you send pricing?"', go: 'Answer' } ] },
+  { id: 'emails', title: 'Emails to approve', one: 'email ready', many: 'emails ready', desc: 'Written for you. Nothing is sent until you say OK.', cta: 'Review the email', items: [
+    { id: 'b1', name: 'Bloom Salon', why: 'Busy salon, last Instagram post 5 months ago.', go: 'Review' },
+    { id: 'b2', name: 'Lumen Candles', why: 'No posts in three months.', go: 'Review' },
+    { id: 'b3', name: 'Ortiz Coffee', why: 'Café with no website and few posts.', go: 'Review' } ] },
+  { id: 'posts', title: 'Posts to publish', one: 'post drafted', many: 'posts drafted', desc: 'Drafts for LinkedIn and Instagram, ready to check.', cta: 'Check the post', items: [
+    { id: 'c1', name: 'Why small cafés skip social media', why: 'LinkedIn · draft ready', go: 'Check' },
+    { id: 'c2', name: 'Three post ideas for a slow week', why: 'Instagram · draft ready', go: 'Check' } ] },
+  { id: 'wins', title: 'Quick fixes', one: 'fix to make', many: 'fixes to make', desc: 'Small changes from your Website Audit that help most.', cta: 'See the fix', items: [
+    { id: 'd1', name: 'Add a title to your pricing page', why: 'Website Audit · about 5 minutes', go: 'Open' },
+    { id: 'd2', name: 'Add alt text to your homepage images', why: 'Website Audit · about 10 minutes', go: 'Open' },
+    { id: 'd3', name: 'Get listed on G2', why: 'Search Agent · about 20 minutes', go: 'Open' },
+    { id: 'd4', name: 'Fix how AI describes Frekto', why: 'Search Agent · about 15 minutes', go: 'Open' } ] },
+  { id: 'reminders', title: 'Reminders', one: 'due today', many: 'due today', desc: 'Follow-ups you asked GrowJin to remind you about.', cta: 'Open the reminder', items: [
+    { id: 'e1', name: 'Call Priya at Nimbus Studio', why: 'You set this on Monday.', go: 'Open' } ] },
+]
+const S = { open: null, done: {}, toast: null }
+const left = b => b.items.filter(i => !S.done[i.id])
+const total = () => BLOCKS.reduce((n, b) => n + left(b).length, 0)
+
+function toast(msg, undoId) {
+  S.toast = { msg, undoId }
+  clearTimeout(toast.t); toast.t = setTimeout(() => { S.toast = null; paint() }, 4000)
+}
+
+function home() {
+  const dateLine = new Date(2026, 9, 23).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+  const head = `<div class="crumbs">Today</div><h1>Today</h1>
+    <div class="line"><span>${dateLine}</span><span>Frekto</span><button class="link" data-a="noop">Settings</button></div>`
+  const first = BLOCKS.find(b => left(b).length)
+  if (!first) {
+    return head + `<div class="empty"><b>All caught up</b><p>New things appear here after tomorrow morning's search.</p><button class="btn go" data-a="reset">Show the example again</button></div>`
+  }
+  const item = left(first)[0]
+  const n = left(first).length
+  const what = first.id === 'replies' ? `${item.name} replied` : `${n} ${n === 1 ? first.one : first.many}`
+  const sub = first.id === 'replies' ? 'Answer while they are interested.' : `Start with ${esc(item.name)}.`
+  const start = `<div class="next${first.red ? ' reply' : ''}"><div class="next-text"><span class="eyebrow">Start here</span><b>${esc(what)}</b><span class="s">${sub}</span></div>
+    <button class="btn go" data-item="${first.id}:${item.id}">${first.cta}</button></div>`
+  const blocks = BLOCKS.map(b => {
+    const k = left(b).length
+    return `<button class="block${b.red && k ? ' reply' : ''}${k ? '' : ' zero'}" ${k ? `data-open="${b.id}"` : 'aria-disabled="true"'}>
+      <span class="t">${b.title}</span><span class="n">${k}</span>
+      <span class="d">${k ? esc(k === 1 ? b.one : b.many) + '. ' + esc(b.desc) : 'Nothing to do here.'}</span>
+      <span class="o">${k ? 'Open →' : 'All done'}</span></button>`
+  }).join('')
+  const stat = `<button class="block" data-a="noop"><span class="t">Yesterday</span><span class="n">128</span><span class="d">visits to your site. Mostly from Google and LinkedIn.</span><span class="o">See Analytics →</span></button>`
+  return head + start + `<p class="h2">Everything today, in ${BLOCKS.length + 1} blocks</p><div class="grid">${blocks}${stat}</div>
+    <p class="foot">Social stats, signals and older tips live in Analytics and Your roadmap.</p>`
+}
+
+function blockView(b) {
+  const items = left(b)
+  const rows = items.map(i => `<div class="row" data-item="${b.id}:${i.id}" role="button" tabindex="0">${b.red ? '<span class="dot" title="Replied"></span>' : ''}
+    <div class="row-main"><div class="row-name">${esc(i.name)}</div><div class="row-why">${esc(i.why)}</div></div><span class="row-go">${i.go} →</span></div>`).join('')
+  return `<button class="link back" data-a="home">← Today</button><section class="rows"><h2>${b.title}</h2>
+    <p class="sub">${items.length} ${esc(items.length === 1 ? b.one : b.many)}. ${esc(b.desc)}</p>
+    ${rows || '<div class="empty"><b>All done here</b><p>Nice work.</p><button class="btn go" data-a="home">Back to Today</button></div>'}</section>`
+}
+
+function paint() {
+  const b = S.open && BLOCKS.find(x => x.id === S.open)
+  document.getElementById('view').innerHTML = b ? blockView(b) : home()
+  document.getElementById('toast').innerHTML = S.toast ? `<div class="toast" role="status">${esc(S.toast.msg)}${S.toast.undoId ? '<button data-a="undo">Undo</button>' : ''}</div>` : ''
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a],[data-open],[data-item]'); if (!t) return
+  const d = t.dataset
+  if (d.open) { S.open = d.open; window.scrollTo({ top: 0 }) }
+  else if (d.item) {
+    // Preview only: pretend the item was done and show the next one.
+    const [bid, iid] = d.item.split(':'); const b = BLOCKS.find(x => x.id === bid)
+    S.done[iid] = true; toast(`Done: ${b.items.find(i => i.id === iid).name}`, iid)
+    S.open = left(b).length ? bid : null
+  }
+  else if (d.a === 'home') S.open = null
+  else if (d.a === 'reset') S.done = {}
+  else if (d.a === 'undo') { delete S.done[S.toast.undoId]; S.toast = null }
+  else if (d.a === 'noop') toast('Not part of this preview')
+  paint()
+})
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.row[data-item]')) e.target.click() })
+paint()
+</script>
