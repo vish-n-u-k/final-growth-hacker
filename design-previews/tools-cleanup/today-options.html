@@ -3,18 +3,20 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  /* Layout: an option picker above the app frame; each option is a different way of turning Today into blocks. */
+  /* Layout: option picker above the app frame. Every option keeps all of today's Today content
+     (road to 500, what happened, focus, actions, what's working, done, blog, social), packed into calm blocks.
+     Each block shows a short summary; tap it for the full detail. */
   :root {
     --bg: #ffffff; --soft: #f3f5f3; --line: #e3e7e3; --text: #16201a; --dim: #4f5c53; --faint: #86918a;
-    --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --red: #b42318; --red-soft: #fdeceb; --pick: #eef0ee;
+    --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --red: #b42318; --red-soft: #fdeceb; --pick: #eef0ee; --bar: #c9d3cb;
     --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
   }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
     --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
-    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; --pick: #1c241f; color-scheme: dark } }
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; --pick: #1c241f; --bar: #3a463e; color-scheme: dark } }
   :root[data-theme="dark"] {
     --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
-    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; --pick: #1c241f; color-scheme: dark }
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; --pick: #1c241f; --bar: #3a463e; color-scheme: dark }
 
   * { box-sizing: border-box; }
   body { background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--body); }
@@ -28,8 +30,9 @@
   .opts { display: flex; gap: 8px; flex-wrap: wrap; }
   .opt { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); font-size: 14px; cursor: pointer; }
   .opt[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
-  .opt-note { margin: 10px 0 0; font-size: 14px; color: var(--dim); max-width: 70ch; }
+  .opt-note { margin: 10px 0 0; font-size: 14px; color: var(--dim); max-width: 75ch; }
 
+  /* App frame */
   .frame { display: flex; min-height: 100vh; }
   .side { width: 232px; flex: none; background: var(--soft); border-right: 1px solid var(--line); padding: 18px 12px; font-size: 13.5px; }
   .brand { display: flex; align-items: center; gap: 9px; padding: 4px 8px 20px; font: 600 16px var(--display); }
@@ -38,9 +41,10 @@
   .nav { display: block; padding: 7px 10px; border-radius: 8px; color: var(--dim); text-decoration: none; }
   .nav.on { background: var(--green-soft); color: var(--green-ink); font-weight: 600; }
   .main { flex: 1; min-width: 0; }
-  .page { max-width: 880px; padding-block: 28px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); margin: 0 auto; }
+  .page { max-width: 960px; padding-block: 28px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); margin: 0 auto; }
   @media (max-width: 760px) { .side { display: none; } .page { padding-block: 18px 56px; } }
 
+  /* Quiet header */
   .crumbs { font-size: 13px; color: var(--faint); margin-bottom: 18px; }
   h1 { margin: 0; font: 600 32px/1.15 var(--display); letter-spacing: -.01em; }
   .line { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 14px; color: var(--faint); }
@@ -53,91 +57,121 @@
   .btn.go:hover { filter: brightness(1.06); }
   .btn.quiet { border-color: transparent; background: none; color: var(--dim); padding: 0 12px; }
 
-  .next { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 28px; padding: 20px 22px; border-radius: 14px; background: var(--green-soft); }
+  /* Start here */
+  .next { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px 22px; border-radius: 14px; background: var(--green-soft); }
   .next.reply { background: var(--red-soft); }
   .next-text { flex: 1 1 260px; min-width: 0; }
   .eyebrow { display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
   .next-text b { display: block; font-size: 17px; font-weight: 600; }
   .next-text .s { color: var(--dim); font-size: 14px; }
 
-  /* Shared block + row */
-  .block { display: flex; flex-direction: column; gap: 4px; padding: 18px 18px 14px; text-align: left; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); min-width: 0; }
-  button.block { cursor: pointer; }
+  /* Blocks */
+  .block { display: flex; flex-direction: column; gap: 6px; padding: 18px; text-align: left; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); min-width: 0; }
+  button.block { cursor: pointer; width: 100%; }
   button.block:hover { background: var(--soft); }
-  .block.reply { background: var(--red-soft); border-color: transparent; }
-  .block .t { font-size: 13px; color: var(--faint); }
-  .block .n { font: 600 34px/1.1 var(--display); font-variant-numeric: tabular-nums; }
-  .block .d { color: var(--dim); font-size: 14px; flex: 1; }
-  .block .o { font-size: 13.5px; color: var(--dim); }
-  .block.zero .n { color: var(--faint); }
-  .row { display: flex; align-items: center; gap: 12px; padding: 12px 2px; border-top: 1px solid var(--line); cursor: pointer; min-width: 0; }
+  .bt { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--faint); }
+  .bn { font: 600 30px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+  .bn small { font: 500 14px var(--body); color: var(--dim); margin-left: 6px; }
+  .bd { color: var(--dim); font-size: 14px; }
+  .bo { margin-top: auto; padding-top: 6px; font-size: 13.5px; color: var(--dim); }
+  .nums { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .nums div { min-width: 0; }
+  .nums b { display: block; font: 600 22px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+  .nums span { font-size: 12.5px; color: var(--faint); }
+  .road { display: flex; gap: 3px; margin-top: 4px; }
+  .road i { flex: 1; height: 6px; border-radius: 3px; background: var(--line); }
+  .road i.past { background: var(--bar); }
+  .road i.now { background: var(--text); }
+  .mini { display: grid; gap: 0; }
+  .mini div { display: flex; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px; min-width: 0; }
+  .mini div:first-child { border-top: 0; }
+  .mini span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mini em { font-style: normal; color: var(--faint); white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; align-self: center; }
+
+  /* Rows (action lists) */
+  .row { display: flex; align-items: center; gap: 12px; padding: 13px 2px; border-top: 1px solid var(--line); cursor: pointer; min-width: 0; }
   .row:hover .rn { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
   .rm { flex: 1; min-width: 0; }
   .rn { font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rw { color: var(--dim); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rg { color: var(--faint); font-size: 13.5px; white-space: nowrap; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
-  .empty { padding: 36px 22px; border-radius: 14px; background: var(--soft); text-align: center; margin-top: 28px; }
+
+  /* A: bento */
+  .bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+  .s2 { grid-column: span 2; } .s3 { grid-column: span 3; } .s4 { grid-column: span 4; } .s6 { grid-column: span 6; }
+  .r2 { grid-row: span 2; }
+  @media (max-width: 900px) { .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); } .s2, .s3 { grid-column: span 1; } .s4, .s6 { grid-column: span 2; } .r2 { grid-row: auto; } }
+  @media (max-width: 520px) { .bento { grid-template-columns: 1fr; } .s2, .s3, .s4, .s6 { grid-column: span 1; } .nums { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  /* B: two columns */
+  .two { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 24px; margin-top: 24px; align-items: start; }
+  .stack { display: grid; gap: 12px; }
+  .colh { margin: 0 0 10px; font-size: 13px; color: var(--faint); }
+  @media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+
+  /* C: three sections */
+  .sec { margin-top: 32px; }
+  .sec h2 { margin: 0 0 12px; font: 600 20px/1.2 var(--display); }
+  .g3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .g2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 760px) { .g3, .g2 { grid-template-columns: 1fr; } }
+
+  /* D: strip + folds */
+  .strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 24px; }
+  .strip .block { padding: 14px 16px; }
+  .strip .bn { font-size: 26px; }
+  @media (max-width: 760px) { .strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .fold { border-top: 1px solid var(--line); }
+  .fold:last-child { border-bottom: 1px solid var(--line); }
+  .fold-h { display: flex; align-items: center; gap: 12px; width: 100%; padding: 16px 2px; border: 0; background: none; text-align: left; cursor: pointer; }
+  .fold-h b { font-weight: 600; }
+  .fold-h span { flex: 1; min-width: 0; color: var(--dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fold-h i { font-style: normal; color: var(--faint); }
+  .fold-b { padding: 0 2px 18px; }
+
+  /* E: brief */
+  .brief { margin-top: 24px; padding: 24px; border-radius: 16px; background: var(--soft); }
+  .brief p { margin: 0; font: 400 19px/1.55 var(--display); max-width: 60ch; }
+  .brief p b { font-weight: 600; }
+  .brief .line { margin-top: 12px; }
+
+  /* Detail views */
+  .back { margin-bottom: 20px; }
+  .dh { margin: 0 0 4px; font: 600 26px/1.2 var(--display); text-wrap: balance; }
+  .dsub { margin: 0 0 20px; color: var(--dim); font-size: 14px; max-width: 65ch; }
+  .dgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
+  @media (max-width: 760px) { .dgrid { grid-template-columns: 1fr; } }
+  .dsec h3 { margin: 0 0 8px; font-size: 13px; font-weight: 500; color: var(--faint); }
+  .hbar { display: grid; grid-template-columns: 90px minmax(0, 1fr) 40px; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; }
+  .hbar i { display: block; height: 8px; border-radius: 4px; background: var(--bar); }
+  .hbar em { font-style: normal; color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; margin-bottom: 18px; }
+  .seg button { border: 0; background: none; padding: 5px 12px; border-radius: 999px; font-size: 13px; color: var(--dim); cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--soft); color: var(--text); font-weight: 600; }
+  .bands { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 16px; }
+  .band { padding: 10px; border-radius: 10px; background: var(--soft); font-size: 13px; color: var(--faint); min-width: 0; }
+  .band b { display: block; color: var(--dim); font-weight: 600; }
+  .band.now { background: var(--text); color: var(--bg); }
+  .band.now b { color: var(--bg); }
+  @media (max-width: 600px) { .bands { grid-template-columns: 1fr; } }
+  .what { display: grid; gap: 14px; margin: 20px 0 24px; max-width: 65ch; }
+  .what div h3 { margin: 0 0 2px; font-size: 13px; font-weight: 500; color: var(--faint); }
+  .what div p { margin: 0; }
+  .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .empty { padding: 36px 22px; border-radius: 14px; background: var(--soft); text-align: center; margin-top: 16px; }
   .empty b { display: block; font-size: 17px; margin-bottom: 4px; }
   .empty p { margin: 0 0 16px; color: var(--dim); }
-
-  /* A: six tiles */
-  .grid6 { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
-  .grid6 .block { min-height: 148px; }
-
-  /* B: three groups */
-  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
-  .grid3 .block { padding-bottom: 6px; }
-  .grid3 h3 { margin: 0; font: 600 19px/1.25 var(--display); }
-  .grid3 .cnt { font-size: 13.5px; color: var(--faint); margin-bottom: 10px; }
-  .grid3 .more { padding: 10px 2px; border-top: 1px solid var(--line); font-size: 13.5px; }
-  @media (max-width: 860px) { .grid3 { grid-template-columns: 1fr; } }
-
-  /* C: one at a time */
-  .focus { margin-top: 28px; padding: 32px 28px; border-radius: 18px; border: 1px solid var(--line); }
-  .focus.reply { background: var(--red-soft); border-color: transparent; }
-  .prog { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--faint); margin-bottom: 22px; }
-  .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; }
-  .bar i { display: block; height: 100%; background: var(--green); border-radius: 3px; }
-  .focus .kind { font-size: 13px; color: var(--faint); }
-  .focus h2 { margin: 4px 0 8px; font: 600 28px/1.2 var(--display); text-wrap: balance; }
-  .focus p { margin: 0 0 24px; color: var(--dim); max-width: 58ch; }
-  .focus .acts { display: flex; gap: 8px; flex-wrap: wrap; }
-  .upnext { margin-top: 18px; font-size: 14px; color: var(--faint); }
-
-  /* D: top three */
-  .top3 { display: grid; gap: 12px; margin-top: 28px; }
-  .top3 .block { flex-direction: row; align-items: center; gap: 18px; padding: 20px 22px; flex-wrap: wrap; }
-  .top3 .num { font: 600 28px/1 var(--display); color: var(--faint); width: 28px; flex: none; }
-  .top3 .bm { flex: 1 1 240px; min-width: 0; }
-  .top3 .bm b { display: block; font-size: 17px; }
-  .top3 .bm span { color: var(--dim); font-size: 14px; }
-  .top3 .block.first { background: var(--green-soft); border-color: transparent; }
-  .top3 .block.first.reply { background: var(--red-soft); }
-  .later { margin-top: 22px; }
-
-  /* E: board */
-  .board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 28px; align-items: start; }
-  .col { padding: 14px; border-radius: 14px; background: var(--soft); min-width: 0; }
-  .col h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; }
-  .col h3 span { color: var(--faint); font-weight: 500; }
-  .card { display: block; width: 100%; text-align: left; padding: 12px 14px; margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); cursor: pointer; }
-  .card:hover { border-color: var(--faint); }
-  .card.reply { background: var(--red-soft); border-color: transparent; }
-  .card.first { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
-  .card b { display: block; font-size: 14.5px; }
-  .card span { display: block; color: var(--dim); font-size: 13px; }
-  .card.done { opacity: .6; cursor: default; }
-  .card.done b { text-decoration: line-through; }
-  @media (max-width: 860px) { .board { grid-template-columns: 1fr; } }
+  .toggle { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--dim); }
+  .toggle input { accent-color: var(--green); }
 
   .toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); padding: 10px 16px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 14px; white-space: nowrap; }
   .toast button { margin-left: 10px; border: 0; background: none; color: var(--bg); font-weight: 600; text-decoration: underline; cursor: pointer; }
-  @media (prefers-reduced-motion: no-preference) { .block, .row, .btn, .card, .bar i { transition: background .15s, color .15s, width .3s; } }
+  @media (prefers-reduced-motion: no-preference) { .block, .row, .btn { transition: background .15s, color .15s; } }
 </style>
 
 <div class="picker"><div class="picker-in">
-  <div class="picker-h">Pick a layout for Today</div>
+  <div class="picker-h">Pick a layout for Today · all of today's content is kept</div>
   <div class="opts" id="opts" role="group" aria-label="Layout options"></div>
   <p class="opt-note" id="note"></p>
 </div></div>
@@ -156,167 +190,211 @@
 <script>
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
 
-// Made-up example tasks, already in priority order (what Today picks today).
-const TASKS = [
-  { id: 't1', kind: 'replies', group: 'customers', red: true, name: 'Tom Becker replied', why: '"Sounds interesting, can you send pricing?"', cta: 'Answer', when: 'now' },
-  { id: 't2', kind: 'emails', group: 'customers', name: 'Email Bloom Salon', why: 'Busy salon, last Instagram post 5 months ago.', cta: 'Review the email', when: 'now' },
-  { id: 't3', kind: 'fixes', group: 'seen', name: 'Add a title to your pricing page', why: 'Google shows "Untitled". About 5 minutes.', cta: 'See the fix', when: 'now' },
-  { id: 't4', kind: 'emails', group: 'customers', name: 'Email Lumen Candles', why: 'No posts in three months.', cta: 'Review the email', when: 'today' },
-  { id: 't5', kind: 'posts', group: 'seen', name: 'Post: Why small cafés skip social media', why: 'LinkedIn draft, ready to check.', cta: 'Check the post', when: 'today' },
-  { id: 't6', kind: 'reminders', group: 'track', name: 'Call Priya at Nimbus Studio', why: 'You set this reminder on Monday.', cta: 'Open', when: 'today' },
-  { id: 't7', kind: 'emails', group: 'customers', name: 'Email Ortiz Coffee', why: 'Café with no website and few posts.', cta: 'Review the email', when: 'week' },
-  { id: 't8', kind: 'posts', group: 'seen', name: 'Post: Three ideas for a slow week', why: 'Instagram draft, ready to check.', cta: 'Check the post', when: 'week' },
-  { id: 't9', kind: 'fixes', group: 'seen', name: 'Get listed on G2', why: 'Buyers compare tools there. About 20 minutes.', cta: 'See the fix', when: 'week' },
-  { id: 't10', kind: 'fixes', group: 'seen', name: 'Fix how AI describes Frekto', why: 'ChatGPT calls you a design tool. About 15 minutes.', cta: 'See the fix', when: 'week' },
+// ── Made-up example data: the same things Today shows now ──
+const D = {
+  streak: 4, updated: '40 min ago',
+  yesterday: { visits: 128, delta: 12, via: 'Google' },
+  road: { users: 37, stage: 1, mrr: 412, stages: [['0–10', 'First customers'], ['10–50', 'Early adopters'], ['50–100', 'One channel that works'], ['100–250', 'Scaling up'], ['250–500', 'New markets']] },
+  happened: {
+    day:  { visitors: 214, signups: 6,  signedIn: 19, back: 11,
+      signups_list: [['maya@bloomsalon.in', 'Google'], ['raj@chaiwala.co', 'LinkedIn'], ['ana@lumen.shop', 'Direct']],
+      sources: [['Google', 48], ['LinkedIn', 22], ['Direct', 18], ['Reddit', 12]], pages: [['/', 412], ['/pricing', 133], ['/templates', 87]] },
+    week: { visitors: 1380, signups: 31, signedIn: 96, back: 58,
+      signups_list: [['maya@bloomsalon.in', 'Google'], ['raj@chaiwala.co', 'LinkedIn'], ['ana@lumen.shop', 'Direct'], ['tom@beckerprints.com', 'Email']],
+      sources: [['Google', 44], ['LinkedIn', 26], ['Direct', 17], ['Reddit', 13]], pages: [['/', 2604], ['/pricing', 811], ['/templates', 540]] },
+  },
+  focus: 'Getting sign-ups. Most visitors come from Google, but few sign up from the pricing page.',
+  working: [
+    ['4 new keywords in Google’s top 10', 'SEO', '“ai instagram post maker” is now #7.'],
+    ['Visits up 12% this week', 'Traffic', 'Mostly from Google search.'],
+    ['LinkedIn sent 31 visitors', 'Social', 'From your post on Tuesday.'],
+  ],
+  recent: [
+    ['Fixed the homepage description', 'Done by Claude · 2 h ago', 'View the change'],
+    ['Emailed Becker Prints', 'Done by you · yesterday', null],
+  ],
+  blog: { title: 'How cafés can post every day in 10 minutes', status: 'Draft ready', where: 'LinkedIn, tomorrow 9:00' },
+  social: [['LinkedIn', 1240, 18, 3], ['Instagram', 860, 5, 2], ['X', null, null, null]],
+  posts: [['LinkedIn', 'Why small cafés skip social media', 'Tue'], ['Instagram', 'Three post ideas for a slow week', 'Mon'], ['LinkedIn', 'What 30 days of daily posts did', 'Fri']],
+}
+// Actions for today, in rank order. kind = the label Today shows on each card.
+const ACTIONS = [
+  { id: 'a1', kind: 'Reply', red: true, name: 'Tom Becker replied', why: '“Sounds interesting, can you send pricing?”', todo: 'Answer from Gmail, in the same thread.', helps: 'A warm reply is your most likely next customer.', cta: 'Answer' },
+  { id: 'a2', kind: 'Traffic signal', name: 'Email 3 cafés in Pune', why: 'They post rarely on Instagram. Emails are written for you.', todo: 'Check each email and send it from your Gmail.', helps: 'Outreach brought 2 of your last 6 sign-ups.', cta: 'Review the emails' },
+  { id: 'a3', kind: 'Quick win', name: 'Give your pricing page a title', why: 'Google shows it as “Untitled”. About 5 minutes.', todo: 'Set the page title to “Frekto pricing: AI social posts from $9”.', helps: 'More people click a result with a clear title.', cta: 'Fix with Claude' },
+  { id: 'a4', kind: 'Social signal', name: 'Post on LinkedIn today', why: 'Your Tuesday post sent 31 visitors. Keep it going.', todo: 'Pick an idea, check the draft, schedule it.', helps: 'LinkedIn is your second-best source.', cta: 'Create the post' },
+  { id: 'a5', kind: 'Blog signal', name: 'Publish this week’s blog', why: 'The draft is ready to check.', todo: 'Read it and choose where it goes.', helps: 'Each post brings Google visits for months.', cta: 'Check the blog' },
+  { id: 'a6', kind: 'SEO signal', name: 'Add alt text to homepage images', why: '6 images have no description. About 10 minutes.', todo: 'Describe each image in a few words.', helps: 'Helps Google and screen readers.', cta: 'Fix with Claude' },
+  { id: 'a7', kind: 'Reminder', name: 'Call Priya at Nimbus Studio', why: 'You set this reminder on Monday.', todo: 'Call or email Priya.', helps: 'She asked to talk after her launch.', cta: 'Open reminder' },
 ]
-const KINDS = {
-  replies:   { title: 'Replies', unit: ['person replied', 'people replied'] },
-  emails:    { title: 'Emails to approve', unit: ['email ready', 'emails ready'] },
-  posts:     { title: 'Posts to publish', unit: ['post drafted', 'posts drafted'] },
-  fixes:     { title: 'Quick fixes', unit: ['fix to make', 'fixes to make'] },
-  reminders: { title: 'Reminders', unit: ['due today', 'due today'] },
-}
-const GROUPS = {
-  customers: { title: 'Get customers', sub: 'Replies and emails' },
-  seen:      { title: 'Get seen', sub: 'Posts and fixes' },
-  track:     { title: 'Keep track', sub: 'Reminders and numbers' },
-}
+
 const OPTIONS = [
-  { id: 'A', name: 'A · Six tiles', note: 'One "Start here" panel, then one tile per kind of work, each with a single number. Tap a tile to see its short list. Good overview, still calm.' },
-  { id: 'B', name: 'B · Three groups', note: 'Three blocks that match the sidebar: Get customers, Get seen, Keep track. Each shows its top 3 items as quiet rows. Teaches the app’s structure.' },
-  { id: 'C', name: 'C · One at a time', note: 'Only the next task is shown, big, with a progress bar. Done or Skip brings the next one. The calmest option: a first-time user can’t get lost.' },
-  { id: 'D', name: 'D · Top 3 today', note: 'Three numbered blocks, in order, the first one green. Everything else hides behind "7 more this week". A short daily plan.' },
-  { id: 'E', name: 'E · Now / Later / Done', note: 'A simple board with three columns. Tap a card to finish it and it moves to Done. Shows progress through the day.' },
+  { id: 'A', name: 'A · Bento', note: 'Everything on one screen as blocks of different sizes. The next step on top; numbers, progress, blog and social as small blocks that open for detail.' },
+  { id: 'B', name: 'B · Do | Numbers', note: 'Two columns. Left: what to do (start here + the action list). Right: how you’re doing, as a stack of small blocks.' },
+  { id: 'C', name: 'C · Three sections', note: 'Three short sections down the page: Do today, How it’s going, Content & done. Each section is a row of blocks.' },
+  { id: 'D', name: 'D · Strip + folds', note: 'Start here, a strip of 4 key numbers, the action list, then the rest as folded rows with a one-line summary. Opens in place.' },
+  { id: 'E', name: 'E · Morning brief', note: 'Opens with a short written summary of yesterday, then the next step, then blocks. Reads like a note from a colleague.' },
 ]
-const S = { opt: 'A', done: {}, open: null, toast: null, showLater: false }
-const left = () => TASKS.filter(t => !S.done[t.id])
-const plural = (u, n) => n === 1 ? u[0] : u[1]
+const S = { opt: 'A', view: null, done: {}, period: 'day', fold: null, toast: null }
+const left = () => ACTIONS.filter(a => !S.done[a.id])
 
 function toast(msg, undoId) {
   S.toast = { msg, undoId }
   clearTimeout(toast.t); toast.t = setTimeout(() => { S.toast = null; paint() }, 3500)
 }
 
-const head = (extra = '') => `<div class="crumbs">Today</div><h1>Today</h1>
-  <div class="line"><span>Friday 23 October</span><span>Frekto</span>${extra}<button class="link" data-a="noop">Settings</button></div>`
-const allDone = () => `<div class="empty"><b>All caught up</b><p>New things appear after tomorrow morning’s search.</p><button class="btn go" data-a="reset">Show the example again</button></div>`
-const startHere = t => `<div class="next${t.red ? ' reply' : ''}"><div class="next-text"><span class="eyebrow">Start here</span><b>${esc(t.name)}</b><span class="s">${esc(t.why)}</span></div><button class="btn go" data-do="${t.id}">${t.cta}</button></div>`
-const row = t => `<div class="row" data-do="${t.id}" role="button" tabindex="0">${t.red ? '<span class="dot" title="Replied"></span>' : ''}<div class="rm"><div class="rn">${esc(t.name)}</div><div class="rw">${esc(t.why)}</div></div><span class="rg">Open →</span></div>`
-const visits = `<button class="block" data-a="noop"><span class="t">Yesterday</span><span class="n">128</span><span class="d">visits to your site, mostly from Google.</span><span class="o">See Analytics →</span></button>`
+// ── Shared pieces ──
+const head = () => `<div class="crumbs">Today</div><h1>Today</h1>
+  <div class="line"><span>Friday 23 October</span><span>${left().length ? `${left().length} things to do` : 'All caught up'}</span><span>${D.streak}-day streak</span><span>Updated ${D.updated}</span><button class="link" data-view="settings">Settings</button></div>`
+const startHere = () => {
+  const a = left()[0]
+  if (!a) return `<div class="empty" style="margin-top:0"><b>All caught up</b><p>New things appear after tomorrow morning’s check.</p><button class="btn go" data-a="reset">Show the example again</button></div>`
+  return `<div class="next${a.red ? ' reply' : ''}"><div class="next-text"><span class="eyebrow">Start here</span><b>${esc(a.name)}</b><span class="s">${esc(a.why)}</span></div><button class="btn go" data-view="act:${a.id}">${a.cta}</button></div>`
+}
+const row = a => `<div class="row" data-view="act:${a.id}" role="button" tabindex="0">${a.red ? '<span class="dot" title="Replied"></span>' : ''}<div class="rm"><div class="rn">${esc(a.name)}</div><div class="rw">${esc(a.why)}</div></div><span class="rg">Open →</span></div>`
+const actionList = (skipFirst = true, max = 99) => {
+  const L = left().slice(skipFirst ? 1 : 0)
+  if (!L.length) return ''
+  const shown = L.slice(0, max)
+  return shown.map(row).join('') + (L.length > max ? `<div class="row" data-view="actions"><div class="rm"><div class="rn" style="font-weight:500;color:var(--dim)">${L.length - max} more</div></div><span class="rg">See all →</span></div>` : '')
+}
+const H = () => D.happened[S.period]
 
-// A: six tiles
-function optA() {
-  const L = left()
-  if (S.open) {
-    const k = KINDS[S.open], items = L.filter(t => t.kind === S.open)
-    return `<button class="link" data-a="home" style="margin-bottom:20px">← Today</button>
-      <h2 style="margin:0 0 4px;font:600 26px/1.2 var(--display)">${k.title}</h2>
-      <p style="margin:0 0 16px;color:var(--dim);font-size:14px">${items.length} ${plural(k.unit, items.length)}</p>
-      ${items.map(row).join('') || allDone()}`
-  }
-  if (!L.length) return head() + allDone()
-  const tiles = Object.entries(KINDS).map(([id, k]) => {
-    const n = L.filter(t => t.kind === id).length
-    return `<button class="block${id === 'replies' && n ? ' reply' : ''}${n ? '' : ' zero'}" ${n ? `data-open="${id}"` : 'disabled'}>
-      <span class="t">${k.title}</span><span class="n">${n}</span><span class="d">${n ? plural(k.unit, n) : 'Nothing here today.'}</span><span class="o">${n ? 'Open →' : 'All done'}</span></button>`
-  }).join('')
-  return head() + startHere(L[0]) + `<p class="label">Everything today</p><div class="grid6">${tiles}${visits}</div>`
+// Block summaries (one per piece of today's Today)
+const B = {
+  road: () => `<button class="block" data-view="road"><span class="bt"><span>Road to 500 users</span><span>${D.road.stages[D.road.stage][1]}</span></span>
+    <span class="bn">${D.road.users}<small>users</small></span><div class="road">${D.road.stages.map((_, i) => `<i class="${i < D.road.stage ? 'past' : i === D.road.stage ? 'now' : ''}"></i>`).join('')}</div>
+    <span class="bo">13 more to reach 50 →</span></button>`,
+  yesterday: () => `<button class="block" data-view="happened"><span class="bt"><span>Yesterday</span><span>+${D.yesterday.delta}%</span></span>
+    <span class="bn">${D.yesterday.visits}<small>visits</small></span><span class="bd">Mostly via ${D.yesterday.via}.</span><span class="bo">See what happened →</span></button>`,
+  happened: () => `<button class="block" data-view="happened"><span class="bt"><span>What happened · last 24 h</span><span>Full analytics</span></span>
+    <div class="nums"><div><b>${H().visitors}</b><span>visitors</span></div><div><b>${H().signups}</b><span>sign-ups</span></div><div><b>${H().signedIn}</b><span>signed in</span></div><div><b>${H().back}</b><span>came back</span></div></div>
+    <span class="bd">Top source: ${H().sources[0][0]} (${H().sources[0][1]}%).</span><span class="bo">See who signed up →</span></button>`,
+  focus: () => `<button class="block" data-view="focus"><span class="bt"><span>Today’s focus</span></span><span class="bd" style="color:var(--text)">${esc(D.focus)}</span><span class="bo">Why this →</span></button>`,
+  working: () => `<button class="block" data-view="working"><span class="bt"><span>What’s working</span><span>${D.working.length}</span></span>
+    <div class="mini">${D.working.slice(0, 2).map(w => `<div><span>${esc(w[0])}</span></div>`).join('')}</div><span class="bo">See all →</span></button>`,
+  recent: () => `<button class="block" data-view="recent"><span class="bt"><span>Recently done</span><span>${D.recent.length + Object.keys(S.done).length}</span></span>
+    <div class="mini">${[...ACTIONS.filter(a => S.done[a.id]).map(a => [a.name, 'Done by you · just now']), ...D.recent].slice(0, 2).map(r => `<div><span>${esc(r[0])}</span><em>${esc(r[1].split(' · ')[1])}</em></div>`).join('')}</div><span class="bo">See all →</span></button>`,
+  blog: () => `<button class="block" data-view="blog"><span class="bt"><span>Weekly blog</span><span>${D.blog.status}</span></span><span class="bd" style="color:var(--text);font-weight:600">${esc(D.blog.title)}</span><span class="bd">Goes to ${D.blog.where}.</span><span class="bo">Check it →</span></button>`,
+  social: () => `<button class="block" data-view="social"><span class="bt"><span>Social</span><span>${D.posts.length} posts this week</span></span>
+    <div class="mini">${D.social.filter(s => s[1] != null).map(s => `<div><span>${s[0]}</span><em>${s[1].toLocaleString()} · +${s[2]}</em></div>`).join('')}</div><span class="bo">See posts and stats →</span></button>`,
+  actions: () => `<section class="block"><span class="bt"><span>Then</span><span>${Math.max(left().length - 1, 0)} more</span></span><div>${actionList(true, 4) || '<p class="bd" style="margin:0">Nothing else today.</p>'}</div></section>`,
 }
 
-// B: three groups
-function optB() {
-  const L = left()
-  if (!L.length) return head() + allDone()
-  const blocks = Object.entries(GROUPS).map(([id, g]) => {
-    const items = L.filter(t => t.group === id)
-    const hasReply = items.some(t => t.red)
-    const body = id === 'track'
-      ? items.map(row).join('') + `<div class="row" data-a="noop"><div class="rm"><div class="rn">128 visits yesterday</div><div class="rw">Mostly from Google</div></div><span class="rg">Analytics →</span></div>`
-      : items.slice(0, 3).map(row).join('') + (items.length > 3 ? `<div class="more"><button class="link" data-a="noop">${items.length - 3} more</button></div>` : '')
-    return `<section class="block${hasReply ? ' reply' : ''}"><h3>${g.title}</h3><div class="cnt">${items.length ? `${items.length} to do · ${g.sub}` : 'All done'}</div>${body}</section>`
-  }).join('')
-  return head() + startHere(L[0]) + `<div class="grid3">${blocks}</div>`
+// ── The five layouts ──
+const L = {
+  A: () => head() + `<div style="margin-top:24px">${startHere()}</div>
+    <div class="bento">
+      <div class="s4 r2" style="display:grid">${B.actions()}</div>
+      <div class="s2">${B.road()}</div>
+      <div class="s2">${B.yesterday()}</div>
+      <div class="s4">${B.happened()}</div>
+      <div class="s2">${B.focus()}</div>
+      <div class="s2">${B.working()}</div>
+      <div class="s2">${B.blog()}</div>
+      <div class="s2">${B.social()}</div>
+      <div class="s6">${B.recent()}</div>
+    </div>`,
+  B: () => head() + `<div class="two">
+      <div><p class="colh">What to do</p>${startHere()}<div style="margin-top:12px">${actionList(true, 6)}</div>
+        <p class="colh" style="margin-top:28px">Content</p><div class="stack">${B.blog()}${B.recent()}</div></div>
+      <div><p class="colh">How you’re doing</p><div class="stack">${B.road()}${B.happened()}${B.working()}${B.social()}${B.focus()}</div></div>
+    </div>`,
+  C: () => head() + `<section class="sec"><h2>Do today</h2>${startHere()}<div class="g2" style="margin-top:12px">${B.actions()}${B.focus()}</div></section>
+    <section class="sec"><h2>How it’s going</h2><div class="g3">${B.road()}${B.yesterday()}${B.working()}</div><div style="margin-top:12px">${B.happened()}</div></section>
+    <section class="sec"><h2>Content and done</h2><div class="g3">${B.blog()}${B.social()}${B.recent()}</div></section>`,
+  D: () => {
+    const folds = [
+      ['focus', 'Today’s focus', D.focus, detail.focus],
+      ['happened', 'What happened', `${H().visitors} visitors, ${H().signups} sign-ups in the last 24 h`, detail.happened],
+      ['working', 'What’s working', D.working[0][0], detail.working],
+      ['blog', 'Weekly blog', `${D.blog.status}: ${D.blog.title}`, detail.blog],
+      ['social', 'Social', `LinkedIn ${D.social[0][1].toLocaleString()} followers · ${D.posts.length} posts this week`, detail.social],
+      ['recent', 'Recently done', `${D.recent.length + Object.keys(S.done).length} things`, detail.recent],
+    ]
+    return head() + `<div class="strip">
+        <button class="block" data-view="road"><span class="bt">Users</span><span class="bn">${D.road.users}</span><span class="bd">of 50 next</span></button>
+        <button class="block" data-view="happened"><span class="bt">Visits yesterday</span><span class="bn">${D.yesterday.visits}</span><span class="bd">+${D.yesterday.delta}%</span></button>
+        <button class="block" data-view="happened"><span class="bt">Sign-ups 24 h</span><span class="bn">${H().signups}</span><span class="bd">via ${H().sources[0][0]}</span></button>
+        <button class="block" data-view="social"><span class="bt">Followers</span><span class="bn">2,100</span><span class="bd">+23 this week</span></button>
+      </div>
+      <div style="margin-top:20px">${startHere()}</div><div style="margin-top:8px">${actionList(true, 5)}</div>
+      <div style="margin-top:28px">${folds.map(([id, t, s, fn]) => `<div class="fold"><button class="fold-h" data-fold="${id}" aria-expanded="${S.fold === id}"><b>${t}</b><span>${esc(s)}</span><i>${S.fold === id ? '−' : '+'}</i></button>${S.fold === id ? `<div class="fold-b">${fn(true)}</div>` : ''}</div>`).join('')}</div>`
+  },
+  E: () => head() + `<div class="brief"><span class="eyebrow">Since yesterday</span>
+      <p><b>${D.yesterday.visits} people</b> visited, up ${D.yesterday.delta}%, mostly from ${D.yesterday.via}. <b>${H().signups} signed up</b>, so you’re at <b>${D.road.users} users</b>, 13 away from the next stage. <b>Tom Becker replied</b> to your email. The blog draft is ready.</p>
+      <div class="line"><button class="link" data-view="happened">See what happened</button><button class="link" data-view="road">Road to 500</button></div></div>
+    <div style="margin-top:16px">${startHere()}</div>
+    <p class="label">Also today</p>${actionList(true, 5)}
+    <p class="label">Everything else</p><div class="g3">${B.working()}${B.blog()}${B.social()}</div><div class="g2" style="margin-top:12px">${B.focus()}${B.recent()}</div>`,
 }
 
-// C: one at a time
-function optC() {
-  const L = left(), doneN = TASKS.length - L.length
-  if (!L.length) return head() + allDone()
-  const t = L[0], k = KINDS[t.kind]
-  const pct = Math.round(doneN / TASKS.length * 100)
-  const next = L.slice(1, 3).map(x => esc(x.name)).join(', ')
-  return head() + `<section class="focus${t.red ? ' reply' : ''}">
-      <div class="prog"><span>${doneN} of ${TASKS.length} done</span><div class="bar"><i style="width:${pct}%"></i></div></div>
-      <div class="kind">${k.title}</div><h2>${esc(t.name)}</h2><p>${esc(t.why)}</p>
-      <div class="acts"><button class="btn go" data-do="${t.id}">${t.cta}</button><button class="btn quiet" data-skip="${t.id}">Skip for now</button></div>
-    </section>
-    ${next ? `<p class="upnext">Up next: ${next}${L.length > 3 ? ` and ${L.length - 3} more` : ''}</p>` : ''}`
+// ── Detail views (what tapping a block opens) ──
+const detail = {
+  road: () => `<h2 class="dh">${D.road.users} users · ${D.road.stages[D.road.stage][1]}</h2><p class="dsub">13 more to reach 50 and the next stage. Projected MRR: $${D.road.mrr}.</p>
+    <div class="bands">${D.road.stages.map((s, i) => `<div class="band${i === D.road.stage ? ' now' : ''}"><b>${s[1]}</b>${s[0]} users</div>`).join('')}</div>`,
+  happened: (inline) => `${inline ? '' : `<h2 class="dh">What happened</h2><p class="dsub">Visitors, sign-ups and where they came from.</p>`}
+    <div class="seg" role="group" aria-label="Period"><button data-period="day" aria-pressed="${S.period === 'day'}">Last 24 h</button><button data-period="week" aria-pressed="${S.period === 'week'}">7 days</button></div>
+    <div class="nums"><div><b>${H().visitors.toLocaleString()}</b><span>visitors</span></div><div><b>${H().signups}</b><span>sign-ups</span></div><div><b>${H().signedIn}</b><span>signed in</span></div><div><b>${H().back}</b><span>came back</span></div></div>
+    <div class="dgrid"><div class="dsec"><h3>New sign-ups</h3><div class="mini">${H().signups_list.map(s => `<div><span>${esc(s[0])}</span><em>${s[1]}</em></div>`).join('')}</div></div>
+    <div class="dsec"><h3>How people reached the app</h3>${H().sources.map(s => `<div class="hbar"><span>${s[0]}</span><i style="width:${s[1] * 2}%"></i><em>${s[1]}%</em></div>`).join('')}</div>
+    <div class="dsec"><h3>Most viewed pages</h3><div class="mini">${H().pages.map(p => `<div><span>${p[0]}</span><em>${p[1].toLocaleString()} views</em></div>`).join('')}</div></div>
+    <div class="dsec"><h3>Yesterday</h3><p style="margin:0">${D.yesterday.visits} visits, +${D.yesterday.delta}% on the day before, mostly via ${D.yesterday.via}.</p><p style="margin:8px 0 0"><button class="link" data-a="noop">Full analytics →</button></p></div></div>`,
+  focus: (inline) => `${inline ? '' : '<h2 class="dh">Today’s focus</h2>'}<p class="dsub" style="color:var(--text);font-size:16px">${esc(D.focus)}</p><p class="dsub">Today’s actions are picked to help with this first.</p>`,
+  working: (inline) => `${inline ? '' : '<h2 class="dh">What’s working</h2><p class="dsub">Things that moved in the right direction this week.</p>'}
+    ${D.working.map(w => `<div class="row" style="cursor:default"><div class="rm"><div class="rn">${esc(w[0])}</div><div class="rw">${esc(w[2])}</div></div><span class="rg">${w[1]}</span></div>`).join('')}`,
+  recent: (inline) => `${inline ? '' : '<h2 class="dh">Recently done</h2><p class="dsub">Finished tasks, with a link to check the change.</p>'}
+    ${[...ACTIONS.filter(a => S.done[a.id]).map(a => [a.name, 'Done by you · just now', null]), ...D.recent].map(r => `<div class="row" style="cursor:default"><div class="rm"><div class="rn">${esc(r[0])}</div><div class="rw">${esc(r[1])}</div></div>${r[2] ? `<button class="link" data-a="noop">${r[2]} ↗</button>` : ''}</div>`).join('')}`,
+  blog: (inline) => `${inline ? '' : `<h2 class="dh">${esc(D.blog.title)}</h2>`}<p class="dsub">${D.blog.status}. Goes to ${D.blog.where}. Nothing is posted until you say OK.</p>
+    <div class="acts"><button class="btn" data-a="noop">Read the draft</button><button class="btn quiet" data-a="noop">Write a different one</button></div>`,
+  social: (inline) => `${inline ? '' : '<h2 class="dh">Social</h2><p class="dsub">Followers and posts on your connected accounts.</p>'}
+    <div class="dgrid" style="margin-top:0"><div class="dsec"><h3>Accounts</h3><div class="mini">${D.social.map(s => `<div><span>${s[0]}</span><em>${s[1] == null ? '<button class="link" data-a="noop">Connect</button>' : `${s[1].toLocaleString()} followers · +${s[2]} · ${s[3]} posts`}</em></div>`).join('')}</div></div>
+    <div class="dsec"><h3>Recent posts</h3><div class="mini">${D.posts.map(p => `<div><span>${esc(p[1])}</span><em>${p[0]} · ${p[2]}</em></div>`).join('')}</div></div></div>`,
+  actions: () => `<h2 class="dh">Actions for today</h2><p class="dsub">${left().length} left, most useful first.</p>${actionList(false) || '<div class="empty"><b>All caught up</b><p>Nice work.</p></div>'}`,
+  settings: () => `<h2 class="dh">Settings</h2><p class="dsub">Moved here from the top of the page.</p>
+    <label class="toggle"><input id="s-mail" type="checkbox" checked> Email me this list every morning</label>
+    <p class="dsub" style="margin-top:16px">Tasks updated ${D.updated}. <button class="link" data-a="noop">Refresh tasks</button></p>`,
+  act: id => {
+    const a = ACTIONS.find(x => x.id === id)
+    return `<p class="dsub" style="margin-bottom:4px">${esc(a.kind)}</p><h2 class="dh">${esc(a.name)}</h2><p class="dsub">${esc(a.why)}</p>
+      <div class="what"><div><h3>What to do</h3><p>${esc(a.todo)}</p></div><div><h3>How it helps</h3><p>${esc(a.helps)}</p></div></div>
+      <div class="acts"><button class="btn go" data-finish="${a.id}">${a.cta}</button><button class="btn" data-finish="${a.id}">Mark as done</button><button class="btn quiet" data-skip="${a.id}">Not for me</button></div>`
+  },
 }
-
-// D: top three
-function optD() {
-  const L = left()
-  if (!L.length) return head() + allDone()
-  const top = L.slice(0, 3), rest = L.slice(3)
-  const blocks = top.map((t, i) => `<div class="block${i === 0 ? ' first' : ''}${t.red ? ' reply' : ''}">
-      <span class="num">${i + 1}</span><div class="bm"><b>${esc(t.name)}</b><span>${esc(t.why)}</span></div>
-      <button class="btn${i === 0 ? ' go' : ''}" data-do="${t.id}">${t.cta}</button></div>`).join('')
-  const later = rest.length ? `<div class="later">${S.showLater
-      ? `<p class="label" style="margin-top:0">Later this week</p>${rest.map(row).join('')}<p><button class="link" data-a="later">Hide</button></p>`
-      : `<button class="link" data-a="later">${rest.length} more this week</button>`}</div>` : ''
-  return head() + `<p class="label">Your ${top.length === 1 ? 'one thing' : top.length + ' things'} for today</p><div class="top3" style="margin-top:0">${blocks}</div>${later}`
-}
-
-// E: board
-function optE() {
-  const L = left()
-  const cols = [
-    { title: 'Now', items: L.filter(t => t.when === 'now') },
-    { title: 'Later today', items: L.filter(t => t.when !== 'now') },
-    { title: 'Done', items: TASKS.filter(t => S.done[t.id]) },
-  ]
-  // If "Now" is empty, pull the next task up so there's always a next step.
-  if (!cols[0].items.length && cols[1].items.length) cols[0].items.push(cols[1].items.shift())
-  const first = cols[0].items[0]
-  const html = cols.map((c, ci) => `<section class="col"><h3>${c.title}<span>${c.items.length}</span></h3>
-    ${c.items.length ? c.items.map(t => ci === 2
-      ? `<div class="card done"><b>${esc(t.name)}</b></div>`
-      : `<button class="card${t.red ? ' reply' : ''}${t === first ? ' first' : ''}" data-do="${t.id}"><b>${esc(t.name)}</b><span>${esc(t.why)}</span></button>`).join('')
-      : `<p style="margin:4px 0;color:var(--faint);font-size:13.5px">${ci === 2 ? 'Finished items land here.' : 'Nothing here.'}</p>`}</section>`).join('')
-  return head(`<span>${cols[2].items.length} of ${TASKS.length} done</span>`) + (L.length ? '' : allDone()) + `<div class="board">${html}</div>`
-}
-
-const RENDER = { A: optA, B: optB, C: optC, D: optD, E: optE }
 
 function paint() {
   document.getElementById('opts').innerHTML = OPTIONS.map(o => `<button class="opt" aria-pressed="${S.opt === o.id}" data-opt="${o.id}">${o.name}</button>`).join('')
   document.getElementById('note').textContent = OPTIONS.find(o => o.id === S.opt).note
-  document.getElementById('view').innerHTML = RENDER[S.opt]()
+  let html
+  if (S.view) {
+    const [k, id] = S.view.split(':')
+    html = `<button class="link back" data-a="home">← Today</button>` + (k === 'act' ? detail.act(id) : detail[k]())
+  } else html = L[S.opt]()
+  document.getElementById('view').innerHTML = html
   document.getElementById('toast').innerHTML = S.toast ? `<div class="toast" role="status">${esc(S.toast.msg)}${S.toast.undoId ? '<button data-a="undo">Undo</button>' : ''}</div>` : ''
 }
 
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-a],[data-open],[data-do],[data-opt],[data-skip]'); if (!t) return
+  const t = e.target.closest('[data-a],[data-view],[data-opt],[data-finish],[data-skip],[data-period],[data-fold]'); if (!t) return
   const d = t.dataset
-  if (d.opt) { S.opt = d.opt; S.open = null; S.showLater = false }
-  else if (d.open) S.open = d.open
-  else if (d.do) {
-    // Preview only: pretend the task was done.
-    S.done[d.do] = true
-    toast(`Done: ${TASKS.find(x => x.id === d.do).name}`, d.do)
-    if (S.open && !left().some(x => x.kind === S.open)) S.open = null
+  if (d.opt) { S.opt = d.opt; S.view = null; S.fold = null }
+  else if (d.view) { S.view = d.view; window.scrollTo({ top: 0 }) }
+  else if (d.period) S.period = d.period
+  else if (d.fold) S.fold = S.fold === d.fold ? null : d.fold
+  else if (d.finish || d.skip) {
+    // Preview only: pretend it was done, then go straight to the next one.
+    const id = d.finish || d.skip
+    S.done[id] = true
+    toast(d.finish ? `Done: ${ACTIONS.find(a => a.id === id).name}` : 'Removed from today', id)
+    const next = left()[0]
+    S.view = next ? `act:${next.id}` : null
   }
-  else if (d.skip) {
-    // Move it to the end of the queue.
-    const i = TASKS.findIndex(x => x.id === d.skip); TASKS.push(TASKS.splice(i, 1)[0]); toast('Skipped for now')
-  }
-  else if (d.a === 'home') S.open = null
-  else if (d.a === 'later') S.showLater = !S.showLater
+  else if (d.a === 'home') S.view = null
   else if (d.a === 'reset') S.done = {}
   else if (d.a === 'undo') { delete S.done[S.toast.undoId]; S.toast = null }
   else if (d.a === 'noop') toast('Not part of this preview')
   paint()
 })
-document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.row[data-do]')) e.target.click() })
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.row[data-view]')) e.target.click() })
 paint()
 </script>
