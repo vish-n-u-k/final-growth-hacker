@@ -679,11 +679,11 @@ function Editor({ id, isNew, notify, onSent, onBack }: {
                 {statusTag(p)}
                 <span className="eo-row-acts">
                   {s === 'ready' && !st.confirming && st.scheduling === undefined && <>
-                    <button type="button" className="btn btn-link" disabled={sendingAll} onClick={() => setEmail(p.id, { scheduling: tomorrowAt9() })}>Schedule</button>
-                    <button type="button" className="btn btn-link eo-strong" disabled={sendingAll} onClick={() => setEmail(p.id, { confirming: true })}>Send</button>
+                    <button type="button" className="btn btn-ghost btn-sm" disabled={sendingAll} onClick={() => setEmail(p.id, { scheduling: tomorrowAt9() })}>Schedule</button>
+                    <button type="button" className="btn btn-primary btn-sm" disabled={sendingAll} onClick={() => setEmail(p.id, { confirming: true })}>Send</button>
                   </>}
-                  {s === 'scheduled' && st.scheduledId && <button type="button" className="btn btn-link" onClick={() => cancelScheduled(p)}>Cancel</button>}
-                  {s === 'error' && <button type="button" className="btn btn-link" onClick={() => { setEmail(p.id, { status: st.body ? 'ready' : 'idle' }) }}>Retry</button>}
+                  {s === 'scheduled' && st.scheduledId && <button type="button" className="btn btn-ghost btn-sm" onClick={() => cancelScheduled(p)}>Cancel</button>}
+                  {s === 'error' && <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setEmail(p.id, { status: st.body ? 'ready' : 'idle' }) }}>Retry</button>}
                 </span>
               </div>
               {s === 'error' && st.error && <p className="eo-err eo-row-err">{st.error}</p>}
