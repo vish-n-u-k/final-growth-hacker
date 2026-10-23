@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Spinner } from '@/components/ui/spinner'
 import type { CampaignSummary } from '@/app/api/outreach/campaign/route'
 import { EmailEditor, Steps, ago, plainText, type Notify } from './shared'
+import { Pager, usePages } from '@/components/tool-ui'
 
 // Email Outreach → Campaigns: a list of campaigns (one card each), and the campaign itself in
 // three steps: who gets it, what it says (an email written for each person), then review and
@@ -64,6 +65,8 @@ export default function Campaigns({ newPending, onNewOpened, notify, onSent }: {
     if (!ok) load()
   }
 
+  const pg = usePages(list ?? [], null)
+
   if (openId) {
     return <Editor key={openId.id} id={openId.id} isNew={openId.isNew} notify={notify} onSent={onSent}
       onBack={() => { setOpenId(null); load() }} />
@@ -86,7 +89,7 @@ export default function Campaigns({ newPending, onNewOpened, notify, onSent }: {
 
   return (
     <div>
-      {list.map(c => {
+      {pg.items.map(c => {
         const done = c.recipients > 0 && c.sent + c.scheduled >= c.recipients
         const state = done ? 'Sent' : c.sent + c.scheduled > 0 ? 'Sending' : c.written > 0 ? 'Written' : 'Draft'
         return (
@@ -120,6 +123,7 @@ export default function Campaigns({ newPending, onNewOpened, notify, onSent }: {
           </article>
         )
       })}
+      <Pager p={pg} />
     </div>
   )
 }
@@ -224,6 +228,9 @@ function Editor({ id, isNew, notify, onSent, onBack }: {
   const writtenCount = prospects.filter(p => ['ready', 'sending', 'sent', 'scheduled'].includes(statusOf(p))).length
   const toWrite = prospects.filter(p => ['idle', 'error'].includes(statusOf(p)))
   const writing = prospects.some(p => statusOf(p) === 'generating')
+  // Long recipient lists a page at a time (step 2: everyone; step 3: the written ones)
+  const writePg = usePages(prospects, stepNo)
+  const sendPg = usePages(prospects.filter(p => statusOf(p) !== 'idle' && statusOf(p) !== 'generating'), stepNo)
 
   // ── Recipients ──────────────────────────────────────────────────────────────
 
@@ -586,7 +593,7 @@ function Editor({ id, isNew, notify, onSent, onBack }: {
       )}
 
       <div className="eo-list">
-        {prospects.map(p => {
+        {writePg.items.map(p => {
           const st = emails[p.id]
           const s = statusOf(p)
           const isOpen = expanded === p.id && s === 'ready'
@@ -632,6 +639,7 @@ function Editor({ id, isNew, notify, onSent, onBack }: {
           )
         })}
       </div>
+      <Pager p={writePg} />
     </>
     actions = <>
       <button key="b2" type="button" className="btn btn-ghost ro-back" onClick={() => setStepNo(1)}>← Back</button>
@@ -668,7 +676,7 @@ function Editor({ id, isNew, notify, onSent, onBack }: {
         </div>
       )}
       <div className="eo-list">
-        {prospects.filter(p => statusOf(p) !== 'idle' && statusOf(p) !== 'generating').map(p => {
+        {sendPg.items.map(p => {
           const st = emails[p.id]!
           const s = st.status
           return (
@@ -712,6 +720,7 @@ function Editor({ id, isNew, notify, onSent, onBack }: {
           )
         })}
       </div>
+      <Pager p={sendPg} />
       <p className="cl-muted eo-gap">Gmail sends up to 500 emails a day (2,000 on Google Workspace). Keep batches small and personal so they don&apos;t land in spam.</p>
     </>
     actions = <>

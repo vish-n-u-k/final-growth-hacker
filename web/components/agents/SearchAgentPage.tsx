@@ -6,7 +6,7 @@ import ToolHeader from '@/components/ToolHeader'
 import type { AgentTask, LinkOpportunity, SearchAgentData, SearchSettings, Topic } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
 import { useToast } from '@/components/email-outreach/shared'
-import { ActionBar, Card, DemoSwitch, Finished, Flow, ListTools, LiveProgress, Sec, Side, Src, Tabs, Tag } from '@/components/tool-ui'
+import { ActionBar, Card, DemoSwitch, Pager, usePages, useShowAll, Finished, Flow, ListTools, LiveProgress, Sec, Side, Src, Tabs, Tag } from '@/components/tool-ui'
 import { Day, DemoBanner, fmtAgo, fmtDate, useAgentApi } from './shared'
 
 // Search Agent: gets the brand found on Google and in AI answers. The bar at the top says what it
@@ -101,6 +101,16 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   ]
   const todo = items.filter(i => tabOf(i) === 'todo')
   const done = items.filter(i => tabOf(i) === 'done')
+
+  // The list on screen: this tab, searched, in section order, a page at a time
+  const SECTIONS = ['replied', 'topic', 'pitch', 'task']
+  const needle = q.trim().toLowerCase()
+  const tabAll = tab === 'done' ? done : todo
+  const shown = tabAll
+    .filter(i => !needle || `${nameOf(i)} ${i.kind === 'topic' ? i.t.why : i.kind === 'link' ? `${i.l.why} ${i.l.title}` : i.k.detail}`.toLowerCase().includes(needle))
+    .sort((a, b) => (tab === 'todo' ? SECTIONS.indexOf(sectionOf(a)) - SECTIONS.indexOf(sectionOf(b)) : 0))
+  const pg = usePages(shown, [tab, needle])
+  const listTop = useRef<HTMLDivElement>(null)
   const open = openKey ? items.find(i => i.key === openKey) ?? null : null
 
   function openItem(i: Item) {
@@ -164,21 +174,22 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   }
 
   function list(all: Item[], sections: boolean) {
-    const needle = q.trim().toLowerCase()
-    const shown = all.filter(i => !needle || `${nameOf(i)} ${i.kind === 'topic' ? i.t.why : i.kind === 'link' ? `${i.l.why} ${i.l.title}` : i.k.detail}`.toLowerCase().includes(needle))
-    const tools = <ListTools q={q} setQ={setQ} shown={shown.length} total={all.length} onClear={() => setQ('')} />
+    const tools = <><div ref={listTop} className="tu-anchor" /><ListTools q={q} setQ={setQ} shown={shown.length} total={all.length} onClear={() => setQ('')} /></>
     if (!shown.length) {
       return <>{tools}<div className="tu-empty">{all.length ? 'Nothing matches.' : running && !data.lastResearchAt ? 'Your to-do list appears here in a moment.' : sections ? 'All caught up. The next research brings new things to do.' : 'Nothing here yet.'}</div></>
     }
-    if (!sections) return <>{tools}{shown.map(card)}</>
+    if (!sections) return <>{tools}{pg.items.map(card)}<Pager p={pg} top={listTop} /></>
     return <>{tools}
       {([['replied', 'Replied: answer while they’re interested', 'crit'], ['topic', 'Posts to write', undefined], ['pitch', 'Sites to pitch', undefined], ['task', 'Other things to do', undefined]] as const).map(([k, label, tone]) => {
-        const group = shown.filter(i => sectionOf(i) === k)
-        if (!group.length && k !== 'pitch') return null
+        // This page's cards of the section; the heading counts the whole section
+        const group = pg.items.filter(i => sectionOf(i) === k)
+        const total = shown.filter(i => sectionOf(i) === k).length
+        // "Sites to pitch" shows even when empty (with Find more sites), on the first page
+        if (!group.length && !(k === 'pitch' && !total && pg.page === 1)) return null
         return (
           <div key={k}>
             <div className="tu-sec-row">
-              <Sec label={label} count={group.length} tone={tone} />
+              <Sec label={label} count={total} tone={tone} />
               {k === 'pitch' && (
                 <button type="button" className="btn btn-ghost btn-sm" disabled={!!busy || !dataReady} onClick={() => call('links')}>
                   {busy === 'links' ? <><Spinner />Looking…</> : 'Find more sites'}
@@ -190,6 +201,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
           </div>
         )
       })}
+      <Pager p={pg} top={listTop} />
     </>
   }
 
@@ -320,6 +332,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   // ── Rankings and AI answers ────────────────────────────────────────────────
 
   const change = new Map(data.rankChanges.map(c => [c.keyword, c]))
+  const rankRows = useShowAll(data.ranks?.rows.slice(0, 30) ?? [], tab)
   const rankings = (
     <>
       {data.ranks && data.ranks.rows.length > 0 ? (
@@ -327,7 +340,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
           <table>
             <thead><tr><th>Keyword</th><th>Your rank</th><th>Since last week</th><th>Searches</th><th>Page</th></tr></thead>
             <tbody>
-              {data.ranks.rows.slice(0, 30).map(r => {
+              {rankRows.items.map(r => {
                 const c = change.get(r.keyword)
                 const moved = c && c.before !== null && c.now !== null ? c.before - c.now : null
                 return (
@@ -344,6 +357,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
           </table>
         </div>
       ) : <div className="tu-empty">{data.ranks ? 'Google doesn’t show your site for any tracked searches yet. Posts you publish show up here.' : 'Shown after the first research.'}</div>}
+      {rankRows.toggle}
       <p className="cl-muted tu-note">{data.ranks ? <>Checked <Day iso={data.ranks.at} />{s.enabled ? ', and every Monday' : ''}.</> : null}</p>
       {data.adsTips.length > 0 && <>
         <Sec label="Google Ads tips" count={data.adsTips.length} />
@@ -357,6 +371,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
 
   const answers = (data.answers?.items ?? []).filter(a => !a.error)
   const questions = [...new Set(answers.map(a => a.question))]
+  const qRows = useShowAll(questions, tab)
   const engines = ['chat_gpt', 'perplexity', 'gemini'].filter(e => answers.some(a => a.engine === e))
   const mentioned = answers.filter(a => a.mentioned).length
   const aiTab = answers.length ? (
@@ -371,7 +386,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
         <table>
           <thead><tr><th>Question buyers ask</th>{engines.map(e => <th key={e}>{ENGINE[e]}</th>)}</tr></thead>
           <tbody>
-            {questions.map(qq => (
+            {qRows.items.map(qq => (
               <tr key={qq}>
                 <td>{qq}</td>
                 {engines.map(e => {
@@ -383,6 +398,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
           </tbody>
         </table>
       </div>
+      {qRows.toggle}
     </>
   ) : <div className="tu-empty">Shown after the first research.</div>
 

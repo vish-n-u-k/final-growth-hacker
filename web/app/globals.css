@@ -8982,3 +8982,5 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .tu-switch.is-on .tu-switch-track i { transform: translateX(14px); }
 .tu-switch input:focus-visible + .tu-switch-track { outline: 2px solid var(--green); outline-offset: 2px; }
 .tu-switch:has(input:disabled) { opacity: .6; cursor: default; }
+.tu-showall { display: inline-block; margin: 10px 2px 0; font-size: 13px; }
+.eo-pager-in { padding: 0 14px 10px; }
