@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tool Page Shell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #ffffff; --bg-soft: #eef1ee; --line: #dfe4df;
+    --text: #16201a; --text-dim: #4c5a50; --text-faint: #6f7c72;
+    --green: #15803d; --accent: #e3f3e8; --accent-fg: #0f5a2b;
+    --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft: #fde8e6; --info: #1d4ed8; --info-soft: #e5edff; --star: #e2a400;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e9ece9; color: var(--text); font-family: var(--body); }
+  button, input, select { font-family: inherit; }
+
+  .ctl { position: sticky; top: 0; z-index: 60; background: #1d2620; color: #e8f0ea; padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+  .ctl h1 { font: 600 15px var(--body); margin: 0 12px 0 0; }
+  .ctl .grp { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl .lbl { font-size: 12px; color: #9fb0a5; margin-right: 4px; }
+  .ctl button { font: 500 13px var(--body); border: 1px solid #3a4a40; background: transparent; color: #e8f0ea; padding: 6px 11px; border-radius: 8px; cursor: pointer; }
+  .ctl button[aria-pressed="true"] { background: #e8f0ea; color: #16201a; border-color: #e8f0ea; }
+  .note { max-width: 1180px; margin: 14px auto 0; padding: 0 20px; font-size: 13.5px; color: #3c4a41; line-height: 1.55; }
+  .note b { color: #16201a; }
+  .note ul { margin: 6px 0 0; padding-left: 18px; }
+
+  .frame { max-width: 1180px; margin: 14px auto 40px; background: var(--bg); border-radius: 14px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.08); display: flex; min-height: 860px; }
+  .frame.phone { max-width: 390px; }
+  .side { width: 200px; flex: none; background: var(--bg-soft); border-right: 1px solid var(--line); padding: 16px 12px; font-size: 13px; }
+  .frame.phone .side { display: none; }
+  .side .logo { font: 600 15px var(--display); display: flex; gap: 8px; align-items: center; margin: 0 6px 18px; }
+  .side .logo i { width: 20px; height: 20px; border-radius: 6px; background: var(--green); display: inline-block; }
+  .side .g { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); margin: 16px 8px 6px; }
+  .side a { display: block; padding: 6px 8px; border-radius: 7px; color: var(--text-dim); text-decoration: none; cursor: pointer; }
+  .side a.on { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+  .main { flex: 1; min-width: 0; padding: 0 28px 40px; }
+  .frame.phone .main { padding: 0 16px 32px; }
+
+  /* shared pieces */
+  .hd { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; padding: 14px 0; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .hd-l, .hd-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .hd-ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--accent); color: var(--accent-fg); }
+  .hd h1 { font: 600 20px/1.2 var(--display); margin: 0; }
+  .meta { font-size: 12.5px; color: var(--text-faint); }
+  .chip { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: var(--bg-soft); color: var(--text-dim); white-space: nowrap; }
+  .chip.ok { background: var(--accent); color: var(--accent-fg); }
+  .link { font-size: 13px; font-weight: 600; color: var(--accent-fg); text-decoration: none; white-space: nowrap; }
+  .strip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--bg-soft); font-size: 13px; color: var(--text-dim); margin-bottom: 14px; }
+  .strip span { flex: 1; }
+  .btn { height: 36px; padding: 0 16px; border-radius: 9px; font: 600 13px var(--body); border: 1px solid var(--line); background: #fff; color: var(--text-dim); cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+  .btn.pri { background: var(--green); border-color: var(--green); color: #fff; box-shadow: 0 2px 8px rgba(21,128,61,.28); }
+  .btn.sm { height: 32px; padding: 0 12px; font-size: 12.5px; border-radius: 8px; }
+  .frame.phone .stack-phone { flex-direction: column; align-items: stretch; }
+  .frame.phone .stack-phone .btn { width: 100%; }
+
+  .tabs { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: var(--bg-soft); overflow-x: auto; }
+  .tabs button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: none; padding: 7px 12px; border-radius: 8px; font: 500 13px var(--body); color: var(--text-dim); cursor: pointer; white-space: nowrap; }
+  .tabs button[aria-selected="true"] { background: #fff; color: var(--text); font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .tabs span { min-width: 20px; padding: 0 6px; border-radius: 99px; background: #fff; font-size: 11.5px; font-weight: 700; color: var(--text-dim); }
+  .tabs button[aria-selected="true"] span { background: var(--accent); color: var(--accent-fg); }
+  .tabs span.hot { background: var(--crit); color: #fff; }
+  .search { flex: 1 1 200px; min-width: 140px; height: 34px; border: 1px solid var(--line); border-radius: 9px; padding: 0 10px; font-size: 13px; }
+  .sel { height: 34px; border: 1px solid var(--line); border-radius: 9px; padding: 0 10px; font: 500 13px var(--body); color: var(--text-dim); background: #fff; }
+  .count { font-size: 13px; color: var(--text-faint); margin: 0 2px 10px; }
+  .count b { color: var(--text); }
+
+  /* cards: the agreed listing (option A) */
+  .card { border: 1px solid var(--line); border-radius: 14px; background: #fff; margin-bottom: 10px; overflow: hidden; }
+  .c-head { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px 0; }
+  .av { flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--bg-soft); display: grid; place-items: center; font-weight: 700; font-size: 13px; color: var(--text-dim); }
+  .who { flex: 1; min-width: 0; }
+  .name { font-size: 14.5px; font-weight: 600; }
+  .sub { font-size: 12.5px; color: var(--text-faint); margin-top: 2px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .stars { color: var(--star); letter-spacing: 1px; font-size: 12px; } .stars s { color: #d9ddd9; text-decoration: none; }
+  .src { font-size: 11.5px; font-weight: 600; padding: 1px 8px; border-radius: 99px; background: var(--info-soft); color: var(--info); }
+  .src.reddit { background: #ffe9df; color: #c2410c; } .src.maps { background: var(--warn-soft); color: var(--warn); }
+  .fit { flex: none; font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: var(--accent); color: var(--accent-fg); white-space: nowrap; }
+  .c-body { padding: 8px 16px 14px 64px; } .frame.phone .c-body { padding-left: 16px; }
+  .said { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--text-dim); }
+  .why { margin: 8px 0 0; padding: 7px 10px; border-radius: 8px; background: var(--accent); font-size: 13px; }
+  .c-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 48px; padding: 8px 16px; border-top: 1px solid var(--line); background: #f7f9f7; }
+  .tag { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--bg-soft); color: var(--text-dim); }
+  .c-foot .btn { min-width: 128px; }
+
+  /* option 1: action bar */
+  .abar { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; margin-bottom: 12px; }
+  .abar-ctx { flex: 1; min-width: 0; display: grid; gap: 2px; }
+  .abar-ctx b { font-size: 14px; }
+  .abar-r { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .o1-tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .o1-tools .tabs { flex: 0 1 auto; }
+
+  /* option 2: everything in the header + one control row */
+  .o2-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .o2-row .tabs { flex: 0 1 auto; }
+  .o2-row .right { margin-left: auto; display: flex; gap: 8px; flex: 1 1 320px; justify-content: flex-end; }
+  .frame.phone .o2-row .right { margin-left: 0; flex-wrap: wrap; }
+
+  /* option 3: left rail */
+  .o3 { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 18px; align-items: start; }
+  .frame.phone .o3 { grid-template-columns: 1fr; }
+  .rail { position: sticky; top: 12px; display: grid; gap: 14px; }
+  .rail-box { border: 1px solid var(--line); border-radius: 14px; padding: 12px; display: grid; gap: 8px; }
+  .rail-box h4 { margin: 0; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); }
+  .rail-ctx b { display: block; font-size: 14px; }
+  .rail-nav { display: grid; gap: 2px; }
+  .rail-nav button { display: flex; justify-content: space-between; align-items: center; border: 0; background: none; padding: 8px 10px; border-radius: 9px; font: 500 13.5px var(--body); color: var(--text-dim); cursor: pointer; text-align: left; }
+  .rail-nav button[aria-selected="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 700; }
+  .rail-nav span { font-size: 12px; font-weight: 700; }
+  .rail-nav span.hot { color: var(--crit); }
+  .frame.phone .rail { position: static; }
+  .frame.phone .rail-nav { grid-auto-flow: column; overflow-x: auto; }
+  .o3-tools { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .lane { display: flex; gap: 4px; padding: 3px; border-radius: 10px; background: var(--bg-soft); }
+  .lane button { flex: 1; border: 0; background: none; padding: 7px 10px; border-radius: 8px; font: 600 13px var(--body); color: var(--text-dim); cursor: pointer; white-space: nowrap; }
+  .rail .lane button { padding: 7px 6px; font-size: 12.5px; }
+  .lane button[aria-selected="true"] { background: #fff; color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+</style>
+</head>
+<body>
+<div class="ctl">
+  <h1>One page layout for every tool</h1>
+  <div class="grp"><span class="lbl">Option</span>
+    <button data-k="opt" data-v="1" aria-pressed="true">1 · Action bar</button>
+    <button data-k="opt" data-v="2" aria-pressed="false">2 · All in the header</button>
+    <button data-k="opt" data-v="3" aria-pressed="false">3 · Side panel</button>
+  </div>
+  <div class="grp"><span class="lbl">Tool</span>
+    <button data-k="tool" data-v="cl" aria-pressed="true">Competitor Leads</button>
+    <button data-k="tool" data-v="la" aria-pressed="false">Lead Agent</button>
+  </div>
+  <div class="grp"><span class="lbl">Width</span>
+    <button data-k="size" data-v="desk" aria-pressed="true">Desktop</button>
+    <button data-k="size" data-v="phone" aria-pressed="false">Phone</button>
+  </div>
+</div>
+<div class="note" id="note"></div>
+
+<div class="frame" id="frame">
+  <aside class="side">
+    <div class="logo"><i></i>GrowJin</div>
+    <div class="g">Get customers</div><a data-k="tool" data-v="la" id="nav-la">Lead Agent</a><a data-k="tool" data-v="cl" id="nav-cl">Competitor Leads</a><a>Email Outreach</a>
+    <div class="g">Get seen</div><a>Search Agent</a><a>Social Studio</a><a>Meta Ads</a>
+  </aside>
+  <main class="main" id="view"></main>
+</div>
+
+<script>
+// Every tool fills the same slots; only the words and the data change.
+const TOOLS = {
+  cl: {
+    title: 'Competitor Leads', icon: '◎', status: '<span class="chip">Beta</span><span class="chip ok">Gmail connected</span>',
+    intro: 'Finds people unhappy with a competitor who your product could actually help, so you can email them.',
+    ctxTitle: 'Trustpilot · buffer.com', ctxMeta: '50 newest reviews · read 2 h ago',
+    primary: '🔍 Scan another competitor', secondary: 'Earlier scans ▾',
+    tabs: [['good', 'Good fits', 5], ['sent', 'Emailed', 1], ['skip', 'Not a fit', 2], ['all', 'All reviews', 50]],
+    search: 'Search name or review', filters: ['<select class="sel"><option>All stars</option><option>1★</option><option>2★</option><option>3★</option></select>'],
+    countLine: '<b>5 good fits</b> for Frekto, out of 50 reviews read',
+    cards: [
+      { av: 'MC', name: 'Maya Chen', sub: '<span class="stars">★<s>★★★★</s></span><span>Oct 19</span><a class="link">Read on Trustpilot ↗</a>', fit: 9, said: 'Buffer keeps failing to publish my posts and I still design everything in Canva.', why: 'She designs every post by hand, then schedules it. Frekto makes and schedules them.', state: '', btn: 'Reach out →' },
+      { av: 'TB', name: 'Tom Becker', sub: '<span class="stars">★★★<s>★★</s></span><span>Oct 16</span><a class="link">Read on Trustpilot ↗</a>', fit: 8, said: 'I spend ages making images for every post.', why: 'Wants help making the content itself.', state: '', btn: 'Reach out →' },
+    ],
+  },
+  la: {
+    title: 'Lead Agent', icon: '◎', status: '<span class="chip ok">Gmail connected</span>',
+    intro: 'Finds people who need Frekto: some to email, and some asking on Reddit or Hacker News. You approve every email and post every reply.',
+    ctxTitle: 'Last search 2 h ago', ctxMeta: 'Reviews of buffer.com · Google Maps “cafés in Pune” · Reddit & HN',
+    primary: '🔍 Find new leads', secondary: 'Search settings',
+    lanes: [['email', 'Email leads', 3], ['community', 'Community', 3]],
+    tabs: [['needs', 'To approve', 3], ['replied', 'Replied', 1, true], ['sent', 'Sent', 1], ['none', 'No email', 1]],
+    search: 'Search name, company or what they said', filters: ['<select class="sel"><option>All sources</option><option>Unhappy reviewers</option><option>Google Maps</option></select>'],
+    countLine: '<b>3 emails to approve</b> · nothing is sent until you say so',
+    cards: [
+      { av: 'MC', name: 'Maya Chen', sub: '<span class="src">Unhappy reviewer</span><span>Chen Bakery · Today</span>', fit: 9, said: 'Buffer keeps failing to publish my posts and I still design everything in Canva.', why: 'She designs every post by hand, then schedules it.', state: '<span class="tag">Email drafted</span>', btn: 'Review email →' },
+      { av: 'BS', name: 'Bloom Salon', sub: '<span class="src maps">Google Maps</span><span>Pune · 3.6★ · Yesterday</span>', fit: 8, said: '42 Google reviews, last Instagram post 5 months ago.', why: 'Busy salon with no time for social.', state: '<span class="tag">Email drafted</span>', btn: 'Review email →' },
+    ],
+  },
+}
+const NOTES = {
+  1: '<b>Option 1 · Action bar.</b> Under the header and intro, one bar says what the tool is working on (left) and holds its main action (right, green). Below it: status tabs + search, filter and sort in one row, then the list. <ul><li>Competitor Leads: “Trustpilot · buffer.com” + <b>Scan another competitor</b>.</li><li>Lead Agent: “Last search 2 h ago” + <b>Find new leads</b>; Email / Community switch sits in the bar.</li></ul>',
+  2: '<b>Option 2 · All in the header.</b> The main action moves into the page header (top right) on every tool, and what it\'s working on goes under the title. One control row then holds the status tabs on the left and search, filter and sort on the right. The most compact: the list starts highest on the page.',
+  3: '<b>Option 3 · Side panel.</b> A left column holds what the tool is working on, its main action and the status list with counts. The list fills the right. Feels like an app inbox, and scales well when a tool has many statuses, but takes width from the cards. On a phone the side panel sits on top.',
+}
+const S = { opt: '1', tool: 'cl', size: 'desk', tab: null, lane: 'email' }
+const $ = s => document.querySelector(s)
+
+const header = (t, withAction) => `<header class="hd"><div class="hd-l"><span class="hd-ic">${t.icon}</span><h1>${t.title}</h1>${t.status}${withAction ? `<span class="meta">${t.ctxTitle} · ${t.ctxMeta}</span>` : ''}</div>
+  <div class="hd-r stack-phone">${withAction ? `<button class="btn sm">${t.secondary}</button><button class="btn pri">${t.primary}</button>` : '<a class="link">Email Outreach →</a>'}</div></header>
+  <div class="strip"><span>${t.intro}</span><a class="link">How it works ▾</a></div>`
+const tabs = t => `<div class="tabs" role="tablist">${t.tabs.map(([k, l, n, hot]) => `<button role="tab" data-tab="${k}" aria-selected="${(S.tab ?? t.tabs[0][0]) === k}">${l}<span class="${hot ? 'hot' : ''}">${n}</span></button>`).join('')}</div>`
+const lane = t => t.lanes ? `<div class="lane" role="tablist">${t.lanes.map(([k, l, n]) => `<button role="tab" data-lane="${k}" aria-selected="${S.lane === k}">${l} · ${n}</button>`).join('')}</div>` : ''
+const card = c => `<article class="card"><div class="c-head"><span class="av">${c.av}</span><div class="who"><div class="name">${c.name}</div><div class="sub">${c.sub}</div></div><span class="fit">Good fit · ${c.fit}/10</span></div>
+  <div class="c-body"><p class="said">${c.said}</p><p class="why">${c.why}</p></div><div class="c-foot"><span>${c.state}</span><button class="btn sm pri">${c.btn}</button></div></article>`
+const list = t => `<div class="count">${t.countLine}</div>${t.cards.map(card).join('')}`
+const filters = t => `<input class="search" placeholder="${t.search}">${t.filters.join('')}<select class="sel"><option>Best fit first</option><option>Newest first</option></select>`
+
+function render() {
+  const t = TOOLS[S.tool]
+  $('#frame').classList.toggle('phone', S.size === 'phone')
+  $('#note').innerHTML = NOTES[S.opt]
+  $('#nav-la').classList.toggle('on', S.tool === 'la'); $('#nav-cl').classList.toggle('on', S.tool === 'cl')
+  let h = ''
+  if (S.opt === '1') {
+    h = header(t, false) + `<section class="abar stack-phone"><div class="abar-ctx"><b>${t.ctxTitle}</b><span class="meta">${t.ctxMeta}</span></div>${lane(t)}<div class="abar-r stack-phone"><button class="btn sm">${t.secondary}</button><button class="btn pri">${t.primary}</button></div></section>
+      <div class="o1-tools">${tabs(t)}${filters(t)}</div>${list(t)}`
+  } else if (S.opt === '2') {
+    h = header(t, true) + `${t.lanes ? `<div style="margin-bottom:10px">${lane(t)}</div>` : ''}<div class="o2-row">${tabs(t)}<div class="right">${filters(t)}</div></div>${list(t)}`
+  } else {
+    h = header(t, false) + `<div class="o3"><aside class="rail">
+        <div class="rail-box rail-ctx"><h4>${S.tool === 'cl' ? 'Scanning' : 'Searching'}</h4><b>${t.ctxTitle}</b><span class="meta">${t.ctxMeta}</span><button class="btn pri">${t.primary}</button><button class="btn sm">${t.secondary}</button></div>
+        ${t.lanes ? `<div class="rail-box"><h4>Leads</h4>${lane(t)}</div>` : ''}
+        <div class="rail-box"><h4>Show</h4><div class="rail-nav" role="tablist">${t.tabs.map(([k, l, n, hot]) => `<button role="tab" data-tab="${k}" aria-selected="${(S.tab ?? t.tabs[0][0]) === k}">${l}<span class="${hot ? 'hot' : ''}">${n}</span></button>`).join('')}</div></div>
+      </aside><div><div class="o3-tools">${filters(t)}</div>${list(t)}</div></div>`
+  }
+  $('#view').innerHTML = h
+  document.querySelectorAll('.ctl [data-k]').forEach(b => b.setAttribute('aria-pressed', S[b.dataset.k] === b.dataset.v))
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-k], [data-tab], [data-lane]'); if (!b) return
+  if (b.dataset.k) { S[b.dataset.k] = b.dataset.v; if (b.dataset.k === 'tool') S.tab = null }
+  if (b.dataset.tab) S.tab = b.dataset.tab
+  if (b.dataset.lane) S.lane = b.dataset.lane
+  render()
+})
+render()
+</script>
+</body>
+</html>
