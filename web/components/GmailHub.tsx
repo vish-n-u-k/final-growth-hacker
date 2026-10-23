@@ -7,15 +7,17 @@ import { Spinner } from '@/components/ui/spinner'
 import Campaigns from '@/components/email-outreach/Campaigns'
 import Done, { type SentEmail } from '@/components/email-outreach/Done'
 import FollowUps from '@/components/email-outreach/FollowUps'
+import InboxTab from '@/components/InboxTab'
 import { useToast } from '@/components/email-outreach/shared'
 import { isDue, loadReminders, openFollowUps } from '@/lib/email-outreach/followups'
 
 // Email Outreach: send personal emails to a list of prospects from the user's own Gmail, and
 // follow up with anyone who doesn't reply. Same layout as the other tools: the header with the
-// main action, then three tabs: Follow-ups (what needs you now; opens first when any are due),
-// Campaigns (a list, each one done in three steps) and Done (closed follow-ups, sent emails).
+// main action, then four tabs: Follow-ups (what needs you now; opens first when any are due),
+// Inbox (only the threads GrowJin sent, replies first), Campaigns (a list, each one done in
+// three steps) and Done (closed follow-ups, sent emails).
 
-type Tab = 'followups' | 'campaigns' | 'done'
+type Tab = 'followups' | 'inbox' | 'campaigns' | 'done'
 
 // ── Inline SVG icons (connect screen) ─────────────────────────────────────────
 
@@ -265,6 +267,7 @@ export default function GmailHub({
       <div className="gh-tabs eo-tabs" role="tablist">
         {([
           ['followups', 'Follow-ups', dueCount],
+          ['inbox',     'Inbox',     0],
           ['campaigns', 'Campaigns', 0],
           ['done',      'Done',      0],
         ] as [Tab, string, number][]).map(([key, label, n]) => (
@@ -278,6 +281,7 @@ export default function GmailHub({
       <div className="eo-body">
         {tab === null && <div className="ro-working eo-loading"><Spinner /><span>Loading…</span><i /></div>}
         {tab === 'followups' && <FollowUps reloadKey={reloadKey} notify={notify} onCount={onCount} onNewCampaign={startCampaign} />}
+        {tab === 'inbox' && <InboxTab refreshKey={reloadKey} gmailAddress={gmailAddress} onOpenFollowups={() => setTab('followups')} />}
         {tab === 'campaigns' && <Campaigns newPending={newPending} onNewOpened={() => setNewPending(false)} notify={notify} onSent={() => { loadSent(); setReloadKey(k => k + 1) }} />}
         {tab === 'done' && <Done reloadKey={reloadKey} sent={sent} notify={notify} onCancel={cancelScheduled}
           onChanged={() => setReloadKey(k => k + 1)} />}

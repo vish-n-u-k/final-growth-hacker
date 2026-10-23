@@ -144,7 +144,8 @@ function Editor({ id, isNew, notify, onSent, onBack }: {
   const [draftSaving, setDraftSaving] = useState<string | null>(null)
   // Adding recipients
   const [importText, setImportText]   = useState('')
-  const [importMode, setImportMode]   = useState<'csv' | 'ai'>('csv')
+  const [importMode, setImportMode]   = useState<'csv' | 'ai' | 'file'>('csv')
+  const [dragging, setDragging]       = useState(false)
   const [parsing, setParsing]         = useState(false)
   const [parseErr, setParseErr]       = useState<string | null>(null)
   const [manual, setManual]           = useState<{ email: string; name: string; domain: string } | null>(null)
@@ -264,6 +265,28 @@ function Editor({ id, isNew, notify, onSent, onBack }: {
       add(list); saveProspects(list, importText); setImportText('')
     } catch (e) {
       setParseErr(e instanceof Error ? e.message : 'Could not read that')
+    } finally {
+      setParsing(false)
+    }
+  }
+
+  // Reads the emails out of a CSV / Excel / PDF / Word / text / contact-card file on the server
+  async function addFromFile(file: File | undefined) {
+    if (!file) return
+    setParsing(true); setParseErr(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/outreach/parse-file', { method: 'POST', body: form })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error ?? 'Could not read that file')
+      const list = data.prospects as Prospect[]
+      if (!list.length) { setParseErr(`No email addresses found in ${file.name}.`); return }
+      const fresh = list.filter(p => !prospects.some(x => x.email.toLowerCase() === p.email.toLowerCase())).length
+      add(list); saveProspects(list, `File: ${file.name}`)
+      notify(`${fresh} ${fresh === 1 ? 'person' : 'people'} added from ${file.name}${fresh < list.length ? ` (${list.length - fresh} already in the campaign)` : ''}`)
+    } catch (e) {
+      setParseErr(e instanceof Error ? e.message : 'Could not read that file')
     } finally {
       setParsing(false)
     }
@@ -449,7 +472,7 @@ function Editor({ id, isNew, notify, onSent, onBack }: {
     body = <div className="ro-working"><Spinner /><span>Opening the campaign…</span><i /></div>
   } else if (stepNo === 1) {
     title = 'Who should get it?'
-    hint = 'Paste a list of emails. Each person gets their own email, written for them.'
+    hint = 'Paste a list of emails or upload a file. Each person gets their own email, written for them.'
     const inCampaign = new Set(prospects.map(p => p.email.toLowerCase()))
     const q = savedQ.trim().toLowerCase()
     const savedShown = q ? saved.filter(p => [p.email, p.name, p.domain].some(v => v.toLowerCase().includes(q))) : saved
@@ -459,7 +482,27 @@ function Editor({ id, isNew, notify, onSent, onBack }: {
         <div className="cl-seg" role="group" aria-label="How to read the list">
           <button type="button" aria-pressed={importMode === 'csv'} onClick={() => { setImportMode('csv'); setParseErr(null) }}>One per line</button>
           <button type="button" aria-pressed={importMode === 'ai'} onClick={() => { setImportMode('ai'); setParseErr(null) }}>Any format (AI)</button>
+          <button type="button" aria-pressed={importMode === 'file'} onClick={() => { setImportMode('file'); setParseErr(null) }}>Upload a file</button>
         </div>
+        {importMode === 'file' ? (
+          <label
+            className={`eo-drop${dragging ? ' eo-drop--over' : ''}${parsing ? ' eo-drop--busy' : ''}`}
+            onDragOver={e => { e.preventDefault(); setDragging(true) }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={e => { e.preventDefault(); setDragging(false); if (!parsing) addFromFile(e.dataTransfer.files[0]) }}
+          >
+            <input type="file" className="eo-drop-in" disabled={parsing}
+              accept=".csv,.tsv,.txt,.vcf,.xlsx,.pdf,.docx,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={e => { addFromFile(e.target.files?.[0]); e.target.value = '' }} />
+            {parsing
+              ? <span className="eo-drop-t"><Spinner />Reading the file…</span>
+              : <>
+                  <span className="eo-drop-t">Drop a file here or <u>choose one</u></span>
+                  <span className="cl-muted">CSV, Excel (.xlsx), PDF, Word (.docx), text or contact cards (.vcf), up to 5 MB.
+                    Every email in it is added; names and websites come from the columns when there are some.</span>
+                </>}
+          </label>
+        ) : <>
         <textarea rows={importMode === 'ai' ? 6 : 4} value={importText} onChange={e => { setImportText(e.target.value); setParseErr(null) }}
           placeholder={importMode === 'ai'
             ? 'Paste anything: LinkedIn profiles, notes, a spreadsheet column.\ne.g. "John Smith is CEO of Acme, john@acme.com"'
@@ -470,6 +513,7 @@ function Editor({ id, isNew, notify, onSent, onBack }: {
             {parsing ? <><Spinner />Reading…</> : 'Add to campaign'}
           </button>
         </div>
+        </>}
         {parseErr && <p className="eo-err">{parseErr}</p>}
       </div>
 

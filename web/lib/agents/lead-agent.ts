@@ -124,7 +124,7 @@ async function processSentLeads(brandId: string, b: BrandContext, d: LeadAgentDa
       const firstReply = demo && !replies.length && !d.leads.some(l => l.status === 'replied')
       const r = demo ? demoReply(lead.id, lead.sentAt!, firstReply) : await checkThreadReply(brandId, token, lead.threadId!, lead.email!, Date.parse(lead.sentAt!) - 60_000)
       if (r.outcome === 'replied' || r.outcome === 'opted_out' || r.outcome === 'bounced') {
-        patches.set(lead.id, { status: r.outcome, replyNote: r.note, repliedAt: new Date().toISOString(), nextFollowUpAt: undefined })
+        patches.set(lead.id, { status: r.outcome, replyNote: r.note, replyIntent: r.intent, repliedAt: new Date().toISOString(), nextFollowUpAt: undefined })
         if (r.outcome === 'replied') replies.push({ ...lead, replyNote: r.note })
         continue
       }

@@ -148,7 +148,7 @@ async function checkSent(brandId: string, b: BrandContext, links: LinkOpportunit
     try {
       const r = demo ? demoReply(l.id, l.sentAt!) : await checkThreadReply(brandId, token, l.threadId!, l.email!, Date.parse(l.sentAt!) - 60_000)
       if (r.outcome === 'replied' || r.outcome === 'opted_out' || r.outcome === 'bounced') {
-        patches.set(l.id, { status: r.outcome, replyNote: r.note, nextFollowUpAt: undefined })
+        patches.set(l.id, { status: r.outcome, replyNote: r.note, replyIntent: r.intent, nextFollowUpAt: undefined })
         if (r.outcome === 'replied') replies.push({ ...l, replyNote: r.note })
         continue
       }
