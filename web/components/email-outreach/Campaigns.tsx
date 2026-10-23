@@ -76,19 +76,22 @@ export default function Campaigns({ newPending, onNewOpened, notify, onSent }: {
 
   if (list.length === 0) {
     return (
-      <div className="cl-none">
+      <div className="cl-none eo-none">
         <h3>No campaigns yet</h3>
-        <p>A campaign is one email, written for each person on a list and sent from your Gmail. Paste the list, say what it&apos;s about, and check each email before it goes.</p>
+        <p>Paste a list of people, say what it&apos;s about, and check each email before it goes.</p>
         <div className="cl-acts cl-acts--center">
           <button type="button" className="btn btn-primary" onClick={() => setOpenId({ id: newId(), isNew: true })}>New campaign</button>
         </div>
-        <p className="eo-find">No list yet? Find people with <Link className="th-link" href="/lead-finder">Competitor Leads</Link> or the <Link className="th-link" href="/agents/leads">Lead Agent</Link>.</p>
+        <p className="eo-find">No list? Try <Link className="th-link" href="/lead-finder">Competitor Leads</Link> or the <Link className="th-link" href="/agents/leads">Lead Agent</Link>.</p>
       </div>
     )
   }
 
   return (
     <div>
+      <div className="eo-listbar">
+        <button type="button" className="btn btn-primary btn-sm" onClick={() => setOpenId({ id: newId(), isNew: true })}>New campaign</button>
+      </div>
       {pg.items.map(c => {
         const done = c.recipients > 0 && c.sent + c.scheduled >= c.recipients
         const state = done ? 'Sent' : c.sent + c.scheduled > 0 ? 'Sending' : c.written > 0 ? 'Written' : 'Draft'

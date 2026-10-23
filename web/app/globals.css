@@ -8834,6 +8834,8 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .eo-saved { display: grid; gap: 8px; }
 .eo-saved-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .eo-saved-list { max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+.eo-none { border: 0; padding: 48px 18px; }
+.eo-listbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
 .eo-find { margin: 6px 0 0; font-size: 13px; color: var(--text-faint); }
 .eo-writebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .eo-gap { margin: 0; }

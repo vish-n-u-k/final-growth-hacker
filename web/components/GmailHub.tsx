@@ -260,7 +260,7 @@ export default function GmailHub({
               {disconnecting ? <><Spinner />Disconnecting…</> : 'Disconnect Gmail'}
             </button>
           </Popover>
-          <button type="button" className="btn btn-primary btn-sm" onClick={startCampaign}>New campaign</button>
+          {tab !== 'campaigns' && <button type="button" className="btn btn-primary btn-sm" onClick={startCampaign}>New campaign</button>}
         </>}
       />
 
