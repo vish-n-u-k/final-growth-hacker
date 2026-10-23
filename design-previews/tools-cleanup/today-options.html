@@ -1,0 +1,322 @@
+<title>Today Layout Options</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: an option picker above the app frame; each option is a different way of turning Today into blocks. */
+  :root {
+    --bg: #ffffff; --soft: #f3f5f3; --line: #e3e7e3; --text: #16201a; --dim: #4f5c53; --faint: #86918a;
+    --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --red: #b42318; --red-soft: #fdeceb; --pick: #eef0ee;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; --pick: #1c241f; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; --pick: #1c241f; color-scheme: dark }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--body); }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+  /* Option picker (not part of the app) */
+  .picker { background: var(--pick); border-bottom: 1px solid var(--line); padding-block: 14px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .picker-in { max-width: 1100px; margin: 0 auto; }
+  .picker-h { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+  .opts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .opt { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); font-size: 14px; cursor: pointer; }
+  .opt[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); font-weight: 600; }
+  .opt-note { margin: 10px 0 0; font-size: 14px; color: var(--dim); max-width: 70ch; }
+
+  .frame { display: flex; min-height: 100vh; }
+  .side { width: 232px; flex: none; background: var(--soft); border-right: 1px solid var(--line); padding: 18px 12px; font-size: 13.5px; }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 4px 8px 20px; font: 600 16px var(--display); }
+  .grp { margin-bottom: 18px; }
+  .gl { padding: 0 10px 6px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .nav { display: block; padding: 7px 10px; border-radius: 8px; color: var(--dim); text-decoration: none; }
+  .nav.on { background: var(--green-soft); color: var(--green-ink); font-weight: 600; }
+  .main { flex: 1; min-width: 0; }
+  .page { max-width: 880px; padding-block: 28px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); margin: 0 auto; }
+  @media (max-width: 760px) { .side { display: none; } .page { padding-block: 18px 56px; } }
+
+  .crumbs { font-size: 13px; color: var(--faint); margin-bottom: 18px; }
+  h1 { margin: 0; font: 600 32px/1.15 var(--display); letter-spacing: -.01em; }
+  .line { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 14px; color: var(--faint); }
+  .link { border: 0; background: none; padding: 0; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; }
+  .link:hover { color: var(--text); text-decoration-color: currentColor; }
+  .label { margin: 30px 0 12px; font-size: 13px; color: var(--faint); }
+
+  .btn { height: 42px; padding: 0 20px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn.go { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.go:hover { filter: brightness(1.06); }
+  .btn.quiet { border-color: transparent; background: none; color: var(--dim); padding: 0 12px; }
+
+  .next { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 28px; padding: 20px 22px; border-radius: 14px; background: var(--green-soft); }
+  .next.reply { background: var(--red-soft); }
+  .next-text { flex: 1 1 260px; min-width: 0; }
+  .eyebrow { display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+  .next-text b { display: block; font-size: 17px; font-weight: 600; }
+  .next-text .s { color: var(--dim); font-size: 14px; }
+
+  /* Shared block + row */
+  .block { display: flex; flex-direction: column; gap: 4px; padding: 18px 18px 14px; text-align: left; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); min-width: 0; }
+  button.block { cursor: pointer; }
+  button.block:hover { background: var(--soft); }
+  .block.reply { background: var(--red-soft); border-color: transparent; }
+  .block .t { font-size: 13px; color: var(--faint); }
+  .block .n { font: 600 34px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+  .block .d { color: var(--dim); font-size: 14px; flex: 1; }
+  .block .o { font-size: 13.5px; color: var(--dim); }
+  .block.zero .n { color: var(--faint); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 12px 2px; border-top: 1px solid var(--line); cursor: pointer; min-width: 0; }
+  .row:hover .rn { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .rm { flex: 1; min-width: 0; }
+  .rn { font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rw { color: var(--dim); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rg { color: var(--faint); font-size: 13.5px; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
+  .empty { padding: 36px 22px; border-radius: 14px; background: var(--soft); text-align: center; margin-top: 28px; }
+  .empty b { display: block; font-size: 17px; margin-bottom: 4px; }
+  .empty p { margin: 0 0 16px; color: var(--dim); }
+
+  /* A: six tiles */
+  .grid6 { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .grid6 .block { min-height: 148px; }
+
+  /* B: three groups */
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 28px; }
+  .grid3 .block { padding-bottom: 6px; }
+  .grid3 h3 { margin: 0; font: 600 19px/1.25 var(--display); }
+  .grid3 .cnt { font-size: 13.5px; color: var(--faint); margin-bottom: 10px; }
+  .grid3 .more { padding: 10px 2px; border-top: 1px solid var(--line); font-size: 13.5px; }
+  @media (max-width: 860px) { .grid3 { grid-template-columns: 1fr; } }
+
+  /* C: one at a time */
+  .focus { margin-top: 28px; padding: 32px 28px; border-radius: 18px; border: 1px solid var(--line); }
+  .focus.reply { background: var(--red-soft); border-color: transparent; }
+  .prog { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--faint); margin-bottom: 22px; }
+  .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--green); border-radius: 3px; }
+  .focus .kind { font-size: 13px; color: var(--faint); }
+  .focus h2 { margin: 4px 0 8px; font: 600 28px/1.2 var(--display); text-wrap: balance; }
+  .focus p { margin: 0 0 24px; color: var(--dim); max-width: 58ch; }
+  .focus .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .upnext { margin-top: 18px; font-size: 14px; color: var(--faint); }
+
+  /* D: top three */
+  .top3 { display: grid; gap: 12px; margin-top: 28px; }
+  .top3 .block { flex-direction: row; align-items: center; gap: 18px; padding: 20px 22px; flex-wrap: wrap; }
+  .top3 .num { font: 600 28px/1 var(--display); color: var(--faint); width: 28px; flex: none; }
+  .top3 .bm { flex: 1 1 240px; min-width: 0; }
+  .top3 .bm b { display: block; font-size: 17px; }
+  .top3 .bm span { color: var(--dim); font-size: 14px; }
+  .top3 .block.first { background: var(--green-soft); border-color: transparent; }
+  .top3 .block.first.reply { background: var(--red-soft); }
+  .later { margin-top: 22px; }
+
+  /* E: board */
+  .board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 28px; align-items: start; }
+  .col { padding: 14px; border-radius: 14px; background: var(--soft); min-width: 0; }
+  .col h3 { margin: 0 0 10px; font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; }
+  .col h3 span { color: var(--faint); font-weight: 500; }
+  .card { display: block; width: 100%; text-align: left; padding: 12px 14px; margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); cursor: pointer; }
+  .card:hover { border-color: var(--faint); }
+  .card.reply { background: var(--red-soft); border-color: transparent; }
+  .card.first { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
+  .card b { display: block; font-size: 14.5px; }
+  .card span { display: block; color: var(--dim); font-size: 13px; }
+  .card.done { opacity: .6; cursor: default; }
+  .card.done b { text-decoration: line-through; }
+  @media (max-width: 860px) { .board { grid-template-columns: 1fr; } }
+
+  .toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); padding: 10px 16px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 14px; white-space: nowrap; }
+  .toast button { margin-left: 10px; border: 0; background: none; color: var(--bg); font-weight: 600; text-decoration: underline; cursor: pointer; }
+  @media (prefers-reduced-motion: no-preference) { .block, .row, .btn, .card, .bar i { transition: background .15s, color .15s, width .3s; } }
+</style>
+
+<div class="picker"><div class="picker-in">
+  <div class="picker-h">Pick a layout for Today</div>
+  <div class="opts" id="opts" role="group" aria-label="Layout options"></div>
+  <p class="opt-note" id="note"></p>
+</div></div>
+<div class="frame">
+  <nav class="side" aria-label="Main">
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#12A664"/><path d="M6 17.5 L10.5 12 L14 15 L20 7.5" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>GrowJin</div>
+    <div class="grp"><a class="nav on" href="#">Today</a><a class="nav" href="#">Your roadmap</a></div>
+    <div class="grp"><div class="gl">Get customers</div><a class="nav" href="#">Lead Agent</a><a class="nav" href="#">Competitor Leads</a><a class="nav" href="#">Email Outreach</a></div>
+    <div class="grp"><div class="gl">Get seen</div><a class="nav" href="#">Search Agent</a><a class="nav" href="#">Social Studio</a></div>
+    <div class="grp"><div class="gl">Keep track</div><a class="nav" href="#">Reminders</a><a class="nav" href="#">Analytics</a></div>
+  </nav>
+  <main class="main"><div class="page" id="view"></div></main>
+</div>
+<div id="toast"></div>
+
+<script>
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+
+// Made-up example tasks, already in priority order (what Today picks today).
+const TASKS = [
+  { id: 't1', kind: 'replies', group: 'customers', red: true, name: 'Tom Becker replied', why: '"Sounds interesting, can you send pricing?"', cta: 'Answer', when: 'now' },
+  { id: 't2', kind: 'emails', group: 'customers', name: 'Email Bloom Salon', why: 'Busy salon, last Instagram post 5 months ago.', cta: 'Review the email', when: 'now' },
+  { id: 't3', kind: 'fixes', group: 'seen', name: 'Add a title to your pricing page', why: 'Google shows "Untitled". About 5 minutes.', cta: 'See the fix', when: 'now' },
+  { id: 't4', kind: 'emails', group: 'customers', name: 'Email Lumen Candles', why: 'No posts in three months.', cta: 'Review the email', when: 'today' },
+  { id: 't5', kind: 'posts', group: 'seen', name: 'Post: Why small cafés skip social media', why: 'LinkedIn draft, ready to check.', cta: 'Check the post', when: 'today' },
+  { id: 't6', kind: 'reminders', group: 'track', name: 'Call Priya at Nimbus Studio', why: 'You set this reminder on Monday.', cta: 'Open', when: 'today' },
+  { id: 't7', kind: 'emails', group: 'customers', name: 'Email Ortiz Coffee', why: 'Café with no website and few posts.', cta: 'Review the email', when: 'week' },
+  { id: 't8', kind: 'posts', group: 'seen', name: 'Post: Three ideas for a slow week', why: 'Instagram draft, ready to check.', cta: 'Check the post', when: 'week' },
+  { id: 't9', kind: 'fixes', group: 'seen', name: 'Get listed on G2', why: 'Buyers compare tools there. About 20 minutes.', cta: 'See the fix', when: 'week' },
+  { id: 't10', kind: 'fixes', group: 'seen', name: 'Fix how AI describes Frekto', why: 'ChatGPT calls you a design tool. About 15 minutes.', cta: 'See the fix', when: 'week' },
+]
+const KINDS = {
+  replies:   { title: 'Replies', unit: ['person replied', 'people replied'] },
+  emails:    { title: 'Emails to approve', unit: ['email ready', 'emails ready'] },
+  posts:     { title: 'Posts to publish', unit: ['post drafted', 'posts drafted'] },
+  fixes:     { title: 'Quick fixes', unit: ['fix to make', 'fixes to make'] },
+  reminders: { title: 'Reminders', unit: ['due today', 'due today'] },
+}
+const GROUPS = {
+  customers: { title: 'Get customers', sub: 'Replies and emails' },
+  seen:      { title: 'Get seen', sub: 'Posts and fixes' },
+  track:     { title: 'Keep track', sub: 'Reminders and numbers' },
+}
+const OPTIONS = [
+  { id: 'A', name: 'A · Six tiles', note: 'One "Start here" panel, then one tile per kind of work, each with a single number. Tap a tile to see its short list. Good overview, still calm.' },
+  { id: 'B', name: 'B · Three groups', note: 'Three blocks that match the sidebar: Get customers, Get seen, Keep track. Each shows its top 3 items as quiet rows. Teaches the app’s structure.' },
+  { id: 'C', name: 'C · One at a time', note: 'Only the next task is shown, big, with a progress bar. Done or Skip brings the next one. The calmest option: a first-time user can’t get lost.' },
+  { id: 'D', name: 'D · Top 3 today', note: 'Three numbered blocks, in order, the first one green. Everything else hides behind "7 more this week". A short daily plan.' },
+  { id: 'E', name: 'E · Now / Later / Done', note: 'A simple board with three columns. Tap a card to finish it and it moves to Done. Shows progress through the day.' },
+]
+const S = { opt: 'A', done: {}, open: null, toast: null, showLater: false }
+const left = () => TASKS.filter(t => !S.done[t.id])
+const plural = (u, n) => n === 1 ? u[0] : u[1]
+
+function toast(msg, undoId) {
+  S.toast = { msg, undoId }
+  clearTimeout(toast.t); toast.t = setTimeout(() => { S.toast = null; paint() }, 3500)
+}
+
+const head = (extra = '') => `<div class="crumbs">Today</div><h1>Today</h1>
+  <div class="line"><span>Friday 23 October</span><span>Frekto</span>${extra}<button class="link" data-a="noop">Settings</button></div>`
+const allDone = () => `<div class="empty"><b>All caught up</b><p>New things appear after tomorrow morning’s search.</p><button class="btn go" data-a="reset">Show the example again</button></div>`
+const startHere = t => `<div class="next${t.red ? ' reply' : ''}"><div class="next-text"><span class="eyebrow">Start here</span><b>${esc(t.name)}</b><span class="s">${esc(t.why)}</span></div><button class="btn go" data-do="${t.id}">${t.cta}</button></div>`
+const row = t => `<div class="row" data-do="${t.id}" role="button" tabindex="0">${t.red ? '<span class="dot" title="Replied"></span>' : ''}<div class="rm"><div class="rn">${esc(t.name)}</div><div class="rw">${esc(t.why)}</div></div><span class="rg">Open →</span></div>`
+const visits = `<button class="block" data-a="noop"><span class="t">Yesterday</span><span class="n">128</span><span class="d">visits to your site, mostly from Google.</span><span class="o">See Analytics →</span></button>`
+
+// A: six tiles
+function optA() {
+  const L = left()
+  if (S.open) {
+    const k = KINDS[S.open], items = L.filter(t => t.kind === S.open)
+    return `<button class="link" data-a="home" style="margin-bottom:20px">← Today</button>
+      <h2 style="margin:0 0 4px;font:600 26px/1.2 var(--display)">${k.title}</h2>
+      <p style="margin:0 0 16px;color:var(--dim);font-size:14px">${items.length} ${plural(k.unit, items.length)}</p>
+      ${items.map(row).join('') || allDone()}`
+  }
+  if (!L.length) return head() + allDone()
+  const tiles = Object.entries(KINDS).map(([id, k]) => {
+    const n = L.filter(t => t.kind === id).length
+    return `<button class="block${id === 'replies' && n ? ' reply' : ''}${n ? '' : ' zero'}" ${n ? `data-open="${id}"` : 'disabled'}>
+      <span class="t">${k.title}</span><span class="n">${n}</span><span class="d">${n ? plural(k.unit, n) : 'Nothing here today.'}</span><span class="o">${n ? 'Open →' : 'All done'}</span></button>`
+  }).join('')
+  return head() + startHere(L[0]) + `<p class="label">Everything today</p><div class="grid6">${tiles}${visits}</div>`
+}
+
+// B: three groups
+function optB() {
+  const L = left()
+  if (!L.length) return head() + allDone()
+  const blocks = Object.entries(GROUPS).map(([id, g]) => {
+    const items = L.filter(t => t.group === id)
+    const hasReply = items.some(t => t.red)
+    const body = id === 'track'
+      ? items.map(row).join('') + `<div class="row" data-a="noop"><div class="rm"><div class="rn">128 visits yesterday</div><div class="rw">Mostly from Google</div></div><span class="rg">Analytics →</span></div>`
+      : items.slice(0, 3).map(row).join('') + (items.length > 3 ? `<div class="more"><button class="link" data-a="noop">${items.length - 3} more</button></div>` : '')
+    return `<section class="block${hasReply ? ' reply' : ''}"><h3>${g.title}</h3><div class="cnt">${items.length ? `${items.length} to do · ${g.sub}` : 'All done'}</div>${body}</section>`
+  }).join('')
+  return head() + startHere(L[0]) + `<div class="grid3">${blocks}</div>`
+}
+
+// C: one at a time
+function optC() {
+  const L = left(), doneN = TASKS.length - L.length
+  if (!L.length) return head() + allDone()
+  const t = L[0], k = KINDS[t.kind]
+  const pct = Math.round(doneN / TASKS.length * 100)
+  const next = L.slice(1, 3).map(x => esc(x.name)).join(', ')
+  return head() + `<section class="focus${t.red ? ' reply' : ''}">
+      <div class="prog"><span>${doneN} of ${TASKS.length} done</span><div class="bar"><i style="width:${pct}%"></i></div></div>
+      <div class="kind">${k.title}</div><h2>${esc(t.name)}</h2><p>${esc(t.why)}</p>
+      <div class="acts"><button class="btn go" data-do="${t.id}">${t.cta}</button><button class="btn quiet" data-skip="${t.id}">Skip for now</button></div>
+    </section>
+    ${next ? `<p class="upnext">Up next: ${next}${L.length > 3 ? ` and ${L.length - 3} more` : ''}</p>` : ''}`
+}
+
+// D: top three
+function optD() {
+  const L = left()
+  if (!L.length) return head() + allDone()
+  const top = L.slice(0, 3), rest = L.slice(3)
+  const blocks = top.map((t, i) => `<div class="block${i === 0 ? ' first' : ''}${t.red ? ' reply' : ''}">
+      <span class="num">${i + 1}</span><div class="bm"><b>${esc(t.name)}</b><span>${esc(t.why)}</span></div>
+      <button class="btn${i === 0 ? ' go' : ''}" data-do="${t.id}">${t.cta}</button></div>`).join('')
+  const later = rest.length ? `<div class="later">${S.showLater
+      ? `<p class="label" style="margin-top:0">Later this week</p>${rest.map(row).join('')}<p><button class="link" data-a="later">Hide</button></p>`
+      : `<button class="link" data-a="later">${rest.length} more this week</button>`}</div>` : ''
+  return head() + `<p class="label">Your ${top.length === 1 ? 'one thing' : top.length + ' things'} for today</p><div class="top3" style="margin-top:0">${blocks}</div>${later}`
+}
+
+// E: board
+function optE() {
+  const L = left()
+  const cols = [
+    { title: 'Now', items: L.filter(t => t.when === 'now') },
+    { title: 'Later today', items: L.filter(t => t.when !== 'now') },
+    { title: 'Done', items: TASKS.filter(t => S.done[t.id]) },
+  ]
+  // If "Now" is empty, pull the next task up so there's always a next step.
+  if (!cols[0].items.length && cols[1].items.length) cols[0].items.push(cols[1].items.shift())
+  const first = cols[0].items[0]
+  const html = cols.map((c, ci) => `<section class="col"><h3>${c.title}<span>${c.items.length}</span></h3>
+    ${c.items.length ? c.items.map(t => ci === 2
+      ? `<div class="card done"><b>${esc(t.name)}</b></div>`
+      : `<button class="card${t.red ? ' reply' : ''}${t === first ? ' first' : ''}" data-do="${t.id}"><b>${esc(t.name)}</b><span>${esc(t.why)}</span></button>`).join('')
+      : `<p style="margin:4px 0;color:var(--faint);font-size:13.5px">${ci === 2 ? 'Finished items land here.' : 'Nothing here.'}</p>`}</section>`).join('')
+  return head(`<span>${cols[2].items.length} of ${TASKS.length} done</span>`) + (L.length ? '' : allDone()) + `<div class="board">${html}</div>`
+}
+
+const RENDER = { A: optA, B: optB, C: optC, D: optD, E: optE }
+
+function paint() {
+  document.getElementById('opts').innerHTML = OPTIONS.map(o => `<button class="opt" aria-pressed="${S.opt === o.id}" data-opt="${o.id}">${o.name}</button>`).join('')
+  document.getElementById('note').textContent = OPTIONS.find(o => o.id === S.opt).note
+  document.getElementById('view').innerHTML = RENDER[S.opt]()
+  document.getElementById('toast').innerHTML = S.toast ? `<div class="toast" role="status">${esc(S.toast.msg)}${S.toast.undoId ? '<button data-a="undo">Undo</button>' : ''}</div>` : ''
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a],[data-open],[data-do],[data-opt],[data-skip]'); if (!t) return
+  const d = t.dataset
+  if (d.opt) { S.opt = d.opt; S.open = null; S.showLater = false }
+  else if (d.open) S.open = d.open
+  else if (d.do) {
+    // Preview only: pretend the task was done.
+    S.done[d.do] = true
+    toast(`Done: ${TASKS.find(x => x.id === d.do).name}`, d.do)
+    if (S.open && !left().some(x => x.kind === S.open)) S.open = null
+  }
+  else if (d.skip) {
+    // Move it to the end of the queue.
+    const i = TASKS.findIndex(x => x.id === d.skip); TASKS.push(TASKS.splice(i, 1)[0]); toast('Skipped for now')
+  }
+  else if (d.a === 'home') S.open = null
+  else if (d.a === 'later') S.showLater = !S.showLater
+  else if (d.a === 'reset') S.done = {}
+  else if (d.a === 'undo') { delete S.done[S.toast.undoId]; S.toast = null }
+  else if (d.a === 'noop') toast('Not part of this preview')
+  paint()
+})
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.row[data-do]')) e.target.click() })
+paint()
+</script>
