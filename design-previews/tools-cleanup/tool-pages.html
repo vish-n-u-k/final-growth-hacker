@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tool Page Layouts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* Layout: app frame (sidebar + tool page); every tool fills the same slots. */
+  :root {
+    --bg: #ffffff; --bg-soft: #f1f4f1; --bg-tint: #f7f9f7; --line: #e2e7e2;
+    --text: #16201a; --text-dim: #4c5a50; --text-faint: #75817a;
+    --green: #15803d; --accent: #e5f4ea; --accent-fg: #0f5a2b;
+    --warn: #b45309; --warn-soft: #fdf1df; --crit: #b42318; --crit-soft: #fdeceb; --info: #1d4ed8; --info-soft: #e8efff; --star: #e2a400;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #e8ece8; color: var(--text); font-family: var(--body); }
+  button, input, select, textarea { font-family: inherit; }
+  a { color: inherit; }
+
+  /* mockup controls */
+  .ctl { position: sticky; top: 0; z-index: 60; background: #1d2620; color: #e8f0ea; padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+  .ctl h1 { font: 600 15px var(--body); margin: 0 10px 0 0; }
+  .ctl .grp { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .ctl .lbl { font-size: 12px; color: #9fb0a5; margin-right: 4px; }
+  .ctl button { font: 500 13px var(--body); border: 1px solid #3a4a40; background: transparent; color: #e8f0ea; padding: 6px 11px; border-radius: 8px; cursor: pointer; }
+  .ctl button[aria-pressed="true"] { background: #e8f0ea; color: #16201a; border-color: #e8f0ea; }
+  .note { max-width: 1180px; margin: 14px auto 0; padding: 0 20px; font-size: 13.5px; color: #3c4a41; line-height: 1.55; }
+  .note b { color: #16201a; }
+
+  .frame { position: relative; max-width: 1180px; margin: 14px auto 40px; background: var(--bg); border-radius: 14px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,.08); display: flex; min-height: 900px; }
+  .frame.phone { max-width: 390px; }
+  .side { width: 210px; flex: none; background: var(--bg-soft); border-right: 1px solid var(--line); padding: 18px 12px; font-size: 13.5px; }
+  .frame.phone .side { display: none; }
+  .side .logo { font: 600 16px var(--display); display: flex; gap: 8px; align-items: center; margin: 0 8px 22px; }
+  .side .logo i { width: 20px; height: 20px; border-radius: 6px; background: var(--green); display: inline-block; }
+  .side .g { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); margin: 20px 10px 6px; }
+  .side a { display: block; padding: 8px 10px; border-radius: 8px; color: var(--text-dim); text-decoration: none; cursor: pointer; }
+  .side a:hover { background: #e8ede8; }
+  .side a.on { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+  .main { flex: 1; min-width: 0; padding: 0 36px 56px; }
+  .frame.phone .main { padding: 0 16px 40px; }
+
+  /* header + intro */
+  .hd { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap; padding: 20px 0 18px; }
+  .hd-l, .hd-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .hd-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--accent); color: var(--accent-fg); font-size: 16px; }
+  .hd h1 { font: 600 24px/1.2 var(--display); margin: 0; }
+  .meta { font-size: 13px; color: var(--text-faint); }
+  .chip { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 99px; background: var(--bg-soft); color: var(--text-dim); white-space: nowrap; }
+  .chip.ok { background: var(--accent); color: var(--accent-fg); }
+  .chip.warn { background: var(--warn-soft); color: var(--warn); }
+  .link { font-size: 13px; font-weight: 600; color: var(--accent-fg); text-decoration: none; white-space: nowrap; background: none; border: 0; padding: 0; cursor: pointer; }
+  .intro { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; background: var(--bg-soft); font-size: 14px; color: var(--text-dim); margin-bottom: 24px; }
+  .intro span { flex: 1; }
+  .how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: -12px 0 24px; }
+  .frame.phone .how { grid-template-columns: 1fr; }
+  .how div { padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line); font-size: 13.5px; line-height: 1.5; color: var(--text-dim); }
+  .how b { display: block; color: var(--text); margin-bottom: 4px; }
+  .how i { font-style: normal; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--accent-fg); font-weight: 700; font-size: 12px; margin-right: 6px; }
+
+  /* buttons */
+  .btn { height: 38px; padding: 0 18px; border-radius: 10px; font: 600 13.5px var(--body); border: 1px solid var(--line); background: #fff; color: var(--text-dim); cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; transition: background .15s, border-color .15s, box-shadow .15s; }
+  .btn:hover { border-color: var(--green); color: var(--text); }
+  .btn.pri { background: var(--green); border-color: var(--green); color: #fff; box-shadow: 0 2px 8px rgba(21,128,61,.25); }
+  .btn.pri:hover { box-shadow: 0 4px 12px rgba(21,128,61,.35); }
+  .btn.out { border: 1.5px solid var(--green); color: var(--green); }
+  .btn.sm { height: 34px; padding: 0 14px; font-size: 13px; }
+  .btn.lg { height: 46px; padding: 0 24px; font-size: 15px; }
+  .btn:disabled { opacity: .5; cursor: default; box-shadow: none; }
+  .btn:focus-visible, .tabs button:focus-visible, .lane button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+  /* the shared "action bar" (option 1) */
+  .abar { display: flex; align-items: center; gap: 14px 20px; flex-wrap: wrap; padding: 16px 18px; border: 1px solid var(--line); border-radius: 16px; margin-bottom: 20px; }
+  .abar-ctx { flex: 1; min-width: 180px; display: grid; gap: 4px; }
+  .abar-ctx b { font-size: 15px; }
+  .abar-r { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .frame.phone .abar, .frame.phone .abar-r { flex-direction: column; align-items: stretch; }
+  .frame.phone .abar-r .btn { width: 100%; }
+  .lane { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--bg-soft); }
+  .lane button { flex: 1; border: 0; background: none; padding: 8px 14px; border-radius: 9px; font: 600 13.5px var(--body); color: var(--text-dim); cursor: pointer; white-space: nowrap; }
+  .lane button[aria-selected="true"] { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .lane em { font-style: normal; margin-left: 6px; font-size: 12px; padding: 1px 7px; border-radius: 99px; background: var(--accent); color: var(--accent-fg); }
+
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--bg-soft); overflow-x: auto; max-width: 100%; }
+  .tabs button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; background: none; padding: 8px 14px; border-radius: 9px; font: 500 13.5px var(--body); color: var(--text-dim); cursor: pointer; white-space: nowrap; }
+  .tabs button[aria-selected="true"] { background: #fff; color: var(--text); font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .tabs span { min-width: 22px; padding: 0 7px; border-radius: 99px; background: #fff; font-size: 12px; font-weight: 700; color: var(--text-dim); }
+  .tabs button[aria-selected="true"] span { background: var(--accent); color: var(--accent-fg); }
+  .tabs span.hot { background: var(--crit); color: #fff; }
+  .search { flex: 1 1 200px; min-width: 140px; height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; font-size: 14px; }
+  .sel { height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; font: 500 13.5px var(--body); color: var(--text-dim); background: #fff; }
+  .search:focus, .sel:focus { outline: none; border-color: var(--green); }
+  .count { font-size: 13.5px; color: var(--text-faint); margin: 0 2px 14px; }
+  .count b { color: var(--text); }
+
+  /* cards */
+  .card { border: 1px solid var(--line); border-radius: 16px; background: #fff; margin-bottom: 14px; overflow: hidden; transition: box-shadow .15s; }
+  .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.05); }
+  .c-head { display: flex; align-items: flex-start; gap: 14px; padding: 18px 20px 0; }
+  .av { flex: none; width: 40px; height: 40px; border-radius: 50%; background: var(--bg-soft); display: grid; place-items: center; font-weight: 700; font-size: 13px; color: var(--text-dim); }
+  .av.sq { border-radius: 11px; }
+  .who { flex: 1; min-width: 0; }
+  .name { font-size: 15.5px; font-weight: 600; line-height: 1.35; }
+  .sub { font-size: 13px; color: var(--text-faint); margin-top: 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .stars { color: var(--star); letter-spacing: 1px; font-size: 12px; } .stars s { color: #d9ddd9; text-decoration: none; }
+  .src { font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 99px; background: var(--info-soft); color: var(--info); }
+  .src.orange { background: #ffeadf; color: #c2410c; } .src.amber { background: var(--warn-soft); color: var(--warn); } .src.green { background: var(--accent); color: var(--accent-fg); } .src.red { background: var(--crit-soft); color: var(--crit); }
+  .badge { flex: none; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: var(--accent); color: var(--accent-fg); white-space: nowrap; }
+  .badge.amber { background: var(--warn-soft); color: var(--warn); } .badge.red { background: var(--crit-soft); color: var(--crit); } .badge.grey { background: var(--bg-soft); color: var(--text-dim); }
+  .c-body { padding: 10px 20px 18px 74px; }
+  .frame.phone .c-body { padding-left: 20px; }
+  .said { margin: 0; font-size: 14px; line-height: 1.6; color: var(--text-dim); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .why { margin: 10px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--accent-fg); display: flex; gap: 8px; }
+  .why::before { content: '✓'; font-weight: 700; }
+  .c-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 10px 20px; border-top: 1px solid var(--line); background: var(--bg-tint); }
+  .c-state { font-size: 13px; color: var(--text-faint); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .tag { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: var(--bg-soft); color: var(--text-dim); }
+  .tag.ok { background: var(--accent); color: var(--accent-fg); } .tag.warn { background: var(--warn-soft); color: var(--warn); } .tag.crit { background: var(--crit-soft); color: var(--crit); }
+  .c-foot .btn { min-width: 140px; }
+  .empty { text-align: center; padding: 48px 20px; border: 1px dashed var(--line); border-radius: 16px; color: var(--text-faint); font-size: 14px; }
+
+  /* first visit */
+  .first { text-align: center; padding: 48px 28px 40px; border: 1px solid var(--line); border-radius: 20px; background: linear-gradient(180deg, #f2f8f4, #fff 60%); }
+  .first .big { width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; margin: 0 auto 18px; background: var(--green); color: #fff; font-size: 28px; box-shadow: 0 8px 20px rgba(21,128,61,.25); }
+  .first h2 { font: 600 26px/1.25 var(--display); margin: 0 0 10px; text-wrap: balance; }
+  .first > p { margin: 0 auto 28px; max-width: 480px; font-size: 15px; line-height: 1.6; color: var(--text-dim); }
+  .first form { max-width: 540px; margin: 0 auto; display: grid; gap: 14px; text-align: left; }
+  .first label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-dim); }
+  .first input[type=text], .first textarea { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font: 400 15px var(--body); color: var(--text); background: #fff; }
+  .first input:focus, .first textarea:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(21,128,61,.12); }
+  .first .chks { display: grid; gap: 8px; }
+  .first .chk { display: flex; gap: 10px; align-items: center; font-weight: 500; color: var(--text); font-size: 14px; }
+  .first .chk input { accent-color: var(--green); width: 17px; height: 17px; }
+  .first .seg { display: inline-flex; padding: 4px; border-radius: 12px; background: var(--bg-soft); justify-self: center; }
+  .first .seg button { border: 0; background: none; padding: 8px 16px; border-radius: 9px; font: 500 14px var(--body); color: var(--text-dim); cursor: pointer; }
+  .first .seg button[aria-pressed="true"] { background: #fff; color: var(--text); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .first .picks { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; font-size: 13px; color: var(--text-faint); align-items: center; }
+  .first .picks button { border: 1px solid var(--line); background: #fff; border-radius: 99px; padding: 5px 12px; font: 500 13px var(--body); color: var(--text-dim); cursor: pointer; }
+  .first .picks button:hover { border-color: var(--green); }
+  .first .fine { display: flex; gap: 8px 22px; justify-content: center; flex-wrap: wrap; margin-top: 24px; font-size: 13px; color: var(--text-faint); }
+  .first .fine span::before { content: '✓ '; color: var(--green); font-weight: 700; }
+
+  /* progress */
+  .prog { border: 1px solid var(--green); background: var(--accent); border-radius: 16px; padding: 20px 22px; margin-bottom: 20px; }
+  .prog-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .prog-top b { font-size: 15px; }
+  .prog ol { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; font-size: 14px; color: var(--text-faint); }
+  .prog li.p-done { color: var(--accent-fg); }
+  .prog li.p-on { color: var(--text); font-weight: 700; }
+  .spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #fff; border-top-color: var(--green); animation: sp .8s linear infinite; flex: none; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+  /* side panel (settings / earlier scans) */
+  .panel { border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; margin-bottom: 20px; }
+  .panel h3 { margin: 0 0 4px; font: 600 18px var(--display); }
+  .panel .hint { margin: 0 0 16px; font-size: 13.5px; color: var(--text-faint); }
+  .panel .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .frame.phone .panel .grid { grid-template-columns: 1fr; }
+  .panel label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-dim); }
+  .panel input[type=text], .panel textarea { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: 400 14px var(--body); color: var(--text); }
+  .panel .full { grid-column: 1 / -1; }
+  .panel .chk { display: flex; gap: 10px; align-items: flex-start; font-weight: 500; font-size: 14px; color: var(--text); }
+  .panel .chk input { margin-top: 3px; accent-color: var(--green); width: 16px; height: 16px; }
+  .panel .chk small { display: block; color: var(--text-faint); font-weight: 400; font-size: 12.5px; margin-top: 2px; }
+  .panel .acts { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+  .hist { display: grid; gap: 8px; }
+  .hist button { display: flex; justify-content: space-between; gap: 10px; align-items: center; text-align: left; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font: 500 14px var(--body); cursor: pointer; }
+  .hist button:hover { border-color: var(--green); }
+  .hist span { font-size: 12.5px; color: var(--text-faint); }
+
+  /* detail: same as the Competitor Leads reach-out page */
+  .crumbs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13.5px; color: var(--text-faint); margin: 0 0 20px; }
+  .crumbs b { color: var(--text); }
+  .ro { display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .frame.phone .ro { grid-template-columns: 1fr; }
+  .ro-side { position: sticky; top: 76px; display: grid; gap: 14px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--bg-soft); }
+  .frame.phone .ro-side { position: static; }
+  .ro-person { display: flex; align-items: center; gap: 12px; }
+  .ro-person .av { background: #fff; width: 46px; height: 46px; }
+  .ro-person h2 { margin: 0; font: 600 18px/1.25 var(--display); }
+  .ro-quote { margin: 0; padding: 14px 16px; border-radius: 14px; background: #fff; font-size: 14px; line-height: 1.65; }
+  .ro-src { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--text-faint); }
+  .steps { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; padding: 0; list-style: none; }
+  .step { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; font-size: 13.5px; color: var(--text-faint); }
+  .step:last-child { flex: none; }
+  .step:not(:last-child)::after { content: ''; flex: 1; height: 2px; background: var(--line); min-width: 10px; border-radius: 2px; }
+  .step.past:not(:last-child)::after { background: var(--green); }
+  .step .n { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--line); background: #fff; font-size: 12.5px; font-weight: 700; }
+  .step.on { color: var(--text); font-weight: 700; }
+  .step.on .n { border-color: var(--green); color: var(--green); box-shadow: 0 0 0 4px rgba(21,128,61,.12); }
+  .step.past .n { background: var(--green); border-color: var(--green); color: #fff; }
+  .frame.phone .step:not(.on) .l { display: none; }
+  .pane { border: 1px solid var(--line); border-radius: 18px; background: #fff; overflow: hidden; }
+  .pane-in { padding: 26px 28px; }
+  .frame.phone .pane-in { padding: 20px; }
+  .pane h3 { margin: 0; font: 600 21px/1.3 var(--display); }
+  .pane .hint { margin: 8px 0 20px; font-size: 14px; color: var(--text-dim); line-height: 1.55; min-height: 1.5em; }
+  .fitbox { padding: 16px 18px; border-radius: 14px; background: var(--bg-soft); font-size: 14px; line-height: 1.55; }
+  .fitbox .top { display: flex; justify-content: space-between; font-weight: 700; color: var(--green); margin-bottom: 8px; }
+  .meter { height: 6px; border-radius: 99px; background: #fff; margin-bottom: 10px; overflow: hidden; }
+  .meter i { display: block; height: 100%; background: var(--green); border-radius: 99px; }
+  .ro-side .fitbox { background: #fff; border: 1px solid var(--line); }
+  .found { display: flex; gap: 12px; padding: 14px 16px; border-radius: 14px; background: var(--accent); color: var(--accent-fg); font-size: 13.5px; margin-bottom: 14px; }
+  .found b { display: block; font-size: 14.5px; }
+  .field { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-dim); }
+  .field input { height: 46px; border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; font: 400 15px var(--body); }
+  .mail { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .mail .r { display: flex; gap: 10px; align-items: center; padding: 0 16px; min-height: 46px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .mail .r span { width: 60px; color: var(--text-faint); font-size: 13px; }
+  .mail .r input { flex: 1; border: 0; font: 500 14.5px var(--body); outline: none; min-width: 0; }
+  .mail textarea { display: block; width: 100%; border: 0; padding: 16px; font: 400 14.5px/1.7 var(--body); resize: vertical; outline: none; min-height: 190px; }
+  .mail .t { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-top: 1px solid var(--line); background: var(--bg-tint); font-size: 12.5px; color: var(--text-faint); flex-wrap: wrap; }
+  .mail .t .r2 { margin-left: auto; }
+  .rule { padding: 12px 14px; border-radius: 12px; background: var(--warn-soft); color: var(--warn); font-size: 13.5px; margin-bottom: 14px; }
+  .actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; padding: 16px 28px; border-top: 1px solid var(--line); background: var(--bg-tint); }
+  .frame.phone .actions { padding: 14px 20px; }
+  .actions .back { margin-right: auto; }
+  .done { text-align: center; padding: 8px 0; }
+  .done .tick { width: 52px; height: 52px; border-radius: 50%; background: var(--accent); color: var(--green); display: grid; place-items: center; font-size: 22px; font-weight: 700; margin: 0 auto 14px; }
+  .done h3 { margin-bottom: 8px; }
+  .done p { font-size: 14px; color: var(--text-dim); margin: 0; line-height: 1.6; }
+  .kv { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+  .kv div { padding: 12px 14px; border-radius: 12px; background: var(--bg-soft); font-size: 12.5px; color: var(--text-faint); }
+  .kv b { display: block; font: 600 20px var(--display); color: var(--text); }
+  .draft { border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; font-size: 14.5px; line-height: 1.7; color: var(--text-dim); max-height: 260px; overflow: auto; }
+  .draft h4 { margin: 0 0 8px; font: 600 18px var(--display); color: var(--text); }
+
+  .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: #16201a; color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 14px; z-index: 80; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+</style>
+</head>
+<body>
+<div class="ctl">
+  <h1>One layout for every tool</h1>
+  <div class="grp"><span class="lbl">Page</span>
+    <button data-k="state" data-v="first" aria-pressed="true">First visit</button>
+    <button data-k="state" data-v="back" aria-pressed="false">Coming back</button>
+  </div>
+  <div class="grp"><span class="lbl">Width</span>
+    <button data-k="size" data-v="desk" aria-pressed="true">Desktop</button>
+    <button data-k="size" data-v="phone" aria-pressed="false">Phone</button>
+  </div>
+  <div class="grp"><button id="reset">Reset demo</button></div>
+</div>
+<p class="note">
+  Pick a tool in the sidebar: <b>Competitor Leads, Lead Agent, Email Outreach, Search Agent</b>. Each opens on what a new user sees (<b>First visit</b>); do its first step and it fills with results, or switch to <b>Coming back</b>.
+  Every tool has the same slots: <b>header</b> · <b>one-line intro</b> (How it works opens the 3 steps) · <b>action bar</b> (what it's working on + its main green action) · <b>status tabs + search, filter, sort</b> · <b>cards</b> with one button that opens <b>3 steps</b>. Everything is clickable.
+</p>
+
+<div class="frame" id="frame">
+  <aside class="side">
+    <div class="logo"><i></i>GrowJin</div>
+    <div class="g">Get customers</div>
+    <a data-tool="la">Lead Agent</a><a data-tool="cl">Competitor Leads</a><a data-tool="em">Email Outreach</a>
+    <div class="g">Get seen</div>
+    <a data-tool="sa">Search Agent</a><a>Social Studio</a><a>Meta Ads</a>
+  </aside>
+  <main class="main" id="view"></main>
+</div>
+<div id="toastHost"></div>
+
+<script>
+const BRAND = 'Frekto'
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+const stars = n => `<span class="stars">${'★'.repeat(n)}<s>${'★'.repeat(5 - n)}</s></span>`
+
+// ── Step flows (3 steps each, same shell as the Competitor Leads reach-out page) ──
+const fit = it => `<div class="fitbox"><div class="top"><span>${it.fit >= 7 ? 'Good fit' : 'Partial fit'}</span><span>${it.fit}/10</span></div><div class="meter"><i style="width:${it.fit * 10}%"></i></div>${esc(it.why)}</div>`
+const mail = (to, subject, body) => `<div class="mail"><label class="r"><span>To</span><input value="${esc(to)}"></label><label class="r"><span>Subject</span><input value="${esc(subject)}"></label><textarea aria-label="Message">${esc(body)}</textarea>
+  <div class="t"><button class="btn sm" data-toast="Rewritten">↻ Rewrite</button><button class="btn sm" data-toast="Copied">Copy</button><span class="r2">Follow-up reminder in 5 days</span></div></div>`
+const emailFlow = {
+  labels: ['Email them?', 'Their email', 'Review & send'],
+  steps: [
+    it => ({ title: `Do you want to email ${it.first}?`, hint: `${BRAND} is a ${it.fit >= 7 ? 'good' : 'partial'} fit for what they complained about.`, body: fit(it), back: ['No, not a fit', 'skip'], next: 'Yes, write an email →' }),
+    it => ({ title: 'Where should it go?', hint: 'We looked up their email. Check it, or paste the right one.', body: (it.email ? `<div class="found"><span>✉</span><div><b>Found ${it.first}'s email</b>on their website · verified</div></div>` : `<div class="found" style="background:var(--warn-soft);color:var(--warn)"><span>?</span><div><b>No public email found</b>Paste it if you know it.</div></div>`) + `<label class="field">Email address<input value="${esc(it.email ?? '')}" placeholder="name@company.com"></label>`, back: ['← Back', 'back'], next: 'Continue →' }),
+    it => ({ title: 'Check the email, then send it', hint: 'Short and plain, from your Gmail. Edit anything you like.', body: mail(it.email ?? '', it.subject ?? 'Posting without the hours', `Hi ${it.first},\n\n${BRAND} makes your social posts for you, on-brand and ready to schedule, usually in under a minute.\n\nWould a free week of posts help?\n\n${BRAND}`), back: ['← Back', 'back'], next: 'Send email →' }),
+  ],
+  done: it => ({ title: `Email sent to ${it.first}`, text: `Sent from your Gmail. We'll remind you to follow up in 5 days if they don't reply.` }),
+}
+const FLOWS = {
+  email: emailFlow,
+  community: {
+    labels: ['Worth replying?', 'Check the reply', 'Post it'],
+    steps: [
+      it => ({ title: 'Worth replying to this post?', hint: 'Reddit bans automated replies, so we draft and you post.', body: fit(it), back: ['No, skip', 'skip'], next: 'Yes, check the reply →' }),
+      it => ({ title: 'Check the reply', hint: 'Helpful answer first, your product second. Make it sound like you.', body: `<div class="rule">📌 ${esc(it.rule)}</div><div class="mail"><textarea aria-label="Reply">${esc(it.reply)}</textarea></div>`, back: ['← Back', 'back'], next: 'Looks good →' }),
+      it => ({ title: 'Post it', hint: `Copy the reply, open the post, paste it as a comment, then mark it posted.`, body: `<div class="draft">${esc(it.reply).replace(/\n/g, '<br>')}</div><div class="row" style="margin:14px 0 0"><button class="btn out" data-toast="Reply copied">Copy reply</button><button class="btn out" data-toast="Opening the post in a new tab">Open post ↗</button></div>`, back: ['← Back', 'back'], next: 'Mark as posted' }),
+    ],
+    done: () => ({ title: 'Marked as posted', text: 'We check the thread every day and tell you when someone answers.' }),
+  },
+  thread: {
+    labels: ['Read it', 'Write a reply', 'Send'],
+    steps: [
+      it => ({ title: `${it.first} wrote back`, hint: 'Here’s what they said, and what they want.', body: `<div class="fitbox"><div class="top"><span>${esc(it.badge[0])}</span><span>${esc(it.time)}</span></div>${esc(it.why)}</div>`, back: ['Not now', 'skip'], next: 'Write a reply →' }),
+      it => ({ title: 'Check the reply', hint: 'Drafted from the thread and your brand. Edit anything.', body: mail(it.email, `Re: ${it.subject}`, `Hi ${it.first},\n\nThanks for getting back to me. ${it.replyLine}\n\n${BRAND}`), back: ['← Back', 'back'], next: 'Looks good →' }),
+      it => ({ title: 'Send it?', hint: 'It goes from your Gmail, in the same thread.', body: `<div class="draft">Hi ${it.first},<br><br>Thanks for getting back to me. ${esc(it.replyLine)}<br><br>${BRAND}</div>`, back: ['← Back', 'back'], next: 'Send reply →' }),
+    ],
+    done: it => ({ title: `Reply sent to ${it.first}`, text: 'We’ll remind you if they go quiet for 5 days.' }),
+  },
+  campaign: {
+    labels: ['Who gets it', 'Check the emails', 'Send'],
+    steps: [
+      it => ({ title: `${esc(it.name)}`, hint: 'The people this campaign goes to.', body: `<div class="kv"><div><b>${it.people}</b>people</div><div><b>${it.sent}</b>sent</div><div><b>${it.replies}</b>replies</div></div>`, back: ['Close', 'skip'], next: 'Check the emails →' }),
+      it => ({ title: 'Check the emails', hint: 'One personal email per person. Open any to edit.', body: `<div class="draft"><h4>Quick idea for Acme</h4>Hi Alice,<br><br>${BRAND} makes on-brand posts for small teams, ready to schedule…</div>`, back: ['← Back', 'back'], next: 'Looks good →' }),
+      it => ({ title: `Send to ${it.people - it.sent} people?`, hint: 'From your Gmail, spaced out so they land like normal emails.', body: `<div class="kv"><div><b>${it.people - it.sent}</b>to send</div><div><b>Today</b>start</div><div><b>3, 7</b>follow-up days</div></div>`, back: ['← Back', 'back'], next: 'Send campaign →' }),
+    ],
+    done: it => ({ title: 'Campaign is sending', text: 'You’ll see replies in Inbox leads.' }),
+  },
+  topic: {
+    labels: ['Write this post?', 'Read the draft', 'Publish'],
+    steps: [
+      it => ({ title: `Write about “${esc(it.name)}”?`, hint: 'Real searches, and a keyword you can realistically rank for.', body: `<div class="kv"><div><b>${it.vol}</b>searches a month</div><div><b>${it.kd}</b>difficulty</div><div><b>${it.rank}</b>your rank now</div></div>` + fit(it), back: ['Skip topic', 'skip'], next: 'Yes, write it →' }),
+      it => ({ title: 'Read the draft', hint: 'Written for this keyword, in your brand voice. About 1,200 words.', body: `<div class="draft"><h4>${esc(it.title)}</h4>Posting every day is the single biggest lever for small businesses on Instagram, and the hardest to keep up. Here's how cafés and shops do it without hiring…</div>`, back: ['← Back', 'back'], next: 'Approve draft →' }),
+      it => ({ title: 'Put it on your site', hint: 'Copy it into your blog, or give Claude the Markdown link.', body: `<div class="row" style="margin:0"><button class="btn out" data-toast="Markdown copied">Copy Markdown</button><button class="btn out" data-toast="Link copied">Copy link for Claude</button></div>`, back: ['← Back', 'back'], next: 'Mark as published' }),
+    ],
+    done: () => ({ title: 'Marked as published', text: 'We’ll track where it ranks every week.' }),
+  },
+  pitch: {
+    labels: ['Pitch this site?', 'Their email', 'Send pitch'],
+    steps: [
+      it => ({ title: `Ask ${esc(it.name)} to list you?`, hint: 'They link to your competitors but not to you.', body: `<div class="kv"><div><b>${it.auth}</b>authority</div><div><b>${it.comps}</b>competitors listed</div><div><b>${it.kind}</b>page type</div></div>` + fit(it), back: ['Skip site', 'skip'], next: 'Yes, write a pitch →' }),
+      it => ({ title: 'Where should it go?', hint: 'We found their editor’s email on the site.', body: `<div class="found"><span>✉</span><div><b>${esc(it.email)}</b>from their contact page</div></div>`, back: ['← Back', 'back'], next: 'Continue →' }),
+      it => ({ title: 'Check the pitch, then send it', hint: 'Short, specific, one clear ask.', body: mail(it.email, `Adding ${BRAND} to your list?`, `Hi,\n\nI liked your “${it.page}”. ${BRAND} does the same job for small teams and makes the posts too. Worth adding?\n\n${BRAND}`), back: ['← Back', 'back'], next: 'Send pitch →' }),
+    ],
+    done: it => ({ title: `Pitch sent to ${esc(it.name)}`, text: 'One follow-up goes out in 5 days if they don’t reply.' }),
+  },
+  rank: {
+    labels: ['Where you are', 'What to fix', 'Done'],
+    steps: [
+      it => ({ title: `“${esc(it.name)}”`, hint: 'Your page and the ones above it.', body: `<div class="kv"><div><b>#${it.now}</b>now</div><div><b>${it.move}</b>this week</div><div><b>${it.vol}</b>searches</div></div>`, back: ['Close', 'skip'], next: 'What should I fix? →' }),
+      it => ({ title: 'What to fix', hint: 'From the pages ranking above you.', body: `<div class="draft">1. Add a section on “${esc(it.name)}” with an example.<br>2. Put the keyword in the page title.<br>3. Link to this page from your homepage.</div>`, back: ['← Back', 'back'], next: 'I’ve done these →' }),
+      it => ({ title: 'Nice. We’ll keep watching', hint: 'Rankings are checked every week.', body: '', back: ['← Back', 'back'], next: 'Back to rankings' }),
+    ],
+    done: () => ({ title: 'Marked as fixed', text: 'We’ll show the change in next week’s rankings.' }),
+  },
+}
+
+// ── The four tools, filling the same slots ──
+const TOOLS = {
+  cl: {
+    title: 'Competitor Leads', icon: '◎', chips: '<span class="chip">Beta</span><span class="chip ok">● Gmail connected</span>',
+    intro: 'Finds unhappy customers of a competitor who your product could actually help.',
+    how: [['Pick a competitor', 'Paste their website or Shopify App Store link.'], ['See the good fits', 'GrowJin reads their newest reviews and keeps the people you could help.'], ['Email them', 'Each gets a short, personal email from your Gmail.']],
+    first: { icon: '◎', title: 'Turn a competitor’s unhappy customers into leads', text: `Paste a competitor. GrowJin reads their newest reviews and finds the people ${BRAND} could actually help.`,
+      form: `<div class="seg" role="group"><button type="button" aria-pressed="true" data-seg>Trustpilot</button><button type="button" aria-pressed="false" data-seg>Shopify App Store</button></div>
+        <label>Competitor<input type="text" id="firstIn" placeholder="competitor.com or their Trustpilot link"></label>
+        <div class="picks">Your competitors: <button type="button" data-fill="buffer.com">buffer.com</button><button type="button" data-fill="later.com">later.com</button><button type="button" data-fill="predis.ai">predis.ai</button></div>`,
+      cta: 'Find leads', fine: ['Under a minute', 'A few cents', 'Nothing is sent without you'] },
+    progress: ['Reading the newest reviews', 'Keeping the unhappy ones', `Checking who ${BRAND} can help`],
+    ctx: () => ({ title: `Trustpilot · ${S.cl.target || 'buffer.com'}`, meta: '50 newest reviews · read just now' }),
+    primary: '🔍 Scan another competitor', secondary: 'Earlier scans',
+    panel: () => `<div class="panel"><h3>Earlier scans</h3><p class="hint">Open one to see its leads again.</p><div class="hist">
+      <button data-close-panel>buffer.com<span>Oct 22 · 5 good fits · 1 emailed</span></button><button data-close-panel>Minta Video Auto Post<span>Oct 21 · 2 good fits</span></button><button data-close-panel>later.com<span>Oct 18 · 3 good fits · 2 emailed</span></button></div></div>`,
+    tabs: [['good', 'Good fits'], ['sent', 'Emailed'], ['skip', 'Not a fit']],
+    filters: '<select class="sel" aria-label="Stars"><option>All stars</option><option>1★</option><option>2★</option><option>3★</option></select>',
+    countLine: n => `<b>${n} good fits</b> out of 50 reviews read`,
+    items: [
+      { id: 'c1', tab: 'good', flow: 'email', av: 'MC', name: 'Maya Chen', first: 'Maya', sub: `${stars(1)}<span>Oct 19</span><a class="link" href="#">Read on Trustpilot ↗</a>`, badge: ['Good fit · 9/10'], fit: 9, text: 'Buffer keeps failing to publish my posts and I still design everything in Canva. Losing hours every week.', why: 'She designs every post by hand. Frekto makes and schedules them.', email: 'maya@chenbakery.com', btn: 'Reach out →' },
+      { id: 'c2', tab: 'good', flow: 'email', av: 'TB', name: 'Tom Becker', first: 'Tom', sub: `${stars(3)}<span>Oct 16</span><a class="link" href="#">Read on Trustpilot ↗</a>`, badge: ['Good fit · 8/10'], fit: 8, text: 'I spend ages making images for every post. Wish it helped with the content.', why: 'Wants help making the content itself.', email: null, btn: 'Reach out →' },
+      { id: 'c3', tab: 'good', flow: 'email', av: 'BC', name: 'Ben Cho', first: 'Ben', sub: `${stars(2)}<span>Oct 13</span><a class="link" href="#">Read on Trustpilot ↗</a>`, badge: ['Good fit · 8/10'], fit: 8, text: 'Analytics are basic and I still write every caption myself.', why: 'Writes every caption by hand; Frekto writes them.', email: 'ben@chocoffee.com', btn: 'Reach out →' },
+      { id: 'c4', tab: 'sent', flow: 'email', av: 'IL', name: 'Ivy Lu', first: 'Ivy', sub: `${stars(1)}<span>Oct 12</span>`, badge: ['Good fit · 7/10'], fit: 7, text: 'Support never answers and posts fail.', why: 'Posts fail to publish.', email: 'ivy@lu.studio', state: '<span class="tag ok">✓ Emailed Oct 22</span>', btn: 'View email', done: true },
+      { id: 'c5', tab: 'skip', flow: 'email', av: 'PN', name: 'Priya Nair', first: 'Priya', sub: `${stars(2)}<span>Oct 17</span>`, badge: ['Weak fit · 3/10', 'grey'], fit: 3, text: 'Instagram integration broke twice this month.', why: 'Connection problems, which Frekto doesn’t fix.', state: '<span class="tag">Marked not a fit</span>', btn: 'Reach out →' },
+    ],
+  },
+  la: {
+    title: 'Lead Agent', icon: '🤖', chips: '<span class="chip ok">● Gmail connected</span>',
+    intro: 'Finds people who need your product: some to email, some asking on Reddit or Hacker News.',
+    how: [['Tell it who you sell to', 'Pick where to look: reviews, Google Maps, Reddit and Hacker News.'], ['Get leads with drafts', 'Each lead comes with an email or a Reddit reply written for them.'], ['Approve or post', 'You send every email and post every reply. Follow-ups stop when they reply.']],
+    first: { icon: '🤖', title: 'Find people who need ' + BRAND, text: 'Tell it who you sell to and where to look. It finds leads and writes the first message for each one.',
+      form: `<label>Who is your customer?<textarea id="firstIn" rows="2">Small business owners (cafés, salons, shops) who post on Instagram and struggle to make content</textarea></label>
+        <div class="chks"><label class="chk"><input type="checkbox" checked> Unhappy customers of competitors</label><label class="chk"><input type="checkbox" checked> Businesses on Google Maps</label><label class="chk"><input type="checkbox" checked> Reddit and Hacker News posts</label></div>`,
+      cta: 'Find my first leads', fine: ['1–3 minutes', 'You approve every email', 'Search again anytime'] },
+    progress: ['Reading competitor reviews', 'Searching Google Maps', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies'],
+    ctx: () => ({ title: 'Last search just now', meta: 'Reviews of buffer.com · Google Maps “cafés in Pune” · Reddit & HN' }),
+    primary: '🔍 Find new leads', secondary: 'Search settings',
+    panel: () => `<div class="panel"><h3>Search settings</h3><p class="hint">What Find new leads looks for.</p><div class="grid">
+      <label class="full">Who is your customer?<textarea rows="2">Small business owners (cafés, salons, shops) who post on Instagram and struggle to make content</textarea></label>
+      <label>Competitors<input type="text" value="buffer.com, later.com"></label><label>Google Maps search<input type="text" value="cafés in Pune"></label>
+      <label class="chk full"><input type="checkbox"> <span>Search every morning automatically<small>New leads are waiting each day. Nothing is sent without you.</small></span></label>
+      <label class="chk full"><input type="checkbox" checked> <span>Send follow-ups automatically<small>After 3 and 7 days. Stops when they reply.</small></span></label></div>
+      <div class="acts"><button class="btn" data-close-panel>Cancel</button><button class="btn pri" data-close-panel data-toast="Settings saved">Save</button></div></div>`,
+    lanes: [['email', 'Email leads'], ['community', 'Community']],
+    tabs: { email: [['needs', 'To approve'], ['replied', 'Replied', true], ['sent', 'Sent']], community: [['toreply', 'To reply'], ['answers', 'Answers', true], ['posted', 'Posted']] },
+    filters: '<select class="sel" aria-label="Source"><option>All sources</option><option>Unhappy reviewers</option><option>Google Maps</option><option>Reddit</option><option>Hacker News</option></select>',
+    countLine: n => S.la.lane === 'email' ? `<b>${n} emails to approve</b> · nothing is sent until you say so` : `<b>${n} posts to reply to</b> · newest first`,
+    items: [
+      { id: 'l1', lane: 'email', tab: 'needs', flow: 'email', av: 'MC', name: 'Maya Chen', first: 'Maya', sub: '<span class="src">Unhappy reviewer</span><span>Chen Bakery · Today</span>', badge: ['Good fit · 9/10'], fit: 9, text: 'Buffer keeps failing to publish my posts and I still design everything in Canva.', why: 'She designs every post by hand.', email: 'maya@chenbakery.com', state: '<span class="tag">Email drafted</span>', btn: 'Review email →' },
+      { id: 'l2', lane: 'email', tab: 'needs', flow: 'email', av: 'BS', name: 'Bloom Salon', first: 'Bloom', sub: '<span class="src amber">Google Maps</span><span>Pune · 3.6★ · Yesterday</span>', badge: ['Good fit · 8/10'], fit: 8, text: '42 Google reviews, last Instagram post 5 months ago.', why: 'Busy salon with no time for social.', email: 'hello@bloomsalon.in', state: '<span class="tag">Email drafted</span>', btn: 'Review email →' },
+      { id: 'l3', lane: 'email', tab: 'needs', flow: 'email', av: 'DO', name: 'Daniel Ortiz', first: 'Daniel', sub: '<span class="src">Unhappy reviewer</span><span>Ortiz Coffee · Yesterday</span>', badge: ['Good fit · 8/10'], fit: 8, text: 'Price went up again and posting is still a chore for my shop.', why: 'Posting feels like a chore.', email: null, state: '<span class="tag warn">Needs an email</span>', btn: 'Review email →' },
+      { id: 'l4', lane: 'email', tab: 'replied', flow: 'thread', av: 'TB', name: 'Tom Becker', first: 'Tom', sub: '<span class="src">Unhappy reviewer</span><span>Becker Prints · emailed Oct 19</span>', badge: ['Replied', 'red'], time: 'Today', fit: 8, text: '“Sounds interesting, can you send pricing?”', why: 'Asked for pricing. Reply while they’re interested.', email: 'tom@beckerprints.com', subject: 'Posting without the hours', replyLine: 'Plans start at $19 a month, and the first week is free. Want me to set it up for you?', state: '<span class="tag crit">Replied today</span>', btn: 'Reply →' },
+      { id: 'l5', lane: 'email', tab: 'sent', flow: 'email', av: 'LC', name: 'Lumen Candles', first: 'Lumen', sub: '<span class="src amber">Google Maps</span><span>Mumbai</span>', badge: ['Good fit · 7/10'], fit: 7, text: 'No posts in 3 months.', why: 'Inactive social, small team.', email: 'hi@lumencandles.com', state: '<span class="tag ok">✓ Emailed Oct 18</span> Follow-up Oct 21', btn: 'View email', done: true },
+      { id: 'l6', lane: 'community', tab: 'toreply', flow: 'community', av: 'r/', sq: true, name: 'Any tool that makes Instagram posts for my café automatically?', first: 'them', sub: '<span class="src orange">r/smallbusiness</span><span>▲ 14 · 9 comments · 3 h ago</span>', badge: ['Good fit · 9/10'], fit: 9, text: 'I don’t have time to design posts every day. Tried Canva but it still takes an hour.', why: 'Asking for exactly what Frekto does.', rule: 'r/smallbusiness allows naming a tool if you say you made it.', reply: 'Same problem with my shop. What helped: batch a week of posts on Sunday, and use a tool that makes the images from your menu photos.\n\nFull disclosure, I make Frekto, which does that.', state: '<span class="tag">Reply drafted</span>', btn: 'Write reply →' },
+      { id: 'l7', lane: 'community', tab: 'toreply', flow: 'community', av: 'Y', sq: true, name: 'Ask HN: How do you handle social media as a solo founder?', first: 'them', sub: '<span class="src orange">Ask HN</span><span>▲ 41 · 27 comments · Yesterday</span>', badge: ['Good fit · 7/10'], fit: 7, text: 'I know I should post, but every week it slips.', why: 'Solo founder short on time for social.', rule: 'Hacker News: answer first, say you built it, no marketing words.', reply: 'I gave up on daily posting until I automated the boring part.\n\nDisclosure: I make Frekto, which does that.', state: '<span class="tag">Reply drafted</span>', btn: 'Write reply →' },
+      { id: 'l8', lane: 'community', tab: 'answers', flow: 'community', av: 'r/', sq: true, name: 'Best way to post daily without hiring someone?', first: 'them', sub: '<span class="src orange">r/smallbusiness</span><span>you posted Oct 20</span>', badge: ['2 answers', 'red'], fit: 8, text: '“Trying this now, thanks!” · u/bakery_bea', why: 'Someone answered your reply.', rule: '', reply: '', state: '<span class="tag crit">2 new answers</span>', btn: 'See answers →', done: true },
+      { id: 'l9', lane: 'community', tab: 'posted', flow: 'community', av: 'Y', sq: true, name: 'Ask HN: Tools you pay for as a one-person company?', first: 'them', sub: '<span class="src orange">Ask HN</span><span>you posted Oct 18</span>', badge: ['Posted', 'grey'], fit: 7, text: 'Curious what tools solo founders pay for.', why: 'No answers yet.', state: '<span class="tag ok">✓ Posted</span>', btn: 'View thread', done: true },
+    ],
+  },
+  em: {
+    title: 'Email Outreach', icon: '✉', chips: () => S.em.connected ? '<span class="chip ok">● me@frekto.com</span>' : '<span class="chip warn">Gmail not connected</span>',
+    intro: 'Your sales inbox: spots people likely to buy, helps you write to them, and reminds you to follow up.',
+    how: [['Connect Gmail', 'Incoming emails are sorted into hot, warm and cold leads.'], ['Write or run a campaign', 'One email, or a personal email to a whole list.'], ['Never forget a follow-up', 'If they don’t reply, a follow-up is ready to send.']],
+    first: { icon: '✉', title: 'Connect Gmail to find your hottest leads', text: 'GrowJin reads your inbox, flags people likely to buy, and writes replies and follow-ups for you. Nothing is sent without you.',
+      form: '', cta: 'Connect Gmail', fine: ['Read and send only', 'Disconnect anytime', 'Nothing is sent without you'] },
+    progress: ['Connecting Gmail', 'Reading the last 30 days', 'Sorting hot, warm and cold leads'],
+    ctx: () => ({ title: 'Sending from me@frekto.com', meta: '12 sent this week · 3 replies · 2 follow-ups due' }),
+    primary: '✉ New campaign', secondary: 'Write one email',
+    panel: () => `<div class="panel"><h3>Write one email</h3><p class="hint">To one person. GrowJin drafts it from your brand.</p><div class="grid">
+      <label>Their name<input type="text" placeholder="Alice Johnson"></label><label>Their email<input type="text" placeholder="alice@acme.com"></label>
+      <label class="full">What should it say?<textarea rows="2" placeholder="Offer a free week of posts"></textarea></label></div>
+      <div class="acts"><button class="btn" data-close-panel>Cancel</button><button class="btn pri" data-close-panel data-toast="Draft written. Opening it…">Write it</button></div></div>`,
+    tabs: [['inbox', 'Hot leads', true], ['follow', 'Follow-ups due'], ['camp', 'Campaigns'], ['sent', 'Sent']],
+    filters: '<select class="sel" aria-label="Lead type"><option>All leads</option><option>Hot</option><option>Warm</option><option>Cold</option></select>',
+    countLine: n => `<b>${n}</b> to look at`,
+    items: [
+      { id: 'e1', tab: 'inbox', flow: 'thread', av: 'PS', name: 'Priya Shah', first: 'Priya', sub: '<span class="src red">Hot lead</span><span>Acme Retail · 9:14 AM</span>', badge: ['Hot lead', 'red'], time: '9:14 AM', fit: 9, text: '“Interested in pricing for 3 locations. Can we talk this week?”', why: 'Ready to buy: asked for pricing and a call.', email: 'priya@acmeretail.com', subject: 'Pricing for 3 locations', replyLine: 'Happy to. For 3 locations it’s $49 a month. Does Thursday at 11 work for a quick call?', state: '<span class="tag crit">Unread</span>', btn: 'Reply →' },
+      { id: 'e2', tab: 'inbox', flow: 'thread', av: 'MW', name: 'Marcus Webb', first: 'Marcus', sub: '<span class="src amber">Warm lead</span><span>Webb & Co · Yesterday</span>', badge: ['Warm lead', 'amber'], time: 'Yesterday', fit: 7, text: '“Following up, does it work with Shopify?”', why: 'Asking a product question before buying.', email: 'marcus@webb.co', subject: 'Shopify?', replyLine: 'Yes, it pulls your Shopify products and makes posts from them.', state: '<span class="tag">Read</span>', btn: 'Reply →' },
+      { id: 'e3', tab: 'follow', flow: 'thread', av: 'DP', name: 'Daniel Park', first: 'Daniel', sub: '<span class="src">No reply in 7 days</span><span>emailed Oct 15</span>', badge: ['Follow-up due', 'amber'], time: '7 days', fit: 7, text: 'You wrote: “Posting without the hours…”', why: 'No reply yet. A short nudge usually works.', email: 'daniel@parkdesign.co', subject: 'Posting without the hours', replyLine: 'Just bringing this back up in case it got buried.', state: '<span class="tag warn">Due today</span>', btn: 'Follow up →' },
+      { id: 'e4', tab: 'camp', flow: 'campaign', av: '📣', sq: true, name: 'Café owners in Pune', first: '', sub: '<span class="src green">Sending</span><span>started Oct 20</span>', badge: ['18 / 25 sent', 'grey'], people: 25, sent: 18, replies: 3, text: 'Offer a free week of posts to café owners.', why: '3 replies so far.', state: '<span class="tag ok">3 replies</span>', btn: 'Open campaign →' },
+      { id: 'e5', tab: 'sent', flow: 'thread', av: 'LC', name: 'Lumen Candles', first: 'Lumen', sub: '<span class="src">Lead Agent</span><span>Oct 18</span>', badge: ['Sent', 'grey'], time: 'Oct 18', fit: 7, text: 'Posting without the hours', why: 'Follow-up 1 on Oct 21.', email: 'hi@lumencandles.com', subject: 'Posting', replyLine: '', state: '<span class="tag ok">✓ Sent</span>', btn: 'View', done: true },
+    ],
+  },
+  sa: {
+    title: 'Search Agent', icon: '🔎', chips: '',
+    intro: 'Gets you found on Google and in AI answers: what to write, sites to get listed on, and where you rank.',
+    how: [['Tell it what you sell', 'A few words people would search for.'], ['Get a weekly plan', 'Topics to write, sites to pitch, and fixes for your pages.'], ['Watch it work', 'Your Google rank and AI mentions, every week.']],
+    first: { icon: '🔎', title: 'Get found when people search for what you sell', text: 'Tell it what you sell. It finds what people search for, writes posts that can rank, and finds sites that should list you.',
+      form: `<label>What do people search to find you?<input type="text" id="firstIn" placeholder="e.g. social media scheduler, instagram post maker"></label>
+        <div class="picks">From your site: <button type="button" data-fill="social media scheduler">social media scheduler</button><button type="button" data-fill="ai instagram posts">ai instagram posts</button></div>`,
+      cta: 'Start research', fine: ['About 2 minutes', 'Weekly after that', 'Nothing is published without you'] },
+    progress: ['Finding what people search', 'Checking where you rank', 'Asking ChatGPT and Perplexity about you', 'Finding sites that list competitors'],
+    ctx: () => ({ title: 'Researching “social media scheduler”', meta: 'India · last research 2 days ago · next on Monday' }),
+    primary: '🔍 Run research now', secondary: 'Search settings',
+    panel: () => `<div class="panel"><h3>Search settings</h3><p class="hint">What the research looks for.</p><div class="grid">
+      <label>Keywords<input type="text" value="social media scheduler, instagram post maker"></label><label>Country<input type="text" value="India"></label>
+      <label class="full">Questions buyers ask AI assistants<input type="text" value="What's the best tool to make Instagram posts for a café?"></label></div>
+      <div class="acts"><button class="btn" data-close-panel>Cancel</button><button class="btn pri" data-close-panel data-toast="Settings saved">Save</button></div></div>`,
+    tabs: [['write', 'Posts to write'], ['pitch', 'Sites to pitch'], ['rank', 'Rankings']],
+    filters: '<select class="sel" aria-label="Show"><option>Best first</option><option>Most searched</option><option>Easiest</option></select>',
+    countLine: n => `<b>${n}</b> this week`,
+    items: [
+      { id: 's1', tab: 'write', flow: 'topic', av: '✍', sq: true, name: 'instagram post ideas for cafés', title: '40 Instagram post ideas for cafés (with examples)', sub: '<span class="src green">Easy to win</span><span>880 searches a month</span>', badge: ['Draft ready', 'grey'], vol: '880', kd: 'Low', rank: '—', fit: 8, text: 'Café owners looking for what to post every day.', why: 'Real searches and weak competition.', state: '<span class="tag ok">Draft written</span>', btn: 'Read draft →' },
+      { id: 's2', tab: 'write', flow: 'topic', av: '✍', sq: true, name: 'how to schedule instagram posts', title: 'How to schedule Instagram posts (free and paid ways)', sub: '<span class="src amber">Medium</span><span>2,400 searches a month</span>', badge: ['Picked', 'grey'], vol: '2.4k', kd: 'Medium', rank: '#34', fit: 7, text: 'People comparing scheduling tools.', why: 'You already rank #34; a post can move you up.', state: '<span class="tag">Writes on Monday</span>', btn: 'Write it now →' },
+      { id: 's3', tab: 'pitch', flow: 'pitch', av: '🔗', sq: true, name: 'smallbizdaily.com', page: '10 best social media tools for small business', sub: '<span class="src">Lists competitors</span><span>Buffer, Later, Hootsuite</span>', badge: ['Authority 54', 'grey'], auth: '54', comps: '3', kind: 'List', fit: 8, text: '“10 best social media tools for small business”', why: 'Lists 3 competitors but not you.', email: 'editor@smallbizdaily.com', state: '<span class="tag">Pitch drafted</span>', btn: 'Pitch them →' },
+      { id: 's4', tab: 'pitch', flow: 'pitch', av: '🔗', sq: true, name: 'cafeowner.blog', page: 'Marketing tools we use', sub: '<span class="src">Links to competitors</span><span>Canva, Buffer</span>', badge: ['Authority 31', 'grey'], auth: '31', comps: '2', kind: 'Blog', fit: 7, text: '“Marketing tools we use at our café”', why: 'Your exact audience.', email: 'hi@cafeowner.blog', state: '<span class="tag">Pitch drafted</span>', btn: 'Pitch them →' },
+      { id: 's5', tab: 'rank', flow: 'rank', av: '#8', sq: true, name: 'ai instagram post generator', sub: '<span class="src green">▲ 3 this week</span><span>1,300 searches</span>', badge: ['#8 on Google', 'grey'], now: 8, move: '▲ 3', vol: '1.3k', fit: 8, text: 'frekto.ai/instagram-posts', why: 'Two more fixes could get you to page 1, top 5.', state: '<span class="tag ok">Rising</span>', btn: 'Improve it →' },
+      { id: 's6', tab: 'rank', flow: 'rank', av: '#19', sq: true, name: 'social media scheduler', sub: '<span class="src red">▼ 4 this week</span><span>9,900 searches</span>', badge: ['#19 on Google', 'grey'], now: 19, move: '▼ 4', vol: '9.9k', fit: 6, text: 'frekto.ai', why: 'A competitor published a new guide above you.', state: '<span class="tag crit">Dropped</span>', btn: 'Improve it →' },
+    ],
+  },
+}
+
+// ── State ──
+const fresh = () => ({ state: 'first', size: 'desk', tool: 'cl', toast: '',
+  cl: { phase: 'first', tab: 'good', panel: false, how: false, open: null, step: 0, q: '', done: {}, gone: {}, target: '' },
+  la: { phase: 'first', lane: 'email', tab: 'needs', panel: false, how: false, open: null, step: 0, q: '', done: {}, gone: {} },
+  em: { phase: 'first', tab: 'inbox', panel: false, how: false, open: null, step: 0, q: '', done: {}, gone: {}, connected: false },
+  sa: { phase: 'first', tab: 'write', panel: false, how: false, open: null, step: 0, q: '', done: {}, gone: {} } })
+let S = fresh()
+const T = () => TOOLS[S.tool]
+const P = () => S[S.tool]
+const $ = s => document.querySelector(s)
+
+function tabsFor() { const t = T(); return t.lanes ? t.tabs[P().lane] : t.tabs }
+function itemsFor(tab) {
+  const t = T(), p = P()
+  return t.items.filter(i => !p.gone[i.id] && (!t.lanes || i.lane === p.lane) && (p.done[i.id] ? doneTab(i) : i.tab) === tab)
+}
+function doneTab(i) { return { cl: 'sent', la: i.lane === 'email' ? 'sent' : 'posted', em: 'sent', sa: i.tab }[S.tool] }
+
+// ── Views ──
+function header() {
+  const t = T(), p = P()
+  const chips = typeof t.chips === 'function' ? t.chips() : t.chips
+  return `<header class="hd"><div class="hd-l"><span class="hd-ic">${t.icon}</span><h1>${t.title}</h1>${chips}</div>
+    <div class="hd-r">${S.tool === 'em' || S.tool === 'sa' ? '' : '<a class="link" href="#" data-goto="em">Email Outreach →</a>'}</div></header>
+    <div class="intro"><span>${t.intro}</span><button class="link" data-how>${p.how ? 'Hide steps ▴' : 'How it works ▾'}</button></div>
+    ${p.how ? `<div class="how">${t.how.map(([b, x], i) => `<div><b><i>${i + 1}</i>${b}</b>${x}</div>`).join('')}</div>` : ''}`
+}
+function firstView() {
+  const f = T().first
+  return `<section class="first"><div class="big">${f.icon}</div><h2>${f.title}</h2><p>${f.text}</p>
+    <form id="firstForm">${f.form}<button class="btn pri lg" type="submit">${f.cta}</button></form>
+    <div class="fine">${f.fine.map(x => `<span>${x}</span>`).join('')}</div></section>`
+}
+function progressView() {
+  const t = T(), p = P()
+  return `<section class="prog"><div class="prog-top"><span class="spin"></span><b>${t.progress[Math.min(p.pstep, t.progress.length - 1)]}…</b><span class="meta">You can keep using the page.</span></div>
+    <ol>${t.progress.map((x, i) => `<li class="${i < p.pstep ? 'p-done' : i === p.pstep ? 'p-on' : ''}">${i < p.pstep ? '✓' : i === p.pstep ? '•' : '○'} ${x}</li>`).join('')}</ol></section>`
+}
+function actionBar() {
+  const t = T(), p = P(), c = t.ctx()
+  const lanes = t.lanes ? `<div class="lane" role="tablist">${t.lanes.map(([k, l]) => {
+    const n = t.items.filter(i => i.lane === k && !p.gone[i.id] && !p.done[i.id] && (k === 'email' ? i.tab === 'needs' : i.tab === 'toreply')).length
+    return `<button role="tab" data-lane="${k}" aria-selected="${p.lane === k}">${l}<em>${n}</em></button>`
+  }).join('')}</div>` : ''
+  return `<section class="abar"><div class="abar-ctx"><b>${c.title}</b><span class="meta">${c.meta}</span></div>${lanes}
+    <div class="abar-r"><button class="btn" data-panel aria-expanded="${p.panel}">${t.secondary}</button><button class="btn pri" data-primary>${t.primary}</button></div></section>`
+}
+function card(i) {
+  const p = P(), isDone = p.done[i.id] || i.done
+  const badgeTone = i.badge[1] ?? ''
+  const state = p.done[i.id] ? '<span class="tag ok">✓ Done just now</span>' : (i.state ?? '')
+  return `<article class="card"><div class="c-head"><span class="av ${i.sq ? 'sq' : ''}">${i.av}</span><div class="who"><div class="name">${esc(i.name)}</div><div class="sub">${i.sub}</div></div><span class="badge ${badgeTone}">${i.badge[0]}</span></div>
+    <div class="c-body"><p class="said">${esc(i.text)}</p><p class="why">${esc(i.why)}</p></div>
+    <div class="c-foot"><span class="c-state">${state}</span><button class="btn sm ${isDone ? 'out' : 'pri'}" data-open="${i.id}">${isDone ? (i.done ? i.btn : 'View') : i.btn}</button></div></article>`
+}
+function listView() {
+  const t = T(), p = P()
+  const tabs = tabsFor()
+  if (!tabs.some(x => x[0] === p.tab)) p.tab = tabs[0][0]
+  const all = itemsFor(p.tab)
+  const q = p.q.trim().toLowerCase()
+  const shown = all.filter(i => !q || `${i.name} ${i.text}`.toLowerCase().includes(q))
+  return `${p.panel ? t.panel() : ''}${actionBar()}${p.phase === 'running' ? progressView() : ''}
+    <div class="row"><div class="tabs" role="tablist">${tabs.map(([k, l, hot]) => { const n = itemsFor(k).length; return `<button role="tab" data-tab="${k}" aria-selected="${p.tab === k}">${l}<span class="${hot && n ? 'hot' : ''}">${n}</span></button>` }).join('')}</div>
+      <input class="search" id="q" placeholder="Search" value="${esc(p.q)}">${t.filters}</div>
+    <div class="count">${t.countLine(shown.length)}</div>
+    ${shown.length ? shown.map(card).join('') : `<div class="empty">Nothing here right now.</div>`}`
+}
+function detailView(i) {
+  const t = T(), p = P(), f = FLOWS[i.flow]
+  const finished = p.done[i.id] || i.done
+  const st = finished ? null : f.steps[p.step](i)
+  const bar = `<ol class="steps">${f.labels.map((x, k) => { const c = finished || k < p.step ? 'past' : k === p.step ? 'on' : ''; return `<li class="step ${c}"><span class="n">${c === 'past' ? '✓' : k + 1}</span><span class="l">${x}</span></li>` }).join('')}</ol>`
+  const side = `<aside class="ro-side"><div class="ro-person"><span class="av ${i.sq ? 'sq' : ''}">${i.av}</span><div><h2>${esc(i.name)}</h2><div class="sub">${i.sub}</div></div></div>
+    <blockquote class="ro-quote">${esc(i.text)}</blockquote>${p.step > 0 || finished ? fit(i) : ''}</aside>`
+  let card
+  if (finished) {
+    const d = f.done(i)
+    const next = itemsFor(i.tab).find(x => x.id !== i.id && !p.done[x.id] && !x.done)
+    card = `<section class="pane"><div class="pane-in"><div class="done"><div class="tick">✓</div><h3>${d.title}</h3><p>${d.text}</p></div></div>
+      <div class="actions"><button class="btn back" data-close>← Back to the list</button>${next ? `<button class="btn pri" data-open="${next.id}">Next: ${esc(next.first || next.name)} →</button>` : ''}</div></section>`
+  } else {
+    card = `<section class="pane"><div class="pane-in"><h3>${st.title}</h3><p class="hint">${st.hint}</p>${st.body}</div>
+      <div class="actions"><button class="btn back" data-${st.back[1]}>${st.back[0]}</button><button class="btn pri" data-next>${st.next}</button></div></section>`
+  }
+  return `<nav class="crumbs"><button class="link" data-close>← ${t.title}</button><span>/</span><b>${esc(i.name.length > 40 ? i.name.slice(0, 40) + '…' : i.name)}</b></nav>
+    <div class="ro">${side}<div>${bar}${card}</div></div>`
+}
+
+function render() {
+  $('#frame').classList.toggle('phone', S.size === 'phone')
+  document.querySelectorAll('.side [data-tool]').forEach(a => a.classList.toggle('on', a.dataset.tool === S.tool))
+  document.querySelectorAll('.ctl [data-k]').forEach(b => b.setAttribute('aria-pressed', S[b.dataset.k] === b.dataset.v))
+  const p = P()
+  const open = p.open && T().items.find(i => i.id === p.open)
+  let h = header()
+  if (open) h += detailView(open)
+  else if (p.phase === 'first') h += firstView()
+  else h += listView()
+  $('#view').innerHTML = h
+  $('#toastHost').innerHTML = S.toast ? `<div class="toast" role="status">${esc(S.toast)}</div>` : ''
+}
+function toast(msg) { S.toast = msg; render(); clearTimeout(toast.t); toast.t = setTimeout(() => { S.toast = ''; render() }, 1800) }
+function run(after) {
+  const p = P(), n = T().progress.length
+  p.phase = 'running'; p.pstep = 0; p.panel = false; render()
+  const tick = () => { p.pstep++; if (p.pstep >= n) { p.phase = 'results'; render(); if (after) toast(after) } else { render(); setTimeout(tick, 650) } }
+  setTimeout(tick, 650)
+}
+
+document.addEventListener('submit', e => {
+  if (e.target.id !== 'firstForm') return
+  e.preventDefault()
+  if (S.tool === 'cl') S.cl.target = ($('#firstIn')?.value || 'buffer.com').trim()
+  if (S.tool === 'em') S.em.connected = true
+  run({ cl: '5 good fits found', la: '6 new leads found', em: '2 hot leads in your inbox', sa: 'This week’s plan is ready' }[S.tool])
+})
+document.addEventListener('input', e => { if (e.target.id === 'q') { P().q = e.target.value; const pos = e.target.selectionStart; render(); const q = $('#q'); q.focus(); q.setSelectionRange(pos, pos) } })
+document.addEventListener('click', e => {
+  const b = e.target.closest('button, a'); if (!b) return
+  const p = P(), d = b.dataset
+  if (b.tagName === 'A' && b.getAttribute('href') === '#') e.preventDefault()
+  if (d.k) { S[d.k] = d.v; if (d.k === 'state') for (const k of ['cl', 'la', 'em', 'sa']) { S[k].phase = d.v === 'first' ? 'first' : 'results'; S[k].open = null; if (k === 'em') S.em.connected = d.v !== 'first' }; render(); return }
+  if (b.id === 'reset') { S = fresh(); render(); return }
+  if (d.tool) { S.tool = d.tool; render(); return }
+  if (d.goto) { S.tool = d.goto; render(); return }
+  if ('how' in d) { p.how = !p.how; render(); return }
+  if ('seg' in d) { b.parentElement.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); return }
+  if (d.fill) { const i = $('#firstIn'); if (i) i.value = d.fill; return }
+  if ('panel' in d) { p.panel = !p.panel; render(); return }
+  if ('closePanel' in d) { p.panel = false; render(); if (d.toast) toast(d.toast); return }
+  if ('primary' in d) {
+    if (S.tool === 'cl') { p.phase = 'first'; p.open = null; render(); return }
+    if (S.tool === 'em') { const c = T().items.find(i => i.flow === 'campaign'); p.tab = 'camp'; p.open = c.id; p.step = 0; render(); return }
+    run({ la: '2 new leads found', sa: 'Research updated' }[S.tool]); return }
+  if (d.lane) { p.lane = d.lane; p.tab = T().tabs[d.lane][0][0]; render(); return }
+  if (d.tab) { p.tab = d.tab; render(); return }
+  if (d.open) { p.open = d.open; p.step = 0; render(); window.scrollTo({ top: 0 }); return }
+  if ('close' in d) { p.open = null; render(); return }
+  if ('back' in d) { p.step = Math.max(0, p.step - 1); render(); return }
+  if ('skip' in d) { p.gone[p.open] = true; p.open = null; render(); toast('Moved out of your list'); return }
+  if ('next' in d) { if (p.step < 2) { p.step++; render() } else { p.done[p.open] = true; render() } return }
+  if (d.toast) { toast(d.toast); return }
+})
+render()
+</script>
+</body>
+</html>
