@@ -10,16 +10,9 @@ import { LoadingState, Spinner } from '@/components/ui/spinner'
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type LeadTag = 'hot' | 'warm' | 'cold' | 'partnership' | 'press' | 'followup' | 'vendor'
-type Tab = 'inbox' | 'outreach' | 'campaign' | 'followups'
+type Tab = 'outreach' | 'campaign' | 'followups'
 type ProspectStatus = 'idle' | 'generating' | 'ready' | 'saving' | 'saved' | 'confirming' | 'sending' | 'sent' | 'error'
-type InboxFilter = 'all' | 'leads' | 'press' | 'partnership'
 
-interface Msg { from: string; time: string; body: string; isSelf: boolean }
-interface Thread {
-  id: string; from: string; email: string; initials: string
-  subject: string; preview: string; time: string; isRead: boolean
-  tag: LeadTag | null; messages: Msg[]; aiSummary: string; aiDraft: string
-}
 interface Prospect { id: string; name: string; email: string; company: string; title: string }
 interface ProspectState { status: ProspectStatus; subject: string; body: string; toEmail?: string; error?: string; editingHtml?: boolean }
 interface CampaignProspect { id: string; email: string; name: string; domain: string }
@@ -58,83 +51,6 @@ const TAG_LABELS: Record<LeadTag, string> = {
   partnership: 'Partnership', press: 'Press', followup: 'Follow-up', vendor: 'Vendor',
 }
 
-const THREADS: Thread[] = [
-  {
-    id: 't1', from: 'Priya Sharma', email: 'priya@scalex.io', initials: 'PS',
-    subject: 'Interested in your growth tool — pricing?',
-    preview: 'Came across your product via LinkedIn. We\'re a 12-person SaaS wondering about agency plans...',
-    time: '9:14 AM', isRead: false, tag: 'hot',
-    messages: [
-      { from: 'Priya Sharma', time: 'Today, 9:14 AM', isSelf: false,
-        body: 'Hi,\n\nCame across your product via LinkedIn. We\'re a 12-person SaaS startup and have been struggling with our marketing audit process.\n\nDo you have a pricing page? Also curious if there\'s an agency plan — we manage 3 client accounts alongside our own.\n\nBest,\nPriya' }
-    ],
-    aiSummary: 'Warm inbound lead from a 12-person SaaS. Clear buying signal: asking about pricing and agency plans. Manages 3 client accounts — upsell opportunity. Source: LinkedIn.',
-    aiDraft: 'Hi Priya,\n\nThanks for reaching out — great that you found us via LinkedIn!\n\nWe do have an agency plan covering up to 5 brands under one account, which sounds perfect for your setup.\n\nHere\'s our pricing: [pricing page]\n\nWould Thursday or Friday work for a 20-minute call? Happy to walk you through the agency setup.\n\nBest,\n[Your name]',
-  },
-  {
-    id: 't2', from: 'Marcus Webb', email: 'marcus@techforward.co', initials: 'MW',
-    subject: 'Re: Following up on our conversation',
-    preview: 'Just circling back. Still evaluating a few options but your GEO audit features stood out...',
-    time: 'Yesterday', isRead: true, tag: 'warm',
-    messages: [
-      { from: 'You', time: '3 days ago, 2:30 PM', isSelf: true,
-        body: 'Hi Marcus,\n\nFollowing up on our demo last week. Happy to send a custom proposal or answer any questions.\n\nBest,' },
-      { from: 'Marcus Webb', time: 'Yesterday, 4:52 PM', isSelf: false,
-        body: 'Hey — just circling back. Still evaluating a couple of options but your GEO audit features stood out. Main concern is integrations — does it connect with HubSpot?\n\nMarcus' }
-    ],
-    aiSummary: 'Warm lead in active evaluation. Attended a prior demo. Key objection: HubSpot integration. GEO audit was the standout feature. High close probability if the integration concern is addressed.',
-    aiDraft: 'Hi Marcus,\n\nGood to hear back! HubSpot integration is on our Q3 roadmap. In the meantime you can export audit results as CSV and push them into HubSpot in a couple of minutes.\n\nHappy to show you the export flow on a quick screen share — should help close out your evaluation.\n\nDoes Thursday work?\n\nBest,\n[Your name]',
-  },
-  {
-    id: 't3', from: 'TechCrunch Editorial', email: 'tips@techcrunch.com', initials: 'TC',
-    subject: 'AI marketing tools roundup — contributors needed',
-    preview: 'We\'re putting together a feature on AI tools for growth marketers. Deadline Friday EOD...',
-    time: 'Mon', isRead: false, tag: 'press',
-    messages: [
-      { from: 'TechCrunch Editorial', time: 'Monday, 11:20 AM', isSelf: false,
-        body: 'Hi,\n\nWe\'re putting together a feature on AI tools for growth marketers and would love to include your product. Could you share a brief description, key differentiators, and a demo video link?\n\nDeadline: Friday EOD.\n\nThanks,\nTC Editorial' }
-    ],
-    aiSummary: 'High-priority press opportunity. TechCrunch running an AI marketing tools roundup. Deadline Friday EOD. Respond within 24 hours with product description, differentiators, and demo video link.',
-    aiDraft: 'Hi,\n\nThanks for reaching out — we\'d love to be included!\n\nGrowJin is an AI-powered marketing audit platform for SMBs. We surface gaps across SEO, GEO, content quality, and social presence — mapping every finding to a weighted growth score with AI-drafted fixes.\n\nKey differentiators:\n• Combined SEO + GEO (AI discoverability) audit\n• AI-verified checks with human override capability\n• Module-based progression system that guides growth teams\n\nDemo: [video link] | Product: [URL]\n\nBest,\n[Your name]',
-  },
-  {
-    id: 't4', from: 'Aisha Okonkwo', email: 'aisha@brightleaf.co', initials: 'AO',
-    subject: 'Partnership idea — content + audit collaboration',
-    preview: 'I run a content agency for B2B brands. Think there\'s a natural overlap with what you do...',
-    time: 'Sun', isRead: true, tag: 'partnership',
-    messages: [
-      { from: 'Aisha Okonkwo', time: 'Sunday, 3:40 PM', isSelf: false,
-        body: 'Hi!\n\nI run Brightleaf, a content agency for B2B brands. I think there\'s a natural overlap between your audit capabilities and our content execution.\n\nWould you be open to a referral arrangement or co-marketing? I have ~400 newsletter subscribers who would benefit from your tool.\n\nAisha' }
-    ],
-    aiSummary: 'Inbound partnership proposal from Aisha at Brightleaf (B2B content agency). Offers referral/co-marketing + 400 newsletter subscribers as distribution. Low effort, potentially high ROI. Recommend a 30-min discovery call.',
-    aiDraft: 'Hi Aisha,\n\nThis sounds like a great fit — I\'d love to explore it.\n\nWe often see clients needing content execution after surfacing gaps in their audit, so a referral arrangement makes sense both ways.\n\nFree for a 30-min intro call next week? Tuesday or Wednesday afternoon works well for me.\n\nLooking forward to it,\n[Your name]',
-  },
-  {
-    id: 't5', from: 'Daniel Park', email: 'daniel@growthops.io', initials: 'DP',
-    subject: 'Re: Free trial — GEO score question',
-    preview: 'Thanks for the extended trial. The GEO score shows 0 for AI discovery — bug or real?...',
-    time: '5 days ago', isRead: true, tag: 'followup',
-    messages: [
-      { from: 'Daniel Park', time: '5 days ago, 6:10 PM', isSelf: false,
-        body: 'Thanks for the extended trial. One thing I noticed: the GEO score shows 0 for the AI discovery section — is that a bug or is my site genuinely not indexed?\n\nDaniel' }
-    ],
-    aiSummary: 'Trial user confused about GEO score showing 0 for AI discovery. Not a bug — site lacks llms.txt, GPTBot permissions, and structured data. Good opportunity to educate and convert to paid.',
-    aiDraft: 'Hi Daniel,\n\nNot a bug — it means your site isn\'t currently indexed by AI crawlers like GPTBot or Anthropic\'s ClaudeBot.\n\nThe GEO module checks for: llms.txt file, AI crawler permissions in robots.txt, presence in AI search tools, and structured data. Most sites score 0 here initially.\n\nTop 3 fixes:\n1. Add llms.txt to your root (10 minutes)\n2. Allow GPTBot in robots.txt\n3. Add FAQ schema to key pages\n\nWant me to walk through these on a quick call?\n\nBest,\n[Your name]',
-  },
-  {
-    id: 't6', from: 'Stripe', email: 'no-reply@stripe.com', initials: 'ST',
-    subject: 'Invoice #1892 — July 2025',
-    preview: '$149.00 due July 15, 2025. View invoice...',
-    time: 'Mon', isRead: true, tag: 'vendor',
-    messages: [
-      { from: 'Stripe', time: 'Monday, 8:00 AM', isSelf: false,
-        body: 'Invoice #1892 — $149.00 due July 15, 2025.\n\nView invoice: [link]' }
-    ],
-    aiSummary: 'Automated invoice from Stripe. $149 due July 15. No reply needed unless payment method requires updating.',
-    aiDraft: '',
-  },
-]
-
 const PROSPECTS: Prospect[] = [
   { id: 'p1', name: 'Sarah Chen',      email: 'sarah@launchpad.io',    company: 'LaunchPad',      title: 'Head of Growth' },
   { id: 'p2', name: 'Tom Ramirez',     email: 'tom@foundry.co',         company: 'Foundry Studio', title: 'Co-founder & CEO' },
@@ -149,13 +65,6 @@ const IcMail = () => (
   <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
     <rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
     <path d="M2 7l8 5 8-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-  </svg>
-)
-const IcLead = () => (
-  <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
-    <circle cx="10" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
-    <path d="M3 17c0-3.314 3.134-6 7-6s7 2.686 7 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    <path d="M14 5l2 2-2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 )
 const IcDraft = () => (
@@ -208,11 +117,8 @@ export default function GmailHub({
 }) {
   const goBack = useSmartBack('/dashboard')
   const [isConnected, setIsConnected]         = useState(initialConnected)
-  const [activeTab, setActiveTab]             = useState<Tab>('inbox')
-  const [selectedId, setSelectedId]           = useState<string>('')
+  const [activeTab, setActiveTab]             = useState<Tab>('campaign')
   const [copied, setCopied]                   = useState<string | null>(null)
-  const [inboxFilter, setInboxFilter]         = useState<InboxFilter>('all')
-  const [showStalled, setShowStalled]         = useState(true)
   const [disconnecting, setDisconnecting]     = useState(false)
   const [prospectStates, setProspectStates]     = useState<Record<string, ProspectState>>({})
   const [expandedProspect, setExpandedProspect] = useState<string | null>(null)
@@ -255,32 +161,6 @@ export default function GmailHub({
   // Email history
   const [emailHistory, setEmailHistory]               = useState<EmailHistoryItem[]>([])
   const [showHistory, setShowHistory]                 = useState(false)
-  // Real inbox state
-  const [inboxThreads, setInboxThreads]       = useState<Thread[]>([])
-  const [inboxLoading, setInboxLoading]       = useState(false)
-  const [loadingMsgs, setLoadingMsgs]         = useState<Set<string>>(new Set())
-  const [summarizing, setSummarizing]         = useState<Set<string>>(new Set())
-
-  // ── Inbox fetch ───────────────────────────────────────────────────────────
-
-  const fetchInbox = useCallback(async () => {
-    setInboxLoading(true)
-    try {
-      const inboxRes = await fetch('/api/gmail/inbox')
-      const data = await inboxRes.json() as Thread[]
-      if (inboxRes.ok && Array.isArray(data)) {
-        setInboxThreads(data)
-        if (data.length > 0) setSelectedId(data[0].id)
-      }
-    } catch { /* silent */ } finally {
-      setInboxLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (isConnected) fetchInbox()
-  }, [isConnected, fetchInbox])
-
   // Check follow-up threads for replies / opt-outs / bounces and surface anything new
   useEffect(() => {
     if (!isConnected) return
@@ -335,47 +215,6 @@ export default function GmailHub({
     loadSavedProspects()
     loadEmailHistory()
   }, [loadSavedProspects, loadEmailHistory])
-
-  async function fetchMessages(threadId: string) {
-    setLoadingMsgs(prev => new Set(prev).add(threadId))
-    try {
-      const res  = await fetch(`/api/gmail/thread/${threadId}`)
-      const msgs = await res.json() as { from: string; time: string; body: string; isSelf: boolean }[]
-      if (res.ok && Array.isArray(msgs)) {
-        setInboxThreads(prev => prev.map(t => t.id === threadId ? { ...t, messages: msgs } : t))
-      }
-    } catch { /* silent */ } finally {
-      setLoadingMsgs(prev => { const s = new Set(prev); s.delete(threadId); return s })
-    }
-  }
-
-  async function generateSummary(thread: Thread) {
-    if (!thread.messages.length) return
-    setSummarizing(prev => new Set(prev).add(thread.id))
-    try {
-      const res  = await fetch('/api/gmail/summarize-thread', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: thread.subject, messages: thread.messages }),
-      })
-      const data = await res.json() as { summary?: string; draft?: string }
-      if (res.ok) {
-        setInboxThreads(prev => prev.map(t =>
-          t.id === thread.id
-            ? { ...t, aiSummary: data.summary ?? '', aiDraft: data.draft ?? '' }
-            : t,
-        ))
-      }
-    } catch { /* silent */ } finally {
-      setSummarizing(prev => { const s = new Set(prev); s.delete(thread.id); return s })
-    }
-  }
-
-  function handleSelectThread(id: string) {
-    setSelectedId(id)
-    const t = inboxThreads.find(x => x.id === id)
-    if (t && t.messages.length === 0 && !loadingMsgs.has(id)) fetchMessages(id)
-  }
 
   async function handleDisconnect() {
     setDisconnecting(true)
@@ -468,34 +307,6 @@ export default function GmailHub({
       }))
     }
   }
-
-  async function setThreadFollowup(t: Thread, days: number) {
-    try {
-      const res = await fetch('/api/gmail/set-followup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threadId: t.id, subject: t.subject, recipientName: t.from, days }),
-      })
-      if (res.ok) {
-        setFollowUpToast(`Reminder set — follow up with ${t.from} in ${days} days`)
-        setTimeout(() => setFollowUpToast(null), 4000)
-      }
-    } catch { /* silent */ }
-  }
-
-
-  const thread = inboxThreads.find(t => t.id === selectedId) ?? inboxThreads[0] ?? null
-
-  const filteredThreads = inboxThreads.filter(t => {
-    if (inboxFilter === 'all') return true
-    if (inboxFilter === 'leads') return ['hot', 'warm', 'cold', 'followup'].includes(t.tag ?? '')
-    return t.tag === inboxFilter
-  })
-
-  const hotLeadCount  = inboxThreads.filter(t => t.tag === 'hot').length
-  const leadCount     = inboxThreads.filter(t => ['hot', 'warm', 'cold', 'followup'].includes(t.tag ?? '')).length
-  const pressCount    = inboxThreads.filter(t => t.tag === 'press').length
-  const partnerCount  = inboxThreads.filter(t => t.tag === 'partnership').length
 
   function copyText(text: string, id: string) {
     navigator.clipboard.writeText(text)
@@ -755,7 +566,7 @@ export default function GmailHub({
                 Email Outreach
                 <span className="gh-badge-new">New</span>
               </div>
-              <div className="gh-subtitle">{brandName} — turn your inbox into a growth engine</div>
+              <div className="gh-subtitle">{brandName} — AI outreach campaigns and follow-ups from your Gmail</div>
             </div>
           </div>
 
@@ -767,16 +578,15 @@ export default function GmailHub({
             {/* Left: copy + features + CTA */}
             <div className="gh-connect-left">
               <div className="gh-connect-eyebrow">Gmail Integration</div>
-              <h2 className="gh-connect-h2">Your inbox already contains your next 10 customers</h2>
+              <h2 className="gh-connect-h2">Send outreach from your own Gmail, and never miss a follow-up</h2>
               <p className="gh-connect-p">
-                GrowJin reads your Gmail to detect inbound leads, draft contextual replies in your voice, and surface deals that have gone quiet — without ever sending anything without your explicit approval.
+                GrowJin writes personalised outreach in your voice, sends it from your Gmail, and watches the threads it sent for replies, bounces and opt-outs — without ever sending anything without your explicit approval.
               </p>
 
               <div className="gh-connect-feats">
                 {[
-                  { Icon: IcLead, label: 'Lead Detection',   desc: 'AI tags inbound emails Hot / Warm / Cold based on buying intent' },
                   { Icon: IcDraft, label: 'AI Campaigns',     desc: 'Personalised outreach emails for a list of prospects, sent now or scheduled' },
-                  { Icon: IcClock, label: 'Stalled Alerts',   desc: 'Surface deals that have gone quiet for 7+ days with no follow-up' },
+                  { Icon: IcClock, label: 'Reply Detection',  desc: 'Follow-ups close themselves when a prospect replies, opts out or bounces' },
                   { Icon: IcPipe,  label: 'Follow-ups',       desc: 'Reminders when a prospect has not replied, with an AI-drafted nudge ready to send' },
                 ].map(({ Icon, label, desc }) => (
                   <div key={label} className="gh-connect-feat">
@@ -793,7 +603,7 @@ export default function GmailHub({
                 <div className="gh-scopes-title">What we request access to</div>
                 <div className="gh-scope-list">
                   {[
-                    { yes: true,  name: 'gmail.readonly', reason: 'read threads and labels' },
+                    { yes: true,  name: 'gmail.readonly', reason: 'check emails we sent for replies, bounces and opt-outs' },
                     { yes: true,  name: 'gmail.compose',  reason: 'create Drafts in your inbox' },
                     { yes: true,  name: 'gmail.send',     reason: 'send emails — only after your confirmation' },
                     { yes: false, name: 'gmail.modify',   reason: 'not requested — we cannot move or delete emails' },
@@ -884,7 +694,7 @@ export default function GmailHub({
               Email Outreach
               <span className="gh-badge-new">New</span>
             </div>
-            <div className="gh-subtitle">{brandName} — leads in your inbox, campaigns and follow-ups</div>
+            <div className="gh-subtitle">{brandName} — campaigns and follow-ups</div>
           </div>
           <div className="gh-header-right">
             <div className="gh-connected-badge">
@@ -893,7 +703,6 @@ export default function GmailHub({
             </div>
             <Link href="/agents/leads" className="gh-hbtn gh-hbtn-outline">Lead Agent</Link>
             <Link href="/lead-finder" className="gh-hbtn gh-hbtn-outline">Competitor Leads</Link>
-            <button className="gh-hbtn gh-hbtn-outline" onClick={fetchInbox}>Refresh</button>
             <button
               className="gh-hbtn gh-hbtn-ghost"
               onClick={handleDisconnect}
@@ -929,39 +738,9 @@ export default function GmailHub({
           </div>
         )}
 
-        {/* Stalled alert banner */}
-        {showStalled && (
-          <div className="gh-alert-banner">
-            <IcClock />
-            <span><strong>3 stalled threads</strong> haven't had a reply in 7+ days — including Marcus Webb and Daniel Park.</span>
-            <button className="gh-alert-cta" onClick={() => { setActiveTab('inbox'); setInboxFilter('leads') }}>View leads</button>
-            <button className="gh-alert-close" onClick={() => setShowStalled(false)}>✕</button>
-          </div>
-        )}
-
-        {/* Stats */}
-        <div className="gh-stats">
-          <div className="gh-stat">
-            <div className="gh-stat-label">Hot Leads</div>
-            <div className="gh-stat-num">{hotLeadCount}</div>
-            <span className="gh-stat-sub">in inbox right now</span>
-          </div>
-          <div className="gh-stat">
-            <div className="gh-stat-label">Stalled Threads</div>
-            <div className="gh-stat-num">3</div>
-            <span className="gh-stat-sub">no reply 7+ days</span>
-          </div>
-          <div className="gh-stat">
-            <div className="gh-stat-label">Replied This Week</div>
-            <div className="gh-stat-num">12</div>
-            <span className="gh-stat-trend">↑ 4 vs last week</span>
-          </div>
-        </div>
-
         {/* Tabs */}
         <div className="gh-tabs">
           {([
-            ['inbox',       'Inbox'],
             ['campaign',    'Campaigns'],
             ['followups',   followUpDueCount > 0 ? `Follow-ups (${followUpDueCount})` : 'Follow-ups'],
           ] as [Tab, string][]).map(([key, label]) => (
@@ -974,186 +753,6 @@ export default function GmailHub({
             </button>
           ))}
         </div>
-
-        {/* ── Inbox Intelligence ── */}
-        {activeTab === 'inbox' && (
-          <div className="gh-inbox-wrap">
-
-            {/* Filter pills */}
-            <div className="gh-inbox-filters">
-              {([
-                ['all', 'All', null],
-                ['leads', 'Leads', leadCount],
-                ['press', 'Press', pressCount],
-                ['partnership', 'Partners', partnerCount],
-              ] as [InboxFilter, string, number | null][]).map(([key, label, count]) => (
-                <button
-                  key={key}
-                  className={`gh-filter-pill${inboxFilter === key ? ' active' : ''}`}
-                  onClick={() => { setInboxFilter(key); if (filteredThreads.length > 0 && !filteredThreads.find(t => t.id === selectedId)) setSelectedId(filteredThreads[0].id) }}
-                >
-                  {label}
-                  {count !== null && <span className="gh-filter-badge">{count}</span>}
-                </button>
-              ))}
-              <span className="gh-filter-sep" />
-              <span className="gh-filter-info">{inboxLoading ? <><Spinner />Loading…</> : `${filteredThreads.length} thread${filteredThreads.length !== 1 ? 's' : ''}`}</span>
-              <button
-                style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-faint)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' }}
-                onClick={fetchInbox}
-                disabled={inboxLoading}
-              >
-                {inboxLoading ? <><Spinner />Refreshing…</> : 'Refresh'}
-              </button>
-            </div>
-
-            {inboxLoading && inboxThreads.length === 0 ? (
-              <LoadingState style={{ padding: '48px 28px' }}>Loading inbox…</LoadingState>
-            ) : !inboxLoading && inboxThreads.length === 0 ? (
-              <div style={{ padding: '48px 28px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
-                No emails in inbox.
-              </div>
-            ) : (
-            <div className="gh-inbox-layout">
-
-              {/* Thread list */}
-              <div className="gh-thread-list">
-                {filteredThreads.map(t => (
-                  <div
-                    key={t.id}
-                    className={`gh-thread-item${selectedId === t.id ? ' active' : ''}${!t.isRead ? ' unread' : ''}`}
-                    onClick={() => handleSelectThread(t.id)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {!t.isRead && <span className="gh-unread-dot" />}
-                    <div className={`gh-thread-av gh-av-${t.tag ?? 'default'}`}>{t.initials}</div>
-                    <div className="gh-thread-body">
-                      <div className="gh-thread-top">
-                        <span className="gh-thread-from">{t.from}</span>
-                        <span className="gh-thread-time">{t.time}</span>
-                        <button
-                          className="gh-bell-btn"
-                          title={`Remind me to follow up with ${t.from} in 3 days`}
-                          onClick={e => { e.stopPropagation(); setThreadFollowup(t, 3) }}
-                        >
-                          <IcBell />
-                        </button>
-                      </div>
-                      <div className="gh-thread-subject">{t.subject}</div>
-                      <div className="gh-thread-preview">{t.preview}</div>
-                      {t.tag && <span className={`gh-tag gh-tag-${t.tag}`}>{TAG_LABELS[t.tag]}</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Thread detail */}
-              {thread && (
-                <div className="gh-thread-detail">
-
-                  {/* Sticky header */}
-                  <div className="gh-detail-hd">
-                    <div className="gh-detail-subject">{thread.subject}</div>
-                    <div className="gh-detail-meta">
-                      <div className={`gh-detail-av gh-av-${thread.tag ?? 'default'}`}>{thread.initials}</div>
-                      <div>
-                        <span className="gh-detail-from">{thread.from}</span>
-                        <span className="gh-detail-email">&lt;{thread.email}&gt;</span>
-                      </div>
-                      {thread.tag && <span className={`gh-tag gh-tag-${thread.tag}`}>{TAG_LABELS[thread.tag]}</span>}
-                    </div>
-                  </div>
-
-                  {/* Message thread */}
-                  <div className="gh-messages">
-                    {loadingMsgs.has(thread.id) ? (
-                      <LoadingState>Loading messages…</LoadingState>
-                    ) : thread.messages.length === 0 ? (
-                      <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
-                        <button
-                          style={{ fontSize: 12.5, color: 'var(--green)', background: 'transparent', border: '1px solid var(--green)', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit' }}
-                          onClick={() => fetchMessages(thread.id)}
-                        >
-                          Load messages
-                        </button>
-                      </div>
-                    ) : (
-                      thread.messages.map((msg, i) => (
-                        <div key={i} className={`gh-msg${msg.isSelf ? ' gh-msg-self' : ''}`}>
-                          {!msg.isSelf && (
-                            <div className={`gh-msg-av gh-av-${thread.tag ?? 'default'}`}>{thread.initials}</div>
-                          )}
-                          <div className={`gh-msg-bubble${msg.isSelf ? ' self' : ''}`}>
-                            <div className="gh-msg-meta">
-                              <span className="gh-msg-from">{msg.from}</span>
-                              <span className="gh-msg-time">{msg.time}</span>
-                            </div>
-                            <pre className="gh-msg-body">{msg.body}</pre>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {/* AI Summary */}
-                  <div className="gh-ai-summary">
-                    <div className="gh-ai-label" style={{ justifyContent: 'space-between' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><IcAI />AI Summary</span>
-                      {thread.messages.length > 0 && (
-                        <button
-                          style={{ fontSize: 11, color: 'var(--text-faint)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '2px 9px', cursor: 'pointer', fontFamily: 'inherit' }}
-                          onClick={() => generateSummary(thread)}
-                          disabled={summarizing.has(thread.id)}
-                        >
-                          {summarizing.has(thread.id) ? <><Spinner />Generating…</> : thread.aiSummary ? 'Regenerate' : 'Generate'}
-                        </button>
-                      )}
-                    </div>
-                    {thread.aiSummary
-                      ? <p className="gh-ai-text">{thread.aiSummary}</p>
-                      : <p className="gh-ai-text" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>
-                          {summarizing.has(thread.id) ? <><Spinner />Analysing thread…</> : 'Click Generate to get an AI summary of this thread.'}
-                        </p>
-                    }
-                  </div>
-
-                  {/* AI Draft */}
-                  {thread.aiDraft ? (
-                    <div className="gh-ai-draft">
-                      <div className="gh-draft-hd">
-                        <div className="gh-ai-label lime">
-                          <IcAI />
-                          Suggested Reply
-                        </div>
-                        <button className="gh-draft-copy" onClick={() => copyText(thread.aiDraft, thread.id)}>
-                          {copied === thread.id ? 'Copied' : 'Copy'}
-                        </button>
-                      </div>
-                      <pre className="gh-draft-body">{thread.aiDraft}</pre>
-                      <div className="gh-draft-actions">
-                        <button className="gh-draft-save">Save to Gmail Drafts</button>
-                        <button className="gh-draft-regen" onClick={() => generateSummary(thread)}>Regenerate</button>
-                      </div>
-                    </div>
-                  ) : !summarizing.has(thread.id) && thread.messages.length > 0 && thread.aiSummary ? (
-                    <div className="gh-no-draft">No reply needed for this thread</div>
-                  ) : null}
-
-                  {/* Quick actions */}
-                  <div className="gh-quick-actions">
-                    {!['hot', 'warm'].includes(thread.tag ?? '') && (
-                      <button className="gh-qa-btn gh-qa-green">Mark as Lead</button>
-                    )}
-                    <button className="gh-qa-btn">Archive</button>
-                    <button className="gh-qa-btn gh-qa-danger">Dismiss</button>
-                  </div>
-
-                </div>
-              )}
-            </div>
-            )}
-          </div>
-        )}
 
         {/* ── Cold Outreach ── */}
         {activeTab === 'outreach' && (
