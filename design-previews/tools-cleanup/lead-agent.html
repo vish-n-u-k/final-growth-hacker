@@ -94,7 +94,7 @@
   .rule { padding: 10px 12px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); font-size: 13px; margin-bottom: 12px; line-height: 1.45; }
 
   /* B: slim status tabs instead of the number boxes */
-  .minitabs { display: flex; gap: 4px; padding: 3px; margin-bottom: 10px; border-radius: 10px; background: var(--bg-soft); overflow-x: auto; }
+  .minitabs { display: flex; gap: 4px; padding: 3px; margin-bottom: 12px; border-radius: 10px; background: var(--bg-soft); overflow-x: auto; }
   .minitabs button { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: none; padding: 7px 10px; border-radius: 8px; font: 500 12.5px var(--body); color: var(--text-dim); cursor: pointer; white-space: nowrap; }
   .minitabs button[aria-selected="true"] { background: #fff; color: var(--text); font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
   .minitabs span { min-width: 20px; padding: 0 6px; border-radius: 99px; background: #fff; font-size: 11.5px; font-weight: 700; color: var(--text-dim); }
@@ -206,7 +206,7 @@
 </div>
 <p class="note">
   <b>What changes:</b> today the Lead Agent page is five stacked boxes. Here it splits into two lanes at the top: <b>Email leads</b> (unhappy reviewers and Google Maps businesses to email) and <b>Community</b> (Reddit and Hacker News posts asking for a tool like yours, where the agent drafts a reply you post yourself).
-  Each lane has its own boxes. Email: <b>Emails to approve · Replied · Sent · No email found</b>. Community: <b>Posts to reply to · New answers to you · Replies posted</b>.
+  Each lane has its own tabs. Email: <b>Emails to approve · Replied · Sent · No email found</b>. Community: <b>Posts to reply to · New answers to you · Replies posted</b>.
   Every lead is a card like Competitor Leads, with one green button bottom-right. The button opens 3 steps: email leads go <b>Email them? → Their email → Review &amp; send</b>; community posts go <b>Worth replying? → Check the reply (with that community's rules) → Post it</b>, and the agent then watches the thread for answers.
   <b>A</b> opens the steps on their own page. <b>B</b> shows list and steps side by side.
 </p>
@@ -273,6 +273,14 @@ const tabsNow = () => TABS[S.lane]
 const SHORT = { needs: 'To approve', replied: 'Replied', sent: 'Sent', nocontact: 'No email', toreply: 'To reply', answers: 'Answers', posted: 'Posted' }
 const listFor = t => LEADS.filter((tabsNow().find(x => x[0] === t) ?? tabsNow()[0])[2])
 
+// Status tabs under the lanes (short labels where space is tight)
+function miniTabs(short) {
+  return `<div class="minitabs" role="tablist">${tabsNow().map(([k, label]) => {
+    const n = listFor(k).length
+    return `<button role="tab" data-tab="${k}" aria-selected="${S.tab === k}">${short ? SHORT[k] : label}<span class="${(k === 'replied' || k === 'answers') && n ? 'hot' : ''}">${n}</span></button>`
+  }).join('')}</div>`
+}
+
 function lanes() {
   const n = (lane, k) => LEADS.filter(TABS[lane].find(x => x[0] === k)[2]).length
   return `<div class="lanes" role="tablist">
@@ -287,12 +295,6 @@ function header() {
     <div class="strip"><span>Every day it finds people who need ${BRAND}: some to email, and some asking on Reddit or Hacker News, where it drafts a reply for you to post.</span><a class="link">How it works ▾</a></div>`
 }
 
-function summary() {
-  return `<div class="sum sum-${tabsNow().length}">${tabsNow().map(([k, label]) => {
-    const n = listFor(k).length
-    return `<button data-tab="${k}" aria-pressed="${S.tab === k}" class="${(k === 'replied' || k === 'answers') && n ? 'hot' : ''}"><b>${n}</b><span>${label}</span></button>`
-  }).join('')}</div>`
-}
 
 function action(l) {
   const st = stateOf(l)
@@ -332,7 +334,7 @@ function listView() {
   const label = tabsNow().find(x => x[0] === S.tab)[1]
   const sub = { needs: 'Approve, edit or skip. Nothing is sent until you say so.', replied: 'People who wrote back. Answer them from Gmail.', sent: 'Follow-ups go out on their own and stop when they reply.', nocontact: 'Good fits with no email. Add one, or reach them another way.',
     toreply: 'Reddit bans automated replies, so the agent drafts and you post. Fresh posts with few answers first.', answers: 'People answered your comment. Reply while the thread is active.', posted: 'Comments you posted. The agent checks the threads for answers every day.' }[S.tab]
-  return `${lanes()}${summary()}
+  return `${lanes()}${miniTabs(S.size === 'phone')}
     <div class="tools"><input class="search" placeholder="${S.lane === 'email' ? 'Search name, company or what they said' : 'Search posts'}" />
       ${S.lane === 'email' ? '<select class="sel"><option>All sources</option><option>Unhappy reviewers</option><option>Google Maps</option></select>' : '<select class="sel"><option>All communities</option><option>Reddit</option><option>Hacker News</option></select>'}
       <select class="sel"><option>Best fit first</option><option>Newest first</option></select></div>
@@ -422,10 +424,7 @@ function render() {
   } else {
     const list = listFor(S.tab)
     html += `${lanes()}<div class="split"><div class="list">
-      <div class="minitabs" role="tablist">${tabsNow().map(([k, label]) => {
-        const n = listFor(k).length
-        return `<button role="tab" data-tab="${k}" aria-selected="${S.tab === k}">${SHORT[k]}<span class="${(k === 'replied' || k === 'answers') && n ? 'hot' : ''}">${n}</span></button>`
-      }).join('')}</div>
+      ${miniTabs(true)}
       ${list.map(card).join('') || '<div class="empty-pane">Nothing here right now.</div>'}</div>
       <div class="detail">${l ? detail(l) : '<div class="empty-pane">Pick a lead on the left to see it here.</div>'}</div></div>`
   }
