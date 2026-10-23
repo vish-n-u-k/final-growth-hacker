@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Claude in the Sidebar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Outfit:wght@400;500;600;700&display=swap">
+<style>
+/* Six sidebar options side by side. Each is a copy of the real AppSidebar (232px, same classes/tokens as globals.css) with one Claude treatment. */
+:root {
+  --bg: #0f1511; --bg-soft: #131b16; --card: #161e19; --line: #27342c;
+  --green: #2fbf71; --green-bright: #4ade80; --accent: #16301f; --accent-foreground: #86efac;
+  --text: #e8f0ea; --text-dim: #a9b8ad; --text-faint: #74857a;
+  --clay: #e0896a; --clay-soft: #d977571f; --clay-line: #d9775755;
+  --page: #0b100d;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  --bg: #ffffff; --bg-soft: #f4f6f4; --card: #ffffff; --line: #e1e6e2;
+  --green: #15803d; --green-bright: #15803d; --accent: #e5f3ea; --accent-foreground: #166534;
+  --text: #16201a; --text-dim: #4c5a50; --text-faint: #7d8a80;
+  --clay: #c2603c; --clay-soft: #c2603c14; --clay-line: #c2603c4d;
+  --page: #e9ede9; color-scheme: light;
+} }
+:root[data-theme="light"] {
+  --bg: #ffffff; --bg-soft: #f4f6f4; --card: #ffffff; --line: #e1e6e2;
+  --green: #15803d; --green-bright: #15803d; --accent: #e5f3ea; --accent-foreground: #166534;
+  --text: #16201a; --text-dim: #4c5a50; --text-faint: #7d8a80;
+  --clay: #c2603c; --clay-soft: #c2603c14; --clay-line: #c2603c4d;
+  --page: #e9ede9; color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--text); font-family: 'Outfit', ui-sans-serif, system-ui, sans-serif; padding: 28px max(16px, env(safe-area-inset-left, 0px)) 48px; }
+button { font: inherit; color: inherit; }
+h1 { font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 24px; margin: 0 0 18px; letter-spacing: -.01em; }
+
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 22px 18px; max-width: 1560px; }
+.opt { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.opt-lbl { font-size: 13px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+.opt-lbl b { width: 20px; height: 20px; border-radius: 50%; background: var(--text); color: var(--page); display: grid; place-items: center; font-size: 11px; }
+
+/* ── sidebar (mirrors .app-sidebar in globals.css) ── */
+.app-sidebar { width: 232px; height: 720px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 14px; display: flex; flex-direction: column; padding: 18px 12px; overflow: hidden; box-shadow: 0 12px 30px #0000002e; }
+.brand { display: flex; align-items: center; gap: 9px; padding: 6px 8px 16px; font-family: 'Fraunces', serif; font-weight: 700; font-size: 15px; }
+.logo { width: 24px; height: 24px; border-radius: 6px; background: var(--green); display: grid; place-items: center; color: #06140c; font: 700 13px 'Outfit', sans-serif; }
+.glabel { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); padding: 0 10px 6px; }
+.group { margin-bottom: 12px; }
+.nav { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; color: var(--text-dim); font-size: 13px; font-weight: 500; margin-bottom: 1px; cursor: pointer; }
+.nav:hover { background: var(--card); color: var(--text); }
+.nav svg { width: 15px; height: 15px; flex-shrink: 0; }
+.nav .grow { flex: 1; }
+.rm-title { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); padding: 4px 10px 6px; }
+.rm-hd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 9px; font-size: 13.5px; color: var(--text-dim); font-weight: 500; }
+.rm-hd.open { color: var(--text); font-weight: 600; }
+.chev { width: 10px; height: 10px; color: var(--text-faint); flex: none; }
+.rm-hd.open .chev { transform: rotate(90deg); }
+.rm-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rm-count { font-size: 11.5px; font-weight: 600; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.rm-bar { flex-basis: 100%; height: 3px; border-radius: 99px; background: var(--line); margin: 2px 0 0 18px; width: calc(100% - 18px); overflow: hidden; }
+.rm-bar i { display: block; height: 100%; background: var(--green); border-radius: 99px; }
+.rm-mods { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 6px 17px; padding-left: 8px; border-left: 1px solid var(--line); }
+.rm-mod { position: relative; display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 8px; font-size: 13px; color: var(--text-dim); cursor: pointer; min-height: 28px; }
+.rm-mod:hover { background: var(--card); color: var(--text); }
+.rm-mod.sel { background: var(--line); color: var(--text); font-weight: 600; }
+.dot { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--text-faint); flex: none; }
+.dot.done { background: var(--green); border-color: var(--green); }
+.rm-modname { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pct { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.scroll { flex: 1; min-height: 0; overflow: hidden; -webkit-mask-image: linear-gradient(#000 85%, transparent); mask-image: linear-gradient(#000 85%, transparent); }
+.foot { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.ws { display: flex; align-items: center; gap: 9px; padding: 4px 8px; font-size: 12.5px; font-weight: 600; }
+.avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--text); color: var(--bg); display: grid; place-items: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.ws .name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Claude bits ── */
+.spark { width: 13px; height: 13px; color: var(--clay); flex: none; }
+.live { width: 7px; height: 7px; border-radius: 50%; background: var(--green-bright); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green-bright) 22%, transparent); flex: none; }
+.pill { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 1px 7px; border-radius: 99px; background: var(--clay-soft); color: var(--clay); }
+
+/* 1 · sparks on rows */
+.o1 .rm-mod .spark { opacity: .9; }
+/* 2 · Claude nav item */
+.o2 .claude-nav { background: var(--clay-soft); color: var(--text); border: 1px solid var(--clay-line); }
+.o2 .claude-nav svg { color: var(--clay); }
+/* 3 · footer card */
+.ccard { border: 1px solid var(--clay-line); background: linear-gradient(160deg, var(--clay-soft), transparent 80%); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.ccard .row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; }
+.ccard .big { font-family: 'Fraunces', serif; font-size: 22px; line-height: 1; }
+.ccard .sub { font-size: 11.5px; color: var(--text-faint); font-weight: 500; }
+.cbtn { display: flex; justify-content: center; align-items: center; gap: 6px; border: 0; border-radius: 8px; padding: 7px; background: var(--clay); color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.cbtn:hover { filter: brightness(1.08); }
+.cbtn svg { width: 12px; height: 12px; }
+/* 4 · stage chips */
+.o4 .rm-hd .pill { display: inline-flex; gap: 4px; align-items: center; }
+.o4 .rm-hd .pill .spark { width: 10px; height: 10px; }
+/* 5 · hover action */
+.solve { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: none; align-items: center; gap: 4px; border: 0; border-radius: 6px; padding: 3px 7px; background: var(--clay); color: #fff; font-size: 11px; font-weight: 700; cursor: pointer; }
+.solve .spark { color: #fff; width: 10px; height: 10px; }
+.o5 .rm-mod:hover .solve, .o5 .rm-mod.hover .solve { display: inline-flex; }
+.o5 .rm-mod:hover .pct, .o5 .rm-mod.hover .pct { visibility: hidden; }
+.o5 .rm-mod.hover { background: var(--card); color: var(--text); }
+/* 6 · footer status */
+.status { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.status:hover { border-color: var(--clay-line); }
+.status .grow { flex: 1; }
+.status .faint { color: var(--text-faint); font-weight: 500; font-size: 11.5px; }
+.status.off { border-style: dashed; color: var(--text-dim); }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--text); color: var(--bg); padding: 9px 14px; border-radius: 10px; font-size: 13.5px; z-index: 9; max-width: calc(100vw - 32px); }
+:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<h1>Claude in the sidebar: 6 options</h1>
+<div class="gallery" id="g"></div>
+
+<script>
+(() => {
+  const S = d => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const IC = {
+    sun: S('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+    bot: S('<rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 14h.01M15 14h.01"/>'),
+    target: S('<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>'),
+    mail: S('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'),
+    search: S('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>'),
+    image: S('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/>'),
+    mega: S('<path d="M3 11v2a2 2 0 0 0 2 2h2l6 4V5L7 9H5a2 2 0 0 0-2 2zM17 9a4 4 0 0 1 0 6"/>'),
+    bell: S('<path d="M6 8a6 6 0 1 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 21h4"/>'),
+    chart: S('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
+    ext: S('<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'),
+  };
+  const spark = (cls = 'spark') => `<svg class="${cls}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.6 6.1 5.6-3-3 5.6 6.3 1.6-6.3 1.4 3 5.6-5.6-3L12 21.5l-1.6-6.1-5.6 3 3-5.6-6.3-1.4 6.3-1.6-3-5.6 5.6 3z"/></svg>`;
+  const chev = '<svg class="chev" viewBox="0 0 10 10" aria-hidden="true"><path d="M3 1l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  // Growth Path stages (lib/modules/roadmap.ts) with sample scores; open = checks Claude can fix.
+  const STAGES = [
+    { name: 'Get set up', count: '1/3', pct: 55, open: 21, mods: [
+      { name: 'Foundation', pct: 82, done: true, open: 2 },
+      { name: 'Website Audit', pct: 64, open: 7 },
+      { name: 'SEO Health Audit', pct: 58, open: 12, sel: true },
+    ] },
+    { name: 'Get found', count: '0/3', pct: 20, open: 19 },
+    { name: 'Win attention', count: '0/2', pct: 0, open: 13 },
+    { name: 'Grow & keep', count: '0/1', pct: 0, open: 6 },
+  ];
+  const TOTAL = STAGES.reduce((a, s) => a + s.open, 0);
+  const TOOLS = [
+    ['Get customers', [['bot', 'Lead Agent'], ['target', 'Competitor Leads'], ['mail', 'Email Outreach']]],
+    ['Get seen', [['search', 'Search Agent'], ['image', 'Social Studio'], ['mega', 'Meta Ads']]],
+    ['Keep track', [['bell', 'Reminders'], ['chart', 'Analytics']]],
+  ];
+
+  const nav = (icon, label, after = '', cls = '') => `<div class="nav ${cls}" tabindex="0">${icon}<span class="grow">${label}</span>${after}</div>`;
+
+  function sidebar(o) {
+    const mod = m => `<div class="rm-mod${m.sel ? ' sel' : ''}${o.hoverRow && m.name === 'Website Audit' ? ' hover' : ''}" tabindex="0" data-claude="${m.name}">
+      <span class="dot${m.done ? ' done' : ''}"></span><span class="rm-modname">${m.name}</span>
+      ${o.rowSpark && m.open ? spark() : ''}<span class="pct">${m.pct}%</span>
+      ${o.hoverAction ? `<button class="solve" data-claude="${m.name}">${spark()}Solve</button>` : ''}</div>`;
+    const stage = (s, i) => `<div class="rm-hd${s.mods ? ' open' : ''}">${chev}<span class="rm-name">${i + 1} · ${s.name}</span>
+      ${o.stagePill ? `<span class="pill" title="${s.open} checks Claude can fix">${spark()}${s.open}</span>` : `<span class="rm-count">${s.count}</span>`}
+      <span class="rm-bar"><i style="width:${s.pct}%"></i></span></div>${s.mods ? `<div class="rm-mods">${s.mods.map(mod).join('')}</div>` : ''}`;
+    return `<nav class="app-sidebar o${o.n}" aria-label="Option ${o.n}">
+      <div class="brand"><span class="logo">G</span>GrowJin</div>
+      <div class="scroll"><div class="group">${nav(IC.sun, 'Today')}${o.claudeNav ? nav(spark(''), 'Claude', `<span class="live" title="Connected"></span><span class="pill">${TOTAL}</span>`, 'claude-nav" data-claude="all') : ''}</div>
+      <div class="group"><div class="rm-title">Your roadmap</div>${STAGES.map(stage).join('')}</div>
+      ${TOOLS.map(([l, items]) => `<div class="group"><div class="glabel">${l}</div>${items.map(([i, t]) => nav(IC[i], t)).join('')}</div>`).join('')}</div>
+      <div class="foot">
+        ${o.card ? `<div class="ccard"><div class="row">${spark()}<span class="big">${TOTAL}</span><span class="sub">checks Claude<br>can fix for you</span></div>
+          <button class="cbtn" data-claude="all">Open Claude ${IC.ext}</button></div>` : ''}
+        ${o.status ? `<div class="status" tabindex="0" data-claude="all">${spark()}<span class="grow">Claude</span><span class="live"></span><span class="faint">On</span></div>
+          <div class="status off" tabindex="0" data-claude="connect">${spark()}<span class="grow">Connect Claude</span><span class="faint">+</span></div>` : ''}
+        <div class="ws"><span class="avatar">L</span><span class="name">Lumen Coffee</span></div>
+      </div></nav>`;
+  }
+
+  const OPTIONS = [
+    { n: 1, label: 'Spark on modules', rowSpark: true },
+    { n: 2, label: 'Claude nav item', claudeNav: true },
+    { n: 3, label: 'Footer card', card: true },
+    { n: 4, label: 'Stage counts', stagePill: true },
+    { n: 5, label: 'Hover to solve', hoverAction: true, hoverRow: true },
+    { n: 6, label: 'Status: on / off', status: true },
+  ];
+  document.getElementById('g').innerHTML = OPTIONS.map(o => `<div class="opt"><div class="opt-lbl"><b>${o.n}</b>${o.label}</div>${sidebar(o)}</div>`).join('');
+
+  let t;
+  document.addEventListener('click', e => {
+    const el = e.target.closest('[data-claude]'); if (!el || !e.target.closest('.spark, .solve, .claude-nav, .cbtn, .status, .pill')) return;
+    e.stopPropagation();
+    const k = el.dataset.claude;
+    const msg = k === 'all' ? 'Opens Claude with your GrowJin plan' : k === 'connect' ? 'Opens the 1-step connector setup' : `Opens Claude: “Fix my ${k} checks”`;
+    document.querySelector('.toast')?.remove(); clearTimeout(t);
+    const d = document.createElement('div'); d.className = 'toast'; d.textContent = msg; document.body.append(d);
+    t = setTimeout(() => d.remove(), 1800);
+  });
+})();
+</script>
+</body>
+</html>
