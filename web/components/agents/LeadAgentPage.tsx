@@ -10,7 +10,8 @@ import { Day, DemoBanner, fmtAgo, fmtDate, initials, useAgentApi } from './share
 
 // Lead Agent: finds people who need the product in two places, Reddit / Hacker News posts (a reply
 // to post yourself) and Google Maps businesses (an email to approve), and follows up until they
-// reply. Competitor reviews are Competitor Leads' job, not this one's. The bar at the top says what it searches for (Change opens the settings); it searches
+// reply. Competitor reviews are Competitor Leads' job, not this one's. The two jobs are the two
+// tabs (Community, Email); inside each, To do / Waiting / Done. The bar at the top says what it searches for (Change opens the settings); it searches
 // by itself the first time the page is opened. Leads sit in three tabs: Needs you (replies to
 // answer, emails to approve, forum replies to post), Waiting (sent, follow-ups running) and Done.
 // A lead opens into two short steps, the same as Competitor Leads' reach-out page.
@@ -18,6 +19,7 @@ import { Day, DemoBanner, fmtAgo, fmtDate, initials, useAgentApi } from './share
 export interface LeadAgentFlags { dataforseo: boolean; hunter: boolean; gmail: boolean; demo: boolean }
 
 type TabKey = 'needs' | 'waiting' | 'done'
+type Lane = 'community' | 'email'
 type Section = 'replied' | 'approve' | 'post'
 
 const COUNTRIES: [string, string][] = [['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
@@ -27,6 +29,7 @@ const SOURCE: Record<Lead['source'], [string, 'orange' | 'amber' | undefined]> =
 const PROGRESS = ['Checking replies', 'Searching Google Maps', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies']
 
 const isForum = (l: Lead) => l.source === 'reddit' || l.source === 'forum'
+const laneOf = (l: Lead): Lane => (isForum(l) ? 'community' : 'email')
 const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
 
 function tabOf(l: Lead): TabKey {
@@ -99,10 +102,11 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
   // What the server says back (errors, "Sent", the search summary) shows in the toast
   useEffect(() => { if (said) notify(said) }, [said, notify])
   const s = data.settings
+  // Open on the job with something to do: email first (replies wait there), else community
+  const [lane, setLane] = useState<Lane>(() => initial.leads.some(l => tabOf(l) === 'needs' && laneOf(l) === 'email') || !initial.leads.some(l => tabOf(l) === 'needs') ? 'email' : 'community')
   const [tab, setTab] = useState<TabKey>('needs')
   const [panel, setPanel] = useState(false)
   const [q, setQ] = useState('')
-  const [src, setSrc] = useState<'' | Lead['source']>('')
   const [openId, setOpenId] = useState<string | null>(null)
   const [stepNo, setStepNo] = useState(1)
   // Drafts being edited in the open lead
@@ -124,7 +128,8 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     call(op, payload, key) as Promise<{ ok?: boolean; error?: string; message?: string; data?: LeadAgentData } | null>
 
   const leads = data.leads
-  const byTab = (k: TabKey) => leads.filter(l => tabOf(l) === k)
+  const inLane = (ln: Lane, k: TabKey) => leads.filter(l => laneOf(l) === ln && tabOf(l) === k)
+  const byTab = (k: TabKey) => inLane(lane, k)
   const hot = leads.some(l => tabOf(l) === 'needs' && l.status === 'replied')
   const open = openId ? leads.find(l => l.id === openId) ?? null : null
 
@@ -174,31 +179,35 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
   function list() {
     const all = byTab(tab)
     const needle = q.trim().toLowerCase()
-    const shown = all.filter(l => (!needle || `${nameOf(l)} ${l.why} ${l.snippet}`.toLowerCase().includes(needle)) && (!src || l.source === src))
-    const tools = (
-      <ListTools q={q} setQ={setQ} shown={shown.length} total={all.length} onClear={() => { setQ(''); setSrc('') }}
-        filter={
-          <select className={`cl-sel${src ? ' cl-sel--on' : ''}`} value={src} onChange={e => setSrc(e.target.value as typeof src)} aria-label="Source">
-            <option value="">All sources</option>
-            <option value="local">Google Maps</option>
-            <option value="reddit">Reddit</option>
-            <option value="forum">Hacker News</option>
-          </select>
-        } />
-    )
+    const shown = all.filter(l => !needle || `${nameOf(l)} ${l.why} ${l.snippet}`.toLowerCase().includes(needle))
+    const tools = <>
+      <div className="tu-filter">
+        <div className="cl-seg" role="group" aria-label="Show">
+          {([['needs', 'To do'], ['waiting', 'Waiting'], ['done', 'Done']] as const).map(([k, label]) => (
+            <button key={k} type="button" aria-pressed={tab === k} onClick={() => { setTab(k); setQ('') }}>{label} <span>{byTab(k).length}</span></button>
+          ))}
+        </div>
+        <span className="cl-muted">{lane === 'email' ? 'Businesses on Google Maps. You approve every email.' : 'Posts on Reddit and Hacker News. You post every reply yourself.'}</span>
+      </div>
+      <ListTools q={q} setQ={setQ} shown={shown.length} total={all.length} onClear={() => setQ('')} />
+    </>
     if (!shown.length) {
       return <>{tools}<div className="tu-empty">{all.length ? 'Nothing matches.'
         : running && !leads.length ? 'Your first leads appear here in a moment.'
-        : tab === 'needs' ? 'All caught up. New leads appear after the next search.'
-        : tab === 'waiting' ? 'Nothing waiting. Emails you send and replies you post show up here.'
+        : tab === 'needs' ? (lane === 'email'
+          ? (s.sources.local ? 'No emails to approve. New businesses appear after the next search.' : 'Google Maps is off. Turn it on in Search settings to find businesses to email.')
+          : (s.sources.reddit ? 'No posts to answer. New ones appear after the next search.' : 'Reddit and Hacker News are off. Turn them on in Search settings.'))
+        : tab === 'waiting' ? (lane === 'email' ? 'Nothing waiting. Emails you send show up here until they reply.' : 'Nothing waiting. Replies you post show up here.')
         : 'Nothing here yet.'}</div></>
     }
     if (tab !== 'needs') return <>{tools}{shown.map(card)}</>
     const approvable = shown.filter(l => l.status === 'ready' && !l.reply && l.email && l.draft).length
     return <>{tools}
-      {([['replied', 'Replied: answer while they’re interested', 'crit'], ['approve', 'Emails to approve', undefined], ['post', 'Forum replies to post', undefined]] as const).map(([k, label, tone]) => {
+      {([['replied', 'Replied: answer while they’re interested', 'crit'], ['approve', 'Emails to approve', undefined], ['post', 'Replies to post', undefined]] as const).map(([k, label, tone]) => {
         const items = shown.filter(l => sectionOf(l) === k)
         if (!items.length) return null
+        // Community has only one kind, so no heading
+        if (k === 'post') return <div key={k}>{items.map(card)}</div>
         return (
           <div key={k}>
             <div className="tu-sec-row">
@@ -224,7 +233,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
       sub={<><Src label={srcLabel} tone={tone} /><a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See it ↗</a></>}
       quote={l.snippet || undefined} why={l.why} />
     const back = { label: 'Lead Agent', onClick: () => setOpenId(null) }
-    const next = leads.find(x => x.id !== l.id && tabOf(x) === 'needs')
+    const next = leads.find(x => x.id !== l.id && tabOf(x) === 'needs' && laneOf(x) === laneOf(l))
     const nextBtn = next && <button key="next" type="button" className="btn btn-primary" onClick={() => openLead(next)}>Next: {firstOf(next) === 'them' ? nameOf(next).slice(0, 28) + (nameOf(next).length > 28 ? '…' : '') : firstOf(next)} →</button>
     const backBtn = <button key="back" type="button" className="btn btn-ghost ro-back" onClick={() => setOpenId(null)}>← Back to the list</button>
     const steps = l.reply ? ['Check the reply', 'Post it'] : l.status === 'replied' ? ['Reply'] : ['Their email', 'Review & send']
@@ -376,10 +385,9 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
           primary={<button type="button" className="btn btn-primary" disabled={running || !!busy} onClick={() => { setPanel(false); call('run') }}>{running ? <><Spinner />Working…</> : 'Find new leads'}</button>} />
         <LiveProgress agent="lead" active={running} fallback={PROGRESS} />
 
-        <Tabs value={tab} onChange={k => { setTab(k); setQ(''); setSrc('') }} tabs={[
-          { key: 'needs', label: 'Needs you', count: byTab('needs').length, hot },
-          { key: 'waiting', label: 'Waiting', count: byTab('waiting').length },
-          { key: 'done', label: 'Done', count: byTab('done').length },
+        <Tabs value={lane} onChange={k => { setLane(k); setTab('needs'); setQ('') }} tabs={[
+          { key: 'email', label: 'Email', count: inLane('email', 'needs').length, hot },
+          { key: 'community', label: 'Community', count: inLane('community', 'needs').length },
         ]} />
         {list()}
       </>}
