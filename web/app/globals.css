@@ -9055,7 +9055,7 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 /* ── Calm tool pages (ca-*): a quiet top, one "Start here" panel with the only green button,
    quiet rows, details only once an item is opened. Preview: design-previews/tools-cleanup/
    all-tools-calm.html. Green = the next step, red = someone replied, everything else grey. ── */
-.tool-page.ca { max-width: 928px; margin: 0; }
+.tool-page.ca { max-width: 952px; margin: 0 auto; padding-top: 6px; }
 .ca-top { padding: 22px 0 0; }
 .ca-crumbs { margin-bottom: 30px; font-size: 13px; color: var(--text-faint); }
 .ca-title { margin: 0; font: 600 32px/1.15 var(--font-display); letter-spacing: -.01em; color: var(--text); text-wrap: balance; }
@@ -9082,6 +9082,7 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .ca-rest-h { margin: 0 0 6px; font-size: 13px; font-weight: 400; color: var(--text-faint); }
 .ca-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 4px; border: 0; border-bottom: 1px solid var(--line); background: none; font: inherit; text-align: left; color: inherit; text-decoration: none; cursor: pointer; }
 .ca-row--still { cursor: default; }
+.ca-row--still .btn-link { height: 32px; flex: none; }
 .ca-row:not(.ca-row--still):hover .ca-row-name { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
 .ca-row-main { flex: 1; min-width: 0; display: grid; }
 .ca-row-name { font-size: 15px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -9100,7 +9101,9 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .ca-empty b { display: block; margin-bottom: 4px; font-size: 17px; color: var(--text); }
 .ca-empty p { max-width: 520px; margin: 0 auto 16px; font-size: 14.5px; color: var(--text-dim); }
 .ca-note { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 14px 18px; border-radius: 14px; background: var(--bg-soft); font-size: 14px; color: var(--text-dim); }
-.ca-note > span { flex: 1 1 240px; min-width: 0; }
+.ca-note > .spinner { flex: none; }
+.ca-reach { padding-top: 22px; }
+.ca-note-text { flex: 1 1 240px; min-width: 0; }
 .ca-note b { display: block; color: var(--text); font-weight: 600; }
 
 /* Picking what to work on: the whole page on a first visit, a quiet panel after */
@@ -9117,7 +9120,7 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .ca-opts input { accent-color: var(--green); margin: 0; }
 .ca-pick .ca-small, .ca-sheet .ca-small { margin: 0; }
 .ca-earlier { display: grid; justify-items: start; gap: 6px; font-size: 14px; }
-.ca-earlier .ca-rest-h { margin: 0; }
+.ca-earlier .ca-small { margin: 0; }
 .ca-status { padding-top: 14px; border-top: 1px solid var(--line); font-size: 14px; color: var(--text-dim); }
 .ca-acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
 .ca-acts > .btn-primary { margin-left: auto; }
@@ -9130,6 +9133,7 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .ca-who h2 { margin: 0 0 4px; font: 600 22px/1.25 var(--font-display); color: var(--text); overflow-wrap: anywhere; }
 .ca-who-src { font-size: 13px; color: var(--text-faint); }
 .ca-who-why { margin: 16px 0 0; font-size: 14.5px; line-height: 1.55; color: var(--text); }
+.ca-who-more { display: grid; gap: 4px; margin-top: 16px; font-size: 13px; color: var(--text-faint); }
 .ca-who blockquote { margin: 14px 0 0; padding-left: 12px; border-left: 2px solid var(--line); font-size: 14px; line-height: 1.6; color: var(--text-dim); }
 .ca-step { min-width: 0; }
 .ca-step-of { margin-bottom: 6px; font-size: 13px; color: var(--text-faint); }
@@ -9145,7 +9149,7 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .ca-mail-row input { flex: 1; min-width: 0; border: 0; background: none; outline: none; color: var(--text); font: inherit; font-size: 14.5px; }
 .ca-mail-row b { font-weight: 500; color: var(--text); overflow-wrap: anywhere; }
 .ca-mail-text { display: block; width: 100%; min-height: 220px; padding: 14px; border: 0; background: none; resize: vertical; outline: none; color: var(--text); font: inherit; font-size: 14.5px; line-height: 1.65; box-sizing: border-box; }
-.ca-mail--read .ca-mail-text { min-height: 0; white-space: pre-wrap; }
+.ca-mail-text--read { min-height: 0; white-space: pre-wrap; }
 @media (max-width: 760px) {
   .ca-top { padding-top: 16px; }
   .ca-crumbs { margin-bottom: 18px; }

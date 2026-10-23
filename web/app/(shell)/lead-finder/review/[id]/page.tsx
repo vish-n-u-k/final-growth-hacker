@@ -3,11 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
-import ReachOut from '@/components/lead-finder/ReachOut'
+import { ReachOutPage } from '@/components/lead-finder/ReachOut'
 import { loadReview, loadScan, loadScanReviews } from '@/lib/lead-finder/saved'
 
-// Reach out to one reviewer from a Competitor Leads scan (components/lead-finder/ReachOut).
-export default async function ReachOutPage({ params }: { params: Promise<{ id: string }> }) {
+// Reach out to one reviewer from a Competitor Leads scan, on its own page (components/lead-finder/ReachOut).
+// The list opens reviewers in place; this page is for links straight to one of them.
+export default async function ReviewPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -33,10 +34,9 @@ export default async function ReachOutPage({ params }: { params: Promise<{ id: s
   const next = order.slice(at + 1).find(open) ?? order.slice(0, Math.max(0, at)).find(open) ?? null
 
   return (
-    <ReachOut
+    <ReachOutPage
       review={review}
       scan={scan}
-      brandName={brand.name}
       gmailConnected={integration?.status === 'connected'}
       next={next && { id: next.id, name: next.name }}
     />

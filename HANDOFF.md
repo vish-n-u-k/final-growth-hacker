@@ -187,7 +187,9 @@ Gotchas:
 
 **Built so far:** Competitor Leads (`LeadFinder.tsx`, `lead-finder/ReachOut.tsx`). It uses the shared calm parts in `tool-ui.tsx` (`CalmHead`, `StartHere`, `QuietRow`, `AllCaughtUp`) and the `ca-*` CSS at the end of `globals.css`. Reuse these for the other tools.
 
-- After sending or skipping on a reviewer's page, the next good fit opens by itself. The `?done=sent|skipped&id=&name=` query shows the toast (with Undo for a skip) on the page that opens.
+- It follows the Competitor Leads screen of `all-tools-calm.html` exactly. A reviewer opens in place on the list page (`ReachOut`); after sending or skipping, the next good fit opens by itself, with a toast (Undo for a skip).
+- `/lead-finder/review/[id]` still works for links straight to one reviewer (`ReachOutPage`); it moves on with `?done=sent|skipped&id=&name=`.
+- Kept from before: fit score and pains (grey, on the reviewer's left side), review link, verified email, no-email help, Write it again, Copy, earlier scans, Stop, Try again, Use Shopify App Store. Dropped: the star filter (not in the preview).
 
 **Next steps:**
 
