@@ -76,56 +76,46 @@ export default function Campaigns({ newPending, onNewOpened, notify, onSent }: {
 
   if (list.length === 0) {
     return (
-      <div className="cl-none eo-none">
-        <h3>No campaigns yet</h3>
-        <p>Paste a list of people, say what it&apos;s about, and check each email before it goes.</p>
-        <div className="cl-acts cl-acts--center">
-          <button type="button" className="btn btn-primary" onClick={() => setOpenId({ id: newId(), isNew: true })}>New campaign</button>
-        </div>
-        <p className="eo-find">No list? Try <Link className="th-link" href="/lead-finder">Competitor Leads</Link> or the <Link className="th-link" href="/agents/leads">Lead Agent</Link>.</p>
+      <div className="eo-start">
+        <h3>Start your first campaign</h3>
+        <p>Paste a list of people and say what it&apos;s about. GrowJin writes each email and you check it before it goes.</p>
+        <button type="button" className="btn btn-primary" onClick={() => setOpenId({ id: newId(), isNew: true })}>New campaign</button>
+        <p className="eo-find">No list yet? Find people with <Link className="th-link" href="/lead-finder">Competitor Leads</Link> or the <Link className="th-link" href="/agents/leads">Lead Agent</Link>.</p>
       </div>
     )
   }
 
+  // One green button: the first campaign that isn't finished. Everything else is a quiet row.
+  const nextId = list.find(c => !(c.recipients > 0 && c.sent + c.scheduled >= c.recipients))?.id
+
   return (
     <div>
-      <div className="eo-listbar">
-        <button type="button" className="btn btn-primary btn-sm" onClick={() => setOpenId({ id: newId(), isNew: true })}>New campaign</button>
-      </div>
-      {pg.items.map(c => {
-        const done = c.recipients > 0 && c.sent + c.scheduled >= c.recipients
-        const state = done ? 'Sent' : c.sent + c.scheduled > 0 ? 'Sending' : c.written > 0 ? 'Written' : 'Draft'
-        return (
-          <article key={c.id} className="cl-rv eo-card">
-            <div className="cl-rv-head">
-              <span className="cl-av eo-av-mail" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="2.5" y="4.5" width="15" height="11" rx="2" /><path d="M3.5 6l6.5 5 6.5-5" /></svg>
-              </span>
-              <div className="cl-rv-who">
-                <div className="cl-lead-name eo-ellip">{c.title}</div>
-                <div className="cl-lead-sub">
-                  <span>{c.recipients} recipient{c.recipients !== 1 ? 's' : ''}</span>
-                  {c.written > 0 && <span>· {c.written} written</span>}
-                  {c.sent > 0 && <span>· {c.sent} sent</span>}
-                  {c.scheduled > 0 && <span>· {c.scheduled} scheduled</span>}
-                </div>
+      <div className="eo-rows">
+        {pg.items.map(c => {
+          const done = c.recipients > 0 && c.sent + c.scheduled >= c.recipients
+          const progress = done ? `All ${c.recipients} sent`
+            : c.sent + c.scheduled > 0 ? `${c.sent + c.scheduled} of ${c.recipients} sent`
+            : c.written > 0 ? `${c.written} of ${c.recipients} written`
+            : `${c.recipients} recipient${c.recipients !== 1 ? 's' : ''}, not written yet`
+          const open = () => setOpenId({ id: c.id, isNew: false })
+          return (
+            <div key={c.id} className="eo-row" role="button" tabIndex={0} onClick={open}
+              onKeyDown={e => { if (e.key === 'Enter') open() }}>
+              <div className="eo-row-main">
+                <div className="eo-row-name">{c.title}</div>
+                <div className="eo-row-sub">{progress} · updated {ago(c.savedAt)}</div>
               </div>
-              <span className={`eo-due eo-state--${state.toLowerCase()}`}>{state}</span>
-            </div>
-            <div className="cl-rv-foot">
-              <span className="eo-foot-l">
-                <span className="cl-muted">Updated {ago(c.savedAt)}</span>
-                <button type="button" className={`btn btn-link${deleting === c.id ? ' eo-danger' : ''}`} onClick={() => remove(c)} onBlur={() => setDeleting(null)}>
-                  {deleting === c.id ? 'Click again to delete' : 'Delete'}
-                </button>
-              </span>
-              <button type="button" className={`btn btn-sm ${done ? 'cl-btn-outline' : 'btn-primary cl-reach'}`} onClick={() => setOpenId({ id: c.id, isNew: false })}>
-                {done ? 'View' : c.written > 0 || c.recipients > 0 ? 'Continue →' : 'Open →'}
+              <button type="button" className={`btn btn-link eo-row-del${deleting === c.id ? ' eo-danger' : ''}`}
+                onClick={e => { e.stopPropagation(); remove(c) }} onBlur={() => setDeleting(null)}>
+                {deleting === c.id ? 'Click again to delete' : 'Delete'}
               </button>
+              {c.id === nextId
+                ? <button type="button" className="btn btn-primary btn-sm" onClick={e => { e.stopPropagation(); open() }}>Continue</button>
+                : <span className="eo-row-go" aria-hidden="true">›</span>}
             </div>
-          </article>
-        )
-      })}
+          )
+        })}
+      </div>
       <Pager p={pg} />
     </div>
   )

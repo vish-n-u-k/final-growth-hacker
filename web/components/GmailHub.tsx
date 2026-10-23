@@ -247,8 +247,7 @@ export default function GmailHub({
         icon="mail"
         title="Email Outreach"
         intro="emailOutreach"
-        chips={<span className="th-chip th-chip--on">{gmailAddress ?? 'Gmail connected'}</span>}
-        meta={`${sentThisWeek} sent this week`}
+        meta={`${gmailAddress ?? 'Gmail connected'} · ${sentThisWeek} sent this week`}
         actions={<>
           <button ref={menuBtn} type="button" className="btn btn-ghost btn-sm eo-more" aria-label="Gmail settings" aria-expanded={menuOpen} onClick={() => setMenuOpen(o => !o)}>
             <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4.5" cy="10" r="1.6" /><circle cx="10" cy="10" r="1.6" /><circle cx="15.5" cy="10" r="1.6" /></svg>
@@ -260,7 +259,7 @@ export default function GmailHub({
               {disconnecting ? <><Spinner />Disconnecting…</> : 'Disconnect Gmail'}
             </button>
           </Popover>
-          {tab !== 'campaigns' && <button type="button" className="btn btn-primary btn-sm" onClick={startCampaign}>New campaign</button>}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={startCampaign}>New campaign</button>
         </>}
       />
 
