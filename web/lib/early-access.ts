@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { adminSettings } from '@/lib/db/schema'
 
 // Early-access users: every Growth Path module is open (no "previous module must reach 80%" lock)
-// and the coming-soon tools are live. The list is edited on the admin page (Early access tab)
+// and the parked tools (lib/features.ts) are live. The list is edited on the admin page (Early access tab)
 // and kept in admin_settings as one lowercase email per line.
 const KEY = 'early_access_emails'
 

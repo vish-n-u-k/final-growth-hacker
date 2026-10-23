@@ -30,38 +30,28 @@ export default async function ToolsPage() {
     <div className="tool-page">
         <ToolHeader icon="grid" title="Tools" meta={`${brand.name} · every growth tool in one place`} />
 
-        {/* Same groups, names and icons as the sidebar (lib/tools.ts); live tools first in each group. */}
-        {TOOL_GROUPS.map(group => (
+        {/* Same groups, names and icons as the sidebar (lib/tools.ts); parked tools (lib/features.ts) are left out. */}
+        {TOOL_GROUPS.map(group => ({ ...group, items: group.items.filter(t => !isComingSoon(t.href, earlyAccess)) }))
+          .filter(group => group.items.length > 0)
+          .map(group => (
           <section key={group.label} className="tl-group">
             <h2 className="tool-label">{group.label}</h2>
             <div className="tl-grid">
-              {group.items
-                .map(t => ({ ...t, comingSoon: isComingSoon(t.href, earlyAccess) }))
-                .sort((a, b) => Number(a.comingSoon) - Number(b.comingSoon))
-                .map(tool => {
-                  const content = (
-                    <>
-                      <div className="tl-card-top">
-                        <div className="tl-card-icon"><ToolIcon name={tool.icon} size={18} /></div>
-                        {tool.comingSoon ? (
-                          <span className="cs-badge">Coming Soon</span>
-                        ) : tool.gmail && (
-                          <span className={`tl-card-badge ${gmailConnected ? 'tl-card-badge--on' : 'tl-card-badge--off'}`}>
-                            {gmailConnected ? 'Gmail connected' : 'Gmail not connected'}
-                          </span>
-                        )}
-                      </div>
-                      <div className="tl-card-title">{tool.label}</div>
-                      <div className="tl-card-desc">{tool.desc}</div>
-                      {!tool.comingSoon && <ToolCardStatus color="var(--green)" />}
-                    </>
-                  )
-                  return tool.comingSoon ? (
-                    <div key={tool.href} className="tl-card tl-card--disabled">{content}</div>
-                  ) : (
-                    <Link key={tool.href} href={tool.href} className="tl-card">{content}</Link>
-                  )
-                })}
+              {group.items.map(tool => (
+                <Link key={tool.href} href={tool.href} className="tl-card">
+                  <div className="tl-card-top">
+                    <div className="tl-card-icon"><ToolIcon name={tool.icon} size={18} /></div>
+                    {tool.gmail && (
+                      <span className={`tl-card-badge ${gmailConnected ? 'tl-card-badge--on' : 'tl-card-badge--off'}`}>
+                        {gmailConnected ? 'Gmail connected' : 'Gmail not connected'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="tl-card-title">{tool.label}</div>
+                  <div className="tl-card-desc">{tool.desc}</div>
+                  <ToolCardStatus color="var(--green)" />
+                </Link>
+              ))}
             </div>
           </section>
         ))}
