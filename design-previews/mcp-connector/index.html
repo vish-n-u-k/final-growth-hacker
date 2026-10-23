@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Claude Connector Designs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Outfit:wght@300;400;500;600;700&display=swap">
+<style>
+/* Layout: same narrow app column as design-previews/checklist. Intro, a tab strip of concepts; each tab = a short brief + a mock in GrowJin's dark-green system. */
+:root {
+  --bg: #0f1511; --bg-soft: #131b16; --card: #161e19; --card-2: #1b241e; --line: #27342c; --line-2: #33443a;
+  --green: #2fbf71; --green-bright: #4ade80; --green-soft: #2fbf711f; --lime: #a3e635;
+  --text: #e8f0ea; --text-dim: #a9b8ad; --text-faint: #74857a;
+  --warn: #f5a524; --warn-soft: #f5a5241a; --crit: #f26b5b; --crit-soft: #f26b5b1a;
+  --clay: #d97757; --clay-soft: #d977571f;
+  --on-green: #06140c; --shadow: 0 10px 30px #00000059;
+  --display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --body: 'Outfit', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  --bg: #ffffff; --bg-soft: #eef1ee; --card: #ffffff; --card-2: #f6f8f6; --line: #dfe4df; --line-2: #cbd3cc;
+  --green: #15803d; --green-bright: #15803d; --green-soft: #15803d14; --lime: #5a9200;
+  --text: #16201a; --text-dim: #4c5a50; --text-faint: #7d8a80;
+  --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft: #fde8e6;
+  --clay: #b8562f; --clay-soft: #b8562f14;
+  --on-green: #ffffff; --shadow: 0 10px 30px #16201a1a; color-scheme: light;
+} }
+:root[data-theme="light"] {
+  --bg: #ffffff; --bg-soft: #eef1ee; --card: #ffffff; --card-2: #f6f8f6; --line: #dfe4df; --line-2: #cbd3cc;
+  --green: #15803d; --green-bright: #15803d; --green-soft: #15803d14; --lime: #5a9200;
+  --text: #16201a; --text-dim: #4c5a50; --text-faint: #7d8a80;
+  --warn: #b45309; --warn-soft: #fdf0dc; --crit: #b42318; --crit-soft: #fde8e6;
+  --clay: #b8562f; --clay-soft: #b8562f14;
+  --on-green: #ffffff; --shadow: 0 10px 30px #16201a1a; color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+.wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1, h2, h3, h4 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(28px, 5vw, 38px); line-height: 1.1; }
+h2 { font-size: 22px; }
+p { margin: 0; }
+button { font: inherit; color: inherit; }
+code { font-family: var(--mono); font-size: .9em; }
+:focus-visible { outline: 2px solid var(--green-bright); outline-offset: 2px; border-radius: 6px; }
+.eyebrow { font-size: 11.5px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--text-faint); }
+.muted { color: var(--text-dim); }
+.faint { color: var(--text-faint); }
+
+.intro { display: flex; flex-direction: column; gap: 14px; }
+.intro p { max-width: 66ch; color: var(--text-dim); }
+
+.tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+.tab { flex: 0 0 auto; border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 8px 14px; cursor: pointer; font-size: 13.5px; color: var(--text-dim); display: inline-flex; gap: 8px; align-items: center; }
+.tab:hover { border-color: var(--line-2); color: var(--text); }
+.tab[aria-selected="true"] { background: var(--green); border-color: var(--green); color: var(--on-green); font-weight: 600; }
+.tab .k { font-size: 11px; opacity: .7; font-weight: 600; }
+
+.brief { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; align-items: start; }
+.brief-main { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.brief-main p { color: var(--text-dim); max-width: 60ch; }
+.facts { display: flex; flex-direction: column; gap: 10px; border-left: 1px solid var(--line); padding-left: 18px; min-width: 0; }
+.fact { display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; }
+@media (max-width: 640px) { .brief { grid-template-columns: 1fr; } .facts { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 14px; } }
+
+.frame { border: 1px solid var(--line); border-radius: 16px; background: var(--bg-soft); overflow: hidden; }
+.frame-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--text-faint); flex-wrap: wrap; }
+.frame-bar .dots { display: inline-flex; gap: 5px; }
+.frame-bar .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--line-2); }
+.stage { padding: 22px clamp(14px, 3vw, 26px) 26px; display: flex; flex-direction: column; gap: 16px; }
+
+/* shared bits */
+.btn { display: inline-flex; align-items: center; gap: 7px; border-radius: 9px; padding: 8px 13px; font-size: 13.5px; font-weight: 600; cursor: pointer; border: 1px solid transparent; white-space: nowrap; text-decoration: none; transition: filter .15s, border-color .15s, transform .1s; }
+.btn:active { transform: translateY(1px); }
+.btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+.btn-primary { background: var(--green); color: var(--on-green); }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-claude { background: var(--clay); color: #fff; }
+.btn-claude:hover { filter: brightness(1.08); }
+.btn-ghost { background: transparent; border-color: var(--line-2); color: var(--text); }
+.btn-ghost:hover { border-color: var(--text-faint); }
+.btn-sm { padding: 5px 10px; font-size: 12.5px; border-radius: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 6px; white-space: nowrap; }
+.chip-crit { background: var(--crit-soft); color: var(--crit); }
+.chip-warn { background: var(--warn-soft); color: var(--warn); }
+.chip-ok { background: var(--green-soft); color: var(--green-bright); }
+.chip-claude { background: var(--clay-soft); color: var(--clay); }
+.chip-low { background: var(--card-2); color: var(--text-faint); border: 1px solid var(--line); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green-bright); box-shadow: 0 0 0 3px var(--green-soft); flex-shrink: 0; }
+.claude-mark { width: 18px; height: 18px; flex-shrink: 0; color: var(--clay); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: var(--shadow); z-index: 20; max-width: calc(100vw - 32px); }
+.fade-in { animation: fadeIn .35s ease both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .fade-in { animation: none !important; } }
+
+/* prompt box (shared) */
+.prompt { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--line); background: var(--card-2); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; }
+.prompt q { flex: 1; min-width: 0; quotes: '“' '”'; color: var(--text); }
+.prompt .btn { margin-top: -2px; }
+
+/* ── A: Connector hub ── */
+.hub-hd { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; border: 1px solid var(--line); background: var(--card); border-radius: 14px; padding: 16px 18px; }
+.hub-hd .l { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.hub-logo { width: 40px; height: 40px; border-radius: 10px; background: var(--clay-soft); display: grid; place-items: center; flex-shrink: 0; }
+.hub-logo svg { width: 22px; height: 22px; color: var(--clay); }
+.hub-hd h3 { font-size: 18px; }
+.hub-hd .s { font-size: 13px; color: var(--text-faint); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.hub-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.hub-card { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.hub-card .top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+.hub-card .n { font-size: 11px; color: var(--text-faint); font-weight: 600; }
+.hub-card h4 { font-size: 16px; }
+.hub-card ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-dim); }
+.hub-card li { display: flex; gap: 7px; }
+.hub-card li svg { width: 13px; height: 13px; color: var(--green-bright); flex-shrink: 0; margin-top: 4px; }
+.hub-card .prompt { margin-top: auto; font-size: 12.5px; padding: 8px 10px; }
+.score { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-dim); }
+
+/* ── B: Module banner ── */
+.mod-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mod-hd h3 { font-size: 22px; }
+.mod-hd .sub { font-size: 13px; color: var(--text-faint); }
+.banner { position: relative; border: 1px solid color-mix(in srgb, var(--clay) 45%, var(--line)); background: linear-gradient(135deg, var(--clay-soft), transparent 70%), var(--card); border-radius: 14px; padding: 16px 18px; display: grid; grid-template-columns: 1fr auto; gap: 14px 18px; align-items: center; }
+.banner h4 { font-size: 17px; display: flex; gap: 8px; align-items: center; }
+.banner p { font-size: 13.5px; color: var(--text-dim); max-width: 58ch; margin-top: 4px; }
+.banner .acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.banner .flow { grid-column: 1 / -1; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12.5px; color: var(--text-faint); }
+.banner .flow .step { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--line); background: var(--bg-soft); padding: 3px 9px; border-radius: 999px; }
+.banner .flow svg { width: 12px; height: 12px; }
+@media (max-width: 600px) { .banner { grid-template-columns: 1fr; } .banner .acts { justify-content: flex-start; } }
+.items { display: flex; flex-direction: column; gap: 8px; }
+.item { display: flex; gap: 12px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); align-items: center; }
+.item .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.item .lbl { font-size: 14.5px; }
+.item .det { font-size: 13px; color: var(--text-faint); }
+.item .r { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.item.done .lbl { color: var(--text-faint); text-decoration: line-through; text-decoration-color: var(--line-2); }
+.cb { width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0; border: 1.5px solid var(--line-2); display: grid; place-items: center; }
+.cb svg { width: 12px; height: 12px; }
+.cb.on { background: var(--green); border-color: var(--green); color: var(--on-green); }
+.via { font-size: 11.5px; color: var(--clay); display: inline-flex; gap: 4px; align-items: center; }
+.via svg { width: 12px; height: 12px; }
+.ask { opacity: 0; transition: opacity .15s; }
+.item:hover .ask, .item:focus-within .ask { opacity: 1; }
+@media (hover: none) { .ask { opacity: 1; } }
+@media (max-width: 560px) { .item { flex-wrap: wrap; } .item .r { width: 100%; justify-content: flex-end; } }
+
+/* ── C: In Claude ── */
+.split { display: grid; grid-template-columns: 1.35fr 1fr; gap: 0; min-height: 440px; }
+.chat { padding: 18px; display: flex; flex-direction: column; gap: 12px; border-right: 1px solid var(--line); min-width: 0; }
+.side { padding: 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; background: var(--bg); }
+@media (max-width: 720px) { .split { grid-template-columns: 1fr; } .chat { border-right: 0; border-bottom: 1px solid var(--line); } }
+.msg-u { align-self: flex-end; background: var(--card-2); border: 1px solid var(--line); border-radius: 14px 14px 4px 14px; padding: 9px 13px; max-width: 85%; font-size: 14px; }
+.msg-a { display: flex; gap: 10px; font-size: 14px; color: var(--text); }
+.msg-a .claude-mark { margin-top: 2px; }
+.msg-a .t { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.tool { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--card); border-radius: 9px; padding: 6px 10px; font-size: 12.5px; color: var(--text-dim); width: fit-content; max-width: 100%; }
+.tool b { font-weight: 600; color: var(--text); }
+.tool code { color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool .src { font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--green-bright); background: var(--green-soft); padding: 1px 6px; border-radius: 4px; flex-shrink: 0; }
+.diff { font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.diff div { padding: 3px 10px; white-space: pre-wrap; word-break: break-word; }
+.diff .m { background: var(--crit-soft); color: var(--crit); }
+.diff .p { background: var(--green-soft); color: var(--green-bright); }
+.composer { margin-top: auto; border: 1px solid var(--line-2); border-radius: 12px; padding: 10px 12px; font-size: 13px; color: var(--text-faint); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.composer .conn { display: inline-flex; gap: 6px; align-items: center; color: var(--text-dim); font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; }
+.side h4 { font-size: 15px; }
+.side .ring { display: flex; gap: 12px; align-items: center; }
+.side .big { font-family: var(--display); font-size: 34px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; }
+.side .delta { font-size: 12.5px; color: var(--green-bright); font-weight: 600; }
+.mini { display: flex; gap: 9px; align-items: flex-start; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-size: 13px; transition: border-color .3s, background .3s; }
+.mini .cb { width: 17px; height: 17px; border-radius: 5px; margin-top: 1px; }
+.mini.flash { border-color: var(--green); background: var(--green-soft); }
+.mini .w { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mini a { color: var(--clay); font-size: 12px; text-decoration: none; }
+
+/* ── D: Connect ── */
+.connect { display: grid; grid-template-columns: 1fr 1.1fr; gap: 22px; align-items: start; }
+@media (max-width: 720px) { .connect { grid-template-columns: 1fr; } }
+.connect .pitch { display: flex; flex-direction: column; gap: 12px; }
+.connect .pitch h3 { font-size: 24px; line-height: 1.15; }
+.connect .pitch p { color: var(--text-dim); font-size: 14.5px; }
+.can { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.can div { display: flex; gap: 10px; font-size: 14px; }
+.can svg { width: 16px; height: 16px; color: var(--green-bright); flex-shrink: 0; margin-top: 3px; }
+.steps { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 6px; display: flex; flex-direction: column; }
+.stp { display: flex; gap: 12px; padding: 12px; border-radius: 10px; }
+.stp + .stp { border-top: 1px solid var(--line); border-radius: 0; }
+.stp .num { width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line-2); display: grid; place-items: center; font-size: 12.5px; font-weight: 600; flex-shrink: 0; color: var(--text-dim); }
+.stp.ok .num { background: var(--green); border-color: var(--green); color: var(--on-green); }
+.stp .w { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.stp .w b { font-weight: 600; font-size: 14.5px; }
+.stp .w span { font-size: 13px; color: var(--text-faint); }
+.url { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line-2); background: var(--bg-soft); border-radius: 8px; padding: 6px 6px 6px 10px; min-width: 0; }
+.url code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.empty-hint { border: 1px dashed var(--line-2); border-radius: 12px; padding: 12px 14px; font-size: 13px; color: var(--text-dim); display: flex; gap: 10px; align-items: center; }
+.empty-hint svg { width: 16px; height: 16px; flex-shrink: 0; color: var(--clay); }
+
+/* ── E: Sidebar + toast moments ── */
+.moments { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.moment { display: flex; flex-direction: column; gap: 8px; }
+.moment .cap { font-size: 12.5px; color: var(--text-faint); }
+.sb { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.sb .nav { display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; color: var(--text-dim); }
+.sb .nav div { padding: 6px 8px; border-radius: 7px; display: flex; justify-content: space-between; }
+.sb .nav div.on { background: var(--green-soft); color: var(--text); }
+.sb-claude { border: 1px solid color-mix(in srgb, var(--clay) 40%, var(--line)); background: var(--clay-soft); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.sb-claude b { font-size: 13px; display: flex; gap: 6px; align-items: center; }
+.feed { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 4px 12px; display: flex; flex-direction: column; }
+.feed div { display: flex; gap: 10px; padding: 9px 0; font-size: 13px; align-items: flex-start; }
+.feed div + div { border-top: 1px solid var(--line); }
+.feed .claude-mark { width: 15px; height: 15px; margin-top: 2px; }
+.feed time { margin-left: auto; font-size: 11.5px; color: var(--text-faint); white-space: nowrap; }
+.tst { border-radius: 12px; background: var(--text); color: var(--bg); padding: 11px 14px; font-size: 13.5px; display: flex; gap: 10px; align-items: center; box-shadow: var(--shadow); }
+.tst svg { width: 16px; height: 16px; color: var(--clay); flex-shrink: 0; }
+.tst u { text-decoration: none; font-weight: 600; margin-left: auto; white-space: nowrap; }
+.today { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; }
+.today .row { display: flex; gap: 8px; align-items: center; }
+.today .row span { flex: 1; min-width: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="intro">
+    <span class="eyebrow">GrowJin · design previews · no code yet</span>
+    <h1>Tell users they can solve every growth module from Claude</h1>
+    <p>All Growth Path modules are already reachable through the GrowJin MCP connector: Claude can read the checks, fix them, write the copy, schedule posts and tick items off here. Today the only hint is the “Fix with Claude” modal on a single check. These five concepts make the connector visible where users decide what to do next.</p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Concepts">
+    <button class="tab" role="tab" aria-selected="true" data-t="hub"><span class="k">A</span>Connector hub</button>
+    <button class="tab" role="tab" aria-selected="false" data-t="banner"><span class="k">B</span>Module banner</button>
+    <button class="tab" role="tab" aria-selected="false" data-t="claude"><span class="k">C</span>What it looks like in Claude</button>
+    <button class="tab" role="tab" aria-selected="false" data-t="connect"><span class="k">D</span>Not connected yet</button>
+    <button class="tab" role="tab" aria-selected="false" data-t="moments"><span class="k">E</span>Small reminders</button>
+  </nav>
+
+  <main id="panel"></main>
+</div>
+
+<script>
+(() => {
+  const MCP_URL = 'https://app.growjin.com/api/mcp';
+  const I = {
+    claude: '<svg class="claude-mark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.5l1.6 6.1 5.6-3-3 5.6 6.3 1.6-6.3 1.4 3 5.6-5.6-3L12 21.5l-1.6-6.1-5.6 3 3-5.6-6.3-1.4 6.3-1.6-3-5.6 5.6 3z"/></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+    ext: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+    arrow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+    plug: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0zM12 18v4"/></svg>',
+    replay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>',
+  };
+  const claudeBig = I.claude.replace('class="claude-mark"', '');
+
+  // Growth Path modules (web/lib/modules/registry.ts) and what the connector lets Claude do for each.
+  const MODULES = [
+    { n: 1, name: 'Foundation', score: 82, open: 2, can: ['Fix SSL, redirects and broken pages', 'Add analytics and a privacy page'], p: 'Fix my open Foundation checks in GrowJin and tick them off.' },
+    { n: 2, name: 'Website Audit', score: 64, open: 7, can: ['Rewrite hero, CTA and pricing copy', 'Ship the changes as a pull request'], p: 'Rewrite my homepage hero using my GrowJin Website Audit.' },
+    { n: 3, name: 'SEO Health Audit', score: 58, open: 12, can: ['Write titles, meta and H1s', 'Read Search Console to pick pages'], p: 'Fix every high-impact SEO check from GrowJin.' },
+    { n: 4, name: 'GEO Audit', score: 41, open: 9, can: ['Add schema and llms.txt', 'Close gaps where AI cites competitors'], p: 'Why do AI engines cite my competitors? Fix my GEO gaps.' },
+    { n: 5, name: 'Social Media Audit', score: 55, open: 6, can: ['Draft posts in your brand voice', 'Schedule them straight from chat'], p: 'Write and schedule this week’s posts from my GrowJin plan.' },
+    { n: 6, name: 'Brand Audit', score: 70, open: 4, can: ['Tighten positioning and about page', 'Add proof: reviews, logos, case studies'], p: 'Use my Brand Audit to rewrite my About page.' },
+    { n: 7, name: 'Content Audit', score: 47, open: 8, can: ['Write the blog posts GrowJin drafted', 'Mark them published when live'], p: 'Write my next GrowJin blog post and mark it published.' },
+    { n: 8, name: 'Competitor Analysis', score: 61, open: 5, can: ['Compare you with tracked competitors', 'Turn their wins into your tasks'], p: 'What are my competitors doing better? Give me 3 fixes.' },
+    { n: 9, name: 'Email Marketing', score: 38, open: 6, can: ['Write welcome and win-back emails', 'Target churned users from PostHog'], p: 'Write a win-back email for my churned users in GrowJin.' },
+  ];
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const copyBtn = (text, label = 'Copy') => `<button class="btn btn-ghost btn-sm" data-copy="${esc(text)}" aria-label="Copy">${I.copy}${label}</button>`;
+  const prompt = text => `<div class="prompt"><q>${esc(text)}</q>${copyBtn(text)}</div>`;
+  const frame = (bar, body, extra = '') => `<div class="frame fade-in"><div class="frame-bar"><span class="dots"><i></i><i></i><i></i></span><span>${bar}</span>${extra || '<span></span>'}</div>${body}</div>`;
+  const brief = (title, text, facts) => `<section class="brief"><div class="brief-main"><h2>${title}</h2><p>${text}</p></div><div class="facts">${facts.map(([k, v]) => `<div class="fact"><span class="eyebrow">${k}</span><span>${v}</span></div>`).join('')}</div></section>`;
+
+  const views = {
+    hub: () => brief('A · Connector hub', 'One page (Settings → Claude, or a top-level “Claude” item) that lists every Growth Path module with what Claude can do for it and a ready prompt. It answers “what can I actually do with this?” better than a URL in settings.',
+      [['Where', 'New page, linked from the sidebar and settings'], ['Best for', 'Users who connected once and forgot'], ['Reuses', 'Module list and scores from get_growth_overview']])
+      + '<div style="height:16px"></div>'
+      + frame('app.growjin.com/claude', `<div class="stage">
+        <div class="hub-hd">
+          <div class="l"><div class="hub-logo">${claudeBig}</div><div><h3>Solve your growth plan from Claude</h3>
+          <div class="s"><span class="dot"></span>Connected · last used 2 hours ago · 27 tools</div></div></div>
+          <a class="btn btn-claude" href="https://claude.ai/new" target="_blank" rel="noopener">Open Claude ${I.ext}</a>
+        </div>
+        <p class="muted" style="font-size:14px">Claude can see all ${MODULES.length} modules, ${MODULES.reduce((a, m) => a + m.open, 0)} open checks and your analytics. Ask it to fix something and it ticks the check off here, with a link to what it changed.</p>
+        <div class="hub-grid">${MODULES.map(m => `<div class="hub-card">
+          <div class="top"><div><div class="n">STEP ${m.n}</div><h4>${m.name}</h4></div><span class="chip ${m.open > 7 ? 'chip-crit' : m.open > 4 ? 'chip-warn' : 'chip-low'}">${m.open} open</span></div>
+          <ul>${m.can.map(c => `<li>${I.check}<span>${c}</span></li>`).join('')}</ul>
+          ${prompt(m.p)}</div>`).join('')}</div>
+      </div>`),
+
+    banner: () => brief('B · Module banner', 'A strip at the top of each module page, above the checklist. It turns the open count into one action: “solve all 12 from Claude”. Each row also gets an “Ask Claude” button on hover, and rows Claude finished show “via Claude”.',
+      [['Where', 'Top of every module page'], ['Best for', 'The moment a user sees a long list of open checks'], ['Copy varies by', 'Module name and open count']])
+      + '<div style="height:16px"></div>'
+      + frame('app.growjin.com/dashboard/seo', `<div class="stage">
+        <div class="mod-hd"><div><span class="eyebrow">Step 3</span><h3>SEO Health Audit</h3></div><span class="sub">Score 58 · 12 open · analysed 14 Oct</span></div>
+        <div class="banner">
+          <div><h4>${I.claude}Claude can fix all 12 of these</h4>
+          <p>Your GrowJin connector is on. Ask Claude and it reads each check, writes the fix (titles, meta, headings, schema) and ticks it off here.</p></div>
+          <div class="acts">${copyBtn('Fix every open check in my GrowJin SEO Health Audit, highest impact first. Tick each one off when done.', 'Copy prompt')}<a class="btn btn-claude" href="https://claude.ai/new" target="_blank" rel="noopener">Solve in Claude ${I.ext}</a></div>
+          <div class="flow"><span class="step">1 · Reads your checks</span>${I.arrow}<span class="step">2 · Writes the fix</span>${I.arrow}<span class="step">3 · Ticks it off in GrowJin</span></div>
+        </div>
+        <div class="items">
+          ${[['Homepage has no meta description', 'Google is making up a snippet from your footer.', 'crit'],
+             ['14 of 22 images have no alt text', 'Product photos on /shop are invisible to Google Images.', 'warn'],
+             ['/pricing has two H1 headings', '“Subscriptions” and “Choose your plan” are both H1.', 'warn']].map(([l, d, s]) => `
+            <div class="item"><span class="cb"></span><div class="body"><span class="lbl">${l}</span><span class="det">${d}</span></div>
+            <div class="r"><span class="chip chip-${s}">${s === 'crit' ? 'High impact' : 'Medium'}</span><button class="btn btn-ghost btn-sm ask" data-toast="Prompt for this check copied. Paste it in Claude.">${I.claude}Ask Claude</button></div></div>`).join('')}
+          <div class="item done"><span class="cb on">${I.check}</span><div class="body"><span class="lbl">Blog title tag is 74 characters</span><span class="via">${I.claude} Fixed via Claude · 2h ago · <u>see change</u></span></div></div>
+        </div>
+      </div>`),
+
+    claude: () => brief('C · What it looks like in Claude', 'Users don’t picture what “MCP connector” means. Show it: a short replay of a real Claude chat calling GrowJin tools, with the GrowJin checklist updating beside it. Use it on the hub, in onboarding, or as a marketing GIF.',
+      [['Where', 'Hub header, onboarding, landing page'], ['Best for', 'Explaining the connector without jargon'], ['Tools shown', 'get_module_detail, toggle_item']])
+      + '<div style="height:16px"></div>'
+      + frame('claude.ai', `<div class="split"><div class="chat" id="chat"></div>
+        <div class="side"><span class="eyebrow">GrowJin · live</span><h4>SEO Health Audit</h4>
+          <div class="ring"><span class="big" id="sc">58</span><span class="delta" id="dl"></span></div>
+          <div class="mini" id="m1"><span class="cb"></span><div class="w"><span>Homepage has no meta description</span></div></div>
+          <div class="mini" id="m2"><span class="cb"></span><div class="w"><span>/pricing has two H1 headings</span></div></div>
+          <div class="mini"><span class="cb"></span><div class="w"><span>14 of 22 images have no alt text</span></div></div>
+        </div></div>`, `<button class="btn btn-ghost btn-sm" id="replay">${I.replay}Replay</button>`),
+
+    connect: () => brief('D · Not connected yet', 'The same module page for a user who hasn’t added the connector. Lead with the outcome (“let Claude do the checklist”), then three short steps. Once Claude makes its first call, step 3 ticks itself and the banner from B takes over.',
+      [['Where', 'Hub page and module banner, disconnected state'], ['Best for', 'First-time setup'], ['Done when', 'First MCP call arrives (mcpLastUsedAt)']])
+      + '<div style="height:16px"></div>'
+      + frame('app.growjin.com/claude', `<div class="stage"><div class="connect">
+        <div class="pitch"><span class="eyebrow" style="color:var(--clay)">New · Claude connector</span>
+          <h3>Stop working through checklists. Let Claude do them.</h3>
+          <p>Connect GrowJin to Claude once. After that, every module (SEO, website, GEO, social, email and more) can be solved by just asking.</p>
+          <div class="can">
+            <div>${I.check}<span>“Fix my SEO checks”: Claude writes the fixes and ticks them off</span></div>
+            <div>${I.check}<span>“Plan my posts”: drafted in your voice and scheduled</span></div>
+            <div>${I.check}<span>“Why did signups drop?”: answered from GA, Search Console and PostHog</span></div>
+          </div></div>
+        <div class="steps">
+          <div class="stp ok"><span class="num">${I.check}</span><div class="w"><b>Copy your connector URL</b>
+            <div class="url"><code>${MCP_URL}</code>${copyBtn(MCP_URL)}</div></div></div>
+          <div class="stp"><span class="num">2</span><div class="w"><b>Add it in Claude</b><span>Settings → Connectors → Add custom connector. Paste the URL and sign in to GrowJin.</span>
+            <div><a class="btn btn-claude btn-sm" href="https://claude.ai/settings/connectors" target="_blank" rel="noopener">Open Claude settings ${I.ext}</a></div></div></div>
+          <div class="stp"><span class="num">3</span><div class="w"><b>Ask your first question</b><span>We’ll tick this when Claude first talks to GrowJin.</span>
+            ${prompt('What should I fix first in GrowJin today?')}</div></div>
+        </div></div>
+        <div class="empty-hint">${I.plug}<span>Works in Claude on the web, desktop and mobile, and in Claude Code.</span></div>
+      </div>`),
+
+    moments: () => brief('E · Small reminders', 'Lighter touches for users who already know about the connector: a sidebar card, an activity feed that credits Claude, a toast when Claude finishes something, and a “do it in Claude” line on Today’s tasks.',
+      [['Where', 'Sidebar, activity, toasts, Today'], ['Best for', 'Keeping the connector top of mind'], ['Volume', 'One reminder per surface, never stacked']])
+      + '<div style="height:16px"></div>'
+      + frame('app.growjin.com', `<div class="stage"><div class="moments">
+        <div class="moment"><div class="sb"><div class="nav"><div class="on">Today</div><div>Growth Path <span class="faint">58</span></div><div>Outreach</div><div>Settings</div></div>
+          <div class="sb-claude"><b>${I.claude}Claude is connected</b><span class="muted">59 open checks across 9 modules. Solve any of them by asking.</span><a class="btn btn-claude btn-sm" style="width:fit-content" href="https://claude.ai/new" target="_blank" rel="noopener">Open Claude</a></div></div>
+          <span class="cap">Sidebar card under the roadmap</span></div>
+        <div class="moment"><div class="feed">
+          <div>${I.claude}<span>Claude fixed <b>Homepage meta description</b></span><time>2h</time></div>
+          <div>${I.claude}<span>Claude scheduled <b>3 LinkedIn posts</b></span><time>5h</time></div>
+          <div>${I.claude}<span>Claude published <b>“Pour-over in 5 steps”</b></span><time>1d</time></div>
+        </div><span class="cap">Activity feed credits Claude, with links</span></div>
+        <div class="moment"><div class="tst">${I.claude}<span>Claude ticked off 4 SEO checks. Score 58 → 66.</span><u>View</u></div>
+          <span class="cap">Toast when Claude finishes work (via toggle_item)</span></div>
+        <div class="moment"><div class="today"><span class="eyebrow">Today · 3 tasks</span>
+          <div class="row"><span class="cb"></span><span>Add schema to /pricing</span></div>
+          <div class="row"><span class="cb"></span><span>Reply to 2 Reddit threads</span></div>
+          <div class="row"><span class="cb"></span><span>Write the welcome email</span></div>
+          ${prompt('Do my GrowJin tasks for today.')}</div>
+          <span class="cap">Today: one prompt for the whole list (get_today_tasks)</span></div>
+      </div></div>`),
+  };
+
+  // ── C replay ─────────────────────────────────────────────────────────────
+  let timers = [];
+  function runChat() {
+    timers.forEach(clearTimeout); timers = [];
+    const chat = document.getElementById('chat'); if (!chat) return;
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    chat.innerHTML = '';
+    ['sc', 'dl'].forEach(id => document.getElementById(id).textContent = id === 'sc' ? '58' : '');
+    ['m1', 'm2'].forEach(id => { const m = document.getElementById(id); m.classList.remove('flash'); m.querySelector('.cb').className = 'cb'; m.querySelector('.cb').innerHTML = ''; m.querySelector('a')?.remove(); });
+    const tool = (name, arg) => `<div class="tool"><span class="src">GrowJin</span><b>${name}</b><code>${arg}</code></div>`;
+    const tick = (id, score, delta) => () => {
+      const m = document.getElementById(id); m.classList.add('flash');
+      const cb = m.querySelector('.cb'); cb.className = 'cb on'; cb.innerHTML = I.check;
+      m.querySelector('.w').insertAdjacentHTML('beforeend', '<a href="#">via Claude · see change</a>');
+      document.getElementById('sc').textContent = score; document.getElementById('dl').textContent = delta;
+    };
+    const steps = [
+      `<div class="msg-u fade-in">Fix the high-impact SEO stuff GrowJin found on my site</div>`,
+      `<div class="msg-a fade-in">${I.claude}<div class="t">${tool('get_module_detail', 'module_type: "seo"')}<span>You have 12 open SEO checks. Starting with the two that matter most.</span></div></div>`,
+      `<div class="msg-a fade-in">${I.claude}<div class="t"><span>Homepage meta description, added to <code>app/layout.tsx</code>:</span>
+        <div class="diff"><div class="p">+ description: "Small-batch coffee roasted in Leeds every Tuesday. Free UK delivery over £25."</div></div>
+        ${tool('toggle_item', 'meta-description · checked · link: PR #42')}</div></div>`,
+      tick('m1', '62', '+4'),
+      `<div class="msg-a fade-in">${I.claude}<div class="t"><span>Second H1 on /pricing is now an H2:</span>
+        <div class="diff"><div class="m">- &lt;h1&gt;Choose your plan&lt;/h1&gt;</div><div class="p">+ &lt;h2&gt;Choose your plan&lt;/h2&gt;</div></div>
+        ${tool('toggle_item', 'pricing-h1 · checked · link: PR #42')}</div></div>`,
+      tick('m2', '66', '+8'),
+      `<div class="msg-a fade-in">${I.claude}<div class="t"><span>Done: 2 checks ticked off in GrowJin, score 58 → 66. Want me to do the image alt text next?</span></div></div>`,
+    ];
+    const composer = `<div class="composer"><span>Reply to Claude…</span><span class="conn"><span class="dot"></span>GrowJin</span></div>`;
+    chat.innerHTML = composer;
+    steps.forEach((s, i) => timers.push(setTimeout(() => {
+      if (typeof s === 'function') return s();
+      chat.querySelector('.composer').insertAdjacentHTML('beforebegin', s);
+    }, reduce ? 0 : 400 + i * 1100)));
+  }
+
+  // ── wiring ───────────────────────────────────────────────────────────────
+  const panel = document.getElementById('panel');
+  function show(t) {
+    document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.t === t)));
+    panel.innerHTML = views[t]();
+    if (t === 'claude') runChat(); else { timers.forEach(clearTimeout); timers = []; }
+    try { localStorage.setItem('mcp-preview-tab', t); } catch {}
+  }
+  document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => show(b.dataset.t)));
+  let toastT;
+  function toast(msg) {
+    document.querySelector('.toast')?.remove(); clearTimeout(toastT);
+    const el = document.createElement('div'); el.className = 'toast fade-in'; el.textContent = msg; document.body.append(el);
+    toastT = setTimeout(() => el.remove(), 2200);
+  }
+  document.addEventListener('click', async e => {
+    const c = e.target.closest('[data-copy]'), t = e.target.closest('[data-toast]');
+    if (e.target.closest('#replay')) return runChat();
+    if (c) { try { await navigator.clipboard.writeText(c.dataset.copy); } catch {} toast('Copied. Paste it in Claude.'); }
+    else if (t) toast(t.dataset.toast);
+  });
+  let start = 'hub';
+  try { const s = localStorage.getItem('mcp-preview-tab'); if (s && views[s]) start = s; } catch {}
+  show(start);
+})();
+</script>
+</body>
+</html>
