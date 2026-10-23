@@ -8546,6 +8546,7 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .cl-tag--ok { background: var(--accent); color: var(--accent-foreground); }
 
 .cl-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cl-acts--center { justify-content: center; }
 .cl-prob { padding: 16px 18px; margin-bottom: 16px; border: 1px solid color-mix(in srgb, var(--crit) 30%, var(--line)); border-radius: 14px; background: var(--crit-soft); }
 .cl-prob h3 { margin: 0 0 4px; font-size: 15px; color: var(--crit); }
 .cl-prob p { margin: 0 0 12px; font-size: 13.5px; line-height: 1.5; color: var(--text-dim); }

@@ -47,8 +47,9 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
 
   // Filters and sorting
   const [q, setQ] = useState('')
-  const [stars, setStars] = useState<number[]>([1, 2, 3])
-  const [show, setShow] = useState<Show>('all')
+  // Only the relevant reviewers by default: the good fits. Everyone else is one click away.
+  const [stars, setStars] = useState<number[]>([])
+  const [show, setShow] = useState<Show>('good')
   const [sort, setSort] = useState<'fit' | 'new' | 'low' | 'name'>('fit')
   const [page, setPage] = useState(1)
   const listTop = useRef<HTMLDivElement>(null)
@@ -111,7 +112,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
       if (!r.scan || !r.reviews?.length) throw new Error(`No reviews found for ${competitor}. Check the ${platform === 'trustpilot' ? 'website or Trustpilot link' : 'App Store link'}.`)
       const s = r.scan
       setScan(s); setReviews(r.reviews); setHistory(prev => [s, ...prev.filter(x => x.id !== s.id)].slice(0, 20))
-      setQ(''); setStars(r.reviews.some(x => x.rating <= 3) ? [1, 2, 3] : []); setShow('all'); setSort('fit')
+      setQ(''); setStars([]); setShow('good'); setSort('fit')
       setPhase('done')
       scoreAll(s.id, r.reviews)
     } catch (e) {
@@ -130,13 +131,15 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
       const j = await res.json() as { reviews?: SavedReview[] }
       scoringFor.current = null; setScoring(null)
       setScan(s); setPlatform(s.platform); setReviews(j.reviews ?? []); setPhase('done')
+      setQ(''); setStars([]); setShow('good')
       scoreAll(s.id, j.reviews ?? [])
     } catch { /* keep the current scan */ } finally { setLoadingScan(false) }
   }
 
   // ── Filtering and sorting ───────────────────────────────────────────────────
-  const filtersOn = !!q.trim() || stars.length > 0 || show !== 'all'
-  const clearFilters = () => { setQ(''); setStars([]); setShow('all') }
+  const filtersOn = !!q.trim() || stars.length > 0 || show !== 'good'
+  const clearFilters = () => { setQ(''); setStars([]); setShow('good') }
+  const showEveryone = () => { setQ(''); setStars([]); setShow('all') }
   const shown = useMemo(() => {
     const needle = q.trim().toLowerCase()
     const list = reviews.filter(r =>
@@ -342,16 +345,15 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
               </div>
             )}
             <div className="cl-count" ref={listTop}>
-              {show === 'good' && !scoring ? <>
-                <b>{goodFits} good fit{goodFits === 1 ? '' : 's'}</b>: {goodFits === 1 ? 'the one reviewer' : 'reviewers'} {brandName} scored {GOOD}+ out of 10, from {checked} unhappy reviewer{checked === 1 ? '' : 's'} checked
-                {unhappy > checked ? ` (${unhappy - checked} more not checked yet)` : ''}. Happy reviews (4–5★) aren’t checked.
-                <button type="button" onClick={clearFilters}>Show everyone</button>
+              {show === 'good' && !q.trim() && !stars.length ? <>
+                <b>{goodFits} good fit{goodFits === 1 ? '' : 's'}</b> for {brandName}{scoring ? ' so far' : ''}, out of {reviews.length} reviews read
+                {!scoring && unhappy > checked ? ` (${unhappy - checked} unhappy reviewer${unhappy - checked === 1 ? '' : 's'} not checked yet)` : ''}
+                {emailed ? ` · ${emailed} emailed` : ''}
+                <button type="button" onClick={showEveryone}>Show all {reviews.length} reviews</button>
               </> : <>
-              Showing {shown.length} of {reviews.length} reviews
-              {stars.length > 0 && stars.every(n => n <= 3) ? ' (the unhappy ones)' : ''}
-              {!scoring && goodFits ? ` · ${goodFits} good fit${goodFits === 1 ? '' : 's'}` : ''}
-              {emailed ? ` · ${emailed} emailed` : ''}
-              {filtersOn && <button type="button" onClick={clearFilters}>Show all</button>}
+                Showing {shown.length} of {reviews.length} reviews
+                {emailed ? ` · ${emailed} emailed` : ''}
+                {filtersOn && <button type="button" onClick={clearFilters}>Back to good fits</button>}
               </>}
             </div>
             {shown.length ? <>
@@ -373,8 +375,15 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
               )}
             </> : (
               <div className="cl-none">
-                <p>{show === 'good' && !scoring ? `No good fits in these reviews: the unhappy reviewers' complaints aren't things ${brandName} fixes. Try another competitor.` : reviews.some(r => r.rating <= 3) ? 'No reviews match these filters.' : `None of ${competitorLabel(scan.competitor)}'s newest reviews are 1–3 stars, so nobody is unhappy enough to reach out to right now.`}</p>
-                <button className="btn btn-ghost" type="button" onClick={clearFilters}>Show all reviews</button>
+                <p>{show === 'good' && scoring ? 'Checking the unhappy reviewers. Good fits show up here as they’re found.'
+                  : show === 'good' && !q.trim() && !stars.length ? (unhappy
+                    ? `No good fits this time: ${competitorLabel(scan.competitor)}'s unhappy reviewers complain about things ${brandName} doesn't fix. Try another competitor.`
+                    : `None of ${competitorLabel(scan.competitor)}'s newest reviews are 1–3 stars, so nobody is unhappy enough to reach out to right now.`)
+                  : 'No reviews match these filters.'}</p>
+                {!(show === 'good' && scoring) && <div className="cl-acts cl-acts--center">
+                  <button className="btn btn-primary" type="button" onClick={reset}>Scan another competitor</button>
+                  <button className="btn btn-ghost" type="button" onClick={showEveryone}>Show all {reviews.length} reviews</button>
+                </div>}
               </div>
             )}
           </>

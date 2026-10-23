@@ -23,7 +23,7 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
   scan: SavedScan | null
   brandName: string
   gmailConnected: boolean
-  next: { id: string; name: string } | null   // the next unhappy reviewer not contacted yet
+  next: { id: string; name: string } | null   // the next good fit not contacted yet
 }) {
   const router = useRouter()
   const [r, setR] = useState(initial)
