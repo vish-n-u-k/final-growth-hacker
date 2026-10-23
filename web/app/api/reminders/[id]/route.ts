@@ -56,6 +56,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.snooze === false) {
     updates.snoozedUntil = null
   }
+  // Undo a close (Email Outreach "Skip" → Undo, or Restore on the Done tab): due again now
+  if (body.reopen === true) {
+    Object.assign(updates, { lastDoneAt: null, enabled: true, snoozedUntil: null, nextDueAt: new Date(), followupStatus: null, followupNote: null })
+  }
   if (Object.keys(updates).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
   const [row] = await db.update(reminders)

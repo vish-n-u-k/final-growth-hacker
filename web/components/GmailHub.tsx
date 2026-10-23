@@ -1,164 +1,28 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
-import Link from 'next/link'
-import FollowUpsTab from '@/components/FollowUpsTab'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ToolHeader from '@/components/ToolHeader'
-import { LoadingState, Spinner } from '@/components/ui/spinner'
+import { Popover } from '@/components/ui/popover'
+import { Spinner } from '@/components/ui/spinner'
+import Campaigns from '@/components/email-outreach/Campaigns'
+import Done, { type SentEmail } from '@/components/email-outreach/Done'
+import FollowUps from '@/components/email-outreach/FollowUps'
+import { useToast } from '@/components/email-outreach/shared'
+import { isDue, loadReminders, openFollowUps } from '@/lib/email-outreach/followups'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// Email Outreach: send personal emails to a list of prospects from the user's own Gmail, and
+// follow up with anyone who doesn't reply. Same layout as the other tools: the header with the
+// main action, then three tabs: Follow-ups (what needs you now; opens first when any are due),
+// Campaigns (a list, each one done in three steps) and Done (closed follow-ups, sent emails).
 
-type LeadTag = 'hot' | 'warm' | 'cold' | 'partnership' | 'press' | 'followup' | 'vendor'
-type Tab = 'inbox' | 'outreach' | 'campaign' | 'followups'
-type ProspectStatus = 'idle' | 'generating' | 'ready' | 'saving' | 'saved' | 'confirming' | 'sending' | 'sent' | 'error'
-type InboxFilter = 'all' | 'leads' | 'press' | 'partnership'
+type Tab = 'followups' | 'campaigns' | 'done'
 
-interface Msg { from: string; time: string; body: string; isSelf: boolean }
-interface Thread {
-  id: string; from: string; email: string; initials: string
-  subject: string; preview: string; time: string; isRead: boolean
-  tag: LeadTag | null; messages: Msg[]; aiSummary: string; aiDraft: string
-}
-interface Prospect { id: string; name: string; email: string; company: string; title: string }
-interface ProspectState { status: ProspectStatus; subject: string; body: string; toEmail?: string; error?: string; editingHtml?: boolean }
-interface CampaignProspect { id: string; email: string; name: string; domain: string }
-// Which tool an email in the sent list came from (outreach_emails.source)
-const SOURCE_LABEL: Record<string, string> = {
-  'lead-agent': 'Lead Agent', 'search-agent': 'Search Agent', 'competitor-leads': 'Competitor Leads', campaign: 'Campaign',
-}
-interface EmailHistoryItem { id: string; toEmail: string; toName: string | null; subject: string; status: string; source: string | null; scheduledAt: string | null; sentAt: string | null; lastError: string | null; createdAt: string }
-type CampaignStatus = 'idle' | 'generating' | 'ready' | 'sending' | 'sent' | 'scheduled' | 'error'
-interface CampaignState { status: CampaignStatus; subject: string; body: string; error?: string; toEmail?: string; editingHtml?: boolean; confirming?: boolean; scheduledAt?: string; scheduledId?: string }
-
-// ── Utilities ─────────────────────────────────────────────────────────────────
-
-function toLocalInputValue(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-function getTomorrowAt9am(): string {
-  const d = new Date()
-  d.setDate(d.getDate() + 1)
-  d.setHours(9, 0, 0, 0)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T09:00`
-}
-
-function formatScheduledDate(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
-}
-
-function localTimeZone(): string {
-  try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return 'local' }
-}
-
-// ── Data ──────────────────────────────────────────────────────────────────────
-
-const TAG_LABELS: Record<LeadTag, string> = {
-  hot: 'Hot Lead', warm: 'Warm Lead', cold: 'Cold Lead',
-  partnership: 'Partnership', press: 'Press', followup: 'Follow-up', vendor: 'Vendor',
-}
-
-const THREADS: Thread[] = [
-  {
-    id: 't1', from: 'Priya Sharma', email: 'priya@scalex.io', initials: 'PS',
-    subject: 'Interested in your growth tool — pricing?',
-    preview: 'Came across your product via LinkedIn. We\'re a 12-person SaaS wondering about agency plans...',
-    time: '9:14 AM', isRead: false, tag: 'hot',
-    messages: [
-      { from: 'Priya Sharma', time: 'Today, 9:14 AM', isSelf: false,
-        body: 'Hi,\n\nCame across your product via LinkedIn. We\'re a 12-person SaaS startup and have been struggling with our marketing audit process.\n\nDo you have a pricing page? Also curious if there\'s an agency plan — we manage 3 client accounts alongside our own.\n\nBest,\nPriya' }
-    ],
-    aiSummary: 'Warm inbound lead from a 12-person SaaS. Clear buying signal: asking about pricing and agency plans. Manages 3 client accounts — upsell opportunity. Source: LinkedIn.',
-    aiDraft: 'Hi Priya,\n\nThanks for reaching out — great that you found us via LinkedIn!\n\nWe do have an agency plan covering up to 5 brands under one account, which sounds perfect for your setup.\n\nHere\'s our pricing: [pricing page]\n\nWould Thursday or Friday work for a 20-minute call? Happy to walk you through the agency setup.\n\nBest,\n[Your name]',
-  },
-  {
-    id: 't2', from: 'Marcus Webb', email: 'marcus@techforward.co', initials: 'MW',
-    subject: 'Re: Following up on our conversation',
-    preview: 'Just circling back. Still evaluating a few options but your GEO audit features stood out...',
-    time: 'Yesterday', isRead: true, tag: 'warm',
-    messages: [
-      { from: 'You', time: '3 days ago, 2:30 PM', isSelf: true,
-        body: 'Hi Marcus,\n\nFollowing up on our demo last week. Happy to send a custom proposal or answer any questions.\n\nBest,' },
-      { from: 'Marcus Webb', time: 'Yesterday, 4:52 PM', isSelf: false,
-        body: 'Hey — just circling back. Still evaluating a couple of options but your GEO audit features stood out. Main concern is integrations — does it connect with HubSpot?\n\nMarcus' }
-    ],
-    aiSummary: 'Warm lead in active evaluation. Attended a prior demo. Key objection: HubSpot integration. GEO audit was the standout feature. High close probability if the integration concern is addressed.',
-    aiDraft: 'Hi Marcus,\n\nGood to hear back! HubSpot integration is on our Q3 roadmap. In the meantime you can export audit results as CSV and push them into HubSpot in a couple of minutes.\n\nHappy to show you the export flow on a quick screen share — should help close out your evaluation.\n\nDoes Thursday work?\n\nBest,\n[Your name]',
-  },
-  {
-    id: 't3', from: 'TechCrunch Editorial', email: 'tips@techcrunch.com', initials: 'TC',
-    subject: 'AI marketing tools roundup — contributors needed',
-    preview: 'We\'re putting together a feature on AI tools for growth marketers. Deadline Friday EOD...',
-    time: 'Mon', isRead: false, tag: 'press',
-    messages: [
-      { from: 'TechCrunch Editorial', time: 'Monday, 11:20 AM', isSelf: false,
-        body: 'Hi,\n\nWe\'re putting together a feature on AI tools for growth marketers and would love to include your product. Could you share a brief description, key differentiators, and a demo video link?\n\nDeadline: Friday EOD.\n\nThanks,\nTC Editorial' }
-    ],
-    aiSummary: 'High-priority press opportunity. TechCrunch running an AI marketing tools roundup. Deadline Friday EOD. Respond within 24 hours with product description, differentiators, and demo video link.',
-    aiDraft: 'Hi,\n\nThanks for reaching out — we\'d love to be included!\n\nGrowJin is an AI-powered marketing audit platform for SMBs. We surface gaps across SEO, GEO, content quality, and social presence — mapping every finding to a weighted growth score with AI-drafted fixes.\n\nKey differentiators:\n• Combined SEO + GEO (AI discoverability) audit\n• AI-verified checks with human override capability\n• Module-based progression system that guides growth teams\n\nDemo: [video link] | Product: [URL]\n\nBest,\n[Your name]',
-  },
-  {
-    id: 't4', from: 'Aisha Okonkwo', email: 'aisha@brightleaf.co', initials: 'AO',
-    subject: 'Partnership idea — content + audit collaboration',
-    preview: 'I run a content agency for B2B brands. Think there\'s a natural overlap with what you do...',
-    time: 'Sun', isRead: true, tag: 'partnership',
-    messages: [
-      { from: 'Aisha Okonkwo', time: 'Sunday, 3:40 PM', isSelf: false,
-        body: 'Hi!\n\nI run Brightleaf, a content agency for B2B brands. I think there\'s a natural overlap between your audit capabilities and our content execution.\n\nWould you be open to a referral arrangement or co-marketing? I have ~400 newsletter subscribers who would benefit from your tool.\n\nAisha' }
-    ],
-    aiSummary: 'Inbound partnership proposal from Aisha at Brightleaf (B2B content agency). Offers referral/co-marketing + 400 newsletter subscribers as distribution. Low effort, potentially high ROI. Recommend a 30-min discovery call.',
-    aiDraft: 'Hi Aisha,\n\nThis sounds like a great fit — I\'d love to explore it.\n\nWe often see clients needing content execution after surfacing gaps in their audit, so a referral arrangement makes sense both ways.\n\nFree for a 30-min intro call next week? Tuesday or Wednesday afternoon works well for me.\n\nLooking forward to it,\n[Your name]',
-  },
-  {
-    id: 't5', from: 'Daniel Park', email: 'daniel@growthops.io', initials: 'DP',
-    subject: 'Re: Free trial — GEO score question',
-    preview: 'Thanks for the extended trial. The GEO score shows 0 for AI discovery — bug or real?...',
-    time: '5 days ago', isRead: true, tag: 'followup',
-    messages: [
-      { from: 'Daniel Park', time: '5 days ago, 6:10 PM', isSelf: false,
-        body: 'Thanks for the extended trial. One thing I noticed: the GEO score shows 0 for the AI discovery section — is that a bug or is my site genuinely not indexed?\n\nDaniel' }
-    ],
-    aiSummary: 'Trial user confused about GEO score showing 0 for AI discovery. Not a bug — site lacks llms.txt, GPTBot permissions, and structured data. Good opportunity to educate and convert to paid.',
-    aiDraft: 'Hi Daniel,\n\nNot a bug — it means your site isn\'t currently indexed by AI crawlers like GPTBot or Anthropic\'s ClaudeBot.\n\nThe GEO module checks for: llms.txt file, AI crawler permissions in robots.txt, presence in AI search tools, and structured data. Most sites score 0 here initially.\n\nTop 3 fixes:\n1. Add llms.txt to your root (10 minutes)\n2. Allow GPTBot in robots.txt\n3. Add FAQ schema to key pages\n\nWant me to walk through these on a quick call?\n\nBest,\n[Your name]',
-  },
-  {
-    id: 't6', from: 'Stripe', email: 'no-reply@stripe.com', initials: 'ST',
-    subject: 'Invoice #1892 — July 2025',
-    preview: '$149.00 due July 15, 2025. View invoice...',
-    time: 'Mon', isRead: true, tag: 'vendor',
-    messages: [
-      { from: 'Stripe', time: 'Monday, 8:00 AM', isSelf: false,
-        body: 'Invoice #1892 — $149.00 due July 15, 2025.\n\nView invoice: [link]' }
-    ],
-    aiSummary: 'Automated invoice from Stripe. $149 due July 15. No reply needed unless payment method requires updating.',
-    aiDraft: '',
-  },
-]
-
-const PROSPECTS: Prospect[] = [
-  { id: 'p1', name: 'Sarah Chen',      email: 'sarah@launchpad.io',    company: 'LaunchPad',      title: 'Head of Growth' },
-  { id: 'p2', name: 'Tom Ramirez',     email: 'tom@foundry.co',         company: 'Foundry Studio', title: 'Co-founder & CEO' },
-  { id: 'p3', name: 'Natasha Ivanova', email: 'natasha@clearpath.io',  company: 'ClearPath',      title: 'Marketing Director' },
-  { id: 'p4', name: 'David Osei',      email: 'david@buildforward.co', company: 'BuildForward',   title: 'VP Marketing' },
-  { id: 'p5', name: 'Mei Lin',         email: 'mei@springhub.com',     company: 'SpringHub',      title: 'Growth Lead' },
-]
-
-// ── Inline SVG icons ──────────────────────────────────────────────────────────
+// ── Inline SVG icons (connect screen) ─────────────────────────────────────────
 
 const IcMail = () => (
   <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
     <rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>
     <path d="M2 7l8 5 8-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-  </svg>
-)
-const IcLead = () => (
-  <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
-    <circle cx="10" cy="7" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
-    <path d="M3 17c0-3.314 3.134-6 7-6s7 2.686 7 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-    <path d="M14 5l2 2-2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 )
 const IcDraft = () => (
@@ -174,6 +38,12 @@ const IcClock = () => (
     <path d="M10 6v4l3 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 )
+const IcReply = () => (
+  <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
+    <path d="M8 5L3 10l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M3 10h9a5 5 0 015 5v1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+  </svg>
+)
 const IcPipe = () => (
   <svg viewBox="0 0 20 20" fill="none" width="18" height="18">
     <rect x="2" y="13" width="4" height="5" rx="1" stroke="currentColor" strokeWidth="1.5"/>
@@ -181,24 +51,6 @@ const IcPipe = () => (
     <rect x="14" y="3" width="4" height="15" rx="1" stroke="currentColor" strokeWidth="1.5"/>
   </svg>
 )
-const IcAI = () => (
-  <svg viewBox="0 0 20 20" fill="none" width="14" height="14">
-    <path d="M10 2l1.5 4.5H16l-3.5 2.5 1.5 4.5L10 11l-4 2.5 1.5-4.5L4 6.5h4.5L10 2z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
-  </svg>
-)
-const IcSend = () => (
-  <svg viewBox="0 0 20 20" fill="none" width="15" height="15">
-    <path d="M3 10l14-7-5 7 5 7-14-7z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-  </svg>
-)
-const IcBell = () => (
-  <svg viewBox="0 0 20 20" fill="none" width="14" height="14">
-    <path d="M10 2a6 6 0 00-6 6v3l-1.5 2.5h15L16 11V8a6 6 0 00-6-6z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
-    <path d="M8.5 16.5a1.5 1.5 0 003 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-  </svg>
-)
-
-// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function GmailHub({
   brandName,
@@ -209,574 +61,69 @@ export default function GmailHub({
   initialConnected?: boolean
   gmailAddress?: string | null
 }) {
-  const [isConnected, setIsConnected]         = useState(initialConnected)
-  const [activeTab, setActiveTab]             = useState<Tab>('inbox')
-  const [selectedId, setSelectedId]           = useState<string>('')
-  const [copied, setCopied]                   = useState<string | null>(null)
-  const [inboxFilter, setInboxFilter]         = useState<InboxFilter>('all')
-  const [showStalled, setShowStalled]         = useState(true)
-  const [disconnecting, setDisconnecting]     = useState(false)
-  const [prospectStates, setProspectStates]     = useState<Record<string, ProspectState>>({})
-  const [expandedProspect, setExpandedProspect] = useState<string | null>(null)
-  const [needsReconnect, setNeedsReconnect]     = useState(false)
-  // Follow-up reminder state
-  const [followUpEnabled, setFollowUpEnabled]   = useState(true)
-  const [followUpDays, setFollowUpDays]         = useState(3)
-  const [followUpToast, setFollowUpToast]       = useState<string | null>(null)
-  // Reply-detected toast: { reminderId, threadId, name, hasReply? }[]
-  const [followupNews, setFollowupNews]         = useState<string | null>(null)
-  // Campaign state
-  const [campaignInstruction, setCampaignInstruction] = useState('')
-  const [campaignImportText, setCampaignImportText]   = useState('')
-  const [campaignImportMode, setCampaignImportMode]   = useState<'csv' | 'ai'>('csv')
-  const [campaignAiParsing, setCampaignAiParsing]     = useState(false)
-  const [campaignAiParseErr, setCampaignAiParseErr]   = useState<string | null>(null)
-  const [campaignProspects, setCampaignProspects]     = useState<CampaignProspect[]>([])
-  const [savedProspects, setSavedProspects]           = useState<CampaignProspect[]>([])
-  const [savedOpen, setSavedOpen]                     = useState(false)
-  const [savedSelected, setSavedSelected]             = useState<Set<string>>(new Set())
-  const [savedSearch, setSavedSearch]                 = useState('')
-  const [followUpDueCount, setFollowUpDueCount]       = useState(0)
-  const [campaignStates, setCampaignStates]           = useState<Record<string, CampaignState>>({})
-  const [campaignExpandedId, setCampaignExpandedId]   = useState<string | null>(null)
-  const [campaignCopied, setCampaignCopied]           = useState<string | null>(null)
-  const [campaignDraftSaving, setCampaignDraftSaving] = useState<Set<string>>(new Set())
-  const [campaignDraftSaved, setCampaignDraftSaved]   = useState<Set<string>>(new Set())
-  const [campaignGoalError, setCampaignGoalError]     = useState(false)
-  const [scheduleMode, setScheduleMode]               = useState<Record<string, boolean>>({})
-  const [scheduleDates, setScheduleDates]             = useState<Record<string, string>>({})
-  const [sendAllConfirming, setSendAllConfirming]     = useState(false)
-  const [campaignManualForm, setCampaignManualForm]   = useState<{ email: string; name: string; domain: string } | null>(null)
-  // AI bulk edit
-  const [aiEditOpen, setAiEditOpen]                   = useState(false)
-  const [aiEditInstruction, setAiEditInstruction]     = useState('')
-  const [aiEditTargeting, setAiEditTargeting]         = useState<'all' | 'select'>('all')
-  const [aiEditSelected, setAiEditSelected]           = useState<Set<string>>(new Set())
-  const [aiEditApplying, setAiEditApplying]           = useState(false)
-  const [aiEditProgress, setAiEditProgress]           = useState<{ done: number; total: number } | null>(null)
-  // Email history
-  const [emailHistory, setEmailHistory]               = useState<EmailHistoryItem[]>([])
-  const [showHistory, setShowHistory]                 = useState(false)
-  // Real inbox state
-  const [inboxThreads, setInboxThreads]       = useState<Thread[]>([])
-  const [inboxLoading, setInboxLoading]       = useState(false)
-  const [loadingMsgs, setLoadingMsgs]         = useState<Set<string>>(new Set())
-  const [summarizing, setSummarizing]         = useState<Set<string>>(new Set())
+  const [isConnected, setIsConnected]   = useState(initialConnected)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [tab, setTab]                   = useState<Tab | null>(null)
+  const [dueCount, setDueCount]         = useState(0)
+  const [sent, setSent]                 = useState<SentEmail[]>([])
+  const [reloadKey, setReloadKey]       = useState(0)
+  const [newPending, setNewPending]     = useState(false)
+  const [menuOpen, setMenuOpen]         = useState(false)
+  const menuBtn = useRef<HTMLButtonElement>(null)
+  const [toast, notify] = useToast()
 
-  // ── Inbox fetch ───────────────────────────────────────────────────────────
-
-  const fetchInbox = useCallback(async () => {
-    setInboxLoading(true)
-    try {
-      const inboxRes = await fetch('/api/gmail/inbox')
-      const data = await inboxRes.json() as Thread[]
-      if (inboxRes.ok && Array.isArray(data)) {
-        setInboxThreads(data)
-        if (data.length > 0) setSelectedId(data[0].id)
-      }
-    } catch { /* silent */ } finally {
-      setInboxLoading(false)
-    }
+  const loadSent = useCallback(() => {
+    fetch('/api/outreach/emails').then(r => r.ok ? r.json() : null).then(data => {
+      if (data?.emails) setSent(data.emails)
+    }).catch(() => {})
   }, [])
 
-  useEffect(() => {
-    if (isConnected) fetchInbox()
-  }, [isConnected, fetchInbox])
-
-  // Check follow-up threads for replies / opt-outs / bounces and surface anything new
+  // Open on Follow-ups when some are due, else Campaigns. Then check Gmail for replies in the
+  // background; anything that replied, opted out or bounced moves to Done.
   useEffect(() => {
     if (!isConnected) return
+    loadSent()
+    loadReminders()
+      .then(rows => { const n = openFollowUps(rows).filter(isDue).length; setDueCount(n); setTab(t => t ?? (n > 0 ? 'followups' : 'campaigns')) })
+      .catch(() => setTab(t => t ?? 'campaigns'))
     fetch('/api/gmail/followups/check', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
       .then(r => r.ok ? r.json() : null)
       .then((c: { replied?: number; optedOut?: number; bounced?: number } | null) => {
         if (!c) return
         const parts = [
-          c.replied  ? `${c.replied} prospect${c.replied !== 1 ? 's' : ''} replied` : null,
+          c.replied  ? `${c.replied} ${c.replied === 1 ? 'person' : 'people'} replied` : null,
           c.optedOut ? `${c.optedOut} opted out` : null,
           c.bounced  ? `${c.bounced} bounced` : null,
         ].filter(Boolean)
-        if (parts.length) setFollowupNews(`${parts.join(', ')}. Those follow-ups were closed automatically.`)
+        if (parts.length) { notify(`${parts.join(', ')}. Those follow-ups moved to Done.`); setReloadKey(k => k + 1) }
       })
       .catch(() => {})
-  }, [isConnected])
+  }, [isConnected, loadSent, notify])
 
-  const loadEmailHistory = useCallback(() => {
-    fetch('/api/outreach/emails').then(r => r.ok ? r.json() : null).then(data => {
-      if (data?.emails) setEmailHistory(data.emails)
-    }).catch(() => {})
-  }, [])
-
-  async function cancelScheduledEmail(emailId: string, prospectId?: string) {
-    const res = await fetch(`/api/outreach/emails/${emailId}/cancel`, { method: 'POST' })
-    const data = await res.json().catch(() => ({})) as { error?: string }
-    if (!res.ok) {
-      setFollowUpToast(data.error ?? 'Could not cancel email')
-    } else {
-      setFollowUpToast('Scheduled email cancelled')
-      if (prospectId) {
-        setCampaignStates(prev => prev[prospectId]
-          ? { ...prev, [prospectId]: { ...prev[prospectId], status: 'ready', scheduledAt: undefined, scheduledId: undefined } }
-          : prev)
-      }
-    }
-    setTimeout(() => setFollowUpToast(null), 4000)
-    loadEmailHistory()
-  }
-
-  const loadSavedProspects = useCallback(() => {
-    fetch('/api/outreach/prospects').then(r => r.ok ? r.json() : null).then(data => {
-      if (!data?.prospects) return
-      setSavedProspects(data.prospects.map((p: { id: string; email: string; name?: string | null; domain?: string | null }) => ({
-        id: p.id, email: p.email, name: p.name ?? '', domain: p.domain ?? '',
-      })))
-    }).catch(() => {})
-  }, [])
-
+  // Keep the Follow-ups count right while another tab is open
   useEffect(() => {
-    // Saved prospects stay in their own section — the campaign list starts empty
-    loadSavedProspects()
-    loadEmailHistory()
-  }, [loadSavedProspects, loadEmailHistory])
-
-  // ── Campaign autosave (app/api/outreach/campaign) ─────────────────────────
-  // The instruction, recipients and every written or edited email are saved as they
-  // change and brought back when the page opens, so a refresh loses nothing.
-  const campaignRestored = useRef(false)
-  useEffect(() => {
-    fetch('/api/outreach/campaign').then(r => r.ok ? r.json() : null).then((d: { campaign?: {
-      instruction?: string; prospects?: CampaignProspect[]; emails?: Record<string, { subject: string; body: string; toEmail?: string; status: string; scheduledAt?: string }>
-    } | null } | null) => {
-      const c = d?.campaign
-      if (c) {
-        if (c.instruction) setCampaignInstruction(prev => prev || c.instruction!)
-        if (c.prospects?.length) setCampaignProspects(prev => prev.length ? prev : c.prospects!)
-        if (c.emails) {
-          setCampaignStates(prev => Object.keys(prev).length ? prev : Object.fromEntries(Object.entries(c.emails!).map(([id, e]) => [id, {
-            status: (e.status === 'sent' || e.status === 'scheduled' ? e.status : 'ready') as CampaignStatus,
-            subject: e.subject, body: e.body, toEmail: e.toEmail, scheduledAt: e.scheduledAt,
-          }])))
-        }
-      }
-    }).catch(() => {}).finally(() => { campaignRestored.current = true })
-  }, [])
-  useEffect(() => {
-    if (!campaignRestored.current) return
-    const t = setTimeout(() => {
-      const emails = Object.fromEntries(Object.entries(campaignStates)
-        .filter(([, st]) => st.subject || st.body)
-        .map(([id, st]) => [id, { subject: st.subject, body: st.body, toEmail: st.toEmail, status: st.status, scheduledAt: st.scheduledAt }]))
-      fetch('/api/outreach/campaign', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instruction: campaignInstruction, prospects: campaignProspects, emails }),
-      }).catch(() => {})
-    }, 1200)
-    return () => clearTimeout(t)
-  }, [campaignInstruction, campaignProspects, campaignStates])
-
-  async function fetchMessages(threadId: string) {
-    setLoadingMsgs(prev => new Set(prev).add(threadId))
-    try {
-      const res  = await fetch(`/api/gmail/thread/${threadId}`)
-      const msgs = await res.json() as { from: string; time: string; body: string; isSelf: boolean }[]
-      if (res.ok && Array.isArray(msgs)) {
-        setInboxThreads(prev => prev.map(t => t.id === threadId ? { ...t, messages: msgs } : t))
-      }
-    } catch { /* silent */ } finally {
-      setLoadingMsgs(prev => { const s = new Set(prev); s.delete(threadId); return s })
-    }
-  }
-
-  async function generateSummary(thread: Thread) {
-    if (!thread.messages.length) return
-    setSummarizing(prev => new Set(prev).add(thread.id))
-    try {
-      const res  = await fetch('/api/gmail/summarize-thread', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject: thread.subject, messages: thread.messages }),
-      })
-      const data = await res.json() as { summary?: string; draft?: string }
-      if (res.ok) {
-        setInboxThreads(prev => prev.map(t =>
-          t.id === thread.id
-            ? { ...t, aiSummary: data.summary ?? '', aiDraft: data.draft ?? '' }
-            : t,
-        ))
-      }
-    } catch { /* silent */ } finally {
-      setSummarizing(prev => { const s = new Set(prev); s.delete(thread.id); return s })
-    }
-  }
-
-  function handleSelectThread(id: string) {
-    setSelectedId(id)
-    const t = inboxThreads.find(x => x.id === id)
-    if (t && t.messages.length === 0 && !loadingMsgs.has(id)) fetchMessages(id)
-  }
+    if (!isConnected || reloadKey === 0) return
+    loadReminders().then(rows => setDueCount(openFollowUps(rows).filter(isDue).length)).catch(() => {})
+  }, [isConnected, reloadKey])
 
   async function handleDisconnect() {
     setDisconnecting(true)
     await fetch('/api/gmail/disconnect', { method: 'POST' })
     setIsConnected(false)
     setDisconnecting(false)
+    setMenuOpen(false)
   }
 
-  async function generateEmail(prospect: Prospect) {
-    setProspectStates(prev => ({ ...prev, [prospect.id]: { status: 'generating', subject: '', body: '' } }))
-    try {
-      const res = await fetch('/api/gmail/generate-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prospectName:    prospect.name,
-          prospectEmail:   prospect.email,
-          prospectCompany: prospect.company,
-          prospectTitle:   prospect.title,
-        }),
-      })
-      const data = await res.json() as { subject?: string; body?: string; error?: string }
-      if (!res.ok) throw new Error(data.error ?? 'Generation failed')
-      setProspectStates(prev => ({
-        ...prev,
-        [prospect.id]: { status: 'ready', subject: data.subject ?? '', body: data.body ?? '' },
-      }))
-      setExpandedProspect(prospect.id)
-    } catch (e: unknown) {
-      setProspectStates(prev => ({
-        ...prev,
-        [prospect.id]: { status: 'error', subject: '', body: '', error: e instanceof Error ? e.message : 'Failed' },
-      }))
-    }
+  async function cancelScheduled(emailId: string) {
+    const res = await fetch(`/api/outreach/emails/${emailId}/cancel`, { method: 'POST' })
+    const data = await res.json().catch(() => ({})) as { error?: string }
+    notify(res.ok ? 'Scheduled email cancelled' : data.error ?? 'Could not cancel it')
+    loadSent()
   }
 
-  async function saveDraft(prospect: Prospect) {
-    const state = prospectStates[prospect.id]
-    if (!state?.subject || !state?.body) return
-    setProspectStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'saving' } }))
-    try {
-      const res = await fetch('/api/gmail/save-draft', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: state.toEmail ?? prospect.email, subject: state.subject, body: state.body }),
-      })
-      const data = await res.json() as { draftId?: string; error?: string }
-      if (!res.ok) throw new Error(data.error ?? 'Save failed')
-      setProspectStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'saved' } }))
-    } catch (e: unknown) {
-      setProspectStates(prev => ({
-        ...prev,
-        [prospect.id]: { ...state, status: 'error', error: e instanceof Error ? e.message : 'Save failed' },
-      }))
-    }
-  }
-
-  async function sendEmail(prospect: Prospect) {
-    const state = prospectStates[prospect.id]
-    if (!state?.subject || !state?.body) return
-    setProspectStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'sending' } }))
-    try {
-      const res = await fetch('/api/gmail/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: state.toEmail ?? prospect.email,
-          subject: state.subject,
-          body: state.body,
-          followUpDays: followUpEnabled ? followUpDays : undefined,
-        }),
-      })
-      const data = await res.json() as { messageId?: string; error?: string; message?: string }
-      if (res.status === 403 && data.error === 'missing_send_scope') {
-        setNeedsReconnect(true)
-        setProspectStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'ready' } }))
-        return
-      }
-      if (!res.ok) throw new Error(data.error ?? 'Send failed')
-      setProspectStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'sent' } }))
-      setExpandedProspect(null)
-      if (followUpEnabled) {
-        setFollowUpToast(`Follow-up reminder set for ${followUpDays} days`)
-        setTimeout(() => setFollowUpToast(null), 4000)
-      }
-    } catch (e: unknown) {
-      setProspectStates(prev => ({
-        ...prev,
-        [prospect.id]: { ...state, status: 'error', error: e instanceof Error ? e.message : 'Send failed' },
-      }))
-    }
-  }
-
-  async function setThreadFollowup(t: Thread, days: number) {
-    try {
-      const res = await fetch('/api/gmail/set-followup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ threadId: t.id, subject: t.subject, recipientName: t.from, days }),
-      })
-      if (res.ok) {
-        setFollowUpToast(`Reminder set — follow up with ${t.from} in ${days} days`)
-        setTimeout(() => setFollowUpToast(null), 4000)
-      }
-    } catch { /* silent */ }
-  }
-
-
-  const thread = inboxThreads.find(t => t.id === selectedId) ?? inboxThreads[0] ?? null
-
-  const filteredThreads = inboxThreads.filter(t => {
-    if (inboxFilter === 'all') return true
-    if (inboxFilter === 'leads') return ['hot', 'warm', 'cold', 'followup'].includes(t.tag ?? '')
-    return t.tag === inboxFilter
-  })
-
-  const hotLeadCount  = inboxThreads.filter(t => t.tag === 'hot').length
-  const leadCount     = inboxThreads.filter(t => ['hot', 'warm', 'cold', 'followup'].includes(t.tag ?? '')).length
-  const pressCount    = inboxThreads.filter(t => t.tag === 'press').length
-  const partnerCount  = inboxThreads.filter(t => t.tag === 'partnership').length
-
-  function copyText(text: string, id: string) {
-    navigator.clipboard.writeText(text)
-    setCopied(id)
-    setTimeout(() => setCopied(null), 2000)
-  }
-
-  // ── Campaign helpers ───────────────────────────────────────────────────────
-
-  function saveProspectsToDB(prospects: CampaignProspect[], rawInput?: string) {
-    fetch('/api/outreach/prospects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prospects: prospects.map(p => ({ email: p.email, name: p.name, domain: p.domain, rawInput: rawInput ?? null })) }),
-    }).then(() => loadSavedProspects()).catch(() => {})
-  }
-
-  // Adds to the current campaign, skipping emails already in it
-  function addToCampaign(prospects: CampaignProspect[]) {
-    setCampaignProspects(prev => {
-      const seen = new Set(prev.map(p => p.email.toLowerCase()))
-      const fresh = prospects.filter(p => {
-        const key = p.email.toLowerCase()
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-      })
-      return [...prev, ...fresh]
-    })
-  }
-
-  function addSelectedSavedToCampaign() {
-    addToCampaign(savedProspects.filter(p => savedSelected.has(p.id)))
-    setSavedSelected(new Set())
-  }
-
-  async function deleteSavedProspect(id: string) {
-    setSavedProspects(prev => prev.filter(p => p.id !== id))
-    setSavedSelected(prev => { const n = new Set(prev); n.delete(id); return n })
-    await fetch('/api/outreach/prospects', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
-    }).catch(() => {})
-  }
-
-  function parseImport() {
-    const lines = campaignImportText.split('\n').map(l => l.trim()).filter(Boolean)
-    const parsed: CampaignProspect[] = lines.map((line, i) => {
-      const parts = line.split(',').map(p => p.trim())
-      return {
-        id:     `cp-${Date.now()}-${i}`,
-        email:  parts[0] ?? '',
-        name:   parts[1] ?? '',
-        domain: parts[2] ?? '',
-      }
-    }).filter(p => p.email.includes('@'))
-    addToCampaign(parsed)
-    saveProspectsToDB(parsed)
-    setCampaignImportText('')
-  }
-
-  async function parseWithAI() {
-    if (!campaignImportText.trim()) return
-    setCampaignAiParsing(true)
-    setCampaignAiParseErr(null)
-    try {
-      const res = await fetch('/api/outreach/parse-prospects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: campaignImportText }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error ?? 'Parse failed')
-      const prospects = data.prospects as CampaignProspect[]
-      if (!prospects.length) { setCampaignAiParseErr('No contacts found in the text.'); return }
-      addToCampaign(prospects)
-      saveProspectsToDB(prospects, campaignImportText)
-      setCampaignImportText('')
-    } catch (e) {
-      setCampaignAiParseErr(e instanceof Error ? e.message : 'Failed to parse')
-    } finally {
-      setCampaignAiParsing(false)
-    }
-  }
-
-  function removeCampaignProspect(id: string) {
-    setCampaignProspects(prev => prev.filter(p => p.id !== id))
-    setCampaignStates(prev => { const s = { ...prev }; delete s[id]; return s })
-  }
-
-  async function generateCampaignEmail(prospect: CampaignProspect) {
-    if (!campaignInstruction.trim()) return
-    setCampaignStates(prev => ({
-      ...prev,
-      [prospect.id]: { status: 'generating', subject: '', body: '' },
-    }))
-    try {
-      const res  = await fetch('/api/gmail/campaign/generate', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          email:       prospect.email,
-          name:        prospect.name  || undefined,
-          domain:      prospect.domain || undefined,
-          instruction: campaignInstruction,
-        }),
-      })
-      const data = await res.json() as { subject?: string; body?: string; error?: string }
-      if (!res.ok) throw new Error(data.error ?? 'Generation failed')
-      setCampaignStates(prev => ({
-        ...prev,
-        [prospect.id]: { status: 'ready', subject: data.subject ?? '', body: data.body ?? '' },
-      }))
-    } catch (e: unknown) {
-      setCampaignStates(prev => ({
-        ...prev,
-        [prospect.id]: { status: 'error', subject: '', body: '', error: e instanceof Error ? e.message : 'Failed' },
-      }))
-    }
-  }
-
-  async function sendCampaignEmail(prospect: CampaignProspect, scheduledAt?: string) {
-    const state = campaignStates[prospect.id]
-    if (!state?.subject || !state?.body) return
-    setCampaignStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'sending', confirming: false } }))
-    try {
-      const res  = await fetch('/api/gmail/send-email', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          to: state.toEmail ?? prospect.email,
-          subject: state.subject,
-          body: state.body,
-          followUpDays: followUpEnabled ? followUpDays : undefined,
-          source: 'campaign',
-          ...(scheduledAt ? { scheduledAt } : {}),
-        }),
-      })
-      const data = await res.json() as { id?: string; messageId?: string; error?: string; scheduled?: boolean; scheduledAt?: string }
-      if (res.status === 403 && data.error === 'missing_send_scope') {
-        setNeedsReconnect(true)
-        setCampaignStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'ready', confirming: false } }))
-        return
-      }
-      if (!res.ok) throw new Error(data.error ?? 'Send failed')
-      loadEmailHistory()
-      if (scheduledAt) {
-        setCampaignStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'scheduled', scheduledAt, scheduledId: data.id, confirming: false } }))
-        if (campaignExpandedId === prospect.id) setCampaignExpandedId(null)
-        setFollowUpToast(`Scheduled for ${formatScheduledDate(scheduledAt)}`)
-        setTimeout(() => setFollowUpToast(null), 4000)
-      } else {
-        setCampaignStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'sent', confirming: false } }))
-        if (campaignExpandedId === prospect.id) setCampaignExpandedId(null)
-        if (followUpEnabled) {
-          setFollowUpToast(`Follow-up reminder set for ${followUpDays} days`)
-          setTimeout(() => setFollowUpToast(null), 4000)
-        }
-      }
-    } catch (e: unknown) {
-      setCampaignStates(prev => ({
-        ...prev,
-        [prospect.id]: { ...state, status: 'error', error: e instanceof Error ? e.message : 'Send failed', confirming: false },
-      }))
-    }
-  }
-
-  async function saveCampaignDraft(prospect: CampaignProspect) {
-    const state = campaignStates[prospect.id]
-    if (!state?.subject || !state?.body) return
-    setCampaignDraftSaving(prev => new Set(prev).add(prospect.id))
-    try {
-      const res = await fetch('/api/gmail/save-draft', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ to: state.toEmail ?? prospect.email, subject: state.subject, body: state.body }),
-      })
-      if (res.ok) {
-        setCampaignDraftSaved(prev => new Set(prev).add(prospect.id))
-        setTimeout(() => setCampaignDraftSaved(prev => { const n = new Set(prev); n.delete(prospect.id); return n }), 3000)
-      }
-    } catch { /* silent */ }
-    setCampaignDraftSaving(prev => { const n = new Set(prev); n.delete(prospect.id); return n })
-  }
-
-  async function sendAllReady() {
-    setSendAllConfirming(false)
-    const ready = campaignProspects.filter(p => campaignStates[p.id]?.status === 'ready')
-    for (const p of ready) {
-      await sendCampaignEmail(p)
-      await new Promise(r => setTimeout(r, 400))
-    }
-  }
-
-  async function applyAiEdit() {
-    if (!aiEditInstruction.trim()) return
-    const targets = aiEditTargeting === 'all'
-      ? campaignProspects.filter(p => campaignStates[p.id]?.status === 'ready')
-      : campaignProspects.filter(p => campaignStates[p.id]?.status === 'ready' && aiEditSelected.has(p.id))
-    if (targets.length === 0) return
-
-    setAiEditApplying(true)
-    setAiEditProgress({ done: 0, total: targets.length })
-
-    // Process in batches of 3 to keep things responsive
-    const batchSize = 3
-    for (let i = 0; i < targets.length; i += batchSize) {
-      const batch = targets.slice(i, i + batchSize)
-      try {
-        const res = await fetch('/api/gmail/campaign/refine', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            instruction: aiEditInstruction,
-            emails: batch.map(p => ({
-              id:              p.id,
-              prospectName:    p.name,
-              prospectEmail:   p.email,
-              prospectDomain:  p.domain,
-              currentSubject:  campaignStates[p.id]?.subject ?? '',
-              currentBody:     campaignStates[p.id]?.body ?? '',
-            })),
-          }),
-        })
-        if (res.ok) {
-          const { results } = await res.json() as { results: { id: string; subject?: string; body?: string; error?: string }[] }
-          setCampaignStates(prev => {
-            const next = { ...prev }
-            for (const r of results) {
-              if (r.body && r.subject) {
-                next[r.id] = { ...next[r.id], subject: r.subject, body: r.body, editingHtml: false }
-              }
-            }
-            return next
-          })
-        }
-      } catch { /* silent — batch failure doesn't stop the rest */ }
-      setAiEditProgress({ done: Math.min(i + batchSize, targets.length), total: targets.length })
-    }
-
-    setAiEditApplying(false)
-    setAiEditProgress(null)
-  }
+  const onCount = useCallback((n: number) => setDueCount(n), [])
+  const weekAgo = Date.now() - 7 * 86_400_000
+  const sentThisWeek = sent.filter(e => e.status === 'sent' && e.sentAt && Date.parse(e.sentAt) > weekAgo).length
 
   // ── NOT CONNECTED ─────────────────────────────────────────────────────────
 
@@ -787,23 +134,22 @@ export default function GmailHub({
 
           <ToolHeader icon="mail" title="Email Outreach" chips={<span className="th-chip">New</span>} meta={brandName} intro="emailOutreach" />
 
-          {/* 2-column connect layout */}
           <div className="gh-connect-outer">
 
-            {/* Left: copy + features + CTA */}
             <div className="gh-connect-left">
-              <div className="gh-connect-eyebrow">Gmail Integration</div>
-              <h2 className="gh-connect-h2">Your inbox already contains your next 10 customers</h2>
+              <div className="gh-connect-eyebrow">Gmail</div>
+              <h2 className="gh-connect-h2">Email your prospects from your own Gmail, and never miss a follow-up</h2>
               <p className="gh-connect-p">
-                GrowJin reads your Gmail to detect inbound leads, draft contextual replies in your voice, and surface deals that have gone quiet — without ever sending anything without your explicit approval.
+                Paste a list, say what you offer, and GrowJin writes a personal email for each person. You check every one before it goes.
+                When someone doesn&apos;t reply, a follow-up is ready to send in the same thread.
               </p>
 
               <div className="gh-connect-feats">
                 {[
-                  { Icon: IcLead, label: 'Lead Detection',   desc: 'AI tags inbound emails Hot / Warm / Cold based on buying intent' },
-                  { Icon: IcDraft, label: 'AI Campaigns',     desc: 'Personalised outreach emails for a list of prospects, sent now or scheduled' },
-                  { Icon: IcClock, label: 'Stalled Alerts',   desc: 'Surface deals that have gone quiet for 7+ days with no follow-up' },
-                  { Icon: IcPipe,  label: 'Follow-ups',       desc: 'Reminders when a prospect has not replied, with an AI-drafted nudge ready to send' },
+                  { Icon: IcDraft, label: 'Campaigns',        desc: 'One email, written for each person on your list, sent now or scheduled' },
+                  { Icon: IcPipe,  label: 'Follow-ups',       desc: 'When someone hasn’t replied in a few days, a short follow-up is ready to send' },
+                  { Icon: IcReply, label: 'Reply detection',  desc: 'Replies, opt-outs and bounces close their follow-up by themselves' },
+                  { Icon: IcClock, label: 'Every tool, one place', desc: 'Emails sent from Competitor Leads and the agents show up here too' },
                 ].map(({ Icon, label, desc }) => (
                   <div key={label} className="gh-connect-feat">
                     <div className="gh-feat-icon-wrap"><Icon /></div>
@@ -819,10 +165,10 @@ export default function GmailHub({
                 <div className="gh-scopes-title">What we request access to</div>
                 <div className="gh-scope-list">
                   {[
-                    { yes: true,  name: 'gmail.readonly', reason: 'read threads and labels' },
-                    { yes: true,  name: 'gmail.compose',  reason: 'create Drafts in your inbox' },
-                    { yes: true,  name: 'gmail.send',     reason: 'send emails — only after your confirmation' },
-                    { yes: false, name: 'gmail.modify',   reason: 'not requested — we cannot move or delete emails' },
+                    { yes: true,  name: 'gmail.readonly', reason: 'check your sent threads for replies' },
+                    { yes: true,  name: 'gmail.compose',  reason: 'save emails to your Drafts' },
+                    { yes: true,  name: 'gmail.send',     reason: 'send emails, only after you confirm' },
+                    { yes: false, name: 'gmail.modify',   reason: 'not requested: we cannot move or delete emails' },
                   ].map(s => (
                     <div key={s.name} className={`gh-scope-row${s.yes ? '' : ' gh-scope-no'}`}>
                       <span className={`gh-scope-dot ${s.yes ? 'yes' : 'no'}`} />
@@ -835,14 +181,14 @@ export default function GmailHub({
 
               <a href="/api/gmail/connect" className="gh-connect-btn">
                 <IcMail />
-                Connect Gmail Account
+                Connect Gmail
               </a>
               <p className="gh-connect-note">
                 Encrypted at rest. You can disconnect and permanently delete all stored data from Settings at any time.
               </p>
             </div>
 
-            {/* Right: mini inbox mockup */}
+            {/* Right: what the tool looks like once connected */}
             <div className="gh-connect-right">
               <div className="gh-mockup">
                 <div className="gh-mock-chrome">
@@ -851,29 +197,22 @@ export default function GmailHub({
                     <span className="gh-mock-dot y" />
                     <span className="gh-mock-dot g" />
                   </div>
-                  <div className="gh-mock-url">yourbrand.com/gmail-hub</div>
+                  <div className="gh-mock-url">Email Outreach · Follow-ups</div>
                 </div>
                 <div className="gh-mock-body">
-                  <div className="gh-mock-stats-row">
-                    <div className="gh-mock-stat red"><div className="gh-mock-sn">2</div><div className="gh-mock-sl">Hot Leads</div></div>
-                    <div className="gh-mock-stat gold"><div className="gh-mock-sn">3</div><div className="gh-mock-sl">Stalled</div></div>
-                    <div className="gh-mock-stat blue"><div className="gh-mock-sn">4</div><div className="gh-mock-sl">Drafts</div></div>
-                    <div className="gh-mock-stat green"><div className="gh-mock-sn">$28k</div><div className="gh-mock-sl">Pipeline</div></div>
-                  </div>
                   <div className="gh-mock-threads">
                     {[
-                      { i: 'PS', tag: 'hot' as LeadTag,         subj: 'Interested in pricing?',        time: '9:14 AM',   unread: true },
-                      { i: 'TC', tag: 'press' as LeadTag,        subj: 'AI tools roundup feature',      time: 'Mon',       unread: true },
-                      { i: 'MW', tag: 'warm' as LeadTag,         subj: 'Re: Following up',              time: 'Yesterday', unread: false },
-                      { i: 'AO', tag: 'partnership' as LeadTag,  subj: 'Content partnership idea',      time: 'Sun',       unread: false },
+                      { i: 'SC', subj: 'Sarah Chen · Quick question about LaunchPad', tag: 'Due today' },
+                      { i: 'TR', subj: 'Tom Ramirez · Your SEO audit', tag: 'Overdue 2 days' },
+                      { i: 'NI', subj: 'Natasha Ivanova · Idea for ClearPath', tag: 'Tomorrow' },
+                      { i: 'DO', subj: 'David Osei · AI search visibility', tag: 'Replied' },
                     ].map((t, idx) => (
-                      <div key={idx} className={`gh-mock-thread${idx === 0 ? ' active' : ''}${t.unread ? ' unread' : ''}`}>
-                        <div className={`gh-mock-av gh-av-${t.tag}`}>{t.i}</div>
+                      <div key={idx} className={`gh-mock-thread${idx === 0 ? ' active' : ''}`}>
+                        <div className="gh-mock-av gh-av-default">{t.i}</div>
                         <div className="gh-mock-tinfo">
                           <div className="gh-mock-tsubj">{t.subj}</div>
-                          <span className={`gh-tag gh-tag-${t.tag}`}>{TAG_LABELS[t.tag]}</span>
+                          <span className={`gh-tag ${t.tag === 'Replied' ? 'gh-tag-warm' : t.tag.startsWith('Overdue') ? 'gh-tag-hot' : 'gh-tag-followup'}`}>{t.tag}</span>
                         </div>
-                        <span className="gh-mock-ttime">{t.time}</span>
                       </div>
                     ))}
                   </div>
@@ -898,1360 +237,53 @@ export default function GmailHub({
 
   // ── CONNECTED ─────────────────────────────────────────────────────────────
 
+  const startCampaign = () => { setTab('campaigns'); setNewPending(true) }
+
   return (
-    <div className="gh-page">
-      <div className="gh-inner">
-
-        <ToolHeader
-          icon="mail"
-          title="Email Outreach"
-          intro="emailOutreach"
-          chips={<span className="th-chip th-chip--on">{gmailAddress ?? 'Gmail connected'}</span>}
-          meta={<>Find more leads: <Link href="/agents/leads" className="th-link">Lead Agent</Link> · <Link href="/lead-finder" className="th-link">Competitor Leads</Link></>}
-          actions={<>
-            <button className="btn btn-ghost btn-sm" onClick={fetchInbox}>Refresh</button>
-            <button className="btn btn-link" onClick={handleDisconnect} disabled={disconnecting}>
-              {disconnecting ? <><Spinner />Disconnecting…</> : 'Disconnect'}
+    <div className="tool-page eo">
+      <ToolHeader
+        icon="mail"
+        title="Email Outreach"
+        intro="emailOutreach"
+        chips={<span className="th-chip th-chip--on">{gmailAddress ?? 'Gmail connected'}</span>}
+        meta={`${sentThisWeek} sent this week`}
+        actions={<>
+          <button ref={menuBtn} type="button" className="btn btn-ghost btn-sm eo-more" aria-label="Gmail settings" aria-expanded={menuOpen} onClick={() => setMenuOpen(o => !o)}>
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4.5" cy="10" r="1.6" /><circle cx="10" cy="10" r="1.6" /><circle cx="15.5" cy="10" r="1.6" /></svg>
+          </button>
+          <Popover anchor={menuBtn} open={menuOpen} onClose={() => setMenuOpen(false)} width={260} label="Gmail settings" className="eo-menu">
+            <div className="eo-menu-who">Sending from <b>{gmailAddress ?? 'your Gmail'}</b></div>
+            <a className="eo-menu-item" href="/api/gmail/connect">Reconnect Gmail</a>
+            <button type="button" className="eo-menu-item eo-danger" disabled={disconnecting} onClick={handleDisconnect}>
+              {disconnecting ? <><Spinner />Disconnecting…</> : 'Disconnect Gmail'}
             </button>
-          </>}
-        />
+          </Popover>
+          <button type="button" className="btn btn-primary btn-sm" onClick={startCampaign}>New campaign</button>
+        </>}
+      />
 
-        {/* Follow-up reminder toast */}
-        {followUpToast && (
-          <div className="gh-followup-toast">
-            <IcBell />
-            <span>{followUpToast}</span>
-            <button className="gh-alert-close" onClick={() => setFollowUpToast(null)}>✕</button>
-          </div>
-        )}
-
-        {/* Follow-up outcomes detected in Gmail */}
-        {followupNews && activeTab !== 'followups' && (
-          <div className="gh-reply-toast">
-            <span>{followupNews}</span>
-            <button
-              className="gh-reply-toast-yes"
-              onClick={() => { setActiveTab('followups'); setFollowupNews(null) }}
-            >
-              View
-            </button>
-            <button className="gh-alert-close" onClick={() => setFollowupNews(null)}>✕</button>
-          </div>
-        )}
-
-        {/* Stalled alert banner */}
-        {showStalled && (
-          <div className="gh-alert-banner">
-            <IcClock />
-            <span><strong>3 stalled threads</strong> haven't had a reply in 7+ days — including Marcus Webb and Daniel Park.</span>
-            <button className="gh-alert-cta" onClick={() => { setActiveTab('inbox'); setInboxFilter('leads') }}>View leads</button>
-            <button className="gh-alert-close" onClick={() => setShowStalled(false)}>✕</button>
-          </div>
-        )}
-
-        {/* Stats */}
-        <div className="gh-stats">
-          <div className="gh-stat">
-            <div className="gh-stat-label">Hot Leads</div>
-            <div className="gh-stat-num">{hotLeadCount}</div>
-            <span className="gh-stat-sub">in inbox right now</span>
-          </div>
-          <div className="gh-stat">
-            <div className="gh-stat-label">Stalled Threads</div>
-            <div className="gh-stat-num">3</div>
-            <span className="gh-stat-sub">no reply 7+ days</span>
-          </div>
-          <div className="gh-stat">
-            <div className="gh-stat-label">Replied This Week</div>
-            <div className="gh-stat-num">12</div>
-            <span className="gh-stat-trend">↑ 4 vs last week</span>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="gh-tabs">
-          {([
-            ['inbox',       'Inbox'],
-            ['campaign',    'Campaigns'],
-            ['followups',   followUpDueCount > 0 ? `Follow-ups (${followUpDueCount})` : 'Follow-ups'],
-          ] as [Tab, string][]).map(([key, label]) => (
-            <button
-              key={key}
-              className={`gh-tab${activeTab === key ? ' active' : ''}`}
-              onClick={() => setActiveTab(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* ── Inbox Intelligence ── */}
-        {activeTab === 'inbox' && (
-          <div className="gh-inbox-wrap">
-
-            {/* Filter pills */}
-            <div className="gh-inbox-filters">
-              {([
-                ['all', 'All', null],
-                ['leads', 'Leads', leadCount],
-                ['press', 'Press', pressCount],
-                ['partnership', 'Partners', partnerCount],
-              ] as [InboxFilter, string, number | null][]).map(([key, label, count]) => (
-                <button
-                  key={key}
-                  className={`gh-filter-pill${inboxFilter === key ? ' active' : ''}`}
-                  onClick={() => { setInboxFilter(key); if (filteredThreads.length > 0 && !filteredThreads.find(t => t.id === selectedId)) setSelectedId(filteredThreads[0].id) }}
-                >
-                  {label}
-                  {count !== null && <span className="gh-filter-badge">{count}</span>}
-                </button>
-              ))}
-              <span className="gh-filter-sep" />
-              <span className="gh-filter-info">{inboxLoading ? <><Spinner />Loading…</> : `${filteredThreads.length} thread${filteredThreads.length !== 1 ? 's' : ''}`}</span>
-              <button
-                style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-faint)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' }}
-                onClick={fetchInbox}
-                disabled={inboxLoading}
-              >
-                {inboxLoading ? <><Spinner />Refreshing…</> : 'Refresh'}
-              </button>
-            </div>
-
-            {inboxLoading && inboxThreads.length === 0 ? (
-              <LoadingState style={{ padding: '48px 28px' }}>Loading inbox…</LoadingState>
-            ) : !inboxLoading && inboxThreads.length === 0 ? (
-              <div style={{ padding: '48px 28px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
-                No emails in inbox.
-              </div>
-            ) : (
-            <div className="gh-inbox-layout">
-
-              {/* Thread list */}
-              <div className="gh-thread-list">
-                {filteredThreads.map(t => (
-                  <div
-                    key={t.id}
-                    className={`gh-thread-item${selectedId === t.id ? ' active' : ''}${!t.isRead ? ' unread' : ''}`}
-                    onClick={() => handleSelectThread(t.id)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {!t.isRead && <span className="gh-unread-dot" />}
-                    <div className={`gh-thread-av gh-av-${t.tag ?? 'default'}`}>{t.initials}</div>
-                    <div className="gh-thread-body">
-                      <div className="gh-thread-top">
-                        <span className="gh-thread-from">{t.from}</span>
-                        <span className="gh-thread-time">{t.time}</span>
-                        <button
-                          className="gh-bell-btn"
-                          title={`Remind me to follow up with ${t.from} in 3 days`}
-                          onClick={e => { e.stopPropagation(); setThreadFollowup(t, 3) }}
-                        >
-                          <IcBell />
-                        </button>
-                      </div>
-                      <div className="gh-thread-subject">{t.subject}</div>
-                      <div className="gh-thread-preview">{t.preview}</div>
-                      {t.tag && <span className={`gh-tag gh-tag-${t.tag}`}>{TAG_LABELS[t.tag]}</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Thread detail */}
-              {thread && (
-                <div className="gh-thread-detail">
-
-                  {/* Sticky header */}
-                  <div className="gh-detail-hd">
-                    <div className="gh-detail-subject">{thread.subject}</div>
-                    <div className="gh-detail-meta">
-                      <div className={`gh-detail-av gh-av-${thread.tag ?? 'default'}`}>{thread.initials}</div>
-                      <div>
-                        <span className="gh-detail-from">{thread.from}</span>
-                        <span className="gh-detail-email">&lt;{thread.email}&gt;</span>
-                      </div>
-                      {thread.tag && <span className={`gh-tag gh-tag-${thread.tag}`}>{TAG_LABELS[thread.tag]}</span>}
-                    </div>
-                  </div>
-
-                  {/* Message thread */}
-                  <div className="gh-messages">
-                    {loadingMsgs.has(thread.id) ? (
-                      <LoadingState>Loading messages…</LoadingState>
-                    ) : thread.messages.length === 0 ? (
-                      <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-faint)', fontSize: 13 }}>
-                        <button
-                          style={{ fontSize: 12.5, color: 'var(--green)', background: 'transparent', border: '1px solid var(--green)', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit' }}
-                          onClick={() => fetchMessages(thread.id)}
-                        >
-                          Load messages
-                        </button>
-                      </div>
-                    ) : (
-                      thread.messages.map((msg, i) => (
-                        <div key={i} className={`gh-msg${msg.isSelf ? ' gh-msg-self' : ''}`}>
-                          {!msg.isSelf && (
-                            <div className={`gh-msg-av gh-av-${thread.tag ?? 'default'}`}>{thread.initials}</div>
-                          )}
-                          <div className={`gh-msg-bubble${msg.isSelf ? ' self' : ''}`}>
-                            <div className="gh-msg-meta">
-                              <span className="gh-msg-from">{msg.from}</span>
-                              <span className="gh-msg-time">{msg.time}</span>
-                            </div>
-                            <pre className="gh-msg-body">{msg.body}</pre>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {/* AI Summary */}
-                  <div className="gh-ai-summary">
-                    <div className="gh-ai-label" style={{ justifyContent: 'space-between' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><IcAI />AI Summary</span>
-                      {thread.messages.length > 0 && (
-                        <button
-                          style={{ fontSize: 11, color: 'var(--text-faint)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '2px 9px', cursor: 'pointer', fontFamily: 'inherit' }}
-                          onClick={() => generateSummary(thread)}
-                          disabled={summarizing.has(thread.id)}
-                        >
-                          {summarizing.has(thread.id) ? <><Spinner />Generating…</> : thread.aiSummary ? 'Regenerate' : 'Generate'}
-                        </button>
-                      )}
-                    </div>
-                    {thread.aiSummary
-                      ? <p className="gh-ai-text">{thread.aiSummary}</p>
-                      : <p className="gh-ai-text" style={{ color: 'var(--text-faint)', fontStyle: 'italic' }}>
-                          {summarizing.has(thread.id) ? <><Spinner />Analysing thread…</> : 'Click Generate to get an AI summary of this thread.'}
-                        </p>
-                    }
-                  </div>
-
-                  {/* AI Draft */}
-                  {thread.aiDraft ? (
-                    <div className="gh-ai-draft">
-                      <div className="gh-draft-hd">
-                        <div className="gh-ai-label lime">
-                          <IcAI />
-                          Suggested Reply
-                        </div>
-                        <button className="gh-draft-copy" onClick={() => copyText(thread.aiDraft, thread.id)}>
-                          {copied === thread.id ? 'Copied' : 'Copy'}
-                        </button>
-                      </div>
-                      <pre className="gh-draft-body">{thread.aiDraft}</pre>
-                      <div className="gh-draft-actions">
-                        <button className="gh-draft-save">Save to Gmail Drafts</button>
-                        <button className="gh-draft-regen" onClick={() => generateSummary(thread)}>Regenerate</button>
-                      </div>
-                    </div>
-                  ) : !summarizing.has(thread.id) && thread.messages.length > 0 && thread.aiSummary ? (
-                    <div className="gh-no-draft">No reply needed for this thread</div>
-                  ) : null}
-
-                  {/* Quick actions */}
-                  <div className="gh-quick-actions">
-                    {!['hot', 'warm'].includes(thread.tag ?? '') && (
-                      <button className="gh-qa-btn gh-qa-green">Mark as Lead</button>
-                    )}
-                    <button className="gh-qa-btn">Archive</button>
-                    <button className="gh-qa-btn gh-qa-danger">Dismiss</button>
-                  </div>
-
-                </div>
-              )}
-            </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Cold Outreach ── */}
-        {activeTab === 'outreach' && (
-          <div className="gh-outreach">
-
-            {/* Header */}
-            <div className="gh-outreach-hd">
-              <div>
-                <div className="gh-outreach-title">Cold Outreach</div>
-                <div className="gh-outreach-sub">
-                  {PROSPECTS.length} prospects · AI writes personalized emails using your brand playbook
-                </div>
-              </div>
-              <button
-                className="gh-gen-all-btn"
-                onClick={() => PROSPECTS.forEach(p => {
-                  const s = prospectStates[p.id]
-                  if (!s || s.status === 'idle' || s.status === 'error') generateEmail(p)
-                })}
-              >
-                <IcAI />
-                Generate All
-              </button>
-            </div>
-
-            {/* Reconnect banner — shown if send scope is missing */}
-            {needsReconnect && (
-              <div className="gh-reconnect-banner">
-                <span>Gmail needs to be reconnected to enable sending. Your existing connection only has read + compose access.</span>
-                <a href="/api/gmail/connect" className="gh-reconnect-btn">Reconnect Gmail</a>
-                <button className="gh-alert-close" onClick={() => setNeedsReconnect(false)}>✕</button>
-              </div>
-            )}
-
-            {/* Notice */}
-            <div className="gh-outreach-notice">
-              <IcAI />
-              <span>
-                Each email is generated from your brand&apos;s ICP, value proposition, and email templates.
-                Edit inline, then <strong>Save to Gmail Drafts</strong> — nothing sends automatically.
-              </span>
-            </div>
-
-            <div className="gh-prospect-list">
-              {PROSPECTS.map(prospect => {
-                const state      = prospectStates[prospect.id]
-                const isExpanded = expandedProspect === prospect.id && (state?.status === 'ready' || state?.status === 'saved' || state?.status === 'confirming')
-                const cardStatus = state?.status ?? 'idle'
-                return (
-                  <div key={prospect.id} className={`gh-prospect-card gh-pc-status-${cardStatus}${isExpanded ? ' expanded' : ''}`}>
-
-                    {/* Card header */}
-                    <div className="gh-pc-top">
-                      <div className="gh-pc-left">
-                        <div className="gh-pc-av">{prospect.name.split(' ').map(n => n[0]).join('')}</div>
-                        <div className="gh-pc-info">
-                          <div className="gh-pc-name-row">
-                            <span className="gh-pc-name">{prospect.name}</span>
-                            {cardStatus === 'ready'      && <span className="gh-pc-badge gh-pc-badge-ready">Email ready</span>}
-                            {cardStatus === 'confirming' && <span className="gh-pc-badge gh-pc-badge-ready">Email ready</span>}
-                            {cardStatus === 'saved'      && <span className="gh-pc-badge gh-pc-badge-saved">Saved to Drafts</span>}
-                            {cardStatus === 'sent'       && <span className="gh-pc-badge gh-pc-badge-sent">Sent</span>}
-                            {cardStatus === 'error'      && <span className="gh-pc-badge gh-pc-badge-error">Error</span>}
-                          </div>
-                          <div className="gh-pc-role">{prospect.title} · {prospect.company}</div>
-                        </div>
-                      </div>
-
-                      <div className="gh-pc-actions">
-                        {(cardStatus === 'idle' || cardStatus === 'error') && (
-                          <button className="gh-gen-btn" onClick={() => generateEmail(prospect)}>
-                            <IcAI />
-                            {cardStatus === 'error' ? 'Retry' : 'Generate Email'}
-                          </button>
-                        )}
-                        {cardStatus === 'generating' && (
-                          <div className="gh-gen-spinner">
-                            <span className="gh-spinner-dot" />
-                            <span className="gh-spinner-dot" />
-                            <span className="gh-spinner-dot" />
-                            <span className="gh-gen-loading-text">Generating</span>
-                          </div>
-                        )}
-                        {(cardStatus === 'ready' || cardStatus === 'confirming' || cardStatus === 'saved') && (
-                          <div className="gh-pc-ready-actions">
-                            <button
-                              className={`gh-gen-btn gh-gen-outline${isExpanded ? ' active' : ''}`}
-                              onClick={() => setExpandedProspect(isExpanded ? null : prospect.id)}
-                            >
-                              {isExpanded ? 'Collapse' : 'View / Edit'}
-                            </button>
-                            <button className="gh-gen-regen" onClick={() => generateEmail(prospect)} title="Regenerate">
-                              ↺
-                            </button>
-                          </div>
-                        )}
-                        {(cardStatus === 'saving' || cardStatus === 'sending') && (
-                          <div className="gh-gen-spinner">
-                            <span className="gh-spinner-dot" />
-                            <span className="gh-spinner-dot" />
-                            <span className="gh-spinner-dot" />
-                            <span className="gh-gen-loading-text">{cardStatus === 'sending' ? 'Sending' : 'Saving'}</span>
-                          </div>
-                        )}
-                        {cardStatus === 'sent' && (
-                          <span className="gh-gen-sent-badge">Sent</span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Subject preview when collapsed but ready */}
-                    {(cardStatus === 'ready' || cardStatus === 'confirming' || cardStatus === 'saved') && !isExpanded && state?.subject && (
-                      <div className="gh-pc-subject-preview">
-                        <span className="gh-pc-subj-label">Subject:</span> {state.subject}
-                      </div>
-                    )}
-
-                    {/* Error row */}
-                    {cardStatus === 'error' && state?.error && (
-                      <div className="gh-gen-error">{state.error}</div>
-                    )}
-
-                    {/* Email editor */}
-                    {isExpanded && state && (
-                      <div className="gh-email-editor">
-                        {/* To: row — editable */}
-                        <div className="gh-ee-to-row">
-                          <span className="gh-ee-to-label">To:</span>
-                          <input
-                            className="gh-ee-to-input"
-                            value={state.toEmail ?? prospect.email}
-                            onChange={e =>
-                              setProspectStates(prev => ({
-                                ...prev,
-                                [prospect.id]: { ...state, toEmail: e.target.value },
-                              }))
-                            }
-                            placeholder="recipient@email.com"
-                          />
-                        </div>
-
-                        <div className="gh-ee-fields">
-                          <div className="gh-ee-field">
-                            <label className="gh-ee-label">Subject</label>
-                            <input
-                              className="gh-ee-input"
-                              value={state.subject}
-                              onChange={e =>
-                                setProspectStates(prev => ({
-                                  ...prev,
-                                  [prospect.id]: { ...state, subject: e.target.value },
-                                }))
-                              }
-                            />
-                          </div>
-                          <div className="gh-ee-field">
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-                              <label className="gh-ee-label" style={{ marginBottom: 0 }}>Body</label>
-                              <button
-                                style={{ fontSize: 10.5, color: 'var(--text-faint)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '2px 9px', cursor: 'pointer', fontFamily: 'inherit' }}
-                                onClick={() =>
-                                  setProspectStates(prev => ({
-                                    ...prev,
-                                    [prospect.id]: { ...state, editingHtml: !state.editingHtml },
-                                  }))
-                                }
-                              >
-                                {state.editingHtml ? 'Preview' : 'Source'}
-                              </button>
-                            </div>
-                            {state.editingHtml ? (
-                              <textarea
-                                className="gh-ee-textarea"
-                                rows={11}
-                                style={{ fontFamily: 'monospace', fontSize: 12.5 }}
-                                value={state.body}
-                                onChange={e =>
-                                  setProspectStates(prev => ({
-                                    ...prev,
-                                    [prospect.id]: { ...state, body: e.target.value },
-                                  }))
-                                }
-                              />
-                            ) : (
-                              <div
-                                className="gh-ee-preview"
-                                dangerouslySetInnerHTML={{ __html: state.body }}
-                              />
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="gh-ee-actions">
-                          {/* Send button — two-click confirm */}
-                          {cardStatus !== 'confirming' ? (
-                            <button
-                              className="gh-send-btn"
-                              onClick={() => setProspectStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'confirming' } }))}
-                            >
-                              <IcSend />
-                              Send Email
-                            </button>
-                          ) : (
-                            <div className="gh-send-confirm">
-                              <span className="gh-send-confirm-label">Send to {state.toEmail ?? prospect.email}?</span>
-                              <label className="gh-followup-toggle">
-                                <input
-                                  type="checkbox"
-                                  checked={followUpEnabled}
-                                  onChange={e => setFollowUpEnabled(e.target.checked)}
-                                />
-                                Follow up in
-                                <select
-                                  className="gh-followup-days"
-                                  value={followUpDays}
-                                  onChange={e => setFollowUpDays(Number(e.target.value))}
-                                  disabled={!followUpEnabled}
-                                >
-                                  <option value={2}>2 days</option>
-                                  <option value={3}>3 days</option>
-                                  <option value={5}>5 days</option>
-                                  <option value={7}>7 days</option>
-                                </select>
-                              </label>
-                              <button className="gh-send-confirm-yes" onClick={() => sendEmail(prospect)}>
-                                Yes, send now
-                              </button>
-                              <button
-                                className="gh-send-confirm-no"
-                                onClick={() => setProspectStates(prev => ({ ...prev, [prospect.id]: { ...state, status: 'ready' } }))}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          )}
-                          <button
-                            className={`gh-dc-save${cardStatus === 'saved' ? ' gh-dc-save-done' : ''}`}
-                            onClick={() => saveDraft(prospect)}
-                            disabled={cardStatus === 'saving'}
-                          >
-                            {cardStatus === 'saving' ? <><Spinner />Saving…</> : cardStatus === 'saved' ? 'Saved' : 'Save to Drafts'}
-                          </button>
-                          <button
-                            className="gh-draft-copy"
-                            onClick={() => copyText(`Subject: ${state.subject}\n\n${state.body.replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim()}`, prospect.id)}
-                          >
-                            {copied === prospect.id ? 'Copied' : 'Copy'}
-                          </button>
-                          <button className="gh-dc-discard" onClick={() => generateEmail(prospect)}>
-                            Regenerate
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ── Sent history (shown on outreach + campaign tabs) ── */}
-        {(activeTab === 'outreach' || activeTab === 'campaign') && emailHistory.length > 0 && (
-          <div className="gh-history-wrap">
-            <button className="gh-history-toggle" onClick={() => setShowHistory(h => !h)}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              {emailHistory.length} past email{emailHistory.length !== 1 ? 's' : ''}
-              <span style={{ marginLeft: 4 }}>{showHistory ? '▲' : '▼'}</span>
-            </button>
-            {showHistory && (
-              <table className="gh-history-table">
-                <thead>
-                  <tr>
-                    <th className="gh-history-th">To</th>
-                    <th className="gh-history-th">Subject</th>
-                    <th className="gh-history-th">Status</th>
-                    <th className="gh-history-th">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {emailHistory.map(e => (
-                    <tr key={e.id} className="gh-history-tr">
-                      <td className="gh-history-td">{e.toName ? `${e.toName} <${e.toEmail}>` : e.toEmail}</td>
-                      <td className="gh-history-td">
-                        {e.subject}
-                        {e.source && SOURCE_LABEL[e.source] && <span className="gh-history-src">{SOURCE_LABEL[e.source]}</span>}
-                      </td>
-                      <td className="gh-history-td">
-                        <span className={`gh-history-badge gh-history-badge-${e.status}`} title={e.lastError ?? undefined}>{e.status}</span>
-                        {(e.status === 'scheduled' || e.status === 'failed') && (
-                          <button className="gh-history-cancel" onClick={() => cancelScheduledEmail(e.id)}>Cancel</button>
-                        )}
-                      </td>
-                      <td className="gh-history-td gh-history-td-date">
-                        {e.status === 'scheduled' && e.scheduledAt
-                          ? formatScheduledDate(e.scheduledAt)
-                          : new Date(e.sentAt ?? e.createdAt).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
-        {/* ── Campaigns ── */}
-        {activeTab === 'campaign' && (
-          <div className="gh-campaign">
-
-            {needsReconnect && (
-              <div className="gh-reconnect-banner">
-                <span>Gmail needs to be reconnected to enable sending.</span>
-                <a href="/api/gmail/connect" className="gh-reconnect-btn">Reconnect Gmail</a>
-                <button className="gh-alert-close" onClick={() => setNeedsReconnect(false)}>✕</button>
-              </div>
-            )}
-
-            {/* Step 1 — Goal */}
-            <div className="gh-cmp-section">
-              <div className="gh-cmp-section-hd">
-                <div className="gh-cmp-step-num">1</div>
-                <div className="gh-cmp-section-title">What is this campaign about?</div>
-              </div>
-              <textarea
-                className="gh-cmp-textarea"
-                rows={3}
-                placeholder="e.g. Introduce our SEO audit tool to marketing directors at B2B SaaS companies. Focus on GEO discoverability and AI search visibility."
-                value={campaignInstruction}
-                onChange={e => setCampaignInstruction(e.target.value)}
-              />
-            </div>
-
-            {/* Step 2 — Recipients */}
-            <div className="gh-cmp-section">
-              <div className="gh-cmp-section-hd">
-                <div className="gh-cmp-step-num">2</div>
-                <div className="gh-cmp-section-title">Who should get it?</div>
-                {campaignProspects.length > 0 && (
-                  <span className="gh-cmp-section-count">{campaignProspects.length} recipient{campaignProspects.length !== 1 ? 's' : ''}</span>
-                )}
-              </div>
-
-              {/* Paste import */}
-              <div style={{ marginBottom: 12 }}>
-                {/* Mode tabs */}
-                <div style={{ display: 'flex', borderBottom: '1px solid #c8ddd0', marginBottom: 0 }}>
-                  <button
-                    onClick={() => { setCampaignImportMode('csv'); setCampaignAiParseErr(null) }}
-                    style={{
-                      flex: 1,
-                      padding: '8px 12px',
-                      border: 'none',
-                      borderBottom: campaignImportMode === 'csv' ? '2px solid #179a50' : '2px solid transparent',
-                      background: 'transparent',
-                      color: campaignImportMode === 'csv' ? '#179a50' : '#3a6048',
-                      fontWeight: campaignImportMode === 'csv' ? 700 : 500,
-                      fontSize: 13,
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                      marginBottom: -1,
-                    }}
-                  >
-                    Formatted
-                  </button>
-                  <button
-                    onClick={() => { setCampaignImportMode('ai'); setCampaignAiParseErr(null) }}
-                    style={{
-                      flex: 1,
-                      padding: '8px 12px',
-                      border: 'none',
-                      borderBottom: campaignImportMode === 'ai' ? '2px solid #179a50' : '2px solid transparent',
-                      background: 'transparent',
-                      color: campaignImportMode === 'ai' ? '#179a50' : '#3a6048',
-                      fontWeight: campaignImportMode === 'ai' ? 700 : 500,
-                      fontSize: 13,
-                      cursor: 'pointer',
-                      fontFamily: 'inherit',
-                      marginBottom: -1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 5,
-                    }}
-                  >
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                    Smart Import
-                  </button>
-                </div>
-
-                {/* Textarea + footer inside a bordered box */}
-                <div style={{ border: '1px solid #c8ddd0', borderTop: 'none', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
-                  <textarea
-                    rows={campaignImportMode === 'ai' ? 6 : 4}
-                    placeholder={campaignImportMode === 'ai'
-                      ? 'Paste anything — LinkedIn profiles, notes, a spreadsheet column, raw text.\n\ne.g. "John Smith is CEO of Acme, john@acme.com"\nor just a list of emails, one per line'
-                      : 'alice@acme.com, Alice Johnson, acme.com\nbob@startup.io, Bob Smith\ncharlie@company.com'}
-                    value={campaignImportText}
-                    onChange={e => { setCampaignImportText(e.target.value); setCampaignAiParseErr(null) }}
-                    style={{
-                      width: '100%',
-                      display: 'block',
-                      border: 'none',
-                      outline: 'none',
-                      resize: 'vertical',
-                      padding: '10px 12px',
-                      fontSize: 13,
-                      fontFamily: 'inherit',
-                      lineHeight: 1.5,
-                      background: '#fff',
-                      color: '#0c1d13',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#f0f6f2', gap: 8 }}>
-                    <span style={{ fontSize: 12, color: '#3a6048' }}>
-                      {campaignImportMode === 'csv'
-                        ? <>One per line — <strong>email</strong>, name (optional), domain (optional)</>
-                        : <>Paste any format — AI extracts emails, names &amp; companies</>}
-                    </span>
-                    {campaignImportMode === 'csv' ? (
-                      <button
-                        onClick={parseImport}
-                        disabled={!campaignImportText.trim()}
-                        style={{
-                          flexShrink: 0,
-                          padding: '6px 14px',
-                          background: campaignImportText.trim() ? '#179a50' : '#c8ddd0',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: 6,
-                          fontSize: 13,
-                          fontWeight: 600,
-                          cursor: campaignImportText.trim() ? 'pointer' : 'not-allowed',
-                          fontFamily: 'inherit',
-                        }}
-                      >
-                        Add to list
-                      </button>
-                    ) : (
-                      <button
-                        onClick={parseWithAI}
-                        disabled={!campaignImportText.trim() || campaignAiParsing}
-                        style={{
-                          flexShrink: 0,
-                          padding: '6px 14px',
-                          background: (campaignImportText.trim() && !campaignAiParsing) ? '#179a50' : '#c8ddd0',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: 6,
-                          fontSize: 13,
-                          fontWeight: 600,
-                          cursor: (campaignImportText.trim() && !campaignAiParsing) ? 'pointer' : 'not-allowed',
-                          fontFamily: 'inherit',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 6,
-                        }}
-                      >
-                        {campaignAiParsing
-                          ? <><span className="gh-spinner-dot" style={{ width: 5, height: 5 }}/><span className="gh-spinner-dot" style={{ width: 5, height: 5 }}/><span className="gh-spinner-dot" style={{ width: 5, height: 5 }}/>&nbsp;Parsing</>
-                          : 'Parse with AI'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {campaignAiParseErr && <p style={{ margin: '6px 0 0', fontSize: 12, color: '#c0392b' }}>{campaignAiParseErr}</p>}
-              </div>
-
-              {/* Current campaign recipients (compact) */}
-              {campaignProspects.length > 0 && (
-                <div className="gh-cmp-recipients">
-                  {campaignProspects.map(p => (
-                    <span key={p.id} className="gh-cmp-chip" title={[p.name, p.domain].filter(Boolean).join(' · ') || undefined}>
-                      {p.email}
-                      <button className="gh-cmp-chip-x" onClick={() => removeCampaignProspect(p.id)} title="Remove from campaign">✕</button>
-                    </span>
-                  ))}
-                  <button
-                    className="gh-cmp-chip-clear"
-                    onClick={() => { setCampaignProspects([]); setCampaignStates({}) }}
-                  >
-                    Clear all
-                  </button>
-                </div>
-              )}
-
-              {/* Manual add form */}
-              {campaignManualForm !== null && (
-                <div className="gh-cmp-manual-form">
-                  <input
-                    className="gh-cmp-pinput"
-                    placeholder="Email *"
-                    value={campaignManualForm.email}
-                    onChange={e => setCampaignManualForm(f => f ? { ...f, email: e.target.value } : f)}
-                  />
-                  <input
-                    className="gh-cmp-pinput"
-                    placeholder="Name (optional)"
-                    value={campaignManualForm.name}
-                    onChange={e => setCampaignManualForm(f => f ? { ...f, name: e.target.value } : f)}
-                  />
-                  <input
-                    className="gh-cmp-pinput"
-                    placeholder="Domain (optional)"
-                    value={campaignManualForm.domain}
-                    onChange={e => setCampaignManualForm(f => f ? { ...f, domain: e.target.value } : f)}
-                  />
-                  <button
-                    className="gh-cmp-parse-btn"
-                    disabled={!campaignManualForm.email.includes('@')}
-                    onClick={() => {
-                      if (!campaignManualForm.email.includes('@')) return
-                      const p = { id: `cp-${Date.now()}`, ...campaignManualForm }
-                      addToCampaign([p])
-                      saveProspectsToDB([p])
-                      setCampaignManualForm(null)
-                    }}
-                  >
-                    Add
-                  </button>
-                  <button className="gh-cmp-remove-btn" onClick={() => setCampaignManualForm(null)}>✕</button>
-                </div>
-              )}
-
-              <div className="gh-cmp-add-links">
-                {campaignManualForm === null && (
-                  <button
-                    className="gh-cmp-add-row-btn"
-                    onClick={() => setCampaignManualForm({ email: '', name: '', domain: '' })}
-                  >
-                    + Add one manually
-                  </button>
-                )}
-                {savedProspects.length > 0 && (
-                  <button
-                    className="gh-cmp-add-row-btn"
-                    onClick={() => {
-                      setSavedOpen(true)
-                      setTimeout(() => document.getElementById('gh-saved-prospects')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
-                    }}
-                  >
-                    Pick from saved prospects ({savedProspects.length})
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Step 3 — Generate & Send */}
-            {campaignProspects.length > 0 && (
-              <div className="gh-cmp-section">
-                <div className="gh-cmp-section-hd">
-                  <div className="gh-cmp-step-num">3</div>
-                  <div className="gh-cmp-section-title">Generate &amp; Send</div>
-                  {(() => {
-                    const genCount  = campaignProspects.filter(p => { const s = campaignStates[p.id]?.status; return s && s !== 'idle' && s !== 'error' }).length
-                    const sentCount = campaignProspects.filter(p => campaignStates[p.id]?.status === 'sent').length
-                    return genCount > 0 && (
-                      <span className="gh-cmp-progress">
-                        {genCount}/{campaignProspects.length} generated{sentCount > 0 ? <> · <strong>{sentCount} sent</strong></> : ''}
-                      </span>
-                    )
-                  })()}
-                  <div className="gh-cmp-section-actions">
-                    <button
-                      className="gh-cmp-gen-all-btn"
-                      disabled={!campaignInstruction.trim()}
-                      onClick={() => {
-                        if (!campaignInstruction.trim()) {
-                          setCampaignGoalError(true)
-                          setTimeout(() => setCampaignGoalError(false), 3000)
-                          return
-                        }
-                        campaignProspects.forEach(p => {
-                          const s = campaignStates[p.id]
-                          if (!s || s.status === 'idle' || s.status === 'error') generateCampaignEmail(p)
-                        })
-                      }}
-                    >
-                      <IcAI /> Generate All
-                    </button>
-                    {(() => {
-                      const readyCount = campaignProspects.filter(p => campaignStates[p.id]?.status === 'ready').length
-                      return readyCount > 0 && (
-                        <button className="gh-cmp-send-all-btn" onClick={() => setSendAllConfirming(true)}>
-                          <IcSend /> Send All Ready ({readyCount})
-                        </button>
-                      )
-                    })()}
-                  </div>
-                </div>
-                {campaignGoalError && (
-                  <div className="gh-cmp-goal-hint">Fill in your campaign goal (Step 1) before generating.</div>
-                )}
-                {sendAllConfirming && (
-                  <div className="gh-cmp-send-confirm-row">
-                    <span className="gh-send-confirm-label">
-                      Send {campaignProspects.filter(p => campaignStates[p.id]?.status === 'ready').length} emails now?
-                    </span>
-                    <label className="gh-followup-toggle">
-                      <input
-                        type="checkbox"
-                        checked={followUpEnabled}
-                        onChange={e => setFollowUpEnabled(e.target.checked)}
-                      />
-                      Follow up in
-                      <select
-                        className="gh-followup-days"
-                        value={followUpDays}
-                        onChange={e => setFollowUpDays(Number(e.target.value))}
-                        disabled={!followUpEnabled}
-                      >
-                        <option value={2}>2 days</option>
-                        <option value={3}>3 days</option>
-                        <option value={5}>5 days</option>
-                        <option value={7}>7 days</option>
-                      </select>
-                    </label>
-                    <button className="gh-send-confirm-yes" onClick={sendAllReady}>Yes, send all</button>
-                    <button className="gh-send-confirm-no" onClick={() => setSendAllConfirming(false)}>Cancel</button>
-                  </div>
-                )}
-
-                {/* AI bulk edit panel */}
-                {(() => {
-                  const readyEmails = campaignProspects.filter(p => campaignStates[p.id]?.status === 'ready')
-                  if (readyEmails.length === 0) return null
-                  const targetCount = aiEditTargeting === 'all'
-                    ? readyEmails.length
-                    : [...aiEditSelected].filter(id => campaignStates[id]?.status === 'ready').length
-                  return (
-                    <div style={{ margin: '0 0 12px', border: '1px solid #c8ddd0', borderRadius: 8, overflow: 'hidden' }}>
-                      {/* Toggle header */}
-                      <button
-                        onClick={() => setAiEditOpen(v => !v)}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: aiEditOpen ? '#f0f6f2' : '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#179a50', textAlign: 'left' }}
-                      >
-                        <IcAI />
-                        AI Edit Emails
-                        <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 400, color: '#3a6048' }}>
-                          {aiEditOpen ? 'hide ▲' : `apply changes to ${readyEmails.length} ready email${readyEmails.length !== 1 ? 's' : ''} ▼`}
-                        </span>
-                      </button>
-
-                      {aiEditOpen && (
-                        <div style={{ padding: '12px 14px', borderTop: '1px solid #e0ece4', background: '#fafcfb' }}>
-                          {/* Instruction input */}
-                          <textarea
-                            rows={2}
-                            placeholder={'Describe the change to apply to all selected emails...\ne.g. "Make it shorter and more casual" or "Add a P.S. about our free trial"'}
-                            value={aiEditInstruction}
-                            onChange={e => setAiEditInstruction(e.target.value)}
-                            style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid #c8ddd0', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', lineHeight: 1.5, resize: 'vertical', background: '#fff', color: '#0c1d13', outline: 'none', marginBottom: 10 }}
-                          />
-
-                          {/* Targeting toggle */}
-                          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                            <button
-                              onClick={() => setAiEditTargeting('all')}
-                              style={{ padding: '6px 14px', border: '1px solid', borderColor: aiEditTargeting === 'all' ? '#179a50' : '#c8ddd0', borderRadius: 6, background: aiEditTargeting === 'all' ? '#179a50' : '#fff', color: aiEditTargeting === 'all' ? '#fff' : '#3a6048', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-                            >
-                              All ready ({readyEmails.length})
-                            </button>
-                            <button
-                              onClick={() => setAiEditTargeting('select')}
-                              style={{ padding: '6px 14px', border: '1px solid', borderColor: aiEditTargeting === 'select' ? '#179a50' : '#c8ddd0', borderRadius: 6, background: aiEditTargeting === 'select' ? '#179a50' : '#fff', color: aiEditTargeting === 'select' ? '#fff' : '#3a6048', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-                            >
-                              Select emails
-                            </button>
-                            {aiEditTargeting === 'select' && aiEditSelected.size > 0 && (
-                              <span style={{ fontSize: 12, color: '#3a6048', alignSelf: 'center' }}>
-                                {aiEditSelected.size} selected
-                              </span>
-                            )}
-                          </div>
-
-                          {aiEditTargeting === 'select' && (
-                            <p style={{ margin: '0 0 10px', fontSize: 12, color: '#7aaa8a' }}>
-                              Check the boxes on each email row below to select it.
-                            </p>
-                          )}
-
-                          {/* Apply button */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <button
-                              onClick={applyAiEdit}
-                              disabled={aiEditApplying || !aiEditInstruction.trim() || targetCount === 0}
-                              style={{ padding: '8px 18px', background: (!aiEditApplying && aiEditInstruction.trim() && targetCount > 0) ? '#179a50' : '#c8ddd0', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: (!aiEditApplying && aiEditInstruction.trim() && targetCount > 0) ? 'pointer' : 'not-allowed', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6 }}
-                            >
-                              <IcAI />
-                              {aiEditApplying
-                                ? <><Spinner />{`Applying… ${aiEditProgress ? `(${aiEditProgress.done}/${aiEditProgress.total})` : ''}`}</>
-                                : `Apply to ${targetCount} email${targetCount !== 1 ? 's' : ''}`}
-                            </button>
-                            {aiEditApplying && (
-                              <span style={{ fontSize: 12, color: '#7aaa8a' }}>Emails update as each batch completes</span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })()}
-
-                {/* Per-prospect rows */}
-                <div className="gh-cmp-oi-list">
-                  <table className="gh-cmp-table">
-                    <thead>
-                      <tr>
-                        {aiEditOpen && aiEditTargeting === 'select' && <th className="gh-cmp-th" style={{ width: 32 }} />}
-                        <th className="gh-cmp-th">Email</th>
-                        <th className="gh-cmp-th">Name</th>
-                        <th className="gh-cmp-th">Domain</th>
-                        <th className="gh-cmp-th">Status</th>
-                        <th className="gh-cmp-th">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {campaignProspects.map(prospect => {
-                        const state      = campaignStates[prospect.id]
-                        const status     = state?.status ?? 'idle'
-                        const isExpanded = campaignExpandedId === prospect.id && status === 'ready'
-                        return (
-                          <Fragment key={prospect.id}>
-                            <tr className={`gh-cmp-tr${isExpanded ? ' expanded' : ''}`}>
-                              {aiEditOpen && aiEditTargeting === 'select' && (
-                                <td className="gh-cmp-td" style={{ width: 32, textAlign: 'center', verticalAlign: 'middle' }}>
-                                  {status === 'ready' && (
-                                    <input
-                                      type="checkbox"
-                                      checked={aiEditSelected.has(prospect.id)}
-                                      onChange={e => setAiEditSelected(prev => {
-                                        const next = new Set(prev)
-                                        e.target.checked ? next.add(prospect.id) : next.delete(prospect.id)
-                                        return next
-                                      })}
-                                      style={{ cursor: 'pointer', width: 14, height: 14, accentColor: '#179a50' }}
-                                    />
-                                  )}
-                                </td>
-                              )}
-                              <td className="gh-cmp-td gh-cmp-td-email">
-                                {prospect.email}
-                                {!isExpanded && status === 'ready' && state?.subject && (
-                                  <div className="gh-cmp-oi-subject">{state.subject}</div>
-                                )}
-                                {status === 'error' && state?.error && (
-                                  <div className="gh-gen-error">{state.error}</div>
-                                )}
-                              </td>
-                              <td className="gh-cmp-td">{prospect.name || <span className="gh-cmp-td-empty">—</span>}</td>
-                              <td className="gh-cmp-td">{prospect.domain || <span className="gh-cmp-td-empty">—</span>}</td>
-                              <td className="gh-cmp-td">
-                                {status !== 'idle' && (
-                                  <span className={`gh-cmp-status-badge gh-cmp-sb-${status}`}>
-                                    {status === 'generating' ? <><Spinner />Generating…</>
-                                      : status === 'ready'     ? 'Ready'
-                                      : status === 'sending'   ? <><Spinner />Sending…</>
-                                      : status === 'sent'      ? 'Sent ✓'
-                                      : status === 'scheduled' ? `Scheduled · ${formatScheduledDate(state?.scheduledAt ?? '')}`
-                                      :                          'Error'}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="gh-cmp-td gh-cmp-td-action">
-                                {(status === 'idle' || status === 'error') && (
-                                  <button
-                                    className="gh-cmp-gen-btn"
-                                    onClick={() => generateCampaignEmail(prospect)}
-                                    disabled={!campaignInstruction.trim()}
-                                  >
-                                    <IcAI /> {status === 'error' ? 'Retry' : 'Generate'}
-                                  </button>
-                                )}
-                                {(status === 'generating' || status === 'sending') && (
-                                  <div className="gh-gen-spinner">
-                                    <span className="gh-spinner-dot" />
-                                    <span className="gh-spinner-dot" />
-                                    <span className="gh-spinner-dot" />
-                                  </div>
-                                )}
-                                {status === 'ready' && (
-                                  <>
-                                    <button
-                                      className="gh-cmp-view-btn"
-                                      onClick={() => setCampaignExpandedId(isExpanded ? null : prospect.id)}
-                                    >
-                                      {isExpanded ? 'Collapse' : 'View / Edit'}
-                                    </button>
-                                    <button
-                                      className="gh-gen-regen"
-                                      onClick={() => generateCampaignEmail(prospect)}
-                                      title="Regenerate"
-                                    >↺</button>
-                                  </>
-                                )}
-                                {status === 'sent' && <span className="gh-gen-sent-badge">Sent</span>}
-                                {status === 'scheduled' && state?.scheduledId && (
-                                  <button
-                                    className="gh-cmp-view-btn"
-                                    onClick={() => cancelScheduledEmail(state.scheduledId!, prospect.id)}
-                                  >
-                                    Cancel
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                            {isExpanded && state && (
-                              <tr>
-                                <td colSpan={aiEditOpen && aiEditTargeting === 'select' ? 6 : 5} className="gh-cmp-td-expanded">
-                                  <div className="gh-email-editor">
-                                    <div className="gh-ee-to-row">
-                                      <span className="gh-ee-to-label">To:</span>
-                                      <input
-                                        className="gh-ee-to-input"
-                                        value={state.toEmail ?? prospect.email}
-                                        onChange={e => setCampaignStates(prev => ({
-                                          ...prev,
-                                          [prospect.id]: { ...state, toEmail: e.target.value },
-                                        }))}
-                                        placeholder="recipient@email.com"
-                                      />
-                                    </div>
-                                    <div className="gh-ee-fields">
-                                      <div className="gh-ee-field">
-                                        <label className="gh-ee-label">Subject</label>
-                                        <input
-                                          className="gh-ee-input"
-                                          value={state.subject}
-                                          onChange={e => setCampaignStates(prev => ({
-                                            ...prev,
-                                            [prospect.id]: { ...state, subject: e.target.value },
-                                          }))}
-                                        />
-                                      </div>
-                                      <div className="gh-ee-field">
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-                                          <label className="gh-ee-label" style={{ marginBottom: 0 }}>Body</label>
-                                          <button
-                                            style={{ fontSize: 10.5, color: 'var(--text-faint)', background: 'transparent', border: '1px solid var(--line)', borderRadius: 6, padding: '2px 9px', cursor: 'pointer', fontFamily: 'inherit' }}
-                                            onClick={() => setCampaignStates(prev => ({
-                                              ...prev,
-                                              [prospect.id]: { ...state, editingHtml: !state.editingHtml },
-                                            }))}
-                                          >
-                                            {state.editingHtml ? 'Preview' : 'Source'}
-                                          </button>
-                                        </div>
-                                        {state.editingHtml ? (
-                                          <textarea
-                                            className="gh-ee-textarea"
-                                            rows={11}
-                                            style={{ fontFamily: 'monospace', fontSize: 12.5 }}
-                                            value={state.body}
-                                            onChange={e => setCampaignStates(prev => ({
-                                              ...prev,
-                                              [prospect.id]: { ...state, body: e.target.value },
-                                            }))}
-                                          />
-                                        ) : (
-                                          <div className="gh-ee-preview" dangerouslySetInnerHTML={{ __html: state.body }} />
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="gh-ee-actions">
-                                      {!state.confirming ? (
-                                        <>
-                                          <button
-                                            className="gh-send-btn"
-                                            onClick={() => setCampaignStates(prev => ({
-                                              ...prev,
-                                              [prospect.id]: { ...state, confirming: true },
-                                            }))}
-                                          >
-                                            <IcSend /> Send Email
-                                          </button>
-                                          <button
-                                            className="gh-cmp-schedule-btn"
-                                            onClick={() => {
-                                              setScheduleDates(prev => ({ ...prev, [prospect.id]: getTomorrowAt9am() }))
-                                              setScheduleMode(prev => ({ ...prev, [prospect.id]: true }))
-                                            }}
-                                          >
-                                            Schedule
-                                          </button>
-                                        </>
-                                      ) : (
-                                        <div className="gh-send-confirm">
-                                          <span className="gh-send-confirm-label">Send to {state.toEmail ?? prospect.email}?</span>
-                                          <label className="gh-followup-toggle">
-                                            <input
-                                              type="checkbox"
-                                              checked={followUpEnabled}
-                                              onChange={e => setFollowUpEnabled(e.target.checked)}
-                                            />
-                                            Follow up in
-                                            <select
-                                              className="gh-followup-days"
-                                              value={followUpDays}
-                                              onChange={e => setFollowUpDays(Number(e.target.value))}
-                                              disabled={!followUpEnabled}
-                                            >
-                                              <option value={2}>2 days</option>
-                                              <option value={3}>3 days</option>
-                                              <option value={5}>5 days</option>
-                                              <option value={7}>7 days</option>
-                                            </select>
-                                          </label>
-                                          <button className="gh-send-confirm-yes" onClick={() => sendCampaignEmail(prospect)}>Yes, send now</button>
-                                          <button
-                                            className="gh-send-confirm-no"
-                                            onClick={() => setCampaignStates(prev => ({
-                                              ...prev,
-                                              [prospect.id]: { ...state, confirming: false },
-                                            }))}
-                                          >Cancel</button>
-                                        </div>
-                                      )}
-                                      {scheduleMode[prospect.id] && (
-                                        <div className="gh-cmp-schedule-row">
-                                          <input
-                                            type="datetime-local"
-                                            min={toLocalInputValue(new Date())}
-                                            className="gh-cmp-schedule-input"
-                                            value={scheduleDates[prospect.id] ?? getTomorrowAt9am()}
-                                            onChange={e => setScheduleDates(prev => ({ ...prev, [prospect.id]: e.target.value }))}
-                                          />
-                                          <button
-                                            className="gh-send-confirm-yes"
-                                            onClick={() => {
-                                              const dt = scheduleDates[prospect.id] || getTomorrowAt9am()
-                                              setScheduleMode(prev => ({ ...prev, [prospect.id]: false }))
-                                              sendCampaignEmail(prospect, new Date(dt).toISOString())
-                                            }}
-                                          >
-                                            Confirm
-                                          </button>
-                                          <button
-                                            className="gh-send-confirm-no"
-                                            onClick={() => setScheduleMode(prev => ({ ...prev, [prospect.id]: false }))}
-                                          >
-                                            Cancel
-                                          </button>
-                                          <span className="gh-cmp-schedule-hint">Your time ({localTimeZone()}) · scheduled emails go out once a day, in the 4 PM IST send after this time</span>
-                                        </div>
-                                      )}
-                                      <button
-                                        className={`gh-dc-save${campaignDraftSaved.has(prospect.id) ? ' gh-dc-save-done' : ''}`}
-                                        onClick={() => saveCampaignDraft(prospect)}
-                                        disabled={campaignDraftSaving.has(prospect.id)}
-                                      >
-                                        {campaignDraftSaving.has(prospect.id) ? <><Spinner />Saving…</> : campaignDraftSaved.has(prospect.id) ? 'Saved' : 'Save to Drafts'}
-                                      </button>
-                                      <button
-                                        className="gh-draft-copy"
-                                        onClick={() => {
-                                          navigator.clipboard.writeText(
-                                            `Subject: ${state.subject}\n\n${state.body.replace(/<[^>]+>/g, '').replace(/\n{3,}/g, '\n\n').trim()}`
-                                          )
-                                          setCampaignCopied(prospect.id)
-                                          setTimeout(() => setCampaignCopied(null), 2000)
-                                        }}
-                                      >
-                                        {campaignCopied === prospect.id ? 'Copied' : 'Copy'}
-                                      </button>
-                                      <button className="gh-dc-discard" onClick={() => generateCampaignEmail(prospect)}>Regenerate</button>
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </Fragment>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Limits warning */}
-                <div className="gh-cmp-warn">
-                  Gmail daily sending limit: 500 emails (personal) · 2,000 (Google Workspace). Bulk sending may trigger spam filters — personalise content and keep batches small.
-                </div>
-
-              </div>
-            )}
-
-            {/* Saved prospects — everyone imported before, kept out of the way until needed */}
-            {savedProspects.length > 0 && (() => {
-              const inCampaign = new Set(campaignProspects.map(p => p.email.toLowerCase()))
-              const q = savedSearch.trim().toLowerCase()
-              const filtered = q
-                ? savedProspects.filter(p => [p.email, p.name, p.domain].some(v => v.toLowerCase().includes(q)))
-                : savedProspects
-              const selectable = filtered.filter(p => !inCampaign.has(p.email.toLowerCase()))
-              const allSelected = selectable.length > 0 && selectable.every(p => savedSelected.has(p.id))
-              return (
-                <div className="gh-cmp-section gh-saved" id="gh-saved-prospects">
-                  <button className="gh-saved-toggle" onClick={() => setSavedOpen(o => !o)}>
-                    <span className="gh-cmp-section-title">Saved prospects</span>
-                    <span className="gh-cmp-section-count">{savedProspects.length}</span>
-                    <span className="gh-saved-caret">{savedOpen ? 'Hide ▲' : 'Show ▼'}</span>
-                  </button>
-                  {savedOpen && (
-                    <div className="gh-saved-body">
-                      <div className="gh-saved-bar">
-                        <input
-                          className="gh-cmp-pinput gh-saved-search"
-                          placeholder="Search email, name or domain"
-                          value={savedSearch}
-                          onChange={e => setSavedSearch(e.target.value)}
-                        />
-                        <button
-                          className="gh-cmp-gen-all-btn"
-                          disabled={savedSelected.size === 0}
-                          onClick={addSelectedSavedToCampaign}
-                        >
-                          {savedSelected.size > 0 ? `Add ${savedSelected.size} to campaign` : 'Add to campaign'}
-                        </button>
-                      </div>
-                      <div className="gh-saved-scroll">
-                        <table className="gh-cmp-table">
-                          <thead>
-                            <tr>
-                              <th className="gh-cmp-th" style={{ width: 32 }}>
-                                <input
-                                  type="checkbox"
-                                  checked={allSelected}
-                                  disabled={selectable.length === 0}
-                                  onChange={e => setSavedSelected(e.target.checked ? new Set(selectable.map(p => p.id)) : new Set())}
-                                  style={{ accentColor: 'var(--green)', cursor: 'pointer' }}
-                                />
-                              </th>
-                              <th className="gh-cmp-th">Email</th>
-                              <th className="gh-cmp-th">Name</th>
-                              <th className="gh-cmp-th">Domain</th>
-                              <th className="gh-cmp-th"></th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filtered.map(p => {
-                              const added = inCampaign.has(p.email.toLowerCase())
-                              return (
-                                <tr key={p.id} className="gh-cmp-tr">
-                                  <td className="gh-cmp-td" style={{ width: 32, textAlign: 'center' }}>
-                                    <input
-                                      type="checkbox"
-                                      disabled={added}
-                                      checked={added || savedSelected.has(p.id)}
-                                      onChange={e => setSavedSelected(prev => {
-                                        const n = new Set(prev)
-                                        if (e.target.checked) n.add(p.id); else n.delete(p.id)
-                                        return n
-                                      })}
-                                      style={{ accentColor: 'var(--green)', cursor: added ? 'default' : 'pointer' }}
-                                    />
-                                  </td>
-                                  <td className="gh-cmp-td gh-cmp-td-email">
-                                    {p.email}
-                                    {added && <span className="gh-saved-in">In campaign</span>}
-                                  </td>
-                                  <td className="gh-cmp-td">{p.name || <span className="gh-cmp-td-empty">—</span>}</td>
-                                  <td className="gh-cmp-td">{p.domain || <span className="gh-cmp-td-empty">—</span>}</td>
-                                  <td className="gh-cmp-td gh-cmp-td-action">
-                                    <button className="gh-cmp-remove-btn" onClick={() => deleteSavedProspect(p.id)} title="Delete saved prospect">✕</button>
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                            {filtered.length === 0 && (
-                              <tr><td className="gh-cmp-td gh-cmp-td-empty" colSpan={5}>No matches</td></tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
-
-          </div>
-        )}
-
-        {/* ── Follow-ups ── */}
-        {activeTab === 'followups' && <FollowUpsTab onCountChange={setFollowUpDueCount} />}
-
+      <div className="gh-tabs eo-tabs" role="tablist">
+        {([
+          ['followups', 'Follow-ups', dueCount],
+          ['campaigns', 'Campaigns', 0],
+          ['done',      'Done',      0],
+        ] as [Tab, string, number][]).map(([key, label, n]) => (
+          <button key={key} type="button" role="tab" aria-selected={tab === key}
+            className={`gh-tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
+            {label}{n > 0 && <span className="eo-tab-n">{n}</span>}
+          </button>
+        ))}
       </div>
+
+      <div className="eo-body">
+        {tab === null && <div className="ro-working eo-loading"><Spinner /><span>Loading…</span><i /></div>}
+        {tab === 'followups' && <FollowUps reloadKey={reloadKey} notify={notify} onCount={onCount} onNewCampaign={startCampaign} />}
+        {tab === 'campaigns' && <Campaigns newPending={newPending} onNewOpened={() => setNewPending(false)} notify={notify} onSent={() => { loadSent(); setReloadKey(k => k + 1) }} />}
+        {tab === 'done' && <Done reloadKey={reloadKey} sent={sent} notify={notify} onCancel={cancelScheduled}
+          onChanged={() => setReloadKey(k => k + 1)} />}
+      </div>
+
+      {toast}
     </div>
   )
 }

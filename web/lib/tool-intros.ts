@@ -74,11 +74,11 @@ export const TOOL_INTROS = {
   },
   emailOutreach: {
     icon: 'mail',
-    what: 'Your sales inbox: it reads your Gmail to spot people likely to buy, helps you email new prospects, and reminds you to follow up.',
+    what: 'Send personal emails to a list of prospects from your Gmail, and follow up with anyone who doesn’t reply.',
     steps: [
-      { title: 'Connect Gmail', body: 'Connect Gmail. Incoming emails are tagged as hot, warm or cold leads.' },
-      { title: 'Send emails', body: 'Send personal emails, or one campaign to a list of prospects, written for you.' },
-      { title: 'Follow up', body: "When someone doesn't reply, you get a reminder with a follow-up ready to send." },
+      { title: 'Connect Gmail', body: 'Emails go out from your own address, so replies land in your inbox.' },
+      { title: 'Run a campaign', body: 'Paste a list and say what it’s about. An email is written for each person, and you check them before they go.' },
+      { title: 'Follow up', body: "When someone doesn't reply, a follow-up is ready to send in the same thread. Replies close it by themselves." },
     ],
   },
   searchAgent: {
