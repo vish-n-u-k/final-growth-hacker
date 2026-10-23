@@ -309,8 +309,8 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
                   {history.map(h => <option key={h.id} value={h.id}>{competitorLabel(h.competitor)} · {fmtDate(h.scannedAt)}{h.emailed ? ` · ${h.emailed} emailed` : ''}</option>)}
                 </select>
               )}
-              <button className="btn btn-sm cl-newscan" type="button" onClick={reset}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+              <button className="btn btn-primary cl-newscan" type="button" onClick={reset}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
                 Scan another competitor
               </button>
             </>)}
