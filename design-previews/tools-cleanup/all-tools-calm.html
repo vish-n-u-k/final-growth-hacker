@@ -1,0 +1,622 @@
+<title>Calm GrowJin Tools</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: the app frame (sidebar + one quiet column). Every tool uses the same pattern:
+     a quiet top, one "Start here" panel with the only green button, quiet rows, details on open. */
+  :root {
+    --bg: #ffffff; --soft: #f3f5f3; --line: #e3e7e3; --text: #16201a; --dim: #4f5c53; --faint: #86918a;
+    --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --red: #b42318; --red-soft: #fdeceb;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; color-scheme: dark }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--body); }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+  /* App frame */
+  .frame { display: flex; min-height: 100vh; }
+  .side { width: 232px; flex: none; background: var(--soft); border-right: 1px solid var(--line); padding: 18px 12px; font-size: 13.5px; }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 4px 8px 20px; font: 600 16px var(--display); }
+  .grp { margin-bottom: 18px; }
+  .gl { padding: 0 10px 6px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .nav { display: flex; justify-content: space-between; width: 100%; padding: 7px 10px; border: 0; border-radius: 8px; background: none; color: var(--dim); text-decoration: none; text-align: left; cursor: pointer; }
+  .nav:hover { color: var(--text); }
+  .nav.on { background: var(--green-soft); color: var(--green-ink); font-weight: 600; }
+  .nav .c { color: var(--faint); font-weight: 400; font-size: 12.5px; }
+  .nav.off { cursor: default; color: var(--faint); }
+  .main { flex: 1; min-width: 0; }
+  .page { max-width: 880px; padding-block: 28px 96px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); margin: 0 auto; }
+  .mbar { display: none; }
+  @media (max-width: 760px) {
+    .side { display: none; }
+    .mbar { display: flex; align-items: center; gap: 9px; padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); background: var(--soft); font: 600 15px var(--display); }
+    .mbar select { margin-left: auto; min-width: 0; max-width: 60%; height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: 500 14px var(--body); }
+    .page { padding-block: 18px 80px; }
+  }
+
+  /* Header: the name, and one grey line. Nothing else competes. */
+  .crumbs { font-size: 13px; color: var(--faint); margin-bottom: 18px; }
+  h1 { margin: 0; font: 600 32px/1.15 var(--display); letter-spacing: -.01em; text-wrap: balance; }
+  .line { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 14px; color: var(--faint); }
+  .link { border: 0; background: none; padding: 0; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; font-size: inherit; }
+  .link:hover { color: var(--text); text-decoration-color: currentColor; }
+
+  /* Tabs: one level only */
+  .tabs { display: flex; gap: 4px; margin: 28px 0 22px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .tab { padding: 10px 14px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; font-size: 15px; color: var(--faint); cursor: pointer; white-space: nowrap; }
+  .tab[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--text); }
+  .tab .n { margin-left: 6px; font-size: 13px; color: var(--faint); font-weight: 500; }
+  .notabs { height: 28px; }
+
+  /* Start here: the only highlighted thing on the page */
+  .next { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px 22px; border-radius: 14px; background: var(--green-soft); }
+  .next-text { flex: 1 1 260px; min-width: 0; }
+  .next-text b { display: block; font-size: 17px; font-weight: 600; }
+  .next-text span { color: var(--dim); font-size: 14px; }
+  .next.reply { background: var(--red-soft); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; height: 42px; padding: 0 20px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap; text-decoration: none; }
+  .btn.go { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.go:hover { filter: brightness(1.06); }
+  .btn.quiet { border-color: transparent; background: none; color: var(--dim); padding: 0 12px; }
+  .btn.quiet:hover { color: var(--text); }
+
+  /* The rest of the list: quiet rows, no badges */
+  .rest { margin-top: 26px; }
+  .rest-h { margin: 0 0 6px; font-size: 13px; color: var(--faint); }
+  .row { display: flex; align-items: center; gap: 14px; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+  .row[data-open], .row[data-camp], .row[data-conv] { cursor: pointer; }
+  .row[data-open]:hover .row-name, .row[data-camp]:hover .row-name, .row[data-conv]:hover .row-name { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .row-main { flex: 1; min-width: 0; }
+  .row-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-why { color: var(--dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-go { color: var(--faint); font-size: 13.5px; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
+  .more { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 18px; font-size: 14px; color: var(--faint); }
+  .empty { padding: 36px 22px; border-radius: 14px; background: var(--soft); text-align: center; }
+  .empty b { display: block; font-size: 17px; margin-bottom: 4px; }
+  .empty p { margin: 0 0 16px; color: var(--dim); }
+  .since { margin-top: 36px; }
+  .since p { margin: 0; color: var(--dim); font-size: 14.5px; }
+
+  /* One item opened: what to know on the left, the step on the right */
+  .back { margin-bottom: 20px; }
+  .open { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 32px; align-items: start; }
+  .who h2 { margin: 0 0 4px; font: 600 22px/1.25 var(--display); overflow-wrap: anywhere; }
+  .who .src { font-size: 13px; color: var(--faint); }
+  .who .why { margin: 16px 0 0; font-size: 14.5px; }
+  .who blockquote { margin: 14px 0 0; padding-left: 12px; border-left: 2px solid var(--line); color: var(--dim); font-size: 14px; }
+  .who .from { margin: 16px 0 0; font-size: 13px; color: var(--faint); }
+  .step-of { font-size: 13px; color: var(--faint); margin-bottom: 6px; }
+  .step h3 { margin: 0 0 6px; font: 600 24px/1.25 var(--display); text-wrap: balance; }
+  .step .hint { margin: 0 0 18px; color: var(--dim); font-size: 14px; }
+  .field { display: grid; gap: 6px; font-size: 13px; color: var(--dim); }
+  .field input, .field select { height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 15px; color: var(--text); }
+  .field textarea { min-height: 96px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 14.5px; line-height: 1.55; resize: vertical; color: var(--text); }
+  .found { margin-bottom: 14px; font-size: 14px; color: var(--dim); }
+  .found b { color: var(--text); }
+  .mail { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .mail label { display: flex; gap: 12px; align-items: center; padding: 0 14px; min-height: 44px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .mail label span { width: 56px; flex: none; color: var(--faint); }
+  .mail input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 14.5px; }
+  .mail textarea { display: block; width: 100%; min-height: 200px; padding: 14px; border: 0; background: none; resize: vertical; outline: none; font-size: 14.5px; line-height: 1.65; }
+  .acts { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+  .acts .btn.go { margin-left: auto; }
+  .note { margin-top: 10px; font-size: 13px; color: var(--faint); }
+  .copyrow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  .said { margin: 0 0 14px; padding: 14px 16px; border-radius: 12px; background: var(--soft); font-size: 15px; }
+  .said small { display: block; margin-bottom: 4px; font-size: 12.5px; color: var(--faint); }
+  .todo-list { margin: 0 0 4px; padding-left: 20px; display: grid; gap: 8px; font-size: 14.5px; }
+  .pager { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; font-size: 13.5px; color: var(--faint); }
+  @media (max-width: 760px) { .open { grid-template-columns: 1fr; gap: 20px; } .step h3 { font-size: 21px; } }
+
+  /* Reports (Search Agent's "How you're found"): plain tables, no coloured tags */
+  .sec-h { margin: 0 0 8px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .sec + .sec { margin-top: 34px; }
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+  th { text-align: left; font-weight: 500; font-size: 12.5px; color: var(--faint); padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 12px 10px 12px 0; border-bottom: 1px solid var(--line); color: var(--dim); vertical-align: top; }
+  td:first-child { color: var(--text); min-width: 200px; }
+  td.yes { color: var(--text); font-weight: 600; }
+
+  /* Settings: a quiet panel, only when asked for */
+  .sheet { margin-top: 18px; padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; display: grid; gap: 12px; }
+  .sheet h3 { margin: 0 0 2px; font-size: 16px; }
+  .opt { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; }
+  .opt input { margin-top: 4px; accent-color: var(--green); }
+  .opt small { display: block; color: var(--faint); font-size: 13px; }
+  .status { padding-top: 14px; border-top: 1px solid var(--line); font-size: 14px; color: var(--dim); }
+  .sheet .acts { margin-top: 4px; }
+  .seg { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14.5px; }
+
+  .toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); max-width: calc(100vw - 32px); padding: 10px 16px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 14px; z-index: 20; }
+  .toast button { margin-left: 10px; border: 0; background: none; color: var(--bg); font-weight: 600; text-decoration: underline; cursor: pointer; }
+
+  /* Preview notes: not part of the design, just for people reviewing it */
+  .notes-btn { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px)); z-index: 15; height: 36px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--dim); font-size: 13px; cursor: pointer; }
+  .notes { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + 46px); z-index: 15; width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow: auto; padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); box-shadow: 0 12px 32px rgba(0,0,0,.12); font-size: 14px; }
+  .notes h4 { margin: 0 0 4px; font-size: 13px; color: var(--faint); font-weight: 500; }
+  .notes ul { margin: 0 0 14px; padding-left: 18px; display: grid; gap: 6px; color: var(--dim); }
+  .notes ul:last-child { margin-bottom: 0; }
+  @media (prefers-reduced-motion: no-preference) { .row, .btn, .nav { transition: background .15s, color .15s; } }
+</style>
+
+<div class="frame">
+  <nav class="side" aria-label="Main" id="side"></nav>
+  <main class="main">
+    <div class="mbar"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#12A664"/><path d="M6 17.5 L10.5 12 L14 15 L20 7.5" stroke="#fff" stroke-width="2.4" fill="none"/></svg>GrowJin
+      <select id="m-nav" aria-label="Go to"></select></div>
+    <div class="page" id="view"></div>
+  </main>
+</div>
+<div id="toast"></div>
+<button class="notes-btn" data-a="notes" type="button">What changed on this page</button>
+<div id="notes"></div>
+
+<script>
+const BRAND = 'Frekto'
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+const cut = (s, n) => s.length > n ? s.slice(0, n) + '…' : s
+
+const TOOLS = {
+  today: { name: 'Today', crumb: 'Today' },
+  leads: { name: 'Lead Agent', crumb: 'Get customers › Lead Agent' },
+  comp:  { name: 'Competitor Leads', crumb: 'Get customers › Competitor Leads' },
+  eo:    { name: 'Email Outreach', crumb: 'Get customers › Email Outreach' },
+  sa:    { name: 'Search Agent', crumb: 'Get seen › Search Agent' },
+}
+
+// Example data (all made up for the preview)
+const ITEMS = [
+  // Lead Agent
+  { id: 'la-r1', tool: 'leads', lane: 'email', kind: 'reply', name: 'Tom Becker', src: 'Google Maps · Becker Prints', why: 'Asked for pricing.', quote: 'Sounds interesting, can you send pricing?' },
+  { id: 'la-e1', tool: 'leads', lane: 'email', kind: 'email', name: 'Bloom Salon', src: 'Google Maps · Pune · 3.6★', why: 'Busy salon, last Instagram post 5 months ago.', quote: '42 Google reviews, no posts since May.', email: 'hello@bloomsalon.in', subject: 'Your Instagram', body: `Hi,\n\nI noticed Bloom Salon has great reviews but hasn't posted on Instagram since May.\n\n${BRAND} makes on-brand posts for salons in under a minute. Want three free examples for Bloom?\n\n${BRAND}` },
+  { id: 'la-e2', tool: 'leads', lane: 'email', kind: 'email', name: 'Lumen Candles', src: 'Google Maps · Mumbai · 4.0★', why: 'No posts in three months.', quote: 'Shop with 28 reviews and a quiet Instagram.', email: 'hi@lumencandles.com', subject: 'Posts for Lumen', body: `Hi,\n\nLumen's candles look lovely, but your Instagram has been quiet for three months.\n\n${BRAND} turns product photos into ready posts. Want a free week of them?\n\n${BRAND}` },
+  { id: 'la-e3', tool: 'leads', lane: 'email', kind: 'email', name: 'Ortiz Coffee', src: 'Google Maps · Pune · 3.9★', why: 'Café with no website and few posts.', quote: 'No website listed on Google Maps.', email: null, subject: 'Quick idea for Ortiz', body: `Hi,\n\nOrtiz Coffee gets good reviews but posts rarely.\n\n${BRAND} makes daily café posts from your menu photos. Want to see a few?\n\n${BRAND}` },
+  { id: 'la-c1', tool: 'leads', lane: 'community', kind: 'post', name: 'Any tool that makes Instagram posts for my café?', src: 'Reddit · r/smallbusiness · 3 h ago', why: 'Asking for exactly what Frekto does.', quote: "I don't have time to design posts every day.", url: 'https://www.reddit.com/r/smallbusiness/', reply: `Same problem with my shop. What helped: batch a week of posts on Sunday, and use a tool that makes the images from your menu photos.\n\nFull disclosure, I make ${BRAND}, which does that.` },
+  { id: 'la-c2', tool: 'leads', lane: 'community', kind: 'post', name: 'Ask HN: How do you handle social media as a solo founder?', src: 'Hacker News · yesterday', why: 'Solo founder short on time for social.', quote: 'I know I should post, but every week it slips.', url: 'https://news.ycombinator.com/', reply: `I gave up on daily posting until I automated the boring part: one hour on Sunday, posts scheduled for the week.\n\nDisclosure: I make ${BRAND}, which does that.` },
+
+  // Competitor Leads (best fit first; the score sets the order instead of showing as a badge)
+  { id: 'cl-1', tool: 'comp', kind: 'email', name: 'Priya Shah', src: 'Trustpilot · 2★ · 4 days ago', why: 'Pays for Canva Pro and still spends hours on each post.', quote: '“Templates are fine but I still spend two hours a week making posts for my bakery.”', email: 'priya@sweetcrumbs.in', subject: 'Your Canva review', body: `Hi Priya,\n\nI read your Canva review about spending two hours a week on bakery posts.\n\n${BRAND} makes the post for you from one product photo, in your colours. Want me to make three for Sweet Crumbs, free?\n\n${BRAND}` },
+  { id: 'cl-2', tool: 'comp', kind: 'email', name: 'Marcus Lee', src: 'Trustpilot · 1★ · last week', why: 'Wants posts that match his brand without designing.', quote: '“Every design looks like everyone else’s. I need something that knows my brand.”', email: 'marcus@leeroasters.com', subject: 'Posts that look like Lee Roasters', body: `Hi Marcus,\n\nYou said Canva designs look like everyone else's. ${BRAND} learns your brand once, then every post matches it.\n\nHappy to make a few for Lee Roasters so you can judge.\n\n${BRAND}` },
+  { id: 'cl-3', tool: 'comp', kind: 'email', name: 'Aisha Khan', src: 'Trustpilot · 3★ · 2 weeks ago', why: 'Runs a shop alone and has no time to post.', quote: '“Good tool, but I don’t have time to sit and design. I just want it done.”', email: null, subject: 'Posts, done for you', body: `Hi Aisha,\n\nYou mentioned wanting posts just done. ${BRAND} writes and designs them from your product photos, ready to schedule.\n\nWant a free week of posts to try?\n\n${BRAND}` },
+  { id: 'cl-4', tool: 'comp', kind: 'email', name: 'Jonas Weber', src: 'Trustpilot · 2★ · 3 weeks ago', why: 'Agency owner, posting for 6 clients by hand.', quote: '“Managing six client brands in here is painful.”', email: 'jonas@weber.studio', subject: 'Six client brands', body: `Hi Jonas,\n\nSix client brands by hand sounds painful. ${BRAND} keeps each brand separate and makes posts for all of them.\n\nWant to try it with one client?\n\n${BRAND}` },
+
+  // Email Outreach: replies first, then follow-ups that are due
+  { id: 'eo-r1', tool: 'eo', kind: 'reply', name: 'Sarah Chen', src: 'Campaign · Cafés in Pune', why: 'Wants a call.', quote: 'This looks great. Could we do a quick call on Thursday?' },
+  { id: 'eo-r2', tool: 'eo', kind: 'reply', name: 'David Osei', src: 'Lead Agent · Osei Studio', why: 'Asked a question.', quote: 'Does it work with Shopify product photos?' },
+  { id: 'eo-f1', tool: 'eo', kind: 'followup', name: 'Tom Ramirez', src: 'Emailed 6 days ago · Campaign: Agencies in Mumbai', why: 'No reply yet. Due 2 days ago.', quote: 'Your first email: “Quick idea for Ramirez Media”', subject: 'Re: Quick idea for Ramirez Media', body: `Hi Tom,\n\nJust floating this back up. Happy to make three free posts for one of your clients so you can see the quality.\n\n${BRAND}` },
+  { id: 'eo-f2', tool: 'eo', kind: 'followup', name: 'Natasha Ivanova', src: 'Emailed 3 days ago · Competitor Leads', why: 'No reply yet. Due today.', quote: 'Your first email: “Your Later review”', subject: 'Re: Your Later review', body: `Hi Natasha,\n\nIn case this got buried: ${BRAND} could take the weekly posting off your plate. Want a free week to try?\n\n${BRAND}` },
+  { id: 'eo-f3', tool: 'eo', kind: 'followup', name: 'Kiran Rao', src: 'Emailed 3 days ago · Campaign: Cafés in Pune', why: 'No reply yet. Due today.', quote: 'Your first email: “Posts for Chai Point”', subject: 'Re: Posts for Chai Point', body: `Hi Kiran,\n\nOne more nudge on this. I can send three posts for Chai Point this week, free.\n\n${BRAND}` },
+  { id: 'eo-l1', tool: 'eo', kind: 'followup', later: true, name: 'Anna Kowalski', src: 'Emailed yesterday', why: 'Follow-up due Saturday.' },
+  { id: 'eo-l2', tool: 'eo', kind: 'followup', later: true, name: 'Ravi Menon', src: 'Emailed yesterday', why: 'Follow-up due Sunday.' },
+
+  // Search Agent: one queue across posts, pitches and fixes, best first
+  { id: 'sa-1', tool: 'sa', kind: 'draft', name: 'Instagram post ideas for cafés', src: 'Post to publish · 1,900 searches a month', why: 'Drafted for you. People search this and the results are weak.', quote: 'Competing pages are thin lists from 2023.', draft: `# 30 Instagram post ideas for cafés\n\nRunning a café leaves little time for Instagram. Here are 30 post ideas you can make in minutes.\n\n1. Your first coffee of the morning, shot from above.\n2. A regular's usual order, with their OK.\n3. The pastry that sells out first.\n...` },
+  { id: 'sa-2', tool: 'sa', kind: 'describe', name: 'Fix how ChatGPT describes you', src: 'AI answers', why: 'It calls Frekto a photo editor.', quote: 'Asked “What is Frekto?”, ChatGPT says “a photo editing app”.', now: 'Frekto is a photo editing app for mobile.', fix: `${BRAND} makes ready-to-post social media posts for small businesses. Upload a product photo, and ${BRAND} writes the caption and designs the post in your brand's colours.` },
+  { id: 'sa-3', tool: 'sa', kind: 'listing', name: 'Get listed on G2', src: 'Directory', why: 'Canva and Later are listed there; you aren’t.', quote: 'G2 shows up in AI answers for “best social media post maker”.', site: 'G2', url: 'https://sell.g2.com/', blurb: `${BRAND} makes social media posts for small businesses from one product photo: caption, design and hashtags, in your brand's style.`, ask: `Hi,\n\nWould you leave a short review of ${BRAND} on G2? It takes two minutes and helps other shop owners find us.\n\nThank you!` },
+  { id: 'sa-4', tool: 'sa', kind: 'email', name: 'socialmediatoday.com', src: 'Site to pitch', why: 'Wrote “Best AI post makers” and left you out.', quote: 'Lists Canva, Later and Predis. Updated last month.', email: 'editors@socialmediatoday.com', subject: `${BRAND} for your AI post makers list`, body: `Hi,\n\nI enjoyed your “Best AI post makers” roundup. ${BRAND} might fit it: it makes a full post from one product photo, built for small shops.\n\nHappy to set you up with an account to try.\n\n${BRAND}` },
+  { id: 'sa-5', tool: 'sa', kind: 'draft', name: 'Canva alternatives for small shops', src: 'Post to publish · 720 searches a month', why: 'Drafted for you. Canva’s unhappy users search this.', quote: 'Top result is a 2022 listicle.', draft: `# Canva alternatives for small shops\n\nCanva is great for designers. If you run a shop and just want posts done, these tools fit better.\n\n...` },
+
+  // Today's own tasks (from the Growth Path modules)
+  { id: 'td-1', tool: 'today', kind: 'task', name: 'Add a clear headline to your homepage', src: 'Website Audit', why: 'Visitors can’t tell what Frekto does in 5 seconds.', quote: 'Your homepage opens with “Create. Share. Grow.”', steps: ['Say what it is and who it’s for, in one line. For example: “Instagram posts for your shop, made from one photo.”', 'Put it as the first big line on the homepage.', 'Add one button under it: “Make my first post”.'] },
+  { id: 'td-2', tool: 'today', kind: 'task', name: 'Post on Instagram today', src: 'Social', why: 'You haven’t posted in 4 days.', quote: 'Accounts that post 3 times a week grow about twice as fast.', steps: ['Open Social Studio.', 'Pick one of today’s three post ideas.', 'Schedule it for 6 pm, when your followers are most active.'] },
+]
+const byId = id => ITEMS.find(i => i.id === id)
+// Today = the top picks from every tool, in one queue
+const TODAY = ['eo-r1', 'td-1', 'la-e1', 'cl-1', 'sa-1', 'eo-f1', 'td-2']
+
+const CAMPAIGNS = [
+  { id: 'k1', name: 'Cafés in Pune', state: 'draft', step: 3, people: ['Sarah Chen <sarah@brewlab.in>', 'Kiran Rao <kiran@chaipoint.in>', 'Meera Joshi <meera@thirdwave.cafe>', 'Arjun Patil <arjun@roastery.in>'], offer: 'Free week of Instagram posts made from their menu photos.' },
+  { id: 'k2', name: 'Agencies in Mumbai', state: 'sent', sent: 12, replied: 2, when: '6 days ago' },
+  { id: 'k3', name: 'Past customers', state: 'sent', sent: 40, replied: 5, when: '3 weeks ago' },
+]
+const CONVOS = [
+  { name: 'Sarah Chen', what: 'Replied: wants a call', id: 'eo-r1' },
+  { name: 'David Osei', what: 'Replied: asked a question', id: 'eo-r2' },
+  { name: 'Tom Becker', what: 'Replied: asked for pricing', id: 'la-r1' },
+  { name: 'Tom Ramirez', what: 'No reply yet · follow-up due 2 days ago' },
+  { name: 'Natasha Ivanova', what: 'No reply yet · follow-up due today' },
+  { name: 'Anna Kowalski', what: 'Sent yesterday' },
+  { name: 'Agencies in Mumbai', what: 'Campaign · 12 sent, 2 replied' },
+]
+const RANKS = [
+  ['instagram post maker', '14', 'Up 3 this week'],
+  ['ai social media post generator', '31', 'New'],
+  ['canva alternative for small business', 'Not in top 100', 'A post is drafted for this'],
+  ['instagram post ideas for cafés', 'Not in top 100', 'A post is drafted for this'],
+]
+const AI = [
+  ['Best tool to make Instagram posts for a café?', 'Names you', 'Not yet', 'Not yet'],
+  ['Canva alternatives for small shops', 'Not yet', 'Names you', 'Not yet'],
+  ['How do I post every day without a designer?', 'Not yet', 'Not yet', 'Not yet'],
+]
+
+const NOTES = {
+  today: [
+    ['Before', ['Streak pill, analytics bar, daily-email switch, Road to 500, activity charts, a focus box, numbered action cards, What’s working, the blog, social stats and the social feed, all on one page.']],
+    ['Now', ['The best next steps from every tool, in one queue. One green button.', 'Each row says which tool it came from, and it opens right here. Finish one and the next one opens.', 'Visitors and sign-ups shrink to one grey “Since yesterday” line. The blog, social and What’s working sit behind one link. The daily email is in Settings.']],
+  ],
+  leads: [
+    ['Before', ['Many green buttons, source pills, fit badges, status chips, and tabs with a filter under them.']],
+    ['Now', ['Same as the Lead Agent preview the owner already saw. Two tabs (Email / Community), one Start here panel, quiet rows.', 'Sent and skipped sit behind one small link.']],
+  ],
+  comp: [
+    ['Before', ['The competitor box, a platform switch and competitor chips at the top. Three tabs (Good fits / Emailed / Not a fit), a search box, a star filter, coloured fit badges and page numbers.']],
+    ['Now', ['The page is just the good fits, best fit first. The fit score sets the order instead of showing as a badge.', 'Picking a competitor and the platform move into Settings (“Scan another competitor”).', 'Emailed, skipped and not-a-fit sit behind links at the bottom.', 'Reaching out keeps its two steps: their email, then review and send.']],
+  ],
+  eo: [
+    ['Before', ['Four tabs (Follow-ups, Inbox, Campaigns, Done), coloured due tags, intent tags, avatars, and a green New campaign button in the header.']],
+    ['Now', ['Two tabs. To do: replies (red) and due follow-ups in one queue. Campaigns: finish the half-done one, or start one.', 'A follow-up is one step: check it, send it. Snooze and Skip are quiet.', 'Inbox is a link in the top line, plain rows with a red dot for replies. Done sits behind “N sent or closed”.', 'Gmail status moves into Settings and shows on the page only if Gmail disconnects.']],
+  ],
+  sa: [
+    ['Before', ['Four tabs (To do, Done, Rankings, AI answers), section labels, and icon tags for each kind (Write, Get listed, Pitch, Fix).']],
+    ['Now', ['To do is one queue across posts, pitches and fixes, best first. The row says what it is in plain words.', 'Rankings and AI answers merge into one quiet tab, “How you’re found”, with plain text instead of coloured tags.', 'Done sits behind one link.']],
+  ],
+}
+
+const S = { tool: 'today', tab: { leads: 'email', eo: 'todo', sa: 'todo' }, open: null, step: 1, done: {}, view: null, sheet: false, toast: null, camp: null, campStep: 1, campIdx: 0, notes: false }
+
+function queue() {
+  const t = S.tool, tab = S.tab[t]
+  let xs
+  if (t === 'today') xs = TODAY.map(byId)
+  else if (t === 'leads') xs = ITEMS.filter(i => i.tool === 'leads' && i.lane === tab)
+  else if (t === 'eo') xs = ITEMS.filter(i => i.tool === 'eo' && !i.later)
+  else xs = ITEMS.filter(i => i.tool === t)
+  return xs
+}
+const todo = () => queue().filter(i => !S.done[i.id])
+const finished = () => queue().filter(i => S.done[i.id])
+const leftIn = tool => { const was = S.tool; S.tool = tool; const n = tool === 'eo' ? todo().length : tool === 'leads' ? ITEMS.filter(i => i.tool === 'leads' && !S.done[i.id]).length : todo().length; S.tool = was; return n }
+
+function toast(msg, undo) {
+  S.toast = { msg, undo }
+  clearTimeout(toast.t); toast.t = setTimeout(() => { S.toast = null; paint() }, 4000)
+}
+
+// ── What each kind of item is called ─────────────────────────────────────────
+
+function verb(l) {
+  if (l.kind === 'reply') return 'Answer'
+  if (l.kind === 'email') return l.tool === 'comp' ? 'Reach out' : l.tool === 'sa' ? 'Write the pitch' : 'Review the email'
+  return { post: 'Write the reply', followup: 'Check the follow-up', draft: 'Read the draft', describe: 'Fix it', listing: 'Get listed', task: 'Start' }[l.kind]
+}
+function headline(items) {
+  const n = items.length, first = items[0], s = x => (n === 1 ? '' : x ?? 's')
+  if (first.kind === 'reply') return [`${first.name} replied`, `${first.why} Answer while they’re interested.`]
+  const start = `Start with ${cut(first.name, 44)}.`
+  switch (S.tool) {
+    case 'today': return [`${n} thing${s()} to do today`, `Start with: ${cut(first.name, 60)}.`]
+    case 'leads': return S.tab.leads === 'email' ? [`${n} email${s()} ready for your OK`, start] : [`${n} post${s()} to answer`, start]
+    case 'comp': return [`${n} unhappy Canva customer${s()} you could help`, `${start} The best fit is first.`]
+    case 'eo': return [`${n} follow-up${s()} due`, start]
+    case 'sa': return [`${n} thing${s()} to do this week`, `Start with: ${cut(first.name, 60)}.`]
+  }
+}
+
+// ── Page parts ───────────────────────────────────────────────────────────────
+
+function sideNav() {
+  const item = (t, label) => {
+    const n = t === 'today' ? leftIn('today') : t === 'leads' ? leftIn('leads') : t === 'comp' ? leftIn('comp') : t === 'eo' ? leftIn('eo') : leftIn('sa')
+    return `<button class="nav${S.tool === t ? ' on' : ''}" data-tool="${t}">${label}${n ? `<span class="c">${n}</span>` : ''}</button>`
+  }
+  const off = l => `<span class="nav off">${l}</span>`
+  return `<div class="brand"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#12A664"/><path d="M6 17.5 L10.5 12 L14 15 L20 7.5" stroke="#fff" stroke-width="2.4" fill="none"/><circle cx="20" cy="7.5" r="2.4" fill="#FF6A50"/></svg>GrowJin</div>
+    <div class="grp">${item('today', 'Today')}</div>
+    <div class="grp"><div class="gl">Get customers</div>${item('leads', 'Lead Agent')}${item('comp', 'Competitor Leads')}${item('eo', 'Email Outreach')}</div>
+    <div class="grp"><div class="gl">Get seen</div>${item('sa', 'Search Agent')}${off('Social Studio')}</div>
+    <div class="grp"><div class="gl">Keep track</div>${off('Reminders')}${off('Analytics')}</div>`
+}
+
+function header() {
+  const t = S.tool
+  const parts = {
+    today: ['Thursday 23 Oct', '<button class="link" data-a="sheet">Settings</button>'],
+    leads: ['Last search 2 h ago', '<button class="link" data-a="sheet">Settings</button>', '<button class="link" data-a="search">Find new leads</button>'],
+    comp: ['Canva · 214 reviews read today', 'Still checking 18 reviewers', '<button class="link" data-a="sheet">Scan another competitor</button>'],
+    eo: ['12 sent this week', '<button class="link" data-a="inbox">Inbox</button>', '<button class="link" data-a="sheet">Settings</button>'],
+    sa: ['Researched Monday', '<button class="link" data-a="sheet">Settings</button>', '<button class="link" data-a="search">Research again</button>'],
+  }[t]
+  return `${t === 'today' ? '' : `<div class="crumbs">${TOOLS[t].crumb}</div>`}<h1>${TOOLS[t].name}</h1>
+    <div class="line">${parts.map(p => `<span>${p}</span>`).join('')}</div>
+    ${S.sheet ? sheet() : ''}`
+}
+
+function sheet() {
+  const close = `<div class="acts"><button class="btn quiet" data-a="sheet">Close</button><button class="btn go" data-a="save">Save</button></div>`
+  const gmail = `<div class="status">Sending from <b>me@frekto.com</b> · Gmail connected · <button class="link" data-a="noop">Reconnect</button></div>`
+  const body = {
+    today: `<label class="opt"><input id="s-mail" type="checkbox" checked><span>Email me this list every morning<small>Sent to me@frekto.com at 7 am.</small></span></label>
+      <label class="opt"><input id="s-streak" type="checkbox"><span>Show my streak<small>Days in a row you finished something.</small></span></label>`,
+    leads: `<label class="opt"><input id="s-maps" type="checkbox" checked><span>Email: businesses on Google Maps<small>You approve every email before it goes.</small></span></label>
+      <label class="field">Google Maps search<input id="s-q" value="cafés in Pune"></label>
+      <label class="opt"><input id="s-reddit" type="checkbox" checked><span>Community: Reddit and Hacker News<small>You post every reply yourself.</small></span></label>
+      <label class="opt"><input id="s-daily" type="checkbox"><span>Search every morning<small>New leads are waiting each day.</small></span></label>
+      <label class="opt"><input id="s-demo" type="checkbox"><span>Demo mode<small>Made-up leads, nothing is sent.</small></span></label>${gmail}`,
+    comp: `<label class="field">Competitor<input id="s-comp" value="canva.com" placeholder="competitor.com or their Trustpilot link"></label>
+      <div class="seg" role="radiogroup" aria-label="Where their reviews are"><label class="opt"><input type="radio" name="s-plat" id="s-tp" checked><span>Trustpilot</span></label><label class="opt"><input type="radio" name="s-plat" id="s-sh"><span>Shopify App Store</span></label></div>
+      <p class="note" style="margin:0">Your competitors: canva.com · later.com · predis.ai</p>${gmail}`,
+    eo: `<label class="field">Send a follow-up after<select id="s-days"><option>3 days</option><option selected>5 days</option><option>7 days</option></select></label>
+      <label class="opt"><input id="s-stop" type="checkbox" checked><span>Stop when they reply<small>Replies, opt-outs and bounces close the follow-up by themselves.</small></span></label>${gmail}`,
+    sa: `<label class="field">Keywords (one per line)<textarea id="s-kw">instagram post maker\nai social media post generator\ncanva alternative for small business</textarea></label>
+      <label class="field">Questions buyers ask AI assistants<textarea id="s-qs">Best tool to make Instagram posts for a café?</textarea></label>
+      <label class="field">Country<select id="s-c"><option>India</option><option>United States</option><option>United Kingdom</option></select></label>
+      <label class="opt"><input id="s-week" type="checkbox" checked><span>Research every week<small>A new to-do list each Monday, with one post written for you.</small></span></label>
+      <label class="opt"><input id="s-demo2" type="checkbox"><span>Demo mode<small>Made-up results, nothing is sent.</small></span></label>`,
+  }[S.tool]
+  const title = S.tool === 'comp' ? 'Scan another competitor' : 'Settings'
+  return `<section class="sheet" aria-label="${title}"><h3>${title}</h3>${body}${S.tool === 'comp' ? `<div class="acts"><button class="btn quiet" data-a="sheet">Close</button><button class="btn go" data-a="scan">Find leads</button></div>` : close}</section>`
+}
+
+function tabs() {
+  const t = S.tool
+  const defs = {
+    leads: [['email', 'Email', ITEMS.filter(i => i.tool === 'leads' && i.lane === 'email' && !S.done[i.id]).length], ['community', 'Community', ITEMS.filter(i => i.tool === 'leads' && i.lane === 'community' && !S.done[i.id]).length]],
+    eo: [['todo', 'To do', leftIn('eo')], ['campaigns', 'Campaigns', null]],
+    sa: [['todo', 'To do', leftIn('sa')], ['found', 'How you’re found', null]],
+  }[t]
+  if (!defs) return '<div class="notabs"></div>'
+  return `<div class="tabs" role="tablist">${defs.map(([k, l, n]) => `<button class="tab" role="tab" aria-selected="${S.tab[t] === k}" data-tab="${k}">${l}${n ? `<span class="n">${n}</span>` : ''}</button>`).join('')}</div>`
+}
+
+function rowOf(l) {
+  const go = S.tool === 'today' && l.tool !== 'today' ? TOOLS[l.tool].name : 'Open'
+  return `<div class="row" data-open="${l.id}" role="button" tabindex="0">${l.kind === 'reply' ? '<span class="dot" title="Replied"></span>' : ''}<div class="row-main"><div class="row-name">${esc(l.name)}</div><div class="row-why">${esc(l.why)}</div></div><span class="row-go">${go}</span></div>`
+}
+
+function list() {
+  const items = todo(), past = finished()
+  const doneWord = { today: 'done', leads: S.tab.leads === 'email' ? 'sent' : 'posted', comp: 'emailed', eo: 'sent', sa: 'done' }[S.tool]
+  if (S.view === 'past' || S.view === 'later') {
+    const rows = S.view === 'later' ? ITEMS.filter(i => i.later) : past
+    return `<button class="link back" data-a="today">← Back to what’s left</button>
+      <p class="rest-h">${S.view === 'later' ? 'Follow-ups due later' : `${doneWord[0].toUpperCase() + doneWord.slice(1)} or skipped`}</p>
+      ${rows.map(l => `<div class="row"><div class="row-main"><div class="row-name">${esc(l.name)}</div><div class="row-why">${S.view === 'later' ? esc(l.why) : S.done[l.id] === 'skip' ? 'Skipped' : l.kind === 'email' || l.kind === 'followup' ? 'Sent today. If they don’t reply, a follow-up goes out by itself.' : 'Done today.'}</div></div>${S.done[l.id] === 'skip' ? `<button class="btn quiet" data-undo="${l.id}">Bring back</button>` : ''}</div>`).join('')}`
+  }
+  const links = []
+  if (S.tool === 'eo') links.push(`<button class="link" data-a="later">2 due later this week</button>`)
+  if (S.tool === 'comp') links.push(`<button class="link" data-a="noop">31 weren’t a fit</button>`)
+  if (past.length) links.push(`<button class="link" data-a="past">${past.length} ${doneWord} or skipped</button>`)
+  const more = links.length ? `<div class="more">${links.join('')}</div>` : ''
+  const since = S.tool === 'today' ? `<section class="since"><p class="rest-h">Since yesterday</p><p>48 visitors (12% more), 3 sign-ups, most from Google.</p>
+    <div class="more"><button class="link" data-a="noop">Blog, social posts and what’s working</button></div></section>` : ''
+  if (!items.length) {
+    const [t, p, b] = {
+      today: ['All caught up', 'That’s everything for today. New things show up tomorrow morning.', 'Find new leads'],
+      leads: ['All caught up', S.tab.leads === 'email' ? 'New businesses to email appear after the next search.' : 'New posts to answer appear after the next search.', 'Find new leads'],
+      comp: ['All caught up', 'You’ve reached every good fit from Canva’s reviews. Try another competitor.', 'Scan another competitor'],
+      eo: ['All caught up', 'No replies or follow-ups need you right now.', 'New campaign'],
+      sa: ['All caught up', 'New things to do arrive after Monday’s research.', 'Research again'],
+    }[S.tool]
+    return `<div class="empty"><b>${t}</b><p>${p}</p><button class="btn go" data-a="${S.tool === 'eo' ? 'newcamp' : S.tool === 'comp' ? 'sheet' : 'search'}">${b}</button></div>${more}${since}`
+  }
+  const [first, ...rest] = items
+  const [what, sub] = headline(items)
+  return `<div class="next${first.kind === 'reply' ? ' reply' : ''}"><div class="next-text"><b>${esc(what)}</b><span>${esc(sub)}</span></div><button class="btn go" data-open="${first.id}">${verb(first)} →</button></div>
+    ${rest.length ? `<div class="rest"><p class="rest-h">Then</p>${rest.map(rowOf).join('')}</div>` : ''}
+    ${more}${since}`
+}
+
+// ── Email Outreach: Campaigns and Inbox ─────────────────────────────────────
+
+function campaigns() {
+  const draft = CAMPAIGNS.find(c => c.state === 'draft'), sent = CAMPAIGNS.filter(c => c.state === 'sent')
+  const top = draft
+    ? `<div class="next"><div class="next-text"><b>Finish “${esc(draft.name)}”</b><span>${draft.people.length} emails are written and waiting for your check.</span></div><button class="btn go" data-camp="${draft.id}">Continue →</button></div>`
+    : `<div class="next"><div class="next-text"><b>Start a campaign</b><span>A personal email for each person on your list, sent from your Gmail.</span></div><button class="btn go" data-a="newcamp">New campaign →</button></div>`
+  return `${top}<div class="rest"><p class="rest-h">Sent</p>${sent.map(c => `<div class="row" data-camp="${c.id}" role="button" tabindex="0"><div class="row-main"><div class="row-name">${esc(c.name)}</div><div class="row-why">Sent to ${c.sent} · ${c.replied} replied · ${c.when}</div></div><span class="row-go">Open</span></div>`).join('')}</div>
+    ${draft ? `<div class="more"><button class="link" data-a="newcamp">New campaign</button></div>` : ''}`
+}
+
+function campaignView(c) {
+  const back = `<button class="link back" data-a="close">← Campaigns</button>`
+  if (c.state === 'sent') {
+    return `${back}<h1 style="font-size:28px">${esc(c.name)}</h1><div class="line"><span>Sent to ${c.sent} · ${c.replied} replied · ${c.when}</span></div>
+      <div class="rest"><p class="rest-h">Who replied</p>${CONVOS.slice(0, c.replied).map(v => `<div class="row"><span class="dot"></span><div class="row-main"><div class="row-name">${esc(v.name)}</div><div class="row-why">${esc(v.what)}</div></div></div>`).join('')}</div>`
+  }
+  const left = `<aside class="who"><h2>${esc(c.name)}</h2><div class="src">Campaign · saved as you go</div><p class="why">${c.people.length} people · ${esc(c.offer)}</p></aside>`
+  let step
+  if (S.campStep === 1) {
+    step = `<div class="step-of">Step 1 of 3</div><h3>Who gets it?</h3><p class="hint">Paste names and emails, one per line, or upload a file.</p>
+      <label class="field" for="c-people">People<textarea id="c-people" rows="6">${esc(c.people.join('\n'))}</textarea></label>
+      <div class="copyrow"><label class="btn" for="c-file">Upload a file</label><input id="c-file" type="file" hidden></div>
+      <p class="note">CSV, Excel, PDF, Word, text or .vcf. Emails are read straight from the file.</p>
+      <div class="acts"><button class="btn quiet" data-a="close">Save and close</button><button class="btn go" data-a="cnext">Continue →</button></div>`
+  } else if (S.campStep === 2) {
+    step = `<div class="step-of">Step 2 of 3</div><h3>What are you offering?</h3><p class="hint">One or two lines. A short email is written for each person from this.</p>
+      <label class="field" for="c-offer">Your offer<textarea id="c-offer" rows="4">${esc(c.offer)}</textarea></label>
+      <div class="acts"><button class="btn quiet" data-a="cprev">← Back</button><button class="btn go" data-a="cnext">Write the emails →</button></div>`
+  } else {
+    const p = c.people[S.campIdx], name = p.split(' <')[0], first = name.split(' ')[0], to = p.match(/<(.*)>/)?.[1] ?? ''
+    step = `<div class="step-of">Step 3 of 3</div><h3>Check the emails, then send</h3><p class="hint">Each one is written for that person. Edit anything.</p>
+      <div class="pager"><button class="link" data-a="cprevmail" ${S.campIdx === 0 ? 'disabled' : ''}>← Previous</button><span>Email ${S.campIdx + 1} of ${c.people.length} · ${esc(name)}</span><button class="link" data-a="cnextmail" ${S.campIdx === c.people.length - 1 ? 'disabled' : ''}>Next →</button></div>
+      <div class="mail"><label><span>To</span><input id="c-to" value="${esc(to)}" readonly></label><label><span>Subject</span><input id="c-sub" value="Posts for ${esc(first)}'s café"></label><textarea id="c-body" aria-label="Message">Hi ${esc(first)},\n\nYour café looks great on Google Maps, but Instagram has been quiet for a while.\n\n${BRAND} turns your menu photos into ready posts. Want a free week of them?\n\n${BRAND}</textarea></div>
+      <p class="note">From me@frekto.com. If someone doesn’t reply, a follow-up goes out in 5 days.</p>
+      <div class="acts"><button class="btn quiet" data-a="cprev">← Back</button><button class="btn quiet" data-a="csched">Send tomorrow at 9 am</button><button class="btn go" data-a="csend">Send ${c.people.length} emails</button></div>`
+  }
+  return `${back}<div class="open">${left}<section class="step">${step}</section></div>`
+}
+
+function inbox() {
+  return `<button class="link back" data-a="today">← Email Outreach</button>
+    <h1 style="font-size:28px">Inbox</h1><div class="line"><span>Only the emails GrowJin sent for you. Replies first.</span></div>
+    <div class="rest">${CONVOS.map(v => `<div class="row" ${v.id && !S.done[v.id] ? `data-open="${v.id}"` : 'data-conv="1"'} role="button" tabindex="0">${v.id && !S.done[v.id] ? '<span class="dot" title="Replied"></span>' : ''}<div class="row-main"><div class="row-name">${esc(v.name)}</div><div class="row-why">${v.id && S.done[v.id] ? 'Answered' : esc(v.what)}</div></div><span class="row-go">Open</span></div>`).join('')}</div>`
+}
+
+// ── Search Agent: How you're found ──────────────────────────────────────────
+
+function found() {
+  return `<section class="sec"><p class="sec-h">On Google · India</p><div class="tbl-wrap"><table><thead><tr><th>Search</th><th>Your place</th><th>Change</th></tr></thead><tbody>
+      ${RANKS.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td></tr>`).join('')}</tbody></table></div></section>
+    <section class="sec"><p class="sec-h">In AI answers</p><div class="tbl-wrap"><table><thead><tr><th>Question</th><th>ChatGPT</th><th>Perplexity</th><th>Gemini</th></tr></thead><tbody>
+      ${AI.map(r => `<tr><td>${esc(r[0])}</td>${r.slice(1).map(v => `<td class="${v === 'Names you' ? 'yes' : ''}">${v}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      <p class="note">Named in 2 of 9 answers. Canva is named in 8.</p></section>`
+}
+
+// ── One item opened ─────────────────────────────────────────────────────────
+
+const STEP = {
+  email: l => {
+    const pitch = l.tool === 'sa'
+    return S.step === 1
+      ? `<div class="step-of">Step 1 of 2</div><h3>${pitch ? 'Who should get the pitch?' : 'Where should it go?'}</h3>
+        <p class="found">${l.email ? `Hunter found <b>${esc(l.email)}</b>.` : 'Hunter found no email. Paste one if you know it.'}</p>
+        <label class="field" for="t-to">Email address<input id="t-to" type="email" value="${esc(l.email ?? '')}" placeholder="name@business.com"></label>
+        <div class="acts"><button class="btn quiet" data-a="skip">Skip</button><button class="btn go" data-a="next">Continue →</button></div>`
+      : `<div class="step-of">Step 2 of 2</div><h3>Check the ${pitch ? 'pitch' : 'email'}, then send it</h3><p class="hint">Short and plain, from your Gmail. Edit anything.</p>
+        <div class="mail"><label><span>To</span><input id="t-mto" value="${esc(document.getElementById('t-to')?.value || l.email || '')}" readonly></label><label><span>Subject</span><input id="t-sub" value="${esc(l.subject)}"></label><textarea id="t-body" aria-label="Message">${esc(l.body)}</textarea></div>
+        <p class="note">If they don’t reply, a short follow-up goes out in 5 days.</p>
+        <div class="acts"><button class="btn quiet" data-a="prev">← Back</button><button class="btn go" data-a="finish">Send ${pitch ? 'pitch' : 'email'}</button></div>`
+  },
+  post: l => S.step === 1
+    ? `<div class="step-of">Step 1 of 2</div><h3>Check the reply</h3><p class="hint">Helpful answer first, your product second. Make it sound like you.</p>
+      <div class="mail"><textarea id="t-reply" aria-label="Reply">${esc(l.reply)}</textarea></div>
+      <div class="acts"><button class="btn quiet" data-a="skip">Skip</button><button class="btn go" data-a="next">Looks good →</button></div>`
+    : `<div class="step-of">Step 2 of 2</div><h3>Post it</h3><p class="hint">Reddit and Hacker News don’t allow posting for you. Copy the reply, open the post, paste it.</p>
+      <div class="copyrow"><button class="btn" data-copy="${esc(l.reply)}">Copy reply</button><a class="btn" href="${esc(l.url)}" target="_blank" rel="noopener">Open the post ↗</a></div>
+      <div class="acts"><button class="btn quiet" data-a="prev">← Back</button><button class="btn go" data-a="finish">I’ve posted it</button></div>`,
+  reply: l => `<div class="step-of">Reply</div><h3>${esc(l.name)} wrote back</h3><p class="hint">Answer from your Gmail, in the same thread.</p>
+    <p class="said"><small>Their reply</small>“${esc(l.quote)}”</p>
+    <div class="copyrow"><a class="btn" href="https://mail.google.com/" target="_blank" rel="noopener">Open in Gmail ↗</a></div>
+    <div class="acts"><button class="btn quiet" data-a="close">Later</button><button class="btn go" data-a="finish">I’ve answered</button></div>`,
+  followup: l => `<div class="step-of">Follow-up</div><h3>Check the follow-up, then send it</h3><p class="hint">It goes into the same Gmail thread as your first email.</p>
+    <div class="mail"><label><span>Subject</span><input id="t-fsub" value="${esc(l.subject)}"></label><textarea id="t-fbody" aria-label="Message">${esc(l.body)}</textarea></div>
+    <div class="acts"><button class="btn quiet" data-a="skip">Skip</button><button class="btn quiet" data-a="snooze">Snooze 3 days</button><button class="btn go" data-a="finish">Send follow-up</button></div>`,
+  draft: l => S.step === 1
+    ? `<div class="step-of">Step 1 of 2</div><h3>Read the draft</h3><p class="hint">Written for you from what people search. Edit anything.</p>
+      <div class="mail"><textarea id="t-draft" aria-label="Draft" style="min-height:260px">${esc(l.draft)}</textarea></div>
+      <div class="acts"><button class="btn quiet" data-a="skip">Skip</button><button class="btn go" data-a="next">Looks good →</button></div>`
+    : `<div class="step-of">Step 2 of 2</div><h3>Publish it</h3><p class="hint">Copy it to your blog. Once it’s live, Search Agent checks where it ranks.</p>
+      <div class="copyrow"><button class="btn" data-copy="${esc(l.draft)}">Copy the post</button></div>
+      <div class="acts"><button class="btn quiet" data-a="prev">← Back</button><button class="btn go" data-a="finish">I’ve published it</button></div>`,
+  describe: l => `<div class="step-of">Fix</div><h3>Change how AI describes you</h3><p class="hint">AI assistants repeat what your own site says. Put this line on your homepage and About page.</p>
+    <p class="said"><small>ChatGPT says now</small>“${esc(l.now)}”</p>
+    <label class="field" for="t-fix">Say this instead<textarea id="t-fix" rows="4">${esc(l.fix)}</textarea></label>
+    <div class="copyrow"><button class="btn" data-copy="${esc(l.fix)}">Copy</button></div>
+    <div class="acts"><button class="btn quiet" data-a="skip">Skip</button><button class="btn go" data-a="finish">I’ve updated my site</button></div>`,
+  listing: l => S.step === 1
+    ? `<div class="step-of">Step 1 of 2</div><h3>Make your ${esc(l.site)} page</h3><p class="hint">Sign up, then paste this as your description.</p>
+      <label class="field" for="t-blurb">Description<textarea id="t-blurb" rows="3">${esc(l.blurb)}</textarea></label>
+      <div class="copyrow"><button class="btn" data-copy="${esc(l.blurb)}">Copy</button><a class="btn" href="${esc(l.url)}" target="_blank" rel="noopener">Open ${esc(l.site)} sign-up ↗</a></div>
+      <div class="acts"><button class="btn quiet" data-a="skip">Skip</button><button class="btn go" data-a="next">I’ve made it →</button></div>`
+    : `<div class="step-of">Step 2 of 2</div><h3>Ask 3 customers for a review</h3><p class="hint">A page with reviews shows up far more often. Send this to a few happy customers.</p>
+      <div class="mail"><textarea id="t-ask" aria-label="Message" style="min-height:150px">${esc(l.ask)}</textarea></div>
+      <div class="copyrow"><button class="btn" data-copy="${esc(l.ask)}">Copy</button></div>
+      <div class="acts"><button class="btn quiet" data-a="prev">← Back</button><button class="btn go" data-a="finish">Done</button></div>`,
+  task: l => `<div class="step-of">To do</div><h3>${esc(l.name)}</h3><p class="hint">About 10 minutes.</p>
+    <ol class="todo-list">${l.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+    <div class="acts"><button class="btn quiet" data-a="skip">Skip</button><button class="btn go" data-a="finish">Done</button></div>`,
+}
+
+function detail(l) {
+  const from = S.tool === 'today' && l.tool !== 'today' ? `<p class="from">From ${TOOLS[l.tool].name}</p>` : ''
+  const left = `<aside class="who"><h2>${esc(l.name)}</h2><div class="src">${esc(l.src)}</div><p class="why">${esc(l.why)}</p>${l.quote ? `<blockquote>${esc(l.quote)}</blockquote>` : ''}${from}</aside>`
+  const back = S.view === 'inbox' ? 'Inbox' : TOOLS[S.tool].name
+  return `<button class="link back" data-a="close">← ${back}</button><div class="open">${left}<section class="step">${STEP[l.kind](l)}</section></div>`
+}
+
+// ── Paint ───────────────────────────────────────────────────────────────────
+
+function body() {
+  const l = S.open && byId(S.open)
+  if (l) return detail(l)
+  const c = S.camp && CAMPAIGNS.find(x => x.id === S.camp)
+  if (c) return campaignView(c)
+  if (S.view === 'inbox') return inbox()
+  const t = S.tool
+  const main = t === 'eo' && S.tab.eo === 'campaigns' ? campaigns() : t === 'sa' && S.tab.sa === 'found' ? found() : list()
+  return header() + tabs() + main
+}
+
+function paint() {
+  document.getElementById('side').innerHTML = sideNav()
+  const m = document.getElementById('m-nav')
+  m.innerHTML = Object.entries(TOOLS).map(([k, v]) => `<option value="${k}" ${S.tool === k ? 'selected' : ''}>${v.name}</option>`).join('')
+  document.getElementById('view').innerHTML = body()
+  const t = document.getElementById('toast')
+  t.innerHTML = S.toast ? `<div class="toast" role="status">${esc(S.toast.msg)}${S.toast.undo ? '<button data-a="undo">Undo</button>' : ''}</div>` : ''
+  document.getElementById('notes').innerHTML = S.notes ? `<div class="notes" role="dialog" aria-label="What changed">${NOTES[S.tool].map(([h, xs]) => `<h4>${h}</h4><ul>${xs.map(x => `<li>${esc(x)}</li>`).join('')}</ul>`).join('')}</div>` : ''
+}
+
+function goTool(t) {
+  Object.assign(S, { tool: t, open: null, camp: null, view: null, sheet: false, step: 1 })
+  try { history.replaceState(null, '', '#' + t) } catch {}
+  window.scrollTo({ top: 0 })
+}
+
+function finish(l, how) {
+  S.done[l.id] = how
+  const next = todo()[0]
+  // Straight on to the next one, so there's never a moment of "now what?"
+  if (how === 'done' && next && S.view !== 'inbox') { S.open = next.id; S.step = 1 } else S.open = null
+  window.scrollTo({ top: 0 })
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-a],[data-open],[data-tab],[data-undo],[data-tool],[data-camp],[data-copy],[data-conv]'); if (!b) return
+  const d = b.dataset, l = S.open && byId(S.open), c = S.camp && CAMPAIGNS.find(x => x.id === S.camp)
+  if (d.tool) goTool(d.tool)
+  else if (d.tab) { S.tab[S.tool] = d.tab; S.view = null; S.sheet = false }
+  else if (d.open) { S.open = d.open; S.step = 1; window.scrollTo({ top: 0 }) }
+  else if (d.camp) { S.camp = d.camp; S.campStep = CAMPAIGNS.find(x => x.id === d.camp).step ?? 1; S.campIdx = 0; window.scrollTo({ top: 0 }) }
+  else if (d.undo) { delete S.done[d.undo]; toast('Back in your list') }
+  else if (d.conv) toast('Opens the Gmail thread (preview)')
+  else if (d.copy !== undefined) {
+    const box = b.closest('.step')?.querySelector('textarea')
+    navigator.clipboard?.writeText(box?.value ?? d.copy).then(() => toast('Copied'), () => { box?.select(); toast('Selected. Press Ctrl+C to copy') })
+  }
+  else switch (d.a) {
+    case 'sheet': S.sheet = !S.sheet; break
+    case 'save': S.sheet = false; toast('Saved'); break
+    case 'scan': S.sheet = false; toast('Reading their newest reviews… (preview)'); break
+    case 'search': toast(S.tool === 'sa' ? 'Researching… (preview)' : 'Searching for new leads… (preview)'); break
+    case 'noop': toast('Opens in the real app (preview)'); break
+    case 'notes': S.notes = !S.notes; break
+    case 'past': S.view = 'past'; break
+    case 'later': S.view = 'later'; break
+    case 'inbox': S.view = 'inbox'; S.sheet = false; window.scrollTo({ top: 0 }); break
+    case 'today': S.view = null; break
+    case 'close': if (S.open) S.open = null; else S.camp = null; break
+    case 'next': S.step = 2; break
+    case 'prev': S.step = 1; break
+    case 'skip': { const id = l.id, name = l.name; finish(l, 'skip'); toast(`Skipped ${name.length > 30 ? 'it' : name}`, () => { delete S.done[id] }); break }
+    case 'snooze': { const id = l.id; finish(l, 'skip'); toast(`${l.name} moved 3 days later`, () => { delete S.done[id] }); break }
+    case 'finish': {
+      const msg = { email: `Sent to ${l.name}`, followup: `Follow-up sent to ${l.name}`, post: 'Marked as posted', reply: 'Marked as answered', draft: 'Marked as published', describe: 'Nice. The next research checks what ChatGPT says.', listing: 'Done', task: 'Done' }[l.kind]
+      finish(l, 'done'); toast(msg); break
+    }
+    case 'undo': S.toast?.undo?.(); S.toast = null; break
+    case 'newcamp': {
+      const id = 'k' + Date.now()
+      CAMPAIGNS.unshift({ id, name: 'New campaign', state: 'draft', step: 1, people: ['Meera Joshi <meera@thirdwave.cafe>'], offer: 'Free week of Instagram posts.' })
+      Object.assign(S, { tool: 'eo', camp: id, campStep: 1, campIdx: 0, view: null, sheet: false }); S.tab.eo = 'campaigns'; window.scrollTo({ top: 0 }); break
+    }
+    case 'cnext': { if (S.campStep === 1) { const v = document.getElementById('c-people').value.split('\n').map(x => x.trim()).filter(Boolean); if (v.length) c.people = v } if (S.campStep === 2) c.offer = document.getElementById('c-offer').value; S.campStep = Math.min(3, S.campStep + 1); c.step = S.campStep; S.campIdx = 0; break }
+    case 'cprev': S.campStep = Math.max(1, S.campStep - 1); c.step = S.campStep; break
+    case 'cnextmail': S.campIdx = Math.min(c.people.length - 1, S.campIdx + 1); break
+    case 'cprevmail': S.campIdx = Math.max(0, S.campIdx - 1); break
+    case 'csend': case 'csched': {
+      Object.assign(c, { state: 'sent', sent: c.people.length, replied: 0, when: d.a === 'csend' ? 'just now' : 'tomorrow at 9 am' })
+      toast(d.a === 'csend' ? `${c.people.length} emails sent` : `${c.people.length} emails scheduled for tomorrow at 9 am`)
+      S.camp = null; break
+    }
+  }
+  paint()
+})
+document.addEventListener('change', e => { if (e.target.id === 'm-nav') { goTool(e.target.value); paint() } })
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.row[role="button"]')) e.target.click() })
+try { const h = location.hash.slice(1); if (TOOLS[h]) S.tool = h } catch {}
+paint()
+</script>
