@@ -397,11 +397,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
           status={running ? (data.lastRunAt ? 'Looking for new leads…' : 'Running your first search…') : data.lastRunAt ? `Last search ${fmtAgo(data.lastRunAt)}${data.lastRunSummary ? ` · ${data.lastRunSummary}` : ''}` : 'Not searched yet'}
           setup={<>Looking for <b>{customer}</b>{sources.length ? ` via ${sources.join(', ')}` : ' (no sources on)'}</>}
           onChange={() => setPanel(p => !p)}
-          secondary={<>
-            {/* Demo mode: move time on so follow-ups and replies show */}
-            {demo && data.lastRunAt && <button className="btn btn-ghost" type="button" disabled={!!busy} onClick={() => call('demo_skip')}>{busy === 'demo_skip' ? <><Spinner />Skipping ahead…</> : 'Skip ahead 3 days'}</button>}
-            <button type="button" className="btn btn-ghost" aria-expanded={panel} onClick={() => setPanel(p => !p)}>Search settings</button>
-          </>}
+          secondary={<button type="button" className="btn btn-ghost" aria-expanded={panel} onClick={() => setPanel(p => !p)}>Search settings</button>}
           primary={<button type="button" className="btn btn-primary" disabled={running || !!busy} onClick={() => { setPanel(false); call('run') }}>{running ? <><Spinner />Working…</> : 'Find new leads'}</button>} />
         <LiveProgress agent="lead" active={running} fallback={PROGRESS} />
 
