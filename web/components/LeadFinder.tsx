@@ -161,7 +161,10 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
         <span className="th-chip">Beta</span>
         <span className={`th-chip ${gmailConnected ? 'th-chip--on' : 'th-chip--warn'}`}>{gmailConnected ? 'Gmail connected' : 'Gmail not connected'}</span>
       </>}
-      actions={<Link href="/gmail-hub" className="th-link">Email Outreach →</Link>}
+      actions={<>
+        <Link href="/gmail-hub" className="th-link">Email Outreach →</Link>
+        {phase !== 'empty' && <button className="btn btn-primary btn-sm" type="button" onClick={reset}>+ New scan</button>}
+      </>}
     />
   )
 
@@ -173,31 +176,38 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
     </div>
   )
 
+  // A review card: who and how well they fit at the top, what they said in the middle, and the
+  // status and actions in a footer, so buttons sit in the same place on every card
   function row(r: SavedReview) {
+    const good = r.fit === undefined ? r.rating <= 3 : r.fit >= GOOD
     return (
       <article key={r.id} className={`cl-rv${r.status === 'sent' ? ' cl-rv--sent' : ''}${r.status === 'skipped' ? ' cl-rv--dim' : ''}`}>
-        <span className="cl-av" aria-hidden="true">{initials(r.name)}</span>
-        <div className="cl-rv-main">
-          <div className="cl-lead-name">{r.name}</div>
-          <div className="cl-lead-sub">
-            <Stars n={r.rating} />{r.date && <span>{fmtDate(r.date)}</span>}
-            {r.reviewUrl && <a className="th-link" href={r.reviewUrl} target="_blank" rel="noopener noreferrer">Read on {scan?.platform === 'shopify' ? 'App Store' : 'Trustpilot'} ↗</a>}
+        <div className="cl-rv-head">
+          <span className="cl-av" aria-hidden="true">{initials(r.name)}</span>
+          <div className="cl-rv-who">
+            <div className="cl-lead-name">{r.name}</div>
+            <div className="cl-lead-sub">
+              <Stars n={r.rating} />{r.date && <span>{fmtDate(r.date)}</span>}
+              {r.reviewUrl && <a className="th-link" href={r.reviewUrl} target="_blank" rel="noopener noreferrer">Read on {scan?.platform === 'shopify' ? 'App Store' : 'Trustpilot'} ↗</a>}
+            </div>
           </div>
+          {r.fit !== undefined
+            ? <span className={`cl-fitb cl-fitb--${r.fit >= GOOD ? 'good' : r.fit >= 5 ? 'mid' : 'low'}`}>{r.fit >= GOOD ? 'Good fit' : r.fit >= 5 ? 'Partial fit' : 'Weak fit'} · {r.fit}/10</span>
+            : scoring && r.rating <= 3 && <span className="cl-fitb cl-fitb--wait"><Spinner size={10} />Checking fit</span>}
+        </div>
+        <div className="cl-rv-body">
           <p className="cl-rv-text">{r.text}</p>
           {r.fit !== undefined && r.why && <p className={`cl-rv-why${r.fit >= GOOD ? ' cl-rv-why--good' : ''}`}>{r.why}</p>}
-          {r.fit === undefined && scoring && r.rating <= 3 && <p className="cl-rv-why cl-rv-why--wait"><Spinner size={10} />Checking fit…</p>}
         </div>
-        <div className="cl-rv-act">
-          {r.fit !== undefined && <span className={`cl-fitb cl-fitb--${r.fit >= GOOD ? 'good' : r.fit >= 5 ? 'mid' : 'low'}`}>{r.fit >= GOOD ? 'Good fit' : r.fit >= 5 ? 'Partial fit' : 'Weak fit'} · {r.fit}/10</span>}
-          {r.status === 'sent' ? <>
-            <span className="cl-tag cl-tag--ok">Emailed{r.sentAt ? ` · ${fmtDate(r.sentAt)}` : ''}</span>
-            <Link className="btn btn-ghost btn-sm" href={reviewHref(r.id)}>View</Link>
-          </> : r.status === 'skipped' ? <>
-            <span className="cl-tag">Not a fit</span>
-            <Link className="btn btn-ghost btn-sm" href={reviewHref(r.id)}>Reach out</Link>
-          </> : (
-            <Link className={`btn btn-sm ${(r.fit === undefined ? r.rating <= 3 : r.fit >= GOOD) ? 'btn-primary' : 'btn-ghost'}`} href={reviewHref(r.id)}>Reach out →</Link>
-          )}
+        <div className="cl-rv-foot">
+          <span className="cl-rv-state">
+            {r.status === 'sent' ? <span className="cl-tag cl-tag--ok">✓ Emailed{r.sentAt ? ` · ${fmtDate(r.sentAt)}` : ''}</span>
+              : r.status === 'skipped' ? <span className="cl-tag">Marked not a fit</span>
+              : null}
+          </span>
+          {r.status === 'sent'
+            ? <Link className="btn btn-ghost btn-sm" href={reviewHref(r.id)}>View email</Link>
+            : <Link className={`btn btn-sm ${good && r.status !== 'skipped' ? 'btn-primary' : 'btn-ghost'}`} href={reviewHref(r.id)}>Reach out →</Link>}
         </div>
       </article>
     )
@@ -299,7 +309,6 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
                   {history.map(h => <option key={h.id} value={h.id}>{competitorLabel(h.competitor)} · {fmtDate(h.scannedAt)}{h.emailed ? ` · ${h.emailed} emailed` : ''}</option>)}
                 </select>
               )}
-              <button className="btn btn-ghost btn-sm" type="button" onClick={reset}>New scan</button>
             </>)}
             {toolbar}
             {scoring && (

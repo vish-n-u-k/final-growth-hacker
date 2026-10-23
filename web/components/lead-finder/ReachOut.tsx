@@ -146,8 +146,8 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
       </div>
     )
     actions = <>
+      <Link key="reviews" className="btn btn-ghost ro-back" href="/lead-finder">← Back to reviews</Link>
       {next && <Link className="btn btn-primary" href={reviewHref(next.id)}>Next review: {firstName(next.name) || next.name} →</Link>}
-      <Link className="btn btn-ghost" href="/lead-finder">Back to reviews</Link>
     </>
   } else if (stepNo === 1) {
     title = `Do you want to email ${name}?`
@@ -157,8 +157,8 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
       {r.status === 'skipped' && <p className="ro-note">You marked {name} as not a fit earlier. You can still email them.</p>}
     </>
     if (!busy && !error && r.fit !== undefined) actions = <>
-      <button className="btn btn-primary" type="button" onClick={() => setStepNo(2)}>Yes, write an email →</button>
-      {r.status !== 'skipped' && <button className="btn btn-ghost" type="button" onClick={notAFit}>No, not a fit</button>}
+      {r.status !== 'skipped' && <button key="no" className="btn btn-ghost ro-back" type="button" onClick={notAFit}>No, not a fit</button>}
+      <button key="yes" className="btn btn-primary" type="button" onClick={() => setStepNo(2)}>Yes, write an email →</button>
     </>
   } else if (stepNo === 2) {
     title = `Where should it go?`
@@ -188,8 +188,8 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
       </form>
     </>
     if (!busy) actions = <>
-      <button className="btn btn-primary" type="submit" form="ro-to" disabled={!validEmail(to)}>Continue →</button>
-      <button className="btn btn-ghost" type="button" onClick={() => setStepNo(1)}>Back</button>
+      <button key="back1" className="btn btn-ghost ro-back" type="button" onClick={() => setStepNo(1)}>← Back</button>
+      <button key="continue" className="btn btn-primary" type="submit" form="ro-to" disabled={!validEmail(to)}>Continue →</button>
     </>
   } else {
     title = 'Check the email, then send it'
@@ -208,10 +208,10 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
       </form>
     </>
     if (!busy) actions = <>
+      <button key="back2" className="btn btn-ghost ro-back" type="button" onClick={() => setStepNo(2)}>← Back</button>
       {gmailConnected
-        ? <button className="btn btn-primary" type="submit" form="ro-mail" disabled={sending || !validEmail(to)}>{sending ? <><Spinner />Sending…</> : 'Send email'}</button>
+        ? <button key="send" className="btn btn-primary" type="submit" form="ro-mail" disabled={sending || !validEmail(to)}>{sending ? <><Spinner />Sending…</> : 'Send email →'}</button>
         : <Link className="btn btn-primary" href="/gmail-hub">Connect Gmail to send</Link>}
-      <button className="btn btn-ghost" type="button" onClick={() => setStepNo(2)}>Back</button>
     </>
   }
 
@@ -263,7 +263,7 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
             {title && <h3 className="ro-title">{title}</h3>}
             {hint && <p className="ro-hint">{hint}</p>}
             {content}
-            {actions && <div className="ro-actions">{actions}</div>}
+            {actions && <div key={done ? 'done' : stepNo} className="ro-actions">{actions}</div>}
           </div>
         </section>
       </div>
