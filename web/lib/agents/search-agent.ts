@@ -121,7 +121,32 @@ async function checkDescription(b: BrandContext, meter: ReturnType<typeof newMet
 
 const difficultyLabel = (d: number | null) => d === null ? 'difficulty unknown' : d <= 29 ? `easy (${d})` : d <= 49 ? `medium (${d})` : `hard (${d})`
 
-function pickTopics(b: BrandContext, d: SearchAgentData, ideas: KeywordIdea[], ranked: RankedKeyword[]): Topic[] {
+// Above this, an idea is a broad head term ("online advertising platform"): a small site can't win
+// it and Labs' difficulty for it is unreliable. Searches the site already ranks for are exempt.
+const MAX_IDEA_VOLUME = 20_000
+
+/** Claude keeps only the keywords a buyer of this brand would type. On failure, keeps them all. */
+async function relevantKeywords(b: BrandContext, keywords: string[]): Promise<Set<string>> {
+  if (!keywords.length) return new Set()
+  const raw = await callAI({
+    feature: 'search-agent',
+    model: 'claude-haiku-4-5-20251001',
+    maxTokens: 600,
+    system: 'You pick blog topics for a small business. Return only a raw JSON array of strings.',
+    prompt: `${brandBlock(b)}
+
+Google searches:
+${keywords.map(k => `- ${k}`).join('\n')}
+
+Return the searches, copied exactly, where the person searching could become a customer of ${b.name}: they want what ${b.name} offers, or a close alternative to it. Leave out searches that are too broad (a whole industry) or about something else (an agency, a job, a different kind of product). Return [] if none fit.`,
+  }).catch(() => null)
+  const picked = raw === null ? null : parseJsonLoose<unknown[]>(raw, 'array')
+  if (!Array.isArray(picked)) return new Set(keywords)
+  const wanted = new Set(picked.filter((x): x is string => typeof x === 'string').map(x => x.toLowerCase().trim()))
+  return new Set(keywords.filter(k => wanted.has(k.toLowerCase())))
+}
+
+async function pickTopics(b: BrandContext, d: SearchAgentData, ideas: KeywordIdea[], ranked: RankedKeyword[]): Promise<Topic[]> {
   const brandWords = [b.name.toLowerCase(), b.domain.split('.')[0]]
   const used = new Set(d.topics.map(t => t.keyword.toLowerCase()))
   const isBranded = (k: string) => brandWords.some(w => w.length > 2 && k.includes(w))
@@ -138,7 +163,7 @@ function pickTopics(b: BrandContext, d: SearchAgentData, ideas: KeywordIdea[], r
     })
   }
   for (const i of ideas) {
-    if (i.volume < 50 || i.difficulty === null || i.difficulty > 40 || isBranded(i.keyword)) continue
+    if (i.volume < 50 || i.volume > MAX_IDEA_VOLUME || i.difficulty === null || i.difficulty > 40 || isBranded(i.keyword)) continue
     cands.push({
       keyword: i.keyword, volume: i.volume, difficulty: i.difficulty, cpc: i.cpc,
       why: `${i.volume.toLocaleString('en-US')} searches a month, ${difficultyLabel(i.difficulty)}${i.intent === 'commercial' ? ', people comparing options' : ''}.`,
@@ -152,10 +177,14 @@ function pickTopics(b: BrandContext, d: SearchAgentData, ideas: KeywordIdea[], r
     return shared / Math.min(a.size, c.size) >= 0.75
   }
   const open = d.topics.filter(t => t.status === 'picked' || t.status === 'writing').length
+  if (open >= 3) return []
+  // The best 20 unused candidates go to Claude for a fit check
+  const short = cands.sort((x, y) => y.score - x.score).filter(c => !used.has(c.keyword.toLowerCase())).slice(0, 20)
+  const fits = await relevantKeywords(b, [...new Set(short.map(c => c.keyword))])
   const out: Topic[] = []
-  for (const c of cands.sort((x, y) => y.score - x.score)) {
-    if (out.length >= Math.max(0, 3 - open)) break
-    if (used.has(c.keyword.toLowerCase())) continue
+  for (const c of short) {
+    if (out.length >= 3 - open) break
+    if (!fits.has(c.keyword)) continue
     if ([...d.topics.map(t => t.keyword), ...out.map(t => t.keyword)].some(k => similar(k, c.keyword))) continue
     const { score: _score, ...topic } = c
     out.push(topic)
@@ -290,7 +319,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
     if (desc?.issue) p.set('describe', 'warn', { detail: 'Needs a fix', note: desc.issue })
     const rows = ranked ?? []
     const changes = ranked ? rankChanges(d.ranks, rows, d.topics) : d.rankChanges
-    const picks = pickTopics(b, d, ideas, rows)
+    const picks = await pickTopics(b, d, ideas, rows).catch(() => [] as Topic[])
     p.set('topics', 'done', picks.length ? { detail: `${picks.length} new`, items: picks.map(t => t.keyword) } : { detail: 'None new', note: 'Topics from earlier are still waiting to be written.' })
     const fresh = buildTasks(b, answers, changes, desc)
     const listings = fresh.filter(t => t.kind === 'listing').map(t => t.key.replace(/^listing:/, ''))

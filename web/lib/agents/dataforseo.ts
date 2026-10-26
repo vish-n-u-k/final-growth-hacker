@@ -118,7 +118,8 @@ const toIdeas = (items: IdeaItem[]): KeywordIdea[] => items
     keyword: i.keyword!,
     volume: i.keyword_info?.search_volume ?? 0,
     cpc: i.keyword_info?.cpc ?? null,
-    difficulty: i.keyword_properties?.keyword_difficulty ?? null,
+    // 0 means Labs has no data for it, not that it's easy
+    difficulty: i.keyword_properties?.keyword_difficulty || null,
     intent: i.search_intent_info?.main_intent ?? null,
   }))
 
