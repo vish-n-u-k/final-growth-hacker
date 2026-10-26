@@ -13,7 +13,7 @@ type Call = (op: string, payload?: Record<string, unknown>, busyKey?: string) =>
 const STEPS = ['Who gets it', 'The email', 'Review & approve']
 const label = (p: Person) => (p.first ? `${p.first}${p.company ? ` · ${p.company}` : ''}` : p.company || p.email)
 
-export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDays, notify, onClose }: {
+export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDays, notify, onClose, tool = 'Lead Agent', repliesIn = 'the Email tab' }: {
   call: Call
   busy: string | null
   gmail: boolean
@@ -21,6 +21,8 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
   followUpDays: number[]
   notify: (msg: string) => void
   onClose: () => void
+  tool?: string        // the page it sits in, for the way back (Lead Finder reuses it)
+  repliesIn?: string   // where replies show up on that page
 }) {
   const [step, setStep] = useState(1)
   const [name, setName] = useState('')
@@ -95,8 +97,8 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
   const side = <Side av="+" name={name.trim() || 'Your own list'}
     sub={<span>{step === 1 ? (unique ? `${unique} ${unique === 1 ? 'email' : 'emails'} so far` : 'No emails yet') : `${people.length} ${people.length === 1 ? 'person' : 'people'}`}</span>}
     whyLabel="How it goes out"
-    why={`From your Gmail, up to ${dailyLimit} a day. A short follow-up after ${followUpDays.join(' and ') || '3'} days if they don’t reply. It stops for anyone who replies, and their reply shows in the Email tab.`} />
-  const back = { label: 'Lead Agent', onClick: onClose }
+    why={`From your Gmail, up to ${dailyLimit} a day. A short follow-up after ${followUpDays.join(' and ') || '3'} days if they don’t reply. It stops for anyone who replies, and their reply shows in ${repliesIn}.`} />
+  const back = { label: tool, onClick: onClose }
   const flow = (title: string, hint: React.ReactNode, content: React.ReactNode, actions: React.ReactNode) =>
     <Flow back={back} crumb="Add your own emails" side={side} steps={STEPS} at={step} title={title} hint={hint} actions={actions} stepKey={`own:${step}`}>{content}</Flow>
 
@@ -124,7 +126,7 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
         </label>
         {fileErr && <div className="ro-error"><span>{fileErr}</span></div>}
         <p className="cl-muted own-count">
-          {unique ? <><b>{unique} {unique === 1 ? 'email' : 'emails'}</b> found. Anyone already emailed, already in the Lead Agent or who asked not to be emailed is skipped on the next step.</> : 'No emails yet.'}
+          {unique ? <><b>{unique} {unique === 1 ? 'email' : 'emails'}</b> found. Anyone already emailed, already in the {tool} or who asked not to be emailed is skipped on the next step.</> : 'No emails yet.'}
           {unique > MAX_LIST && <> Up to {MAX_LIST} people per list.</>}
         </p>
       </div>,

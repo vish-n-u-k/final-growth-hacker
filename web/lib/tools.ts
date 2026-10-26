@@ -20,6 +20,8 @@ export interface ToolGroup {
 export const TOOL_GROUPS: ToolGroup[] = [
   // Find people, then contact them: the two lead sources feed the same Gmail outreach
   { label: 'Get customers', items: [
+    { href: '/leads', label: 'Lead Finder', icon: 'people', pro: true, gmail: true,
+      desc: 'Finds people on Google Maps, in your competitors\' reviews and on Reddit, writes to them and follows up.' },
     { href: '/agents/leads', label: 'Lead Agent', icon: 'bot', pro: true, gmail: true,
       desc: 'Finds people who need what you sell every day, emails them and follows up.' },
     { href: '/lead-finder', label: 'Competitor Leads', icon: 'target', pro: true, gmail: true,

@@ -168,6 +168,18 @@ Gotchas:
    - "About this page" sits in every tool header that has an intro (and Today). Card text lives in `web/lib/page-info.ts`; each fact names its source.
    - The ~10 old spinners and 6 skeleton styles were replaced; "Loading…" texts now say what is happening.
 
+## 4b. New tool: Lead Finder (`/leads`)
+
+One board for every lead source, built from the approved preview `design-previews/tools-cleanup/lead-finder-visual.html` (https://claude.ai/artifact/W3fg6EZv63MUXyeLNnN5yA).
+
+- **Files:** `web/app/(shell)/leads/` (page + layout), `web/components/leads/LeadFinderHub.tsx` (the page), `web/components/leads/model.ts` (joins the two data sets), `lfh-*` block at the end of `globals.css`.
+- **No new API or tables.** Google Maps, Reddit, Hacker News and your own lists go through `/api/agents/lead` (Lead Agent data); competitor reviewers through `/api/lead-finder/step` and `/saved` (Competitor Leads data). The old Lead Agent and Competitor Leads pages still work and share the same data.
+- **Layout:** source buttons (All, Google Maps, each competitor, Reddit, Hacker News, Your list, +) → a panel for the picked source → board To do / Contacted / Replied → a drawer on the right per item. Finishing one opens the next.
+- A competitor's reviewers are merged across all its reads, so people already emailed or skipped stay that way after a re-read.
+- The big search button runs the Lead Agent search and re-reads competitors not read in the last 24 h.
+- Sidebar: first item under Get customers, icon `people`. Parked like the others (`/leads` in `lib/features.ts`), so only early-access users see it.
+- Not done yet: the competitor part has no demo mode (the switch only covers the Lead Agent part); replies to competitor emails aren't tracked on the board (they show in Email Outreach); there's no way to remove a competitor from the row.
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

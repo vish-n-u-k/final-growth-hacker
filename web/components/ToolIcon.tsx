@@ -10,6 +10,7 @@ const ICON: Record<string, JSX.Element> = {
   image: <><rect x="2.5" y="3.5" width="15" height="13" rx="2" /><circle cx="7" cy="8" r="1.4" /><path d="M4 14l3.5-3.5L10 13l3-3.5 3 3.5" /></>,
   megaphone: <><path d="M3 8v4h2.5L13 16V4L5.5 8H3Z" /><path d="M15.5 8.3a2.6 2.6 0 0 1 0 3.4" /></>,
   target: <><circle cx="10" cy="10" r="7" /><circle cx="10" cy="10" r="3.4" /></>,
+  people: <><circle cx="7.5" cy="7" r="2.8" /><path d="M2.5 16.5c.6-2.8 2.6-4.3 5-4.3s4.4 1.5 5 4.3" /><circle cx="14" cy="6.2" r="2.2" /><path d="M13.6 10.6c2 0 3.4 1.2 3.9 3.4" /></>,
   bell: <><path d="M6 7.5a4 4 0 0 1 8 0c0 3.5 1.2 4.7 1.5 5.3H4.5C4.8 12.2 6 11 6 7.5Z" /><path d="M8.3 15.5a1.8 1.8 0 0 0 3.4 0" /></>,
   chart: <path d="M3 16.5h14M5.8 16.5v-5M10 16.5v-9M14.2 16.5V4.5" />,
   logout: <><path d="M8 17.5H5a1.5 1.5 0 0 1-1.5-1.5V4A1.5 1.5 0 0 1 5 2.5h3" /><path d="M13 14l4-4-4-4M17 10H8" /></>,
