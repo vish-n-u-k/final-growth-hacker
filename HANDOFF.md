@@ -141,7 +141,7 @@ Gotchas:
 3. **Lead Agent:**
    - Competitor reviews removed as a source.
    - Each source is capped at 10 finds, so Reddit can't crowd out the others.
-   - Emails come from Hunter only (no scraping websites).
+   - Emails: from DataForSEO's listing, then the business's own contact pages (free), then Hunter.
    - Email / Community tabs, each with a To do / Waiting / Done filter.
 4. **Lead Agent "Add your own emails"** (`components/agents/OwnListFlow.tsx`, `lib/agents/own-list.ts` + `own-list-text.ts`, ops `list_check` / `list_draft` / `list_add`).
    - 3 steps: who gets it (paste or file, via `/api/outreach/parse-file`), the email (`{first name}` / `{company}` filled per person), review & approve all.
@@ -205,6 +205,11 @@ One board for every lead source, built from the approved preview `design-preview
   - `discoverCompanies` in `hunter.ts` uses filters only (keywords, `headcount`, `headquarters_location` = the country). Discover is free; its natural-language `query` is avoided because the free plan allows only 30 of those a month.
   - Companies Hunter has personal emails for come first. Each one's home-page title and description are read so Claude can score the fit. Then it's the usual flow: score, Hunter email (≤ 1 credit), draft, approve.
   - Demo stand-in: `demoDiscover` in `demo.ts`.
+- **Companies search, fourth version (27 Oct): free store facts and the AI's yes/no checks.**
+  - `web/lib/agents/site-facts.ts`: `storeFacts(domain)` reads Shopify's public `/products.json` (or WooCommerce's `/wp-json/wc/store/v1/products`) for what a store sells, how many products and days since the newest one; `contactEmail(domain)` finds an email the business lists on its home / contact / about pages (mailto or plain text, own domain first, junk addresses dropped); `inBatches` limits parallel fetches.
+  - Up to `COMPANY_CHECK` (30) sites per run are read (home page + store facts, 8 at a time). `NOT_A_FIT` still drops PR/B2B wording. The old `tradeMatch` word gate is no longer used for new finds (only for re-checking older To-do leads).
+  - `judgeCompanies` (one AI call for all companies) answers `trade`, `small`, `active`, `need` separately, plus `score` and `why`. A company failing any check can't be kept; the summary says how many failed each ("12 wrong trade, 5 too big…").
+  - Email order for every kept business: listed by DataForSEO → listed on its own pages (`contactEmail`, free) → Hunter (≤ `PER_SOURCE` credits per run).
 - **Companies search, third version (27 Oct): DataForSEO finds the websites, Hunter only finds emails.** Hunter Discover was removed (`discoverCompanies`, `demoDiscover` deleted): its keyword matches brought law firms and estate agents. `findCompanies` now asks DataForSEO's technology index for sites whose title/description has the trade words, on the picked platforms (or any platform when `platforms` is empty), then runs the same checks, scoring and Hunter email lookup. Log: `[lead-agent] DataForSEO websites (…): N back`. The notes below about Hunter Discover and the half-and-half mix are history.
 - **Companies search, second version (27 Oct):** `findCompanies` now has two halves, mixed half and half:
   - **Online stores** from DataForSEO's technology index (`storesByPlatform` in `dataforseo.ts`, `/domain_analytics/technologies/domains_by_technology/live`): sites in the country (or anywhere) running the platforms Claude picks in `companyFilters` (`platforms`: Shopify / WooCommerce / Wix / Squarespace, or none), a different page of 50 each day (wrapping round when past the end). The trade words go to DataForSEO as single-word `keywords`; with no match it searches the platforms alone. There is no rank filter in the request (most small shops have no rank, and `domain_rank < 300` cut the whole index down to ~200 sites); sites ranked 400+ are dropped afterwards. Each call logs `[dataforseo] stores …: N back of TOTAL`. Emails it lists are used without a Hunter lookup. Not tried against the real API yet: if the filter or field names are off, the run shows "Online stores: …" and the Hunter half still runs.
