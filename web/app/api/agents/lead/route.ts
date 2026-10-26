@@ -5,6 +5,7 @@ import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
 import { addLeadEmail, approveLead, demoSkipDays, leadFallback, runLeadAgent } from '@/lib/agents/lead-agent'
 import { readLeadData, updateLeadData, type LeadSettings } from '@/lib/agents/store'
+import { addOwnList, checkPeople, draftListEmail } from '@/lib/agents/own-list'
 import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
 import { clearSignals } from '@/lib/signals'
 
@@ -61,7 +62,9 @@ async function post(req: NextRequest) {
   const fallback = leadFallback(b)
   const body = await req.json().catch(() => ({})) as {
     op?: string; on?: boolean; id?: string; subject?: string; body?: string; reply?: string; email?: string; settings?: Partial<LeadSettings>
+    name?: string; about?: string; people?: { email: string; name?: string; text?: string }[]
   }
+  const people = Array.isArray(body.people) ? body.people.slice(0, 500).filter(p => p && typeof p.email === 'string') : []
 
   switch (body.op) {
     case 'demo': {
@@ -102,6 +105,22 @@ async function post(req: NextRequest) {
       }
       const message = [sent ? `${sent} sent` : null, queued ? `${queued} queued for tomorrow` : null, failed.length ? `${failed.length} failed: ${failed[0]}` : null].filter(Boolean).join(' · ')
       return NextResponse.json({ ok: !failed.length, message: message || 'Nothing to send.', data: await readLeadData(brandId) })
+    }
+    // "Add your own emails": who can be emailed, the one email for all, then approve all
+    case 'list_check': {
+      const d = (await readLeadData(brandId)) ?? fallback()
+      return NextResponse.json(await checkPeople(brandId, d, people))
+    }
+    case 'list_draft': {
+      const draft = await draftListEmail(brandId, typeof body.about === 'string' ? body.about : '')
+      return draft ? NextResponse.json({ draft }) : NextResponse.json({ error: 'Couldn’t write the email. Try again.' }, { status: 500 })
+    }
+    case 'list_add': {
+      const r = await addOwnList(brandId, {
+        name: typeof body.name === 'string' ? body.name : '', about: typeof body.about === 'string' ? body.about : undefined,
+        subject: typeof body.subject === 'string' ? body.subject : '', body: typeof body.body === 'string' ? body.body : '', people,
+      })
+      return NextResponse.json({ ...r, ...(r.ok ? {} : { error: r.message }), data: await readLeadData(brandId) }, { status: r.ok ? 200 : 400 })
     }
     case 'email': {
       const email = typeof body.email === 'string' ? body.email.trim().toLowerCase().slice(0, 200) : ''

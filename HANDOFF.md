@@ -27,7 +27,7 @@ What each tool does today:
 
 | Tool | What it does |
 |---|---|
-| **Lead Agent** | Two jobs, shown as two tabs. **Email**: finds businesses on Google Maps through DataForSEO, finds their email through Hunter, writes an email and you approve it. Follow-ups go out by themselves and stop when they reply. **Community**: finds Reddit and Hacker News posts asking for a tool like yours, writes a reply, and you post it yourself. It does **not** read competitor reviews any more; that is Competitor Leads' job. |
+| **Lead Agent** | Two jobs, shown as two tabs. **Email**: finds businesses on Google Maps through DataForSEO, finds their email through Hunter, writes an email and you approve it. Follow-ups go out by themselves and stop when they reply. **Add your own emails** (top of the Email tab): paste or upload your own people, one email written for all with first name and company filled in, approve all at once; sent within the daily limit with the same follow-ups. **Community**: finds Reddit and Hacker News posts asking for a tool like yours, writes a reply, and you post it yourself. It does **not** read competitor reviews any more; that is Competitor Leads' job. |
 | **Competitor Leads** | You pick a competitor. It reads their newest Trustpilot or Shopify App Store reviews, scores how well each unhappy reviewer fits, and you reach out in two steps (their email, then review & send). |
 | **Email Outreach** | Campaigns from your Gmail, as a list, each done in three steps: who gets it, write the emails, review & send. Recipients can be pasted or uploaded as a file (CSV, Excel, PDF, Word, text, .vcf). Also has follow-ups as cards, an Inbox limited to threads GrowJin sent (replies first, tagged by what they say), and a Done tab. |
 | **Search Agent** | Weekly research (DataForSEO plus AI answers), then a to-do list: posts to write (drafted for you), sites to pitch, and "other things to do". Those last ones are actionable: fix how AI describes you, get listed on G2 and similar, pitch article sites. Also Rankings and AI answers tabs. |
@@ -142,14 +142,19 @@ Gotchas:
    - Each source is capped at 10 finds, so Reddit can't crowd out the others.
    - Emails come from Hunter only (no scraping websites).
    - Email / Community tabs, each with a To do / Waiting / Done filter.
-4. **Demo mode switch** per brand. Demo data is stored apart from real data.
-5. **Paging:** every list longer than 8 pages at 8. Tables and short lists use "Show all".
-6. **Search Agent "other things to do"** are actionable:
+4. **Lead Agent "Add your own emails"** (`components/agents/OwnListFlow.tsx`, `lib/agents/own-list.ts` + `own-list-text.ts`, ops `list_check` / `list_draft` / `list_add`).
+   - 3 steps: who gets it (paste or file, via `/api/outreach/parse-file`), the email (`{first name}` / `{company}` filled per person), review & approve all.
+   - Skips repeats, people already in the Lead Agent, already emailed (`outreach_emails`) or opted out (`email_suppressions`). Up to 100 per list.
+   - Each person becomes a lead (`source: 'own'`, `listId`), queued; today's share sends at once, the rest with the daily run.
+   - The daily run now also runs for brands with daily search **off** if they have queued or sent leads: it checks replies, sends follow-ups and queued emails, but doesn't search.
+5. **Demo mode switch** per brand. Demo data is stored apart from real data.
+6. **Paging:** every list longer than 8 pages at 8. Tables and short lists use "Show all".
+7. **Search Agent "other things to do"** are actionable:
    - Fix-it wording
    - Directory listing + review request
    - Article sites turned into pitches
    - Reddit
-7. **Look matched to the module pages:**
+8. **Look matched to the module pages:**
    - Breadcrumb, 32px serif title, 14px line under it.
    - Module page width.
    - Eyebrow section labels, 14px card corners.

@@ -7,6 +7,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { useToast } from '@/components/email-outreach/shared'
 import { ActionBar, Card, DemoSwitch, Pager, usePages, Finished, Flow, ListTools, LiveProgress, Sec, Side, Src, Tabs, Tag } from '@/components/tool-ui'
 import { Day, fmtAgo, fmtDate, initials, useAgentApi } from './shared'
+import OwnListFlow from './OwnListFlow'
 
 // Lead Agent: finds people who need the product in two places, Reddit / Hacker News posts (a reply
 // to post yourself) and Google Maps businesses (an email to approve), and follows up until they
@@ -24,7 +25,7 @@ type Section = 'replied' | 'approve' | 'post'
 
 const COUNTRIES: [string, string][] = [['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
 const SOURCE: Record<Lead['source'], [string, 'orange' | 'amber' | undefined]> = {
-  review: ['Unhappy reviewer', undefined], local: ['Google Maps', 'amber'], reddit: ['Reddit', 'orange'], forum: ['Hacker News', 'orange'],
+  review: ['Unhappy reviewer', undefined], local: ['Google Maps', 'amber'], reddit: ['Reddit', 'orange'], forum: ['Hacker News', 'orange'], own: ['Your list', undefined],
 }
 const PROGRESS = ['Checking replies', 'Searching Google Maps', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies']
 
@@ -117,6 +118,9 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [reply, setReply] = useState('')
+  // "Add your own emails": the 3-step flow, and one of your lists opened
+  const [adding, setAdding] = useState(false)
+  const [listId, setListId] = useState<string | null>(null)
 
   const running = busy === 'run' || busy === 'demo_skip'
   // Nothing to fill in first: the first visit starts a search straight away
@@ -166,7 +170,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
       l.status === 'replied' ? <Tag tone={l.handledAt ? 'ok' : 'crit'}>{l.handledAt ? '✓ Answered' : `Replied${l.repliedAt ? ` ${fmtDate(l.repliedAt)}` : ''}`}</Tag>
       : l.status === 'needs_contact' ? <Tag tone="warn">Needs an email</Tag>
       : l.status === 'ready' ? <Tag>{l.reply ? 'Reply drafted' : 'Email drafted'}</Tag>
-      : l.status === 'queued' ? <Tag tone="warn">Approved · goes out tomorrow</Tag>
+      : l.status === 'queued' ? <Tag tone="warn">{l.source === 'own' ? 'Approved · waiting its turn' : 'Approved · goes out tomorrow'}</Tag>
       : l.status === 'sent' ? <Tag tone="ok">✓ Emailed {fmtDate(l.sentAt)}</Tag>
       : l.status === 'posted' ? <Tag tone="ok">✓ Posted</Tag>
       : l.status === 'opted_out' ? <Tag>Not interested</Tag>
@@ -181,8 +185,8 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     return (
       <Card key={l.id} av={isForum(l) ? (l.source === 'reddit' ? 'r/' : 'Y') : initials(nameOf(l))} square={isForum(l)}
         name={nameOf(l)}
-        sub={<><Src label={srcLabel} tone={tone} /><span>{isForum(l) ? where(l) : [l.company !== nameOf(l) ? l.company : null, l.website].filter(Boolean).join(' · ')}</span><span>found <Day iso={l.foundAt} /></span></>}
-        badge={<span className="cl-fitb cl-fitb--good">Fit {l.score}/10</span>}
+        sub={<><Src label={srcLabel} tone={tone} /><span>{isForum(l) ? where(l) : [l.company !== nameOf(l) ? l.company : null, l.website].filter(Boolean).join(' · ')}</span><span>{l.source === 'own' ? 'added' : 'found'} <Day iso={l.foundAt} /></span></>}
+        badge={l.source === 'own' ? undefined : <span className="cl-fitb cl-fitb--good">Fit {l.score}/10</span>}
         why={why} quote={quote} state={state}
         onSkip={t === 'needs' && l.status !== 'replied' ? () => skip(l) : undefined}
         action={<button type="button" className={`btn btn-sm ${t === 'needs' ? 'btn-primary cl-reach' : 'cl-btn-outline'}`} onClick={() => openLead(l)}>{label}</button>} />
@@ -199,7 +203,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
             <button key={k} type="button" aria-pressed={tab === k} onClick={() => { setTab(k); setQ('') }}>{label} <span>{byTab(k).length}</span></button>
           ))}
         </div>
-        <span className="cl-muted">{lane === 'email' ? 'Businesses on Google Maps. You approve every email.' : 'Posts on Reddit and Hacker News. You post every reply yourself.'}</span>
+        <span className="cl-muted">{lane === 'email' ? 'Businesses on Google Maps and your own lists. You approve every email.' : 'Posts on Reddit and Hacker News. You post every reply yourself.'}</span>
       </div>
       <ListTools q={q} setQ={setQ} shown={shown.length} total={all.length} onClear={() => setQ('')} />
     </>
@@ -244,7 +248,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
   function detail(l: Lead) {
     const [srcLabel, tone] = SOURCE[l.source]
     const side = <Side av={isForum(l) ? (l.source === 'reddit' ? 'r/' : 'Y') : initials(nameOf(l))} square={isForum(l)} name={nameOf(l)}
-      sub={<><Src label={srcLabel} tone={tone} /><a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See it ↗</a></>}
+      sub={<><Src label={srcLabel} tone={tone} />{l.url && <a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See it ↗</a>}</>}
       quote={l.snippet || undefined} why={l.why} />
     const back = { label: 'Lead Agent', onClick: () => setOpenId(null) }
     const next = leads.find(x => x.id !== l.id && tabOf(x) === 'needs' && laneOf(x) === laneOf(l))
@@ -257,7 +261,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     // Finished: what happened, a way back, and the next one
     if (tabOf(l) !== 'needs') {
       const [title, text, grey] =
-        l.status === 'queued' ? ['Approved', `You've reached today's limit of ${s.dailyLimit} emails, so it goes out tomorrow.`, false]
+        l.status === 'queued' ? ['Approved', l.source === 'own' ? `It goes out with your list, ${s.dailyLimit} emails a day.` : `You've reached today's limit of ${s.dailyLimit} emails, so it goes out tomorrow.`, false]
         : l.status === 'sent' ? [`Email sent to ${firstOf(l)}`, <>Sent {l.sentAt ? `on ${fmtDate(l.sentAt)} ` : ''}from your Gmail{l.email ? <> to <b>{l.email}</b></> : null}. {l.nextFollowUpAt ? `A follow-up goes out ${fmtDate(l.nextFollowUpAt)} if they don’t reply.` : 'All follow-ups are sent.'}</>, false]
         : l.status === 'posted' ? ['Marked as posted', 'Thanks. Keep an eye on the thread for answers.', false]
         : l.status === 'replied' ? ['Answered', l.replyNote ? `They said: “${l.replyNote}”` : 'You answered their reply.', false]
@@ -360,6 +364,58 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
       </>)
   }
 
+  // ── Your own lists ─────────────────────────────────────────────────────────
+
+  const lists = data.lists ?? []
+  const listStats = (id: string) => {
+    const ls = leads.filter(l => l.listId === id)
+    return {
+      ls,
+      sent: ls.filter(l => l.status !== 'queued' && l.status !== 'skipped').length,
+      replied: ls.filter(l => l.status === 'replied').length,
+    }
+  }
+  function ownBar() {
+    return (
+      <div className="own-bar">
+        <div className="own-bar-top">
+          <button type="button" className="btn cl-btn-outline own-add" onClick={() => { setAdding(true); window.scrollTo({ top: 0 }) }}>+ Add your own emails</button>
+          <span className="cl-muted">Paste or upload people you already know. They get one email, sent over a few days, with follow-ups.</span>
+        </div>
+        {lists.length > 0 && (
+          <div className="own-lists">
+            {lists.slice(0, 5).map(L => {
+              const st = listStats(L.id)
+              if (!st.ls.length) return null
+              return (
+                <button key={L.id} type="button" className="own-list" onClick={() => { setListId(L.id); window.scrollTo({ top: 0 }) }}>
+                  {st.replied > 0 && <span className="own-dot" aria-label="Someone replied" />}
+                  <b>{L.name}</b>
+                  <span>{st.sent} of {st.ls.length} sent{st.replied ? ` · ${st.replied} replied` : ''}</span>
+                  <span className="own-open">Open</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+  function listView(id: string) {
+    const L = lists.find(x => x.id === id)
+    const st = listStats(id)
+    return (
+      <div className="own-view">
+        <nav className="ro-crumbs" aria-label="Breadcrumb">
+          <button type="button" className="th-link tu-linkbtn" onClick={() => setListId(null)}>← Lead Agent</button>
+          <span aria-hidden="true">/</span><b className="tu-ellip">{L?.name ?? 'Your list'}</b>
+        </nav>
+        <p className="cl-muted own-view-sum">{st.sent} of {st.ls.length} sent{st.replied ? ` · ${st.replied} replied` : ''} · {s.dailyLimit} a day · follow-ups after {s.followUpDays.join(' and ') || '—'} days stop when they reply</p>
+        {st.ls.length ? st.ls.map(card) : <div className="tu-empty">Nobody left on this list.</div>}
+      </div>
+    )
+  }
+
   // ── Page ───────────────────────────────────────────────────────────────────
 
   const sources = [
@@ -382,11 +438,14 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
         actions={<DemoSwitch on={demo} forced={flags.demoForced} busy={!!busy} onChange={async on => {
           const r = await call('demo', { on }) as { demo?: boolean; data?: LeadAgentData } | null
           if (typeof r?.demo !== 'boolean') return
-          setDemo(r.demo); setOpenId(null); setTab('needs')
+          setDemo(r.demo); setOpenId(null); setTab('needs'); setAdding(false); setListId(null)
           // Never run in this mode yet (first time in demo): the first-visit search above starts it
         }} />}
       />
-      {open ? detail(open) : <>
+      {open ? detail(open) : adding ? (
+        <OwnListFlow call={call} busy={busy} gmail={gmail} dailyLimit={s.dailyLimit} followUpDays={s.followUpDays} notify={notify}
+          onClose={() => { setAdding(false); window.scrollTo({ top: 0 }) }} />
+      ) : listId ? listView(listId) : <>
         {!gmail && <div className="ag-note ag-note-warn">Connect Gmail so approved emails go out from your address. <a href="/api/gmail/connect">Connect Gmail</a></div>}
         {!flags.dataforseo && (s.sources.reddit || s.sources.local) && <div className="ag-note ag-note-warn">Reddit and Google Maps search need GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet. Hacker News and competitor reviews still work.</div>}
         {data.lastError && !running && <div className="ag-note ag-note-crit">The last search had a problem: {data.lastError}</div>}
@@ -405,6 +464,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
           { key: 'email', label: 'Email', count: inLane('email', 'needs').length, hot },
           { key: 'community', label: 'Community', count: inLane('community', 'needs').length },
         ]} />
+        {lane === 'email' && ownBar()}
         {list()}
       </>}
       {toast}

@@ -42,7 +42,8 @@ export interface LeadSettings {
   mode: 'approve' | 'auto'      // auto = send 8+ leads without asking once 20 were approved
 }
 
-export type LeadSource = 'reddit' | 'forum' | 'review' | 'local'
+// own = added by the user from their own list (Email tab, "Add your own emails")
+export type LeadSource = 'reddit' | 'forum' | 'review' | 'local' | 'own'
 export type LeadStatus =
   | 'ready'          // draft waiting for the user's OK
   | 'needs_contact'  // good fit, no email found
@@ -79,7 +80,17 @@ export interface Lead {
   replyIntent?: ReplyIntent
   repliedAt?: string
   handledAt?: string            // the user answered their reply (moves it to Done)
+  listId?: string               // source 'own': the list it was added with (OwnList.id)
   error?: string
+}
+
+/** A list of people the user added themselves: one email for all, approved at once, sent over days. */
+export interface OwnList {
+  id: string
+  name: string
+  createdAt: string
+  size: number
+  about?: string                // the one line the email was written from
 }
 
 export interface LeadAgentData {
@@ -88,6 +99,7 @@ export interface LeadAgentData {
   sentLog: string[]             // when first emails went out (daily limit)
   approvedCount: number         // first emails the user approved (auto mode unlocks at 20)
   rejected?: string[]           // ids of finds scored too low, so they aren't scored again
+  lists?: OwnList[]             // lists the user added (newest first)
   demo?: boolean                // made with demo data (lib/agents/demo.ts)
   queries?: { for: string; list: string[] }
   lastRunAt?: string
