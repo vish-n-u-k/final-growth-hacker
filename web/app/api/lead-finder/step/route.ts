@@ -75,8 +75,8 @@ export async function POST(req: NextRequest) {
         } else if (body.op === 'contact') {
           const scan = await loadScan(brand.brandId, review.scanId)
           const c = await findContact(scan?.platform ?? 'trustpilot', review.name)
-          if (c.hunterLookups) await addUsage(brand.brandId, { ...newMeter(), hunter: c.hunterLookups }, 'Competitor Leads').catch(() => {})
-          change = { website: c.website, email: c.email, verified: c.verified, contactChecked: true }
+          if (c.hunterCredits || c.hunterOut) await addUsage(brand.brandId, { ...newMeter(), hunter: c.hunterCredits, hunterOut: c.hunterOut }, 'Competitor Leads').catch(() => {})
+          change = { website: c.website, email: c.email, verified: c.verified, contactChecked: true, hunterOut: c.hunterOut }
         } else {
           const scan = await loadScan(brand.brandId, review.scanId)
           change = { draft: await draftEmail(brand, { name: review.name, platform: scan?.platform ?? 'trustpilot', painPoints: review.pains ?? [], fitReason: review.why ?? '' }) }

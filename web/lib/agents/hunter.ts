@@ -1,5 +1,7 @@
-// Hunter.io email lookups for the Lead Agent (GrowJin's key: HUNTER_API_KEY). One lookup per
-// call is added to the run's meter. Returns null when nothing usable is found.
+// Hunter.io email lookups (GrowJin's key: HUNTER_API_KEY). Hunter charges 1 credit per email it
+// returns and nothing for a miss, so every request asks for one email only: a Domain Search for 10
+// would cost up to 10 credits for the one we keep. The meter counts credits (emails returned).
+// When the credits are used up (HTTP 429) the meter is flagged and Hunter isn't asked again this run.
 
 import type { UsageMeter } from './store'
 import { agentsDemo, demoFindEmail } from './demo'
@@ -17,39 +19,49 @@ function splitName(name: string): { first: string; last: string } | null {
   return parts.length >= 2 && parts[1].length > 1 ? { first: parts[0], last: parts[parts.length - 1] } : null
 }
 
-/** Best email at a company domain: the named person if we know them, else its best personal (or generic) address. */
+type E = { value?: string | null; email?: string | null; type?: string; confidence?: number; score?: number; first_name?: string | null; last_name?: string | null; position?: string | null; verification?: { status?: string } | null }
+
+/** One Hunter request. null on a miss or an error; flags the meter when the credits are used up. */
+async function ask(path: string, params: Record<string, string>, meter?: UsageMeter): Promise<E | null> {
+  if (meter?.hunterOut) return null
+  const url = `${BASE}/${path}?${new URLSearchParams({ ...params, api_key: process.env.HUNTER_API_KEY! })}`
+  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) }).catch(() => null)
+  if (res?.status === 429) {
+    if (meter) meter.hunterOut = true
+    console.error('[hunter] usage limit reached: no credits left this period')
+    return null
+  }
+  if (!res?.ok) return null
+  const j = await res.json().catch(() => null) as { data?: E & { emails?: E[] } } | null
+  const e = path === 'domain-search' ? j?.data?.emails?.[0] : j?.data
+  const email = e?.value ?? e?.email
+  if (!e || !email) return null
+  if (meter) meter.hunter += 1
+  return { ...e, value: email }
+}
+
+const toFound = (e: E, name?: string): FoundEmail => ({
+  email: e.value!,
+  verified: e.verification?.status === 'valid' || (e.confidence ?? e.score ?? 0) >= 90,
+  name: name ?? ([e.first_name, e.last_name].filter(Boolean).join(' ') || undefined),
+  position: e.position ?? undefined,
+})
+
+/** Best email at a company domain: the named person if we know them, else an owner or marketing
+ *  person, else whatever single address Hunter ranks first. Costs at most 1 credit. */
 export async function findEmail(domain: string, personName: string | undefined, meter?: UsageMeter): Promise<FoundEmail | null> {
   if (!hunterConfigured() || !domain) return null
   if (agentsDemo()) return demoFindEmail(domain, personName)
-  const key = process.env.HUNTER_API_KEY!
   const host = domain.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]
 
   const person = personName ? splitName(personName) : null
   if (person) {
-    if (meter) meter.hunter += 1
-    const url = `${BASE}/email-finder?${new URLSearchParams({ domain: host, first_name: person.first, last_name: person.last, api_key: key })}`
-    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) }).catch(() => null)
-    if (res?.ok) {
-      const j = await res.json() as { data?: { email?: string | null; score?: number; position?: string | null; verification?: { status?: string } } }
-      const d = j.data
-      if (d?.email) return { email: d.email, verified: d.verification?.status === 'valid' || (d.score ?? 0) >= 90, name: personName, position: d.position ?? undefined }
-    }
+    const e = await ask('email-finder', { domain: host, first_name: person.first, last_name: person.last }, meter)
+    if (e) return toFound(e, personName)
   }
-
-  if (meter) meter.hunter += 1
-  const url = `${BASE}/domain-search?${new URLSearchParams({ domain: host, limit: '10', api_key: key })}`
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) }).catch(() => null)
-  if (!res?.ok) return null
-  type E = { value?: string; type?: string; confidence?: number; first_name?: string | null; last_name?: string | null; position?: string | null; verification?: { status?: string } | null }
-  const j = await res.json() as { data?: { emails?: E[] } }
-  const emails = (j.data?.emails ?? []).filter(e => e.value)
-  // Owners, founders and marketing people first; then the most confident personal address; then generic
-  const rank = (e: E) =>
-    (e.type === 'personal' ? 100 : 0)
-    + (/(founder|owner|ceo|director|marketing|head)/i.test(e.position ?? '') ? 50 : 0)
-    + (e.confidence ?? 0) / 10
-  const best = emails.sort((a, b) => rank(b) - rank(a))[0]
-  if (!best) return null
-  const name = [best.first_name, best.last_name].filter(Boolean).join(' ') || undefined
-  return { email: best.value!, verified: best.verification?.status === 'valid' || (best.confidence ?? 0) >= 90, name, position: best.position ?? undefined }
+  // The people worth writing to first; a miss is free, so then ask for anyone
+  const lead = await ask('domain-search', { domain: host, limit: '1', type: 'personal', department: 'executive,management,marketing' }, meter)
+  if (lead) return toFound(lead)
+  const any = await ask('domain-search', { domain: host, limit: '1' }, meter)
+  return any ? toFound(any) : null
 }

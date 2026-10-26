@@ -134,7 +134,7 @@ export default function AgentsOverview({ search, lead, approvals, funnel, usage,
           <h2>Data used this month</h2>
           <div className="ag-list">
             <div className="ag-item"><div className="ag-item-main"><div className="ag-item-title">Google and AI data (DataForSEO)</div></div><span>${usage.dataforseoUsd.toFixed(2)}</span></div>
-            <div className="ag-item"><div className="ag-item-main"><div className="ag-item-title">Email lookups (Hunter)</div></div><span>{usage.hunterLookups}</span></div>
+            <div className="ag-item"><div className="ag-item-main"><div className="ag-item-title">Hunter credits{usage.hunterOut ? ' · used up' : ''}</div></div><span>{usage.hunterCredits}</span></div>
             <div className="ag-item"><div className="ag-item-main"><div className="ag-item-title">AI writing and scoring</div></div><span>${usage.aiUsd.toFixed(2)}</span></div>
           </div>
         </section>

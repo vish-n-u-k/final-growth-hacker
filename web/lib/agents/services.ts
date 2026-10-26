@@ -60,12 +60,13 @@ export async function serviceStatus(): Promise<ServiceStatus> {
   return { demo: agentsDemo(), dataforseo: d, hunter: h }
 }
 
-/** "data $0.123 · 4 email lookups" for a run's summary (nothing in demo mode or when free). */
-export function costNote(meter: { dataforseo: number; hunter: number }): string | null {
+/** "data $0.123, 4 Hunter credits" for a run's summary (nothing in demo mode or when free). */
+export function costNote(meter: { dataforseo: number; hunter: number; hunterOut?: boolean }): string | null {
   if (agentsDemo()) return null
   const parts = [
     meter.dataforseo > 0 ? `data $${meter.dataforseo.toFixed(3)}` : null,
-    meter.hunter > 0 ? `${meter.hunter} email lookup${meter.hunter === 1 ? '' : 's'}` : null,
+    meter.hunter > 0 ? `${meter.hunter} Hunter credit${meter.hunter === 1 ? '' : 's'}` : null,
+    meter.hunterOut ? 'Hunter credits used up' : null,
   ].filter(Boolean)
   return parts.length ? parts.join(', ') : null
 }

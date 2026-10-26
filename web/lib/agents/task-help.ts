@@ -7,7 +7,7 @@
 import { callAI, withAIContext } from '@/lib/ai/client'
 import { findEmail, hunterConfigured } from './hunter'
 import { brandBlock, idOf, loadBrandContext, parseJsonLoose } from './context'
-import { readSearchData, updateSearchData, type LinkOpportunity } from './store'
+import { addUsage, newMeter, readSearchData, updateSearchData, type LinkOpportunity } from './store'
 import { searchFallback } from './search-agent'
 import { listingDomain } from './task-kinds'
 
@@ -77,7 +77,9 @@ Return {"subject":"...","body":"..."}`,
     const x = parseJsonLoose<{ subject?: string; body?: string }>(raw, 'object')
     return x?.subject && x.body ? { subject: x.subject.trim(), body: x.body.trim() } : undefined
   })
-  const found = hunterConfigured() ? await findEmail(dom, undefined).catch(() => null) : null
+  const meter = newMeter()
+  const found = hunterConfigured() ? await findEmail(dom, undefined, meter).catch(() => null) : null
+  await addUsage(brandId, meter, 'Search Agent').catch(() => {})
   const link: LinkOpportunity = {
     id, domain: dom, source: 'list', url: t.url || `https://${dom}`, title: example || dom,
     authority: null, names: [], why: `AI answers keep citing ${dom}, in answers that don't mention ${b.name}.`,

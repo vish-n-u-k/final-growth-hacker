@@ -318,10 +318,11 @@ export async function updateSearchData(brandId: string, fallback: () => SearchAg
 }
 
 // ── Usage (what the agents spent on data, per month) ──────────────────────────
-// One document per brand: a month's DataForSEO dollars and Hunter lookups, split by tool and by
+// One document per brand: a month's DataForSEO dollars and Hunter credits, split by tool and by
 // DataForSEO API. The last 12 months are kept, so Settings can show the history.
 
-export interface UsageMeter { dataforseo: number; hunter: number; apis: Record<string, number> }
+// hunter = Hunter credits used (emails returned); hunterOut = Hunter said the credits are used up
+export interface UsageMeter { dataforseo: number; hunter: number; apis: Record<string, number>; hunterOut?: boolean }
 export const newMeter = (): UsageMeter => ({ dataforseo: 0, hunter: 0, apis: {} })
 
 export type UsageTool = 'Lead Agent' | 'Search Agent' | 'Competitor Leads'
@@ -330,6 +331,7 @@ export interface UsageMonth {
   hunter: number
   tools: Record<string, { dataforseo: number; hunter: number }>
   apis: Record<string, number>   // DataForSEO dollars per API ("Google Maps businesses", …)
+  hunterOutAt?: string | null    // when Hunter last said its credits were used up (cleared once it finds emails again)
 }
 interface UsageDoc { months?: Record<string, UsageMonth>; month?: string; dataforseo?: number; hunter?: number }
 const thisMonth = () => new Date().toISOString().slice(0, 7)
@@ -344,7 +346,7 @@ function monthsOf(doc: UsageDoc | null): Record<string, UsageMonth> {
 }
 
 export async function addUsage(brandId: string, m: UsageMeter, tool: UsageTool) {
-  if (!m.dataforseo && !m.hunter) return
+  if (!m.dataforseo && !m.hunter && !m.hunterOut) return
   const months = monthsOf(await getSnapshot<UsageDoc>(brandId, USAGE_KEY))
   const key = thisMonth()
   const cur = months[key] ?? { dataforseo: 0, hunter: 0, tools: {}, apis: {} }
@@ -356,12 +358,14 @@ export async function addUsage(brandId: string, m: UsageMeter, tool: UsageTool) 
   const placed = Object.values(m.apis).reduce((a, b) => a + b, 0)
   const apis = { ...m.apis, ...(m.dataforseo - placed > 0.00005 ? { Other: m.dataforseo - placed } : {}) }
   for (const [api, usd] of Object.entries(apis)) cur.apis[api] = round4((cur.apis[api] ?? 0) + usd)
+  if (m.hunterOut) cur.hunterOutAt = new Date().toISOString()
+  else if (m.hunter > 0) cur.hunterOutAt = null
   months[key] = cur
   const kept = Object.fromEntries(Object.entries(months).sort(([a], [b]) => b.localeCompare(a)).slice(0, 12))
   await saveSnapshot(brandId, USAGE_KEY, { months: kept })
 }
 
-export interface AgentUsage { dataforseoUsd: number; hunterLookups: number; aiUsd: number }
+export interface AgentUsage { dataforseoUsd: number; hunterCredits: number; hunterOut: boolean; aiUsd: number }
 
 export async function readUsage(brandId: string): Promise<AgentUsage> {
   const monthStart = new Date(`${thisMonth()}-01T00:00:00Z`)
@@ -372,7 +376,13 @@ export async function readUsage(brandId: string): Promise<AgentUsage> {
       .catch(() => [{ usd: 0 }]),
   ])
   const cur = monthsOf(doc)[thisMonth()]
-  return { dataforseoUsd: cur?.dataforseo ?? 0, hunterLookups: cur?.hunter ?? 0, aiUsd: Number(ai[0]?.usd ?? 0) }
+  return { dataforseoUsd: cur?.dataforseo ?? 0, hunterCredits: cur?.hunter ?? 0, hunterOut: !!cur?.hunterOutAt, aiUsd: Number(ai[0]?.usd ?? 0) }
+}
+
+/** Hunter said its credits were used up this month, and hasn't found an email since. */
+export async function hunterOutThisMonth(brandId: string): Promise<boolean> {
+  const doc = await getSnapshot<UsageDoc>(brandId, USAGE_KEY).catch(() => null)
+  return !!monthsOf(doc)[thisMonth()]?.hunterOutAt
 }
 
 /** Everything this account spent, for Settings → Usage: data per month plus AI per month and feature. */

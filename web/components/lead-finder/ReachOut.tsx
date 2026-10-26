@@ -167,7 +167,7 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
           <span className="ro-found-ic" aria-hidden="true">?</span>
           <div>
             <b>No public email found</b>
-            <span>{scan?.platform !== 'shopify' ? 'Trustpilot reviewers are often people, not businesses. ' : ''}If you know it, from their {r.reviewUrl ? <a className="th-link" href={r.reviewUrl} target="_blank" rel="noopener noreferrer">review ↗</a> : 'review'}{r.website ? <> or <a className="th-link" href={r.website} target="_blank" rel="noopener noreferrer">website ↗</a></> : null}, paste it below.</span>
+            <span>{r.hunterOut ? 'Hunter’s email credits are used up for now, so only their website was checked. ' : scan?.platform !== 'shopify' ? 'Trustpilot reviewers are often people, not businesses. ' : ''}If you know it, from their {r.reviewUrl ? <a className="th-link" href={r.reviewUrl} target="_blank" rel="noopener noreferrer">review ↗</a> : 'review'}{r.website ? <> or <a className="th-link" href={r.website} target="_blank" rel="noopener noreferrer">website ↗</a></> : null}, paste it below.</span>
           </div>
         </div>
       )}

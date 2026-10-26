@@ -209,21 +209,21 @@ async function shopifyStoreDomain(store: string): Promise<string | null> {
   return (host ?? `${s}.myshopify.com`).replace(/^www\./, '')
 }
 
-export interface Contact { website: string | null; email: string | null; verified: boolean; via: 'hunter' | 'website' | null; hunterLookups: number }
+export interface Contact { website: string | null; email: string | null; verified: boolean; via: 'hunter' | 'website' | null; hunterCredits: number; hunterOut: boolean }
 
 export async function findContact(platform: Platform, name: string): Promise<Contact> {
   // Trustpilot reviewers are people, not stores: their website isn't known
   const domain = platform === 'shopify' ? await shopifyStoreDomain(name) : null
-  if (!domain) return { website: null, email: null, verified: false, via: null, hunterLookups: 0 }
+  if (!domain) return { website: null, email: null, verified: false, via: null, hunterCredits: 0, hunterOut: false }
   const website = `https://${domain}`
   // Hunter only for real: in the agents' demo mode it makes emails up, and this tool has no demo
+  const meter = newMeter()
   if (!domain.endsWith('myshopify.com') && hunterConfigured() && !agentsDemo()) {
-    const meter = newMeter()
     const h = await findEmail(domain, undefined, meter).catch(() => null)
-    if (h) return { website, email: h.email, verified: h.verified, via: 'hunter', hunterLookups: meter.hunter }
+    if (h) return { website, email: h.email, verified: h.verified, via: 'hunter', hunterCredits: meter.hunter, hunterOut: false }
   }
   const site = await emailFromWebsite(domain).catch(() => null)
-  return { website, email: site, verified: false, via: site ? 'website' : null, hunterLookups: 0 }
+  return { website, email: site, verified: false, via: site ? 'website' : null, hunterCredits: 0, hunterOut: !!meter.hunterOut }
 }
 
 // ── Step 5: a short personal email ────────────────────────────────────────────
