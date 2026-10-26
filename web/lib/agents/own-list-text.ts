@@ -7,7 +7,8 @@ export interface Skipped { email: string; why: string }
 
 export const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const GENERIC = /^(hello|hi|hey|info|contact|team|sales|support|admin|office|mail|enquiries|enquiry|help|booking|bookings|orders|hr|jobs|careers|marketing|accounts|billing|noreply|no-reply)$/i
-const FREE = /^(gmail|googlemail|yahoo|ymail|outlook|hotmail|live|msn|icloud|me|mac|aol|proton|protonmail|pm|gmx|zoho|yandex|rediffmail)\./i
+// Personal mailboxes (no company in the address): the company is left out and the email says "your business"
+const FREE = /^(gmail|googlemail|yahoo|ymail|rocketmail|outlook|hotmail|live|msn|windowslive|icloud|me|mac|aol|proton|protonmail|pm|tuta|tutanota|gmx|web|zoho|yandex|mail|email|inbox|fastmail|hey|duck|mailbox|posteo|rediffmail|rediff|sify|qq|163|126|naver|daum|comcast|verizon|att|sbcglobal|bellsouth|cox|charter|btinternet|sky|virginmedia|orange|wanadoo|free|laposte|libero|t-online|freenet|bigpond|optusnet|shaw|rogers|sympatico|telus|seznam|wp|o2|interia|onet|example|test|yopmail|mailinator|guerrillamail)\./i
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
 
 /** First name and company for an address: the name given in the file, else guessed from the email. */

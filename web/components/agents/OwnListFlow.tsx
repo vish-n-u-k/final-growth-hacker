@@ -33,6 +33,8 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [who, setWho] = useState(0)
+  // Step 2's email box: the email you edit, or one person's copy with their name filled in
+  const [view, setView] = useState<'edit' | 'preview'>('edit')
   const [openEmail, setOpenEmail] = useState<string | null>(null)
   const [edits, setEdits] = useState<Record<string, string>>({})
 
@@ -73,7 +75,7 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
 
   async function write() {
     const r = await call('list_draft', { about }, 'list_draft') as { draft?: { subject: string; body: string } } | null
-    if (r?.draft) { setSubject(r.draft.subject); setBody(r.draft.body); setEdits({}) }
+    if (r?.draft) { setSubject(r.draft.subject); setBody(r.draft.body); setEdits({}); setView('edit') }
   }
 
   async function approve() {
@@ -135,7 +137,7 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
   }
 
   if (step === 2) {
-    const p = people[Math.min(who, people.length - 1)]
+    const p = people.length ? people[who % people.length] : undefined
     return flow('What’s the email about?', 'One line is enough. GrowJin writes one email and puts in each person’s first name and company.',
       <div className="tu-stack">
         {skipped.length > 0 && (
@@ -147,21 +149,27 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
         </form>
         {writing && <div className="ro-working"><Spinner /><span>Writing the email…</span><i /></div>}
         {drafted && !writing && <>
-          <div className="ro-mail">
-            <label className="ro-mail-row"><span>Subject</span><input value={subject} onChange={e => setSubject(e.target.value)} /></label>
-            <textarea className="ro-mail-body" aria-label="Email" rows={9} value={body} onChange={e => setBody(e.target.value)} />
-            <div className="ro-mail-tools"><span className="cl-muted">{'{first name}'} and {'{company}'} are filled in for each person. With no name, it starts with “Hi,”.</span></div>
-          </div>
-          {p && (
-            <div className="own-prev">
-              <div className="cl-seg" role="group" aria-label="Preview for">
-                {people.slice(0, 3).map((q, i) => (
-                  <button key={q.email} type="button" aria-pressed={q === p} onClick={() => setWho(i)}>{q.first || q.email}</button>
-                ))}
+          <div className="ro-mail own-mail">
+            <div className="own-mail-top">
+              <div className="cl-seg" role="group" aria-label="Email">
+                <button type="button" aria-pressed={view === 'edit'} onClick={() => setView('edit')}>Edit</button>
+                <button type="button" aria-pressed={view === 'preview'} disabled={!p} onClick={() => setView('preview')}>Preview{p ? ` as ${p.first || p.company || p.email}` : ''}</button>
               </div>
-              <div className="own-prev-b"><b>{fillFor(subject, p)}</b>{fillFor(body, p)}</div>
+              {view === 'preview' && people.length > 1 && (
+                <button type="button" className="th-link tu-linkbtn" onClick={() => setWho(w => (w + 1) % people.length)}>Next person ({who % people.length + 1} of {people.length}) →</button>
+              )}
             </div>
-          )}
+            {view === 'edit' || !p ? <>
+              <label className="ro-mail-row"><span>Subject</span><input value={subject} onChange={e => setSubject(e.target.value)} /></label>
+              <textarea className="ro-mail-body" aria-label="Email" rows={9} value={body} onChange={e => setBody(e.target.value)} />
+              <div className="ro-mail-tools"><span className="cl-muted">{'{first name}'} and {'{company}'} are filled in for each person. With no name, it starts with “Hi,”.</span></div>
+            </> : <>
+              <div className="ro-mail-row"><span>To</span><span className="own-to">{p.email}</span></div>
+              <div className="ro-mail-row"><span>Subject</span><b className="own-to">{fillFor(subject, p)}</b></div>
+              <div className="own-prev-b">{fillFor(body, p)}</div>
+              <div className="ro-mail-tools"><span className="cl-muted">This is what {p.first || 'they'} will get. Switch to Edit to change it for everyone.</span></div>
+            </>}
+          </div>
         </>}
       </div>,
       <>

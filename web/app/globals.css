@@ -9104,8 +9104,6 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .own-raw:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 14%, transparent); }
 .own-count, .own-skips { margin: 0; font-size: 13.5px; }
 .own-count b { color: var(--text); }
-.own-prev { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.own-prev .cl-seg { margin: 8px; }
 .own-prev-b { padding: 12px 16px 16px; border-top: 1px solid var(--line); font-size: 14.5px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 .own-prev-b b { display: block; margin-bottom: 8px; }
 .own-sum { padding: 16px 18px; border-radius: 14px; border: 1px solid var(--line); font-size: 14.5px; }
@@ -9124,3 +9122,7 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
   .own-list { flex-wrap: wrap; row-gap: 2px; }
   .own-list b { flex-basis: calc(100% - 60px); }
 }
+.own-mail-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--bg-soft); }
+.own-mail-top .cl-seg { margin: 0; background: var(--card); }
+.own-mail .own-prev-b { border-top: 0; }
+.own-to { min-width: 0; overflow-wrap: anywhere; color: var(--text); font-size: 14px; width: auto !important; }
