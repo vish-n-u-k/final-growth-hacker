@@ -1,0 +1,424 @@
+<title>Lead Agent Own List</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: the app frame (sidebar + one quiet column). One green button per screen = the next step. */
+  :root {
+    --bg: #ffffff; --soft: #f3f5f3; --line: #e3e7e3; --text: #16201a; --dim: #4f5c53; --faint: #86918a;
+    --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --red: #b42318; --red-soft: #fdeceb;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; color-scheme: dark }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--body); }
+  button, input, textarea { font: inherit; color: inherit; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+  /* App frame */
+  .frame { display: flex; min-height: 100vh; }
+  .side { width: 232px; flex: none; background: var(--soft); border-right: 1px solid var(--line); padding: 18px 12px; font-size: 13.5px; }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 4px 8px 20px; font: 600 16px var(--display); }
+  .grp { margin-bottom: 18px; }
+  .gl { padding: 0 10px 6px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .nav { display: block; padding: 7px 10px; border-radius: 8px; color: var(--dim); text-decoration: none; }
+  .nav.on { background: var(--green-soft); color: var(--green-ink); font-weight: 600; }
+  .main { flex: 1; min-width: 0; }
+  .page { max-width: 880px; padding-block: 28px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); margin: 0 auto; }
+  .mbar { display: none; }
+  @media (max-width: 760px) {
+    .side { display: none; }
+    .mbar { display: flex; align-items: center; gap: 9px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--soft); font: 600 15px var(--display); }
+    .page { padding-block: 18px 56px; }
+  }
+
+  /* Header: the name, and one grey line. Nothing else competes. */
+  .crumbs { font-size: 13px; color: var(--faint); margin-bottom: 18px; }
+  h1 { margin: 0; font: 600 32px/1.15 var(--display); letter-spacing: -.01em; }
+  .line { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 14px; color: var(--faint); }
+  .link { border: 0; background: none; padding: 0; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; }
+  .link:hover { color: var(--text); text-decoration-color: currentColor; }
+
+  /* Tabs: one level only */
+  .tabs { display: flex; gap: 4px; margin: 28px 0 22px; border-bottom: 1px solid var(--line); }
+  .tab { padding: 10px 14px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; font-size: 15px; color: var(--faint); cursor: pointer; }
+  .tab[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--text); }
+  .tab .n { margin-left: 6px; font-size: 13px; color: var(--faint); font-weight: 500; }
+
+  /* Start here: the only highlighted thing on the page */
+  .next { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px 22px; border-radius: 14px; background: var(--green-soft); }
+  .next-text { flex: 1 1 260px; min-width: 0; }
+  .next-text b { display: block; font-size: 17px; font-weight: 600; }
+  .next-text span { color: var(--dim); font-size: 14px; }
+  .next.reply { background: var(--red-soft); }
+  .btn { height: 42px; padding: 0 20px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn.go { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.go:hover { filter: brightness(1.06); }
+  .btn.quiet { border-color: transparent; background: none; color: var(--dim); padding: 0 12px; }
+  .btn.quiet:hover { color: var(--text); }
+
+  /* The rest of the list: quiet rows, no badges */
+  .rest { margin-top: 26px; }
+  .rest-h { margin: 0 0 6px; font-size: 13px; color: var(--faint); }
+  .row { display: flex; align-items: center; gap: 14px; padding: 14px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .row:hover .row-name { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .row-main { flex: 1; min-width: 0; }
+  .row-name { font-weight: 600; }
+  .row-why { color: var(--dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-go { color: var(--faint); font-size: 14px; white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
+  .more { margin-top: 18px; font-size: 14px; color: var(--faint); }
+  .empty { padding: 36px 22px; border-radius: 14px; background: var(--soft); text-align: center; }
+  .empty b { display: block; font-size: 17px; margin-bottom: 4px; }
+  .empty p { margin: 0 0 16px; color: var(--dim); }
+
+  /* One lead opened: what to know on the left, the step on the right */
+  .back { margin-bottom: 20px; }
+  .open { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 32px; align-items: start; }
+  .who h2 { margin: 0 0 4px; font: 600 22px/1.25 var(--display); }
+  .who .src { font-size: 13px; color: var(--faint); }
+  .who .why { margin: 16px 0 0; font-size: 14.5px; }
+  .who blockquote { margin: 14px 0 0; padding-left: 12px; border-left: 2px solid var(--line); color: var(--dim); font-size: 14px; }
+  .step-of { font-size: 13px; color: var(--faint); margin-bottom: 6px; }
+  .step h3 { margin: 0 0 6px; font: 600 24px/1.25 var(--display); }
+  .step .hint { margin: 0 0 18px; color: var(--dim); font-size: 14px; }
+  .field { display: grid; gap: 6px; font-size: 13px; color: var(--dim); }
+  .field input { height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 15px; }
+  .found { margin-bottom: 14px; font-size: 14px; color: var(--dim); }
+  .found b { color: var(--text); }
+  .mail { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .mail label { display: flex; gap: 12px; align-items: center; padding: 0 14px; min-height: 44px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .mail label span { width: 56px; color: var(--faint); }
+  .mail input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 14.5px; }
+  .mail textarea { display: block; width: 100%; min-height: 200px; padding: 14px; border: 0; background: none; resize: vertical; outline: none; font-size: 14.5px; line-height: 1.65; }
+  .acts { display: flex; align-items: center; gap: 8px; margin-top: 22px; }
+  .acts .btn.go { margin-left: auto; }
+  .note { margin-top: 10px; font-size: 13px; color: var(--faint); }
+  .copyrow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  @media (max-width: 760px) { .open { grid-template-columns: 1fr; gap: 20px; } }
+
+  /* Settings: a quiet panel, only when asked for */
+  .sheet { margin-top: 18px; padding: 20px 22px; border: 1px solid var(--line); border-radius: 14px; }
+  .sheet h3 { margin: 0 0 14px; font-size: 16px; }
+  .opt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; font-size: 14.5px; }
+  .opt input[type="checkbox"] { margin-top: 4px; accent-color: var(--green); }
+  .opt small { display: block; color: var(--faint); font-size: 13px; }
+  .sheet .field { margin-top: 10px; }
+  .status { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 14px; color: var(--dim); }
+
+  .toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); padding: 10px 16px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 14px; z-index: 20; }
+  .toast button { margin-left: 10px; border: 0; background: none; color: var(--bg); font-weight: 600; text-decoration: underline; cursor: pointer; }
+  @media (prefers-reduced-motion: no-preference) { .row, .btn { transition: background .15s, color .15s; } }
+
+  /* Your own list: a 3-step flow, same quiet look */
+  .flow { max-width: 680px; }
+  .steps { display: flex; gap: 6px; margin: 4px 0 22px; padding: 0; list-style: none; font-size: 13px; color: var(--faint); flex-wrap: wrap; }
+  .steps li { display: flex; align-items: center; gap: 6px; }
+  .steps li + li::before { content: "›"; color: var(--line); margin-right: 2px; }
+  .steps li.on { color: var(--text); font-weight: 600; }
+  .steps li.did { color: var(--dim); }
+  .stack { display: grid; gap: 16px; }
+  .field textarea { min-height: 150px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 14.5px; line-height: 1.6; resize: vertical; }
+  .field .sub { color: var(--faint); }
+  .drop { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 10px; font-size: 14px; color: var(--dim); }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .drop label.btn { display: inline-flex; align-items: center; height: 36px; }
+  .count { font-size: 14px; color: var(--dim); }
+  .count b { color: var(--text); }
+  .count .skips { display: block; margin-top: 2px; color: var(--faint); font-size: 13px; }
+  .tip { font-size: 13px; color: var(--faint); }
+  .prev { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .prev-h { display: flex; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); background: var(--soft); flex-wrap: wrap; }
+  .chip { height: 30px; padding: 0 12px; border-radius: 8px; border: 0; background: none; font-size: 13px; color: var(--dim); cursor: pointer; }
+  .chip[aria-pressed="true"] { background: var(--bg); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+  .prev-b { padding: 14px 16px; font-size: 14.5px; white-space: pre-wrap; line-height: 1.65; }
+  .prev-b .s { display: block; font-weight: 600; margin-bottom: 10px; }
+  .sum { padding: 18px 20px; border-radius: 14px; background: var(--soft); font-size: 14.5px; }
+  .sum b { display: block; font-size: 17px; margin-bottom: 6px; }
+  .sum ul { margin: 0; padding-left: 18px; color: var(--dim); display: grid; gap: 2px; }
+  .ppl { margin-top: 18px; }
+  .pp { border-bottom: 1px solid var(--line); }
+  .pp-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; cursor: pointer; }
+  .pp-row .row-main { min-width: 0; }
+  .pp-open { padding: 0 4px 14px; }
+  .pp-open .prev-b { padding: 12px 14px; border-radius: 10px; background: var(--soft); }
+  .pp-open textarea { width: 100%; min-height: 160px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 14.5px; line-height: 1.6; }
+  .pp-acts { display: flex; gap: 8px; margin-top: 8px; }
+  .lists { margin-top: 30px; }
+  .st { font-size: 13px; color: var(--faint); white-space: nowrap; }
+  .st.r { color: var(--red); }
+  .err { color: var(--red); font-size: 13px; }
+</style>
+
+<div class="frame">
+  <nav class="side" aria-label="Main">
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#12A664"/><path d="M6 17.5 L10.5 12 L14 15 L20 7.5" stroke="#fff" stroke-width="2.4" fill="none"/><circle cx="20" cy="7.5" r="2.4" fill="#FF6A50"/></svg>GrowJin</div>
+    <div class="grp"><a class="nav" href="#">Today</a></div>
+    <div class="grp"><div class="gl">Get customers</div><a class="nav on" href="#">Lead Agent</a><a class="nav" href="#">Competitor Leads</a><a class="nav" href="#">Email Outreach</a></div>
+    <div class="grp"><div class="gl">Get seen</div><a class="nav" href="#">Search Agent</a><a class="nav" href="#">Social Studio</a></div>
+    <div class="grp"><div class="gl">Keep track</div><a class="nav" href="#">Reminders</a><a class="nav" href="#">Analytics</a></div>
+  </nav>
+  <main class="main">
+    <div class="mbar"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#12A664"/><path d="M6 17.5 L10.5 12 L14 15 L20 7.5" stroke="#fff" stroke-width="2.4" fill="none"/></svg>GrowJin</div>
+    <div class="page" id="view"></div>
+  </main>
+</div>
+<div id="toast"></div>
+
+<script>
+const BRAND = 'Frekto'
+const DAILY = 10
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+
+// Leads the agent found (made up for the preview)
+const LEADS = [
+  { id: 'e1', lane: 'email', name: 'Bloom Salon', why: 'Busy salon, last Instagram post 5 months ago.' },
+  { id: 'e2', lane: 'email', name: 'Lumen Candles', why: 'No posts in three months.' },
+  { id: 'c1', lane: 'community', name: 'Any tool that makes Instagram posts for my café?', why: 'Asking for exactly what Frekto does.' },
+  { id: 'c2', lane: 'community', name: 'Ask HN: How do you handle social media as a solo founder?', why: 'Solo founder short on time for social.' },
+]
+// Already emailed or opted out: skipped when a list is added
+const ALREADY = { 'tom@beckerprints.com': 'already emailed', 'hello@bloomsalon.in': 'already a lead here', 'no@thanks.co': 'asked not to be emailed' }
+const EXAMPLE = `anna@brewlab.in, Anna Rao
+ravi@kiteprints.com
+hello@mintbakery.in
+priya.shah@gmail.com
+tom@beckerprints.com
+jo@fernstudio.co
+info@sunnyyoga.in
+marco@ortizcoffee.com
+hello@bloomsalon.in
+dev@pixelpets.in
+anna@brewlab.in`
+
+const S = {
+  lane: 'email', view: 'tab', toast: null,
+  lists: [{ id: 'L1', name: 'Café owners from the Pune meetup', total: 24, sent: 18, replied: 1, people: null }],
+  // the flow being filled in
+  f: null,
+}
+function newFlow() { return { step: 1, name: '', raw: '', about: '', subject: '', body: '', drafted: false, who: 0, open: null, edits: {}, removed: {} } }
+
+// ---- reading emails out of what was pasted or uploaded
+const GENERIC = /^(hello|hi|info|contact|team|sales|support|admin|office|dev|mail|hey)$/i
+const FREE = /^(gmail|yahoo|outlook|hotmail|icloud|proton|protonmail|live|aol)\./i
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1)
+function person(email, given) {
+  const [local, domain] = email.split('@')
+  let first = given ? given.trim().split(/\s+/)[0] : ''
+  if (!first) { const part = local.split(/[._-]/)[0]; if (!GENERIC.test(part) && /^[a-z]{2,}$/i.test(part)) first = cap(part.toLowerCase()) }
+  const company = FREE.test(domain) ? '' : domain.split('.')[0].replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  return { email, first, company }
+}
+function parse(raw) {
+  const seen = new Set(), people = [], skipped = []
+  for (const line of raw.split(/\n/)) {
+    const m = line.match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/); if (!m) continue
+    const email = m[0].toLowerCase()
+    const given = line.replace(m[0], '').replace(/[,;<>"]/g, ' ').trim()
+    if (seen.has(email)) { skipped.push({ email, why: 'listed twice' }); continue }
+    seen.add(email)
+    if (ALREADY[email]) { skipped.push({ email, why: ALREADY[email] }); continue }
+    people.push(person(email, given))
+  }
+  return { people, skipped }
+}
+const fill = (t, p) => t
+  .replace(/Hi \{first name\},/g, p.first ? `Hi ${p.first},` : 'Hi,')
+  .replace(/\{first name\}/g, p.first || 'there')
+  .replace(/\{company\}/g, p.company || 'your business')
+
+function draft(about) {
+  const a = about.trim() || 'Frekto makes on-brand social posts in a minute'
+  return {
+    subject: `Quick idea for {company}`,
+    body: `Hi {first name},\n\n${a.replace(/\.$/, '')}.\n\nI think it could save {company} a few hours a week. Want me to send three free examples made for you?\n\n${BRAND}`,
+  }
+}
+
+// ---- dates
+const DAY = 86400000
+const fmt = d => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+function lastDay(n) { return fmt(new Date(Date.now() + (Math.ceil(n / DAILY) - 1) * DAY)) }
+
+function toast(msg) { S.toast = msg; clearTimeout(toast.t); toast.t = setTimeout(() => { S.toast = null; paint() }, 4000) }
+
+// ---------- the Email tab
+function header() {
+  return `<div class="crumbs">Get customers › Lead Agent</div>
+    <h1>Lead Agent</h1>
+    <div class="line"><span>Last search 2 h ago</span><button class="link">Settings</button><button class="link" data-a="search">Find new leads</button>${S.lane === 'email' ? '<button class="link" data-a="add">Add your own list</button>' : ''}</div>`
+}
+function tabs() {
+  const n = l => LEADS.filter(x => x.lane === l).length
+  return `<div class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="${S.lane === 'email'}" data-lane="email">Email<span class="n">${n('email')}</span></button>
+    <button class="tab" role="tab" aria-selected="${S.lane === 'community'}" data-lane="community">Community<span class="n">${n('community')}</span></button></div>`
+}
+function tabView() {
+  const items = LEADS.filter(l => l.lane === S.lane)
+  const [first, ...rest] = items
+  const what = S.lane === 'email' ? `${items.length} emails ready for your OK` : `${items.length} posts to answer`
+  let html = `<div class="next"><div class="next-text"><b>${what}</b><span>Start with ${esc(first.name.length > 40 ? first.name.slice(0, 40) + '…' : first.name)}.</span></div><button class="btn go" data-a="noop">${S.lane === 'email' ? 'Review the email' : 'Write the reply'} →</button></div>
+    <div class="rest"><p class="rest-h">Then</p>${rest.map(l => `<div class="row"><div class="row-main"><div class="row-name">${esc(l.name)}</div><div class="row-why">${esc(l.why)}</div></div><span class="row-go">Open</span></div>`).join('')}</div>`
+  if (S.lane === 'email') {
+    html += `<div class="lists"><p class="rest-h">Your lists</p>
+      ${S.lists.map(L => `<div class="row" data-list="${L.id}" role="button" tabindex="0">${L.replied ? '<span class="dot" title="Someone replied"></span>' : ''}<div class="row-main"><div class="row-name">${esc(L.name)}</div><div class="row-why">${L.sent} of ${L.total} sent${L.replied ? ` · ${L.replied} replied` : ''}${L.sent < L.total ? ` · the rest by ${lastDay(L.total - L.sent)}` : ''}</div></div><span class="row-go">Open</span></div>`).join('')}
+      <div class="more"><button class="link" data-a="add">Add your own list</button> <span class="tip">· people you already know, emailed over a few days with follow-ups</span></div></div>`
+  }
+  return html
+}
+
+// ---------- one of your lists, opened
+function listView(L) {
+  const ppl = L.people ?? [
+    { first: 'Neha', company: 'Chai Point', email: 'neha@chaipoint.in', st: 'Replied: “Yes, send examples”', r: true },
+    { first: 'Arjun', company: 'Third Wave', email: 'arjun@thirdwave.in', st: 'Follow-up sent yesterday' },
+    { first: '', company: 'Blue Tokai', email: 'hello@bluetokai.com', st: 'Sent 3 days ago' },
+    { first: 'Sara', company: 'Kafe Kult', email: 'sara@kafekult.in', st: 'Goes out tomorrow' },
+  ]
+  return `<button class="link back" data-a="home">← Lead Agent</button>
+    <h1 style="font-size:26px">${esc(L.name)}</h1>
+    <div class="line"><span>${L.sent} of ${L.total} sent</span>${L.replied ? `<span>${L.replied} replied</span>` : ''}<span>Follow-up after 3 days, stops when they reply</span></div>
+    <div class="ppl">${ppl.map(p => `<div class="pp"><div class="pp-row">${p.r ? '<span class="dot"></span>' : ''}<div class="row-main"><div class="row-name">${esc(p.first ? `${p.first}${p.company ? ' · ' + p.company : ''}` : p.company || p.email)}</div><div class="row-why">${esc(p.email)}</div></div><span class="st${p.r ? ' r' : ''}">${esc(p.st)}</span></div></div>`).join('')}</div>
+    <div class="more">Replies also show at the top of the Email tab, like any other lead.</div>`
+}
+
+// ---------- the 3-step flow
+function stepsBar(n) {
+  const names = ['Who gets it', 'The email', 'Review & approve']
+  return `<ol class="steps">${names.map((t, i) => `<li class="${i + 1 === n ? 'on' : i + 1 < n ? 'did' : ''}">${t}</li>`).join('')}</ol>`
+}
+function flowView() {
+  const f = S.f, { people, skipped } = parse(f.raw)
+  const live = people.filter(p => !f.removed[p.email])
+  let body
+  if (f.step === 1) {
+    body = `<h3>Who gets it?</h3>
+      <p class="hint">Paste the emails, one per line. A name after the email is used if it’s there. They get emailed over a few days, with follow-ups until they reply.</p>
+      <div class="stack">
+        <label class="field" for="f-name">Name this list<input id="f-name" value="${esc(f.name)}" placeholder="e.g. Café owners from the Pune meetup"></label>
+        <label class="field" for="f-raw">Emails<textarea id="f-raw" placeholder="anna@brewlab.in, Anna Rao&#10;ravi@kiteprints.com">${esc(f.raw)}</textarea></label>
+        <div class="drop"><span>Or upload a file: CSV, Excel, PDF, Word, text or .vcf</span><input id="f-file" type="file" accept=".csv,.tsv,.txt,.vcf,.xlsx,.pdf,.docx"><label class="btn" for="f-file">Upload a file</label><button class="link" data-a="example">Use an example list</button></div>
+        <div class="count" id="f-count">${countText(people, skipped)}</div>
+      </div>
+      <div class="acts"><button class="btn quiet" data-a="home">Cancel</button><button class="btn go" data-a="to2" ${people.length ? '' : 'disabled style="opacity:.45;cursor:default"'}>Continue →</button></div>
+      <p class="note">To send one email to everyone right now, without follow-ups, use Email Outreach.</p>`
+  } else if (f.step === 2) {
+    const p = live[Math.min(f.who, live.length - 1)] ?? live[0]
+    body = `<h3>What’s the email about?</h3>
+      <p class="hint">One line is enough. GrowJin writes one email and puts in each person’s name and company.</p>
+      <div class="stack">
+        <label class="field" for="f-about">In one line<input id="f-about" value="${esc(f.about)}" placeholder="e.g. Frekto makes a week of café posts from your menu photos"></label>
+        ${f.drafted ? `
+        <div class="mail"><label><span>Subject</span><input id="f-sub" value="${esc(f.subject)}"></label><textarea id="f-body" aria-label="Email">${esc(f.body)}</textarea></div>
+        <p class="tip">{first name} and {company} are filled in for each person. If there’s no name, it starts with “Hi,”.</p>
+        <div class="prev"><div class="prev-h" role="group" aria-label="Preview for">${live.slice(0, 3).map((q, i) => `<button class="chip" aria-pressed="${q === p}" data-who="${i}">${esc(q.first || q.email)}</button>`).join('')}</div>
+          <div class="prev-b" id="f-prev">${previewHtml(p)}</div></div>` : ''}
+      </div>
+      <div class="acts"><button class="btn quiet" data-a="to1">← Back</button>${f.drafted ? '<button class="btn quiet" data-a="draft">Write it again</button><button class="btn go" data-a="to3">Continue →</button>' : '<button class="btn go" data-a="draft">Write the email</button>'}</div>`
+  } else {
+    body = `<h3>Check, then approve all</h3>
+      <div class="sum"><b>${live.length} emails to ${esc(f.name || 'your list')}</b>
+        <ul><li>${live.length <= DAILY ? 'All go out today' : `${DAILY} a day, the last on ${lastDay(live.length)}`}, from me@frekto.com</li><li>A short follow-up after 3 days if they don’t reply</li><li>Stops for anyone who replies, and their reply shows in the Email tab</li></ul></div>
+      <div class="ppl">${live.map(q => {
+        const open = f.open === q.email
+        const text = f.edits[q.email] ?? fill(f.body, q)
+        return `<div class="pp"><div class="pp-row" data-pp="${esc(q.email)}" role="button" tabindex="0" aria-expanded="${open}"><div class="row-main"><div class="row-name">${esc(q.first ? `${q.first}${q.company ? ' · ' + q.company : ''}` : q.company || q.email)}</div><div class="row-why">${esc(q.email)}${f.edits[q.email] ? ' · edited' : ''}</div></div><span class="row-go">${open ? 'Close' : 'See email'}</span></div>
+          ${open ? `<div class="pp-open"><textarea data-edit="${esc(q.email)}" aria-label="Email to ${esc(q.email)}">${esc(text)}</textarea><div class="pp-acts"><button class="btn quiet" data-rm="${esc(q.email)}">Remove from list</button></div></div>` : ''}</div>`
+      }).join('')}</div>
+      <div class="acts"><button class="btn quiet" data-a="to2">← Back</button><button class="btn go" data-a="approve">Approve all ${live.length}</button></div>
+      <p class="note">Nothing goes out until you approve. You can pause the list at any time.</p>`
+  }
+  return `<button class="link back" data-a="home">← Lead Agent</button><div class="flow">
+    <div class="step-of">Add your own list</div>${stepsBar(f.step)}<section class="step">${body}</section></div>`
+}
+function countText(people, skipped) {
+  if (!people.length && !skipped.length) return '<span class="tip">No emails yet.</span>'
+  return `<b>${people.length} ${people.length === 1 ? 'person' : 'people'}</b> to email${skipped.length ? `<span class="skips">Skipped ${skipped.length}: ${skipped.map(s => `${esc(s.email)} (${s.why})`).join(', ')}</span>` : ''}`
+}
+function previewHtml(p) {
+  if (!p) return ''
+  return `<span class="s">${esc(fill(S.f.subject, p))}</span>${esc(fill(S.f.body, p))}`
+}
+
+// ---------- paint + events
+function paint() {
+  let html
+  if (S.view === 'flow') html = flowView()
+  else if (S.view.startsWith('list:')) html = listView(S.lists.find(L => L.id === S.view.slice(5)))
+  else html = header() + tabs() + tabView()
+  document.getElementById('view').innerHTML = html
+  document.getElementById('toast').innerHTML = S.toast ? `<div class="toast" role="status">${esc(S.toast)}</div>` : ''
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-a],[data-lane],[data-list],[data-who],[data-pp],[data-rm]'); if (!b) return
+  const d = b.dataset, f = S.f
+  if (d.lane) { S.lane = d.lane }
+  else if (d.list) { S.view = 'list:' + d.list; scrollTo({ top: 0 }) }
+  else if (d.who) { f.who = +d.who }
+  else if (d.pp) { f.open = f.open === d.pp ? null : d.pp }
+  else if (d.rm) { f.removed[d.rm] = true; f.open = null; toast('Removed from the list') }
+  else switch (d.a) {
+    case 'add': S.f = newFlow(); S.view = 'flow'; scrollTo({ top: 0 }); break
+    case 'home': S.view = 'tab'; break
+    case 'search': toast('Searching for new leads… (preview)'); break
+    case 'noop': toast('This preview is about adding your own list'); break
+    case 'example': f.raw = EXAMPLE; if (!f.name) f.name = 'Shops from the Mumbai pop-up'; break
+    case 'to1': f.step = 1; break
+    case 'to2': if (parse(f.raw).people.length) f.step = 2; break
+    case 'draft': { const r = draft(f.about); f.subject = r.subject; f.body = r.body; f.drafted = true; f.edits = {}; break }
+    case 'to3': f.step = 3; f.open = null; break
+    case 'approve': {
+      const n = parse(f.raw).people.filter(p => !f.removed[p.email]).length
+      S.lists.unshift({ id: 'L' + Date.now(), name: f.name || 'Your list', total: n, sent: 0, replied: 0,
+        people: parse(f.raw).people.filter(p => !f.removed[p.email]).map((p, i) => ({ ...p, st: i < DAILY ? 'Goes out today' : `Goes out ${lastDay(i + 1)}` })) })
+      S.view = 'tab'; S.f = null
+      toast(`Approved. The first ${Math.min(n, DAILY)} go out today.`)
+      break
+    }
+  }
+  paint()
+})
+
+// Typing updates the counts and previews without redrawing the box you're typing in
+document.addEventListener('input', e => {
+  const f = S.f; if (!f) return
+  const id = e.target.id
+  if (id === 'f-name') f.name = e.target.value
+  else if (id === 'f-about') f.about = e.target.value
+  else if (id === 'f-raw') {
+    f.raw = e.target.value
+    const { people, skipped } = parse(f.raw)
+    document.getElementById('f-count').innerHTML = countText(people, skipped)
+    const go = document.querySelector('[data-a="to2"]')
+    if (go) { go.disabled = !people.length; go.style.opacity = people.length ? '' : '.45'; go.style.cursor = people.length ? '' : 'default' }
+  } else if (id === 'f-sub' || id === 'f-body') {
+    f[id === 'f-sub' ? 'subject' : 'body'] = e.target.value
+    const live = parse(f.raw).people.filter(p => !f.removed[p.email])
+    document.getElementById('f-prev').innerHTML = previewHtml(live[Math.min(f.who, live.length - 1)])
+  } else if (e.target.dataset.edit) f.edits[e.target.dataset.edit] = e.target.value
+})
+
+// Upload: text-like files are read here; others are faked in the preview (the app reads them on the server)
+document.addEventListener('change', e => {
+  if (e.target.id !== 'f-file' || !e.target.files[0]) return
+  const file = e.target.files[0], f = S.f
+  if (!f.name) f.name = file.name.replace(/\.[^.]+$/, '')
+  if (/\.(csv|tsv|txt|vcf)$/i.test(file.name)) {
+    const r = new FileReader()
+    r.onload = () => { f.raw = (f.raw ? f.raw + '\n' : '') + String(r.result).split(/\r?\n/).join('\n'); toast(`Read ${file.name}`); paint() }
+    r.readAsText(file)
+  } else { f.raw = (f.raw ? f.raw + '\n' : '') + EXAMPLE; toast(`Read ${file.name} (example emails in this preview)`); paint() }
+})
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[role="button"]')) e.target.click() })
+paint()
+</script>
