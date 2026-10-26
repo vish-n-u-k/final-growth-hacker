@@ -292,7 +292,7 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
       x.linksError = errors.length ? errors.join(' · ') : null
       x.demo = demo
     })
-    await addUsage(brandId, meter).catch(() => {})
+    await addUsage(brandId, meter, 'Search Agent').catch(() => {})
     const cost = costNote(meter)
     if (cost) notes.push(cost)
 

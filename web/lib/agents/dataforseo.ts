@@ -26,6 +26,26 @@ export const COUNTRY_NAMES: Record<string, string> = {
 }
 const locationOf = (country: string) => LOCATION_CODES[country] ?? LOCATION_CODES.US
 
+// The name each API gets in Settings → Usage
+function apiLabel(path: string): string {
+  if (path.includes('/serp/google/maps/')) return 'Google Maps businesses'
+  if (path.includes('/serp/google/organic/')) return 'Google results'
+  if (path.includes('/ranked_keywords/')) return 'Site rankings'
+  if (path.includes('/dataforseo_labs/')) return 'Keyword ideas'
+  if (path.includes('/backlinks/')) return 'Backlinks'
+  if (path.includes('/trustpilot/')) return 'Trustpilot reviews'
+  const engine = path.match(/\/ai_optimization\/([a-z_]+)\//)?.[1] as AiEngine | undefined
+  if (engine) return `AI answers · ${ENGINE_LABEL[engine] ?? engine}`
+  return 'Other'
+}
+
+function charge(meter: UsageMeter | undefined, path: string, cost: number | undefined) {
+  if (!meter || !cost) return
+  meter.dataforseo += cost
+  const api = apiLabel(path)
+  meter.apis[api] = (meter.apis[api] ?? 0) + cost
+}
+
 interface DfsTask<T> { status_code?: number; status_message?: string; cost?: number; result?: T[] | null }
 interface DfsResponse<T> { status_code?: number; status_message?: string; tasks?: DfsTask<T>[] }
 
@@ -52,7 +72,7 @@ async function post<T>(path: string, task: Record<string, unknown>, meter?: Usag
     throw new Error(`DataForSEO: ${json.status_message ?? json.status_code}`)
   }
   const t = json.tasks?.[0]
-  if (meter) meter.dataforseo += t?.cost ?? 0
+  charge(meter, path, t?.cost)
   if (!t || t.status_code !== 20000) {
     console.error(`[dataforseo] ${path} → task ${t?.status_code}: ${t?.status_message}`)
     throw new Error(`DataForSEO: ${t?.status_message ?? 'no result'}`)
@@ -257,7 +277,7 @@ export async function trustpilotReviewsTask(domain: string, meter?: UsageMeter, 
     console.error(`[dataforseo] trustpilot task_post → ${why}`)
     throw new Error(`DataForSEO: ${why}`)
   }
-  if (meter) meter.dataforseo += t.cost ?? 0
+  charge(meter, '/business_data/trustpilot/reviews/task_post', t.cost)
   return t.id
 }
 

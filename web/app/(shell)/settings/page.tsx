@@ -5,9 +5,10 @@ import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import SettingsPage from '@/components/SettingsPage'
 import { INTEGRATION_MAP, INTEGRATION_REGISTRY } from '@/lib/integrations/registry'
+import { usageView } from '@/lib/usage'
 
 // The sales playbook lives on the Foundation module only (old ?tab=playbook links open Brand).
-const VALID_TABS = ['brand', 'integrations', 'claude-code', 'account'] as const
+const VALID_TABS = ['brand', 'integrations', 'claude-code', 'usage', 'account'] as const
 type Tab = typeof VALID_TABS[number]
 
 // Matches metadata keys that hold a secret even when a provider's own field
@@ -56,10 +57,10 @@ export default async function Settings({ searchParams }: { searchParams: Promise
   const [brand] = await db.select().from(brands).where(eq(brands.userId, user.id)).limit(1)
   if (!brand) redirect('/onboarding')
 
-  const integrations = await db
-    .select()
-    .from(brandIntegrations)
-    .where(eq(brandIntegrations.brandId, brand.id))
+  const [integrations, usage] = await Promise.all([
+    db.select().from(brandIntegrations).where(eq(brandIntegrations.brandId, brand.id)),
+    usageView(brand.id).catch(() => null),
+  ])
 
   const connectedMap: Record<string, {
     status: string
@@ -94,6 +95,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
       integrationRegistry={INTEGRATION_REGISTRY}
       connectedIntegrations={connectedMap}
       mcpKeyPrefix={mcpKeyPrefix}
+      usage={usage}
       dailyEmailEnabled={brand.dailyEmailEnabled ?? false}
       frektoAutoPostEnabled={brand.frektoAutoPostEnabled ?? false}
       initialTab={initialTab}

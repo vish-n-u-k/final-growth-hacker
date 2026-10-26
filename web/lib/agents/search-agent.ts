@@ -336,7 +336,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       x.demo = demo
       x.lastError = errors.length ? errors.join(' · ') : null
     })
-    await addUsage(brandId, meter).catch(() => {})
+    await addUsage(brandId, meter, 'Search Agent').catch(() => {})
 
     // Today cards: the top 3 open tasks
     try {
@@ -441,7 +441,7 @@ Article rules: 1,200-1,600 words; H2/H3 headings; answer the search in the first
         if (t) { t.status = 'drafted'; t.blogId = blog.id; t.brief = { top: j.brief?.top ?? '', beats: (j.brief?.beats ?? []).slice(0, 4) } }
         x.lastWriteAt = new Date().toISOString()
       })
-      await addUsage(brandId, meter).catch(() => {})
+      await addUsage(brandId, meter, 'Search Agent').catch(() => {})
       await openSignal(brandId, {
         source: 'search-agent', signalKey: `draft:${blog.id}`, priority: 2,
         title: `Blog draft ready: "${j.title}"`,

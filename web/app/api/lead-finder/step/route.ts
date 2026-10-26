@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
       case 'reviews': {
         if (!body.url?.trim()) return NextResponse.json({ error: 'Enter a competitor first.' }, { status: 400 })
         const r = await startReviews(platform, body.url)
-        if (r.cost) await addUsage(brand.brandId, { ...newMeter(), dataforseo: r.cost }).catch(() => {})
+        if (r.cost) await addUsage(brand.brandId, { ...newMeter(), dataforseo: r.cost, apis: { 'Trustpilot reviews': r.cost } }, 'Competitor Leads').catch(() => {})
         if ('pending' in r) return NextResponse.json({ pending: r.pending })
         return NextResponse.json(await saveScanReviews(brand.brandId, scanFor(), r.reviews))
       }
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
         } else if (body.op === 'contact') {
           const scan = await loadScan(brand.brandId, review.scanId)
           const c = await findContact(scan?.platform ?? 'trustpilot', review.name)
-          if (c.hunterLookups) await addUsage(brand.brandId, { ...newMeter(), hunter: c.hunterLookups }).catch(() => {})
+          if (c.hunterLookups) await addUsage(brand.brandId, { ...newMeter(), hunter: c.hunterLookups }, 'Competitor Leads').catch(() => {})
           change = { website: c.website, email: c.email, verified: c.verified, contactChecked: true }
         } else {
           const scan = await loadScan(brand.brandId, review.scanId)

@@ -9,6 +9,8 @@ import { INTEGRATION_GROUPS } from '@/lib/integrations/registry'
 import ThemeToggle from '@/components/ThemeToggle'
 import { Spinner } from '@/components/ui/spinner'
 import DailyEmailToggle from '@/components/DailyEmailToggle'
+import UsageSection from '@/components/settings/UsageSection'
+import type { UsageView } from '@/lib/usage'
 
 interface ConnectedIntegration {
   status: string
@@ -24,6 +26,7 @@ interface Props {
   integrationRegistry: IntegrationDefinition[]
   connectedIntegrations: Record<string, ConnectedIntegration>
   mcpKeyPrefix: string | null
+  usage: UsageView | null
   dailyEmailEnabled: boolean
   frektoAutoPostEnabled: boolean
   initialTab?: Tab
@@ -31,9 +34,9 @@ interface Props {
   initialGroup?: string   // integration group to open (?group=analytics)
 }
 
-type Tab = 'brand' | 'integrations' | 'claude-code' | 'account'
+type Tab = 'brand' | 'integrations' | 'claude-code' | 'usage' | 'account'
 
-export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations, mcpKeyPrefix, dailyEmailEnabled, frektoAutoPostEnabled, initialTab, initialConnect, initialGroup }: Props) {
+export default function SettingsPage({ brand, playbook, userEmail, integrationRegistry, connectedIntegrations, mcpKeyPrefix, usage, dailyEmailEnabled, frektoAutoPostEnabled, initialTab, initialConnect, initialGroup }: Props) {
   const [tab, setTab] = useState<Tab>(initialTab ?? 'brand')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [oauthToast, setOauthToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null)
@@ -159,6 +162,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
             { key: 'brand', label: 'Brand', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><polyline points="9 22 9 12 15 12 15 22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
             { key: 'integrations', label: 'Integrations', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
             { key: 'claude-code', label: 'Connect Claude', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M8 12l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+            { key: 'usage', label: 'Usage & costs', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> },
             { key: 'account', label: 'Account', icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
           ] as { key: Tab; label: string; icon: React.ReactNode }[]).map(({ key, label, icon }) => (
             <button
@@ -194,6 +198,7 @@ export default function SettingsPage({ brand, playbook, userEmail, integrationRe
             </>
           )}
           {tab === 'claude-code' && <ClaudeCodeSection initialKeyPrefix={mcpKeyPrefix} />}
+          {tab === 'usage' && <UsageSection usage={usage} />}
           {tab === 'account' && <AccountSection userEmail={userEmail} dailyEmailEnabled={dailyEmailEnabled} frektoAutoPostEnabled={frektoAutoPostEnabled} />}
         </div>
       </div>
