@@ -679,8 +679,19 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       }
     }
 
+    // Company leads still waiting in To do that don't match today's "Who to look for" (it may have
+    // changed since they were found): moved to Skipped, where they can be brought back
+    const tradeWords = d.companyFilters?.keywords ?? []
+    const offTrade = new Set(find && s.sources.companies && tradeWords.length
+      ? d.leads.filter(l => l.source === 'company' && (l.status === 'ready' || l.status === 'needs_contact')
+          // What the company says about itself, without the "matched …" words Hunter claimed
+          && !tradeMatch(tradeWords, `${l.title} ${l.snippet.split(' · ').filter(part => !/^matched /.test(part)).join(' ')}`)).map(l => l.id)
+      : [])
+    if (offTrade.size) notes.push(`${offTrade.size} older compan${offTrade.size === 1 ? 'y' : 'ies'} moved to Skipped: not what you look for`)
+
     // 5. Save (re-read so approvals made meanwhile are kept)
     const saved = await updateLeadData(brandId, fallback, x => {
+      for (const l of x.leads) if (offTrade.has(l.id) && (l.status === 'ready' || l.status === 'needs_contact')) l.status = 'skipped'
       for (const [id, p] of patches) {
         const l = x.leads.find(y => y.id === id)
         if (l && (l.status === 'sent' || l.status === 'queued')) Object.assign(l, p)

@@ -225,7 +225,8 @@ export async function storesByPlatform(platforms: string[], country: string, met
       technologies: platforms.slice(0, 3),
       mode: 'entry',
       // Anywhere: small sites in every country
-      filters: country === 'ANY' ? [['domain_rank', '<', 300]] : [['country_iso_code', '=', country.toUpperCase()], 'and', ['domain_rank', '<', 300]],
+      // One filter is sent on its own (DataForSEO's shape for a single condition), several joined with "and"
+      filters: country === 'ANY' ? ['domain_rank', '<', 300] : [['country_iso_code', '=', country.toUpperCase()], 'and', ['domain_rank', '<', 300]],
       order_by: ['last_visited,desc'],
       limit: opts.limit ?? 50,
       offset,
