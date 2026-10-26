@@ -4,6 +4,7 @@ import { reminders } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { verifyReminderToken } from '@/lib/reminders/token'
 import { completeReminder } from '@/lib/reminders/complete'
+import { withUtm } from '@/lib/email/clean'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,8 @@ export const dynamic = 'force-dynamic'
 // The confirm button POSTs back here. The signed token is the auth (no session needed).
 
 const appUrl = () => process.env.NEXT_PUBLIC_APP_URL ?? 'https://app.growjin.com'
+// People land here from the daily email, so the links into the app carry its UTM tags
+const remindersUrl = () => withUtm(`${appUrl()}/reminders`, 'daily_digest')
 
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!))
@@ -43,7 +46,7 @@ async function load(token: string | null) {
 
 const invalid = () => page(
   `<h1>This link has expired</h1><p>Reminder links in the daily email work for 7 days. Open your reminders to mark it done there.</p>
-<a href="${esc(appUrl())}/reminders" style="margin:0">Open reminders →</a>`,
+<a href="${esc(remindersUrl())}" style="margin:0">Open reminders →</a>`,
   410,
 )
 
@@ -53,7 +56,7 @@ export async function GET(req: NextRequest) {
   if (!row) return invalid()
   return page(
     `<h1>Mark this reminder done?</h1><p>${esc(row.title)}</p>
-<form method="post"><input type="hidden" name="token" value="${esc(token!)}"><button type="submit">Yes, mark done</button><a href="${esc(appUrl())}/reminders">Not yet</a></form>`,
+<form method="post"><input type="hidden" name="token" value="${esc(token!)}"><button type="submit">Yes, mark done</button><a href="${esc(remindersUrl())}">Not yet</a></form>`,
   )
 }
 
@@ -63,5 +66,5 @@ export async function POST(req: NextRequest) {
   const row = await load(token)
   if (!row) return invalid()
   await completeReminder(row.brandId, row.id)
-  return NextResponse.redirect(new URL('/reminders?done=1', appUrl()), 303)
+  return NextResponse.redirect(withUtm(new URL('/reminders?done=1', appUrl()).toString(), 'daily_digest'), 303)
 }

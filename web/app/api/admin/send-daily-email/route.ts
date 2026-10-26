@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { cleanEmailHtml, stripEmDashes } from '@/lib/email/clean'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
@@ -128,15 +129,15 @@ function computeFlags(ga4: Awaited<ReturnType<typeof fetchGA4>>, ph: Awaited<Ret
   const candidates: { severity: number; msg: string }[] = []
   const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   if (ph) {
-    if (ph.unsubscribed > 0) candidates.push({ severity: 3, msg: `${ph.unsubscribed} user${ph.unsubscribed > 1 ? 's' : ''} unsubscribed yesterday — worth reviewing offboarding feedback.` })
-    if (ph.signups === 0 && ph.signupsPrior === 0) candidates.push({ severity: 2, msg: 'No new signups in the past two days — check if the signup flow or top-of-funnel traffic has dropped.' })
+    if (ph.unsubscribed > 0) candidates.push({ severity: 3, msg: `${ph.unsubscribed} user${ph.unsubscribed > 1 ? 's' : ''} unsubscribed yesterday. Worth reviewing offboarding feedback.` })
+    if (ph.signups === 0 && ph.signupsPrior === 0) candidates.push({ severity: 2, msg: 'No new signups in the past two days. Check if the signup flow or top-of-funnel traffic has dropped.' })
     if (ph.dauPrior > 0) {
       const delta = Math.round(((ph.dau - ph.dauPrior) / ph.dauPrior) * 100)
       if (delta <= -25) {
         const prior = ph.dauTrend.slice(0, -1)
         const peak = prior.length ? prior.reduce((m, d) => d.dau > m.dau ? d : m, prior[0]) : null
         const msg = (peak && peak.dau > ph.dau + 2)
-          ? (() => { const d = new Date(peak.date); return `DAU dropped sharply after the ${mo[d.getUTCMonth()]} ${d.getUTCDate()} peak — worth checking what drove that spike and why it didn't hold.` })()
+          ? (() => { const d = new Date(peak.date); return `DAU dropped sharply after the ${mo[d.getUTCMonth()]} ${d.getUTCDate()} peak. Worth checking what drove that spike and why it didn't hold.` })()
           : `DAU dropped ${Math.abs(delta)}% vs the prior day.`
         candidates.push({ severity: 2, msg })
       }
@@ -152,7 +153,7 @@ function computeFlags(ga4: Awaited<ReturnType<typeof fetchGA4>>, ph: Awaited<Ret
 // ── Email builder ─────────────────────────────────────────────────────────────
 
 function deltaBadge(current: number, prior: number): string {
-  if (prior === 0) return `<span style="display:inline-block;font-size:11px;font-weight:600;color:#6b7280;background:#f3f4f6;border-radius:99px;padding:2px 8px;">—</span>`
+  if (prior === 0) return `<span style="display:inline-block;font-size:11px;font-weight:600;color:#6b7280;background:#f3f4f6;border-radius:99px;padding:2px 8px;">-</span>`
   const pct = Math.round(((current - prior) / prior) * 100)
   if (pct === 0) return `<span style="display:inline-block;font-size:11px;font-weight:600;color:#6b7280;background:#f3f4f6;border-radius:99px;padding:2px 8px;">0%</span>`
   const [bg, color, arrow] = pct > 0 ? ['#f0fdf4', '#15803d', '&#8593;'] : ['#fef2f2', '#dc2626', '&#8595;']
@@ -298,7 +299,7 @@ function buildHtml(brandName: string, date: string, ga4: Awaited<ReturnType<type
         </tr>
       </table>
       <p style="margin:10px 0 0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
-        ${brandName} &mdash; latest summary
+        ${brandName}: latest summary
       </p>
     </td></tr>
 
@@ -341,6 +342,8 @@ function buildHtml(brandName: string, date: string, ga4: Awaited<ReturnType<type
 // ── Gmail send ────────────────────────────────────────────────────────────────
 
 async function sendViaGmail(accessToken: string, from: string, to: string, subject: string, html: string): Promise<boolean> {
+  subject = stripEmDashes(subject)
+  html = cleanEmailHtml(html, 'daily_summary')
   const message = [`From: GrowJin <${from}>`, `To: ${to}`, `Subject: ${subject}`, 'MIME-Version: 1.0', 'Content-Type: text/html; charset=utf-8', '', html].join('\r\n')
   const encoded = Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {

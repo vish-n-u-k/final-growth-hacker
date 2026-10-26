@@ -1,3 +1,4 @@
+import { stripEmDashes } from '@/lib/email/clean'
 import { callAI } from '@/lib/ai/client'
 
 // Follow-up emails use the same branded shell as campaign emails (logo header,
@@ -24,7 +25,7 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-const noEmDash = (s: string) => s.replace(/—/g, ',').replace(/\s{2,}/g, ' ').trim()
+const noEmDash = (s: string) => stripEmDashes(s).replace(/\s{2,}/g, ' ').trim()
 
 export function buildFollowupHTML(copy: FollowupCopy, brand: FollowupBrand): string {
   const websiteUrl = brand.websiteUrl ?? ''

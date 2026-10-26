@@ -35,7 +35,7 @@ export async function queueAnalysisRequest(opts: {
     await resend.emails.send({
       from: 'GrowJin <onboarding@resend.dev>',
       to: 'vishnu@kuchnaya.com',
-      subject: `Analysis Requested — ${brandName} / ${opts.moduleName}`,
+      subject: `Analysis Requested: ${brandName} / ${opts.moduleName}`,
       text: [
         `User: ${opts.userEmail}`,
         `Brand: ${brandName}`,
