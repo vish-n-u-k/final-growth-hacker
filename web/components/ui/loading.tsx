@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { pageInfo, PAGE_INFO_LABEL, type PageInfoId } from '@/lib/page-info'
+import { pageAbout, pageInfo, PAGE_INFO_LABEL, type PageInfoId } from '@/lib/page-info'
 
 // Every loading state in the app, in one file, so the look can be changed (or swapped out) in one
 // place. Styles are the `ld-*` block in app/globals.css; the words on the cards are in
@@ -10,7 +10,7 @@ import { pageInfo, PAGE_INFO_LABEL, type PageInfoId } from '@/lib/page-info'
 //   0.5–5 s          <Skeleton>, <ListSkeleton> or <PageSkeleton> in the shape of what is coming,
 //                    or <LoadingState> for a small panel; <Spinner> inside a busy button
 //   over 5 s         <WaitPanel>: the steps, time left, and a "While you wait" card
-// <AboutPage> is the "About this page" link, showing the same cards any time.
+// <AboutPage> is the "About this page" link: what the page does, how it works, why, tips, facts.
 
 export const LOADING = {
   showAfterMs: 300,      // a wait shorter than this shows nothing, so the screen doesn't flicker
@@ -212,34 +212,66 @@ export function WaitPanel({ steps, title, expectedMs = 120_000, startedAt, page,
 
 // ── About this page ─────────────────────────────────────────────────────────
 
-/** "About this page": a quiet link that opens a side panel with the page's cards. */
+/** "About this page": a quiet link that opens a panel on what the page does, how it works, why it
+ *  matters, tips and a fact or two (lib/page-info.ts). A side panel on wide screens, a sheet from
+ *  the bottom on phones. */
 export function AboutPage({ page, label = 'About this page' }: { page: PageInfoId; label?: string }) {
   const [open, setOpen] = useState(false)
   const close = useRef<HTMLButtonElement>(null)
+  const opener = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!open) return
     close.current?.focus()
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    const overflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { window.removeEventListener('keydown', onKey); document.body.style.overflow = overflow; opener.current?.focus() }
   }, [open])
-  const info = pageInfo(page)
-  if (!info.cards.length) return null
+  const a = pageAbout(page)
+  if (!a.what && !a.why.length && !a.tips.length && !a.facts.length) return null
   return (
     <>
-      <button type="button" className="ld-link ld-about-link" aria-haspopup="dialog" onClick={() => setOpen(true)}>{label}</button>
+      <button ref={opener} type="button" className="ld-link ld-about-link" aria-haspopup="dialog" onClick={() => setOpen(true)}>{label}</button>
       {open && (
         <div className="ld-about" role="dialog" aria-modal="true" aria-labelledby="ld-about-title">
           <div className="ld-about-scrim" onClick={() => setOpen(false)} />
           <aside className="ld-about-panel">
-            <button ref={close} type="button" className="ld-link ld-about-x" onClick={() => setOpen(false)}>Close</button>
-            <div className="ld-eyebrow">About this page</div>
-            <h2 id="ld-about-title">{info.title}</h2>
-            <dl>
-              {info.cards.map((c, n) => (
-                <div key={n}><dt>{PAGE_INFO_LABEL[c.kind]}</dt><dd>{c.text}{c.source && <span className="ld-src">Source: {c.source}</span>}</dd></div>
-              ))}
-            </dl>
+            <header className="ld-about-head">
+              <div>
+                <div className="ld-eyebrow">About this page</div>
+                <h2 id="ld-about-title">{a.title}</h2>
+              </div>
+              <button ref={close} type="button" className="ld-about-x" onClick={() => setOpen(false)} aria-label="Close">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12" /></svg>
+              </button>
+            </header>
+            <div className="ld-about-body">
+              {a.what && <p className="ld-about-lead">{a.what}</p>}
+              {a.steps && (
+                <section>
+                  <h3>How it works</h3>
+                  <ol className="ld-about-steps">
+                    {a.steps.map((st, n) => <li key={st.title}><span aria-hidden="true">{n + 1}</span><div><b>{st.title}</b><p>{st.body}</p></div></li>)}
+                  </ol>
+                  {a.note && <p className="ld-about-note"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7" /></svg>{a.note}</p>}
+                </section>
+              )}
+              {a.why.length > 0 && <section><h3>Why it matters</h3>{a.why.map(t => <p key={t} className="ld-about-why">{t}</p>)}</section>}
+              {a.tips.length > 0 && (
+                <section>
+                  <h3>{a.tips.length > 1 ? 'Tips' : 'Tip'}</h3>
+                  <ul className="ld-about-tips">{a.tips.map(t => <li key={t}>{t}</li>)}</ul>
+                </section>
+              )}
+              {a.facts.length > 0 && (
+                <section>
+                  <h3>Did you know?</h3>
+                  {a.facts.map(f => <figure key={f.text} className="ld-about-fact"><p>{f.text}</p>{f.source && <figcaption>Source: {f.source}</figcaption>}</figure>)}
+                </section>
+              )}
+            </div>
+            <footer className="ld-about-foot"><button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>Got it</button></footer>
           </aside>
         </div>
       )}
