@@ -242,6 +242,17 @@ export function demoAiAnswer(engine: string, prompt: string): AiAnswerRaw {
 const FIRST = ['Priya', 'Rahul', 'Sara', 'Arjun', 'Neha', 'Tom', 'Aisha', 'Kabir', 'Maya', 'Dev']
 const LAST = ['Mehta', 'Khan', 'Shah', 'Iyer', 'Rao', 'Singh', 'Patel', 'Das']
 
+/** Hunter Discover stand-in: made-up online businesses for the keywords. */
+export function demoDiscover(keywords: string[]): { domain: string; name: string; about: string; personalEmails: number; totalEmails: number }[] {
+  const r = rng(`discover:${keywords.join(',')}`)
+  const kind = cap(keywords[0] ?? 'online store')
+  return Array.from({ length: 14 }, () => {
+    const name = `${pick(r, ['Maple', 'Nova', 'Wild', 'Little', 'Kind', 'Bright', 'Juniper', 'Coast', 'Ember', 'Olive'])} ${pick(r, ['& Co', 'Goods', 'Studio', 'Supply', 'Label', 'Market', 'Collective'])}`
+    const personal = r() > 0.25 ? 1 + Math.floor(r() * 6) : 0
+    return { domain: `${slug(name).replace(/-/g, '')}.example`, name, about: `${kind}, sold online`, personalEmails: personal, totalEmails: personal + Math.floor(r() * 3) }
+  })
+}
+
 export function demoFindEmail(domain: string, personName?: string): FoundEmail | null {
   const r = rng(`email:${domain}`)
   if (r() < 0.15) return null // some companies have no findable email

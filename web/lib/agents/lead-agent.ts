@@ -1,8 +1,8 @@
 // The Lead Agent. Each run (daily cron or "Run now"):
 //   1. checks sent emails for replies, opt-outs and bounces, and sends due follow-ups
 //   2. sends approved emails that waited for today's sending limit
-//   3. finds new leads: Reddit / Hacker News posts asking for this kind of product, unhappy
-//      Trustpilot reviewers of competitors, local businesses on Google Maps
+//   3. finds new leads: Reddit / Hacker News posts asking for this kind of product, local
+//      businesses on Google Maps, and online companies like the brand's customers (Hunter Discover)
 //   4. scores them (Claude), finds an email (Hunter, else the company website), drafts a short
 //      personal email or a forum reply, and waits for the user's OK (or sends on its own in
 //      auto mode, once the user has approved 20)
@@ -18,7 +18,7 @@ import { fetchHtml } from '@/lib/lead-finder/reviews'
 import { searchDataReady, googleResults, mapsBusinesses } from './dataforseo'
 import { agentsDemo, demoLocalQuery, demoReply, demoSend, setDemoContext } from './demo'
 import { Progress } from './progress'
-import { hunterConfigured, findEmail } from './hunter'
+import { hunterConfigured, findEmail, discoverCompanies } from './hunter'
 import { costNote } from './services'
 import {
   addUsage, defaultLeadData, newMeter, readLeadData, updateLeadData,
@@ -211,6 +211,106 @@ async function findHackerNews(queries: string[]): Promise<Candidate[]> {
   }
 }
 
+// ── Companies like your customers ─────────────────────────────────────────────
+
+const HEADCOUNTS = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10001+']
+
+/** The company search in plain words, turned into Hunter Discover filters once per wording. */
+async function companyFilters(b: BrandContext, s: LeadSettings, d: LeadAgentData): Promise<{ keywords: string[]; headcount: string[] }> {
+  const want = s.companyQuery.trim() || s.customer
+  if (d.companyFilters?.for === want && d.companyFilters.keywords.length) return d.companyFilters
+  const raw = await callAI({
+    feature: 'lead-agent',
+    model: 'claude-haiku-4-5-20251001',
+    maxTokens: 300,
+    system: 'You turn a description of target companies into search filters. Return only a raw JSON object.',
+    prompt: `${brandBlock(b)}
+Companies to find: ${want || 'companies that would buy this product'}
+
+Return {"keywords":[...],"headcount":[...]}:
+- keywords: 8 single words or short phrases (1-2 words) these companies use to describe themselves on their own website, e.g. "skincare", "handmade jewelry", "coffee roaster". Their products or trade, not ${b.name}'s.
+- headcount: company sizes to include, from ${HEADCOUNTS.join(', ')}. Small businesses: ["1-10","11-50"].`,
+  })
+  const j = parseJsonLoose<{ keywords?: string[]; headcount?: string[] }>(raw, 'object') ?? {}
+  const f = {
+    keywords: (j.keywords ?? []).filter(k => typeof k === 'string' && k.trim()).map(k => k.trim().toLowerCase()).slice(0, 8),
+    headcount: (j.headcount ?? []).filter(h => HEADCOUNTS.includes(h)),
+  }
+  d.companyFilters = { for: want, ...f }
+  return f
+}
+
+/** Title and description from a site's home page, so the fit score has something to go on. */
+async function aboutSite(domain: string): Promise<string> {
+  const html = await fetchHtml(`https://${domain}`).catch(() => null)
+  if (!html) return ''
+  const title = html.match(/<title[^>]*>([^<]{1,160})/i)?.[1] ?? ''
+  const desc = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{1,300})/i)?.[1]
+    ?? html.match(/<meta[^>]+content=["']([^"']{1,300})["'][^>]+name=["']description["']/i)?.[1] ?? ''
+  return [title, desc].map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · ')
+}
+
+async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData, known: Set<string>, meter: UsageMeter): Promise<Candidate[]> {
+  const f = await companyFilters(b, s, d)
+  if (!f.keywords.length) return []
+  // Three keywords a day, rotating: without paging, the same keywords always give the same companies
+  const day = Math.floor(Date.now() / 86_400_000)
+  const picks = [0, 1, 2].map(k => f.keywords[(day * 3 + k) % f.keywords.length]).filter((x, i, a) => a.indexOf(x) === i)
+  const skip = new Set([b.domain, ...b.competitors.map(c => domainOf(c.domain))])
+  const list = (await discoverCompanies({ keywords: picks, headcount: f.headcount, country: s.country }, meter))
+    .filter(c => !skip.has(c.domain) && !known.has(idOf(`https://${c.domain}`)))
+    // Companies Hunter has personal emails for first: those are the ones we can reach
+    .sort((x, y) => (y.personalEmails > 0 ? 1 : 0) - (x.personalEmails > 0 ? 1 : 0) || y.totalEmails - x.totalEmails)
+    .slice(0, PER_SOURCE + 4)
+  const abouts = await Promise.all(list.map(c => (c.about !== undefined ? Promise.resolve(c.about) : aboutSite(c.domain))))
+  return list.map((c, i) => ({
+    source: 'company' as const,
+    url: `https://${c.domain}`,
+    title: c.name,
+    snippet: [abouts[i] || 'No description on their home page', `website ${c.domain}`, `matched “${picks.join('”, “')}”`].join(' · '),
+    website: c.domain,
+  }))
+}
+
+// ── Where to look, picked from the brand ──────────────────────────────────────
+
+export interface SourcePick { local: boolean; companies: boolean; reddit: boolean; localQuery: string; companyQuery: string; why: string }
+
+/** Which sources suit this brand's buyers, and who to look for in each. */
+export async function pickSources(b: BrandContext, s: LeadSettings): Promise<SourcePick> {
+  const raw = await withAIContext({ brandId: b.id, moduleType: 'lead-agent', websiteUrl: b.websiteUrl }, () => callAI({
+    feature: 'lead-agent',
+    model: 'claude-haiku-4-5-20251001',
+    maxTokens: 500,
+    system: 'You decide where a small business should look for customers. Return only a raw JSON object.',
+    prompt: `${brandBlock(b)}
+Ideal customer: ${s.customer || b.targetAudience || 'not given'}
+Country: ${s.country}
+
+Sources:
+- local: businesses on Google Maps (shops, salons, cafés, clinics). Right when the buyers are local businesses with a street address.
+- companies: online businesses found by what they sell (online stores, brands, agencies, software companies). Right when the buyers are companies that live online.
+- reddit: Reddit and Hacker News posts where people ask for a tool like this. Right when buyers are individuals, creators, founders or developers who ask online.
+
+Turn on the 1-2 sources that fit the buyers best (at least one). Return
+{"local":bool,"companies":bool,"reddit":bool,"localQuery":"...","companyQuery":"...","why":"..."}
+- localQuery: a Google Maps search like "cafés in Pune" (a kind of business + a city in ${s.country}), or "" if local is off
+- companyQuery: who to look for, in plain words, like "small fashion and beauty online stores, 1-50 people", or "" if companies is off
+- why: one short sentence for the user, e.g. "Your buyers are small online brands, so we look for online stores and Reddit posts." No brand name at the start.`,
+  }))
+  const j = parseJsonLoose<Partial<SourcePick>>(raw, 'object') ?? {}
+  const pick: SourcePick = {
+    local: j.local === true, companies: j.companies === true, reddit: j.reddit === true,
+    localQuery: typeof j.localQuery === 'string' ? j.localQuery.trim().slice(0, 120) : '',
+    companyQuery: typeof j.companyQuery === 'string' ? j.companyQuery.trim().slice(0, 200) : '',
+    why: typeof j.why === 'string' ? j.why.trim().slice(0, 240) : '',
+  }
+  // Nothing sensible came back: keep what's set
+  if (!pick.local && !pick.companies && !pick.reddit) return { ...pick, local: s.sources.local, companies: s.sources.companies, reddit: s.sources.reddit, why: '' }
+  if (pick.local && !pick.localQuery) pick.localQuery = s.localQuery
+  return pick
+}
+
 async function findLocal(query: string, country: string, meter: UsageMeter): Promise<Candidate[]> {
   if (!searchDataReady() || !query.trim()) return []
   const list = await mapsBusinesses(query, country, meter)
@@ -251,6 +351,7 @@ Score each item 1-10 for how likely this person or business would want ${b.name}
 - reddit / forum: 8-10 only if they are asking for a tool or help that ${b.name} gives; 1-4 for news, rants, promotions, or other products' launches
 - review: an unhappy customer of a competitor; high only if their complaint is something ${b.name} solves
 - local: a business that matches the ideal customer and shows a need (no website, low rating, few reviews)
+- company: an online business, described by its own home page; high only if it clearly is the ideal customer and would use ${b.name}
 
 ${lines}
 
@@ -357,6 +458,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       { key: 'reddit', label: 'Searching Reddit & HN', hint: 'People asking for a tool like yours' },
     ] : []),
     ...(find && s.sources.local ? [{ key: 'local', label: 'Searching Google Maps', hint: `“${localQuery}”: businesses with no website or low ratings` }] : []),
+    ...(find && s.sources.companies ? [{ key: 'companies', label: 'Finding companies like your customers', hint: s.companyQuery || 'Online businesses that match your customer' }] : []),
     ...(find ? [
       { key: 'score', label: 'Scoring leads', hint: 'How well each one fits your product' },
       { key: 'emails', label: 'Finding emails', hint: 'Looked up with Hunter' },
@@ -401,6 +503,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       const found = await Promise.all([
         s.sources.reddit ? source('Reddit search', pr.step('reddit', async () => [...await findReddit(queries, s.country, meter), ...await findHackerNews(queries)], r => ({ detail: `${r.filter(fresh).length} new posts`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
         s.sources.local ? source('Google Maps search', pr.step('local', () => findLocal(localQuery, s.country, meter), r => ({ detail: n(r.length, 'business', 'businesses'), items: r.slice(0, 3).map(x => x.title) }))) : [],
+        s.sources.companies ? source('Company search', pr.step('companies', () => findCompanies(b, s, d, known, meter), r => ({ detail: n(r.length, 'company', 'companies'), items: r.slice(0, 3).map(x => x.title) }))) : [],
       ])
       // Up to 10 new finds from each source, so a busy one (often Reddit) can't crowd out the rest
       const seen = new Set<string>()
@@ -421,7 +524,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       // Demo mode: always keep a few made-up businesses with a website, so there are emails to approve
       // (Claude scores them strictly, and forum posts can fill the run)
       if (demo) {
-        const emailable = (x: Scored) => candidates[x.i].source === 'local' && !!candidates[x.i].website
+        const emailable = (x: Scored) => (candidates[x.i].source === 'local' || candidates[x.i].source === 'company') && !!candidates[x.i].website
         const missing = DEMO_EMAIL_LEADS - good.filter(emailable).length
         if (missing > 0) good.push(...scored.filter(x => emailable(x) && x.score >= 4 && !good.includes(x)).sort((x, y) => y.score - x.score).slice(0, missing))
       }
@@ -451,7 +554,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
         const found = lookups < 10 && hunterConfigured() ? await findEmail(l.website, person, meter).catch(() => null) : null
         if (found) { lookups += 1; l.email = found.email; l.emailVerified = found.verified; if (found.name && l.source !== 'review') l.name = found.name }
       }
-      const businesses = fresh.filter(l => l.source === 'review' || l.source === 'local')
+      const businesses = fresh.filter(l => l.source === 'review' || l.source === 'local' || l.source === 'company')
       if (!fresh.length) pr.set('emails', 'skipped', 'No good fits')
       else pr.set('emails', 'done', businesses.length
         ? { detail: `${businesses.filter(l => l.email).length} of ${businesses.length} found`, note: meter.hunterOut ? 'Hunter’s email credits are used up, so the rest have no email yet.' : euBlocked ? 'EU leads are not emailed (your setting).' : undefined }
@@ -492,6 +595,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       x.leads = [...fresh.filter(l => !have.has(l.id)), ...x.leads]
       x.sentLog = [...new Set([...x.sentLog, ...d.sentLog])].sort()
       if (d.queries) x.queries = d.queries
+      if (d.companyFilters) x.companyFilters = d.companyFilters
       x.demo = demo
       if (rejected.length) x.rejected = [...(x.rejected ?? []), ...rejected]
       // "Last search" on the page: only runs that searched

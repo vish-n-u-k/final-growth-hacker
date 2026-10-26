@@ -27,7 +27,7 @@ What each tool does today:
 
 | Tool | What it does |
 |---|---|
-| **Lead Agent** | Two jobs, shown as two tabs. **Email**: finds businesses on Google Maps through DataForSEO, finds their email through Hunter, writes an email and you approve it. Follow-ups go out by themselves and stop when they reply. **Add your own emails** (top of the Email tab): paste or upload your own people, one email written for all with first name and company filled in, approve all at once; sent within the daily limit with the same follow-ups. **Community**: finds Reddit and Hacker News posts asking for a tool like yours, writes a reply, and you post it yourself. It does **not** read competitor reviews any more; that is Competitor Leads' job. |
+| **Lead Agent** | Two jobs, shown as two tabs. **Email**: finds businesses on Google Maps through DataForSEO, or online **companies like your customers** through Hunter Discover (see 4d), finds their email through Hunter, writes an email and you approve it. Follow-ups go out by themselves and stop when they reply. **Add your own emails** (top of the Email tab): paste or upload your own people, one email written for all with first name and company filled in, approve all at once; sent within the daily limit with the same follow-ups. **Community**: finds Reddit and Hacker News posts asking for a tool like yours, writes a reply, and you post it yourself. It does **not** read competitor reviews any more; that is Competitor Leads' job. |
 | **Competitor Leads** | You pick a competitor. It reads their newest Trustpilot or Shopify App Store reviews, scores how well each unhappy reviewer fits, and you reach out in two steps (their email, then review & send). |
 | **Email Outreach** | Campaigns from your Gmail, as a list, each done in three steps: who gets it, write the emails, review & send. Recipients can be pasted or uploaded as a file (CSV, Excel, PDF, Word, text, .vcf). Also has follow-ups as cards, an Inbox limited to threads GrowJin sent (replies first, tagged by what they say), and a Done tab. |
 | **Search Agent** | Weekly research (DataForSEO plus AI answers), then a to-do list: posts to write (drafted for you), sites to pitch, and "other things to do". Those last ones are actionable: fix how AI describes you, get listed on G2 and similar, pitch article sites. Also Rankings and AI answers tabs. |
@@ -193,6 +193,27 @@ One board for every lead source, built from the approved preview `design-preview
   - HTTP 429 means the credits are used up (403 is only the rate limit). The meter gets `hunterOut`, Hunter isn't asked again that run, and `hunterOutAt` is saved for the month. It clears once Hunter returns an email again.
   - Where it shows: Lead Agent run progress and a note on the page, Competitor Leads' "No public email found", Search Agent's contacts step, Settings and the agents overview.
   - Not checked on the real free plan: whether Domain Search's `department` and `type` filters are allowed there. If not, that request fails and the plain one-email search still runs.
+
+## 4d. Lead Agent: sources picked from the brand, and "Companies like your customers"
+
+- **Why:** Google Maps only suits brands that sell to local shops. Frekto's buyers are online businesses, which aren't on Maps and rarely have a findable email there.
+- **New source `companies`** (`LeadSource 'company'`, `settings.sources.companies`, `settings.companyQuery`):
+  - `findCompanies` in `lead-agent.ts`: Claude turns `companyQuery` into Hunter Discover filters once per wording (`data.companyFilters`: 8 keywords + company size).
+  - Each run uses 3 of the keywords, rotating daily, because without Premium paging Discover always returns the same first 100.
+  - `discoverCompanies` in `hunter.ts` uses filters only (keywords, `headcount`, `headquarters_location` = the country). Discover is free; its natural-language `query` is avoided because the free plan allows only 30 of those a month.
+  - Companies Hunter has personal emails for come first. Each one's home-page title and description are read so Claude can score the fit. Then it's the usual flow: score, Hunter email (≤ 1 credit), draft, approve.
+  - Demo stand-in: `demoDiscover` in `demo.ts`.
+- **Picked from the brand:** `pickSources` (Claude) chooses Google Maps / companies / Reddit with a who-line each and one `why` sentence, saved as `settings.picked = { at, why }`.
+  - Op `pick` in `/api/agents/lead`.
+  - Runs on the first visit (no `lastRunAt`, no leads) and from "Pick for me" in Settings.
+  - Changing sources by hand clears the `why`.
+  - Brands saved before this read `companies: false`, `companyQuery: ''` (`readLeadData`).
+- **Lead Agent page:**
+  - First visit shows one card, "Where we'll look": the why line, each source with who it looks for, **Start finding leads** (the only green), Change, and a grey "Add your own emails" link. Tabs and list stay hidden until the first search.
+  - Afterwards the action bar's grey line reads "Searching: Companies like your customers · Reddit and Hacker News".
+  - Settings has "Where to look" with "Pick for me", a switch per source, and the who-line under each one that's on. `la-pick-*` / `la-src-*` CSS at the end of `globals.css`.
+- **Lead Finder (`/leads`):** a "Companies" source button with its own "Looking for" line, a switch and field in Settings. The first visit runs `pick` then searches.
+- **Not tested against real Hunter:** whether Discover's keyword search gives good small online stores. If it's weak, DataForSEO's technology search ("sites running Shopify in the US") is the next thing to try.
 
 ## 5. What we are doing right now: making the tools calm
 

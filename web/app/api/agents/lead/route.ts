@@ -3,7 +3,7 @@ import { agentAccess } from '@/lib/agents/access'
 import { demoForced, withDemo } from '@/lib/agents/demo'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
-import { addLeadEmail, approveLead, demoSkipDays, leadFallback, runLeadAgent } from '@/lib/agents/lead-agent'
+import { addLeadEmail, approveLead, demoSkipDays, leadFallback, pickSources, runLeadAgent } from '@/lib/agents/lead-agent'
 import { readLeadData, updateLeadData, type LeadSettings } from '@/lib/agents/store'
 import { addOwnList, checkPeople, draftListEmail } from '@/lib/agents/own-list'
 import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
@@ -40,11 +40,14 @@ function cleanSettings(cur: LeadSettings, s: Partial<LeadSettings>): LeadSetting
       reddit: typeof s.sources?.reddit === 'boolean' ? s.sources.reddit : cur.sources.reddit,
       reviews: typeof s.sources?.reviews === 'boolean' ? s.sources.reviews : cur.sources.reviews,
       local: typeof s.sources?.local === 'boolean' ? s.sources.local : cur.sources.local,
+      companies: typeof s.sources?.companies === 'boolean' ? s.sources.companies : cur.sources.companies,
     },
     competitors: Array.isArray(s.competitors)
       ? s.competitors.map(x => String(x).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]).filter(x => x.includes('.')).slice(0, 3)
       : cur.competitors,
     localQuery: typeof s.localQuery === 'string' ? s.localQuery.slice(0, 120) : cur.localQuery,
+    companyQuery: typeof s.companyQuery === 'string' ? s.companyQuery.slice(0, 200) : cur.companyQuery,
+    picked: cur.picked,
     dailyLimit: Number.isInteger(s.dailyLimit) ? Math.min(30, Math.max(1, s.dailyLimit!)) : cur.dailyLimit,
     followUpDays: days,
     skipEU: typeof s.skipEU === 'boolean' ? s.skipEU : cur.skipEU,
@@ -75,8 +78,27 @@ async function post(req: NextRequest) {
       return NextResponse.json({ data, demo: on, message: on ? 'Demo mode on: made-up leads, nothing is sent.' : 'Demo mode off: real leads.' })
     }
     case 'settings': {
-      const data = await updateLeadData(brandId, fallback, d => { d.settings = cleanSettings(d.settings, body.settings ?? {}) })
+      const data = await updateLeadData(brandId, fallback, d => {
+        const next = cleanSettings(d.settings, body.settings ?? {})
+        // Sources changed by hand: GrowJin's one-line reason no longer describes them
+        const was = d.settings.sources
+        if (next.picked && (next.sources.local !== was.local || next.sources.companies !== was.companies || next.sources.reddit !== was.reddit)) next.picked = { ...next.picked, why: '' }
+        d.settings = next
+      })
       if (!data.settings.enabled) await clearSignals(brandId, 'lead-agent', ['approvals']).catch(() => {})
+      return NextResponse.json({ data })
+    }
+    // GrowJin picks the sources from the brand (first visit, or "Pick for me" in Settings)
+    case 'pick': {
+      const cur = (await readLeadData(brandId)) ?? fallback()
+      const p = await pickSources(b, cur.settings).catch(() => null)
+      if (!p) return NextResponse.json({ error: 'Couldn’t pick sources right now. Choose them in Change.' })
+      const data = await updateLeadData(brandId, fallback, d => {
+        d.settings.sources = { ...d.settings.sources, local: p.local, companies: p.companies, reddit: p.reddit }
+        if (p.localQuery) d.settings.localQuery = p.localQuery
+        if (p.companyQuery) d.settings.companyQuery = p.companyQuery
+        d.settings.picked = { at: new Date().toISOString(), why: p.why }
+      })
       return NextResponse.json({ data })
     }
     case 'run': {

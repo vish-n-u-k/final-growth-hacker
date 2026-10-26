@@ -10,7 +10,7 @@ import { Day, fmtAgo, fmtDate, initials, useAgentApi } from './shared'
 import OwnListFlow from './OwnListFlow'
 
 // Lead Agent: finds people who need the product in two places, Reddit / Hacker News posts (a reply
-// to post yourself) and Google Maps businesses (an email to approve), and follows up until they
+// to post yourself) and Google Maps businesses or companies like your customers (an email to approve), and follows up until they
 // reply. Competitor reviews are Competitor Leads' job, not this one's. The two jobs are the two
 // tabs (Community, Email); inside each, To do / Waiting / Done. The bar at the top says what it searches for (Change opens the settings); it searches
 // by itself the first time the page is opened. Leads sit in three tabs: Needs you (replies to
@@ -25,9 +25,41 @@ type Section = 'replied' | 'approve' | 'post'
 
 const COUNTRIES: [string, string][] = [['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
 const SOURCE: Record<Lead['source'], [string, 'orange' | 'amber' | undefined]> = {
-  review: ['Unhappy reviewer', undefined], local: ['Google Maps', 'amber'], reddit: ['Reddit', 'orange'], forum: ['Hacker News', 'orange'], own: ['Your list', undefined],
+  review: ['Unhappy reviewer', undefined], local: ['Google Maps', 'amber'], company: ['Company like your customers', undefined], reddit: ['Reddit', 'orange'], forum: ['Hacker News', 'orange'], own: ['Your list', undefined],
 }
-const PROGRESS = ['Checking replies', 'Searching Google Maps', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies']
+const PROGRESS = ['Checking replies', 'Searching Google Maps', 'Finding companies like your customers', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies']
+
+/** The sources that are on, each with who it looks for (the first-visit card and the line above the list). */
+function sourcesOn(s: LeadSettings): { name: string; who: string }[] {
+  return [
+    s.sources.companies ? { name: 'Companies like your customers', who: s.companyQuery || 'Online businesses that match your customer' } : null,
+    s.sources.local ? { name: 'Google Maps', who: s.localQuery || 'Add a search, e.g. cafés in Pune' } : null,
+    s.sources.reddit ? { name: 'Reddit and Hacker News', who: 'People asking for a tool like yours' } : null,
+  ].filter((x): x is { name: string; who: string } => !!x)
+}
+
+/** First visit: where GrowJin will look, picked from the brand. One green button. */
+function PickCard({ s, picking, onStart, onChange, onOwn }: { s: LeadSettings; picking: boolean; onStart: () => void; onChange: () => void; onOwn: () => void }) {
+  if (picking) {
+    return <section className="tu-panel la-pick"><p className="la-pick-wait"><Spinner />Reading your brand to pick where to look…</p></section>
+  }
+  const on = sourcesOn(s)
+  return (
+    <section className="tu-panel la-pick">
+      <h3>Where we’ll look</h3>
+      {s.picked?.why && <p className="tu-hint">{s.picked.why}</p>}
+      <div className="la-pick-rows">
+        {on.length ? on.map(x => <div key={x.name} className="la-pick-row"><b>{x.name}</b><span>{x.who}</span></div>)
+          : <div className="la-pick-row"><span>No sources on yet. Pick one in Change.</span></div>}
+      </div>
+      <div className="tu-panel-acts la-pick-acts">
+        <button type="button" className="th-link tu-linkbtn la-pick-own" onClick={onOwn}>Have your own list? Add your own emails</button>
+        <button type="button" className="btn btn-ghost" onClick={onChange}>Change</button>
+        <button type="button" className="btn btn-primary" disabled={!on.length} onClick={onStart}>Start finding leads</button>
+      </div>
+    </section>
+  )
+}
 
 const isForum = (l: Lead) => l.source === 'reddit' || l.source === 'forum'
 const laneOf = (l: Lead): Lane => (isForum(l) ? 'community' : 'email')
@@ -44,8 +76,8 @@ const nameOf = (l: Lead) => (isForum(l) ? l.title : l.name || l.company || l.tit
 const firstOf = (l: Lead) => (isForum(l) ? 'them' : (l.name || l.company || l.title).split(/\s+/)[0])
 const where = (l: Lead) => { try { return new URL(l.url).hostname.replace(/^www\./, '') } catch { return '' } }
 
-function Settings({ initial, saving, onSave, onCancel }: {
-  initial: LeadSettings; saving: boolean; onSave: (s: LeadSettings) => void; onCancel: () => void
+function Settings({ initial, saving, picking, hunter, onSave, onCancel, onPick }: {
+  initial: LeadSettings; saving: boolean; picking: boolean; hunter: boolean; onSave: (s: LeadSettings) => void; onCancel: () => void; onPick: () => void
 }) {
   const [s, setS] = useState<LeadSettings>(initial)
   const [days, setDays] = useState(initial.followUpDays.join(', '))
@@ -61,11 +93,20 @@ function Settings({ initial, saving, onSave, onCancel }: {
         <label className="tu-full">Who is your customer?
           <textarea rows={2} value={s.customer} onChange={e => set('customer', e.target.value)} placeholder="e.g. Small business owners (cafés, salons, shops) who post on Instagram and struggle to make content" />
         </label>
-        <label className="tu-full">Google Maps search
-          <input value={s.localQuery} onChange={e => set('localQuery', e.target.value)} placeholder="e.g. cafés in Pune" />
-        </label>
+        <div className="tu-full la-src-hd">
+          <span>Where to look{initial.picked?.why ? <small>{initial.picked.why}</small> : null}</span>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={picking} onClick={onPick}>{picking ? <><Spinner />Picking…</> : 'Pick for me'}</button>
+        </div>
+        <label className="tu-chk tu-full"><input type="checkbox" checked={s.sources.companies} onChange={e => set('sources', { ...s.sources, companies: e.target.checked })} />
+          <span>Email: companies like your customers<small>Online businesses that match who you look for, with Hunter.{hunter ? '' : ' Needs GrowJin’s Hunter key, which isn’t set up yet.'}</small></span></label>
+        {s.sources.companies && <label className="tu-full la-src-who">Who to look for
+          <input value={s.companyQuery} onChange={e => set('companyQuery', e.target.value)} placeholder="e.g. small fashion and beauty online stores, 1-50 people" />
+        </label>}
         <label className="tu-chk tu-full"><input type="checkbox" checked={s.sources.local} onChange={e => set('sources', { ...s.sources, local: e.target.checked })} />
-          <span>Email: businesses on Google Maps<small>No website, few reviews or a low rating. You approve each email.</small></span></label>
+          <span>Email: businesses on Google Maps<small>Local shops with no website, few reviews or a low rating. You approve each email.</small></span></label>
+        {s.sources.local && <label className="tu-full la-src-who">Google Maps search
+          <input value={s.localQuery} onChange={e => set('localQuery', e.target.value)} placeholder="e.g. cafés in Pune" />
+        </label>}
         <label className="tu-chk tu-full"><input type="checkbox" checked={s.sources.reddit} onChange={e => set('sources', { ...s.sources, reddit: e.target.checked })} />
           <span>Community: Reddit and Hacker News<small>Posts asking for a tool like yours. You post the reply yourself.</small></span></label>
         <label className="tu-chk tu-full"><input type="checkbox" checked={s.enabled} onChange={e => set('enabled', e.target.checked)} />
@@ -123,13 +164,14 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
   const [listId, setListId] = useState<string | null>(null)
 
   const running = busy === 'run' || busy === 'demo_skip'
-  // Nothing to fill in first: the first visit starts a search straight away
+  // First visit: GrowJin picks where to look from the brand, then the user starts the search
+  const firstVisit = !data.lastRunAt && !data.leads.length && !running
   const auto = useRef(false)
   useEffect(() => {
-    if (auto.current || data.lastRunAt || data.leads.length) return
+    if (auto.current || !firstVisit || data.settings.picked) return
     auto.current = true
-    call('run')
-  }, [call, data.lastRunAt, data.leads.length])
+    call('pick')
+  }, [call, firstVisit, data.settings.picked])
 
   const act = (op: string, payload: Record<string, unknown>, key = `${op}:${payload.id ?? ''}`) =>
     call(op, payload, key) as Promise<{ ok?: boolean; error?: string; message?: string; data?: LeadAgentData } | null>
@@ -203,7 +245,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
             <button key={k} type="button" aria-pressed={tab === k} onClick={() => { setTab(k); setQ('') }}>{label} <span>{byTab(k).length}</span></button>
           ))}
         </div>
-        <span className="cl-muted">{lane === 'email' ? 'Businesses on Google Maps and your own lists. You approve every email.' : 'Posts on Reddit and Hacker News. You post every reply yourself.'}</span>
+        <span className="cl-muted">{lane === 'email' ? 'Businesses and companies we found, and your own lists. You approve every email.' : 'Posts on Reddit and Hacker News. You post every reply yourself.'}</span>
       </div>
       <ListTools q={q} setQ={setQ} shown={shown.length} total={all.length} onClear={() => setQ('')} />
     </>
@@ -211,7 +253,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
       return <>{tools}<div className="tu-empty">{all.length ? 'Nothing matches.'
         : running && !leads.length ? 'Your first leads appear here in a moment.'
         : tab === 'needs' ? (lane === 'email'
-          ? (s.sources.local ? 'No emails to approve. New businesses appear after the next search.' : 'Google Maps is off. Turn it on in Search settings to find businesses to email.')
+          ? (s.sources.local || s.sources.companies ? 'No emails to approve. New ones appear after the next search.' : 'Google Maps and company search are off. Turn one on in Search settings to find people to email.')
           : (s.sources.reddit ? 'No posts to answer. New ones appear after the next search.' : 'Reddit and Hacker News are off. Turn them on in Search settings.'))
         : tab === 'waiting' ? (lane === 'email' ? 'Nothing waiting. Emails you send show up here until they reply.' : 'Nothing waiting. Replies you post show up here.')
         : 'Nothing here yet.'}</div></>
@@ -418,11 +460,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
 
   // ── Page ───────────────────────────────────────────────────────────────────
 
-  const sources = [
-    s.sources.local ? (s.localQuery ? `Google Maps “${s.localQuery}”` : 'Google Maps (add a search)') : null,
-    s.sources.reddit ? 'Reddit and Hacker News' : null,
-  ].filter(Boolean)
-  const customer = (s.customer || 'your customers').split(/[.(]/)[0].trim().slice(0, 70)
+  const sources = sourcesOn(s).map(x => x.name)
 
   return (
     <div className="tool-page">
@@ -448,25 +486,30 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
       ) : listId ? listView(listId) : <>
         {!gmail && <div className="ag-note ag-note-warn">Connect Gmail so approved emails go out from your address. <a href="/api/gmail/connect">Connect Gmail</a></div>}
         {!flags.dataforseo && (s.sources.reddit || s.sources.local) && <div className="ag-note ag-note-warn">Reddit and Google Maps search need GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet. Hacker News and competitor reviews still work.</div>}
+        {s.sources.companies && !flags.hunter && <div className="ag-note ag-note-warn">Companies like your customers needs GrowJin&apos;s Hunter key, which isn&apos;t set up yet.</div>}
         {flags.hunterOut && !demo && <div className="ag-note ag-note-warn">Hunter’s email credits are used up, so new leads come without an email until they renew. You can still add one by hand, or upgrade Hunter.</div>}
         {data.lastError && !running && <div className="ag-note ag-note-crit">The last search had a problem: {data.lastError}</div>}
 
-        {panel && <Settings initial={s} saving={busy === 'settings'} onCancel={() => setPanel(false)}
+        {panel && <Settings key={s.picked?.at ?? 'none'} initial={s} saving={busy === 'settings'} picking={busy === 'pick'} hunter={flags.hunter} onCancel={() => setPanel(false)}
+          onPick={() => call('pick')}
           onSave={async next => { const r = await call('settings', { settings: next }); if (r?.data) { setPanel(false); notify('Saved') } }} />}
-        <ActionBar
+        {firstVisit ? (!panel && <PickCard s={s} picking={busy === 'pick'} onStart={() => call('run')} onChange={() => setPanel(true)} onOwn={() => setAdding(true)} />) : <ActionBar
           status={running ? (data.lastRunAt ? 'Looking for new leads…' : 'Running your first search…') : data.lastRunAt ? `Last search ${fmtAgo(data.lastRunAt)}${data.lastRunSummary ? ` · ${data.lastRunSummary}` : ''}` : 'Not searched yet'}
-          setup={<>Looking for <b>{customer}</b>{sources.length ? ` via ${sources.join(', ')}` : ' (no sources on)'}</>}
+          setup={sources.length ? <>Searching: {sources.join(' · ')}</> : 'No sources on'}
           onChange={() => setPanel(p => !p)}
           secondary={<button type="button" className="btn btn-ghost" aria-expanded={panel} onClick={() => setPanel(p => !p)}>Search settings</button>}
-          primary={<button type="button" className="btn btn-primary" disabled={running || !!busy} onClick={() => { setPanel(false); call('run') }}>{running ? <><Spinner />Working…</> : 'Find new leads'}</button>} />
+          primary={<button type="button" className="btn btn-primary" disabled={running || !!busy} onClick={() => { setPanel(false); call('run') }}>{running ? <><Spinner />Working…</> : 'Find new leads'}</button>} />}
         <LiveProgress agent="lead" active={running} fallback={PROGRESS} />
 
-        <Tabs value={lane} onChange={k => { setLane(k); setTab('needs'); setQ('') }} tabs={[
-          { key: 'email', label: 'Email', count: inLane('email', 'needs').length, hot },
-          { key: 'community', label: 'Community', count: inLane('community', 'needs').length },
-        ]} />
-        {lane === 'email' && ownBar()}
-        {list()}
+        {/* First visit: nothing to list until the first search */}
+        {!firstVisit && <>
+          <Tabs value={lane} onChange={k => { setLane(k); setTab('needs'); setQ('') }} tabs={[
+            { key: 'email', label: 'Email', count: inLane('email', 'needs').length, hot },
+            { key: 'community', label: 'Community', count: inLane('community', 'needs').length },
+          ]} />
+          {lane === 'email' && ownBar()}
+          {list()}
+        </>}
       </>}
       {toast}
     </div>

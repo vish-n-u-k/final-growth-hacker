@@ -33,9 +33,13 @@ export interface LeadSettings {
   customer: string              // who the brand sells to, in plain words
   country: string               // ISO code (see LOCATION_CODES)
   // reviews / competitors: no longer used. Competitor reviews are Competitor Leads' job (lib/lead-finder)
-  sources: { reddit: boolean; reviews: boolean; local: boolean }
+  // companies = "Companies like your customers": online businesses found with Hunter Discover
+  sources: { reddit: boolean; reviews: boolean; local: boolean; companies: boolean }
   competitors: string[]
   localQuery: string            // e.g. "cafés in Pune"
+  companyQuery: string          // who to look for among companies, e.g. "small fashion and beauty online stores"
+  // GrowJin picked the sources from the brand (pickSources in lead-agent.ts); why = one line for the page
+  picked?: { at: string; why: string } | null
   dailyLimit: number            // new first emails a day
   followUpDays: number[]        // days after the first email, e.g. [3, 7]
   skipEU: boolean               // don't cold-email leads in the EU
@@ -43,7 +47,8 @@ export interface LeadSettings {
 }
 
 // own = added by the user from their own list (Email tab, "Add your own emails")
-export type LeadSource = 'reddit' | 'forum' | 'review' | 'local' | 'own'
+// company = found with Hunter Discover ("Companies like your customers")
+export type LeadSource = 'reddit' | 'forum' | 'review' | 'local' | 'company' | 'own'
 export type LeadStatus =
   | 'ready'          // draft waiting for the user's OK
   | 'needs_contact'  // good fit, no email found
@@ -102,6 +107,8 @@ export interface LeadAgentData {
   lists?: OwnList[]             // lists the user added (newest first)
   demo?: boolean                // made with demo data (lib/agents/demo.ts)
   queries?: { for: string; list: string[] }
+  // companyQuery turned into Hunter Discover filters (written once per query)
+  companyFilters?: { for: string; keywords: string[]; headcount: string[] }
   lastRunAt?: string
   lastRunSummary?: string
   lastError?: string | null
@@ -224,9 +231,11 @@ export function defaultLeadData(brand: { websiteUrl?: string | null; targetAudie
       enabled: false,
       customer: brand.targetAudience ?? '',
       country: defaultCountry(brand.websiteUrl),
-      sources: { reddit: true, reviews: false, local: true },
+      sources: { reddit: true, reviews: false, local: true, companies: false },
       competitors: competitorDomains.slice(0, 3),
       localQuery: '',
+      companyQuery: '',
+      picked: null,
       dailyLimit: 15,
       followUpDays: [3, 7],
       skipEU: true,
@@ -260,7 +269,13 @@ export function defaultSearchData(brand: { websiteUrl?: string | null; keywords?
 // ── Read / write ──────────────────────────────────────────────────────────────
 
 export async function readLeadData(brandId: string): Promise<LeadAgentData | null> {
-  return getSnapshot<LeadAgentData>(brandId, leadKey())
+  const d = await getSnapshot<LeadAgentData>(brandId, leadKey())
+  // Saved before "Companies like your customers" existed
+  if (d?.settings) {
+    d.settings.sources = { ...d.settings.sources, companies: d.settings.sources?.companies ?? false }
+    d.settings.companyQuery ??= ''
+  }
+  return d
 }
 
 export async function readSearchData(brandId: string): Promise<SearchAgentData | null> {

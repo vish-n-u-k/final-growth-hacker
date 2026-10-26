@@ -7,7 +7,7 @@ import type { Platform, SavedReview, SavedScan } from '@/lib/lead-finder/saved'
 import { competitorLabel } from '@/components/lead-finder/ui'
 
 export type Stage = 'todo' | 'contacted' | 'replied' | 'done' | 'nofit' | 'checking'
-export type SourceType = 'maps' | 'rival' | 'forum' | 'own' | 'other'
+export type SourceType = 'maps' | 'companies' | 'rival' | 'forum' | 'own' | 'other'
 
 export interface Source {
   id: string
@@ -37,6 +37,7 @@ export const bars = (score: number) => Math.max(1, Math.min(4, Math.round((score
 
 export function agentSrc(l: Lead): string {
   if (l.source === 'local') return 'maps'
+  if (l.source === 'company') return 'companies'
   if (l.source === 'reddit') return 'reddit'
   if (l.source === 'forum') return 'hn'
   if (l.source === 'own') return 'own'
@@ -76,10 +77,13 @@ export function mergeReviews(lists: SavedReview[][]): SavedReview[] {
   return [...seen.values()]
 }
 
-/** The buttons at the top: Google Maps, each competitor, Reddit, Hacker News, your list. */
+/** The buttons at the top: Google Maps, companies like your customers, each competitor, Reddit, Hacker News, your list. */
 export function buildSources(data: LeadAgentData, scans: SavedScan[], competitors: string[], extra: { platform: Platform; competitor: string }[]): Source[] {
   const s = data.settings
-  const out: Source[] = [{ id: 'maps', type: 'maps', name: 'Google Maps', glyph: 'M', hue: 145, on: s.sources.local }]
+  const out: Source[] = [
+    { id: 'maps', type: 'maps', name: 'Google Maps', glyph: 'M', hue: 145, on: s.sources.local },
+    { id: 'companies', type: 'companies', name: 'Companies', glyph: 'C', hue: 200, on: !!s.sources.companies },
+  ]
   const rivals = new Map<string, Source>()
   const addRival = (platform: Platform, competitor: string, scan?: SavedScan) => {
     const id = rivalId(platform, competitor)

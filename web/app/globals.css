@@ -9423,3 +9423,16 @@ html.light .lfh { --lfh-av-s: 30%; --lfh-av-l: 90%; }
 @media (prefers-reduced-motion: reduce) {
   .lfh *, .lfh *::before, .lfh *::after { animation: none !important; transition: none !important; }
 }
+
+/* Lead Agent: where to look (first-visit card and Settings) */
+.la-pick-wait { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 14px; color: var(--text-dim); }
+.la-pick-rows { display: flex; flex-direction: column; }
+.la-pick-row { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; border-top: 1px solid var(--line); }
+.la-pick-row:first-child { border-top: none; padding-top: 0; }
+.la-pick-row b { font-size: 14px; font-weight: 500; color: var(--text); }
+.la-pick-row span { font-size: 13px; color: var(--text-dim); }
+.la-pick-acts { margin-top: 14px; align-items: center; flex-wrap: wrap; }
+.la-pick-own { margin-right: auto; font-size: 13px; color: var(--text-dim); }
+.la-src-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-top: 4px; font-size: 13px; font-weight: 600; color: var(--text-dim); }
+.la-src-hd small { display: block; margin-top: 2px; font-size: 12.5px; font-weight: 400; color: var(--text-faint); }
+.tu-grid .la-src-who { margin: -6px 0 0 26px; }

@@ -140,13 +140,16 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
   // A source that went away (a competitor removed) falls back to All
   useEffect(() => { if (view !== 'all' && !src(view)) setView('all') }, [view, src])
 
-  // Nothing found yet: the first visit starts a search straight away, like the Lead Agent
+  // Nothing found yet: the first visit picks where to look from the brand, then searches
   const auto = useRef(false)
   useEffect(() => {
     if (auto.current || data.lastRunAt || data.leads.length) return
     auto.current = true
-    call('run')
-  }, [call, data.lastRunAt, data.leads.length])
+    ;(async () => {
+      if (!data.settings.picked) await call('pick')
+      call('run')
+    })()
+  }, [call, data.lastRunAt, data.leads.length, data.settings.picked])
 
   // ── Competitors: read reviews, check fit ──────────────────────────────────
 
@@ -221,7 +224,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
       const last = r.scans?.[0]?.scannedAt
       if (!last || Date.now() - Date.parse(last) > 86_400_000) readRival(r)
     }
-    if (s.sources.local || s.sources.reddit) call('run')
+    if (s.sources.local || s.sources.reddit || s.sources.companies) call('run')
   }
 
   // ── Acting on items ───────────────────────────────────────────────────────
@@ -302,6 +305,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
       const total = counts.reduce((a, c) => a + c.n, 0)
       const rivalsIdx = sources.filter(x => x.type === 'rival')
       const color = (x: Source) => x.type === 'maps' ? 'var(--green)'
+        : x.type === 'companies' ? 'color-mix(in srgb, var(--green) 55%, transparent)'
         : x.type === 'forum' ? (x.id === 'reddit' ? 'var(--warn)' : 'color-mix(in srgb, var(--warn) 55%, transparent)')
         : x.type === 'rival' ? `color-mix(in srgb, var(--crit) ${[90, 65, 45, 30][rivalsIdx.indexOf(x) % 4]}%, transparent)` : 'var(--text-faint)'
       return (
@@ -349,7 +353,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
         </section>
       )
     }
-    if (cur.type === 'maps' || cur.type === 'forum') {
+    if (cur.type === 'maps' || cur.type === 'companies' || cur.type === 'forum') {
       const queries = data.queries?.list ?? []
       return (
         <section className="lfh-hero">
@@ -357,12 +361,16 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
           <div className="lfh-grow lfh-col">
             {cur.type === 'maps'
               ? <MapsQuery value={s.localQuery} saving={busy === 'settings'} onSave={q => call('settings', { settings: { ...s, localQuery: q, sources: { ...s.sources, local: true } } })} />
+              : cur.type === 'companies'
+              ? <MapsQuery value={s.companyQuery} label="Companies to look for" placeholder="e.g. small fashion and beauty online stores" saving={busy === 'settings'} onSave={q => call('settings', { settings: { ...s, companyQuery: q, sources: { ...s.sources, companies: true } } })} />
               : <div className="lfh-query">{queries.length ? queries.slice(0, 6).map(q => <span key={q} className="lfh-chip">{q}</span>) : <span className="lfh-meta">Search phrases are written from your brand on the first search.</span>}</div>}
             <div className="lfh-meta">
               {!cur.on ? <span className="lfh-warn">Off. Turn it on in Settings.</span> : <><Ic d={P.clock} size={14} />{data.lastRunAt ? `Last search ${fmtAgo(data.lastRunAt)}` : 'Not searched yet'}</>}
               {cur.type === 'forum' && <span>· You post every reply yourself</span>}
+              {cur.type === 'companies' && <span>· Online businesses, emails from Hunter</span>}
             </div>
-            {!flags.dataforseo && <div className="lfh-meta lfh-warn">{cur.type === 'maps' ? 'Google Maps' : 'Reddit'} search needs GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet.</div>}
+            {cur.type === 'companies' && !flags.hunter && <div className="lfh-meta lfh-warn">Company search needs GrowJin&apos;s Hunter key, which isn&apos;t set up yet.</div>}
+            {cur.type !== 'companies' && !flags.dataforseo && <div className="lfh-meta lfh-warn">{cur.type === 'maps' ? 'Google Maps' : 'Reddit'} search needs GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet.</div>}
           </div>
           <div className="lfh-actbox">{busyBtn('Search now', () => call('run'), running, !cur.on)}</div>
         </section>
@@ -880,14 +888,14 @@ function RivalItem({ item, source, gmail, notify, left, onChange, onSkip, onDone
   </>
 }
 
-function MapsQuery({ value, saving, onSave }: { value: string; saving: boolean; onSave: (q: string) => void }) {
+function MapsQuery({ value, saving, onSave, label = 'Google Maps search', placeholder = 'e.g. salons and cafés in Austin' }: { value: string; saving: boolean; onSave: (q: string) => void; label?: string; placeholder?: string }) {
   const [edit, setEdit] = useState(false)
   const [q, setQ] = useState(value)
   useEffect(() => setQ(value), [value])
   if (edit) {
     return (
       <form className="lfh-query" onSubmit={e => { e.preventDefault(); if (q.trim()) { onSave(q.trim()); setEdit(false) } }}>
-        <input className="lfh-chipin" autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="e.g. salons and cafés in Austin" aria-label="Google Maps search" />
+        <input className="lfh-chipin" autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={placeholder} aria-label={label} />
         <button type="submit" className="btn btn-primary btn-sm" disabled={saving || !q.trim()}>Save</button>
         <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setQ(value); setEdit(false) }}>Cancel</button>
       </form>
@@ -917,6 +925,9 @@ function SettingsPanel({ initial, saving, gmail, demo, demoForced, rivals, busy,
       <div className="lfh-set"><span className="lfh-set-t">Search every morning<small>New people wait for you. Nothing is sent without you.</small></span><Sw on={s.enabled} label="Search every morning" onChange={v => set('enabled', v)} /></div>
       <label className="lfh-field">Who is your customer?<textarea rows={2} value={s.customer} onChange={e => set('customer', e.target.value)} placeholder="e.g. Small business owners who post on Instagram" /></label>
       <div className="lfh-grp">Sources</div>
+      {initial.picked?.why && <p className="lfh-meta">{initial.picked.why}</p>}
+      <div className="lfh-set"><span className="lfh-set-t">Companies like your customers<small>{s.companyQuery || 'Online businesses that match your customer'}</small></span><Sw on={!!s.sources.companies} label="Companies like your customers" onChange={v => set('sources', { ...s.sources, companies: v })} /></div>
+      {s.sources.companies && <label className="lfh-field">Who to look for<input value={s.companyQuery} onChange={e => set('companyQuery', e.target.value)} placeholder="e.g. small fashion and beauty online stores, 1-50 people" /></label>}
       <div className="lfh-set"><span className="lfh-set-t">Google Maps<small>{s.localQuery || 'Add a search, e.g. cafés in Pune'}</small></span><Sw on={s.sources.local} label="Google Maps" onChange={v => set('sources', { ...s.sources, local: v })} /></div>
       <label className="lfh-field">Google Maps search<input value={s.localQuery} onChange={e => set('localQuery', e.target.value)} placeholder="e.g. cafés in Pune" /></label>
       <div className="lfh-set"><span className="lfh-set-t">Reddit and Hacker News<small>Posts asking for a tool like yours. You post every reply.</small></span><Sw on={s.sources.reddit} label="Reddit and Hacker News" onChange={v => set('sources', { ...s.sources, reddit: v })} /></div>
