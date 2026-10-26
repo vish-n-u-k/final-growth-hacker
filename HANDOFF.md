@@ -81,7 +81,7 @@ What each tool does today:
 ## 3. Branch and working rules
 
 - **Work and push on `dev`.** Push to **`main` only when the owner says so.**
-  - `main` was last brought up to `dev` on 26 Oct 2026 (the calm Today page). Everything after that is on `dev` only.
+  - `main` was last brought up to `dev` on 26 Oct 2026 (the shared loaders). Everything after that is on `dev` only.
 - Don't open pull requests unless asked.
 - Commit message footer used so far:
   ```
