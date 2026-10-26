@@ -14,6 +14,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import type { AiAnswerRaw, KeywordIdea, LinkingSite, MapsBusiness, RankedKeyword, SerpResult } from './dataforseo'
 import type { FoundEmail } from './hunter'
 import type { WastedSpend } from './google-ads'
+import type { ReplyIntent } from '@/lib/gmail/reply-check'
 
 /** Demo can't be switched off: forced by AGENTS_DEMO=true, or DataForSEO isn't set up. */
 export function demoForced(): boolean {
@@ -182,20 +183,26 @@ export function demoReferringDomains(target: string): string[] {
 const BIZ_A = ['Brew', 'Bean', 'Urban', 'Corner', 'Green', 'Golden', 'Little', 'Blue Door', 'Daily', 'Sunny', 'Hidden', 'Old Town']
 const BIZ_B = ['Lab', 'House', 'Studio', 'Co.', 'Room', 'Spot', 'Collective', 'Kitchen', 'Corner', 'Place']
 
+// A Google Maps search for demo mode when the brand hasn't set one, so the Email tab has businesses
+const DEMO_CITY: Record<string, string> = { IN: 'Pune', US: 'Austin', GB: 'Manchester', CA: 'Toronto', AU: 'Melbourne', DE: 'Berlin', FR: 'Lyon', AE: 'Dubai', SG: 'Singapore' }
+export function demoLocalQuery(country: string): string {
+  return `cafés and small shops in ${DEMO_CITY[country] ?? 'Pune'}`
+}
+
 export function demoMapsBusinesses(query: string): MapsBusiness[] {
   const r = rng(`maps:${query}`)
   const kind = cap((query.split(/\s+in\s+/i)[0] || 'business').replace(/s$/i, ''))
   const where = query.split(/\s+in\s+/i)[1] ?? ''
   return Array.from({ length: 12 }, (_, i) => {
     const title = `${pick(r, BIZ_A)} ${pick(r, BIZ_B)}`
-    const hasSite = r() > 0.35
+    const hasSite = r() > 0.15 // most have a website, so there's an email to find
     const domain = hasSite ? `${slug(title).replace(/-/g, '')}.example` : null
     return {
       title,
       url: domain ? `https://${domain}` : null,
       domain,
       phone: `+91 9${Math.floor(r() * 1e9).toString().padStart(9, '0')}`,
-      rating: Math.round((3.1 + r() * 1.8) * 10) / 10,
+      rating: Math.round((3.1 + r() * 1.4) * 10) / 10, // mostly under 4.2, which the Lead Agent looks for
       reviews: Math.floor(4 + r() * 380),
       category: kind,
       address: where ? `${pick(r, ['Main Road', 'Market Street', 'Station Road', 'High Street'])}, ${where}` : null,
@@ -259,11 +266,19 @@ export function demoSend(): { id: string; threadId: string } {
 }
 
 /** What happened to a demo email: some reply, a few opt out or bounce, most stay quiet. */
-export function demoReply(leadId: string, sentAt: string, firstReply = false): { outcome: 'replied' | 'opted_out' | 'bounced' | 'none'; note?: string } {
+export function demoReply(leadId: string, sentAt: string, firstReply = false): { outcome: 'replied' | 'opted_out' | 'bounced' | 'none'; note?: string; intent?: ReplyIntent } {
   if (Date.now() - Date.parse(sentAt) < 20 * 3_600_000) return { outcome: 'none' } // give it a "day"
   // The first email to get a day old always gets a reply, so the demo shows what that looks like
   const x = firstReply ? 0 : rng(`reply:${leadId}`)()
-  if (x < 0.3) return { outcome: 'replied', note: pick(rng(`note:${leadId}`), ['Sounds interesting, can you show me how it works?', 'Yes please, send the free examples.', 'What does it cost for a small team?', 'Maybe next month, a bit busy right now.']) }
+  if (x < 0.3) {
+    const [note, intent] = pick(rng(`note:${leadId}`), [
+      ['Sounds interesting, can you show me how it works?', 'meeting'],
+      ['Yes please, send the free examples.', 'interested'],
+      ['What does it cost for a small team?', 'question'],
+      ['Maybe next month, a bit busy right now.', 'later'],
+    ] as [string, ReplyIntent][])
+    return { outcome: 'replied', note, intent }
+  }
   if (x < 0.38) return { outcome: 'opted_out', note: 'Not interested, thanks.' }
   if (x < 0.42) return { outcome: 'bounced', note: 'Address not found.' }
   return { outcome: 'none' }

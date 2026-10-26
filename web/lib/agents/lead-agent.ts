@@ -15,7 +15,7 @@ import { checkThreadReply } from '@/lib/gmail/reply-check'
 import { openSignal, clearSignals } from '@/lib/signals'
 import { fetchHtml } from '@/lib/lead-finder/reviews'
 import { searchDataReady, googleResults, mapsBusinesses } from './dataforseo'
-import { agentsDemo, demoReply, demoSend, setDemoContext } from './demo'
+import { agentsDemo, demoLocalQuery, demoReply, demoSend, setDemoContext } from './demo'
 import { Progress } from './progress'
 import { hunterConfigured, findEmail } from './hunter'
 import { costNote } from './services'
@@ -31,6 +31,7 @@ const MAX_NEW_PER_RUN = 12
 const OPT_OUT = 'If this isn\'t relevant, just reply "no" and I won\'t email again.'
 
 const PER_SOURCE = 10
+const DEMO_EMAIL_LEADS = 5   // demo mode: businesses to email per run, at least
 
 export const leadFallback = (b: BrandContext) => () => defaultLeadData(b, b.competitors.map(c => c.domain))
 
@@ -124,7 +125,7 @@ async function processSentLeads(brandId: string, b: BrandContext, d: LeadAgentDa
       const firstReply = demo && !replies.length && !d.leads.some(l => l.status === 'replied')
       const r = demo ? demoReply(lead.id, lead.sentAt!, firstReply) : await checkThreadReply(brandId, token, lead.threadId!, lead.email!, Date.parse(lead.sentAt!) - 60_000)
       if (r.outcome === 'replied' || r.outcome === 'opted_out' || r.outcome === 'bounced') {
-        patches.set(lead.id, { status: r.outcome, replyNote: r.note, repliedAt: new Date().toISOString(), nextFollowUpAt: undefined })
+        patches.set(lead.id, { status: r.outcome, replyNote: r.note, replyIntent: r.intent, repliedAt: new Date().toISOString(), nextFollowUpAt: undefined })
         if (r.outcome === 'replied') replies.push({ ...lead, replyNote: r.note })
         continue
       }
@@ -337,6 +338,8 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
   if (!d.settings.enabled && !opts.manual) return { ok: true, summary: 'Agent is off.' }
   const deadline = opts.deadline ?? Date.now() + 240_000
   const s = d.settings
+  // Demo mode with no Google Maps search set: use a made-up one, or the Email tab stays empty
+  const localQuery = s.localQuery.trim() || (demo ? demoLocalQuery(s.country) : '')
   const meter = newMeter()
   const notes: string[] = []
   const errors: string[] = []
@@ -349,7 +352,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       { key: 'queries', label: 'Picking search phrases', hint: 'How your buyers ask for help online' },
       { key: 'reddit', label: 'Searching Reddit & HN', hint: 'People asking for a tool like yours' },
     ] : []),
-    ...(s.sources.local ? [{ key: 'local', label: 'Searching Google Maps', hint: `“${s.localQuery}”: businesses with no website or low ratings` }] : []),
+    ...(s.sources.local ? [{ key: 'local', label: 'Searching Google Maps', hint: `“${localQuery}”: businesses with no website or low ratings` }] : []),
     { key: 'score', label: 'Scoring leads', hint: 'How well each one fits your product' },
     { key: 'emails', label: 'Finding emails', hint: 'Looked up with Hunter' },
     { key: 'drafts', label: 'Drafting messages', hint: 'Personal emails and forum replies for your OK' },
@@ -391,7 +394,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       const fresh = (x: Candidate) => !known.has(idOf(x.url))
       const found = await Promise.all([
         s.sources.reddit ? source('Reddit search', pr.step('reddit', async () => [...await findReddit(queries, s.country, meter), ...await findHackerNews(queries)], r => ({ detail: `${r.filter(fresh).length} new posts`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
-        s.sources.local ? source('Google Maps search', pr.step('local', () => findLocal(s.localQuery, s.country, meter), r => ({ detail: n(r.length, 'business', 'businesses'), items: r.slice(0, 3).map(x => x.title) }))) : [],
+        s.sources.local ? source('Google Maps search', pr.step('local', () => findLocal(localQuery, s.country, meter), r => ({ detail: n(r.length, 'business', 'businesses'), items: r.slice(0, 3).map(x => x.title) }))) : [],
       ])
       // Up to 10 new finds from each source, so a busy one (often Reddit) can't crowd out the rest
       const seen = new Set<string>()
@@ -409,6 +412,13 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
     if (candidates.length && Date.now() < deadline) {
       const scored = await pr.step('score', () => scoreCandidates(b, s, candidates)).catch(() => [] as Scored[])
       const good = scored.filter(x => x.score >= MIN_SCORE).sort((x, y) => y.score - x.score).slice(0, MAX_NEW_PER_RUN)
+      // Demo mode: always keep a few made-up businesses with a website, so there are emails to approve
+      // (Claude scores them strictly, and forum posts can fill the run)
+      if (demo) {
+        const emailable = (x: Scored) => candidates[x.i].source === 'local' && !!candidates[x.i].website
+        const missing = DEMO_EMAIL_LEADS - good.filter(emailable).length
+        if (missing > 0) good.push(...scored.filter(x => emailable(x) && x.score >= 4 && !good.includes(x)).sort((x, y) => y.score - x.score).slice(0, missing))
+      }
       pr.set('score', 'done', { detail: `${good.length} of ${candidates.length} fit`, note: 'A good fit scores 7 or more out of 10.', items: good.slice(0, 3).map(g => candidates[g.i].title) })
       // Remember the ones that didn't make it so tomorrow's run doesn't pay to score them again
       const keptIdx = new Set(good.map(g => g.i))

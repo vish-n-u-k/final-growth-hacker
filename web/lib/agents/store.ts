@@ -8,6 +8,7 @@ import { aiUsageLogs } from '@/lib/db/schema'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { changedItems, saveSuggestions } from '@/lib/tool-suggestions'
 import { agentsDemo } from './demo'
+import type { ReplyIntent } from '@/lib/gmail/reply-check'
 
 export const LEAD_KEY = 'agent:lead'
 export const SEARCH_KEY = 'agent:search'
@@ -75,6 +76,7 @@ export interface Lead {
   followupsSent: number
   nextFollowUpAt?: string
   replyNote?: string
+  replyIntent?: ReplyIntent
   repliedAt?: string
   handledAt?: string            // the user answered their reply (moves it to Done)
   error?: string
@@ -170,6 +172,7 @@ export interface LinkOpportunity {
   followupSent?: boolean
   nextFollowUpAt?: string
   replyNote?: string
+  replyIntent?: ReplyIntent
   error?: string
 }
 

@@ -21,6 +21,8 @@ ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_status text;
 ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_note text;
 ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_checked_at timestamptz;
 ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_last_seen_at timestamptz;
+-- What a reply is about (Inbox tab sorting)
+ALTER TABLE reminders ADD COLUMN IF NOT EXISTS followup_intent text;
 
 -- Link to the listing / profile a recurring check is about
 ALTER TABLE reminders ADD COLUMN IF NOT EXISTS url text;

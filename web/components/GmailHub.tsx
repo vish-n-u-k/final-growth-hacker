@@ -7,16 +7,18 @@ import { Spinner } from '@/components/ui/spinner'
 import Campaigns from '@/components/email-outreach/Campaigns'
 import Done, { type SentEmail } from '@/components/email-outreach/Done'
 import FollowUps from '@/components/email-outreach/FollowUps'
+import InboxTab from '@/components/InboxTab'
 import { useToast } from '@/components/email-outreach/shared'
 import { Tabs } from '@/components/tool-ui'
 import { isDue, loadReminders, openFollowUps } from '@/lib/email-outreach/followups'
 
 // Email Outreach: send personal emails to a list of prospects from the user's own Gmail, and
 // follow up with anyone who doesn't reply. Same layout as the other tools: the header with the
-// main action, then three tabs: Follow-ups (what needs you now; opens first when any are due),
-// Campaigns (a list, each one done in three steps) and Done (closed follow-ups, sent emails).
+// main action, then four tabs, in this order: Inbox, Campaigns, Follow-ups, Done. (Follow-ups = what needs you now; opens first when any are due),
+// Inbox (only the threads GrowJin sent, replies first), Campaigns (a list, each one done in
+// three steps) and Done (closed follow-ups, sent emails).
 
-type Tab = 'followups' | 'campaigns' | 'done'
+type Tab = 'followups' | 'inbox' | 'campaigns' | 'done'
 
 // ── Inline SVG icons (connect screen) ─────────────────────────────────────────
 
@@ -246,8 +248,7 @@ export default function GmailHub({
         icon="mail"
         title="Email Outreach"
         intro="emailOutreach"
-        chips={<span className="th-chip th-chip--on">{gmailAddress ?? 'Gmail connected'}</span>}
-        meta={`${sentThisWeek} sent this week`}
+        meta={`${gmailAddress ?? 'Gmail connected'} · ${sentThisWeek} sent this week`}
         actions={<>
           <button ref={menuBtn} type="button" className="btn btn-ghost btn-sm eo-more" aria-label="Gmail settings" aria-expanded={menuOpen} onClick={() => setMenuOpen(o => !o)}>
             <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="4.5" cy="10" r="1.6" /><circle cx="10" cy="10" r="1.6" /><circle cx="15.5" cy="10" r="1.6" /></svg>
@@ -259,20 +260,22 @@ export default function GmailHub({
               {disconnecting ? <><Spinner />Disconnecting…</> : 'Disconnect Gmail'}
             </button>
           </Popover>
-          <button type="button" className="btn btn-primary btn-sm" onClick={startCampaign}>New campaign</button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={startCampaign}>New campaign</button>
         </>}
       />
 
       {/* Same tabs as the Lead Agent and Competitor Leads */}
       <Tabs value={tab ?? 'campaigns'} onChange={setTab} tabs={[
-        { key: 'followups', label: 'Follow-ups', count: dueCount || null, hot: dueCount > 0 },
+        { key: 'inbox', label: 'Inbox' },
         { key: 'campaigns', label: 'Campaigns' },
+        { key: 'followups', label: 'Follow-ups', count: dueCount || null, hot: dueCount > 0 },
         { key: 'done', label: 'Done' },
       ]} />
 
       <div className="eo-body">
         {tab === null && <div className="ro-working eo-loading"><Spinner /><span>Loading…</span><i /></div>}
         {tab === 'followups' && <FollowUps reloadKey={reloadKey} notify={notify} onCount={onCount} onNewCampaign={startCampaign} />}
+        {tab === 'inbox' && <InboxTab refreshKey={reloadKey} gmailAddress={gmailAddress} onOpenFollowups={() => setTab('followups')} />}
         {tab === 'campaigns' && <Campaigns newPending={newPending} onNewOpened={() => setNewPending(false)} notify={notify} onSent={() => { loadSent(); setReloadKey(k => k + 1) }} />}
         {tab === 'done' && <Done reloadKey={reloadKey} sent={sent} notify={notify} onCancel={cancelScheduled}
           onChanged={() => setReloadKey(k => k + 1)} />}

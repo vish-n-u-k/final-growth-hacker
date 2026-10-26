@@ -6,7 +6,7 @@ import type { Lead, LeadAgentData, LeadSettings } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
 import { useToast } from '@/components/email-outreach/shared'
 import { ActionBar, Card, DemoSwitch, Pager, usePages, Finished, Flow, ListTools, LiveProgress, Sec, Side, Src, Tabs, Tag } from '@/components/tool-ui'
-import { Day, DemoBanner, fmtAgo, fmtDate, initials, useAgentApi } from './shared'
+import { Day, fmtAgo, fmtDate, initials, useAgentApi } from './shared'
 
 // Lead Agent: finds people who need the product in two places, Reddit / Hacker News posts (a reply
 // to post yourself) and Google Maps businesses (an email to approve), and follows up until they
@@ -387,11 +387,6 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
         }} />}
       />
       {open ? detail(open) : <>
-        {demo && (
-          <DemoBanner>
-            {data.lastRunAt && <button className="btn btn-ghost btn-sm" type="button" disabled={!!busy} onClick={() => call('demo_skip')}>{busy === 'demo_skip' ? <><Spinner />Skipping ahead…</> : 'Skip ahead 3 days'}</button>}
-          </DemoBanner>
-        )}
         {!gmail && <div className="ag-note ag-note-warn">Connect Gmail so approved emails go out from your address. <a href="/api/gmail/connect">Connect Gmail</a></div>}
         {!flags.dataforseo && (s.sources.reddit || s.sources.local) && <div className="ag-note ag-note-warn">Reddit and Google Maps search need GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet. Hacker News and competitor reviews still work.</div>}
         {data.lastError && !running && <div className="ag-note ag-note-crit">The last search had a problem: {data.lastError}</div>}
