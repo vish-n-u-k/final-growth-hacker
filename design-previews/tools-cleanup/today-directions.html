@@ -1,0 +1,374 @@
+<title>Today Directions</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: option picker above the app frame (sidebar + page). Four directions for Today, same data.
+     Rules kept in all four: one green button (the next step), charts in ink not green, everything else grey. */
+  :root {
+    --bg: #ffffff; --soft: #f4f6f4; --card: #ffffff; --line: #e3e7e3; --text: #16201a; --dim: #4f5c53; --faint: #86918a;
+    --ink: #2a3a30; --ink-soft: #e9eeea; --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --pick: #eef0ee;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1411; --soft: #151c17; --card: #131a15; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --ink: #cfd9d1; --ink-soft: #1d2620; --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --pick: #1a211c; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #0f1411; --soft: #151c17; --card: #131a15; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --ink: #cfd9d1; --ink-soft: #1d2620; --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --pick: #1a211c; color-scheme: dark }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--body); }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  .tab-nums { font-variant-numeric: tabular-nums; }
+
+  /* Option picker (not part of the app) */
+  .picker { background: var(--pick); border-bottom: 1px solid var(--line); padding-block: 14px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .picker-in { max-width: 1180px; margin: 0 auto; }
+  .picker-h { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+  .opts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .opt { padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); font-size: 14px; cursor: pointer; }
+  .opt[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .picker-note { margin: 10px 0 0; font-size: 14px; color: var(--dim); max-width: 78ch; }
+  .picker-note b { font-weight: 500; color: var(--text); }
+
+  /* App frame */
+  .frame { display: flex; min-height: 100vh; }
+  .side { width: 232px; flex: none; background: var(--soft); border-right: 1px solid var(--line); padding: 18px 12px; font-size: 13.5px; }
+  .brand { padding: 4px 8px 18px; font: 600 16px var(--display); }
+  .grp { margin-bottom: 16px; }
+  .gl { padding: 0 10px 6px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .nav { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 8px; color: var(--dim); }
+  .nav small { color: var(--faint); font-size: 12px; }
+  .nav.on { background: var(--green-soft); color: var(--green-ink); font-weight: 500; }
+  .main { flex: 1; min-width: 0; }
+  .page { max-width: 1080px; margin: 0 auto; padding-block: 28px 90px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  @media (max-width: 860px) { .side { display: none; } .page { padding-block: 20px 60px; } }
+
+  /* Shared bits */
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 14px; color: var(--faint); }
+  .link { border: 0; background: none; padding: 0; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; font-size: inherit; }
+  .link:hover { color: var(--text); text-decoration-color: currentColor; }
+  .btn { height: 40px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font-weight: 500; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn.go { background: var(--green); border-color: var(--green); color: #fff; font-weight: 600; }
+  .btn.go:hover { filter: brightness(1.06); }
+  .btn.quiet { border-color: transparent; background: none; color: var(--dim); padding: 0 10px; }
+  .btn.quiet:hover { color: var(--text); }
+  .acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 16px; }
+  .lbl { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); font-weight: 500; }
+  .todo-txt { margin: 4px 0 0; max-width: 62ch; }
+  svg.chart { display: block; width: 100%; overflow: visible; }
+  .c-area { fill: var(--ink-soft); }
+  .c-line { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+  .c-dot { fill: var(--ink); }
+  .c-bar { fill: var(--ink); opacity: .55; }
+  .c-bar.last { opacity: 1; }
+  .c-axis { font: 400 11px var(--body); fill: var(--faint); }
+  .toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); padding: 10px 16px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 14px; z-index: 20; white-space: nowrap; }
+  .toast button { margin-left: 10px; border: 0; background: none; color: var(--bg); font-weight: 600; text-decoration: underline; cursor: pointer; }
+
+  /* A · Briefing: a written lede, a numbered plan, small figures in the margin */
+  .br-date { font-size: 14px; color: var(--faint); letter-spacing: .02em; }
+  .br-lede { margin: 14px 0 0; max-width: 30ch; font: 400 34px/1.25 var(--display); letter-spacing: -.01em; text-wrap: balance; }
+  .br-lede em { font-style: normal; font-weight: 600; }
+  .br-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 48px; margin-top: 36px; align-items: start; }
+  .br-h { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 10px; border-bottom: 1px solid var(--text); }
+  .br-h b { font: 500 13px var(--body); letter-spacing: .08em; text-transform: uppercase; }
+  .br-h span { font-size: 13px; color: var(--faint); }
+  .br-item { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 0 8px; padding: 18px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .br-n { font: 400 26px/1 var(--display); color: var(--faint); font-variant-numeric: tabular-nums; }
+  .br-item.cur .br-n { color: var(--text); }
+  .br-t { font-size: 17px; font-weight: 500; }
+  .br-w { color: var(--dim); font-size: 14.5px; margin-top: 2px; }
+  .br-m { color: var(--faint); font-size: 13px; margin-top: 4px; }
+  .br-item:not(.cur):hover .br-t { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .br-fig { padding-bottom: 22px; margin-bottom: 22px; border-bottom: 1px solid var(--line); }
+  .br-fig:last-child { border-bottom: 0; }
+  .br-fig .lbl { display: block; margin-bottom: 8px; }
+  .br-big { font: 500 30px/1 var(--display); font-variant-numeric: tabular-nums; }
+  .br-big small { font: 400 13px var(--body); color: var(--dim); margin-left: 6px; }
+  .br-cap { font-size: 13px; color: var(--faint); margin-top: 6px; }
+  .br-also { margin-top: 30px; font-size: 14px; color: var(--faint); display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  @media (max-width: 860px) { .br-grid { grid-template-columns: 1fr; gap: 28px; } .br-lede { font-size: 27px; } .br-side { order: -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; } .br-fig { border: 0; padding: 0; margin: 0; } .br-fig svg { display: none; } .br-big { font-size: 22px; } .br-big small { display: block; margin: 2px 0 0; } }
+
+  /* B · One at a time: a deck of cards, one in front */
+  .fo-top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+  .fo-top h1 { margin: 0; font: 600 32px/1.15 var(--display); }
+  .fo-strip { display: flex; gap: 10px; flex-wrap: wrap; }
+  .fo-stat { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; }
+  .fo-stat b { font: 500 20px var(--display); font-variant-numeric: tabular-nums; }
+  .fo-stat span { font-size: 13px; color: var(--faint); line-height: 1.2; }
+  .fo-stat svg { width: 64px; height: 24px; }
+  .fo-wrap { max-width: 640px; margin: 44px auto 0; }
+  .fo-count { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; font-size: 14px; color: var(--faint); }
+  .fo-pips { display: flex; gap: 5px; }
+  .fo-pips i { width: 28px; height: 4px; border-radius: 2px; background: var(--line); }
+  .fo-pips i.d { background: var(--ink); opacity: .45; }
+  .fo-pips i.c { background: var(--text); }
+  .deck { position: relative; padding-bottom: 20px; }
+  .deck .ghost { position: absolute; left: 0; right: 0; height: 60px; bottom: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--card); }
+  .deck .ghost.g1 { transform: scale(.94); bottom: 0; opacity: .6; }
+  .deck .ghost.g2 { transform: scale(.97); bottom: 10px; }
+  .fo-card { position: relative; padding: 30px 32px; border: 1px solid var(--line); border-radius: 18px; background: var(--card); box-shadow: 0 10px 30px -18px rgba(20, 40, 28, .35); }
+  .fo-card h2 { margin: 6px 0 8px; font: 500 28px/1.2 var(--display); text-wrap: balance; }
+  .fo-card .w { color: var(--dim); margin: 0; }
+  .fo-card .sec { margin-top: 20px; }
+  .fo-next { margin-top: 18px; font-size: 14px; color: var(--faint); text-align: center; }
+  .fo-empty { text-align: center; padding: 40px 20px; }
+  .fo-empty h2 { margin: 0 0 6px; font: 500 34px var(--display); }
+  .fo-empty p { margin: 0 0 18px; color: var(--dim); }
+  @media (prefers-reduced-motion: no-preference) { .fo-card { animation: fo-in .35s ease-out; } @keyframes fo-in { from { opacity: 0; transform: translateY(10px); } } }
+  @media (max-width: 600px) { .fo-card { padding: 22px 20px; } .fo-card h2 { font-size: 23px; } .fo-strip { width: 100%; } .fo-stat { flex: 1 1 0; min-width: 0; padding: 8px 10px; } .fo-stat svg { display: none; } }
+
+  /* C · Plan and pulse: a timeline on the left, the numbers in a sticky panel on the right */
+  .pp-head h1 { margin: 0; font: 600 32px/1.15 var(--display); }
+  .pp-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 32px; margin-top: 26px; align-items: start; }
+  .pp-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .pp-h b { font-size: 17px; font-weight: 500; }
+  .pp-h span { font-size: 14px; color: var(--faint); }
+  .tl { list-style: none; margin: 0; padding: 0; }
+  .tl li { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; padding: 0 0 22px; }
+  .tl li::before { content: ""; position: absolute; left: 13px; top: 26px; bottom: 0; width: 1.5px; background: var(--line); }
+  .tl li:last-child::before { display: none; }
+  .mk { width: 28px; height: 28px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--bg); display: grid; place-items: center; font-size: 13px; color: var(--faint); position: relative; z-index: 1; }
+  .tl li.cur .mk { border-color: var(--text); color: var(--text); }
+  .tl li.done .mk { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+  .tl .t { font-weight: 500; padding-top: 3px; }
+  .tl li.done .t { color: var(--faint); text-decoration: line-through; text-decoration-color: var(--line); }
+  .tl .w { color: var(--dim); font-size: 14px; }
+  .tl .m { color: var(--faint); font-size: 13px; margin-top: 2px; }
+  .tl li:not(.cur):not(.done) { cursor: pointer; }
+  .tl .box { margin-top: 12px; padding: 18px 20px; border-radius: 14px; background: var(--green-soft); }
+  .tl .box .acts { margin-top: 12px; }
+  .pulse { position: sticky; top: 20px; padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--card); }
+  .pulse .row { display: flex; align-items: baseline; gap: 10px; }
+  .pulse .big { font: 500 40px/1 var(--display); font-variant-numeric: tabular-nums; }
+  .pulse .delta { font-size: 14px; color: var(--dim); }
+  .pulse .sub { font-size: 14px; color: var(--faint); margin-top: 4px; }
+  .pulse .chart { height: 90px; margin-top: 16px; }
+  .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .trio b { display: block; font: 500 22px var(--display); font-variant-numeric: tabular-nums; }
+  .trio span { font-size: 13px; color: var(--faint); }
+  .road { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .road-bar { position: relative; height: 8px; border-radius: 4px; background: var(--ink-soft); margin-top: 10px; }
+  .road-bar i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--ink); opacity: .75; }
+  .road-t { display: flex; justify-content: space-between; margin-top: 6px; font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .srcs { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); display: grid; gap: 6px; }
+  .src { display: grid; grid-template-columns: 74px minmax(0, 1fr) 34px; gap: 10px; align-items: center; font-size: 13.5px; }
+  .src i { display: block; height: 6px; border-radius: 3px; background: var(--ink); opacity: .45; }
+  .src span:last-child { text-align: right; color: var(--faint); font-variant-numeric: tabular-nums; }
+  @media (max-width: 860px) { .pp-grid { grid-template-columns: 1fr; } .pulse { position: static; order: -1; } .pulse .chart { height: 64px; } }
+
+  /* D · Road to 250: the goal as the hero, today's moves underneath */
+  .rd-hero { padding: 28px 30px 26px; border-radius: 20px; background: var(--soft); border: 1px solid var(--line); }
+  .rd-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; align-items: flex-end; }
+  .rd-num { font: 500 64px/0.9 var(--display); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .rd-num small { font: 400 16px var(--body); color: var(--dim); margin-left: 8px; letter-spacing: 0; }
+  .rd-goal { text-align: right; font-size: 15px; color: var(--dim); max-width: 34ch; }
+  .rd-goal b { color: var(--text); font-weight: 500; }
+  .track { position: relative; margin-top: 30px; height: 46px; }
+  .track .rail { position: absolute; left: 0; right: 0; top: 10px; height: 10px; border-radius: 5px; background: var(--card); border: 1px solid var(--line); }
+  .track .fill { position: absolute; left: 0; top: 10px; height: 10px; border-radius: 5px; background: var(--ink); opacity: .8; }
+  .track .ms { position: absolute; top: 4px; transform: translateX(-50%); text-align: center; }
+  .track .ms i { display: block; margin: 0 auto; width: 2px; height: 22px; background: var(--line); }
+  .track .ms span { display: block; margin-top: 4px; font-size: 12px; color: var(--faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .track .ms.next span { color: var(--text); font-weight: 500; }
+  .track .you { position: absolute; top: 2px; transform: translateX(-50%); width: 26px; height: 26px; border-radius: 50%; background: var(--bg); border: 2px solid var(--text); }
+  .rd-week { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .rd-week b { display: block; font: 500 22px var(--display); font-variant-numeric: tabular-nums; }
+  .rd-week span { font-size: 13px; color: var(--faint); }
+  .rd-week svg { height: 26px; margin-top: 6px; }
+  .moves-h { display: flex; justify-content: space-between; align-items: baseline; margin: 34px 0 6px; }
+  .moves-h b { font-size: 17px; font-weight: 500; }
+  .moves-h span { font-size: 14px; color: var(--faint); }
+  .move { display: grid; grid-template-columns: 116px minmax(0, 1fr) auto; gap: 16px; align-items: start; padding: 16px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .move .lev { font-size: 13px; color: var(--faint); padding-top: 2px; }
+  .move .t { font-weight: 500; }
+  .move .w { font-size: 14px; color: var(--dim); }
+  .move .mv-go { font-size: 13px; color: var(--faint); padding-top: 2px; white-space: nowrap; }
+  .move.cur { cursor: default; background: var(--green-soft); border-radius: 14px; border-bottom-color: transparent; padding: 18px 18px; margin: 8px 0; }
+  .move.cur .lev { color: var(--dim); }
+  @media (max-width: 700px) { .rd-hero { padding: 22px 18px; } .rd-num { font-size: 48px; } .rd-goal { text-align: left; } .move { grid-template-columns: 1fr; gap: 4px; } .move .mv-go { display: none; } .track .ms span { font-size: 11px; } .track .ms.hide-sm { display: none; } }
+</style>
+
+<div class="picker">
+  <div class="picker-in">
+    <div class="picker-h">Today: four directions</div>
+    <div class="opts" id="opts"></div>
+    <p class="picker-note" id="pnote"></p>
+  </div>
+</div>
+
+<div class="frame">
+  <nav class="side" aria-label="App">
+    <div class="brand">GrowJin</div>
+    <div class="grp"><span class="nav on">Today</span></div>
+    <div class="grp"><div class="gl">Your roadmap</div><span class="nav">1 · Get set up <small>3/3</small></span><span class="nav">2 · Get found <small>3/3</small></span><span class="nav">3 · Win attention <small>1/2</small></span><span class="nav">4 · Grow &amp; keep <small>0/1</small></span></div>
+    <div class="grp"><div class="gl">Get customers</div><span class="nav">Lead Agent</span><span class="nav">Competitor Leads</span><span class="nav">Email Outreach</span></div>
+    <div class="grp"><div class="gl">Get seen</div><span class="nav">Search Agent</span><span class="nav">Social Studio</span><span class="nav">Meta Ads</span></div>
+    <div class="grp"><div class="gl">Keep track</div><span class="nav">Reminders</span><span class="nav">Analytics</span></div>
+  </nav>
+  <main class="main"><div class="page" id="page"></div></main>
+</div>
+<div id="toast"></div>
+
+<script>
+// Example data for Frekto, based on the live Today page. Tasks are in priority order.
+// "min" (a time estimate) and "lever" (the roadmap step) are new: Today doesn't have them yet.
+const TASKS = [
+  { id: 't1', name: 'Get mentioned on socialbee.com', why: 'AI answers cited socialbee.com twice this week, in answers that don’t mention Frekto.', todo: 'Ask SocialBee to add Frekto to “I tested 6 AI tools for social media content creation”. The pitch email is written for you.', waiting: 4, min: 10, lever: 'Get found', cta: 'Review the pitch' },
+  { id: 't2', name: 'Post on social media today', why: 'Your last post was 9 days ago. Posting days bring about twice the visits.', todo: 'Pick one of three post ideas, check the draft and schedule it on LinkedIn.', waiting: 6, min: 10, lever: 'Win attention', cta: 'Write the post' },
+  { id: 't3', name: 'Set up a welcome email', why: 'New sign-ups get no email from you, and no email tool is connected.', todo: 'Claude writes a 3-email welcome series and adds it to your site’s sign-up flow.', waiting: 7, min: 30, lever: 'Grow & keep', cta: 'Do it with Claude' },
+  { id: 't4', name: 'Publish this week’s blog', why: 'The draft “5 caption ideas for cafés” is ready to read.', todo: 'Read it, then publish it on your blog or LinkedIn.', waiting: 0, min: 5, lever: 'Get found', cta: 'Read the draft' },
+]
+const VISITS = [248, 262, 231, 290, 305, 270, 284, 318, 296, 331, 344, 322, 349, 412]
+const SIGNUPS = [1, 0, 2, 1, 1, 3, 0, 2, 1, 2, 4, 1, 2, 3]
+const S0 = { users: 142, signedIn: 9, back: 5, delta: 18, sources: [['Google', 46], ['LinkedIn', 22], ['Direct', 18], ['Other', 14]] }
+const DAYS = (() => { const d = []; for (let i = 13; i >= 0; i--) { const x = new Date(2026, 9, 26 - i); d.push(x.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })) } return d })()
+const perWeek = Math.round(SIGNUPS.reduce((a, b) => a + b, 0) / 2)
+const weeksTo250 = Math.ceil((250 - S0.users) / perWeek)
+
+const OPTIONS = [
+  { id: 'A', name: 'A · Briefing', note: '<b>Reads like a morning note.</b> One written sentence says what happened and how much there is to do. The plan is numbered because the order matters, and the first item is open with the only green button. Three small figures sit in the margin. Feels calm and grown-up; good for people who open Today with a coffee.' },
+  { id: 'B', name: 'B · One at a time', note: '<b>Only one thing to look at.</b> A card deck: the top card is today’s next step, fully open. Finish or skip it and the next card comes forward. Three small numbers sit at the top. Most focused of the four, and the easiest for a first-time user.' },
+  { id: 'C', name: 'C · Plan and pulse', note: '<b>Feels like a dashboard, without the noise.</b> Left: today’s plan as a timeline with a total time. Right: a “pulse” panel that stays in view, with yesterday’s visitors, a 14-day chart, sign-ups, Road to 500 and sources. On a phone the pulse sits on top.' },
+  { id: 'D', name: 'D · Road to 250', note: '<b>The goal is the hero.</b> A big track from 0 to 500 users shows where Frekto is and the next milestone, with the pace at the current rate of sign-ups. Today’s tasks sit underneath as “moves”, each labelled with the roadmap step it helps. Most motivating.' },
+]
+
+const S = { opt: 'A', done: [], skipped: [], cur: null, toast: null }
+try { S.opt = localStorage.getItem('today-dir-opt') || 'A' } catch (e) {}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const left = () => TASKS.filter(t => !S.done.includes(t.id) && !S.skipped.includes(t.id))
+const current = () => { const l = left(); return l.find(t => t.id === S.cur) || l[0] }
+const minsLeft = () => left().reduce((a, t) => a + t.min, 0)
+const waitTxt = t => t.waiting ? `waiting ${t.waiting} days` : 'new today'
+
+function area(vals, h, opt = {}) {
+  const w = 300, max = Math.max(...vals), min = opt.zero ? 0 : Math.min(...vals)
+  const pts = vals.map((v, i) => [i / (vals.length - 1) * w, h - 4 - (v - min) / (max - min || 1) * (h - 12)])
+  const line = pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')
+  const [ex, ey] = pts[pts.length - 1]
+  const axis = opt.axis ? `<text class="c-axis" x="0" y="${h + 14}">${DAYS[0]}</text><text class="c-axis" x="${w}" y="${h + 14}" text-anchor="end">Yesterday</text>` : ''
+  return `<svg class="chart" viewBox="-3 0 ${w + 6} ${h + (opt.axis ? 18 : 0)}" preserveAspectRatio="none" style="height:${h + (opt.axis ? 18 : 0)}px" role="img" aria-label="${opt.label || 'Last 14 days'}"><polygon class="c-area" points="0,${h} ${line} ${w},${h}"/><polyline class="c-line" points="${line}"/><circle class="c-dot" cx="${ex}" cy="${ey}" r="3"/>${axis}</svg>`
+}
+function bars(vals, h) {
+  const w = 300, max = Math.max(...vals) || 1, bw = w / vals.length
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="height:${h}px" role="img" aria-label="Sign-ups, last 14 days">${vals.map((v, i) => `<rect class="c-bar${i === vals.length - 1 ? ' last' : ''}" x="${i * bw + 2}" y="${h - Math.max(2, v / max * h)}" width="${bw - 4}" height="${Math.max(2, v / max * h)}" rx="1.5"/>`).join('')}</svg>`
+}
+function acts(t) {
+  return `<div class="acts"><button class="btn go" data-finish="${t.id}">${esc(t.cta)}</button><button class="btn quiet" data-finish="${t.id}">Already done</button><button class="btn quiet" data-skip="${t.id}">Skip for today</button></div>`
+}
+const allDone = btn => `<div class="fo-empty"><h2>All done for today</h2><p>${S.done.length} task${S.done.length === 1 ? '' : 's'} finished. New ones arrive after tomorrow morning’s check.</p><button class="btn go" data-a="reset">Show the example again</button></div>`
+
+const VIEWS = {
+  A() {
+    const l = left(), c = current()
+    const lede = l.length
+      ? `Yesterday <em>412 people</em> visited Frekto, ${S0.delta}% more than the day before, and <em>3 signed up</em>. ${['', 'One thing', 'Two things', 'Three things', 'Four things'][l.length]} will move you forward today.`
+      : `That’s everything for today. <em>${S.done.length} done</em>; the numbers are on the right.`
+    const plan = l.length ? l.map((t, i) => t === c
+      ? `<div class="br-item cur"><span class="br-n">${String(i + 1).padStart(2, '0')}</span><div><div class="br-t">${esc(t.name)}</div><div class="br-w">${esc(t.why)}</div><p class="todo-txt" style="margin-top:12px">${esc(t.todo)}</p>${acts(t)}<div class="br-m" style="margin-top:10px">About ${t.min} min · ${waitTxt(t)}</div></div></div>`
+      : `<div class="br-item" data-cur="${t.id}"><span class="br-n">${String(i + 1).padStart(2, '0')}</span><div><div class="br-t">${esc(t.name)}</div><div class="br-w">${esc(t.why)}</div><div class="br-m">About ${t.min} min · ${waitTxt(t)}</div></div></div>`).join('') : allDone()
+    return `<div class="br-date">Monday 26 October · <button class="link">Settings</button></div>
+      <h1 class="br-lede">${lede}</h1>
+      <div class="br-grid">
+        <section><div class="br-h"><b>Today’s plan</b><span>${l.length ? `about ${minsLeft()} min` : 'done'}</span></div>${plan}
+          <div class="br-also"><span>Also: blog draft ready · LinkedIn 1.2k followers</span><button class="link">${S.done.length + 1} done today</button></div></section>
+        <aside class="br-side">
+          <div class="br-fig"><span class="lbl">Visitors</span><div class="br-big">412<small>yesterday, +${S0.delta}%</small></div>${area(VISITS, 54)}<div class="br-cap">Last 14 days</div></div>
+          <div class="br-fig"><span class="lbl">Sign-ups</span><div class="br-big">3<small>yesterday</small></div>${bars(SIGNUPS, 40)}<div class="br-cap">${perWeek} a week lately</div></div>
+          <div class="br-fig"><span class="lbl">Users</span><div class="br-big">${S0.users}<small>of 500</small></div><div class="road-bar"><i style="width:${S0.users / 5}%"></i></div><div class="br-cap">${250 - S0.users} to the next stage</div></div>
+        </aside>
+      </div>`
+  },
+  B() {
+    const l = left(), c = l[0], n = TASKS.length - l.length
+    const strip = `<div class="fo-strip">
+      <div class="fo-stat"><b>412</b><span>visitors<br>+${S0.delta}%</span>${area(VISITS, 24)}</div>
+      <div class="fo-stat"><b>3</b><span>sign-ups<br>yesterday</span></div>
+      <div class="fo-stat"><b>${S0.users}</b><span>users<br>of 500</span></div></div>`
+    const top = `<div class="fo-top"><div><h1>Today</h1><div class="meta" style="margin-top:6px"><span>Monday 26 Oct</span><button class="link">Settings</button></div></div>${strip}</div>`
+    if (!c) return top + `<div class="fo-wrap">${allDone()}</div>`
+    const pips = TASKS.map((_, i) => `<i class="${i < n ? 'd' : i === n ? 'c' : ''}"></i>`).join('')
+    return top + `<div class="fo-wrap">
+      <div class="fo-count"><div class="fo-pips" aria-hidden="true">${pips}</div><span>${n + 1} of ${TASKS.length} · about ${c.min} min</span></div>
+      <div class="deck">${l.length > 2 ? '<div class="ghost g1"></div>' : ''}${l.length > 1 ? '<div class="ghost g2"></div>' : ''}
+        <div class="fo-card" key="${c.id}"><span class="lbl">${esc(c.lever)} · ${waitTxt(c)}</span><h2>${esc(c.name)}</h2><p class="w">${esc(c.why)}</p>
+          <div class="sec"><span class="lbl">What to do</span><p class="todo-txt">${esc(c.todo)}</p></div>${acts(c)}</div></div>
+      ${l[1] ? `<p class="fo-next">Up next: ${esc(l[1].name)}${l[2] ? ` · then ${l.length - 2} more` : ''}</p>` : ''}
+    </div>`
+  },
+  C() {
+    const l = left(), c = current()
+    const items = TASKS.filter(t => !S.skipped.includes(t.id)).map((t, i) => {
+      const done = S.done.includes(t.id), cur = t === c
+      return `<li class="${done ? 'done' : cur ? 'cur' : ''}" ${!done && !cur ? `data-cur="${t.id}"` : ''}><span class="mk">${done ? '✓' : i + 1}</span><div><div class="t">${esc(t.name)}</div>${done ? '' : `<div class="w">${esc(t.why)}</div><div class="m">About ${t.min} min · ${waitTxt(t)}</div>`}
+        ${cur ? `<div class="box"><span class="lbl">What to do</span><p class="todo-txt">${esc(t.todo)}</p>${acts(t).replace('class="acts"', 'class="acts"')}</div>` : ''}</div></li>`
+    }).join('')
+    return `<div class="pp-head"><h1>Today</h1><div class="meta" style="margin-top:6px"><span>Monday 26 Oct</span><span>Tasks updated 2 h ago</span><button class="link">Settings</button></div></div>
+      <div class="pp-grid">
+        <section><div class="pp-h"><b>Today’s plan</b><span>${l.length ? `${l.length} left · about ${minsLeft()} min` : 'All done'}</span></div>${l.length ? '' : allDone()}<ol class="tl">${items}</ol></section>
+        <aside class="pulse">
+          <span class="lbl">Pulse</span>
+          <div class="row" style="margin-top:8px"><span class="big">412</span><span class="delta">visitors yesterday · +${S0.delta}%</span></div>
+          <div class="sub">Mostly from Google</div>
+          ${area(VISITS, 90, { axis: true, label: 'Visitors, last 14 days' })}
+          <div class="trio"><div><b>3</b><span>sign-ups</span></div><div><b>${S0.signedIn}</b><span>signed in</span></div><div><b>${S0.back}</b><span>came back</span></div></div>
+          <div class="road"><span class="lbl">Road to 500</span><div class="road-bar"><i style="width:${S0.users / 5}%"></i></div><div class="road-t"><span>${S0.users} users</span><span>next: 250</span></div></div>
+          <div class="srcs"><span class="lbl">Where visitors came from</span>${S0.sources.map(([n, p]) => `<div class="src"><span>${n}</span><i style="width:${p * 2}%"></i><span>${p}%</span></div>`).join('')}</div>
+        </aside>
+      </div>`
+  },
+  D() {
+    const l = left(), c = current()
+    const pos = v => Math.min(100, v / 500 * 100)
+    const ms = [[0, ''], [10, ''], [50, '50'], [100, '100'], [250, '250'], [500, '500']]
+    const track = `<div class="track" role="img" aria-label="${S0.users} of 500 users; next milestone 250">
+      <div class="rail"></div><div class="fill" style="width:${pos(S0.users)}%"></div>
+      ${ms.filter(m => m[1]).map(([v, t]) => `<div class="ms${v === 250 ? ' next' : ''}${v === 50 ? ' hide-sm' : ''}" style="left:${pos(v)}%"><i></i><span>${t}</span></div>`).join('')}
+      <div class="you" style="left:${pos(S0.users)}%" title="You: ${S0.users}"></div></div>`
+    const moves = l.length ? l.map(t => t === c
+      ? `<div class="move cur"><span class="lev">${esc(t.lever)}</span><div><div class="t">${esc(t.name)}</div><div class="w">${esc(t.why)}</div><p class="todo-txt" style="margin-top:10px">${esc(t.todo)}</p>${acts(t)}</div><span></span></div>`
+      : `<div class="move" data-cur="${t.id}"><span class="lev">${esc(t.lever)}</span><div><div class="t">${esc(t.name)}</div><div class="w">${esc(t.why)}</div></div><span class="mv-go">${t.min} min ›</span></div>`).join('') : allDone()
+    return `<div class="meta"><span>Today · Monday 26 Oct</span><button class="link">Settings</button></div>
+      <div class="rd-hero" style="margin-top:16px">
+        <div class="rd-top"><div><span class="lbl">Road to 500 users</span><div class="rd-num" style="margin-top:8px">${S0.users}<small>users</small></div></div>
+          <div class="rd-goal"><b>${250 - S0.users} to go to 250.</b> At about ${perWeek} sign-ups a week, that’s about ${weeksTo250} weeks. Today’s moves help.</div></div>
+        ${track}
+        <div class="rd-week">
+          <div><b>412</b><span>visitors yesterday, +${S0.delta}%</span>${area(VISITS, 26)}</div>
+          <div><b>3</b><span>sign-ups yesterday</span>${bars(SIGNUPS, 26)}</div>
+          <div><b>${S.done.length + 1}</b><span>tasks done today</span></div>
+        </div>
+      </div>
+      <div class="moves-h"><b>Today’s moves</b><span>${l.length ? `${l.length} left · about ${minsLeft()} min` : ''}</span></div>${moves}`
+  },
+}
+
+function render() {
+  document.getElementById('opts').innerHTML = OPTIONS.map(o => `<button class="opt" aria-pressed="${S.opt === o.id}" data-opt="${o.id}">${o.name}</button>`).join('')
+  document.getElementById('pnote').innerHTML = OPTIONS.find(o => o.id === S.opt).note
+  document.getElementById('page').innerHTML = VIEWS[S.opt]()
+  document.getElementById('toast').innerHTML = S.toast ? `<div class="toast" role="status">${esc(S.toast.text)}<button data-a="undo">Undo</button></div>` : ''
+}
+let timer
+function finish(id, skip) {
+  ;(skip ? S.skipped : S.done).push(id)
+  S.cur = null // the next one opens by itself
+  S.toast = { text: skip ? 'Skipped for today.' : 'Done. Here’s the next one.', id, skip }
+  clearTimeout(timer); timer = setTimeout(() => { S.toast = null; render() }, 4000)
+  render()
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-opt],[data-cur],[data-finish],[data-skip],[data-a]'); if (!t) return
+  if (t.dataset.opt) { S.opt = t.dataset.opt; S.cur = null; try { localStorage.setItem('today-dir-opt', S.opt) } catch (err) {} }
+  else if (t.dataset.cur) S.cur = t.dataset.cur
+  else if (t.dataset.finish) return finish(t.dataset.finish, false)
+  else if (t.dataset.skip) return finish(t.dataset.skip, true)
+  else if (t.dataset.a === 'reset') { S.done = []; S.skipped = []; S.cur = null }
+  else if (t.dataset.a === 'undo' && S.toast) { const k = S.toast.skip ? 'skipped' : 'done'; S[k] = S[k].filter(x => x !== S.toast.id); S.cur = S.toast.id; S.toast = null }
+  render()
+})
+render()
+</script>
