@@ -155,6 +155,8 @@
   .st { font-size: 13px; color: var(--faint); white-space: nowrap; }
   .st.r { color: var(--red); }
   .err { color: var(--red); font-size: 13px; }
+  .addown { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--line); }
+  .addown .btn { border-style: dashed; }
 </style>
 
 <div class="frame">
@@ -254,7 +256,7 @@ function toast(msg) { S.toast = msg; clearTimeout(toast.t); toast.t = setTimeout
 function header() {
   return `<div class="crumbs">Get customers › Lead Agent</div>
     <h1>Lead Agent</h1>
-    <div class="line"><span>Last search 2 h ago</span><button class="link">Settings</button><button class="link" data-a="search">Find new leads</button>${S.lane === 'email' ? '<button class="link" data-a="add">Add your own list</button>' : ''}</div>`
+    <div class="line"><span>Last search 2 h ago</span><button class="link">Settings</button><button class="link" data-a="search">Find new leads</button></div>`
 }
 function tabs() {
   const n = l => LEADS.filter(x => x.lane === l).length
@@ -271,7 +273,8 @@ function tabView() {
   if (S.lane === 'email') {
     html += `<div class="lists"><p class="rest-h">Your lists</p>
       ${S.lists.map(L => `<div class="row" data-list="${L.id}" role="button" tabindex="0">${L.replied ? '<span class="dot" title="Someone replied"></span>' : ''}<div class="row-main"><div class="row-name">${esc(L.name)}</div><div class="row-why">${L.sent} of ${L.total} sent${L.replied ? ` · ${L.replied} replied` : ''}${L.sent < L.total ? ` · the rest by ${lastDay(L.total - L.sent)}` : ''}</div></div><span class="row-go">Open</span></div>`).join('')}
-      <div class="more"><button class="link" data-a="add">Add your own list</button> <span class="tip">· people you already know, emailed over a few days with follow-ups</span></div></div>`
+      </div>
+      <div class="addown"><button class="btn" data-a="add">+ Add your own emails</button><span class="tip">Paste or upload people you already know. They get the same emails and follow-ups.</span></div>`
   }
   return html
 }
