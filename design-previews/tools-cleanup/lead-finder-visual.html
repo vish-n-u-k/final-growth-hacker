@@ -3,22 +3,22 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap">
 <style>
-/* Layout: competitors as a row of coins on top → the picked one's star chart (unhappy = your leads) → board: reach out → emailed → replied. Details in a side drawer. */
+/* Layout: sources as a row of coins (All, Maps, each competitor, Reddit, HN, your list) → a panel for the picked source → one board: to do → contacted → replied. Details in a side drawer. */
 :root{
   --bg:#EEF1F7; --surface:#FFFFFF; --sunk:#E3E8F2; --ink:#141A2E; --dim:#5A6380; --faint:#9AA2BC; --line:#D6DCEA;
   --accent:#2E54F5; --accent-ink:#FFFFFF; --accent-soft:#E2E8FF;
-  --unhappy:#F2603F; --unhappy-soft:#FFE7E0; --star:#F2A516; --ok:#1E9E6A;
+  --hot:#F2603F; --hot-soft:#FFE7E0; --star:#F2A516; --ok:#1E9E6A;
   --shadow:0 1px 2px rgba(20,26,46,.06),0 8px 24px rgba(20,26,46,.07);
   --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
   --body:"Figtree",ui-sans-serif,system-ui,sans-serif;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0E1220; --surface:#171C2E; --sunk:#0A0D18; --ink:#E9ECF7; --dim:#A0A8C4; --faint:#5F6886; --line:#262D45;
-  --accent:#6F8BFF; --accent-ink:#0B0F1C; --accent-soft:#1F2850; --unhappy:#FF7E60; --unhappy-soft:#3A1E19; --star:#FFBE3D; --ok:#3FCB8E;
+  --accent:#6F8BFF; --accent-ink:#0B0F1C; --accent-soft:#1F2850; --hot:#FF7E60; --hot-soft:#3A1E19; --star:#FFBE3D; --ok:#3FCB8E;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35); color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0E1220; --surface:#171C2E; --sunk:#0A0D18; --ink:#E9ECF7; --dim:#A0A8C4; --faint:#5F6886; --line:#262D45;
-  --accent:#6F8BFF; --accent-ink:#0B0F1C; --accent-soft:#1F2850; --unhappy:#FF7E60; --unhappy-soft:#3A1E19; --star:#FFBE3D; --ok:#3FCB8E;
+  --accent:#6F8BFF; --accent-ink:#0B0F1C; --accent-soft:#1F2850; --hot:#FF7E60; --hot-soft:#3A1E19; --star:#FFBE3D; --ok:#3FCB8E;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35); color-scheme:dark}
 
 *{box-sizing:border-box}
@@ -35,47 +35,84 @@ svg{display:block}
 .brand h1{font-family:var(--display);font-weight:700;font-size:22px;margin:0;letter-spacing:-.01em}
 .iconbtn{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:var(--dim);background:var(--surface);box-shadow:var(--shadow);flex:none}
 .iconbtn:hover{color:var(--ink)}
+.meterTop{display:flex;align-items:center;gap:10px;padding:6px 12px;border-radius:12px;background:var(--surface);box-shadow:var(--shadow);font-size:13px;color:var(--faint)}
+.meterTop b{font-family:var(--display);font-size:17px;color:var(--ink);font-variant-numeric:tabular-nums}
+.meterTop .bar{width:60px;height:5px;border-radius:9px;background:var(--sunk);overflow:hidden}
+.meterTop .bar i{display:block;height:100%;background:var(--accent);transition:width .4s}
 
-/* competitor coins */
-.rivals{margin-top:20px;display:flex;gap:10px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:thin}
-.rival{flex:none;display:flex;align-items:center;gap:10px;padding:8px 14px 8px 8px;border-radius:18px;background:transparent;color:var(--dim);transition:background .2s,box-shadow .2s}
-.rival:hover{background:var(--surface)}
-.rival[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 0 0 2px var(--accent),var(--shadow)}
+/* source coins */
+.srcs{margin-top:20px;display:flex;flex-wrap:wrap;gap:6px;overflow-x:auto;padding:4px 2px 8px;scrollbar-width:thin}
+.sep{flex:none;width:1px;background:var(--line);margin:8px 4px}
+.coinbtn{flex:none;display:flex;align-items:center;gap:10px;padding:8px 14px 8px 8px;border-radius:18px;color:var(--dim);transition:background .2s,box-shadow .2s}
+.coinbtn:hover{background:var(--surface)}
+.coinbtn[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 0 0 2px var(--accent),var(--shadow)}
+.coinbtn.off{opacity:.45}
 .coin{position:relative;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;flex:none}
 .coin .ring{position:absolute;inset:0;border-radius:50%;-webkit-mask:radial-gradient(circle,transparent 17px,#000 18px);mask:radial-gradient(circle,transparent 17px,#000 18px)}
-.coin .face{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:700;color:#1A1F33;font-size:14px}
-.rival .t{text-align:left;line-height:1.25}
-.rival .t b{display:block;font-weight:600}
-.rival .t small{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--faint)}
-.rival .new{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:12px;font-weight:600;display:grid;place-items:center}
-.addrival{flex:none;width:60px;border-radius:18px;border:1.5px dashed var(--line);color:var(--dim);display:grid;place-items:center}
-.addrival:hover{border-color:var(--accent);color:var(--accent)}
+.coin .face{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:700;color:#1A1F33;font-size:13px}
+.coin .face.all{background:var(--accent);color:var(--accent-ink)}
+.coinbtn .t{text-align:left;line-height:1.25}
+.coinbtn .t b{display:block;font-weight:600;white-space:nowrap}
+.coinbtn .t small{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--faint);white-space:nowrap}
+.coinbtn .nb{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-size:12px;font-weight:600;display:grid;place-items:center}
+.coinbtn.lit .face{box-shadow:0 0 0 4px var(--accent-soft),0 0 0 6px var(--accent);transition:box-shadow .2s}
+.addsrc{flex:none;width:56px;min-height:60px;border-radius:18px;border:1.5px dashed var(--line);color:var(--dim);display:grid;place-items:center}
+.addsrc:hover{border-color:var(--accent);color:var(--accent)}
 
-/* the picked competitor */
-.hero{margin-top:8px;background:var(--surface);border-radius:22px;box-shadow:var(--shadow);padding:20px;display:grid;grid-template-columns:minmax(0,1.3fr) auto minmax(0,1fr);gap:24px;align-items:center}
-.hist{display:flex;flex-direction:column;gap:6px}
-.hrow{display:grid;grid-template-columns:52px 1fr 34px;gap:10px;align-items:center;padding:3px 6px;border-radius:9px;text-align:left}
-.hrow:hover{background:var(--bg)}
-.hrow[aria-pressed="true"]{background:var(--unhappy-soft)}
+/* panel for the picked source */
+.hero{margin-top:8px;background:var(--surface);border-radius:22px;box-shadow:var(--shadow);padding:20px;display:flex;align-items:center;gap:24px;flex-wrap:wrap;min-height:150px}
+.hero .grow{flex:1;min-width:0}
+.radar{position:relative;width:112px;height:112px;flex:none;border-radius:50%;
+  background:radial-gradient(circle,var(--accent-soft) 0 22%,transparent 23% 44%,var(--accent-soft) 45% 46%,transparent 47% 70%,var(--accent-soft) 71% 72%,transparent 73%);border:1px solid var(--line)}
+.radar .sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 300deg,color-mix(in srgb,var(--accent) 45%,transparent) 360deg);opacity:0}
+.radar.on .sweep{opacity:1;animation:spin 1.1s linear infinite}
+.radar .go{position:absolute;inset:30px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 40%,transparent);transition:transform .15s}
+.radar .go:hover{transform:scale(1.06)}
+.radar.on .go{pointer-events:none;opacity:.85}
+@keyframes spin{to{transform:rotate(360deg)}}
+.mix{display:flex;flex-direction:column;gap:8px}
+.mixbar{display:flex;height:14px;border-radius:9px;overflow:hidden;background:var(--sunk);gap:2px}
+.mixbar i{display:block;height:100%;transition:width .5s}
+.mixkey{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--dim)}
+.mixkey span{display:flex;align-items:center;gap:6px}
+.mixkey i{width:10px;height:10px;border-radius:3px}
+.bigline{font-family:var(--display);font-size:22px;font-weight:500;margin:0}
+.bigline b{font-weight:700;font-variant-numeric:tabular-nums}
+.hist{display:flex;flex-direction:column;gap:5px;flex:1.3;min-width:220px}
+.hrow{display:grid;grid-template-columns:62px 1fr 34px;gap:10px;align-items:center;padding:3px 6px;border-radius:9px;text-align:left}
+.hrow:hover:not(:disabled){background:var(--bg)}
+.hrow[aria-pressed="true"]{background:var(--hot-soft)}
+.hrow:disabled{opacity:.55;cursor:default}
 .hrow .s{display:flex;gap:1px;color:var(--star)}
 .hrow .s .off{color:var(--line)}
 .hrow .b{height:12px;border-radius:9px;background:var(--sunk);overflow:hidden}
-.hrow .b i{display:block;height:100%;border-radius:9px;background:var(--line);transition:width .6s cubic-bezier(.3,.9,.3,1)}
-.hrow.bad .b i{background:var(--unhappy)}
+.hrow .b i{display:block;height:100%;border-radius:9px;background:var(--line);transition:width .6s}
+.hrow.bad .b i{background:var(--hot)}
 .hrow .c{font-size:13px;color:var(--faint);text-align:right;font-variant-numeric:tabular-nums}
-.hist.reading .b i{animation:shimmer 1s ease-in-out infinite}
+.reading .b i,.reading .chip{animation:shimmer 1s ease-in-out infinite}
 @keyframes shimmer{50%{opacity:.35}}
-.arrow{display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--faint)}
-.arrow .big{font-family:var(--display);font-weight:700;font-size:44px;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
-.arrow small{font-size:13px}
-.readbox{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
-.readbtn{display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:16px;background:var(--accent);color:var(--accent-ink);font-weight:600;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 35%,transparent)}
-.readbtn svg{transition:transform .3s}
-.readbtn.on svg{animation:spin .9s linear infinite}
-.readbtn:hover{filter:brightness(1.08)}
-@keyframes spin{to{transform:rotate(360deg)}}
-.meta{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--faint)}
+.bignum{display:flex;flex-direction:column;align-items:center;color:var(--faint);font-size:13px}
+.bignum b{font-family:var(--display);font-weight:700;font-size:44px;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+.act{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.actbtn{display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:16px;background:var(--accent);color:var(--accent-ink);font-weight:600;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 35%,transparent)}
+.actbtn:hover{filter:brightness(1.08)}
+.actbtn.on svg{animation:spin .9s linear infinite}
+.meta{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--faint);flex-wrap:wrap}
 .plat{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:9px;background:var(--bg);font-size:12px;color:var(--dim)}
+.query{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.query .lab{font-size:13px;color:var(--faint)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:7px 8px 7px 12px;border-radius:12px;background:var(--bg);font-size:14px;font-weight:500}
+.chip button{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:var(--faint)}
+.chip button:hover{color:var(--ink);background:var(--surface)}
+.chip.place{background:var(--accent-soft)}
+.chipadd{display:inline-flex;align-items:center;gap:4px;padding:7px 12px;border-radius:12px;border:1.5px dashed var(--line);color:var(--dim);font-size:14px}
+.chipadd:hover{border-color:var(--accent);color:var(--accent)}
+.chipin{border:1.5px solid var(--accent);border-radius:12px;padding:6px 10px;font:inherit;font-size:14px;background:var(--surface);color:var(--ink);width:150px}
+.bigglyph{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:24px;color:#1A1F33;flex:none}
+.dropzone{flex:1;min-width:220px;display:flex;align-items:center;gap:14px;padding:18px;border-radius:18px;border:2px dashed var(--line);color:var(--dim);text-align:left}
+.dropzone:hover{border-color:var(--accent);color:var(--ink);background:var(--accent-soft)}
+.dropzone .bigglyph{background:var(--accent-soft);color:var(--accent)}
+.dropzone b{display:block;color:var(--ink);font-size:16px}
 
 /* board */
 .board{margin-top:20px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
@@ -84,26 +121,28 @@ svg{display:block}
 .lane-h .dot{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:var(--surface);color:var(--dim)}
 .lane-h b{font-family:var(--display);font-weight:500;font-size:16px}
 .lane-h .n{margin-left:auto;font-family:var(--display);font-weight:700;font-size:20px;color:var(--faint);font-variant-numeric:tabular-nums}
-.l-reach .lane-h .dot{background:var(--accent);color:var(--accent-ink)}
-.l-replied .lane-h .dot{background:var(--unhappy);color:#fff}
-.l-replied .lane-h .n{color:var(--unhappy)}
-.filterpill{display:flex;align-items:center;gap:6px;align-self:flex-start;padding:4px 6px 4px 10px;border-radius:999px;background:var(--unhappy-soft);font-size:13px}
+.l-todo .lane-h .dot{background:var(--accent);color:var(--accent-ink)}
+.l-replied .lane-h .dot{background:var(--hot);color:#fff}
+.l-replied .lane-h .n{color:var(--hot)}
+.filterpill{display:flex;align-items:center;gap:6px;align-self:flex-start;padding:4px 6px 4px 10px;border-radius:999px;background:var(--hot-soft);font-size:13px}
 .filterpill button{width:20px;height:20px;border-radius:50%;display:grid;place-items:center}
-
 .tile{position:relative;display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:var(--surface);border-radius:15px;padding:11px 12px;box-shadow:var(--shadow);transition:transform .15s}
 .tile:hover{transform:translateY(-2px)}
 .tile.sel{outline:2px solid var(--accent)}
 .tile.new{animation:drop .5s cubic-bezier(.2,1.4,.4,1)}
 @keyframes drop{from{opacity:0;transform:translateY(-14px) scale(.96)}}
-.tile.replied{box-shadow:0 0 0 2px var(--unhappy),var(--shadow)}
-.av{width:38px;height:38px;border-radius:50%;flex:none;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:14px;color:#1A1F33}
+.tile.replied{box-shadow:0 0 0 2px var(--hot),var(--shadow)}
+.avw{position:relative;flex:none}
+.av{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:14px;color:#1A1F33}
+.av.round{border-radius:50%}
+.badge{position:absolute;right:-5px;bottom:-5px;min-width:19px;height:19px;padding:0 3px;border-radius:7px;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:9px;color:#1A1F33;border:2px solid var(--surface)}
 .tile .t{min-width:0;flex:1}
-.tile .name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tile .sub{font-size:13px;color:var(--faint);display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden}
+.tile .name{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .sub{font-size:13px;color:var(--faint);display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden}
 .stars{display:inline-flex;gap:1px;color:var(--star)}
 .stars .off{color:var(--line)}
 .right{display:flex;align-items:center;gap:8px;flex:none}
-.noemail{color:var(--faint);opacity:.8}
+.noemail{color:var(--faint)}
 .fit{display:flex;gap:2px;align-items:flex-end;height:16px}
 .fit i{width:3px;border-radius:2px;background:var(--line)}
 .fit i:nth-child(1){height:6px}.fit i:nth-child(2){height:9px}.fit i:nth-child(3){height:12px}.fit i:nth-child(4){height:16px}
@@ -111,13 +150,16 @@ svg{display:block}
 .fu{display:flex;gap:4px}
 .fu i{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--faint)}
 .fu i.on{background:var(--accent);border-color:var(--accent)}
-.rdot{width:10px;height:10px;border-radius:50%;background:var(--unhappy);box-shadow:0 0 0 4px var(--unhappy-soft)}
+.posted{color:var(--ok)}
+.rdot{width:10px;height:10px;border-radius:50%;background:var(--hot);box-shadow:0 0 0 4px var(--hot-soft)}
 .start{position:absolute;top:-9px;right:12px;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;animation:bob 1.6s ease-in-out infinite}
 @keyframes bob{50%{transform:translateY(-3px)}}
 .empty{flex:1;display:grid;place-items:center;text-align:center;color:var(--faint);font-size:13px;padding:20px 8px}
 .empty svg{margin:0 auto 8px;opacity:.6}
 .linkbtn{margin-top:auto;font-size:13px;color:var(--faint);padding:6px;border-radius:10px}
 .linkbtn:hover{color:var(--ink)}
+.legend{margin-top:14px;display:flex;gap:16px;flex-wrap:wrap;color:var(--faint);font-size:12px}
+.legend span{display:flex;align-items:center;gap:6px}
 
 /* drawer */
 .scrim{position:fixed;inset:0;background:rgba(10,13,24,.32);opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
@@ -137,27 +179,27 @@ svg{display:block}
 .btn.primary:hover:not(:disabled){filter:brightness(1.08)}
 .btn.ghost{background:var(--sunk);color:var(--dim)}
 .btn.ghost:hover{color:var(--ink)}
-.review{position:relative;padding:16px 16px 14px;border-radius:16px;background:var(--unhappy-soft)}
-.review .q{position:absolute;top:6px;right:14px;font-family:var(--display);font-size:56px;line-height:1;color:var(--unhappy);opacity:.35}
+.review{position:relative;padding:16px 16px 14px;border-radius:16px;background:var(--hot-soft)}
+.review .q{position:absolute;top:6px;right:14px;font-family:var(--display);font-size:56px;line-height:1;color:var(--hot);opacity:.35}
 .review h4{margin:6px 0 4px;font-size:15px}
 .review p{margin:0;font-size:14px}
 .review .foot{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--dim)}
 .review .foot a{margin-left:auto;color:var(--dim);display:inline-flex;align-items:center;gap:4px}
 .why{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:14px;background:var(--accent-soft);font-size:14px}
 .why svg{flex:none;margin-top:2px;color:var(--accent)}
-.letter{border:1px solid var(--line);border-radius:16px;overflow:hidden;transition:opacity .2s}
-.letter.locked{opacity:.4;pointer-events:none}
+.letter{border:1px solid var(--line);border-radius:16px;overflow:hidden}
 .to{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 14px;font-size:13px;color:var(--faint);border-bottom:1px solid var(--line);min-height:46px}
 .to b{color:var(--ink);font-weight:500}
 .to input{flex:1;min-width:0;border:0;background:var(--bg);border-radius:9px;padding:7px 10px;font:inherit;color:var(--ink)}
 .to .look{padding:7px 12px;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-weight:600;display:flex;align-items:center;gap:6px}
 .to .look.on svg{animation:spin .9s linear infinite}
-.found{display:inline-flex;align-items:center;gap:4px;color:var(--ok);font-weight:500}
+.found{display:inline-flex;align-items:center;color:var(--ok);margin-left:auto;padding-right:6px}
 .letter .subj,.letter textarea{width:100%;border:0;background:transparent;color:var(--ink);font:inherit;padding:10px 14px;resize:none}
 .letter .subj{font-weight:600;border-bottom:1px solid var(--line)}
 .letter textarea{min-height:180px;line-height:1.55}
+.draft{transition:opacity .2s}
 .hint{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--faint)}
-.nofind{font-size:13px;color:var(--unhappy);display:flex;gap:6px;align-items:center}
+.nofind{font-size:13px;color:var(--hot);display:flex;gap:6px;align-items:center;padding:8px 14px}
 .timeline{display:flex;flex-direction:column;padding-left:4px}
 .step{display:grid;grid-template-columns:22px 1fr auto;gap:12px;align-items:start;position:relative;padding-bottom:18px}
 .step::before{content:"";position:absolute;left:10px;top:22px;bottom:0;width:2px;background:var(--line)}
@@ -166,19 +208,36 @@ svg{display:block}
 .step.done .p{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .step .when{font-size:13px;color:var(--faint)}
 .msg{padding:12px 14px;border-radius:16px;font-size:14px;max-width:92%}
-.msg.them{background:var(--unhappy-soft);border-top-left-radius:4px}
+.msg.them{background:var(--hot-soft);border-top-left-radius:4px}
 .msg.us{background:var(--accent-soft);margin-left:auto;border-top-right-radius:4px}
-.msg .who{font-size:12px;color:var(--faint);margin-bottom:3px}
+.msg.post{background:var(--bg);border-top-left-radius:4px}
+.msg .who{font-size:12px;color:var(--faint);margin-bottom:3px;display:flex;align-items:center;gap:5px}
+.how{display:flex;gap:8px;flex-wrap:wrap}
+.how span{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:10px;background:var(--bg);font-size:13px;color:var(--dim)}
+.how b{color:var(--ink);font-weight:500}
 .done-ill{display:grid;place-items:center;text-align:center;gap:10px;padding:40px 10px;color:var(--dim)}
 .done-ill .ring{width:84px;height:84px;border-radius:50%;background:var(--accent-soft);display:grid;place-items:center;color:var(--accent)}
 .done-ill h3{font-family:var(--display);margin:0;font-size:22px;color:var(--ink)}
 .field{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px 14px;font:inherit;color:var(--ink)}
 .pick{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.pick button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 10px;border-radius:16px;background:var(--bg);color:var(--dim);font-weight:500;border:2px solid transparent}
+.pick button{display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 10px;border-radius:16px;background:var(--bg);color:var(--dim);font-weight:500;border:2px solid transparent;text-align:center}
 .pick button[aria-pressed="true"]{border-color:var(--accent);color:var(--ink);background:var(--accent-soft)}
 .pick .ic{width:44px;height:44px;border-radius:12px;background:var(--surface);display:grid;place-items:center;color:var(--ink)}
+.stepper{display:flex;gap:6px}
+.stepper i{flex:1;height:5px;border-radius:9px;background:var(--sunk)}
+.stepper i.on{background:var(--accent)}
+.drop{border:1.5px dashed var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.drop textarea{width:100%;min-height:150px;border:0;background:transparent;color:var(--ink);font:inherit;font-size:14px;resize:vertical}
+.people{display:flex;flex-wrap:wrap;gap:6px}
+.person{display:flex;align-items:center;gap:6px;padding:4px 10px 4px 4px;border-radius:999px;background:var(--bg);font-size:13px}
+.person .av{width:24px;height:24px;border-radius:50%;font-size:11px}
+.person.skip{opacity:.45;text-decoration:line-through}
+.tok{display:inline-block;padding:0 6px;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-weight:600}
+.carousel{display:flex;align-items:center;gap:8px}
+.carousel .letter{flex:1;min-width:0}
+.carousel .pv{padding:12px 14px;font-size:14px;white-space:pre-wrap}
 .set{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:var(--bg)}
-.set .ico{width:34px;height:34px;border-radius:10px;background:var(--surface);display:grid;place-items:center;flex:none;color:var(--dim)}
+.set .ico{width:34px;height:34px;border-radius:10px;background:var(--surface);display:grid;place-items:center;flex:none;color:var(--dim);font-family:var(--display);font-weight:700;font-size:13px}
 .set .t{flex:1;min-width:0}
 .set .t small{display:block;color:var(--faint);font-size:12px}
 .sw{width:42px;height:24px;border-radius:999px;background:var(--line);position:relative;flex:none;transition:.2s}
@@ -188,25 +247,28 @@ svg{display:block}
 .status{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ok);font-weight:500}
 .status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok)}
 .rm{color:var(--faint);width:32px;height:32px;border-radius:9px;display:grid;place-items:center}
-.rm:hover{color:var(--unhappy);background:var(--surface)}
+.rm:hover{color:var(--hot);background:var(--surface)}
+.grp{font-size:12px;color:var(--faint);letter-spacing:.06em;text-transform:uppercase;margin-top:6px}
+input[type=range]{accent-color:var(--accent);width:100%}
 
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,140%);background:var(--ink);color:var(--bg);padding:10px 10px 10px 16px;border-radius:14px;display:flex;align-items:center;gap:14px;z-index:30;transition:transform .25s;max-width:calc(100% - 32px)}
+.toast:not(.on){pointer-events:none;visibility:hidden;transition:transform .25s,visibility 0s .25s}
 .toast.on{transform:translate(-50%,0)}
 .drawer.on ~ .toast{bottom:calc(88px + env(safe-area-inset-bottom,0px))}
 .toast button{color:var(--bg);font-weight:600;padding:6px 10px;border-radius:9px;background:color-mix(in srgb,var(--bg) 16%,transparent)}
-.legend{margin-top:14px;display:flex;gap:16px;flex-wrap:wrap;color:var(--faint);font-size:12px}
-.legend span{display:flex;align-items:center;gap:6px}
 
 @media (max-width:820px){
-  .hero{grid-template-columns:1fr auto;gap:18px}
-  .readbox{grid-column:1/-1;flex-direction:row;align-items:center;flex-wrap:wrap}
-  .board{grid-template-columns:1fr}
+  .srcs{flex-wrap:nowrap}
+  .addsrc{min-height:56px}
+  .board{grid-template-columns:minmax(0,1fr)}
   .lane{min-height:0}
-  .arrow .big{font-size:36px}
+  .bignum b{font-size:36px}
 }
-@media (max-width:440px){
-  .hero{grid-template-columns:1fr;padding:16px}
-  .arrow{flex-direction:row;gap:8px;align-items:baseline}
+@media (max-width:480px){
+  .hero{padding:16px;gap:16px}
+  .radar{width:92px;height:92px}.radar .go{inset:24px}
+  .meterTop .bar{display:none}
+  .brand h1{font-size:19px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -214,30 +276,17 @@ svg{display:block}
 <div class="wrap">
   <div class="top">
     <div class="brand">
-      <div class="mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="5"/><path d="m13 13 3 3M16 16l5 5"/></svg></div>
+      <div class="mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="6"/><path d="m20 20-5.5-5.5"/></svg></div>
       <h1>Lead Finder</h1>
     </div>
+    <div class="meterTop" title="Emails sent today out of your daily limit"><b><span id="sentToday">3</span><span style="color:var(--faint);font-size:13px">/<span id="limit">20</span></span></b><span class="bar"><i id="sentBar"></i></span>today</div>
     <button class="iconbtn" id="gear" title="Settings" aria-label="Settings"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button>
   </div>
 
-  <nav class="rivals" id="rivals" aria-label="Competitors"></nav>
-
-  <section class="hero" aria-label="Their reviews">
-    <div class="hist" id="hist"></div>
-    <div class="arrow" title="Unhappy reviewers who fit you"><span class="big" id="leadN">0</span><small>leads</small></div>
-    <div class="readbox">
-      <button class="readbtn" id="read"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>Read new reviews</button>
-      <div class="meta" id="meta"></div>
-    </div>
-  </section>
-
+  <nav class="srcs" id="srcs" aria-label="Where leads come from"></nav>
+  <section class="hero" id="hero" aria-live="polite"></section>
   <div class="board" id="board"></div>
-  <div class="legend">
-    <span><span class="stars"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg></span> what they gave the competitor</span>
-    <span><span class="fit"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span> how good a fit for you</span>
-    <span><span class="noemail" id="lgAt"></span> email not found yet</span>
-    <span><span class="rdot"></span> they replied</span>
-  </div>
+  <div class="legend" id="legend"></div>
 </div>
 
 <div class="scrim" id="scrim"></div>
@@ -254,201 +303,343 @@ const I = {
   x:S('<path d="M6 6l12 12M18 6 6 18"/>',18),
   xs:S('<path d="M6 6l12 12M18 6 6 18"/>',12),
   spark:'<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.3L20 10l-5.8 1.7L12 18l-2.2-6.3L4 10l5.8-1.7L12 2Z"/></svg>',
-  plus:S('<path d="M12 5v14M5 12h14"/>',20),
-  out:S('<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',13),
-  clock:S('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+  plus:w=>S('<path d="M12 5v14M5 12h14"/>',w||16),
+  out:w=>S('<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',w||13),
+  clock:S('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',14),
   mail:S('<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/>'),
   at:S('<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/><path d="M3 3l18 18" stroke-width="2.6"/>',15),
-  search:S('<circle cx="11" cy="11" r="6"/><path d="m20 20-4.2-4.2"/>',14),
+  search:w=>S('<circle cx="11" cy="11" r="6"/><path d="m20 20-4.2-4.2"/>',w||14),
+  refresh:S('<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',18,'stroke-width="2.4"'),
   stop:S('<rect x="6" y="6" width="12" height="12" rx="2"/>'),
   inbox:S('<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5.5 5h13L21 13v6H3v-6l2.5-8Z"/>',34,'stroke-width="1.6"'),
   trash:S('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>'),
-  tp:'<svg width="14" height="14" viewBox="0 0 24 24" fill="#00B67A"><path d="m12 2 3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg>',
-  shop:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5E8E3E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 13H6L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>',
+  pin:w=>S('<path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/>',w||12,'stroke-width="2.4"'),
+  copy:S('<rect x="9" y="9" width="12" height="12" rx="3"/><path d="M5 15V6a3 3 0 0 1 3-3h9"/>'),
+  file:w=>S('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5M12 12v6M9 15l3-3 3 3"/>',w||16),
+  list:w=>S('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',w||14),
+  left:S('<path d="m15 6-6 6 6 6"/>',18),
+  right:S('<path d="m9 6 6 6-6 6"/>',18),
+  tp:w=>`<svg width="${w||14}" height="${w||14}" viewBox="0 0 24 24" fill="#00B67A"><path d="m12 2 3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg>`,
+  shop:w=>`<svg width="${w||14}" height="${w||14}" viewBox="0 0 24 24" fill="none" stroke="#5E8E3E" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1 13H6L5 8Z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>`,
 };
-const star = '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg>';
-const stars = (n, size) => `<span class="stars" title="${n} star${n>1?'s':''}">${[1,2,3,4,5].map(i=>`<span class="${i<=n?'':'off'}">${size?star.replace(/13/g,size):star}</span>`).join('')}</span>`;
+const star = s => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 3 6.9 7.5.7-5.7 5 1.7 7.4L12 18l-6.5 4 1.7-7.4-5.7-5 7.5-.7z"/></svg>`;
+const stars = (n, s=13, cls='stars') => `<span class="${cls}" title="${n} star${n>1?'s':''}">${[1,2,3,4,5].map(i=>`<span class="${i<=n?'':'off'}">${star(s)}</span>`).join('')}</span>`;
 const PLAT = {trustpilot:{name:'Trustpilot',ic:I.tp}, shopify:{name:'Shopify App Store',ic:I.shop}};
 const hue = s => [...s].reduce((a,c)=>a+c.charCodeAt(0)*7,0)%360;
 const avBg = s => `hsl(${hue(s)} 70% 84%)`;
 const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const initials = n => n.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
+const initials = n => n.replace(/&/g,'').split(/\s+/).filter(Boolean).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+const firstOf = l => (l.person || l.name).split(' ')[0];
 
-const letter = (first, rival, pain) => `Hi ${first},\n\nI saw your review of ${rival}. ${pain}\n\nI make Frekto. You upload a photo and get a finished post with the caption written, in about a minute, at a flat price.\n\nIf you want, I can set up 2 weeks free so you can compare.\n\nGopal\nFrekto`;
-
-let rivals = [
-  {id:'predis', name:'Predis.ai', plat:'trustpilot', hist:[38,11,9,22,64], read:'2 days ago', leads:[
-    {name:'Hannah Cole', stars:1, ago:'2 d', fit:4, email:'hannah@coleceramics.com', title:'Captions sound like a robot', text:'Every caption it writes sounds the same. I spend more time fixing them than writing my own. Cancelled after 2 months.', why:'Sells handmade ceramics and posts daily. Wants captions that sound human.', pain:'The captions sounding the same is exactly what we fixed first.'},
-    {name:'Marco Diaz', stars:2, ago:'4 d', fit:4, email:null, findable:true, foundEmail:'marco@diazcoffee.co', title:'Charged twice, no reply', text:'Got billed twice this month and support has not answered in a week.', why:'Runs a coffee roastery. Unhappy with billing and support.', pain:'Getting billed twice and waiting a week is rough.'},
-    {name:'Priya Shah', stars:1, ago:'6 d', fit:3, email:null, findable:false, title:'Too expensive for a small shop', text:'The price went up again. For a two-person shop it is just too much.', why:'Two-person shop that finds the price too high.', pain:'You mentioned the price going up again.'},
-    {name:'Lena Fischer', stars:3, ago:'1 w', fit:3, email:'lena@fischerflowers.de', title:'Okay, but slow', text:'Posts look fine but it takes ages to generate and often fails.', why:'Florist who posts often. Annoyed by slow, failing posts.', pain:'Slow posts that fail halfway are a pain.'},
-    {name:'Owen Park', stars:2, ago:'1 w', fit:2, email:'owen@parkcycles.com', title:'Templates all look alike', text:'My feed looks like everyone else using this tool.', why:'Bike shop. Wants posts that look like his brand.', pain:'Your feed looking like everyone else is a fair complaint.', stage:'sent', sent:'Mon', fu:1},
-    {name:'Grace Lin', stars:1, ago:'2 w', fit:4, email:'grace@linbakes.com', title:'Gave up after the update', text:'The new update broke scheduling to Instagram.', why:'Bakery that lost Instagram scheduling.', pain:'Losing Instagram scheduling after an update is painful.', stage:'replied', sent:'Last week', fu:1, reply:'Honestly yes, I would try it. Does it post to Instagram directly?'},
-  ], nofit:[{name:'TechReviewer22',stars:1,ago:'3 d',title:'Not for agencies',text:'Needs client workspaces.'},{name:'J. Moreau',stars:2,ago:'5 d',title:'Wanted video',text:'No long-form video editing.'}]},
-  {id:'ocoya', name:'Ocoya', plat:'trustpilot', hist:[21,9,6,14,40], read:'5 days ago', leads:[
-    {name:'Sam Rivera', stars:1, ago:'1 d', fit:4, email:'sam@riverasurf.com', title:'Way too complicated', text:'I just want to make a post. This has 40 menus.', why:'Surf shop owner who wants something simple.', pain:'Wanting to just make a post without 40 menus makes total sense.'},
-    {name:'Aiko Tanaka', stars:2, ago:'3 d', fit:3, email:null, findable:true, foundEmail:'aiko@tanakatea.jp', title:'Images look stock', text:'The AI images look like stock photos.', why:'Tea shop that wants its own product photos used.', pain:'Images looking like stock photos was a big one for us too.'},
-    {name:'Ben Okafor', stars:3, ago:'1 w', fit:2, email:'ben@okaforprints.com', title:'Fine but pricey', text:'It does the job but costs more than it should.', why:'Print shop, price-sensitive.', pain:'You mentioned it costs more than it should.'},
-  ], nofit:[{name:'Agency Joe',stars:1,ago:'2 d',title:'No white label',text:'Need to resell it.'}]},
-  {id:'later', name:'Later', plat:'shopify', hist:[17,6,8,30,120], read:'1 week ago', leads:[
-    {name:'Bloom & Co', stars:2, ago:'2 d', fit:4, email:'hello@bloomandco.shop', title:'Scheduling only', text:'I still have to make every post myself. I wanted it to do that part.', why:'Shopify store that wants posts made, not just scheduled.', pain:'You said you still have to make every post yourself.'},
-    {name:'Nordic Knits', stars:1, ago:'5 d', fit:3, email:null, findable:true, foundEmail:'shop@nordicknits.com', title:'Product sync broke', text:'Stopped pulling my products after the last update.', why:'Knitwear store. Wants posts straight from products.', pain:'Losing the product sync after an update is frustrating.'},
-  ], nofit:[]},
+/* ---------- sources ---------- */
+let sources = [
+  {id:'maps', type:'maps', name:'Google Maps', glyph:'M', color:'#CDEBD8', on:true, last:'2 h ago', terms:['hair salons','cafés','gyms'], place:'Austin, TX'},
+  {id:'predis', type:'rival', name:'Predis.ai', plat:'trustpilot', on:true, last:'2 days ago', hist:[38,11,9,22,64]},
+  {id:'ocoya', type:'rival', name:'Ocoya', plat:'trustpilot', on:true, last:'5 days ago', hist:[21,9,6,14,40]},
+  {id:'later', type:'rival', name:'Later', plat:'shopify', on:true, last:'1 week ago', hist:[17,6,8,30,120]},
+  {id:'reddit', type:'forum', name:'Reddit', glyph:'r/', color:'#FFD7C7', on:true, last:'2 h ago', terms:['AI instagram post maker','tool to make social posts','tired of Canva']},
+  {id:'hn', type:'forum', name:'Hacker News', glyph:'Y', color:'#FFE1B8', on:true, last:'2 h ago', terms:['social media for side project','automate posts']},
+  {id:'own', type:'own', name:'Your list', glyph:'', color:'var(--accent-soft)', on:true},
 ];
-let nextId = 1;
-rivals.forEach(r=>r.leads.forEach(l=>{ l.id=nextId++; l.stage=l.stage||'reach'; }));
-const fresh = {
-  predis:[{name:'Tom Becker', stars:1, ago:'3 h', fit:4, email:'tom@beckerframes.com', title:'Support ghosted me', text:'Three emails, zero replies. Moving on.', why:'Frame shop that posts weekly. Unhappy with support.', pain:'Three emails with no reply is not okay.'},
-          {name:'Rosa Mendes', stars:2, ago:'9 h', fit:3, email:null, findable:true, foundEmail:'rosa@mendesjewelry.com', title:'Hashtags are random', text:'The hashtags it picks have nothing to do with jewelry.', why:'Jewelry maker who wants relevant hashtags.', pain:'Random hashtags hurt reach.'}],
-  ocoya:[{name:'Kim Larsen', stars:1, ago:'5 h', fit:4, email:'kim@larsenyoga.dk', title:'Cancelled', text:'Too many features I never use, and the price keeps going up.', why:'Yoga studio. Wants simple and cheap.', pain:'Paying for features you never use adds up.'}],
-  later:[],
-};
-let cur = rivals[0], starFilter = null, current = null, firstVisit = true, undoFn = null, sentToday = 3;
-const settings = {gmail:true, demo:true};
-const $ = id => document.getElementById(id);
+const src = id => sources.find(s=>s.id===id);
+sources.forEach(s=>{ if(s.type==='rival'){ s.glyph = s.name[0]; s.color = avBg(s.name); } });
 
-function ring(r){ const t = r.hist.reduce((a,b)=>a+b,0), bad = r.hist[0]+r.hist[1]+r.hist[2]; return `conic-gradient(var(--unhappy) 0 ${bad/t*360}deg, var(--line) 0)`; }
-function renderRivals(){
-  $('rivals').innerHTML = rivals.map(r=>{
-    const n = r.leads.filter(l=>l.stage==='reach').length;
-    return `<button class="rival" data-id="${r.id}" aria-pressed="${r===cur}" title="Red part of the ring = unhappy reviews">
-      <span class="coin"><span class="ring" style="background:${ring(r)}"></span><span class="face" style="background:${avBg(r.name)}">${esc(r.name[0])}</span></span>
-      <span class="t"><b>${esc(r.name)}</b><small>${PLAT[r.plat].ic}${n} to reach</small></span>
-      ${r.fresh?`<span class="new">${r.fresh}</span>`:''}</button>`;
-  }).join('') + `<button class="addrival" id="addRival" title="Add a competitor" aria-label="Add a competitor">${I.plus}</button>`;
-  $('rivals').querySelectorAll('.rival').forEach(b=>b.onclick=()=>{ cur = rivals.find(r=>r.id===b.dataset.id); cur.fresh=0; starFilter=null; current=null; render(); });
-  $('addRival').onclick = openAddRival;
+const mapsBody = (first, co, hook) => `Hi ${first},\n\n${hook}\n\nFrekto turns a photo of your work into a ready post for Instagram and Facebook in about a minute. No design skills needed.\n\nWant me to make 3 free posts for ${co} so you can see?\n\nGopal\nFrekto`;
+const rivalBody = (first, rival, pain) => `Hi ${first},\n\nI saw your review of ${rival}. ${pain}\n\nI make Frekto. You upload a photo and get a finished post with the caption written, in about a minute, at a flat price.\n\nIf you want, I can set up 2 weeks free so you can compare.\n\nGopal\nFrekto`;
+
+let leads = [
+  // Google Maps
+  {src:'maps', name:'Bloom Salon', city:'Austin, TX', person:'Maya', email:'hello@bloomsalon.co', fit:4, why:'Great reviews, but last Instagram post was 5 months ago.', hook:'Your 4.9 stars on Google are impressive. I noticed your Instagram has been quiet since spring.'},
+  {src:'maps', name:'Rise Bakery', city:'Austin, TX', person:'Tom', email:'orders@risebakery.com', fit:3, why:'Posts daily specials on a chalkboard, not online.', hook:'Your chalkboard specials look great in customer photos. They would do well on Instagram too.'},
+  {src:'maps', name:'Ember Coffee', city:'Austin, TX', person:'Leo', email:'hi@embercoffee.com', fit:3, why:'Busy café, posts once a month.', stage:'contacted', sent:'Mon', fu:1},
+  {src:'maps', name:'Northside Florist', city:'Austin, TX', person:'Sam', email:'flowers@northside.fl', fit:4, why:'Seasonal stock, no posts.', stage:'replied', sent:'Tue', fu:1, reply:'This sounds handy. Can we do a quick call Thursday afternoon?'},
+  // competitors
+  {src:'predis', name:'Hannah Cole', stars:1, ago:'2 d', fit:4, email:'hannah@coleceramics.com', title:'Captions sound like a robot', text:'Every caption it writes sounds the same. I spend more time fixing them than writing my own. Cancelled after 2 months.', why:'Sells handmade ceramics and posts daily. Wants captions that sound human.', pain:'The captions sounding the same is exactly what we fixed first.'},
+  {src:'predis', name:'Marco Diaz', stars:2, ago:'4 d', fit:4, email:null, findable:true, foundEmail:'marco@diazcoffee.co', title:'Charged twice, no reply', text:'Got billed twice this month and support has not answered in a week.', why:'Runs a coffee roastery. Unhappy with billing and support.', pain:'Getting billed twice and waiting a week is rough.'},
+  {src:'predis', name:'Priya Shah', stars:1, ago:'6 d', fit:3, email:null, findable:false, title:'Too expensive for a small shop', text:'The price went up again. For a two-person shop it is just too much.', why:'Two-person shop that finds the price too high.', pain:'You mentioned the price going up again.'},
+  {src:'predis', name:'Grace Lin', stars:1, ago:'2 w', fit:4, email:'grace@linbakes.com', title:'Gave up after the update', text:'The new update broke scheduling to Instagram.', why:'Bakery that lost Instagram scheduling.', pain:'Losing Instagram scheduling after an update is painful.', stage:'replied', sent:'Last week', fu:1, reply:'Honestly yes, I would try it. Does it post to Instagram directly?'},
+  {src:'ocoya', name:'Sam Rivera', stars:1, ago:'1 d', fit:4, email:'sam@riverasurf.com', title:'Way too complicated', text:'I just want to make a post. This has 40 menus.', why:'Surf shop owner who wants something simple.', pain:'Wanting to just make a post without 40 menus makes total sense.'},
+  {src:'ocoya', name:'Aiko Tanaka', stars:2, ago:'3 d', fit:3, email:null, findable:true, foundEmail:'aiko@tanakatea.jp', title:'Images look stock', text:'The AI images look like stock photos.', why:'Tea shop that wants its own product photos used.', pain:'Images looking like stock photos was a big one for us too.'},
+  {src:'ocoya', name:'Owen Park', stars:2, ago:'1 w', fit:2, email:'owen@parkcycles.com', title:'Templates all look alike', text:'My feed looks like everyone else using this tool.', why:'Bike shop. Wants posts that look like his brand.', pain:'Your feed looking like everyone else is a fair complaint.', stage:'contacted', sent:'Mon', fu:1},
+  {src:'later', name:'Bloom & Co', stars:2, ago:'2 d', fit:4, email:'hello@bloomandco.shop', title:'Scheduling only', text:'I still have to make every post myself. I wanted it to do that part.', why:'Shopify store that wants posts made, not just scheduled.', pain:'You said you still have to make every post yourself.'},
+  // forums
+  {src:'reddit', kind:'post', name:'Tool that makes Instagram posts for my shop?', where:'r/smallbusiness', fit:4, ago:'3 h', post:'I run a small candle shop and I hate making posts. Is there anything that just takes my product photo and writes the caption?', reply:'I make Frekto, which does exactly that: upload a product photo and it writes the caption and lays out the post. Happy to set you up with a few free posts to try.'},
+  {src:'reddit', kind:'post', name:'I spend 5 hours a week in Canva', where:'r/Etsy', fit:4, ago:'1 d', post:'Between listings and promo posts I’m in Canva 5+ hours a week. How do other sellers handle this?', reply:'Batching helps a lot. Another option is an AI post maker like Frekto (I made it): one photo in, a finished post out. Could save most of those 5 hours.'},
+  {src:'reddit', kind:'post', name:'How do you stay consistent on Instagram?', where:'r/Entrepreneur', fit:2, ago:'2 d', post:'I always start strong and then stop posting after 2 weeks.', reply:'…', stage:'contacted'},
+  {src:'hn', kind:'post', name:'Automating social posts for a side project', where:'Ask HN', fit:3, ago:'7 h', post:'Ask HN: What do you use to keep a side project’s social accounts alive without spending hours a week?', reply:'Disclosure: I built Frekto. It drafts posts from your site and photos, and you approve them in one place. Free to try, and I’d love feedback from HN folks.'},
+  // own list
+  {src:'own', name:'Harbor Pets', person:'Kate', email:'kate@harborpets.com', fit:3, why:'From your own list.', stage:'contacted', sent:'Today', fu:0},
+  {src:'own', name:'Fixit Bikes', person:'Raj', email:'raj@fixitbikes.com', fit:3, why:'From your own list.', stage:'contacted', sent:'Yesterday', fu:0},
+];
+const nofit = {predis:[{name:'TechReviewer22',stars:1,title:'Not for agencies'},{name:'J. Moreau',stars:2,title:'Wanted video'}], ocoya:[{name:'Agency Joe',stars:1,title:'No white label'}], maps:[{name:'City Dental',title:'Already posts daily'}]};
+let nextId = 1;
+const prep = l => { l.id = nextId++; l.stage = l.stage || 'todo'; l.kind = l.kind || 'email'; return l; };
+leads.forEach(prep);
+
+const fresh = {
+  maps:[{src:'maps', name:'Copper Barbers', city:'Austin, TX', person:'Dan', email:'book@copperbarbers.com', fit:4, why:'Fully booked on weekdays, empty Saturdays. No Instagram.', hook:'Your reviews mention great fades, but I could not find you on Instagram.'}],
+  predis:[{src:'predis', name:'Tom Becker', stars:1, ago:'3 h', fit:4, email:'tom@beckerframes.com', title:'Support ghosted me', text:'Three emails, zero replies. Moving on.', why:'Frame shop that posts weekly. Unhappy with support.', pain:'Three emails with no reply is not okay.'}],
+  ocoya:[{src:'ocoya', name:'Kim Larsen', stars:1, ago:'5 h', fit:4, email:null, findable:true, foundEmail:'kim@larsenyoga.dk', title:'Cancelled', text:'Too many features I never use, and the price keeps going up.', why:'Yoga studio. Wants simple and cheap.', pain:'Paying for features you never use adds up.'}],
+  later:[],
+  reddit:[{src:'reddit', kind:'post', name:'Best way to make product posts fast?', where:'r/shopify', fit:4, ago:'12 min', post:'Launching 30 new products next month. Need posts for each. Any shortcuts?', reply:'For a batch like that, a tool like Frekto (I built it) can turn each product photo into a post in about a minute. Happy to share a free trial.'}],
+  hn:[],
+};
+
+let view = 'all', starFilter = null, current = null, firstVisit = true, undoFn = null, sentToday = 3, limit = 20;
+const settings = {auto:true, demo:true};
+const $ = id => document.getElementById(id);
+const visible = () => leads.filter(l => src(l.src)?.on && (view==='all' || l.src===view));
+const todoOf = id => leads.filter(l=>l.src===id && l.stage==='todo').length;
+
+/* ---------- top: sources ---------- */
+function coin(s, big){
+  const ring = s.type==='rival' ? `<span class="ring" style="background:conic-gradient(var(--hot) 0 ${(s.hist[0]+s.hist[1]+s.hist[2])/s.hist.reduce((a,b)=>a+b,0)*360}deg, var(--line) 0)"></span>` : '';
+  const face = s.type==='own' ? `<span class="face" style="background:var(--accent-soft);color:var(--accent)">${I.list(16)}</span>` : `<span class="face" style="background:${s.color}">${esc(s.glyph)}</span>`;
+  return `<span class="coin">${ring}${face}</span>`;
 }
+function subOf(s){
+  const n = todoOf(s.id);
+  if (s.type==='rival') return `${PLAT[s.plat].ic()}${n} to do`;
+  if (s.type==='own') return `${leads.filter(l=>l.src==='own').length} people`;
+  return `${n} to do`;
+}
+function renderSrcs(){
+  const all = leads.filter(l=>l.stage==='todo' && src(l.src)?.on).length;
+  const group = t => sources.filter(s=>s.type===t || (t==='forum' && s.type==='forum'));
+  const btn = s => `<button class="coinbtn ${s.on?'':'off'}" data-v="${s.id}" aria-pressed="${view===s.id}" ${s.type==='rival'?'title="Competitor. Red part of the ring = unhappy reviews"':''}>${coin(s)}<span class="t"><b>${esc(s.name)}</b><small>${subOf(s)}</small></span>${s.fresh?`<span class="nb">${s.fresh}</span>`:''}</button>`;
+  $('srcs').innerHTML = `<button class="coinbtn" data-v="all" aria-pressed="${view==='all'}"><span class="coin"><span class="face all">${I.search(16)}</span></span><span class="t"><b>All</b><small>${all} to do</small></span></button><span class="sep"></span>`
+    + sources.filter(s=>s.type==='maps').map(btn).join('')
+    + sources.filter(s=>s.type==='rival').map(btn).join('')
+    + sources.filter(s=>s.type==='forum').map(btn).join('')
+    + sources.filter(s=>s.type==='own').map(btn).join('')
+    + `<button class="addsrc" id="addSrc" title="Add a competitor or place" aria-label="Add a source">${I.plus(20)}</button>`;
+  $('srcs').querySelectorAll('.coinbtn').forEach(b=>b.onclick=()=>{ view=b.dataset.v; const s=src(view); if(s) s.fresh=0; starFilter=null; current=null; render(); });
+  $('addSrc').onclick = openAddSource;
+}
+
+/* ---------- panel for the picked source ---------- */
+const act = (label, id='go') => `<button class="actbtn" id="${id}">${I.refresh}${label}</button>`;
 function renderHero(){
-  const max = Math.max(...cur.hist, 1);
-  $('hist').innerHTML = [5,4,3,2,1].map(s=>`<button class="hrow ${s<=3?'bad':''}" data-s="${s}" ${s<=3?'':'disabled style="cursor:default"'} aria-pressed="${starFilter===s}" title="${s<=3?'Show only '+s+'-star reviewers':'Happy customers: not leads'}">
-    ${stars(s,10).replace('class="stars"','class="s"')}<span class="b"><i style="width:${cur.hist[s-1]/max*100}%"></i></span><span class="c">${cur.hist[s-1]}</span></button>`).join('');
-  $('hist').querySelectorAll('.hrow.bad').forEach(b=>b.onclick=()=>{ const s=+b.dataset.s; starFilter = starFilter===s?null:s; renderHero(); renderBoard(); });
-  $('leadN').textContent = cur.leads.filter(l=>l.stage==='reach').length;
-  $('meta').innerHTML = `<span class="plat">${PLAT[cur.plat].ic}${PLAT[cur.plat].name}</span>${I.clock}${esc(cur.read)}`;
+  const h = $('hero');
+  if (view==='all'){
+    const on = sources.filter(s=>s.on && s.type!=='own');
+    const counts = on.map(s=>({s, n:todoOf(s.id)})).filter(x=>x.n);
+    const total = counts.reduce((a,x)=>a+x.n,0);
+    h.innerHTML = `<div class="radar" id="radar"><div class="sweep"></div><button class="go" id="go" title="Search every source now" aria-label="Search every source now">${I.search(22)}</button></div>
+      <div class="grow mix"><p class="bigline"><b>${total}</b> people to reach</p>
+        <div class="mixbar">${counts.map(x=>`<i style="width:${x.n/total*100}%;background:${x.s.color}" title="${esc(x.s.name)}: ${x.n}"></i>`).join('')}</div>
+        <div class="mixkey">${counts.map(x=>`<span><i style="background:${x.s.color}"></i>${esc(x.s.name)} ${x.n}</span>`).join('')}</div>
+        <div class="meta">${I.clock} ${settings.auto?'Searches every morning':'Searches only when you tap'}</div></div>`;
+    $('go').onclick = searchAll;
+    return;
+  }
+  const s = src(view);
+  if (s.type==='rival'){
+    const max = Math.max(...s.hist, 1);
+    h.innerHTML = `<div class="hist" id="hist">${[5,4,3,2,1].map(n=>`<button class="hrow ${n<=3?'bad':''}" data-s="${n}" ${n<=3?'':'disabled'} aria-pressed="${starFilter===n}" title="${n<=3?'Show only '+n+'-star reviewers':'Happy customers: not leads'}">${stars(n,10,'s')}<span class="b"><i style="width:${s.hist[n-1]/max*100}%"></i></span><span class="c">${s.hist[n-1]}</span></button>`).join('')}</div>
+      <div class="bignum" title="Unhappy reviewers who fit you"><b>${todoOf(s.id)}</b>to reach</div>
+      <div class="act">${act('Read new reviews')}<div class="meta"><span class="plat">${PLAT[s.plat].ic()}${PLAT[s.plat].name}</span>${I.clock}${esc(s.last)}</div></div>`;
+    h.querySelectorAll('.hrow.bad').forEach(b=>b.onclick=()=>{ const n=+b.dataset.s; starFilter = starFilter===n?null:n; renderHero(); renderBoard(); });
+  } else if (s.type==='maps' || s.type==='forum'){
+    h.innerHTML = `<span class="bigglyph" style="background:${s.color}">${s.type==='maps'?I.pin(28):esc(s.glyph)}</span>
+      <div class="grow" style="display:flex;flex-direction:column;gap:10px">
+        <div class="query" id="terms">${s.terms.map((t,i)=>`<span class="chip">${esc(t)}<button data-rm="${i}" aria-label="Remove ${esc(t)}">${I.xs}</button></span>`).join('')}<button class="chipadd" id="addTerm">${I.plus(14)}</button>
+        ${s.type==='maps'?`<span class="lab">in</span><span class="chip place">${I.pin(13)}${esc(s.place)}</span>`:''}</div>
+        <div class="meta">${I.clock} ${esc(s.last)}</div></div>
+      <div class="act">${act('Search now')}</div>`;
+    h.querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{ s.terms.splice(+b.dataset.rm,1); renderHero(); });
+    $('addTerm').onclick = () => { const inp = document.createElement('input'); inp.className='chipin'; inp.placeholder = s.type==='maps'?'e.g. dentists':'e.g. need more followers'; $('addTerm').replaceWith(inp); inp.focus();
+      const done = () => { if (inp.value.trim()) s.terms.push(inp.value.trim()); renderHero(); };
+      inp.onkeydown = e => { if (e.key==='Enter') done(); if (e.key==='Escape') renderHero(); }; inp.onblur = done; };
+  } else {
+    const mine = leads.filter(l=>l.src==='own');
+    h.innerHTML = `<button class="dropzone" id="drop"><span class="bigglyph">${I.file(28)}</span><span><b>Paste emails or drop a file</b>CSV, Excel, PDF, Word, text</span></button>
+      <div class="bignum"><b>${mine.length}</b>people</div><div class="bignum"><b>${mine.filter(l=>l.stage!=='todo').length}</b>emailed</div>`;
+    $('drop').onclick = () => openOwnList();
+    return;
+  }
+  $('go').onclick = () => searchOne(s);
 }
+
+/* ---------- board ---------- */
 const fitBars = n => `<span class="fit" title="Fit ${n} of 4">${[1,2,3,4].map(i=>`<i class="${i<=n?'on':''}"></i>`).join('')}</span>`;
 const fuDots = l => `<span class="fu" title="Follow-ups: ${l.fu} of 2 sent">${[0,1,2].map(i=>`<i class="${i<=l.fu?'on':''}"></i>`).join('')}</span>`;
-const avatar = l => `<span class="av" style="background:${avBg(l.name)}">${esc(initials(l.name))}</span>`;
-
+function avatar(l, badge){
+  const s = src(l.src);
+  let a;
+  if (l.kind==='post') a = `<span class="av" style="background:${s.color}">${esc(s.glyph)}</span>`;
+  else if (s.type==='rival') a = `<span class="av round" style="background:${avBg(l.name)}">${esc(initials(l.name))}</span>`;
+  else a = `<span class="av" style="background:${avBg(l.name)}">${esc(l.name[0])}</span>`;
+  const b = badge && l.kind!=='post' ? `<span class="badge" style="background:${s.type==='own'?'var(--accent-soft)':s.color}" title="${esc(s.name)}">${s.type==='own'?I.list(10):s.type==='maps'?'M':esc(s.glyph)}</span>` : '';
+  return `<span class="avw">${a}${b}</span>`;
+}
+function tileSub(l){
+  const s = src(l.src);
+  if (l.kind==='post') return `${esc(l.where)} · ${esc(l.ago)}`;
+  if (s.type==='rival') return `${stars(l.stars,11)}${view==='all'?esc(s.name):esc(l.ago)}`;
+  if (s.type==='own') return `${I.list(12)}Your list`;
+  return `${I.pin()}${esc(l.city)}`;
+}
+function tileRight(l){
+  if (l.stage==='todo') return `${l.kind==='email' && !l.email ? `<span class="noemail" title="Email not found yet">${I.at}</span>`:''}${fitBars(l.fit)}`;
+  if (l.stage==='contacted') return l.kind==='post' ? `<span class="posted" title="You posted a reply">${I.check(16)}</span>` : fuDots(l);
+  return '<span class="rdot"></span>';
+}
 function renderBoard(){
-  const lanes = [{k:'reach',t:'Reach out',ic:I.eye},{k:'sent',t:'Emailed',ic:I.send},{k:'replied',t:'Replied',ic:I.reply}];
+  const lanes = [{k:'todo',t:'To do',ic:I.eye},{k:'contacted',t:'Contacted',ic:I.send},{k:'replied',t:'Replied',ic:I.reply}];
+  const list = visible();
   $('board').innerHTML = lanes.map(L=>{
-    let its = cur.leads.filter(l=>l.stage===L.k);
-    if (L.k==='reach'){ its.sort((a,b)=>b.fit-a.fit); if (starFilter) its = its.filter(l=>l.stars===starFilter); }
-    let tiles = its.map((l,i)=>{
-      const right = L.k==='reach' ? `${l.email?'':`<span class="noemail" title="Email not found yet">${I.at}</span>`}${fitBars(l.fit)}` : L.k==='sent' ? fuDots(l) : '<span class="rdot"></span>';
-      return `<button class="tile ${l.isNew?'new':''} ${L.k==='replied'?'replied':''} ${current===l.id?'sel':''}" data-id="${l.id}">
-        ${firstVisit && L.k==='reach' && i===0 ? '<span class="start">Start here</span>':''}
-        ${avatar(l)}<span class="t"><span class="name">${esc(l.name)}</span><span class="sub">${stars(l.stars,11)}${esc(l.ago)}</span></span><span class="right">${right}</span></button>`;
-    }).join('');
-    if (!its.length) tiles = `<div class="empty"><div>${I.inbox}${L.k==='reach'?(starFilter?'No one at this rating.':'All done here. Read new reviews or pick another competitor.'):L.k==='replied'?'Replies land here.':'Nothing yet.'}</div></div>`;
-    const pill = L.k==='reach' && starFilter ? `<span class="filterpill">${stars(starFilter,11)}<button id="clearF" aria-label="Show all ratings">${I.xs}</button></span>` : '';
-    const skipped = cur.leads.filter(l=>l.stage==='done').length;
-    const more = L.k==='reach' && (cur.nofit.length||skipped) ? `<button class="linkbtn" id="showNo">+ ${cur.nofit.length+skipped} not a fit or skipped</button>` : '';
+    let its = list.filter(l=>l.stage===L.k);
+    if (L.k==='todo'){ its.sort((a,b)=>b.fit-a.fit); if (starFilter) its = its.filter(l=>l.stars===starFilter); }
+    let tiles = its.map((l,i)=>`<button class="tile ${l.isNew?'new':''} ${L.k==='replied'?'replied':''} ${current===l.id?'sel':''}" data-id="${l.id}">
+        ${firstVisit && L.k==='todo' && i===0 ? '<span class="start">Start here</span>':''}
+        ${avatar(l, view==='all')}<span class="t"><span class="name">${esc(l.name)}</span><span class="sub">${tileSub(l)}</span></span><span class="right">${tileRight(l)}</span></button>`).join('');
+    if (!its.length) tiles = `<div class="empty"><div>${I.inbox}${L.k==='todo'?(starFilter?'No one at this rating.':'All done here. Search again or pick another source.'):L.k==='replied'?'Replies land here.':'Nothing yet.'}</div></div>`;
+    const pill = L.k==='todo' && starFilter ? `<span class="filterpill">${stars(starFilter,11)}<button id="clearF" aria-label="Show all ratings">${I.xs}</button></span>` : '';
+    const setAside = list.filter(l=>l.stage==='done').length + (view==='all' ? Object.values(nofit).flat().length : (nofit[view]||[]).length);
+    const more = L.k==='todo' && setAside ? `<button class="linkbtn" id="showNo">+ ${setAside} not a fit or skipped</button>` : '';
     return `<section class="lane l-${L.k}"><div class="lane-h"><span class="dot">${L.ic}</span><b>${L.t}</b><span class="n">${its.length}</span></div>${pill}${tiles}${more}</section>`;
   }).join('');
-  cur.leads.forEach(l=>delete l.isNew);
+  leads.forEach(l=>delete l.isNew);
   $('board').querySelectorAll('.tile').forEach(t=>t.onclick=()=>openLead(+t.dataset.id));
   $('clearF') && ($('clearF').onclick = () => { starFilter=null; renderHero(); renderBoard(); });
-  $('showNo') && ($('showNo').onclick = openNoFit);
+  $('showNo') && ($('showNo').onclick = openSetAside);
+  const s = src(view);
+  $('legend').innerHTML = [
+    `<span>${fitBars(4)} how good a fit</span>`,
+    (!s || s.type==='rival') && `<span>${stars(1,11)} what they gave a competitor</span>`,
+    (!s || s.type!=='forum') && `<span><span class="noemail">${I.at}</span> email not found yet</span>`,
+    (!s || s.type!=='forum') && `<span>${fuDots({fu:1})} follow-ups, stop when they reply</span>`,
+    (!s || s.type==='forum') && `<span><span class="posted">${I.check(14)}</span> you posted a reply</span>`,
+    (!s || s.type!=='forum') && `<span><span class="rdot"></span> they replied</span>`,
+  ].filter(Boolean).join('');
 }
-function render(){ renderRivals(); renderHero(); renderBoard(); }
+function renderMeter(){ $('sentToday').textContent = sentToday; $('limit').textContent = limit; $('sentBar').style.width = Math.min(100, sentToday/limit*100)+'%'; }
+function render(){ renderSrcs(); renderHero(); renderBoard(); renderMeter(); }
 
-/* drawer */
+/* ---------- drawer ---------- */
 function openDrawer(html){ $('drawer').innerHTML = html; $('drawer').classList.add('on'); $('scrim').classList.add('on'); $('drawer').querySelectorAll('[data-close]').forEach(b=>b.onclick=closeDrawer); }
 function closeDrawer(){ $('drawer').classList.remove('on'); $('scrim').classList.remove('on'); current=null; renderBoard(); }
 $('scrim').onclick = closeDrawer;
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDrawer(); });
 const head = (av, title, sub) => `<div class="d-head">${av}<div style="min-width:0"><h2>${esc(title)}</h2><div class="sub">${sub}</div></div><button class="iconbtn x" data-close aria-label="Close">${I.x}</button></div>`;
-const reviewCard = l => `<div class="review"><span class="q">“</span>${stars(l.stars,15)}<h4>${esc(l.title)}</h4><p>${esc(l.text)}</p>
-  <div class="foot">${PLAT[cur.plat].ic}${esc(cur.name)} · ${esc(l.ago)} ago<a href="https://www.trustpilot.com" target="_blank" rel="noopener">Open ${I.out}</a></div></div>`;
+function srcLine(l){
+  const s = src(l.src);
+  if (l.kind==='post') return `${esc(s.name)} · ${esc(l.ago)} ago`;
+  if (s.type==='rival') return `${stars(l.stars,12)} on ${esc(s.name)}`;
+  if (s.type==='own') return `${I.list(12)} Your list`;
+  return `${I.pin(13)} ${esc(l.city)} · Google Maps`;
+}
+const reviewCard = l => { const s = src(l.src); return `<div class="review"><span class="q">“</span>${stars(l.stars,15)}<h4>${esc(l.title)}</h4><p>${esc(l.text)}</p>
+  <div class="foot">${PLAT[s.plat].ic()}${esc(s.name)} · ${esc(l.ago)} ago<a href="https://www.trustpilot.com" target="_blank" rel="noopener">Open ${I.out()}</a></div></div>`; };
 
 function openLead(id){
-  const l = cur.leads.find(x=>x.id===id); if(!l) return;
+  const l = leads.find(x=>x.id===id); if(!l) return;
   current = id; firstVisit = false; renderBoard();
-  if (l.stage==='reach') return openReach(l);
-  if (l.stage==='sent') return openSent(l);
+  if (l.kind==='post') return openPost(l);
+  if (l.stage==='todo') return openEmail(l);
+  if (l.stage==='contacted') return openSent(l);
   if (l.stage==='replied') return openReplied(l);
 }
+function todoQueue(){ return visible().filter(x=>x.stage==='todo' && (!starFilter || x.stars===starFilter)).sort((a,b)=>b.fit-a.fit); }
 
-function openReach(l){
-  const left = cur.leads.filter(x=>x.stage==='reach').length;
-  if (!l.subject){ l.subject = `About your ${cur.name} review`; l.body = letter(l.name.split(' ')[0].replace(/&.*/,'').trim(), cur.name, l.pain); }
-  openDrawer(`${head(avatar(l), l.name, `${stars(l.stars,12)} on ${esc(cur.name)}`)}
+function openEmail(l){
+  const s = src(l.src), left = todoQueue().length;
+  if (!l.subject){
+    if (s.type==='rival'){ l.subject = `About your ${s.name} review`; l.body = rivalBody(firstOf(l), s.name, l.pain); }
+    else { l.subject = `A few posts for ${l.name}?`; l.body = mapsBody(firstOf(l), l.name, l.hook || ''); }
+  }
+  openDrawer(`${head(avatar(l), l.name, srcLine(l))}
     <div class="d-body">
-      ${reviewCard(l)}
+      ${s.type==='rival' ? reviewCard(l) : ''}
       <div class="why">${I.spark}<span>${esc(l.why)}</span></div>
-      <div class="letter ${l.email?'':'locked-wrap'}" id="let">
-        <div class="to" id="toRow"></div>
-        <div id="draft"><input class="subj" id="subj" value="${esc(l.subject)}" aria-label="Subject"><textarea id="bodyTxt" aria-label="Email">${esc(l.body)}</textarea></div>
-      </div>
+      <div class="letter"><div class="to" id="toRow"></div>
+        <div class="draft" id="draft"><input class="subj" id="subj" value="${esc(l.subject)}" aria-label="Subject"><textarea id="bodyTxt" aria-label="Email">${esc(l.body)}</textarea></div></div>
       <div class="hint">${I.clock} 2 follow-ups go out by themselves · they stop when they reply</div>
     </div>
     <div class="d-foot"><button class="btn ghost" id="skip">Skip</button><button class="btn primary" id="send">${I.send} Send <span style="opacity:.6;font-weight:500">${left>1?`· ${left-1} more`:''}</span></button></div>`);
+  const lock = on => { $('draft').style.opacity = on?.4:1; $('draft').style.pointerEvents = on?'none':'auto'; $('send').disabled = on; };
   const toRow = () => {
-    if (l.email){ $('toRow').innerHTML = `To <b>${esc(l.name.split(' ')[0])}</b> ${esc(l.email)} <span class="found" style="margin-left:auto;padding-right:6px">${I.check(14)}</span>`; $('draft').style.opacity=1; $('draft').style.pointerEvents='auto'; $('send').disabled=false; return; }
-    $('toRow').innerHTML = `${I.mail}<input id="em" type="email" placeholder="their email" aria-label="Their email"><button class="look" id="look">${I.search}Find</button>`;
-    $('draft').style.opacity=.4; $('draft').style.pointerEvents='none'; $('send').disabled=true;
-    $('em').oninput = e => { const ok = /^[^@\s]+@[^@\s]+\.\w+$/.test(e.target.value); $('send').disabled=!ok; $('draft').style.opacity=ok?1:.4; $('draft').style.pointerEvents=ok?'auto':'none'; };
+    if (l.email){ $('toRow').innerHTML = `To <b>${esc(firstOf(l))}</b> ${esc(l.email)}<span class="found">${I.check(14)}</span>`; lock(false); return; }
+    $('toRow').innerHTML = `${I.mail}<input id="em" type="email" placeholder="their email" aria-label="Their email"><button class="look" id="look">${I.search()}Find</button>`;
+    lock(true);
+    $('em').oninput = e => lock(!/^[^@\s]+@[^@\s]+\.\w+$/.test(e.target.value));
     $('look').onclick = () => { $('look').classList.add('on'); $('look').disabled = true; setTimeout(()=>{
       if (l.findable){ l.email = l.foundEmail; toRow(); toast(`Found ${l.email}`); }
-      else { $('look').remove(); $('toRow').insertAdjacentHTML('afterend', `<div class="nofind" style="padding:8px 14px">${I.x.replace(/18/g,'14')} Not found. Type it if you know it.</div>`); $('em').focus(); }
+      else { $('look').remove(); $('toRow').insertAdjacentHTML('afterend', `<div class="nofind">${I.xs} Not found. Type it if you know it.</div>`); $('em').focus(); }
     }, 1100); };
   };
   toRow();
   $('subj').oninput = e => l.subject = e.target.value;
   $('bodyTxt').oninput = e => l.body = e.target.value;
-  $('send').onclick = () => { if(!l.email) l.email = $('em').value; move(l,'sent',`Sent to ${l.name}`, () => { l.sent='Today'; l.fu=0; sentToday++; }, () => sentToday--); };
+  $('send').onclick = () => { if(!l.email) l.email = $('em').value; move(l,'contacted',`Sent to ${l.name}`, () => { l.sent='Today'; l.fu=0; sentToday++; renderMeter(); }, () => { sentToday--; renderMeter(); }); };
   $('skip').onclick = () => move(l,'done',`Skipped ${l.name}`);
 }
 function openSent(l){
   const steps = [{lbl:'Your email', when:l.sent, done:true},{lbl:'Follow-up 1', when:l.fu>=1?'Sent':'In 3 days', done:l.fu>=1},{lbl:'Follow-up 2', when:l.fu>=2?'Sent':'In 7 days', done:l.fu>=2}];
-  openDrawer(`${head(avatar(l), l.name, esc(l.email))}
+  openDrawer(`${head(avatar(l), l.name, srcLine(l))}
     <div class="d-body">
       <div class="timeline">${steps.map(s=>`<div class="step ${s.done?'done':''}"><span class="p">${s.done?I.check(12):''}</span><span>${s.lbl}</span><span class="when">${s.when}</span></div>`).join('')}
         <div class="step"><span class="p"></span><span style="color:var(--faint)">Waiting for a reply</span><span></span></div></div>
-      ${reviewCard(l)}
+      ${src(l.src).type==='rival' ? reviewCard(l) : ''}
     </div>
     <div class="d-foot"><button class="btn ghost" id="stopFu" style="flex:1">${I.stop} Stop follow-ups</button></div>`);
   $('stopFu').onclick = () => move(l,'done',`Stopped follow-ups for ${l.name}`);
 }
 function openReplied(l){
-  openDrawer(`${head(avatar(l), l.name, esc(l.email))}
+  openDrawer(`${head(avatar(l), l.name, srcLine(l))}
     <div class="d-body">
-      <div class="msg us"><div class="who">You · ${esc(l.sent)}</div>About your ${esc(cur.name)} review</div>
-      <div class="msg them"><div class="who">${esc(l.name.split(' ')[0])} · today</div>${esc(l.reply)}</div>
+      <div class="msg us"><div class="who">You · ${esc(l.sent)}</div>${esc(l.subject || (src(l.src).type==='rival'?`About your ${src(l.src).name} review`:`A few posts for ${l.name}?`))}</div>
+      <div class="msg them"><div class="who">${esc(firstOf(l))} · today</div>${esc(l.reply)}</div>
       <div class="hint">${I.check(14)} Follow-ups stopped</div>
     </div>
-    <div class="d-foot"><button class="btn ghost" id="arch">Done</button><a class="btn primary" href="https://mail.google.com" target="_blank" rel="noopener">${I.out.replace(/13/g,16)} Reply in Gmail</a></div>`);
+    <div class="d-foot"><button class="btn ghost" id="arch">Done</button><a class="btn primary" href="https://mail.google.com" target="_blank" rel="noopener">${I.out(16)} Reply in Gmail</a></div>`);
   $('arch').onclick = () => move(l,'done',`Moved ${l.name} to done`);
 }
-function openNoFit(){
-  const skipped = cur.leads.filter(l=>l.stage==='done');
-  const row = (l, k) => `<div class="tile" style="cursor:default">${avatar(l)}<span class="t"><span class="name">${esc(l.name)}</span><span class="sub">${stars(l.stars,11)}${esc(l.title||'')}</span></span><button class="btn ghost" style="padding:8px 12px" data-back="${k}">${I.reply}</button></div>`;
-  openDrawer(`${head(`<span class="av" style="background:var(--sunk);color:var(--dim)">${cur.nofit.length+skipped.length}</span>`, 'Set aside', 'Bring one back if we got it wrong')}
-    <div class="d-body">${skipped.map(l=>row(l,'s'+l.id)).join('')}${cur.nofit.map((l,i)=>row(l,'n'+i)).join('')}</div>`);
+function openPost(l){
+  const s = src(l.src), posted = l.stage==='contacted';
+  openDrawer(`${head(avatar(l), l.where, srcLine(l))}
+    <div class="d-body">
+      <div class="msg post"><div class="who">${esc(l.name)}</div>${esc(l.post)}</div>
+      ${posted ? `<div class="hint">${I.check(14)} You posted a reply. Answers show up on ${esc(s.name)}.</div>` : `<div class="msg us"><div class="who">${I.spark} Your reply</div><span id="rep" contenteditable="true" style="outline:none">${esc(l.reply)}</span></div>
+      <div class="how"><span>1 <b>Copy</b></span><span>2 <b>Open post</b></span><span>3 <b>Paste & post</b></span></div>`}
+    </div>
+    <div class="d-foot">${posted ? `<a class="btn ghost" style="flex:1" href="https://www.reddit.com" target="_blank" rel="noopener">${I.out(16)} Open post</a>` :
+      `<button class="btn ghost" id="skip">Skip</button><button class="btn ghost" id="cp" title="Copy reply" aria-label="Copy reply">${I.copy}</button><a class="btn ghost" href="https://www.reddit.com" target="_blank" rel="noopener" title="Open post" aria-label="Open post">${I.out(16)}</a><button class="btn primary" id="did">${I.check()} I posted it</button>`}</div>`);
+  if (posted) return;
+  $('rep').oninput = e => l.reply = e.target.innerText;
+  $('cp').onclick = async () => { try { await navigator.clipboard.writeText($('rep').innerText); toast('Reply copied'); } catch { const r=document.createRange(); r.selectNodeContents($('rep')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Selected. Press Ctrl+C'); } };
+  $('did').onclick = () => move(l,'contacted','Marked as posted');
+  $('skip').onclick = () => move(l,'done','Skipped');
+}
+function openSetAside(){
+  const skipped = visible().filter(l=>l.stage==='done');
+  const nf = Object.entries(nofit).filter(([k])=>view==='all'||k===view).flatMap(([k,arr])=>arr.map((n,i)=>({...n,src:k,i})));
+  const row = (l, key) => `<div class="tile" style="cursor:default">${l.id?avatar(l, view==='all'):`<span class="avw"><span class="av round" style="background:${avBg(l.name)}">${esc(initials(l.name))}</span></span>`}<span class="t"><span class="name">${esc(l.name)}</span><span class="sub">${l.stars?stars(l.stars,11):''}${esc(l.title||src(l.src).name)}</span></span><button class="btn ghost" style="padding:8px 12px" data-back="${key}" title="Bring back" aria-label="Bring back">${I.reply}</button></div>`;
+  openDrawer(`${head(`<span class="av" style="background:var(--sunk);color:var(--dim)">${skipped.length+nf.length}</span>`, 'Set aside', 'Bring one back if we got it wrong')}
+    <div class="d-body">${skipped.map(l=>row(l,'s'+l.id)).join('')}${nf.map(n=>row(n,`n:${n.src}:${n.i}`)).join('')}</div>`);
   $('drawer').querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{
     const k=b.dataset.back;
-    if (k[0]==='s'){ const l=cur.leads.find(x=>x.id==k.slice(1)); l.stage = l.sent?'sent':'reach'; l.isNew=true; }
-    else { const n=cur.nofit.splice(+k.slice(1),1)[0]; cur.leads.push({...n,id:nextId++,fit:1,email:null,findable:true,foundEmail:n.name.split(' ')[0].toLowerCase().replace(/\W/g,'')+'@example.com',why:'You brought this one back.',pain:'I saw your review.',stage:'reach',isNew:true}); }
-    renderHero(); renderRivals();
-    if (cur.nofit.length || cur.leads.some(x=>x.stage==='done')) openNoFit(); else closeDrawer();
+    if (k[0]==='s'){ const l=leads.find(x=>x.id==k.slice(1)); l.stage = l.sent?'contacted':'todo'; l.isNew=true; }
+    else { const [,sid,i]=k.split(':'); const n=nofit[sid].splice(+i,1)[0]; const s=src(sid);
+      leads.push(prep({...n, src:sid, fit:1, ago:'5 d', city:s.place, text:n.title+'.', email:null, findable:true, foundEmail:initials(n.name).toLowerCase()+'@example.com', why:'You brought this one back.', pain:'I saw your review.', isNew:true})); }
+    render();
+    if (visible().some(x=>x.stage==='done') || Object.entries(nofit).some(([k2,a])=>(view==='all'||k2===view)&&a.length)) openSetAside(); else closeDrawer();
   });
 }
 function move(l, stage, msg, after, undoAfter){
   const prev = l.stage; l.stage = stage; l.isNew = true; after && after();
-  toast(msg, () => { l.stage = prev; l.isNew = true; undoAfter && undoAfter(); renderRivals(); renderHero(); renderBoard(); });
-  renderRivals(); renderHero();
-  const nxt = cur.leads.filter(x=>x.stage==='reach' && (!starFilter || x.stars===starFilter)).sort((a,b)=>b.fit-a.fit)[0];
-  if (prev==='reach' && nxt) return openLead(nxt.id);
-  if (prev==='reach'){
+  toast(msg, () => { l.stage = prev; l.isNew = true; undoAfter && undoAfter(); render(); });
+  renderSrcs(); renderHero();
+  const nxt = todoQueue()[0];
+  if (prev==='todo' && nxt) return openLead(nxt.id);
+  if (prev==='todo'){
     current=null; renderBoard();
-    const other = rivals.find(r=>r!==cur && r.leads.some(x=>x.stage==='reach'));
-    openDrawer(`<div class="d-head"><button class="iconbtn x" data-close aria-label="Close" style="margin-left:auto">${I.x}</button></div><div class="d-body"><div class="done-ill"><div class="ring">${I.check(40)}</div><h3>All caught up</h3><div>${esc(cur.name)} is done for now.</div></div></div>
-      <div class="d-foot">${other?`<button class="btn primary" id="nextRival">Next: ${esc(other.name)} · ${other.leads.filter(x=>x.stage==='reach').length}</button>`:`<button class="btn primary" id="more">Read new reviews</button>`}</div>`);
-    if (other) $('nextRival').onclick = () => { cur = other; starFilter=null; closeDrawer(); render(); };
-    else $('more').onclick = () => { closeDrawer(); readNew(); };
+    const other = view!=='all' && sources.find(s=>s.on && s.id!==view && todoOf(s.id));
+    openDrawer(`<div class="d-head"><button class="iconbtn x" data-close aria-label="Close" style="margin-left:auto">${I.x}</button></div><div class="d-body"><div class="done-ill"><div class="ring">${I.check(40)}</div><h3>All caught up</h3><div>${view==='all'?'Follow-ups run by themselves.':esc(src(view).name)+' is done for now.'}</div></div></div>
+      <div class="d-foot">${other?`<button class="btn primary" id="nextSrc">Next: ${esc(other.name)} · ${todoOf(other.id)}</button>`:`<button class="btn primary" id="more">${I.search(16)} Search again</button>`}</div>`);
+    if (other) $('nextSrc').onclick = () => { view = other.id; starFilter=null; closeDrawer(); render(); };
+    else $('more').onclick = () => { closeDrawer(); view==='all' ? searchAll() : searchOne(src(view)); };
     return;
   }
   closeDrawer();
@@ -459,62 +650,162 @@ function toast(msg, undo){
 }
 $('undo').onclick = () => { undoFn && undoFn(); $('toast').classList.remove('on'); };
 
-/* read new reviews */
-function readNew(){
-  const b = $('read'); if (b.classList.contains('on')) return;
-  b.classList.add('on'); $('hist').classList.add('reading');
-  const r = cur;
+/* ---------- searching ---------- */
+function addFresh(s){
+  const pool = (fresh[s.id]||[]).splice(0);
+  s.last = 'just now';
+  pool.forEach(n=>{ leads.push(prep({...n, isNew:true})); if (s.hist) s.hist[n.stars-1]++; });
+  if (s.hist) s.hist[4] += 3;
+  if (view!==s.id && view!=='all') s.fresh = (s.fresh||0) + pool.length;
+  return pool.length;
+}
+function searchOne(s){
+  const b = $('go'); if (!b || b.classList.contains('on')) return;
+  b.classList.add('on'); $('hero').classList.add('reading');
   setTimeout(()=>{
-    b.classList.remove('on'); $('hist').classList.remove('reading');
-    const pool = (fresh[r.id]||[]).splice(0);
-    r.read = 'just now';
-    pool.forEach(n=>{ r.leads.push({...n,id:nextId++,stage:'reach',isNew:true}); r.hist[n.stars-1]++; });
-    r.hist[4] += 3;
-    if (r===cur){ renderHero(); renderBoard(); } else r.fresh = pool.length;
-    renderRivals();
-    toast(pool.length ? `${pool.length} new unhappy ${pool.length>1?'reviewers':'reviewer'} on ${r.name}` : `No new unhappy reviews on ${r.name}`);
-  }, 1800);
+    $('hero').classList.remove('reading');
+    const n = addFresh(s);
+    render();
+    toast(n ? `${n} new from ${s.name}` : `Nothing new on ${s.name}. Checks again tomorrow.`);
+  }, 1600);
 }
-$('read').onclick = readNew;
+function searchAll(){
+  const r = $('radar'); if (!r || r.classList.contains('on')) return;
+  r.classList.add('on');
+  const ids = sources.filter(s=>s.on && s.type!=='own').map(s=>s.id);
+  ids.forEach((id,i)=>setTimeout(()=>{
+    $('srcs').querySelectorAll('.coinbtn').forEach(c=>c.classList.toggle('lit', c.dataset.v===id));
+    const c = $('srcs').querySelector(`[data-v="${id}"]`); c && c.scrollIntoView({block:'nearest',inline:'nearest',behavior:'smooth'});
+  }, 380*i));
+  setTimeout(()=>{
+    let n = 0; ids.forEach(id=>n += addFresh(src(id)));
+    render();
+    toast(n ? `${n} new people to reach` : 'Nothing new right now. Checks again tomorrow.');
+  }, 380*ids.length+400);
+}
 
-/* add a competitor */
-function openAddRival(){
-  let plat = 'trustpilot';
-  openDrawer(`${head(`<span class="av" style="background:var(--accent-soft);color:var(--accent)">${I.plus}</span>`, 'Add a competitor', 'Their unhappy customers become your leads')}
-    <div class="d-body">
-      <input class="field" id="rn" placeholder="Name or website, e.g. ocoya.com" aria-label="Competitor">
-      <div class="pick">${Object.entries(PLAT).map(([k,p])=>`<button data-p="${k}" aria-pressed="${k===plat}"><span class="ic">${p.ic.replace(/14/g,24)}</span>${p.name}</button>`).join('')}</div>
-    </div>
-    <div class="d-foot"><button class="btn primary" id="addGo" disabled>Add & read reviews</button></div>`);
-  $('drawer').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{ plat=b.dataset.p; $('drawer').querySelectorAll('[data-p]').forEach(x=>x.setAttribute('aria-pressed', x===b)); });
-  $('rn').oninput = e => $('addGo').disabled = e.target.value.trim().length < 2;
-  $('rn').focus();
-  $('addGo').onclick = () => {
-    const raw = $('rn').value.trim().replace(/^https?:\/\//,'').replace(/^www\./,'');
-    const name = raw.split('.')[0].replace(/^\w/,c=>c.toUpperCase());
-    const r = {id:'r'+nextId++, name, plat, hist:[0,0,0,0,0], read:'never', leads:[], nofit:[]};
-    fresh[r.id] = [
-      {name:'Chris Doyle', stars:1, ago:'1 d', fit:4, email:'chris@doyledesign.co', title:'Not worth the money', text:`${name} costs too much for what it does.`, why:'Small studio, price-sensitive.', pain:'You said it costs too much for what it does.'},
-      {name:'Mia Hart', stars:2, ago:'4 d', fit:3, email:null, findable:true, foundEmail:'mia@hartcandles.com', title:'Hard to use', text:'Took me an hour to make one post.', why:'Candle shop owner. Wants it fast.', pain:'An hour for one post is too long.'},
-    ];
-    r.hist = [9,4,3,8,20];
-    rivals.push(r); cur = r; starFilter = null; closeDrawer(); render(); readNew();
+/* ---------- add a source ---------- */
+function openAddSource(){
+  let kind = 'rival', plat = 'trustpilot';
+  const draw = () => {
+    openDrawer(`${head(`<span class="av" style="background:var(--accent-soft);color:var(--accent)">${I.plus(20)}</span>`, 'Add a source', 'Where should we look?')}
+      <div class="d-body">
+        <div class="pick">
+          <button data-k="rival" aria-pressed="${kind==='rival'}"><span class="ic">${stars(1,20).replace('class="stars"','class="stars" style="gap:0"').replace(/<span class="off">.*?<\/span>/g,'')}</span>A competitor<small style="color:var(--faint);font-weight:400">their unhappy reviewers</small></button>
+          <button data-k="maps" aria-pressed="${kind==='maps'}"><span class="ic">${I.pin(22)}</span>A city<small style="color:var(--faint);font-weight:400">local businesses</small></button>
+        </div>
+        <input class="field" id="sn" placeholder="${kind==='rival'?'Name or website, e.g. canva.com':'City, e.g. Denver, CO'}" aria-label="Name">
+        ${kind==='rival'?`<div class="pick">${Object.entries(PLAT).map(([k,p])=>`<button data-p="${k}" aria-pressed="${k===plat}"><span class="ic">${p.ic(24)}</span>${p.name}</button>`).join('')}</div>`:''}
+      </div>
+      <div class="d-foot"><button class="btn primary" id="addGo" disabled>Add & search</button></div>`);
+    $('drawer').querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{ kind=b.dataset.k; draw(); });
+    $('drawer').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{ plat=b.dataset.p; $('drawer').querySelectorAll('[data-p]').forEach(x=>x.setAttribute('aria-pressed', x===b)); });
+    $('sn').oninput = e => $('addGo').disabled = e.target.value.trim().length < 2;
+    $('sn').focus();
+    $('addGo').onclick = () => {
+      const raw = $('sn').value.trim();
+      if (kind==='maps'){ src('maps').place = raw; src('maps').on = true; fresh.maps.push({src:'maps', name:'Mile High Nails', city:raw, person:'Ivy', email:'ivy@milehighnails.com', fit:4, why:'Lots of walk-ins, no social links.', hook:'Your customers love your nail art, but I could not find it on Instagram.'}); view='maps'; closeDrawer(); render(); return searchOne(src('maps')); }
+      const name = raw.replace(/^https?:\/\//,'').replace(/^www\./,'').split('.')[0].replace(/^\w/,c=>c.toUpperCase());
+      const s = {id:'r'+nextId++, type:'rival', name, plat, on:true, last:'never', hist:[9,4,3,8,20], glyph:name[0], color:avBg(name)};
+      fresh[s.id] = [
+        {src:s.id, name:'Chris Doyle', stars:1, ago:'1 d', fit:4, email:'chris@doyledesign.co', title:'Not worth the money', text:`${name} costs too much for what it does.`, why:'Small studio, price-sensitive.', pain:'You said it costs too much for what it does.'},
+        {src:s.id, name:'Mia Hart', stars:2, ago:'4 d', fit:3, email:null, findable:true, foundEmail:'mia@hartcandles.com', title:'Hard to use', text:'Took me an hour to make one post.', why:'Candle shop owner. Wants it fast.', pain:'An hour for one post is too long.'},
+      ];
+      sources.splice(sources.findIndex(x=>x.type==='forum'), 0, s);
+      view = s.id; starFilter = null; closeDrawer(); render(); searchOne(s);
+    };
   };
+  draw();
 }
 
-/* settings */
+/* ---------- your own list ---------- */
+let ownTpl = {s:'',b:''};
+function openOwnList(step=1, raw=`maya@bloomsalon.co\nTom Reed, tom@reedframing.com\nkate@harborpets.com, Harbor Pets\nlucy@sunnyside.cafe, Lucy Park, Sunnyside Cafe\nnina@lilacnails.com\nnina@lilacnails.com\nbob@optedout.com`){
+  const ppl = parsePeople(raw), ok = ppl.filter(p=>!p.skip);
+  const steps = `<div class="stepper">${[1,2,3].map(i=>`<i class="${i<=step?'on':''}"></i>`).join('')}</div>`;
+  const ic = x => `<span class="av" style="background:var(--accent-soft);color:var(--accent)">${x}</span>`;
+  if (step===1){
+    openDrawer(`${head(ic(I.list(20)), 'Your own list', 'Who gets it')}
+      <div class="d-body">${steps}
+        <div class="drop"><textarea id="raw" aria-label="Paste emails">${esc(raw)}</textarea>
+          <label class="btn ghost" style="align-self:flex-start;cursor:pointer">${I.file()} Upload file<input type="file" hidden></label></div>
+        <div class="people" id="ppl">${peopleHtml(ppl)}</div>
+        <div class="hint">Crossed out: repeats, opted out, or already in your leads</div>
+      </div>
+      <div class="d-foot"><button class="btn primary" id="nx">${ok.length} people ${I.right}</button></div>`);
+    $('raw').oninput = e => { const p = parsePeople(e.target.value); $('ppl').innerHTML = peopleHtml(p); $('nx').innerHTML = `${p.filter(x=>!x.skip).length} people ${I.right}`; };
+    $('nx').onclick = () => openOwnList(2, $('raw').value);
+  } else if (step===2){
+    openDrawer(`${head(ic(I.mail), 'One email for all', `${ok.length} people`)}
+      <div class="d-body">${steps}
+        <div class="letter"><input class="subj" id="osubj" value="${esc(ownTpl.s||'3 free posts for {company}?')}" aria-label="Subject"><textarea id="obody" aria-label="Email">${esc(ownTpl.b||'Hi {first name},\n\nI made Frekto, which turns a photo into a ready Instagram post in about a minute.\n\nCan I make 3 free posts for {company} so you can see?\n\nGopal')}</textarea></div>
+        <div class="how"><button data-tok="{first name}" class="tok">{first name}</button><button data-tok="{company}" class="tok">{company}</button></div>
+      </div>
+      <div class="d-foot"><button class="btn ghost" id="bk" aria-label="Back">${I.left}</button><button class="btn primary" id="nx">Preview ${I.right}</button></div>`);
+    $('drawer').querySelectorAll('[data-tok]').forEach(c=>c.onclick=()=>{ const t=$('obody'); const p=t.selectionStart; t.value=t.value.slice(0,p)+c.dataset.tok+t.value.slice(t.selectionEnd); t.focus(); });
+    const save = () => ownTpl = {s:$('osubj').value, b:$('obody').value};
+    $('bk').onclick = () => { save(); openOwnList(1, raw); };
+    $('nx').onclick = () => { save(); openOwnList(3, raw); };
+  } else {
+    let i = 0;
+    const fill = (s,p) => s.replaceAll('{first name}', p.first).replaceAll('{company}', p.company);
+    const pv = () => { const p = ok[i]; $('pvBox').innerHTML = `<div class="to">To <b>${esc(p.first)}</b> ${esc(p.email)}</div><div class="pv"><b>${esc(fill(ownTpl.s,p))}</b>\n\n${esc(fill(ownTpl.b,p))}</div>`; $('pvN').textContent = `${i+1} / ${ok.length}`; };
+    const today = Math.max(0, Math.min(ok.length, limit - sentToday));
+    openDrawer(`${head(ic(I.eye), 'Looks right?', `<span id="pvN"></span>`)}
+      <div class="d-body">${steps}
+        <div class="carousel"><button class="iconbtn" id="pp" aria-label="Previous">${I.left}</button><div class="letter" id="pvBox"></div><button class="iconbtn" id="pn" aria-label="Next">${I.right}</button></div>
+        <div class="how"><span>${I.send}<b>${today}</b> today</span><span>${I.clock}<b>${ok.length-today}</b> tomorrow</span><span>${I.reply}2 follow-ups each</span></div>
+      </div>
+      <div class="d-foot"><button class="btn ghost" id="bk" aria-label="Back">${I.left}</button><button class="btn primary" id="go2">${I.check()} Send to all ${ok.length}</button></div>`);
+    pv();
+    $('pp').onclick = () => { i = (i-1+ok.length)%ok.length; pv(); };
+    $('pn').onclick = () => { i = (i+1)%ok.length; pv(); };
+    $('bk').onclick = () => openOwnList(2, raw);
+    $('go2').onclick = () => {
+      ok.forEach((p,k)=>leads.push(prep({src:'own', name:p.company, person:p.first, email:p.email, fit:3, stage:'contacted', sent:k<today?'Today':'Tomorrow', fu:0, why:'From your own list.', subject:fill(ownTpl.s,p), isNew:true})));
+      sentToday += today; closeDrawer(); render(); toast(`${ok.length} added · ${today} sent now`);
+    };
+  }
+}
+function parsePeople(raw){
+  const seen = new Set(), known = new Set(leads.filter(l=>l.email).map(l=>l.email.split('@')[1]));
+  return raw.split(/\n+/).map(line=>{
+    const m = line.match(/[\w.+-]+@[\w-]+\.[\w.]+/); if(!m) return null;
+    const email = m[0].toLowerCase(), dom = email.split('@')[1];
+    const bits = line.replace(m[0],'').split(',').map(s=>s.trim()).filter(Boolean);
+    const person = bits.find(s=>/^[A-Z][a-z]+( [A-Z][a-z]+)?$/.test(s) && !/(Pets|Bikes|Shop|Cafe|Co)$/.test(s));
+    const company = bits.find(s=>s!==person) || dom.split('.')[0].replace(/^\w/,c=>c.toUpperCase());
+    const first = person ? person.split(' ')[0] : email.split('@')[0];
+    let skip = '';
+    if (seen.has(email)) skip = 'Repeat'; else if (/optedout/.test(email)) skip = 'Opted out'; else if (known.has(dom)) skip = 'Already a lead';
+    seen.add(email);
+    return {email, first: first[0].toUpperCase()+first.slice(1), company, skip};
+  }).filter(Boolean);
+}
+function peopleHtml(ppl){ return ppl.map(p=>`<span class="person ${p.skip?'skip':''}" title="${esc(p.skip||p.email)}"><span class="av" style="background:${avBg(p.email)}">${esc(p.first[0])}</span>${esc(p.first)}</span>`).join(''); }
+
+/* ---------- settings ---------- */
 $('gear').onclick = () => {
-  const sw = k => `<button class="sw" role="switch" aria-checked="${settings[k]}" data-k="${k}" aria-label="${k}"></button>`;
+  const sw = (k, on, label) => `<button class="sw" role="switch" aria-checked="${on}" data-k="${k}" aria-label="${esc(label)}"></button>`;
+  const ico = s => s.type==='own' ? I.list(16) : s.type==='maps' ? I.pin(16) : esc(s.glyph);
   openDrawer(`${head(`<span class="av" style="background:var(--sunk);color:var(--dim)">${I.clock}</span>`, 'Settings', 'Frekto')}
     <div class="d-body">
-      <div class="set"><span class="ico">${I.mail}</span><span class="t">Gmail<small>gopal@frekto.com · ${sentToday} sent today</small></span><span class="status">On</span></div>
-      <div class="set"><span class="ico">${I.eye}</span><span class="t">Demo mode<small>Made-up reviewers, nothing is sent</small></span>${sw('demo')}</div>
-      ${rivals.map(r=>`<div class="set"><span class="ico" style="font-weight:700">${esc(r.name[0])}</span><span class="t">${esc(r.name)}<small>${PLAT[r.plat].name}</small></span><button class="rm" data-rm="${r.id}" aria-label="Remove ${esc(r.name)}">${I.trash}</button></div>`).join('')}
+      <div class="set"><span class="ico">${I.clock}</span><span class="t">Search every morning<small>New people wait for you</small></span>${sw('auto', settings.auto, 'Search every morning')}</div>
+      <div class="set"><span class="ico">${I.send}</span><span class="t">Emails per day <b id="lv">${limit}</b><input type="range" id="lim" min="5" max="50" step="5" value="${limit}" aria-label="Emails per day"></span></div>
+      <div class="set"><span class="ico">${I.mail}</span><span class="t">Gmail<small>gopal@frekto.com</small></span><span class="status">On</span></div>
+      <div class="set"><span class="ico">${I.eye}</span><span class="t">Demo mode<small>Made-up people, nothing is sent</small></span>${sw('demo', settings.demo, 'Demo mode')}</div>
+      <div class="grp">Sources</div>
+      ${sources.filter(s=>s.type!=='own').map(s=>`<div class="set"><span class="ico">${ico(s)}</span><span class="t">${esc(s.name)}<small>${s.type==='rival'?PLAT[s.plat].name:s.type==='maps'?esc(s.place):'Posts asking for a tool like yours'}</small></span>${s.type==='rival'?`<button class="rm" data-rm="${s.id}" aria-label="Remove ${esc(s.name)}">${I.trash}</button>`:''}${sw('src:'+s.id, s.on, s.name)}</div>`).join('')}
     </div>`);
-  $('drawer').querySelectorAll('.sw').forEach(s=>s.onclick=()=>{ settings[s.dataset.k]=!settings[s.dataset.k]; s.setAttribute('aria-checked',settings[s.dataset.k]); });
-  $('drawer').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{ if (rivals.length<2) return toast('Keep at least one competitor'); rivals = rivals.filter(r=>r.id!==b.dataset.rm); if (!rivals.includes(cur)) cur = rivals[0]; render(); b.closest('.set').remove(); });
+  $('drawer').querySelectorAll('.sw').forEach(b=>b.onclick=()=>{
+    const k = b.dataset.k;
+    if (k.startsWith('src:')){ const s = src(k.slice(4)); s.on = !s.on; b.setAttribute('aria-checked', s.on); if (!s.on && view===s.id) view='all'; }
+    else { settings[k] = !settings[k]; b.setAttribute('aria-checked', settings[k]); }
+    render();
+  });
+  $('drawer').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{ sources = sources.filter(s=>s.id!==b.dataset.rm); leads = leads.filter(l=>l.src!==b.dataset.rm); if (!src(view) && view!=='all') view='all'; render(); b.closest('.set').remove(); });
+  $('lim').oninput = e => { limit = +e.target.value; $('lv').textContent = limit; renderMeter(); };
 };
 
-$('lgAt').innerHTML = I.at;
 render();
 </script>
