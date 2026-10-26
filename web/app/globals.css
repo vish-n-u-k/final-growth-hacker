@@ -7900,15 +7900,50 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
 
 /* "About this page" */
 .ld-about-link { font-size: 14px; }
-@keyframes ld-slide { from { opacity: 0; transform: translateX(16px); } }
+@keyframes ld-slide { from { opacity: 0; transform: translateX(24px); } }
+@keyframes ld-rise { from { opacity: 0; transform: translateY(32px); } }
 .ld-about { position: fixed; inset: 0; z-index: 200; }
-.ld-about-scrim { position: absolute; inset: 0; background: color-mix(in srgb, #000 35%, transparent); animation: ld-in .2s ease-out both; }
-.ld-about-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(400px, 100%); overflow: auto; display: grid; gap: 14px; align-content: start; padding: calc(24px + env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) 24px; background: var(--card); border-left: 1px solid var(--line); color: var(--text); animation: ld-slide .25s ease-out both; }
-.ld-about-panel h2 { margin: 0; font-family: var(--font-display); font-size: 24px; font-weight: 600; line-height: 1.2; }
-.ld-about-x { position: absolute; top: calc(20px + env(safe-area-inset-top, 0px)); right: max(20px, env(safe-area-inset-right, 0px)); font-size: 14px; }
-.ld-about-panel dl { margin: 6px 0 0; display: grid; gap: 16px; }
-.ld-about-panel dt { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
-.ld-about-panel dd { margin: 4px 0 0; font-size: 14.5px; line-height: 1.5; color: var(--text); }
+.ld-about-scrim { position: absolute; inset: 0; background: color-mix(in srgb, #000 40%, transparent); backdrop-filter: blur(2px); animation: ld-in .2s ease-out both; }
+.ld-about-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(460px, 100%); display: flex; flex-direction: column; background: var(--card); border-left: 1px solid var(--line); color: var(--text); box-shadow: -24px 0 60px -30px color-mix(in srgb, #000 50%, transparent); animation: ld-slide .28s cubic-bezier(.2,.8,.2,1) both; }
+/* `header` has a global flex rule with a border; this one sets its own */
+.ld-about-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: calc(24px + env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) 18px 28px; border-bottom: 1px solid var(--line); background: var(--card); }
+.ld-about-head h2 { margin: 6px 0 0; font-family: var(--font-display); font-size: 28px; font-weight: 600; line-height: 1.15; letter-spacing: -.01em; }
+.ld-about-x { flex: none; display: grid; place-items: center; width: 34px; height: 34px; margin: -4px -6px 0 0; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--text-dim); cursor: pointer; }
+.ld-about-x:hover { color: var(--text); background: var(--bg-soft); }
+.ld-about-x:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.ld-about-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 26px; align-content: start; padding: 22px max(24px, env(safe-area-inset-right, 0px)) 24px 28px; }
+.ld-about-body section { display: grid; gap: 12px; }
+.ld-about-body h3 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
+.ld-about-body p { margin: 0; }
+.ld-about-lead { font-size: 16.5px; line-height: 1.5; color: var(--text); text-wrap: pretty; }
+.ld-about-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.ld-about-steps li { position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding-bottom: 16px; }
+.ld-about-steps li:last-child { padding-bottom: 0; }
+/* a thin line joining the step numbers */
+.ld-about-steps li:not(:last-child)::before { content: ""; position: absolute; left: 13.5px; top: 30px; bottom: 2px; width: 1px; background: var(--line); }
+.ld-about-steps li > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg-soft); font-size: 13px; font-weight: 600; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.ld-about-steps b { display: block; padding-top: 4px; font-size: 14.5px; font-weight: 600; color: var(--text); }
+.ld-about-steps p { margin-top: 2px; font-size: 14px; line-height: 1.5; color: var(--text-dim); }
+.ld-about-note { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--bg-soft); font-size: 13.5px; line-height: 1.45; color: var(--text-dim); }
+.ld-about-note svg { flex: none; margin-top: 2px; color: var(--text-faint); }
+.ld-about-why { font-size: 15px; line-height: 1.55; color: var(--text); text-wrap: pretty; }
+.ld-about-tips { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ld-about-tips li { position: relative; padding-left: 18px; font-size: 14.5px; line-height: 1.5; color: var(--text); }
+.ld-about-tips li::before { content: ""; position: absolute; left: 3px; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); }
+.ld-about-fact { margin: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; }
+.ld-about-fact p { font-family: var(--font-display); font-size: 16.5px; line-height: 1.4; color: var(--text); text-wrap: pretty; }
+.ld-about-fact figcaption { margin-top: 8px; font-size: 12px; color: var(--text-faint); }
+.ld-about-foot { display: flex; justify-content: flex-end; padding: 14px max(24px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) 28px; border-top: 1px solid var(--line); }
+/* Phones: a sheet from the bottom */
+@media (max-width: 560px) {
+  .ld-about-panel { top: auto; left: 0; width: 100%; max-height: 88vh; border-left: 0; border-top: 1px solid var(--line); border-radius: 18px 18px 0 0; box-shadow: 0 -20px 60px -30px color-mix(in srgb, #000 50%, transparent); animation-name: ld-rise; }
+  .ld-about-head { position: relative; padding: 26px max(20px, env(safe-area-inset-right, 0px)) 14px max(20px, env(safe-area-inset-left, 0px)); border-radius: 18px 18px 0 0; }
+  .ld-about-head::before { content: ""; position: absolute; top: 9px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 4px; background: var(--line); }
+  .ld-about-head h2 { font-size: 24px; }
+  .ld-about-body { padding: 18px max(20px, env(safe-area-inset-right, 0px)) 20px max(20px, env(safe-area-inset-left, 0px)); gap: 22px; }
+  .ld-about-foot { padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+  .ld-about-foot .btn { flex: 1; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation-duration: 1.6s; }

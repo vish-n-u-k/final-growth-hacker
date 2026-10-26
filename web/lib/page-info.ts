@@ -124,3 +124,30 @@ export function pageInfo(id: PageInfoId, { withIntro = true } = {}): { title: st
   const hasWhat = info.cards.some(c => c.kind === 'what')
   return { title: info.title, cards: intro && withIntro && !hasWhat ? [{ kind: 'what', text: intro.what }, ...info.cards] : info.cards }
 }
+
+export interface PageAbout {
+  title: string
+  what?: string                            // one plain sentence on what the page is for
+  steps?: { title: string; body: string }[] // how it works, from the tool's intro
+  note?: string                            // a reassurance, e.g. "Nothing is sent until you approve it."
+  why: string[]
+  tips: string[]
+  facts: { text: string; source?: string }[]
+}
+
+/** Everything the "About this page" panel shows, grouped: what it does, how it works, why it
+ *  matters, tips and facts. */
+export function pageAbout(id: PageInfoId): PageAbout {
+  const info = PAGE_INFO[id]
+  const intro = (TOOL_INTROS as Record<string, { what: string; steps: PageAbout['steps']; note?: string }>)[id]
+  const of = (k: PageInfoKind) => info.cards.filter(c => c.kind === k)
+  return {
+    title: info.title,
+    what: of('what')[0]?.text ?? intro?.what,
+    steps: intro?.steps,
+    note: intro?.note,
+    why: of('why').map(c => c.text),
+    tips: of('tip').map(c => c.text),
+    facts: of('fact').map(c => ({ text: c.text, source: c.source })),
+  }
+}
