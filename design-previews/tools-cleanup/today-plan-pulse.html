@@ -1,0 +1,533 @@
+<title>Plan and Pulse</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: preview bar (notes + scenario), then the app frame: sidebar, plan on the left, sticky Pulse on the right.
+     App rules: one green button per screen (the next step), charts in ink, red only for replies, everything else grey.
+     Blue dashed boxes are design notes, not part of the app. */
+  :root {
+    --bg: #ffffff; --soft: #f4f6f4; --card: #ffffff; --line: #e3e7e3; --text: #16201a; --dim: #4f5c53; --faint: #86918a;
+    --ink: #3a4a40; --ink-soft: #edf1ee; --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --pick: #eef0ee;
+    --note: #2f55c9; --note-soft: #eef2fd; --shade: rgba(16, 24, 19, .42);
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1411; --soft: #151c17; --card: #131a15; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --ink: #c3cec6; --ink-soft: #1c241f; --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --pick: #1a211c;
+    --note: #8ea8ff; --note-soft: #18203a; --shade: rgba(0, 0, 0, .6); color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #0f1411; --soft: #151c17; --card: #131a15; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --ink: #c3cec6; --ink-soft: #1c241f; --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --pick: #1a211c;
+    --note: #8ea8ff; --note-soft: #18203a; --shade: rgba(0, 0, 0, .6); color-scheme: dark }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--body); }
+  button, input, textarea, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* Preview bar (not part of the app) */
+  .pv { background: var(--pick); border-bottom: 1px solid var(--line); padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .pv-in { max-width: 1240px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; font-size: 14px; }
+  .pv-in b { font-weight: 600; }
+  .pv-in label { display: inline-flex; align-items: center; gap: 8px; color: var(--dim); }
+  .pv-in select { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
+  .pv-in input[type="checkbox"] { accent-color: var(--note); }
+  .pv-reset { margin-left: auto; border: 0; background: none; color: var(--dim); text-decoration: underline; cursor: pointer; }
+
+  /* Design notes */
+  .note { display: none; margin: 8px 0 0; padding: 8px 11px; border: 1px dashed var(--note); border-radius: 10px; background: var(--note-soft); color: var(--note); font-size: 12.5px; line-height: 1.45; }
+  .note b { font-weight: 600; }
+  .notes-on .note { display: block; }
+
+  /* App frame */
+  .frame { display: flex; min-height: 100vh; }
+  .side { width: 232px; flex: none; background: var(--soft); border-right: 1px solid var(--line); padding: 18px 12px; font-size: 13.5px; }
+  .brand { padding: 4px 8px 18px; font: 600 16px var(--display); }
+  .grp { margin-bottom: 16px; }
+  .gl { padding: 0 10px 6px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .nav { display: flex; justify-content: space-between; padding: 6px 10px; border-radius: 8px; color: var(--dim); }
+  .nav small { color: var(--faint); font-size: 12px; }
+  .nav.on { background: var(--green-soft); color: var(--green-ink); font-weight: 500; }
+  .main { flex: 1; min-width: 0; }
+  .page { max-width: 1180px; margin: 0 auto; padding-block: 28px 90px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  @media (max-width: 960px) { .side { display: none; } .page { padding-block: 20px 60px; } }
+
+  /* Header */
+  h1 { margin: 0; font: 600 32px/1.15 var(--display); }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 14px; color: var(--faint); }
+  .link { border: 0; background: none; padding: 0; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; font-size: inherit; }
+  .link:hover { color: var(--text); text-decoration-color: currentColor; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font-weight: 500; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn.go { background: var(--green); border-color: var(--green); color: #fff; font-weight: 600; }
+  .btn.go:hover { filter: brightness(1.06); }
+  .btn.go:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+  .btn.quiet { border-color: transparent; background: none; color: var(--dim); padding: 0 10px; }
+  .btn.quiet:hover { color: var(--text); }
+  .lbl { display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); font-weight: 500; }
+  .sheet { margin-top: 16px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); max-width: 620px; }
+  .sw-row { display: flex; align-items: center; gap: 12px; }
+  .sw-row div { flex: 1; min-width: 0; }
+  .sw-row small { display: block; color: var(--faint); font-size: 13px; }
+  .switch { width: 38px; height: 22px; border-radius: 99px; border: 0; background: var(--line); position: relative; cursor: pointer; flex: none; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left .15s; }
+  .switch[aria-checked="true"] { background: var(--ink); }
+  .switch[aria-checked="true"]::after { left: 19px; }
+  .sheet-foot { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; }
+
+  /* Plan and pulse */
+  .pp { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, 1fr); gap: 36px; align-items: start; margin-top: 26px; }
+  @media (max-width: 960px) { .pp { grid-template-columns: minmax(0, 1fr); gap: 24px; } .pulse { order: -1; position: static !important; } .wide-only { display: none !important; } }
+  .plan-h { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .plan-h h2 { margin: 0; font: 500 18px var(--body); }
+  .plan-n { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; color: var(--faint); }
+  .ring circle { fill: none; stroke-width: 3; }
+  .ring .bg { stroke: var(--line); }
+  .ring .fg { stroke: var(--green); stroke-linecap: round; transition: stroke-dasharray .4s; }
+
+  /* Timeline */
+  .tl { list-style: none; margin: 0; padding: 0; }
+  .tli { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 14px; padding-bottom: 20px; }
+  .tli::before { content: ""; position: absolute; left: 13px; top: 30px; bottom: 2px; width: 1.5px; background: var(--line); }
+  .tli:last-child::before { display: none; }
+  .mk { position: relative; z-index: 1; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; border: 1.5px solid var(--line); background: var(--bg); font-size: 13px; color: var(--faint); }
+  .tli.cur .mk { border-color: var(--text); color: var(--text); font-weight: 500; }
+  .tli.done .mk { border-color: var(--dim); background: var(--dim); color: var(--bg); }
+  .tl-body { min-width: 0; padding-top: 3px; }
+  .tl-head { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 0; border: 0; background: none; text-align: left; }
+  button.tl-head { cursor: pointer; }
+  button.tl-head:hover .t { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .t { font-size: 15px; font-weight: 500; }
+  .tli.cur .t { font-size: 17px; }
+  .tli.done .t { font-weight: 400; color: var(--faint); text-decoration: line-through; text-decoration-color: var(--line); }
+  .w { font-size: 14px; color: var(--dim); }
+  .tli:not(.cur) .w { color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .m { font-size: 13px; color: var(--faint); }
+  .box { margin-top: 12px; padding: 18px 20px; border-radius: 14px; background: var(--green-soft); }
+  .box p { margin: 2px 0 12px; max-width: 62ch; }
+  .acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; }
+  .done-note { margin-top: 6px; font-size: 14px; color: var(--dim); }
+  .done-note a { color: var(--dim); }
+  .field { display: grid; gap: 4px; margin-bottom: 10px; font-size: 13px; color: var(--dim); }
+  .field input, .field textarea, .field select { width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); font-size: 14.5px; color: var(--text); }
+  .field textarea { min-height: 150px; resize: vertical; line-height: 1.55; }
+  .idea { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); margin-bottom: 6px; cursor: pointer; font-size: 14.5px; }
+  .idea input { margin-top: 4px; accent-color: var(--ink); }
+  .idea small { display: block; color: var(--faint); font-size: 13px; }
+  .steps { display: flex; gap: 14px; margin-bottom: 12px; font-size: 13px; color: var(--faint); }
+  .steps .on { color: var(--text); font-weight: 500; }
+  .empty { padding: 32px 22px; border-radius: 14px; background: var(--soft); text-align: center; }
+  .empty b { display: block; font: 500 22px var(--display); margin-bottom: 4px; }
+  .empty p { margin: 0 0 16px; color: var(--dim); }
+
+  /* Sections under the plan */
+  .folds { margin-top: 28px; border-top: 1px solid var(--line); }
+  .fold { border-bottom: 1px solid var(--line); }
+  .fold-h { display: flex; align-items: center; gap: 12px; width: 100%; padding: 16px 4px; border: 0; background: none; text-align: left; cursor: pointer; }
+  .fold-h .ft { flex: 1; min-width: 0; }
+  .fold-h b { display: block; font-size: 16px; font-weight: 500; }
+  .fold-h .fs { display: block; font-size: 14px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fold-h[aria-expanded="true"] .fs { display: none; }
+  .chev { width: 9px; height: 9px; flex: none; border-right: 1.6px solid var(--faint); border-bottom: 1.6px solid var(--faint); transform: rotate(45deg) translate(-2px, -2px); transition: transform .15s; }
+  .fold-h[aria-expanded="true"] .chev { transform: rotate(-135deg) translate(-2px, -2px); }
+  .fold-b { padding: 0 4px 22px; display: grid; gap: 14px; }
+  .mini { padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+  .mini-row { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .stats4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .stats4 div { padding: 10px 12px; border-radius: 10px; background: var(--soft); }
+  .stats4 b { display: block; font: 500 20px var(--display); }
+  .stats4 span { font-size: 12.5px; color: var(--faint); }
+  @media (max-width: 600px) { .stats4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  /* Pulse */
+  /* Stays in view while the plan scrolls; if opened parts make it taller than the screen, it scrolls inside */
+  .pulse { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; overscroll-behavior: contain; min-width: 0; padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--card); }
+  @media (max-width: 960px) { .pulse { max-height: none; overflow: visible; } }
+  .p-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .seg { display: inline-flex; padding: 2px; border: 1px solid var(--line); border-radius: 9px; }
+  .seg button { border: 0; background: none; padding: 3px 10px; border-radius: 7px; font-size: 13px; color: var(--faint); cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--soft); color: var(--text); font-weight: 500; }
+  .p-big { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-top: 10px; }
+  .p-big b { font: 500 40px/1 var(--display); letter-spacing: -.01em; }
+  .p-big span { font-size: 14px; color: var(--dim); }
+  .p-sub { font-size: 14px; color: var(--faint); margin-top: 2px; }
+  .chart { position: relative; margin-top: 14px; touch-action: pan-y; }
+  .chart svg { display: block; width: 100%; height: 96px; overflow: visible; }
+  .c-area { fill: var(--ink-soft); }
+  .c-line { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+  .c-dot { fill: var(--text); }
+  .c-hov { stroke: var(--faint); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+  .c-axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--faint); margin-top: 4px; }
+  .tip { position: absolute; top: -8px; transform: translate(-50%, -100%); padding: 6px 10px; border-radius: 8px; background: var(--text); color: var(--bg); font-size: 12.5px; white-space: nowrap; pointer-events: none; }
+  .trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .trio button { border: 0; background: none; text-align: left; padding: 6px 8px; margin: -6px -8px 0; border-radius: 10px; cursor: pointer; }
+  .trio button:hover, .trio button[aria-expanded="true"] { background: var(--soft); }
+  .trio b { display: block; font: 500 22px var(--display); }
+  .trio span { font-size: 13px; color: var(--faint); }
+  .trio i { font-style: normal; font-size: 12px; color: var(--dim); margin-left: 4px; }
+  .drawer { margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--soft); }
+  .drawer-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; font-size: 13px; color: var(--faint); }
+  .person { display: flex; gap: 10px; width: 100%; padding: 8px 6px; border: 0; border-radius: 9px; background: none; text-align: left; cursor: pointer; }
+  .person:hover { background: var(--card); }
+  .av { width: 28px; height: 28px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--card); border: 1px solid var(--line); font-size: 12px; color: var(--dim); }
+  .person b { display: block; font-size: 14px; font-weight: 500; }
+  .person span { font-size: 13px; color: var(--faint); }
+  .person .ago { margin-left: auto; white-space: nowrap; font-size: 12.5px; color: var(--faint); }
+  .pdetail { margin: 2px 0 8px 44px; padding: 10px 12px; border-left: 2px solid var(--line); font-size: 13.5px; color: var(--dim); display: grid; gap: 4px; }
+  .pdetail b { color: var(--text); font-weight: 500; }
+  .part { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .part-btn { width: 100%; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; }
+  .road { position: relative; height: 8px; margin-top: 10px; border-radius: 4px; background: var(--ink-soft); }
+  .road i { position: absolute; inset: 0 auto 0 0; border-radius: 4px; background: var(--ink); opacity: .8; }
+  .road-t { display: flex; justify-content: space-between; margin-top: 6px; font-size: 13px; color: var(--faint); }
+  .stages { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; }
+  .stages li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 8px; border-radius: 8px; color: var(--faint); }
+  .stages li.now { background: var(--soft); color: var(--text); font-weight: 500; }
+  .stages li.past { color: var(--dim); }
+  .mrr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+  .mrr .field { margin: 0; }
+  .mrr-out { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .mrr-out div { padding: 8px 10px; border-radius: 10px; background: var(--soft); }
+  .mrr-out b { display: block; font: 500 18px var(--display); }
+  .mrr-out span { font-size: 12px; color: var(--faint); }
+  .srcs { display: grid; gap: 2px; margin-top: 8px; }
+  .src { display: grid; grid-template-columns: 84px minmax(0, 1fr) 40px; gap: 10px; align-items: center; padding: 5px 6px; margin: 0 -6px; border: 0; border-radius: 8px; background: none; text-align: left; font-size: 13.5px; cursor: pointer; }
+  .src:hover, .src[aria-expanded="true"] { background: var(--soft); }
+  .src i { display: block; height: 6px; border-radius: 3px; background: var(--ink); opacity: .45; }
+  .src span:last-child { text-align: right; color: var(--faint); }
+  .refs { margin: 2px 0 6px 6px; padding: 4px 0 4px 12px; border-left: 2px solid var(--line); font-size: 13px; color: var(--dim); display: grid; gap: 2px; }
+  .work { margin: 8px 0 0; font-size: 14px; color: var(--dim); }
+  .work b { color: var(--text); font-weight: 500; }
+  .more { display: inline-flex; margin-top: 16px; font-size: 14px; font-weight: 500; color: var(--dim); text-decoration: none; }
+  .connect { margin-top: 10px; padding: 14px; border-radius: 12px; background: var(--soft); font-size: 14px; color: var(--dim); }
+
+  /* Modal and toast */
+  .shade { position: fixed; inset: 0; background: var(--shade); display: grid; place-items: center; padding: 16px; z-index: 30; }
+  .modal { width: min(560px, 100%); max-height: 90vh; overflow: auto; padding: 22px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }
+  .modal h3 { margin: 0 0 6px; font: 500 22px var(--display); }
+  .modal pre { white-space: pre-wrap; margin: 12px 0; padding: 12px 14px; border-radius: 10px; background: var(--soft); font: 13px/1.55 ui-monospace, Menlo, monospace; color: var(--dim); }
+  .toast { position: fixed; left: 50%; bottom: max(24px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 14px; z-index: 40; }
+  .toast button { margin-left: 10px; border: 0; background: none; color: var(--bg); font-weight: 600; text-decoration: underline; cursor: pointer; }
+  @media (prefers-reduced-motion: reduce) { .chev, .ring .fg, .switch::after { transition: none; } }
+</style>
+
+<div class="pv">
+  <div class="pv-in">
+    <b>Plan and pulse: how it works</b>
+    <label><input type="checkbox" id="pv-notes" checked> Show notes (blue boxes)</label>
+    <label>Scenario <select id="pv-scen"><option value="normal">A normal day</option><option value="new">New brand, PostHog not connected</option><option value="done">Everything done</option></select></label>
+    <button class="pv-reset" id="pv-reset">Start over</button>
+  </div>
+</div>
+
+<div class="frame">
+  <nav class="side" aria-label="App">
+    <div class="brand">GrowJin</div>
+    <div class="grp"><span class="nav on">Today</span></div>
+    <div class="grp"><div class="gl">Your roadmap</div><span class="nav">1 · Get set up <small>3/3</small></span><span class="nav">2 · Get found <small>3/3</small></span><span class="nav">3 · Win attention <small>1/2</small></span><span class="nav">4 · Grow &amp; keep <small>0/1</small></span></div>
+    <div class="grp"><div class="gl">Get customers</div><span class="nav">Lead Agent</span><span class="nav">Competitor Leads</span><span class="nav">Email Outreach</span></div>
+    <div class="grp"><div class="gl">Get seen</div><span class="nav">Search Agent</span><span class="nav">Social Studio</span><span class="nav">Meta Ads</span></div>
+    <div class="grp"><div class="gl">Keep track</div><span class="nav">Reminders</span><span class="nav">Analytics</span></div>
+  </nav>
+  <main class="main"><div class="page" id="page"></div></main>
+</div>
+<div id="layer"></div>
+
+<script>
+// ── Example data for Frekto (made up, in the shapes the app already has) ──────────────────────────
+const DAYS = Array.from({ length: 14 }, (_, i) => new Date(2026, 9, 12 + i)) // 12–25 Oct; today is Mon 26 Oct
+const VISITS = [248, 262, 231, 290, 305, 270, 284, 318, 296, 331, 344, 322, 349, 412]
+const SIGNUPS = [1, 0, 2, 1, 1, 3, 0, 2, 1, 2, 4, 1, 2, 3]
+const PERIOD = {
+  '24h': { visitors: 412, prior: 349, signups: 3, signupsPrior: 2, signedIn: 9, back: 5, label: 'last 24 h',
+    sources: [['Google', 190, [['google.com', 172], ['google.co.in', 18]]], ['LinkedIn', 90, [['linkedin.com', 84], ['lnkd.in', 6]]], ['Direct', 70, [['Typed in or a bookmark', 70]]], ['ChatGPT', 32, [['chatgpt.com', 32]]], ['Other', 30, [['producthunt.com', 12], ['reddit.com', 10], ['bing.com', 8]]]] },
+  '7d': { visitors: 1868, prior: 1702, signups: 15, signupsPrior: 11, signedIn: 31, back: 18, label: 'last 7 days',
+    sources: [['Google', 860, [['google.com', 790], ['google.co.in', 70]]], ['LinkedIn', 402, [['linkedin.com', 371], ['lnkd.in', 31]]], ['Direct', 318, [['Typed in or a bookmark', 318]]], ['ChatGPT', 151, [['chatgpt.com', 151]]], ['Other', 137, [['producthunt.com', 60], ['reddit.com', 44], ['bing.com', 33]]]] },
+}
+const PEOPLE = {
+  signups: [
+    { id: 'p1', name: 'Anika Rao', line: 'from Google · India · landed on /pricing', ago: '2 h ago', detail: [['First came', 'Google search “ai social post maker”'], ['Pages', '/pricing → /signup → /app/new-post'], ['Since signing up', 'Created 2 posts, connected Instagram']] },
+    { id: 'p2', name: 'Marco Bianchi', line: 'from LinkedIn · Italy · landed on /', ago: '6 h ago', detail: [['First came', 'Your LinkedIn post of 20 Oct'], ['Pages', '/ → /features → /signup'], ['Since signing up', 'Started onboarding, didn’t finish']] },
+    { id: 'p3', name: 'Lea Schmidt', line: 'from ChatGPT · Germany · landed on /blog/ai-captions', ago: '11 h ago', detail: [['First came', 'chatgpt.com (an AI answer linked your blog)'], ['Pages', '/blog/ai-captions → /signup'], ['Since signing up', 'Created 1 post']] },
+  ],
+  signins: [
+    { id: 's1', name: 'Tom Becker', line: 'signed in 2× · Germany · desktop · first came from LinkedIn', ago: '1 h ago', detail: [['Account since', '3 Sep'], ['Today', 'Scheduled 3 posts']] },
+    { id: 's2', name: 'Priya Nair', line: 'signed in · India · mobile · first came from Google', ago: '3 h ago', detail: [['Account since', '28 Aug'], ['Today', 'Downloaded 2 posts']] },
+    { id: 's3', name: 'Sam Ortiz', line: 'signed in · Spain · desktop · first came from Product Hunt', ago: '5 h ago', detail: [['Account since', '12 Oct'], ['Today', 'Looked at pricing']] },
+  ],
+  back: [
+    { id: 'b1', name: 'Jonas Weber', line: 'last seen 9 days ago · came back today', ago: '4 h ago', detail: [['Came back from', 'Your “new templates” email'], ['Today', 'Made 1 post']] },
+    { id: 'b2', name: 'Chloé Martin', line: 'last seen 15 days ago · came back today', ago: '8 h ago', detail: [['Came back from', 'Direct'], ['Today', 'Changed brand colours']] },
+  ],
+}
+const STAGES = [[0, 10, 'First customers'], [10, 50, 'Early adopters'], [50, 100, 'One channel that works'], [100, 250, 'Scaling up'], [250, 500, 'New markets']]
+const USERS = 142
+
+const TASKS = [
+  { id: 't1', kind: 'pitch', name: 'Get mentioned on socialbee.com', why: 'AI answers cited socialbee.com twice this week, in answers that don’t mention Frekto.', wait: 4,
+    todo: 'Ask SocialBee to add Frekto to “I tested 6 AI tools for social media content creation”. The pitch is written for you.', helps: 'Pages that AI answers cite are where new customers first hear about tools like yours.', cta: 'Review the pitch',
+    note: '<b>From the Search Agent.</b> It reads AI answers (ChatGPT, Perplexity, Google) every week and spots sites that get cited without you. The pitch email is drafted there; sending uses your Gmail.' },
+  { id: 't2', kind: 'post', name: 'Post on social media today', why: 'Your last post was 9 days ago. Days you post bring about twice the visits.', wait: 6,
+    todo: 'Pick one of three ideas, check the draft and schedule it.', helps: 'LinkedIn is your second-best source of visitors.', cta: 'Write the post',
+    note: '<b>From the social signal.</b> It compares your posting days with visits. Writing and scheduling go through Frekto, so nothing leaves this page.' },
+  { id: 't3', kind: 'code', name: 'Set up a welcome email', why: 'New sign-ups get no email from you, and no email tool is connected.', wait: 7,
+    todo: 'Claude writes a 3-email welcome series and adds it to your site’s sign-up flow.', helps: 'A welcome email in the first hour roughly doubles how many people come back.', cta: 'Fix with Claude',
+    note: '<b>From the Grow &amp; keep module.</b> Website tasks hand over to Claude Code with a ready prompt; Claude marks the task done here when it finishes.' },
+  { id: 't4', kind: 'reminder', name: 'Call Priya at Nimbus Studio', why: 'You set this reminder on Monday. She asked to talk after her launch.', wait: 0,
+    todo: 'Call or email Priya. Her number is in the reminder.', helps: 'Her team of 8 posts every day.', cta: 'Mark done',
+    note: '<b>From Reminders.</b> Due reminders join the plan; marking done here marks them done in Reminders too.' },
+]
+const DONE_TODAY = [{ id: 'd1', name: 'Add alt text to homepage images', by: 'Claude', at: '07:42', note: 'Described 6 images on the homepage.', link: 'View the change on GitHub' }]
+const IDEAS = [
+  ['Before and after: one photo, three captions', 'Show the same café photo with three AI captions.'],
+  ['“I posted every day for a month”: what changed', 'A short story post with your own numbers.'],
+  ['3 caption mistakes small shops make', 'A tips carousel; these get saved and shared.'],
+]
+
+// ── State ────────────────────────────────────────────────────────────────────────────────────────
+const fresh = () => ({ period: '24h', cur: null, done: [], skipped: [], flow: {}, idea: null, drawer: null, person: null, src: null, road: false, price: 19, paying: 8, hover: null, settings: false, email: true, folds: {}, doneOpen: null, modal: null, toast: null })
+let S = fresh()
+let scen = 'normal'
+const $ = id => document.getElementById(id)
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const note = html => `<div class="note">${html}</div>`
+const fmtDay = d => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+const pct = (a, b) => b > 0 ? Math.round((a - b) / b * 100) : null
+const left = () => TASKS.filter(t => !S.done.includes(t.id) && !S.skipped.includes(t.id))
+const current = () => { const l = left(); return l.find(t => t.id === S.cur) || l[0] }
+
+// ── Header and settings ──────────────────────────────────────────────────────────────────────────
+function header() {
+  return `<h1>Today</h1>
+    <div class="meta"><span>Monday, 26 Oct</span><span>·</span><span>Tasks updated 2 h ago</span><button class="link" data-a="refresh">Refresh</button><span>·</span><button class="link" data-a="settings" aria-expanded="${S.settings}">Settings</button></div>
+    ${note('<b>Tasks</b> are worked out from all your data (modules, agents, reminders) and kept for 4 hours; Refresh works them out again now.')}
+    ${S.settings ? `<div class="sheet">
+      <div class="sw-row"><div>Daily email<small>${S.email ? 'Every morning at 6:00 to you@frekto.com: yesterday’s numbers and today’s plan.' : 'Off. Turn on to get this page in your inbox each morning.'}</small></div><button class="switch" role="switch" aria-checked="${S.email}" data-a="email" aria-label="Daily email"></button></div>
+      <div class="sheet-foot"><button class="link" data-a="refresh">Check for new tasks now</button><button class="link" data-a="analytics">Open Analytics</button></div>
+      ${note('Settings holds what you set once. It stays off the page until you open it.')}</div>` : ''}`
+}
+
+// ── Plan ─────────────────────────────────────────────────────────────────────────────────────────
+function ring(done, total) {
+  const r = 11, c = 2 * Math.PI * r, part = total ? done / total : 0
+  return `<svg class="ring" width="22" height="22" viewBox="0 0 28 28" role="img" aria-label="${done} of ${total} done today"><circle class="bg" cx="14" cy="14" r="${r}"/><circle class="fg" cx="14" cy="14" r="${r}" stroke-dasharray="${c * part} ${c}" transform="rotate(-90 14 14)"/></svg>`
+}
+function taskBox(t) {
+  const f = S.flow[t.id] || 'intro'
+  const extra = t.kind === 'reminder' ? `<button class="btn quiet" data-skip="${t.id}" data-msg="Snoozed to tomorrow.">Snooze to tomorrow</button>`
+    : `<button class="btn quiet" data-finish="${t.id}" data-msg="Marked done.">Already done</button><button class="btn quiet" data-skip="${t.id}" data-msg="Hidden: not relevant.">Not relevant</button>`
+  if (t.kind === 'pitch' && f === 'draft') return `<div class="box">
+      <div class="steps"><span>1 · The idea</span><span class="on">2 · The email</span></div>
+      <label class="field">To<input id="f-to" value="editor@socialbee.com"></label>
+      <label class="field">Subject<input id="f-sub" value="A tool for your “6 AI tools” article"></label>
+      <label class="field">Email<textarea id="f-body">Hi,
+
+I read “I tested 6 AI tools for social media content creation” and found it really useful. I make Frekto, which turns one photo into ready posts with captions for small shops and cafés.
+
+If you update the article, I’d be glad to set you up with a free account to try it. Happy to send screenshots or numbers.
+
+Thanks,
+Vishnu</textarea></label>
+      <div class="acts"><button class="btn go" data-finish="${t.id}" data-msg="Sent from your Gmail. GrowJin follows up in 4 days if they don’t reply.">Send from Gmail</button><button class="btn quiet" data-flow="${t.id}:intro">Back</button></div>
+      ${note('Sends from your own Gmail. A follow-up goes out by itself after 4 days unless they reply; replies show in Email Outreach › Inbox and here as a red row.')}</div>`
+  if (t.kind === 'post' && f === 'pick') return `<div class="box">
+      <div class="steps"><span class="on">1 · Pick an idea</span><span>2 · Check and schedule</span></div>
+      ${IDEAS.map(([a, b], i) => `<label class="idea"><input type="radio" name="idea" data-idea="${i}" ${S.idea === i ? 'checked' : ''}><span>${esc(a)}<small>${esc(b)}</small></span></label>`).join('')}
+      <div class="acts" style="margin-top:10px"><button class="btn go" data-flow="${t.id}:draft" ${S.idea === null ? 'disabled' : ''}>Write the draft</button><button class="btn quiet" data-flow="${t.id}:intro">Back</button></div>
+      ${note('Ideas come from what brought visitors before and from your recent blog. Frekto writes the draft.')}</div>`
+  if (t.kind === 'post' && f === 'draft') return `<div class="box">
+      <div class="steps"><span>1 · Pick an idea</span><span class="on">2 · Check and schedule</span></div>
+      <label class="field">Post<textarea id="f-post">${esc(IDEAS[S.idea ?? 0][0])}.
+
+We took one café photo and asked Frekto for three captions: cosy, playful and short. Which one would you post? 👇
+
+Try it free: frekto.com</textarea></label>
+      <div class="mrr"><label class="field">Where<select><option>LinkedIn</option><option>Instagram</option><option>Facebook</option></select></label><label class="field">When<select><option>Today 17:30 (best time)</option><option>Tomorrow 09:00</option><option>Now</option></select></label></div>
+      <div class="acts" style="margin-top:12px"><button class="btn go" data-finish="${t.id}" data-msg="Scheduled for today 17:30 on LinkedIn.">Schedule</button><button class="btn quiet" data-flow="${t.id}:pick">Back</button></div></div>`
+  const main = t.kind === 'pitch' ? `<button class="btn go" data-flow="${t.id}:draft">${t.cta}</button>`
+    : t.kind === 'post' ? `<button class="btn go" data-flow="${t.id}:pick">${t.cta}</button>`
+    : t.kind === 'code' ? `<button class="btn go" data-a="claude">${t.cta}</button><button class="btn quiet" data-a="module">Open Grow &amp; keep</button>`
+    : `<button class="btn go" data-finish="${t.id}" data-msg="Marked done in Reminders.">${t.cta}</button>`
+  return `<div class="box"><span class="lbl">What to do</span><p>${esc(t.todo)}</p><span class="lbl">Why it helps</span><p>${esc(t.helps)}</p><div class="acts">${main}${extra}</div>${note(t.note)}</div>`
+}
+function plan() {
+  const l = left(), c = current()
+  const doneItems = [...DONE_TODAY, ...TASKS.filter(t => S.done.includes(t.id)).map(t => ({ id: t.id, name: t.name, by: 'You', at: 'just now', note: '' }))]
+  const total = doneItems.length + l.length
+  const head = `<div class="plan-h"><h2>Today’s plan</h2><span class="plan-n">${l.length ? `${l.length} left` : 'All done'} ${ring(doneItems.length, total)} <span class="num">${doneItems.length}/${total}</span></span></div>
+    ${note('<b>The ring</b> counts tasks finished today (by you, Claude or the auto-fix) out of today’s total. Skipped and “not relevant” ones leave the total.')}`
+  const done = doneItems.map(d => `<li class="tli done"><span class="mk" aria-hidden="true">✓</span><div class="tl-body"><button class="tl-head" data-doneopen="${d.id}"><span class="t">${esc(d.name)}</span></button>
+      ${S.doneOpen === d.id ? `<div class="done-note">${d.by} · ${d.at}${d.note ? ` · ${esc(d.note)}` : ''}${d.link ? ` · <a href="#" onclick="return false">${d.link}</a>` : ''}</div>` : ''}</div></li>`).join('')
+  const items = l.map((t, i) => {
+    const cur = t === c, meta = t.wait ? `Waiting ${t.wait} days` : 'Due today'
+    const headHtml = `<span class="t">${esc(t.name)}</span><span class="w">${esc(t.why)}</span><span class="m">${meta}</span>`
+    return `<li class="tli${cur ? ' cur' : ''}"><span class="mk" aria-hidden="true">${i + 1}</span><div class="tl-body">${cur ? `<div class="tl-head">${headHtml}</div>${taskBox(t)}` : `<button class="tl-head" data-cur="${t.id}">${headHtml}</button>`}</div></li>`
+  }).join('')
+  const empty = l.length ? '' : `<div class="empty"><b>All caught up</b><p>${doneItems.length} done today. New tasks arrive after tomorrow morning’s check.</p><button class="btn go" data-a="reset">Show the example again</button></div>`
+  return `${head}<ol class="tl">${done}${items}</ol>${empty}
+    ${note('<b>Done</b> tasks stay at the top, ticked; tap one to see who did it and the change. <b>The current task</b> is open with the only green button. Finishing, skipping or “not relevant” opens the next one. Tap any other task to open it instead.')}`
+}
+
+// ── Pulse ────────────────────────────────────────────────────────────────────────────────────────
+function chart() { return `<div class="chart" id="chart">${chartInner()}</div>` }
+function chartInner() {
+  const w = 300, h = 96, max = Math.max(...VISITS), min = Math.min(...VISITS)
+  const pts = VISITS.map((v, i) => [i / (VISITS.length - 1) * w, h - 4 - (v - min) / (max - min) * (h - 12)])
+  const line = pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')
+  const k = S.hover ?? VISITS.length - 1, [hx, hy] = pts[k]
+  const tip = S.hover !== null ? `<div class="tip" style="left:${hx / w * 100}%">${fmtDay(DAYS[k])} · ${VISITS[k]} visitors · ${SIGNUPS[k]} sign-up${SIGNUPS[k] === 1 ? '' : 's'}</div>` : ''
+  return `${tip}<svg viewBox="-3 0 ${w + 6} ${h}" preserveAspectRatio="none" role="img" aria-label="Visitors per day, last 14 days"><polygon class="c-area" points="0,${h} ${line} ${w},${h}"/><polyline class="c-line" points="${line}"/>${S.hover !== null ? `<line class="c-hov" x1="${hx}" x2="${hx}" y1="0" y2="${h}"/>` : ''}<circle class="c-dot" cx="${hx}" cy="${hy}" r="3.2"/></svg>
+    <div class="c-axis"><span>${fmtDay(DAYS[0])}</span><span>Yesterday</span></div>`
+}
+function drawer(kind, title, count) {
+  const ppl = PEOPLE[kind]
+  return `<div class="drawer"><div class="drawer-h"><span>${title}</span><button class="link" data-a="analytics">View all ${count}</button></div>
+    ${ppl.map(p => `<button class="person" data-person="${p.id}" aria-expanded="${S.person === p.id}"><span class="av">${p.name[0]}</span><span style="min-width:0"><b>${esc(p.name)}</b><span>${esc(p.line)}</span></span><span class="ago">${p.ago}</span></button>
+      ${S.person === p.id ? `<div class="pdetail">${p.detail.map(([a, b]) => `<div><b>${a}:</b> ${esc(b)}</div>`).join('')}</div>` : ''}`).join('')}
+    ${note(kind === 'signups' ? '<b>Sign-ups</b>: people who made an account in this period (PostHog). Where they came from is their first visit ever. Tap a person for their path and what they did next.'
+      : kind === 'signins' ? '<b>Signed in</b>: people who already had an account and logged in during this period, so they aren’t counted twice with sign-ups.'
+      : '<b>Came back</b>: people with an account who were away 7+ days and used the app again. Today the app has the count; this list is <b>new</b> (one more PostHog query).')}</div>`
+}
+function pulse() {
+  const P = PERIOD[S.period]
+  if (scen === 'new') return `<aside class="pulse"><span class="lbl">Pulse</span>
+    <div class="connect"><b style="color:var(--text);font-weight:500">Connect PostHog to see who visits and signs up.</b><br>Visitors, sign-ups, a 14-day chart, Road to 500 and where people come from appear here.<div style="margin-top:10px"><button class="btn" data-a="connect">Connect PostHog</button></div></div>
+    <div class="part"><span class="lbl">Website (Google Analytics)</span><p class="work"><b>380 visits yesterday</b> · +9% · most from Google</p></div>
+    ${note('<b>Without PostHog</b> the Pulse shows what it can (Google Analytics visits, if connected) and one Connect button. It isn’t green: the green button stays in the plan.')}
+    <a class="more" href="#" data-a="analytics">Full analytics →</a></aside>`
+  const d = pct(P.visitors, P.prior), ds = pct(P.signups, P.signupsPrior)
+  const total = P.sources.reduce((a, s) => a + s[1], 0)
+  const stageIdx = STAGES.findIndex(s => USERS < s[1]), next = STAGES[stageIdx][1]
+  const mrrAt = n => '$' + Math.round(n * S.paying / 100 * S.price).toLocaleString()
+  return `<aside class="pulse" aria-label="Pulse">
+    <div class="p-top"><span class="lbl">Pulse</span><div class="seg" role="group" aria-label="Period"><button data-period="24h" aria-pressed="${S.period === '24h'}">24 h</button><button data-period="7d" aria-pressed="${S.period === '7d'}">7 days</button></div></div>
+    <div class="p-big"><b class="num">${P.visitors.toLocaleString()}</b><span>visitors, ${P.label}${d !== null ? ` · ${d > 0 ? '+' : ''}${d}%` : ''}</span></div>
+    <div class="p-sub">Mostly from ${P.sources[0][0]}</div>
+    ${note(`<b>Visitors</b>: different people who opened any page of the app or site in the ${P.label} (PostHog), compared with the ${P.label === 'last 24 h' ? '24 h' : '7 days'} before.`)}
+    ${chart()}
+    ${note('<b>The chart</b> is visitors per day for the 14 full days up to yesterday (today is left out so half a day doesn’t look like a drop). Hover or drag along it for each day.')}
+    <div class="trio">
+      ${[['signups', P.signups, 'sign-ups', ds], ['signins', P.signedIn, 'signed in', null], ['back', P.back, 'came back', null]].map(([k, n, l, dd]) => `<button data-drawer="${k}" aria-expanded="${S.drawer === k}"><b class="num">${n}</b><span>${l}${dd ? `<i>${dd > 0 ? '+' : ''}${dd}%</i>` : ''}</span></button>`).join('')}
+    </div>
+    ${note('<b>Tap a number</b> to see the people behind it.')}
+    ${S.drawer ? drawer(S.drawer, S.drawer === 'signups' ? `New accounts, ${P.label}` : S.drawer === 'signins' ? `Logged in, ${P.label}` : `Back after a break, ${P.label}`, S.drawer === 'signups' ? P.signups : S.drawer === 'signins' ? P.signedIn : P.back) : ''}
+    <div class="part"><button class="part-btn" data-a="road" aria-expanded="${S.road}"><span class="lbl">Road to 500 ${S.road ? '▴' : '▾'}</span>
+      <div class="road" role="img" aria-label="${USERS} of 500 users"><i style="width:${USERS / 5}%"></i></div>
+      <div class="road-t"><span class="num">${USERS} users · ${STAGES[stageIdx][2]}</span><span>next: ${next}</span></div></button>
+      ${S.road ? `<ul class="stages">${STAGES.map((s, i) => `<li class="${i === stageIdx ? 'now' : i < stageIdx ? 'past' : ''}"><span>${s[0]}–${s[1]} · ${s[2]}</span><span>${i < stageIdx ? '✓' : i === stageIdx ? `${next - USERS} to go` : ''}</span></li>`).join('')}</ul>
+        <div class="mrr"><label class="field">Price per month ($)<input type="number" min="1" id="f-price" value="${S.price}"></label><label class="field">Who pays (%)<input type="number" min="0" max="100" id="f-pay" value="${S.paying}"></label>
+          <div class="mrr-out"><div><b>${mrrAt(USERS)}</b><span>MRR now</span></div><div><b>${mrrAt(250)}</b><span>at 250</span></div><div><b>${mrrAt(500)}</b><span>at 500</span></div></div></div>` : ''}
+      ${note('<b>Road to 500</b>: your total users from PostHog against the five stages GrowJin uses for advice. Tap for the stages and a projected monthly revenue; price and share are yours to set.')}</div>
+    <div class="part wide-only"><span class="lbl">Where visitors came from</span><div class="srcs">
+      ${P.sources.map(([n, v, refs]) => `<button class="src" data-src="${n}" aria-expanded="${S.src === n}"><span>${n}</span><i style="width:${Math.max(3, v / total * 100)}%"></i><span class="num">${Math.round(v / total * 100)}%</span></button>
+        ${S.src === n ? `<div class="refs">${refs.map(([r, c]) => `<div class="mini-row"><span>${esc(r)}</span><span class="num">${c}</span></div>`).join('')}</div>` : ''}`).join('')}</div>
+      ${note('<b>Sources</b>: each visitor’s first page in the period, sorted into channels. Tap a channel for the sites behind it.')}</div>
+    <div class="part wide-only"><span class="lbl">What’s working</span><p class="work"><b>Visits up 18% this week.</b> Most of the rise is Google search for “ai caption generator”.</p>
+      ${note('Shown when something clearly improved; otherwise this part is hidden.')}</div>
+    <a class="more" href="#" data-a="analytics">Full analytics →</a>
+    ${note('<b>On a phone</b> the Pulse sits above the plan and drops Sources and What’s working (both are in Full analytics), so the plan stays close.')}
+  </aside>`
+}
+
+// ── Sections under the plan ──────────────────────────────────────────────────────────────────────
+function folds() {
+  const F = [
+    ['numbers', 'Visitors and sign-ups', '412 visits yesterday · Road to 500 with revenue · who came', () => `
+      <div class="stats4"><div><b>412</b><span>app visitors</span></div><div><b>3</b><span>sign-ups</span></div><div><b>9</b><span>signed in</span></div><div><b>5</b><span>came back</span></div></div>
+      <div class="mini"><span class="lbl">Most viewed pages</span><div class="mini-row" style="margin-top:6px"><span>/pricing</span><span>80</span></div><div class="mini-row"><span>/blog/ai-captions</span><span>54</span></div><div class="mini-row"><span>/features</span><span>41</span></div></div>
+      ${note('The longer view of the same numbers (today’s “What happened”), with most viewed pages. Kept closed so the plan stays short.')}`],
+    ['content', 'Blog and posts', 'Latest blog: “5 caption ideas for cafés” · 2 posts scheduled', () => `
+      <div class="mini"><div class="mini-row"><span><b style="font-weight:500">“5 caption ideas for cafés”</b><br><span style="color:var(--faint);font-size:13px">Draft · written 2 days ago · next blog due Monday</span></span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" data-a="toast" data-msg="Claude gets a prompt to add the post to your site.">Add to my website with Claude</button><button class="btn quiet" data-a="toast" data-msg="Marked as published.">Mark as published</button></span></div></div>
+      <div class="mini"><span class="lbl">Scheduled posts</span><div class="mini-row" style="margin-top:6px"><span>LinkedIn · “Before and after: one photo…”</span><span style="color:var(--faint)">Tue 17:30</span></div><div class="mini-row"><span>Instagram · “3 caption mistakes”</span><span style="color:var(--faint)">Thu 12:00</span></div></div>`],
+    ['social', 'Social accounts', 'LinkedIn 1.2k followers · Instagram not connected', () => `
+      <div class="mini"><div class="mini-row"><b style="font-weight:500">LinkedIn <span style="color:var(--faint);font-weight:400">@frekto</span></b><span style="color:var(--faint)">1.2k followers</span></div>
+        <div class="stats4" style="margin-top:10px;grid-template-columns:repeat(3,minmax(0,1fr))"><div><b>5.3k</b><span>impressions (7d)</span></div><div><b>210</b><span>engagements (7d)</span></div><div><b>64</b><span>clicks (7d)</span></div></div></div>
+      <div class="mini mini-row"><span>Instagram isn’t connected.</span><button class="btn" data-a="connect">Connect Instagram</button></div>`],
+    ['done', 'Done lately', '6 done this week · 4-day streak', () => `
+      ${[['Add alt text to homepage images', 'Claude · today', 'Described 6 images.'], ['Fix the pricing page title', 'You · yesterday', ''], ['List Frekto on G2', 'You · Thursday', 'Profile approved.']].map(([a, b, c]) => `<div class="mini"><div class="mini-row"><b style="font-weight:500">${a}</b><span style="color:var(--faint);font-size:13px">${b}</span></div>${c ? `<div style="color:var(--dim);font-size:14px">${c}</div>` : ''}</div>`).join('')}`],
+  ]
+  return `<div class="folds">${F.map(([id, t, sum, body]) => `<div class="fold"><button class="fold-h" data-fold="${id}" aria-expanded="${!!S.folds[id]}"><span class="ft"><b>${t}</b><span class="fs">${esc(sum)}</span></span><span class="chev" aria-hidden="true"></span></button>${S.folds[id] ? `<div class="fold-b">${body()}</div>` : ''}</div>`).join('')}</div>
+    ${note('<b>Everything else</b> sits here, closed. Each line says what’s inside, so you can skip it. The page remembers what you leave open.')}`
+}
+
+// ── Modal, toast, render ─────────────────────────────────────────────────────────────────────────
+function layer() {
+  let h = ''
+  if (S.modal === 'claude') h += `<div class="shade" data-a="shade"><div class="modal" role="dialog" aria-modal="true" aria-label="Do it with Claude">
+      <h3>Do it with Claude</h3><p style="margin:0;color:var(--dim)">Copy this into Claude Code in your website’s folder. Claude does the work and marks the task done here.</p>
+      <pre>Use the GrowJin connector to do one of today's growth tasks for Frekto (frekto.com).
+1. Call get_today_tasks and find "Set up a welcome email".
+2. Write a 3-email welcome series and add it to the sign-up flow.
+3. Open a pull request and tell me what changed.
+4. Call toggle_item so GrowJin marks it done.</pre>
+      <div class="acts"><button class="btn go" data-a="copied">Copy prompt</button><button class="btn quiet" data-finish="t3" data-msg="Marked done. Claude’s change will show under Done.">I’ve done it</button><button class="btn quiet" data-a="close">Close</button></div>
+      ${note('If Claude is connected to GrowJin, it ticks the task off by itself; “I’ve done it” is for doing it another way.')}</div></div>`
+  if (S.toast) h += `<div class="toast" role="status">${esc(S.toast.text)}${S.toast.undo ? '<button data-a="undo">Undo</button>' : ''}</div>`
+  $('layer').innerHTML = h
+}
+function render() {
+  document.body.classList.toggle('notes-on', $('pv-notes').checked)
+  if (scen === 'done') { S.done = TASKS.map(t => t.id) }
+  $('page').innerHTML = `${header()}<div class="pp"><section aria-label="Today’s plan">${plan()}${folds()}</section>${pulse()}</div>`
+  layer()
+  const c = $('chart')
+  if (c) {
+    // Hover or drag only redraws the chart, so text typed in a draft is never lost
+    const pick = e => { const r = c.getBoundingClientRect(); const k = Math.round(Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)) * (VISITS.length - 1)); if (k !== S.hover) { S.hover = k; c.innerHTML = chartInner() } }
+    c.addEventListener('pointermove', pick); c.addEventListener('pointerdown', pick)
+    c.addEventListener('pointerleave', () => { S.hover = null; c.innerHTML = chartInner() })
+  }
+}
+let timer
+function toast(text, undo) { S.toast = { text, undo }; clearTimeout(timer); timer = setTimeout(() => { S.toast = null; layer() }, 4500) }
+function finish(id, msg, skip) {
+  ;(skip ? S.skipped : S.done).push(id)
+  S.cur = null; S.modal = null
+  toast(msg, { id, skip })
+  render(); document.querySelector('.tli.cur')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-a],[data-cur],[data-finish],[data-skip],[data-flow],[data-drawer],[data-person],[data-src],[data-period],[data-fold],[data-doneopen]'); if (!t) return
+  const d = t.dataset
+  if (d.finish) return finish(d.finish, d.msg)
+  if (d.skip) return finish(d.skip, d.msg, true)
+  if (d.cur) S.cur = d.cur
+  else if (d.flow) { const [id, f] = d.flow.split(':'); S.flow[id] = f }
+  else if (d.drawer) { S.drawer = S.drawer === d.drawer ? null : d.drawer; S.person = null }
+  else if (d.person) S.person = S.person === d.person ? null : d.person
+  else if (d.src) S.src = S.src === d.src ? null : d.src
+  else if (d.period) S.period = d.period
+  else if (d.fold) S.folds[d.fold] = !S.folds[d.fold]
+  else if (d.doneopen) S.doneOpen = S.doneOpen === d.doneopen ? null : d.doneopen
+  else {
+    const a = d.a
+    if (a === 'settings') S.settings = !S.settings
+    if (a === 'email') { S.email = !S.email; toast(S.email ? 'Daily email on. The first one arrives tomorrow at 6:00.' : 'Daily email off.') }
+    if (a === 'refresh') toast('Checked again. Nothing new since 2 h ago.')
+    if (a === 'road') S.road = !S.road
+    if (a === 'claude') S.modal = 'claude'
+    if (a === 'close') S.modal = null
+    if (a === 'copied') { try { navigator.clipboard.writeText('Use the GrowJin connector…').catch(() => {}) } catch (err) {} toast('Prompt copied. Paste it into Claude Code.') }
+    if (a === 'module') toast('Opens Grow & keep on your roadmap, at this check.')
+    if (a === 'analytics') toast('Opens Analytics with the full lists.')
+    if (a === 'connect') toast('Opens Settings › Integrations to connect.')
+    if (a === 'toast') toast(d.msg)
+    if (a === 'reset') { scen = 'normal'; $('pv-scen').value = 'normal'; S = fresh() }
+    if (a === 'undo' && S.toast?.undo) { const u = S.toast.undo; const k = u.skip ? 'skipped' : 'done'; S[k] = S[k].filter(x => x !== u.id); S.cur = u.id; S.toast = null }
+    if (a === 'shade') { if (e.target !== t) return; S.modal = null }
+  }
+  render()
+})
+document.addEventListener('change', e => {
+  if (e.target.dataset.idea !== undefined) { S.idea = Number(e.target.dataset.idea); render() }
+  if (e.target.id === 'f-price') { S.price = Math.max(1, Number(e.target.value) || 1); render() }
+  if (e.target.id === 'f-pay') { S.paying = Math.min(100, Math.max(0, Number(e.target.value) || 0)); render() }
+})
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.modal) { S.modal = null; render() } })
+$('pv-notes').addEventListener('change', render)
+$('pv-scen').addEventListener('change', e => { scen = e.target.value; S = fresh(); render() })
+$('pv-reset').addEventListener('click', () => { scen = 'normal'; $('pv-scen').value = 'normal'; S = fresh(); render() })
+render()
+</script>
