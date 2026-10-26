@@ -292,7 +292,7 @@ async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData,
     : null
   if (storeRows) {
     console.log(`[lead-agent] online stores (${f.platforms.join(', ')}, ${s.country}): ${storeRows.length} back${storeRows[0] ? `, e.g. ${storeRows.slice(0, 3).map(x => x.domain).join(', ')}` : ''}`)
-    if (!storeRows.length) warn(`Online stores: DataForSEO found no ${f.platforms.join(' / ')} sites in ${s.country} this time`)
+    if (!storeRows.length) warn(`Online stores: DataForSEO found no ${f.platforms.join(' / ')} sites ${s.country === 'ANY' ? 'anywhere' : `in ${s.country}`} this time`)
   }
   const stores: Found[] = (storeRows ?? [])
       .filter(x => fresh(x.domain))
@@ -344,7 +344,7 @@ export async function pickSources(b: BrandContext, s: LeadSettings): Promise<Sou
     system: 'You decide where a small business should look for customers. Return only a raw JSON object.',
     prompt: `${brandBlock(b)}
 Ideal customer: ${s.customer || b.targetAudience || 'not given'}
-Country: ${s.country}
+Country: ${s.country === 'ANY' ? 'anywhere (no one country)' : s.country}
 
 Sources:
 - local: businesses on Google Maps (shops, salons, cafés, clinics). Right when the buyers are local businesses with a street address.
@@ -353,7 +353,7 @@ Sources:
 
 Turn on the 1-2 sources that fit the buyers best (at least one). Return
 {"local":bool,"companies":bool,"reddit":bool,"localQuery":"...","companyQuery":"...","why":"..."}
-- localQuery: a Google Maps search like "cafés in Pune" (a kind of business + a city in ${s.country}), or "" if local is off
+- localQuery: a Google Maps search like "cafés in Pune" (a kind of business + a city${s.country === 'ANY' ? '' : ` in ${s.country}`}), or "" if local is off
 - companyQuery: who to look for, in plain words, like "small fashion and beauty online stores, 1-50 people", or "" if companies is off
 - why: one short sentence for the user, e.g. "Your buyers are small online brands, so we look for online stores and Reddit posts." No brand name at the start.`,
   }))

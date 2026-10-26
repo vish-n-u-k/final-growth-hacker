@@ -35,7 +35,7 @@ function cleanSettings(cur: LeadSettings, s: Partial<LeadSettings>): LeadSetting
   return {
     enabled: typeof s.enabled === 'boolean' ? s.enabled : cur.enabled,
     customer: typeof s.customer === 'string' ? s.customer.slice(0, 600) : cur.customer,
-    country: typeof s.country === 'string' && LOCATION_CODES[s.country] ? s.country : cur.country,
+    country: typeof s.country === 'string' && (LOCATION_CODES[s.country] || s.country === 'ANY') ? s.country : cur.country,
     sources: {
       reddit: typeof s.sources?.reddit === 'boolean' ? s.sources.reddit : cur.sources.reddit,
       reviews: typeof s.sources?.reviews === 'boolean' ? s.sources.reviews : cur.sources.reviews,

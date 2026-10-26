@@ -23,7 +23,8 @@ type TabKey = 'needs' | 'waiting' | 'done'
 type Lane = 'community' | 'email'
 type Section = 'replied' | 'approve' | 'post'
 
-const COUNTRIES: [string, string][] = [['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
+// ANY = anywhere: companies and stores from every country (Google searches use the US as their place)
+const COUNTRIES: [string, string][] = [['ANY', 'Anywhere'], ['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
 const SOURCE: Record<Lead['source'], [string, 'orange' | 'amber' | undefined]> = {
   review: ['Unhappy reviewer', undefined], local: ['Google Maps', 'amber'], company: ['Company like your customers', undefined], reddit: ['Reddit', 'orange'], forum: ['Hacker News', 'orange'], own: ['Your list', undefined],
 }

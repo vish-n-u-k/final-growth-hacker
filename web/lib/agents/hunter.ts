@@ -78,11 +78,12 @@ export async function discoverCompanies(f: { keywords: string[]; headcount: stri
   if (agentsDemo()) return demoDiscover(f.keywords)
   const body: Record<string, unknown> = {
     keywords: { include: f.keywords.slice(0, 5), match: 'any' },
-    headquarters_location: { include: [{ country: f.country }] },
     company_type: { exclude: ['educational', 'educational institution', 'government agency', 'non profit'] },
     limit: 100,
   }
   if (f.headcount.length) body.headcount = f.headcount
+  // Anywhere: no country filter
+  if (f.country !== 'ANY') body.headquarters_location = { include: [{ country: f.country }] }
   const res = await fetch(`${BASE}/discover?${new URLSearchParams({ api_key: process.env.HUNTER_API_KEY! })}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
