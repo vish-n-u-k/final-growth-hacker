@@ -15,7 +15,7 @@ import { getValidGmailToken } from '@/lib/gmail/token'
 import { checkThreadReply } from '@/lib/gmail/reply-check'
 import { openSignal, clearSignals } from '@/lib/signals'
 import { fetchHtml } from '@/lib/lead-finder/reviews'
-import { searchDataReady, googleResults, mapsBusinesses, DfsBusyError } from './dataforseo'
+import { searchDataReady, googleResults, mapsBusinesses, storesByPlatform, DfsBusyError } from './dataforseo'
 import { agentsDemo, demoLocalQuery, demoReply, demoSend, setDemoContext } from './demo'
 import { Progress } from './progress'
 import { hunterConfigured, findEmail, discoverCompanies } from './hunter'
@@ -34,6 +34,12 @@ const OPT_OUT = 'If this isn\'t relevant, just reply "no" and I won\'t email aga
 // New finds per source per run, and Hunter email lookups per run. Kept at 3 while testing, to save
 // DataForSEO money, Hunter credits and AI tokens; AGENTS_LEADS_PER_SOURCE raises it (up to 10).
 const PER_SOURCE = Math.max(1, Math.min(10, Number(process.env.AGENTS_LEADS_PER_SOURCE) || 3))
+// Companies are cheap to check (home page + scoring) and only the best get a Hunter lookup,
+// so more are checked than are looked up: up to 10 scored, at most PER_SOURCE emails
+const COMPANY_CHECK = Math.max(PER_SOURCE, 10)
+const PLATFORMS = ['Shopify', 'WooCommerce', 'Wix', 'Squarespace']
+// Not small-business buyers: PR and B2B firms, consultancies, big agencies
+const NOT_A_FIT = /\b(public relations|pr agency|pr firm|b2b|enterprise|consult(ing|ancy|ants?)|investor relations|fortune 500|global (agency|leader)|award[- ]winning|staffing|recruit(ing|ment))\b/i
 const DEMO_EMAIL_LEADS = 5   // demo mode: businesses to email per run, at least
 
 export const leadFallback = (b: BrandContext) => () => defaultLeadData(b, b.competitors.map(c => c.domain))
@@ -159,6 +165,7 @@ interface Candidate {
   website?: string
   phone?: string
   rating?: number | null
+  email?: string                // already known from the source (no Hunter lookup needed)
 }
 
 async function searchQueries(b: BrandContext, s: LeadSettings, d: LeadAgentData): Promise<string[]> {
@@ -226,9 +233,10 @@ async function findHackerNews(queries: string[]): Promise<Candidate[]> {
 const HEADCOUNTS = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10001+']
 
 /** The company search in plain words, turned into Hunter Discover filters once per wording. */
-async function companyFilters(b: BrandContext, s: LeadSettings, d: LeadAgentData): Promise<{ keywords: string[]; headcount: string[] }> {
+async function companyFilters(b: BrandContext, s: LeadSettings, d: LeadAgentData): Promise<{ keywords: string[]; headcount: string[]; platforms: string[] }> {
   const want = s.companyQuery.trim() || s.customer
-  if (d.companyFilters?.for === want && d.companyFilters.keywords.length) return d.companyFilters
+  const saved = d.companyFilters
+  if (saved?.for === want && saved.keywords.length && saved.platforms) return { ...saved, platforms: saved.platforms }
   const raw = await callAI({
     feature: 'lead-agent',
     model: 'claude-haiku-4-5-20251001',
@@ -237,49 +245,82 @@ async function companyFilters(b: BrandContext, s: LeadSettings, d: LeadAgentData
     prompt: `${brandBlock(b)}
 Companies to find: ${want || 'companies that would buy this product'}
 
-Return {"keywords":[...],"headcount":[...]}:
-- keywords: 8 single words or short phrases (1-2 words) these companies use to describe themselves on their own website, e.g. "skincare", "handmade jewelry", "coffee roaster". Their products or trade, not ${b.name}'s.
-- headcount: company sizes to include, from ${HEADCOUNTS.join(', ')}. Small businesses: ["1-10","11-50"].`,
+Return {"keywords":[...],"headcount":[...],"platforms":[...]}:
+- keywords: 8 single words or short phrases (1-2 words) these companies use to describe themselves on their own website, e.g. "skincare", "handmade jewelry", "coffee roaster", "social media agency". Their products or trade, not ${b.name}'s. Never "PR", "public relations", "B2B", "enterprise" or "consulting": those are big firms, not small businesses.
+- headcount: company sizes to include, from ${HEADCOUNTS.join(', ')}. Small businesses: ["1-10","11-50"].
+- platforms: if online stores are among the buyers, the store platforms to search, from ${PLATFORMS.join(', ')} (e.g. ["Shopify","WooCommerce"]); else [].`,
   })
-  const j = parseJsonLoose<{ keywords?: string[]; headcount?: string[] }>(raw, 'object') ?? {}
+  const j = parseJsonLoose<{ keywords?: string[]; headcount?: string[]; platforms?: string[] }>(raw, 'object') ?? {}
   const f = {
     keywords: (j.keywords ?? []).filter(k => typeof k === 'string' && k.trim()).map(k => k.trim().toLowerCase()).slice(0, 8),
     headcount: (j.headcount ?? []).filter(h => HEADCOUNTS.includes(h)),
+    platforms: (j.platforms ?? []).filter(p => PLATFORMS.includes(p)).slice(0, 2),
   }
   d.companyFilters = { for: want, ...f }
   return f
 }
 
-/** Title and description from a site's home page, so the fit score has something to go on. */
-async function aboutSite(domain: string): Promise<string> {
+/** Title, description and social links from a site's home page, so the fit score has something to go on. */
+async function aboutSite(domain: string): Promise<{ text: string; socials: string[] }> {
   const html = await fetchHtml(`https://${domain}`).catch(() => null)
-  if (!html) return ''
+  if (!html) return { text: '', socials: [] }
   const title = html.match(/<title[^>]*>([^<]{1,160})/i)?.[1] ?? ''
   const desc = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{1,300})/i)?.[1]
     ?? html.match(/<meta[^>]+content=["']([^"']{1,300})["'][^>]+name=["']description["']/i)?.[1] ?? ''
-  return [title, desc].map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · ')
+  return { text: [title, desc].map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · '), socials: socialsIn(html) }
 }
 
-async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData, known: Set<string>, meter: UsageMeter): Promise<Candidate[]> {
+/** Which social networks a page links to (a business that links Instagram cares about posting). */
+function socialsIn(text: string): string[] {
+  const nets: [string, RegExp][] = [['Instagram', /instagram\.com\/[\w.]+/i], ['Facebook', /facebook\.com\/[\w.-]+/i], ['TikTok', /tiktok\.com\/@[\w.]+/i], ['LinkedIn', /linkedin\.com\/company\//i], ['Pinterest', /pinterest\.[a-z.]+\/[\w-]+/i], ['YouTube', /youtube\.com\/(@|c\/|channel\/)/i]]
+  return nets.filter(([, re]) => re.test(text)).map(([n]) => n)
+}
+
+async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData, known: Set<string>, meter: UsageMeter, warn: (msg: string) => void): Promise<Candidate[]> {
   const f = await companyFilters(b, s, d)
-  if (!f.keywords.length) return []
-  // Three keywords a day, rotating: without paging, the same keywords always give the same companies
   const day = Math.floor(Date.now() / 86_400_000)
-  const picks = [0, 1, 2].map(k => f.keywords[(day * 3 + k) % f.keywords.length]).filter((x, i, a) => a.indexOf(x) === i)
   const skip = new Set([b.domain, ...b.competitors.map(c => domainOf(c.domain))])
-  const list = (await discoverCompanies({ keywords: picks, headcount: f.headcount, country: s.country }, meter))
-    .filter(c => !skip.has(c.domain) && !known.has(idOf(`https://${c.domain}`)))
-    // Companies Hunter has personal emails for first: those are the ones we can reach
-    .sort((x, y) => (y.personalEmails > 0 ? 1 : 0) - (x.personalEmails > 0 ? 1 : 0) || y.totalEmails - x.totalEmails)
-    .slice(0, PER_SOURCE)
-  const abouts = await Promise.all(list.map(c => (c.about !== undefined ? Promise.resolve(c.about) : aboutSite(c.domain))))
-  return list.map((c, i) => ({
-    source: 'company' as const,
-    url: `https://${c.domain}`,
-    title: c.name,
-    snippet: [abouts[i] || 'No description on their home page', `website ${c.domain}`, `matched “${picks.join('”, “')}”`].join(' · '),
-    website: c.domain,
-  }))
+  const fresh = (domain: string) => !skip.has(domain) && !known.has(idOf(`https://${domain}`))
+  type Found = { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string }
+
+  // Online stores: sites running Shopify, WooCommerce… in the country (DataForSEO), a new page each day
+  const stores: Found[] = f.platforms.length && searchDataReady()
+    ? (await storesByPlatform(f.platforms, s.country, meter, { limit: 50, offset: (day % 20) * 50 }).catch(e => { if (!f.keywords.length) throw e; warn(`Online stores: ${e instanceof Error ? e.message : 'failed'}`); return [] }))
+      .filter(x => fresh(x.domain))
+      .map(x => ({ domain: x.domain, name: x.title.split(/\s[|–-]\s/)[0].slice(0, 60) || x.domain, about: [x.title, x.description].filter(Boolean).join(' · '), socials: socialsIn(x.socials.join(' ')), email: x.emails.find(e => e.endsWith(x.domain)) ?? x.emails[0], from: `${f.platforms.join(' / ')} store` }))
+    : []
+
+  // Small agencies and brands: Hunter Discover, three keywords a day (no paging, so the same keywords give the same companies)
+  const picks = f.keywords.length ? [0, 1, 2].map(k => f.keywords[(day * 3 + k) % f.keywords.length]).filter((x, i, a) => a.indexOf(x) === i) : []
+  const agencies: Found[] = picks.length
+    ? (await discoverCompanies({ keywords: picks, headcount: f.headcount, country: s.country }, meter).catch(e => { if (!stores.length) throw e; warn(`Hunter companies: ${e instanceof Error ? e.message : 'failed'}`); return [] }))
+      .filter(c => fresh(c.domain))
+      // Small first: reachable (Hunter has a person's email) but few addresses on file; big firms have dozens
+      .sort((x, y) => (y.personalEmails > 0 ? 1 : 0) - (x.personalEmails > 0 ? 1 : 0) || x.totalEmails - y.totalEmails)
+      .map(c => ({ domain: c.domain, name: c.name, about: c.about, from: `matched “${picks.join('”, “')}”` }))
+    : []
+
+  // Half and half when both have some, then fill up from either
+  const half = Math.ceil(COMPANY_CHECK / 2)
+  const seen = new Set<string>()
+  const list = [...stores.slice(0, half), ...agencies.slice(0, half), ...stores.slice(half), ...agencies.slice(half)]
+    .filter(x => !seen.has(x.domain) && seen.add(x.domain))
+    .slice(0, COMPANY_CHECK + 4)
+  const pages = await Promise.all(list.map(c => (c.about && c.socials?.length ? Promise.resolve({ text: c.about, socials: c.socials }) : aboutSite(c.domain))))
+  return list
+    .map((c, i) => ({ c, text: c.about || pages[i].text, socials: c.socials?.length ? c.socials : pages[i].socials }))
+    // Big PR / B2B / consulting firms aren't small-business buyers: don't spend a score on them
+    .filter(x => !NOT_A_FIT.test(`${x.c.name} ${x.text}`))
+    .slice(0, COMPANY_CHECK)
+    .map(({ c, text, socials }) => ({
+      source: 'company' as const,
+      url: `https://${c.domain}`,
+      title: c.name,
+      // Social links first: the scorer reads only the start of the snippet
+      snippet: [socials.length ? `Links to ${socials.join(', ')}` : 'No social links on their home page', text.slice(0, 220) || 'no description on their home page', `website ${c.domain}`, c.from].join(' · '),
+      website: c.domain,
+      email: c.email,
+    }))
 }
 
 // ── Where to look, picked from the brand ──────────────────────────────────────
@@ -361,7 +402,7 @@ Score each item 1-10 for how likely this person or business would want ${b.name}
 - reddit / forum: 8-10 only if they are asking for a tool or help that ${b.name} gives; 1-4 for news, rants, promotions, or other products' launches
 - review: an unhappy customer of a competitor; high only if their complaint is something ${b.name} solves
 - local: a business that matches the ideal customer and shows a need (no website, low rating, few reviews)
-- company: an online business, described by its own home page; high only if it clearly is the ideal customer and would use ${b.name}
+- company: a business, described by its own home page and the social networks it links to. 8-10: a small business (a shop, an online store, a brand, a small agency) that matches the ideal customer and clearly posts or should post on social media, e.g. it links to Instagram or Facebook. 4-6: small but unclear need. 1-3: big or B2B firms, PR, consulting, software companies, directories, marketplaces, or no description at all
 
 ${lines}
 
@@ -468,7 +509,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       { key: 'reddit', label: 'Searching Reddit & HN', hint: 'People asking for a tool like yours' },
     ] : []),
     ...(find && s.sources.local ? [{ key: 'local', label: 'Searching Google Maps', hint: `“${localQuery}”: businesses with no website or low ratings` }] : []),
-    ...(find && s.sources.companies ? [{ key: 'companies', label: 'Finding companies like your customers', hint: s.companyQuery || 'Online businesses that match your customer' }] : []),
+    ...(find && s.sources.companies ? [{ key: 'companies', label: 'Finding companies like your customers', hint: s.companyQuery ? `Online stores and small businesses: ${s.companyQuery}` : 'Online stores and small businesses that match your customer' }] : []),
     ...(find ? [
       { key: 'score', label: 'Scoring leads', hint: 'How well each one fits your product' },
       { key: 'emails', label: 'Finding emails', hint: 'Looked up with Hunter' },
@@ -515,7 +556,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       const found = await Promise.all([
         s.sources.reddit ? source('Reddit search', pr.step('reddit', async () => [...await findReddit(queries, s.country, meter), ...await findHackerNews(queries)], r => ({ detail: `${r.filter(fresh).length} new posts`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
         s.sources.local ? source('Google Maps search', pr.step('local', () => findLocal(localQuery, s.country, meter), r => ({ detail: n(r.length, 'business', 'businesses'), items: r.slice(0, 3).map(x => x.title) }))) : [],
-        s.sources.companies ? source('Company search', pr.step('companies', () => findCompanies(b, s, d, known, meter), r => ({ detail: n(r.length, 'company', 'companies'), items: r.slice(0, 3).map(x => x.title) }))) : [],
+        s.sources.companies ? source('Company search', pr.step('companies', () => findCompanies(b, s, d, known, meter, m => errors.push(m)), r => ({ detail: n(r.length, 'company', 'companies'), items: r.slice(0, 3).map(x => x.title) }))) : [],
       ])
       // Up to 10 new finds from each source, so a busy one (often Reddit) can't crowd out the rest
       const seen = new Set<string>()
@@ -523,7 +564,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
         if (known.has(idOf(c.url)) || seen.has(c.url)) return false
         seen.add(c.url)
         return true
-      }).slice(0, PER_SOURCE))
+      }).slice(0, list[0]?.source === 'company' ? COMPANY_CHECK : PER_SOURCE))
     } catch (e) {
       errors.push(e instanceof Error ? e.message : 'Search failed')
     }
@@ -552,6 +593,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
           id: idOf(c.url), source: c.source, foundAt: now, title: c.title, url: c.url, snippet: c.snippet,
           name: c.name, company: g.company, website, phone: c.phone, rating: c.rating ?? null,
           score: g.score, why: g.why, status: 'needs_contact', followupsSent: 0,
+          ...(c.email ? { email: c.email, emailVerified: false } : {}),
         })
       }
       // Contact details for businesses (forum posters are answered on the post)
@@ -560,7 +602,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       pr.set('emails', 'running')
       for (const l of fresh) {
         if (Date.now() > deadline) break
-        if (l.source === 'reddit' || l.source === 'forum' || !l.website || euBlocked) continue
+        if (l.source === 'reddit' || l.source === 'forum' || !l.website || euBlocked || l.email) continue
         const person = l.source === 'review' ? l.name : undefined
         // Emails come from Hunter only (businesses come from DataForSEO)
         const found = lookups < PER_SOURCE && hunterConfigured() ? await findEmail(l.website, person, meter).catch(() => null) : null
@@ -581,6 +623,12 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
         else if (x?.subject && x.body && l.email) { l.draft = { subject: stripEmDashes(x.subject), body: stripEmDashes(x.body) }; l.status = 'ready' }
       }
       notes.push(`${fresh.length} new lead${fresh.length === 1 ? '' : 's'}`)
+      // Say what the company search gave, so an empty Email tab isn't a mystery
+      const checked = candidates.filter(c => c.source === 'company').length
+      if (checked) {
+        const fits = fresh.filter(l => l.source === 'company')
+        notes.push(`Companies: ${checked} checked, ${fits.length} good fit${fits.length === 1 ? '' : 's'}${fits.length ? `, ${fits.filter(l => l.email).length} with an email` : ''}`)
+      }
     } else if (find && !errors.length) {
       notes.push('no new leads')
       pr.set('score', 'skipped', 'Nothing new')

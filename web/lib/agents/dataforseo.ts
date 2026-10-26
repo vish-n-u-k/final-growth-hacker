@@ -3,7 +3,7 @@
 // Every call adds its cost (USD, from the response) to the run's meter.
 
 import type { UsageMeter } from './store'
-import { agentsDemo, demoAiAnswer, demoGoogleResults, demoKeywordIdeas, demoLinkingSites, demoMapsBusinesses, demoRankedKeywords, demoReferringDomains } from './demo'
+import { agentsDemo, demoStores, demoAiAnswer, demoGoogleResults, demoKeywordIdeas, demoLinkingSites, demoMapsBusinesses, demoRankedKeywords, demoReferringDomains } from './demo'
 
 const BASE = 'https://api.dataforseo.com/v3'
 
@@ -34,6 +34,7 @@ function apiLabel(path: string): string {
   if (path.includes('/dataforseo_labs/')) return 'Keyword ideas'
   if (path.includes('/backlinks/')) return 'Backlinks'
   if (path.includes('/trustpilot/')) return 'Trustpilot reviews'
+  if (path.includes('/technologies/')) return 'Online stores (by platform)'
   const engine = path.match(/\/ai_optimization\/([a-z_]+)\//)?.[1] as AiEngine | undefined
   if (engine) return `AI answers · ${ENGINE_LABEL[engine] ?? engine}`
   return 'Other'
@@ -199,6 +200,37 @@ export async function googleResults(keyword: string, country: string, meter?: Us
   return (r.items ?? [])
     .filter(i => i.type === 'organic' && i.url)
     .map(i => ({ rank: i.rank_group ?? 0, url: i.url!, domain: i.domain ?? '', title: i.title ?? '', description: i.description ?? '' }))
+}
+
+// ── Online stores by the platform they run on ────────────────────────────────
+
+export interface PlatformSite { domain: string; title: string; description: string; emails: string[]; socials: string[]; rank: number | null }
+
+/**
+ * Websites in a country that run one of these platforms (Shopify, WooCommerce…), from DataForSEO's
+ * technology index. Smaller sites only (low domain rank), a different page each day so new ones come up.
+ */
+export async function storesByPlatform(platforms: string[], country: string, meter?: UsageMeter, opts: { limit?: number; offset?: number } = {}): Promise<PlatformSite[]> {
+  if (!platforms.length) return []
+  if (agentsDemo()) return demoStores(platforms)
+  type Item = { domain?: string; title?: string | null; description?: string | null; emails?: string[] | null; social_graph_urls?: string[] | null; domain_rank?: number | null }
+  const r = await post<{ items?: Item[] | null }>('/domain_analytics/technologies/domains_by_technology/live', {
+    technologies: platforms.slice(0, 3),
+    filters: [['country_iso_code', '=', country.toUpperCase()], 'and', ['domain_rank', '<', 300]],
+    order_by: ['last_visited,desc'],
+    limit: opts.limit ?? 50,
+    offset: opts.offset ?? 0,
+  }, meter)
+  return (r.items ?? [])
+    .filter(i => i.domain)
+    .map(i => ({
+      domain: i.domain!.replace(/^www\./, '').toLowerCase(),
+      title: (i.title ?? '').trim(),
+      description: (i.description ?? '').trim(),
+      emails: (i.emails ?? []).filter(e => typeof e === 'string' && e.includes('@')).map(e => e.toLowerCase()),
+      socials: (i.social_graph_urls ?? []).filter(u => typeof u === 'string'),
+      rank: i.domain_rank ?? null,
+    }))
 }
 
 // ── Local businesses on Google Maps ───────────────────────────────────────────

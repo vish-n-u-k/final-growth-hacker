@@ -253,6 +253,19 @@ export function demoDiscover(keywords: string[]): { domain: string; name: string
   })
 }
 
+export function demoStores(platforms: string[]): { domain: string; title: string; description: string; emails: string[]; socials: string[]; rank: number | null }[] {
+  const r = rng(`stores:${platforms.join(',')}:${Math.floor(Date.now() / 86_400_000)}`)
+  return Array.from({ length: 12 }, () => {
+    const name = `${pick(r, ['Saffron', 'Indigo', 'Pebble', 'Honey', 'Fern', 'Coral', 'Monsoon', 'Lotus', 'Cedar', 'Mango'])} ${pick(r, ['Candles', 'Skincare', 'Tea Co', 'Prints', 'Jewels', 'Bakes', 'Threads', 'Ceramics'])}`
+    const domain = `${slug(name).replace(/-/g, '')}.example`
+    const social = r() > 0.3
+    return {
+      domain, title: `${name} | Handmade, shipped across the country`, description: `Small ${pick(r, ['family', 'two-person', 'home'])} business selling ${name.split(' ')[1].toLowerCase()} online.`,
+      emails: r() > 0.5 ? [`hello@${domain}`] : [], socials: social ? [`https://instagram.com/${slug(name).replace(/-/g, '')}`] : [], rank: Math.floor(r() * 200),
+    }
+  })
+}
+
 export function demoFindEmail(domain: string, personName?: string): FoundEmail | null {
   const r = rng(`email:${domain}`)
   if (r() < 0.15) return null // some companies have no findable email

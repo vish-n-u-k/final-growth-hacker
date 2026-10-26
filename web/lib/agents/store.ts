@@ -108,7 +108,8 @@ export interface LeadAgentData {
   demo?: boolean                // made with demo data (lib/agents/demo.ts)
   queries?: { for: string; list: string[] }
   // companyQuery turned into Hunter Discover filters (written once per query)
-  companyFilters?: { for: string; keywords: string[]; headcount: string[] }
+  // platforms: online-store platforms to search (DataForSEO technology index); [] when the buyers aren't online stores
+  companyFilters?: { for: string; keywords: string[]; headcount: string[]; platforms?: string[] }
   lastRunAt?: string
   lastRunSummary?: string
   lastError?: string | null

@@ -203,6 +203,13 @@ One board for every lead source, built from the approved preview `design-preview
   - `discoverCompanies` in `hunter.ts` uses filters only (keywords, `headcount`, `headquarters_location` = the country). Discover is free; its natural-language `query` is avoided because the free plan allows only 30 of those a month.
   - Companies Hunter has personal emails for come first. Each one's home-page title and description are read so Claude can score the fit. Then it's the usual flow: score, Hunter email (≤ 1 credit), draft, approve.
   - Demo stand-in: `demoDiscover` in `demo.ts`.
+- **Companies search, second version (27 Oct):** `findCompanies` now has two halves, mixed half and half:
+  - **Online stores** from DataForSEO's technology index (`storesByPlatform` in `dataforseo.ts`, `/domain_analytics/technologies/domains_by_technology/live`): sites in the country running the platforms Claude picks in `companyFilters` (`platforms`: Shopify / WooCommerce / Wix / Squarespace, or none), domain rank under 300, a different page of 50 each day. Emails it lists are used without a Hunter lookup. Not tried against the real API yet: if the filter or field names are off, the run shows "Online stores: …" and the Hunter half still runs.
+  - **Small agencies and brands** from Hunter Discover, now **smallest first** (fewest addresses on file) instead of most emails first, which surfaced big PR firms.
+  - Names or home pages matching `NOT_A_FIT` (PR, B2B, enterprise, consulting, award-winning, staffing…) are dropped before scoring.
+  - The home page is read for title, description and **social links** (`socialsIn`: Instagram, Facebook, TikTok…); the scorer gives 8-10 to small businesses that post or should post on social.
+  - Up to `COMPANY_CHECK` (10) companies are scored per run; Hunter still looks up at most `PER_SOURCE` (3) emails.
+  - The run summary adds "Companies: N checked, N good fits, N with an email".
 - **Picked from the brand:** `pickSources` (Claude) chooses Google Maps / companies / Reddit with a who-line each and one `why` sentence, saved as `settings.picked = { at, why }`.
   - Op `pick` in `/api/agents/lead`.
   - Runs on the first visit (no `lastRunAt`, no leads) and from "Pick for me" in Settings.
