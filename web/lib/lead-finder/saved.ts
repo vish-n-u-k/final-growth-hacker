@@ -34,6 +34,7 @@ export interface SavedReview {
   why?: string
   pains?: string[]
   contactChecked?: boolean
+  hunterOut?: boolean           // Hunter's credits were used up when we looked, so only their website was checked
   website?: string | null
   email?: string | null
   verified?: boolean
@@ -78,6 +79,7 @@ export function toReview(row: SavedSuggestion): SavedReview {
     website: p.website ?? null,
     email: p.email ?? null,
     verified: !!p.verified,
+    hunterOut: !!p.hunterOut,
     draft: p.draft,
     status: row.status === 'sent' || row.status === 'skipped' ? row.status : 'new',
     sentAt: p.sentAt,

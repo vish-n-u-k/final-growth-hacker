@@ -280,7 +280,7 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
         }
         if (l.email && l.pitch) l.status = 'ready'
       }
-      if (fresh.length) p.set('contacts', 'done', `${fresh.filter(l => l.email).length} of ${fresh.length} found`)
+      if (fresh.length) p.set('contacts', 'done', { detail: `${fresh.filter(l => l.email).length} of ${fresh.length} found`, note: meter.hunterOut ? 'Hunter’s email credits are used up, so the rest were checked on their own website only.' : undefined })
     }
     notes.unshift(`${fresh.length} new link opportunit${fresh.length === 1 ? 'y' : 'ies'}`)
 

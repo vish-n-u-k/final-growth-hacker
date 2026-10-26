@@ -454,7 +454,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       const businesses = fresh.filter(l => l.source === 'review' || l.source === 'local')
       if (!fresh.length) pr.set('emails', 'skipped', 'No good fits')
       else pr.set('emails', 'done', businesses.length
-        ? { detail: `${businesses.filter(l => l.email).length} of ${businesses.length} found`, note: euBlocked ? 'EU leads are not emailed (your setting).' : undefined }
+        ? { detail: `${businesses.filter(l => l.email).length} of ${businesses.length} found`, note: meter.hunterOut ? 'Hunter’s email credits are used up, so the rest have no email yet.' : euBlocked ? 'EU leads are not emailed (your setting).' : undefined }
         : { detail: 'Not needed', note: 'Only forum posts this time: you reply on the post.' })
       // Drafts
       const toDraft = fresh.filter(l => l.email || l.source === 'reddit' || l.source === 'forum')

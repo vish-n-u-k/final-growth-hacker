@@ -1,6 +1,6 @@
 // What this account spent on outside services, shaped for Settings → Usage & costs.
 // Data (DataForSEO dollars, Hunter lookups) comes from the agents' usage document; AI dollars from
-// ai_usage_logs. Hunter is paid by plan credits, so lookups are counted, not priced.
+// ai_usage_logs. Hunter is paid by plan credits, so its credits are counted, not priced.
 
 import { readAccountCosts } from '@/lib/agents/store'
 import { MODULE_MAP } from '@/lib/modules/registry'
@@ -11,7 +11,8 @@ export interface UsageView {
   total: number                 // DataForSEO + AI, USD
   dataforseo: number
   ai: number
-  hunter: number
+  hunter: number                // Hunter credits used
+  hunterOutAt: string | null    // Hunter said its credits were used up (this month, not found an email since)
   tools: UsageRow[]             // biggest first
   apis: { name: string; usd: number }[]
   aiFeatures: { name: string; usd: number }[]
@@ -95,6 +96,7 @@ export async function usageView(brandId: string): Promise<UsageView> {
     dataforseo: c.dataforseo,
     ai: c.ai,
     hunter: c.hunter,
+    hunterOutAt: c.hunterOutAt ?? null,
     tools: [...tools.values()].filter(r => r.usd > 0 || r.hunter > 0).sort((a, b) => b.usd - a.usd || b.hunter - a.hunter),
     apis: byUsd(Object.entries(c.apis).map(([name, usd]) => ({ name, usd }))),
     aiFeatures: byUsd([...features.entries()].map(([name, usd]) => ({ name, usd }))),

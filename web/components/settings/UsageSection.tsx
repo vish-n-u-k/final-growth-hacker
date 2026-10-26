@@ -1,19 +1,19 @@
 'use client'
 
 // Settings → Usage & costs: what this account spent this month on outside services (DataForSEO,
-// AI, Hunter lookups), split by tool, by DataForSEO API and by AI feature, plus past months.
+// AI, Hunter credits), split by tool, by DataForSEO API and by AI feature, plus past months.
 
 import type { UsageView } from '@/lib/usage'
 
 const usd = (n: number) => (n <= 0 ? '$0' : n < 0.01 ? `$${n.toFixed(3)}` : `$${n.toFixed(2)}`)
-const lookups = (n: number) => `${n} email lookup${n === 1 ? '' : 's'}`
+const credits = (n: number) => `${n} Hunter credit${n === 1 ? '' : 's'}`
 const monthName = (m: string) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' })
 
 function parts(r: { dataforseo: number; ai: number; hunter: number }) {
   return [
     r.dataforseo > 0 ? `DataForSEO ${usd(r.dataforseo)}` : null,
     r.ai > 0 ? `AI ${usd(r.ai)}` : null,
-    r.hunter > 0 ? lookups(r.hunter) : null,
+    r.hunter > 0 ? credits(r.hunter) : null,
   ].filter(Boolean).join(' · ')
 }
 
@@ -79,8 +79,11 @@ export default function UsageSection({ usage }: { usage: UsageView | null }) {
             rows={usage.past.map(m => ({ name: monthName(m.month), value: usd(m.total), sub: parts(m) || undefined }))}
           />
 
+          {usage.hunterOutAt && (
+            <p className="st-hint">Hunter’s credits ran out on {new Date(usage.hunterOutAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, so new leads come without an email until they renew.</p>
+          )}
           {usage.hunter > 0 && (
-            <p className="st-hint">Hunter is paid with plan credits, so email lookups are counted, not priced.</p>
+            <p className="st-hint">Hunter is paid with plan credits (1 per email found), so credits are counted, not priced.</p>
           )}
         </>
       )}

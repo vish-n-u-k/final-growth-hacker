@@ -17,7 +17,7 @@ import OwnListFlow from './OwnListFlow'
 // answer, emails to approve, forum replies to post), Waiting (sent, follow-ups running) and Done.
 // A lead opens into two short steps, the same as Competitor Leads' reach-out page.
 
-export interface LeadAgentFlags { dataforseo: boolean; hunter: boolean; gmail: boolean; demo: boolean; demoForced: boolean }
+export interface LeadAgentFlags { dataforseo: boolean; hunter: boolean; hunterOut?: boolean; gmail: boolean; demo: boolean; demoForced: boolean }
 
 type TabKey = 'needs' | 'waiting' | 'done'
 type Lane = 'community' | 'email'
@@ -448,6 +448,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
       ) : listId ? listView(listId) : <>
         {!gmail && <div className="ag-note ag-note-warn">Connect Gmail so approved emails go out from your address. <a href="/api/gmail/connect">Connect Gmail</a></div>}
         {!flags.dataforseo && (s.sources.reddit || s.sources.local) && <div className="ag-note ag-note-warn">Reddit and Google Maps search need GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet. Hacker News and competitor reviews still work.</div>}
+        {flags.hunterOut && !demo && <div className="ag-note ag-note-warn">Hunter’s email credits are used up, so new leads come without an email until they renew. You can still add one by hand, or upgrade Hunter.</div>}
         {data.lastError && !running && <div className="ag-note ag-note-crit">The last search had a problem: {data.lastError}</div>}
 
         {panel && <Settings initial={s} saving={busy === 'settings'} onCancel={() => setPanel(false)}

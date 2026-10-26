@@ -31,7 +31,7 @@ async function AgentsPage() {
   const [leadSaved, searchSaved, usage, services] = await Promise.all([
     readLeadData(brand.id).catch(() => null),
     readSearchData(brand.id).catch(() => null),
-    readUsage(brand.id).catch(() => ({ dataforseoUsd: 0, hunterLookups: 0, aiUsd: 0 })),
+    readUsage(brand.id).catch(() => ({ dataforseoUsd: 0, hunterCredits: 0, hunterOut: false, aiUsd: 0 })),
     serviceStatus(),
   ])
   const ld = leadSaved ?? leadFallback(b)()
