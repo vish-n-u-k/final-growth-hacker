@@ -8,6 +8,7 @@ import Campaigns from '@/components/email-outreach/Campaigns'
 import Done, { type SentEmail } from '@/components/email-outreach/Done'
 import FollowUps from '@/components/email-outreach/FollowUps'
 import { useToast } from '@/components/email-outreach/shared'
+import { Tabs } from '@/components/tool-ui'
 import { isDue, loadReminders, openFollowUps } from '@/lib/email-outreach/followups'
 
 // Email Outreach: send personal emails to a list of prospects from the user's own Gmail, and
@@ -262,18 +263,12 @@ export default function GmailHub({
         </>}
       />
 
-      <div className="gh-tabs eo-tabs" role="tablist">
-        {([
-          ['followups', 'Follow-ups', dueCount],
-          ['campaigns', 'Campaigns', 0],
-          ['done',      'Done',      0],
-        ] as [Tab, string, number][]).map(([key, label, n]) => (
-          <button key={key} type="button" role="tab" aria-selected={tab === key}
-            className={`gh-tab${tab === key ? ' active' : ''}`} onClick={() => setTab(key)}>
-            {label}{n > 0 && <span className="eo-tab-n">{n}</span>}
-          </button>
-        ))}
-      </div>
+      {/* Same tabs as the Lead Agent and Competitor Leads */}
+      <Tabs value={tab ?? 'campaigns'} onChange={setTab} tabs={[
+        { key: 'followups', label: 'Follow-ups', count: dueCount || null, hot: dueCount > 0 },
+        { key: 'campaigns', label: 'Campaigns' },
+        { key: 'done', label: 'Done' },
+      ]} />
 
       <div className="eo-body">
         {tab === null && <div className="ro-working eo-loading"><Spinner /><span>Loading…</span><i /></div>}
