@@ -1,0 +1,825 @@
+<title>Lead Agent Visual</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Figtree:wght@400;500;600&display=swap">
+<style>
+/* Layout: one screen = a 3-stop track (Ready -> Sent -> Replied) on top, the selected stop's content below. Icons first, words on hover or via "?" */
+:root{
+  --paper:#F5F6FB; --card:#FFFFFF; --ink:#131933; --ink-2:#596185; --ink-3:#9AA1BD; --line:#E2E5F0;
+  --go:#2F5BFF; --go-ink:#FFFFFF; --go-soft:#E7ECFF;
+  --sent:#12A07C; --sent-soft:#DCF4EB;
+  --reply:#F2554A; --reply-soft:#FFE6E3;
+  --star:#F5A524; --shadow:0 1px 2px rgba(19,25,51,.06),0 8px 28px rgba(19,25,51,.08);
+  --av-s:70%; --av-l:42%; --av-bg:.16;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Figtree",ui-sans-serif,system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0D1121; --card:#161B30; --ink:#ECEEF8; --ink-2:#A4ABC9; --ink-3:#6A7295; --line:#283050;
+  --go:#6F8CFF; --go-ink:#0D1121; --go-soft:#1E2852;
+  --sent:#3ACB9E; --sent-soft:#113A2F; --reply:#FF7B70; --reply-soft:#3D1E1D;
+  --star:#F7B84B; --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+  --av-l:74%; --av-bg:.2; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --paper:#0D1121; --card:#161B30; --ink:#ECEEF8; --ink-2:#A4ABC9; --ink-3:#6A7295; --line:#283050;
+  --go:#6F8CFF; --go-ink:#0D1121; --go-soft:#1E2852;
+  --sent:#3ACB9E; --sent-soft:#113A2F; --reply:#FF7B70; --reply-soft:#3D1E1D;
+  --star:#F7B84B; --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+  --av-l:74%; --av-bg:.2; color-scheme:dark }
+
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:400 15px/1.5 var(--body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 80px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+button:focus-visible,textarea:focus-visible,[contenteditable]:focus-visible,input:focus-visible{outline:2px solid var(--go);outline-offset:2px}
+svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.wrap{max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:12px}
+.logo{width:38px;height:38px;border-radius:12px;background:var(--go);color:var(--go-ink);display:grid;place-items:center}
+.logo svg.i{width:22px;height:22px}
+.top h1{font:800 22px/1 var(--display);letter-spacing:-.01em;margin:0}
+.top .sp{flex:1}
+.ib{position:relative;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:var(--ink-2);background:var(--card);border:1px solid var(--line);transition:transform .15s,color .15s}
+.ib:hover{color:var(--ink);transform:translateY(-1px)}
+.ib.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+[data-tip]:hover::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);white-space:nowrap;background:var(--ink);color:var(--paper);font:500 12px/1 var(--body);padding:7px 9px;border-radius:8px;z-index:30;pointer-events:none}
+body.labels [data-tip]:hover::after{display:none}
+
+/* mode switch */
+.modes{display:flex;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:4px}
+.mode{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:10px;color:var(--ink-2);font-weight:500;position:relative}
+.mode.on{background:var(--go-soft);color:var(--go)}
+.mode .n{font:700 12px/1 var(--display);min-width:20px;height:20px;border-radius:10px;display:grid;place-items:center;background:var(--go);color:var(--go-ink);padding:0 6px}
+.mode:not(.on) .n{background:var(--line);color:var(--ink-2)}
+
+/* track */
+.track{display:grid;grid-template-columns:repeat(var(--cols),1fr);position:relative;padding:6px 0 0}
+.track::before{content:"";position:absolute;left:calc(50% / var(--cols));right:calc(50% / var(--cols));top:38px;height:3px;border-radius:2px;
+  background:repeating-linear-gradient(90deg,var(--line) 0 10px,transparent 10px 16px);}
+.track .flow{position:absolute;left:calc(50% / var(--cols));right:calc(50% / var(--cols));top:38px;height:3px;overflow:hidden}
+.track .flow i{position:absolute;top:-2.5px;width:8px;height:8px;border-radius:50%;background:var(--sent);opacity:.8;animation:flow 3.2s linear infinite}
+.track .flow i:nth-child(2){animation-delay:-1.1s}.track .flow i:nth-child(3){animation-delay:-2.2s}
+@keyframes flow{from{left:0}to{left:100%}}
+.stop{display:flex;flex-direction:column;align-items:center;gap:8px;position:relative;z-index:1}
+.stop .node{width:66px;height:66px;border-radius:50%;background:var(--card);border:2px solid var(--line);display:grid;place-items:center;color:var(--ink-3);position:relative;transition:transform .2s, border-color .2s, background .2s}
+.stop .node svg.i{width:26px;height:26px}
+.stop:hover .node{transform:scale(1.05)}
+.stop .cnt{position:absolute;top:-4px;right:-6px;min-width:26px;height:26px;border-radius:13px;padding:0 7px;display:grid;place-items:center;font:700 13px/1 var(--display);background:var(--ink-3);color:var(--card);border:3px solid var(--paper)}
+.stop .word{font:500 13px/1 var(--body);color:var(--ink-3)}
+.stop.ready .cnt{background:var(--go);color:var(--go-ink)}
+.stop.sent .cnt{background:var(--sent);color:var(--card)}
+.stop.replied .cnt{background:var(--reply);color:var(--card)}
+.stop.zero .cnt{background:var(--line);color:var(--ink-3)}
+.stop.on .word{color:var(--ink)}
+.stop.on.ready .node{border-color:var(--go);background:var(--go-soft);color:var(--go)}
+.stop.on.sent .node{border-color:var(--sent);background:var(--sent-soft);color:var(--sent)}
+.stop.on.replied .node{border-color:var(--reply);background:var(--reply-soft);color:var(--reply)}
+.stop.bump .node{animation:bump .5s}
+@keyframes bump{40%{transform:scale(1.18)}}
+.stop.replied:not(.zero) .node::after{content:"";position:absolute;inset:-7px;border-radius:50%;border:2px solid var(--reply);opacity:0;animation:ping 2.2s ease-out infinite}
+@keyframes ping{0%{opacity:.6;transform:scale(.9)}100%{opacity:0;transform:scale(1.25)}}
+
+/* deck */
+.deckhead{display:flex;align-items:center;gap:10px;color:var(--ink-3)}
+.dots{display:flex;gap:6px}
+.dots i{width:8px;height:8px;border-radius:4px;background:var(--line);transition:width .2s,background .2s}
+.dots i.on{width:22px;background:var(--go)}
+.deckhead .sp{flex:1}
+.deck{position:relative}
+.deck .ghost{position:absolute;inset:0;border-radius:22px;background:var(--card);border:1px solid var(--line);transform:translateY(10px) scale(.97);opacity:.6;z-index:0}
+.deck .ghost.g2{transform:translateY(20px) scale(.94);opacity:.3}
+.card{position:relative;z-index:1;background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);display:grid;grid-template-columns:240px 1fr;overflow:hidden;transition:transform .35s cubic-bezier(.4,.1,.3,1),opacity .35s}
+.card.out-r{transform:translateX(60%) rotate(6deg);opacity:0}
+.card.out-l{transform:translateX(-60%) rotate(-6deg);opacity:0}
+.card.in{animation:cardin .35s cubic-bezier(.2,.8,.3,1)}
+@keyframes cardin{from{transform:translateY(16px) scale(.97);opacity:.4}}
+.who{padding:24px;display:flex;flex-direction:column;gap:14px;border-right:1px solid var(--line);min-width:0}
+.av{--h:200;width:64px;height:64px;border-radius:20px;display:grid;place-items:center;font:800 24px/1 var(--display);
+  background:hsl(var(--h) var(--av-s) 55% / var(--av-bg));color:hsl(var(--h) var(--av-s) var(--av-l))}
+.av.sm{width:40px;height:40px;border-radius:13px;font-size:15px}
+.who h2{font:700 21px/1.15 var(--display);margin:0;text-wrap:balance}
+.sub{display:flex;align-items:center;gap:6px;color:var(--ink-2);font-size:14px}
+.sub svg.i{width:16px;height:16px}
+.sigs{display:flex;flex-wrap:wrap;gap:6px}
+.sig{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:9px;background:var(--paper);font:500 13px/1 var(--body);color:var(--ink-2);position:relative}
+.sig svg.i{width:15px;height:15px}
+.sig.bad{color:var(--reply)}
+.sig .stars{color:var(--star)}
+.fit{display:flex;align-items:center;gap:8px;margin-top:auto}
+.fitbar{flex:1;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.fitbar b{display:block;height:100%;background:var(--go);border-radius:3px}
+.fit span{font:700 13px/1 var(--display);color:var(--ink-2)}
+.letter{padding:24px 26px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.to{display:flex;align-items:center;gap:8px;color:var(--ink-3);font-size:13px}
+.to b{color:var(--ink-2);font-weight:500;overflow-wrap:anywhere}
+.subj{font:700 17px/1.3 var(--display);outline:none;border-radius:6px}
+.body{white-space:pre-wrap;color:var(--ink-2);font-size:15px;line-height:1.6;outline:none;border-radius:6px;max-width:62ch}
+.editing .subj,.editing .body{background:var(--go-soft);color:var(--ink);padding:6px 8px;margin:-6px -8px}
+.chain{display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:10px;color:var(--ink-3);font-size:12px}
+.chain i{width:24px;height:24px;border-radius:8px;display:grid;place-items:center;border:1.5px dashed var(--line)}
+.chain i.f{border-style:solid;border-color:var(--go);color:var(--go)}
+.chain i svg.i{width:13px;height:13px}
+.chain hr{width:14px;border:0;border-top:1.5px dashed var(--line);margin:0}
+
+/* community card bits */
+.post{padding:24px;display:flex;flex-direction:column;gap:12px;border-right:1px solid var(--line);min-width:0}
+.site{display:flex;align-items:center;gap:8px;font:600 13px/1 var(--body);color:var(--ink-2)}
+.site .lg{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:#fff;font:800 13px/1 var(--display)}
+.lg.reddit{background:#FF4500}.lg.hn{background:#FF6600}
+.post h2{font:700 18px/1.25 var(--display);margin:0;text-wrap:balance}
+.post p{margin:0;color:var(--ink-2);font-size:14px}
+.meta{display:flex;gap:12px;color:var(--ink-3);font-size:13px;margin-top:auto}
+.meta span{display:flex;align-items:center;gap:4px}
+.meta svg.i{width:15px;height:15px}
+.bubble{background:var(--go-soft);color:var(--ink);padding:14px 16px;border-radius:18px 18px 18px 6px;white-space:pre-wrap;line-height:1.55;outline:none}
+.me{display:flex;align-items:center;gap:8px;color:var(--ink-3);font-size:13px}
+.me .av{--h:228}
+
+/* actions */
+.acts{display:flex;justify-content:center;align-items:center;gap:18px;padding-top:8px}
+.act{display:flex;flex-direction:column;align-items:center;gap:6px;position:relative}
+.act .c{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:var(--card);border:1.5px solid var(--line);color:var(--ink-2);transition:transform .15s,background .15s}
+.act:hover .c{transform:translateY(-2px)}
+.act.main .c{width:72px;height:72px;background:var(--go);border-color:var(--go);color:var(--go-ink);box-shadow:0 8px 24px color-mix(in srgb,var(--go) 35%,transparent)}
+.act.main .c svg.i{width:28px;height:28px}
+.act.main .c::after{content:"";position:absolute;inset:-6px;border-radius:50%;border:2px solid var(--go);opacity:0}
+body.first .act.main .c::after{animation:ping 1.8s ease-out infinite}
+.act.on .c{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.lbl{display:none;font:500 12px/1 var(--body);color:var(--ink-3)}
+body.labels .lbl{display:block}
+.kbd{font:500 11px/1 var(--body);color:var(--ink-3);border:1px solid var(--line);border-radius:5px;padding:3px 5px}
+@media (hover:none){.kbd{display:none}}
+
+/* list rows */
+.list{display:flex;flex-direction:column;gap:10px}
+.row{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;text-align:left;width:100%;transition:border-color .15s}
+.row:hover{border-color:var(--ink-3)}
+.row .nm{font:600 15px/1.2 var(--body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .mini{display:flex;align-items:center;gap:6px;color:var(--ink-3);font-size:13px;margin-top:3px}
+.row .mini svg.i{width:14px;height:14px}
+.steps{display:flex;align-items:center;gap:0}
+.steps .s{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--line);color:var(--ink-3);background:var(--card);position:relative}
+.steps .s svg.i{width:14px;height:14px}
+.steps .s.done{background:var(--sent);border-color:var(--sent);color:var(--card)}
+.steps .s.next{border-color:var(--sent);color:var(--sent);border-style:dashed}
+.steps .s.wait{border-style:dashed}
+.steps .ln{width:22px;height:2px;background:var(--line)}
+.steps .ln.done{background:var(--sent)}
+.open{grid-column:1/-1;border-top:1px solid var(--line);padding-top:12px;color:var(--ink-2);white-space:pre-wrap;font-size:14px;display:flex;flex-direction:column;gap:10px}
+.open .tl{display:flex;flex-direction:column;gap:6px}
+.open .tl div{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-3)}
+.open .tl b{font-weight:500;color:var(--ink-2)}
+
+/* replies */
+.rcard{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:20px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow)}
+.rhead{display:flex;align-items:center;gap:12px}
+.rhead .nm{font:700 17px/1.2 var(--display)}
+.intent{margin-left:auto;display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:12px;background:var(--reply-soft);color:var(--reply);font:600 13px/1 var(--body)}
+.intent svg.i{width:16px;height:16px}
+.theirs{background:var(--paper);border-radius:18px 18px 6px 18px;padding:14px 16px;line-height:1.55;position:relative;margin-left:52px}
+.ractions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-weight:500;color:var(--ink-2)}
+.pill.go{background:var(--go);border-color:var(--go);color:var(--go-ink)}
+.pill.reply{background:var(--reply);border-color:var(--reply);color:var(--card)}
+.pill svg.i{width:18px;height:18px}
+
+/* empty */
+.empty{background:var(--card);border:1px dashed var(--line);border-radius:22px;padding:44px 20px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.empty .big{width:84px;height:84px;border-radius:50%;background:var(--sent-soft);color:var(--sent);display:grid;place-items:center}
+.empty .big svg.i{width:38px;height:38px}
+.empty h3{font:700 20px/1.2 var(--display);margin:0}
+
+/* foot links */
+.foot{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
+.foot button{display:flex;align-items:center;gap:6px;color:var(--ink-3);font-size:13px;padding:6px 10px;border-radius:10px}
+.foot button:hover{color:var(--ink);background:var(--card)}
+.foot svg.i{width:16px;height:16px}
+
+/* floating add */
+.fab{position:fixed;right:calc(20px + env(safe-area-inset-right,0px));bottom:calc(20px + env(safe-area-inset-bottom,0px));width:58px;height:58px;border-radius:18px;background:var(--ink);color:var(--paper);display:grid;place-items:center;box-shadow:var(--shadow);z-index:20}
+.fab svg.i{width:26px;height:26px}
+.fab[data-tip]:hover::after{top:auto;bottom:calc(100% + 8px);left:auto;right:0;transform:none}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translate(-50%,120px);background:var(--ink);color:var(--paper);padding:10px 10px 10px 16px;border-radius:14px;display:flex;align-items:center;gap:14px;transition:transform .3s;z-index:40;max-width:calc(100% - 32px)}
+.toast.show{transform:translate(-50%,0)}
+.toast button{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:9px;background:color-mix(in srgb,var(--paper) 15%,transparent);font-size:13px}
+.toast svg.i{width:16px;height:16px}
+
+/* flyer */
+.flyer{position:fixed;z-index:50;width:34px;height:34px;border-radius:10px;background:var(--go);color:var(--go-ink);display:grid;place-items:center;transition:transform .6s cubic-bezier(.5,0,.3,1),opacity .6s;pointer-events:none}
+.flyer svg.i{width:18px;height:18px}
+
+/* sheets */
+.scrim{position:fixed;inset:0;background:rgba(10,14,30,.45);z-index:60;display:flex;justify-content:center;align-items:flex-end;opacity:0;transition:opacity .2s}
+.scrim.show{opacity:1}
+.sheet{background:var(--card);width:min(640px,100%);max-height:92%;overflow:auto;border-radius:24px 24px 0 0;padding:22px max(20px,env(safe-area-inset-right,0px)) calc(22px + env(safe-area-inset-bottom,0px)) max(20px,env(safe-area-inset-left,0px));transform:translateY(40px);transition:transform .25s;display:flex;flex-direction:column;gap:18px}
+.scrim.show .sheet{transform:none}
+@media (min-width:700px){.scrim{align-items:center}.sheet{border-radius:24px}}
+.shead{display:flex;align-items:center;gap:12px}
+.shead h3{font:800 20px/1 var(--display);margin:0;flex:1}
+.wiz{display:flex;align-items:center;gap:6px}
+.wiz i{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--line);color:var(--ink-3)}
+.wiz i svg.i{width:15px;height:15px}
+.wiz i.on{border-color:var(--go);color:var(--go);background:var(--go-soft)}
+.wiz i.done{border-color:var(--go);background:var(--go);color:var(--go-ink)}
+.wiz hr{width:18px;border:0;border-top:2px solid var(--line);margin:0}
+.drop{border:2px dashed var(--line);border-radius:18px;padding:26px;display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--ink-3);text-align:center;transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--go);background:var(--go-soft)}
+.drop .big{width:56px;height:56px;border-radius:18px;background:var(--paper);display:grid;place-items:center;color:var(--ink-2)}
+.drop .big svg.i{width:26px;height:26px}
+.ftypes{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.ftypes span{font:600 11px/1 var(--body);padding:4px 6px;border-radius:6px;background:var(--paper);color:var(--ink-3)}
+textarea{width:100%;min-height:96px;resize:vertical;border:1px solid var(--line);border-radius:14px;padding:12px 14px;background:var(--paper);color:var(--ink);font:400 14px/1.5 var(--body)}
+.people{display:flex;flex-wrap:wrap;gap:8px}
+.person{display:flex;align-items:center;gap:8px;padding:5px 10px 5px 5px;border-radius:12px;background:var(--paper);font-size:13px;position:relative}
+.person .av{width:28px;height:28px;border-radius:9px;font-size:12px}
+.person.skip{opacity:.45;text-decoration:line-through}
+.person.skip::after{content:"";}
+.tally{display:flex;gap:16px;color:var(--ink-2);font-size:14px;flex-wrap:wrap}
+.tally span{display:flex;align-items:center;gap:6px}
+.tally svg.i{width:16px;height:16px}
+.tok{display:inline-block;padding:1px 7px;border-radius:7px;background:var(--go-soft);color:var(--go);font-weight:600}
+.prev{background:var(--paper);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.prevnav{display:flex;align-items:center;gap:10px}
+.prevnav .ib{width:34px;height:34px;border-radius:10px}
+.prevnav .who2{flex:1;display:flex;align-items:center;gap:8px;font-weight:500;min-width:0}
+.days{display:flex;align-items:flex-end;gap:10px;height:130px;padding-top:10px}
+.day{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+.day .bar{width:100%;max-width:56px;border-radius:10px 10px 4px 4px;background:var(--go);display:grid;place-items:start center;color:var(--go-ink);font:700 13px/1 var(--display);padding-top:8px;transform-origin:bottom;animation:grow .5s cubic-bezier(.2,.8,.3,1) both}
+.day:nth-child(2) .bar{opacity:.65;animation-delay:.08s}.day:nth-child(3) .bar{opacity:.4;animation-delay:.16s}
+.day small{color:var(--ink-3);font-size:12px}
+@keyframes grow{from{transform:scaleY(0)}}
+.sfoot{display:flex;justify-content:space-between;gap:10px}
+
+.set{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--line)}
+.set:last-child{border-bottom:0}
+.set .ic{width:40px;height:40px;border-radius:12px;background:var(--paper);display:grid;place-items:center;color:var(--ink-2);flex:none}
+.set .t{flex:1;font-weight:500;min-width:0}
+.set .t small{display:block;color:var(--ink-3);font-weight:400;font-size:13px}
+.sw{width:46px;height:28px;border-radius:14px;background:var(--line);position:relative;transition:background .2s;flex:none}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:var(--card);transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.sw[aria-checked="true"]{background:var(--go)}
+.sw[aria-checked="true"]::after{transform:translateX(18px)}
+.srcs{display:flex;gap:8px}
+.src{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;border:2px solid var(--line);color:var(--ink-3);position:relative}
+.src[aria-pressed="true"]{border-color:var(--go);color:var(--go);background:var(--go-soft)}
+input[type=range]{accent-color:var(--go);width:130px}
+.ok{color:var(--sent);display:flex;align-items:center;gap:4px;font-size:13px;font-weight:500}
+
+/* radar */
+.radar{display:flex;flex-direction:column;align-items:center;gap:20px;padding:10px 0}
+.scope{width:min(260px,70vw);aspect-ratio:1;max-width:100%;border-radius:50%;position:relative;overflow:hidden;
+  background:radial-gradient(circle,transparent 32%,var(--line) 32.5%,transparent 33.5%,transparent 65%,var(--line) 65.5%,transparent 66.5%),var(--paper);border:2px solid var(--line)}
+.scope .sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,color-mix(in srgb,var(--go) 40%,transparent),transparent 25%);animation:spin 1.6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.scope .pin{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;background:var(--card);border:2px solid var(--go);color:var(--go);display:grid;place-items:center;font:800 12px/1 var(--display);animation:pop .4s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes pop{from{transform:scale(0)}}
+.scope .me2{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px;border-radius:50%;background:var(--go)}
+.ticks{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.tick{display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--ink-3);font-size:12px;width:66px;text-align:center}
+.tick .c{width:46px;height:46px;border-radius:14px;border:2px solid var(--line);display:grid;place-items:center;position:relative;transition:all .25s}
+.tick.run .c{border-color:var(--go);color:var(--go);animation:breathe 1s ease-in-out infinite}
+.tick.done .c{border-color:var(--sent);color:var(--sent);background:var(--sent-soft)}
+.tick.done .c::after{content:"";position:absolute;right:-5px;top:-5px;width:16px;height:16px;border-radius:50%;background:var(--sent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E") center/10px no-repeat}
+@keyframes breathe{50%{transform:scale(1.08)}}
+.found{font:800 44px/1 var(--display);color:var(--go)}
+
+@media (max-width:640px){
+  .card{grid-template-columns:1fr}
+  .who,.post{border-right:0;border-bottom:1px solid var(--line);padding:18px}
+  .letter{padding:18px}
+  .who{flex-direction:row;flex-wrap:wrap;align-items:center}
+  .who .info{flex:1;min-width:0}
+  .who .sigs,.who .fit{flex-basis:100%}
+  .row{grid-template-columns:auto 1fr}
+  .row .steps{grid-column:1/-1;justify-content:flex-start}
+  .stop .node{width:56px;height:56px}
+  .track::before,.track .flow{top:33px}
+  .top h1{font-size:19px}
+  .theirs{margin-left:0}
+  .acts{gap:12px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 7l8 6 8-6"/></symbol>
+  <symbol id="chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></symbol>
+  <symbol id="send" viewBox="0 0 24 24"><path d="M21 3L10 14"/><path d="M21 3l-7 18-4-7-7-4z"/></symbol>
+  <symbol id="x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></symbol>
+  <symbol id="pen" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></symbol>
+  <symbol id="gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/></symbol>
+  <symbol id="radar" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12l6-6"/></symbol>
+  <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5-3 2a11 11 0 006 6l2-3 5 2v4a2 2 0 01-2 2A17 17 0 013 6a2 2 0 012-2z"/></symbol>
+  <symbol id="thumb" viewBox="0 0 24 24"><path d="M7 11v9H4v-9zM7 11l4-8a2 2 0 013 2l-1 5h6a2 2 0 012 2l-2 7a2 2 0 01-2 1H7"/></symbol>
+  <symbol id="q" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01"/></symbol>
+  <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="pin" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0114 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+  <symbol id="star" viewBox="0 0 24 24"><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></symbol>
+  <symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol>
+  <symbol id="noglobe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></symbol>
+  <symbol id="camera" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="5"/><circle cx="12" cy="12" r="3.5"/><path d="M16.5 7.5h.01"/></symbol>
+  <symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3"/></symbol>
+  <symbol id="ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/></symbol>
+  <symbol id="upload" viewBox="0 0 24 24"><path d="M12 15V4M7 9l5-5 5 5M4 15v4a1 1 0 001 1h14a1 1 0 001-1v-4"/></symbol>
+  <symbol id="users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0112 0M16 4.5a3.5 3.5 0 010 7M18 14a6 6 0 013 6"/></symbol>
+  <symbol id="left" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+  <symbol id="right" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+  <symbol id="undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></symbol>
+  <symbol id="help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 015 .5c0 1.5-2.5 2-2.5 3.5M12 17h.01"/></symbol>
+  <symbol id="spark" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/></symbol>
+  <symbol id="arrowup" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></symbol>
+  <symbol id="ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></symbol>
+  <symbol id="repeat" viewBox="0 0 24 24"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 014-4h12M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 01-4 4H4"/></symbol>
+  <symbol id="target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></symbol>
+  <symbol id="at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M16 12v1.5a2.5 2.5 0 005 0V12a9 9 0 10-3.5 7.1"/></symbol>
+  <symbol id="flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 9a2 2 0 002 3h10a2 2 0 002-3l-5-9V3"/><path d="M7.5 15h9"/></symbol>
+  <symbol id="moon" viewBox="0 0 24 24"><path d="M20 14A8 8 0 0110 4a8 8 0 1010 10z"/></symbol>
+  <symbol id="bin" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></symbol>
+  <symbol id="hourglass" viewBox="0 0 24 24"><path d="M6 3h12M6 21h12M7 3c0 5 10 5 10 9s-10 4-10 9M17 3c0 5-10 5-10 9"/></symbol>
+</svg>
+
+<div class="wrap">
+  <div class="top">
+    <div class="logo"><svg class="i"><use href="#target"/></svg></div>
+    <h1>Lead Agent</h1>
+    <div class="sp"></div>
+    <button class="ib" id="bHelp" data-tip="Show names under icons" aria-label="Show names"><svg class="i"><use href="#help"/></svg></button>
+    <button class="ib" id="bFind" data-tip="Find new leads" aria-label="Find new leads"><svg class="i"><use href="#radar"/></svg></button>
+    <button class="ib" id="bSet" data-tip="Settings" aria-label="Settings"><svg class="i"><use href="#gear"/></svg></button>
+  </div>
+
+  <div class="modes" role="tablist" id="modes"></div>
+  <div class="track" id="track"></div>
+  <div id="main"></div>
+  <div class="foot" id="foot"></div>
+</div>
+
+<button class="fab" id="bAdd" data-tip="Add your own people" aria-label="Add your own people"><svg class="i"><use href="#users"/></svg></button>
+<div class="toast" id="toast" role="status"><span id="toastMsg"></span><button id="toastUndo"><svg class="i"><use href="#undo"/></svg>Undo</button></div>
+
+<script>
+const $=s=>document.querySelector(s);
+const ic=(id,cls='i')=>`<svg class="${cls}"><use href="#${id}"/></svg>`;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const initials=n=>n.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase();
+const hue=s=>{let h=0;for(const c of s)h=(h*31+c.charCodeAt(0))%360;return h};
+const av=(n,cls='')=>`<div class="av ${cls}" style="--h:${hue(n)}">${esc(initials(n))}</div>`;
+
+/* ---------- sample data (made up) ---------- */
+const mk=(o)=>Object.assign({status:'ready',steps:0},o);
+let leads=[
+  mk({id:1,name:'Bloom Salon',kind:'Hair salon',city:'Austin, TX',rating:3.9,reviews:41,web:'bloomsalon.co',ig:'5 mo',contact:'Maya',email:'maya@bloomsalon.co',fit:9,
+    subject:'Your Instagram, done in 10 minutes a week',
+    body:'Hi Maya,\n\nI saw Bloom\'s last Instagram post was back in May. The photos from your balayage work are great, they just aren\'t getting seen.\n\nFrekto turns a photo into a ready post with caption and hashtags, and can schedule a month in one sitting.\n\nWant me to make 3 free posts from your recent photos so you can see?\n\nVishnu, Frekto'}),
+  mk({id:2,name:'Copper Kettle Café',kind:'Café',city:'Denver, CO',rating:4.6,reviews:212,web:'copperkettle.cafe',ig:'3 mo',contact:'Sam',email:'sam@copperkettle.cafe',fit:8,
+    subject:'Posting your daily specials without the effort',
+    body:'Hi Sam,\n\nCopper Kettle has 212 great reviews, but the Instagram has been quiet since summer.\n\nFrekto writes and designs a post for each daily special from a quick photo. Most cafés spend about 10 minutes a week on it.\n\nHappy to set up your first week for free if you\'d like to try.\n\nVishnu, Frekto'}),
+  mk({id:3,name:'Northside Fitness',kind:'Gym',city:'Portland, OR',rating:3.4,reviews:88,web:'northsidefit.com',ig:'never',contact:'Jordan',email:'jordan@northsidefit.com',fit:8,
+    subject:'Class schedule posts, made for you',
+    body:'Hi Jordan,\n\nI couldn\'t find an Instagram for Northside, and a few reviews mention not knowing when classes run.\n\nFrekto can post your weekly schedule and class photos for you, written in your voice.\n\nWould a free sample week help?\n\nVishnu, Frekto'}),
+  mk({id:4,name:'Petal & Stem',kind:'Florist',city:'Austin, TX',rating:4.2,reviews:57,web:null,ig:'8 mo',contact:'Priya',email:'priya@petalandstem.com',fit:7,
+    subject:'Your flowers deserve more eyes',
+    body:'Hi Priya,\n\nPetal & Stem\'s arrangements look lovely in your Google photos, but there\'s no website and the Instagram has been quiet for a while.\n\nFrekto makes a post from a photo in seconds. Want to see three made from your own pictures?\n\nVishnu, Frekto'}),
+  mk({id:5,name:'Riverside Dental',kind:'Dentist',city:'Tampa, FL',rating:3.7,reviews:130,web:'riversidedental.com',ig:'1 yr',contact:'Dr. Lee',email:'office@riversidedental.com',fit:7,
+    subject:'Friendly posts for a dental office',
+    body:'Hi Dr. Lee,\n\nRiverside\'s Instagram hasn\'t posted in about a year. Patients often check it before booking.\n\nFrekto can keep it going with tips and team photos, about 10 minutes a week.\n\nOpen to a free sample?\n\nVishnu, Frekto'}),
+  mk({id:11,name:'Lumen Yoga',kind:'Yoga studio',city:'Boulder, CO',contact:'Tess',email:'tess@lumenyoga.com',status:'sent',steps:2,sentAgo:'9 days ago',next:'in 2 days',
+    subject:'Class posts on autopilot',body:'Hi Tess,\n\nLumen\'s class photos are beautiful...'}),
+  mk({id:12,name:'Harbor Books',kind:'Bookshop',city:'Seattle, WA',contact:'Ana',email:'ana@harborbooks.com',status:'sent',steps:1,sentAgo:'3 days ago',next:'tomorrow',
+    subject:'New arrivals, posted for you',body:'Hi Ana,\n\nHarbor Books gets new arrivals every week...'}),
+  mk({id:13,name:'Grain & Grind Bakery',kind:'Bakery',city:'Austin, TX',contact:'Luis',email:'luis@grainandgrind.com',status:'sent',steps:1,sentAgo:'today',next:'in 3 days',
+    subject:'Fresh bread, fresh posts',body:'Hi Luis,\n\nYour sourdough photos on Google...'}),
+  mk({id:21,name:'Oak & Iron Barbers',kind:'Barber',city:'Nashville, TN',contact:'Marcus',email:'marcus@oakiron.com',status:'replied',steps:2,intent:'call',
+    reply:'Hey, this sounds useful. We barely post because nobody has time. Could we jump on a quick call Thursday afternoon?'}),
+  mk({id:22,name:'Sunny Paws Grooming',kind:'Pet groomer',city:'San Diego, CA',contact:'Kim',email:'kim@sunnypaws.com',status:'replied',steps:1,intent:'question',
+    reply:'How much does it cost after the free posts? We\'re a small shop.'}),
+];
+let posts=[
+  {id:101,site:'reddit',where:'r/smallbusiness',title:'Is there a tool that writes Instagram posts for you? I have zero time',
+   text:'Running a bakery alone. I know I should post but every time I sit down to write something I give up after 20 minutes.',up:184,cm:62,age:'5 h',status:'ready',
+   reply:'Same boat a year ago. What helped me: batch it once a week. Take 10 photos, then use a tool to draft the captions. I use Frekto (I work on it, so I\'m biased), but even ChatGPT plus Canva works if you keep a simple template.'},
+  {id:102,site:'hn',where:'Ask HN',title:'Ask HN: How do you handle social media for a tiny SaaS?',
+   text:'We\'re 2 founders. Social feels like a full-time job. What do you automate?',up:96,cm:41,age:'1 d',status:'ready',
+   reply:'We write one long post a week and turn it into 5 short ones. A post maker like Frekto handles the images and sizes for each network. The rule that helped most: never post something you wouldn\'t click on.'},
+  {id:103,site:'reddit',where:'r/Entrepreneur',title:'What do you use to schedule a month of posts?',
+   text:'Looking for something simple, not Hootsuite-level.',up:57,cm:33,age:'2 d',status:'ready',
+   reply:'If you want simple: pick one tool that both makes and schedules posts so you\'re not jumping between apps. Frekto does both (disclosure: I\'m on the team). Buffer is good if you already have the images.'},
+  {id:104,site:'reddit',where:'r/socialmedia',title:'Best AI caption generator that doesn\'t sound like AI?',
+   text:'',up:41,cm:20,age:'4 d',status:'posted',reply:'...'},
+];
+let settings={daily:true,maps:true,reddit:true,hn:true,limit:20,gmail:true,demo:true};
+
+const state={mode:'email',stop:{email:'ready',community:'ready'},idx:0,editing:false,openRow:null,first:true};
+let undoFn=null,toastT;
+
+/* ---------- derived ---------- */
+const by=(s)=>leads.filter(l=>l.status===s);
+const pby=(s)=>posts.filter(p=>p.status===s);
+const STOPS={
+  email:[{k:'ready',icon:'mail',w:'Ready',n:()=>by('ready').length,tip:'Emails waiting for your OK'},
+         {k:'sent',icon:'send',w:'Sent',n:()=>by('sent').length,tip:'Sent. Follow-ups go out by themselves'},
+         {k:'replied',icon:'chat',w:'Replied',n:()=>by('replied').length,tip:'They wrote back'}],
+  community:[{k:'ready',icon:'chat',w:'Ready',n:()=>pby('ready').length,tip:'Replies waiting for you to post'},
+             {k:'posted',icon:'check',w:'Posted',n:()=>pby('posted').length,tip:'You posted these'}],
+};
+
+/* ---------- render ---------- */
+function render(){
+  document.body.classList.toggle('first',state.first);
+  const eN=by('ready').length+by('replied').length, cN=pby('ready').length;
+  $('#modes').innerHTML=`
+    <button class="mode ${state.mode==='email'?'on':''}" data-mode="email" role="tab" aria-selected="${state.mode==='email'}">${ic('mail')}Email${eN?`<span class="n">${eN}</span>`:''}</button>
+    <button class="mode ${state.mode==='community'?'on':''}" data-mode="community" role="tab" aria-selected="${state.mode==='community'}">${ic('chat')}Community${cN?`<span class="n">${cN}</span>`:''}</button>`;
+  const stops=STOPS[state.mode], cur=state.stop[state.mode];
+  const track=$('#track'); track.style.setProperty('--cols',stops.length);
+  track.innerHTML=`<div class="flow"><i></i><i></i><i></i></div>`+stops.map(s=>{const n=s.n();return `
+    <button class="stop ${s.k} ${cur===s.k?'on':''} ${n?'':'zero'}" data-stop="${s.k}" aria-label="${s.w}: ${n}">
+      <span class="node" data-tip="${s.tip}">${ic(s.icon)}<span class="cnt">${n}</span></span><span class="word">${s.w}</span></button>`}).join('');
+  const m=$('#main');
+  if(state.mode==='email'){
+    if(cur==='ready')m.innerHTML=deckEmail();
+    else if(cur==='sent')m.innerHTML=listSent();
+    else m.innerHTML=listReplied();
+  }else{
+    m.innerHTML=cur==='ready'?deckPost():listPosted();
+  }
+  const skipped=leads.filter(l=>l.status==='skipped').length+posts.filter(p=>p.status==='skipped').length;
+  $('#foot').innerHTML=(skipped?`<button id="bBin">${ic('bin')}${skipped} skipped</button>`:'')+
+    `<button id="bLast">${ic('clock')}Searched 2 h ago</button>`;
+  bind();
+}
+
+function deckEmail(){
+  const list=by('ready');
+  if(!list.length)return emptyState();
+  state.idx=Math.min(state.idx,list.length-1);
+  const l=list[state.idx];
+  const sig=[
+    `<span class="sig" data-tip="Google rating"><span class="stars">${ic('star')}</span>${l.rating} · ${l.reviews}</span>`,
+    l.web?`<span class="sig" data-tip="Website">${ic('globe')}</span>`:`<span class="sig bad" data-tip="No website">${ic('noglobe')}</span>`,
+    `<span class="sig ${l.ig==='never'||/yr|[5-9] mo/.test(l.ig)?'bad':''}" data-tip="Last Instagram post">${ic('camera')}${l.ig==='never'?'none':l.ig}</span>`,
+  ].join('');
+  return `
+  <div class="deckhead">
+    <div class="dots">${list.map((_,i)=>`<i class="${i===state.idx?'on':''}"></i>`).join('')}</div>
+    <div class="sp"></div>
+    <button class="ib" data-nav="-1" aria-label="Previous" data-tip="Previous" ${state.idx?'':'disabled style="opacity:.4"'}>${ic('left')}</button>
+    <button class="ib" data-nav="1" aria-label="Next" data-tip="Next" ${state.idx<list.length-1?'':'disabled style="opacity:.4"'}>${ic('right')}</button>
+  </div>
+  <div class="deck">
+    ${list.length>2?'<div class="ghost g2"></div>':''}${list.length>1?'<div class="ghost"></div>':''}
+    <article class="card in ${state.editing?'editing':''}" id="card">
+      <div class="who">
+        ${av(l.name)}
+        <div class="info"><h2>${esc(l.name)}</h2>
+          <div class="sub">${ic('pin')}${esc(l.kind)} · ${esc(l.city)}</div></div>
+        <div class="sigs">${sig}</div>
+        <div class="fit" data-tip="How good a fit"><span>${ic('target')}</span><div class="fitbar"><b style="width:${l.fit*10}%"></b></div><span>${l.fit}/10</span></div>
+      </div>
+      <div class="letter">
+        <div class="to">${ic('at')}<b>${esc(l.email)}</b></div>
+        <div class="subj" id="subj" ${state.editing?'contenteditable="true"':''}>${esc(l.subject)}</div>
+        <div class="body" id="body" ${state.editing?'contenteditable="true"':''}>${esc(l.body)}</div>
+        <div class="chain" data-tip="Then 2 follow-ups, stop if they reply">
+          <i class="f">${ic('send')}</i><hr><i>${ic('repeat')}</i><hr><i>${ic('repeat')}</i>
+        </div>
+      </div>
+    </article>
+  </div>
+  <div class="acts">
+    <button class="act" id="aSkip" aria-label="Skip"><span class="c" data-tip="Skip">${ic('x')}</span><span class="lbl">Skip</span><span class="kbd">←</span></button>
+    <button class="act main" id="aSend" aria-label="Send"><span class="c" data-tip="Send">${ic('send')}</span><span class="lbl">Send</span><span class="kbd">Enter</span></button>
+    <button class="act ${state.editing?'on':''}" id="aEdit" aria-label="Edit"><span class="c" data-tip="${state.editing?'Done editing':'Edit'}">${ic(state.editing?'check':'pen')}</span><span class="lbl">${state.editing?'Done':'Edit'}</span><span class="kbd">E</span></button>
+  </div>`;
+}
+
+function deckPost(){
+  const list=pby('ready');
+  if(!list.length)return emptyState();
+  state.idx=Math.min(state.idx,list.length-1);
+  const p=list[state.idx];
+  return `
+  <div class="deckhead">
+    <div class="dots">${list.map((_,i)=>`<i class="${i===state.idx?'on':''}"></i>`).join('')}</div>
+    <div class="sp"></div>
+    <button class="ib" data-nav="-1" aria-label="Previous" data-tip="Previous" ${state.idx?'':'disabled style="opacity:.4"'}>${ic('left')}</button>
+    <button class="ib" data-nav="1" aria-label="Next" data-tip="Next" ${state.idx<list.length-1?'':'disabled style="opacity:.4"'}>${ic('right')}</button>
+  </div>
+  <div class="deck">
+    ${list.length>2?'<div class="ghost g2"></div>':''}${list.length>1?'<div class="ghost"></div>':''}
+    <article class="card in ${state.editing?'editing':''}" id="card">
+      <div class="post">
+        <div class="site"><span class="lg ${p.site}">${p.site==='hn'?'Y':'r/'}</span>${esc(p.where)}</div>
+        <h2>${esc(p.title)}</h2>
+        ${p.text?`<p>${esc(p.text)}</p>`:''}
+        <div class="meta"><span data-tip="Upvotes">${ic('arrowup')}${p.up}</span><span data-tip="Comments">${ic('chat')}${p.cm}</span><span data-tip="Posted">${ic('clock')}${p.age}</span></div>
+      </div>
+      <div class="letter">
+        <div class="me">${av('Vishnu')}Your reply</div>
+        <div class="bubble body" id="body" ${state.editing?'contenteditable="true"':''}>${esc(p.reply)}</div>
+      </div>
+    </article>
+  </div>
+  <div class="acts">
+    <button class="act" id="aSkip" aria-label="Skip"><span class="c" data-tip="Skip">${ic('x')}</span><span class="lbl">Skip</span><span class="kbd">←</span></button>
+    <button class="act main" id="aPost" aria-label="Copy and open"><span class="c" data-tip="Copy reply & open post">${ic('copy')}</span><span class="lbl">Copy & open</span><span class="kbd">Enter</span></button>
+    <button class="act ${state.editing?'on':''}" id="aEdit" aria-label="Edit"><span class="c" data-tip="${state.editing?'Done editing':'Edit'}">${ic(state.editing?'check':'pen')}</span><span class="lbl">${state.editing?'Done':'Edit'}</span><span class="kbd">E</span></button>
+  </div>`;
+}
+
+function stepsHtml(n,queued){
+  // n = how many sent (1 = first email, 2 = + follow-up 1, 3 = + follow-up 2)
+  const icons=['send','repeat','repeat'];
+  return `<div class="steps" data-tip="${queued?'Queued: goes out with today\'s limit':'Email · follow-up · follow-up'}">`+icons.map((x,i)=>{
+    const cls=i<n?'done':(i===n?(queued?'wait':'next'):'');
+    return (i?`<span class="ln ${i<n?'done':''}"></span>`:'')+`<span class="s ${cls}">${ic(i===0&&queued?'hourglass':(i<n?'check':x))}</span>`}).join('')+`</div>`;
+}
+function listSent(){
+  const list=by('sent');
+  if(!list.length)return emptyState('Nothing out yet','Send an email and it shows here.');
+  return `<div class="list">`+list.map(l=>`
+    <button class="row" data-row="${l.id}" aria-expanded="${state.openRow===l.id}">
+      ${av(l.name,'sm')}
+      <div style="min-width:0"><div class="nm">${esc(l.name)}</div>
+        <div class="mini">${l.queued?ic('hourglass')+'queued':ic('clock')+'next '+esc(l.next||'')}</div></div>
+      ${stepsHtml(l.queued?0:l.steps,l.queued)}
+      ${state.openRow===l.id?`<div class="open"><div class="tl">
+        <div>${ic('at')}<b>${esc(l.email)}</b></div>
+        ${l.queued?`<div>${ic('hourglass')}Goes out ${esc(l.next)}</div>`:`<div>${ic('send')}Sent ${esc(l.sentAgo)}</div>
+        ${l.steps>1?`<div>${ic('repeat')}Follow-up 1 sent</div>`:''}
+        <div>${ic('clock')}Next follow-up ${esc(l.next)}</div>`}
+        <div>${ic('ban')}Stops by itself if they reply</div></div>
+        <div><b style="color:var(--ink)">${esc(l.subject)}</b>\n${esc(l.body)}</div></div>`:''}
+    </button>`).join('')+`</div>`;
+}
+const INTENT={call:['phone','Wants a call'],question:['q','Has a question'],interested:['thumb','Interested']};
+function listReplied(){
+  const list=by('replied');
+  if(!list.length)return emptyState('No replies yet','When someone writes back, it lands here.');
+  return `<div class="list">`+list.map(l=>{const [i,w]=INTENT[l.intent]||INTENT.interested;return `
+    <article class="rcard">
+      <div class="rhead">${av(l.name,'sm')}<div><div class="nm">${esc(l.name)}</div><div class="sub">${esc(l.contact)} · ${esc(l.city)}</div></div>
+        <span class="intent">${ic(i)}${w}</span></div>
+      <div class="theirs">${esc(l.reply)}</div>
+      <div class="ractions">
+        <button class="pill" data-done="${l.id}">${ic('check')}Done</button>
+        <button class="pill reply" data-gmail="${l.id}">${ic('ext')}Reply in Gmail</button>
+      </div>
+    </article>`}).join('')+`</div>`;
+}
+function listPosted(){
+  const list=pby('posted');
+  if(!list.length)return emptyState('Nothing posted yet','Replies you post show here.');
+  return `<div class="list">`+list.map(p=>`
+    <div class="row"><span class="site"><span class="lg ${p.site}">${p.site==='hn'?'Y':'r/'}</span></span>
+      <div style="min-width:0"><div class="nm">${esc(p.title)}</div><div class="mini">${esc(p.where)} · ${ic('check')}posted</div></div>
+      <span></span></div>`).join('')+`</div>`;
+}
+function emptyState(t='All caught up',s){
+  return `<div class="empty"><div class="big">${ic('check')}</div><h3>${t}</h3>
+    ${s?`<div style="color:var(--ink-3)">${s}</div>`:''}
+    ${t==='All caught up'?`<button class="pill go" id="eFind">${ic('radar')}Find more</button>`:''}</div>`;
+}
+
+/* ---------- actions ---------- */
+function bind(){
+  document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{state.mode=b.dataset.mode;state.idx=0;state.editing=false;render()});
+  document.querySelectorAll('[data-stop]').forEach(b=>b.onclick=()=>{state.stop[state.mode]=b.dataset.stop;state.idx=0;state.editing=false;state.openRow=null;render()});
+  document.querySelectorAll('[data-nav]').forEach(b=>b.onclick=()=>nav(+b.dataset.nav));
+  document.querySelectorAll('[data-row]').forEach(b=>b.onclick=()=>{const id=+b.dataset.row;state.openRow=state.openRow===id?null:id;render()});
+  document.querySelectorAll('[data-done]').forEach(b=>b.onclick=()=>{const l=leads.find(x=>x.id==b.dataset.done);const prev=l.status;l.status='done';toast(`${l.name} done`,()=>{l.status=prev;render()});render()});
+  document.querySelectorAll('[data-gmail]').forEach(b=>b.onclick=()=>toast('Opens the thread in Gmail'));
+  $('#aSkip')&&($('#aSkip').onclick=skip);
+  $('#aSend')&&($('#aSend').onclick=send);
+  $('#aPost')&&($('#aPost').onclick=post);
+  $('#aEdit')&&($('#aEdit').onclick=toggleEdit);
+  $('#eFind')&&($('#eFind').onclick=find);
+  $('#bBin')&&($('#bBin').onclick=openBin);
+  $('#bLast')&&($('#bLast').onclick=find);
+}
+function curItem(){return state.mode==='email'?by('ready')[state.idx]:pby('ready')[state.idx]}
+function nav(d){const n=(state.mode==='email'?by('ready'):pby('ready')).length;saveEdit();state.idx=Math.max(0,Math.min(n-1,state.idx+d));state.editing=false;render()}
+function saveEdit(){
+  if(!state.editing)return;const it=curItem();if(!it)return;
+  const b=$('#body'),s=$('#subj');
+  if(state.mode==='email'){if(s)it.subject=s.innerText.trim();if(b)it.body=b.innerText.trim()}else if(b)it.reply=b.innerText.trim();
+}
+function toggleEdit(){if(state.editing)saveEdit();state.editing=!state.editing;render();if(state.editing){const b=$('#body');b&&b.focus()}}
+function leave(dir,after){
+  const c=$('#card');saveEdit();state.editing=false;state.first=false;
+  if(c){c.classList.add(dir)}setTimeout(()=>{after();render()},280);
+}
+function skip(){
+  const it=curItem();if(!it)return;
+  leave('out-l',()=>{const prev=it.status;it.status='skipped';toast(`Skipped ${it.name||'post'}`,()=>{it.status=prev;render()})});
+}
+function send(){
+  const it=curItem();if(!it)return;
+  fly('send','.stop.sent .node');
+  leave('out-r',()=>{it.status='sent';it.steps=1;it.sentAgo='just now';it.next='in 3 days';
+    toast(`Sent to ${it.name}`,()=>{it.status='ready';it.steps=0;render()});bump('sent')});
+}
+function post(){
+  const it=curItem();if(!it)return;
+  try{navigator.clipboard.writeText(it.reply).catch(()=>{})}catch(e){}
+  fly('check','.stop.posted .node');
+  leave('out-r',()=>{it.status='posted';toast('Reply copied · post opened',()=>{it.status='ready';render()});bump('posted')});
+}
+function bump(k){requestAnimationFrame(()=>{const s=document.querySelector('.stop.'+k);if(s){s.classList.add('bump');setTimeout(()=>s.classList.remove('bump'),600)}})}
+function fly(icon,target){
+  const from=document.querySelector('.act.main .c'),to=document.querySelector(target);if(!from||!to)return;
+  const a=from.getBoundingClientRect(),b=to.getBoundingClientRect();
+  const f=document.createElement('div');f.className='flyer';f.innerHTML=ic(icon);
+  f.style.left=(a.left+a.width/2-17)+'px';f.style.top=(a.top+a.height/2-17)+'px';document.body.appendChild(f);
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{f.style.transform=`translate(${b.left+b.width/2-(a.left+a.width/2)}px,${b.top+b.height/2-(a.top+a.height/2)}px) scale(.6)`;f.style.opacity='.2'}));
+  setTimeout(()=>f.remove(),650);
+}
+function toast(msg,undo){
+  $('#toastMsg').textContent=msg;undoFn=undo||null;$('#toastUndo').hidden=!undo;
+  const t=$('#toast');t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),4000);
+}
+$('#toastUndo').onclick=()=>{if(undoFn)undoFn();undoFn=null;$('#toast').classList.remove('show')};
+
+document.addEventListener('keydown',e=>{
+  if($('.scrim'))return;
+  if(e.target.isContentEditable||/TEXTAREA|INPUT/.test(e.target.tagName)){if(e.key==='Escape'){toggleEdit()}return}
+  if(state.stop[state.mode]!=='ready')return;
+  if(e.key==='ArrowLeft'){e.preventDefault();skip()}
+  else if(e.key==='Enter'&&!/BUTTON/.test(e.target.tagName)){e.preventDefault();state.mode==='email'?send():post()}
+  else if(e.key==='ArrowRight'){nav(1)}
+  else if(e.key.toLowerCase()==='e'){toggleEdit()}
+});
+
+/* ---------- sheets ---------- */
+function sheet(html,onMount){
+  const s=document.createElement('div');s.className='scrim';s.innerHTML=`<div class="sheet" role="dialog" aria-modal="true">${html}</div>`;
+  document.body.appendChild(s);requestAnimationFrame(()=>s.classList.add('show'));
+  const close=()=>{s.classList.remove('show');setTimeout(()=>s.remove(),200)};
+  s.onclick=e=>{if(e.target===s)close()};
+  s.addEventListener('keydown',e=>{if(e.key==='Escape')close()});
+  s.querySelectorAll('[data-close]').forEach(b=>b.onclick=close);
+  onMount&&onMount(s.querySelector('.sheet'),close);
+  return close;
+}
+const closeBtn=`<button class="ib" data-close aria-label="Close">${ic('x')}</button>`;
+
+/* settings */
+$('#bSet').onclick=()=>sheet(`
+  <div class="shead"><h3>Settings</h3>${closeBtn}</div>
+  <div>
+    <div class="set"><span class="ic">${ic('radar')}</span><div class="t">Look for leads every day<small>Runs at 4 am</small></div><button class="sw" role="switch" data-k="daily" aria-checked="${settings.daily}" aria-label="Daily search"></button></div>
+    <div class="set"><span class="ic">${ic('target')}</span><div class="t">Where to look</div>
+      <div class="srcs">
+        <button class="src" data-k="maps" aria-pressed="${settings.maps}" data-tip="Google Maps businesses">${ic('pin')}</button>
+        <button class="src" data-k="reddit" aria-pressed="${settings.reddit}" data-tip="Reddit"><b style="font:800 13px var(--display)">r/</b></button>
+        <button class="src" data-k="hn" aria-pressed="${settings.hn}" data-tip="Hacker News"><b style="font:800 15px var(--display)">Y</b></button>
+      </div></div>
+    <div class="set"><span class="ic">${ic('cal')}</span><div class="t">Emails per day<small id="limv">${settings.limit}</small></div><input type="range" id="lim" min="5" max="50" step="5" value="${settings.limit}" aria-label="Emails per day"></div>
+    <div class="set"><span class="ic">${ic('mail')}</span><div class="t">Gmail<small>hello@frekto.ai</small></div><span class="ok">${ic('check')}Connected</span></div>
+    <div class="set"><span class="ic">${ic('flask')}</span><div class="t">Demo mode<small>Made-up leads, nothing is sent</small></div><button class="sw" role="switch" data-k="demo" aria-checked="${settings.demo}" aria-label="Demo mode"></button></div>
+  </div>`,el=>{
+    el.querySelectorAll('.sw').forEach(b=>b.onclick=()=>{settings[b.dataset.k]=!settings[b.dataset.k];b.setAttribute('aria-checked',settings[b.dataset.k])});
+    el.querySelectorAll('.src').forEach(b=>b.onclick=()=>{settings[b.dataset.k]=!settings[b.dataset.k];b.setAttribute('aria-pressed',settings[b.dataset.k])});
+    const r=el.querySelector('#lim');r.oninput=()=>{settings.limit=+r.value;el.querySelector('#limv').textContent=r.value};
+  });
+
+/* skipped bin */
+function openBin(){
+  const sk=[...leads.filter(l=>l.status==='skipped').map(l=>({it:l,n:l.name,back:'ready'})),...posts.filter(p=>p.status==='skipped').map(p=>({it:p,n:p.where+' · '+p.title,back:'ready'}))];
+  sheet(`<div class="shead"><h3>Skipped</h3>${closeBtn}</div>
+    <div class="list">${sk.map((x,i)=>`<div class="row" style="grid-template-columns:auto 1fr auto">${av(x.n,'sm')}<div class="nm">${esc(x.n)}</div>
+      <button class="ib" data-back="${i}" data-tip="Bring back" aria-label="Bring back">${ic('undo')}</button></div>`).join('')}</div>`,(el,close)=>{
+    el.querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{const x=sk[+b.dataset.back];x.it.status=x.back;b.closest('.row').remove();render();if(!el.querySelector('[data-back]'))close()});
+  });
+}
+
+/* find new leads */
+function find(){
+  const email=state.mode==='email';
+  const ticks=email?[['pin','Maps'],['globe','Websites'],['at','Emails'],['pen','Drafts']]:[['chat','Reddit'],['chat','Hacker News'],['target','Fit'],['pen','Replies']];
+  sheet(`<div class="shead"><h3>&nbsp;</h3>${closeBtn}</div>
+    <div class="radar"><div class="scope" id="scope"><div class="sweep"></div><div class="me2"></div></div>
+      <div class="ticks">${ticks.map(([i,w])=>`<div class="tick"><span class="c">${ic(i)}</span>${w}</div>`).join('')}</div>
+      <div class="found" id="found" hidden>+3</div></div>`,(el,close)=>{
+    const scope=el.querySelector('#scope'),tk=[...el.querySelectorAll('.tick')];
+    const spots=[[28,30],[70,24],[62,70],[22,66],[80,52],[40,82],[48,18]];
+    let t=0;const T=(f,ms)=>{t+=ms;setTimeout(f,t)};
+    tk.forEach((x,i)=>{T(()=>{x.classList.add('run');if(i===0)spots.forEach((s,j)=>setTimeout(()=>{const p=document.createElement('div');p.className='pin';p.style.left=s[0]+'%';p.style.top=s[1]+'%';p.innerHTML=ic('pin');p.querySelector('svg').style.cssText='width:15px;height:15px';scope.appendChild(p)},j*160))},i?0:200);T(()=>{x.classList.remove('run');x.classList.add('done')},900)});
+    T(()=>{const pins=[...scope.querySelectorAll('.pin')];pins.forEach((p,j)=>{if(j>2)p.style.opacity='.25'});el.querySelector('#found').hidden=false},300);
+    T(()=>{addNew(email);close();state.stop[state.mode]='ready';state.idx=0;render();bump('ready');toast(email?'3 new emails ready':'2 new posts to reply to')},1300);
+  });
+}
+let nid=500;
+function addNew(email){
+  if(email){
+    [['Fern & Fig Kitchen','Restaurant','Austin, TX','Nora','nora@fernfig.com','2 mo',4.4,96],
+     ['Velvet Nail Bar','Nail salon','Miami, FL','Rosa','rosa@velvetnails.com','7 mo',3.8,64],
+     ['Summit Auto Care','Auto repair','Denver, CO','Pete','pete@summitauto.com','never',4.1,150]].forEach(([n,k,c,ct,em,ig,r,rv])=>{
+      leads.push(mk({id:nid++,name:n,kind:k,city:c,contact:ct,email:em,ig,rating:r,reviews:rv,web:n.toLowerCase().replace(/\W/g,'')+'.com',fit:7+(nid%3),
+        subject:'Posts for '+n+', made for you',
+        body:`Hi ${ct},\n\n${n}'s Instagram ${ig==='never'?'doesn\'t exist yet':'has been quiet for '+ig}. Your Google photos show there's plenty to share.\n\nFrekto turns a photo into a ready post in seconds. Want 3 free ones made from your pictures?\n\nVishnu, Frekto`}));
+    });
+  }else{
+    posts.push({id:nid++,site:'reddit',where:'r/marketing',title:'How do you keep a posting habit going as a solo founder?',text:'I start strong then stop after 2 weeks.',up:73,cm:29,age:'3 h',status:'ready',
+      reply:'What worked for me was making posting a 30-minute block on Mondays and drafting the whole week at once. Tools like Frekto (I\'m on the team) help with images, but the block is what matters.'});
+    posts.push({id:nid++,site:'hn',where:'Ask HN',title:'Ask HN: Tools that make marketing bearable for engineers?',text:'',up:120,cm:88,age:'7 h',status:'ready',
+      reply:'Treat it like a release cycle: one post per week, shipped on a fixed day. I use Frekto for the visuals (bias: I work on it).'});
+  }
+}
+
+/* add your own people */
+const SAMPLE=`Maya Chen <maya@bloomsalon.co>
+Tom Reyes, tom@harvestgrill.com
+Ella Park ella@parkstudio.design
+Ben Okafor <ben@okaforlaw.com>
+ana@harborbooks.com
+Ruth Sato <ruth@satoceramics.com>
+Leo Grant, leo@grantbikes.com`;
+$('#bAdd').onclick=()=>{
+  let step=0,people=[],pi=0;
+  let tpl='Hi {first name},\n\nI help small teams like {company} keep their social media going without spending hours on it.\n\nWould 3 free posts made from your own photos be useful?\n\nVishnu, Frekto';
+  sheet(`<div class="shead"><h3>Your people</h3><div class="wiz" id="wiz"></div>${closeBtn}</div><div id="sb" style="display:flex;flex-direction:column;gap:16px"></div>`,(el,close)=>{
+    const sb=el.querySelector('#sb');
+    const known=new Set([...leads.map(l=>l.email)]);
+    const parse=t=>{const seen=new Set();return t.split(/\n|;/).map(line=>{const m=line.match(/[\w.+-]+@[\w-]+\.[\w.]+/);if(!m)return null;const email=m[0].toLowerCase();
+      let name=line.replace(m[0],'').replace(/[<>,]/g,'').trim();const dom=email.split('@')[1].split('.')[0];
+      const company=dom.replace(/(.)/,c=>c.toUpperCase());const first=name.split(' ')[0]||'there';
+      const skip=seen.has(email)?'twice':known.has(email)?'already':null;seen.add(email);return {email,name:name||email.split('@')[0],first,company,skip}}).filter(Boolean)};
+    const wiz=()=>{el.querySelector('#wiz').innerHTML=['users','pen','send'].map((x,i)=>(i?'<hr>':'')+`<i class="${i<step?'done':i===step?'on':''}">${ic(i<step?'check':x)}</i>`).join('')};
+    const fill=(p)=>esc(tpl).replace(/\{first name\}/g,`<span class="tok">${esc(p.first)}</span>`).replace(/\{company\}/g,`<span class="tok">${esc(p.company)}</span>`);
+    const go=()=>{wiz();
+      const ok=people.filter(p=>!p.skip);
+      if(step===0){
+        sb.innerHTML=`
+          <label class="drop" id="drop" for="file">
+            <span class="big">${ic('upload')}</span>
+            <span>Drop a file or click</span>
+            <span class="ftypes"><span>CSV</span><span>XLSX</span><span>PDF</span><span>DOCX</span><span>TXT</span><span>VCF</span></span>
+            <input type="file" id="file" hidden>
+          </label>
+          <textarea id="paste" placeholder="…or paste emails here"></textarea>
+          <div id="ppl"></div>
+          <div class="sfoot"><button class="pill" id="sample">${ic('spark')}Try sample</button><button class="pill go" id="next" ${ok.length?'':'disabled style="opacity:.4"'}>${ic('right')}Next</button></div>`;
+        const ta=sb.querySelector('#paste'),ppl=sb.querySelector('#ppl');
+        const upd=()=>{people=parse(ta.value);const ok=people.filter(p=>!p.skip);
+          ppl.innerHTML=people.length?`<div class="tally"><span>${ic('users')}${ok.length}</span>${people.length-ok.length?`<span style="color:var(--ink-3)">${ic('ban')}${people.length-ok.length} skipped</span>`:''}</div><div class="people" style="margin-top:10px">${people.map(p=>`<span class="person ${p.skip?'skip':''}" title="${p.skip==='already'?'Already in Lead Agent':p.skip?'Listed twice':esc(p.email)}">${av(p.name)}${esc(p.name)}</span>`).join('')}</div>`:'';
+          const n=sb.querySelector('#next');n.disabled=!ok.length;n.style.opacity=ok.length?'':'.4'};
+        ta.value=people.map(p=>p.name+' <'+p.email+'>').join('\n');upd();
+        ta.oninput=upd;
+        sb.querySelector('#sample').onclick=()=>{ta.value=SAMPLE;upd()};
+        const d=sb.querySelector('#drop');
+        d.ondragover=e=>{e.preventDefault();d.classList.add('over')};d.ondragleave=()=>d.classList.remove('over');
+        d.ondrop=e=>{e.preventDefault();d.classList.remove('over');ta.value=SAMPLE;upd()};
+        sb.querySelector('#file').onchange=()=>{ta.value=SAMPLE;upd()};
+        sb.querySelector('#next').onclick=()=>{step=1;pi=0;go()};
+      }else if(step===1){
+        sb.innerHTML=`
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="pill" data-tok="{first name}">${ic('plus')}<span class="tok">first name</span></button><button class="pill" data-tok="{company}">${ic('plus')}<span class="tok">company</span></button></div>
+          <textarea id="tpl" style="min-height:150px">${esc(tpl)}</textarea>
+          <div class="prev">
+            <div class="prevnav"><button class="ib" id="pp" aria-label="Previous person">${ic('left')}</button><div class="who2" id="pw"></div><button class="ib" id="pn" aria-label="Next person">${ic('right')}</button></div>
+            <div class="body" id="pb"></div>
+          </div>
+          <div class="sfoot"><button class="pill" id="back">${ic('left')}Back</button><button class="pill go" id="next">${ic('right')}Next</button></div>`;
+        const t=sb.querySelector('#tpl');
+        const pv=()=>{const p=ok[pi];sb.querySelector('#pw').innerHTML=`${av(p.name,'sm')}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</span><span style="color:var(--ink-3);margin-left:auto;font-size:13px">${pi+1}/${ok.length}</span>`;sb.querySelector('#pb').innerHTML=fill(p)};
+        t.oninput=()=>{tpl=t.value;pv()};pv();
+        sb.querySelectorAll('[data-tok]').forEach(b=>b.onclick=()=>{const s=t.selectionStart??t.value.length;t.value=t.value.slice(0,s)+b.dataset.tok+t.value.slice(t.selectionEnd??s);tpl=t.value;pv();t.focus()});
+        sb.querySelector('#pp').onclick=()=>{pi=(pi-1+ok.length)%ok.length;pv()};
+        sb.querySelector('#pn').onclick=()=>{pi=(pi+1)%ok.length;pv()};
+        sb.querySelector('#back').onclick=()=>{step=0;go()};
+        sb.querySelector('#next').onclick=()=>{step=2;go()};
+      }else{
+        const left=Math.max(0,settings.limit-14);const days=[];let n=ok.length;
+        days.push(Math.min(n,left));n-=days[0];while(n>0&&days.length<3){const d=Math.min(n,settings.limit);days.push(d);n-=d}
+        while(days.length<3)days.push(0);
+        const max=Math.max(...days,1);
+        sb.innerHTML=`
+          <div class="people">${ok.map(p=>`<span class="person">${av(p.name)}${esc(p.first)}</span>`).join('')}</div>
+          <div class="days">${days.map((d,i)=>`<div class="day">${d?`<div class="bar" style="height:${20+d/max*80}%">${d}</div>`:''}<small>${['Today','Tomorrow','Day 3'][i]}</small></div>`).join('')}</div>
+          <div class="chain" style="justify-content:center" data-tip="Each gets 2 follow-ups, stop if they reply"><i class="f">${ic('send')}</i><hr><i>${ic('repeat')}</i><hr><i>${ic('repeat')}</i></div>
+          <div class="sfoot"><button class="pill" id="back">${ic('left')}Back</button><button class="pill go" id="appr">${ic('check')}Send to ${ok.length}</button></div>`;
+        sb.querySelector('#back').onclick=()=>{step=1;go()};
+        sb.querySelector('#appr').onclick=()=>{
+          ok.forEach((p,i)=>leads.push(mk({id:nid++,name:p.company,kind:'Your list',city:'',contact:p.first,email:p.email,status:'sent',
+            queued:i>=days[0],steps:i<days[0]?1:0,sentAgo:'just now',next:i<days[0]?'in 3 days':(i<days[0]+days[1]?'tomorrow':'in 2 days'),
+            subject:'Quick idea for '+p.company,body:tpl.replace(/\{first name\}/g,p.first).replace(/\{company\}/g,p.company)})));
+          close();state.mode='email';state.stop.email='sent';render();bump('sent');toast(`${days[0]} sent now, ${ok.length-days[0]} queued`);
+        };
+      }
+    };
+    go();
+  });
+};
+
+$('#bHelp').onclick=()=>{const on=document.body.classList.toggle('labels');$('#bHelp').classList.toggle('on',on)};
+render();
+</script>
