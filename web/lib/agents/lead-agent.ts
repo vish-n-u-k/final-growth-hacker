@@ -8,6 +8,7 @@
 //      auto mode, once the user has approved 20)
 // Nothing is posted on Reddit by the agent: replies are drafts the user posts by hand.
 
+import { stripEmDashes } from '@/lib/email/clean'
 import { callAI, withAIContext } from '@/lib/ai/client'
 import { sendGmailMessage, GmailSendError } from '@/lib/gmail/send'
 import { getValidGmailToken } from '@/lib/gmail/token'
@@ -284,7 +285,7 @@ async function draftMessages(b: BrandContext, s: LeadSettings, leads: Lead[]): P
 Ideal customer: ${s.customer || b.targetAudience || 'not given'}
 
 For each item write:
-- EMAIL: "subject" (3-6 words, lower-key, mentions their situation, never clickbait) and "body" (under 90 words). Start with "Hi <first name>," if a person's name is known, else "Hi,". First line: the specific thing you noticed (their review, post or business detail). Then one sentence on how ${b.name} helps with exactly that. End with ONE small ask (e.g. "Want me to make 3 free examples for you?"). Sign off with "${b.name}". No links, no opt-out line (added automatically).
+- EMAIL: "subject" (3-6 words, lower-key, mentions their situation, never clickbait) and "body" (under 90 words). Start with "Hi <first name>," if a person's name is known, else "Hi,". First line: the specific thing you noticed (their review, post or business detail). Then one sentence on how ${b.name} helps with exactly that. End with ONE small ask (e.g. "Want me to make 3 free examples for you?"). Sign off with "${b.name}". No em dashes. No links, no opt-out line (added automatically).
 - FORUM REPLY: "reply" (under 120 words). Answer their question helpfully first with practical advice that works without any product. Then mention ${b.name} honestly as one option and say you work on it. No links, no sales tone.
 
 ${lines}
@@ -308,7 +309,7 @@ export async function addLeadEmail(brandId: string, leadId: string, email: strin
   if (lead.status !== 'needs_contact' && lead.status !== 'ready') return { ok: false, message: 'Already handled.' }
   const draft = lead.draft ?? await withAIContext({ brandId, moduleType: 'lead-agent', websiteUrl: b.websiteUrl }, async () => {
     const x = (await draftMessages(b, d.settings, [{ ...lead, email }])).get(lead.id)
-    return x?.subject && x.body ? { subject: x.subject, body: x.body } : undefined
+    return x?.subject && x.body ? { subject: stripEmDashes(x.subject), body: stripEmDashes(x.body) } : undefined
   })
   if (!draft) return { ok: false, message: 'Couldn’t write the email. Try again.' }
   await updateLeadData(brandId, fallback, x => {
@@ -457,7 +458,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       for (const l of fresh) {
         const x = drafts.get(l.id)
         if (x?.reply) { l.reply = x.reply; l.status = 'ready' }
-        else if (x?.subject && x.body && l.email) { l.draft = { subject: x.subject, body: x.body }; l.status = 'ready' }
+        else if (x?.subject && x.body && l.email) { l.draft = { subject: stripEmDashes(x.subject), body: stripEmDashes(x.body) }; l.status = 'ready' }
       }
       notes.push(`${fresh.length} new lead${fresh.length === 1 ? '' : 's'}`)
     } else if (!errors.length) {

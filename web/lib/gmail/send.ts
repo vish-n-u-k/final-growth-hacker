@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { outreachEmails, reminders } from '@/lib/db/schema'
 import { getValidGmailToken } from '@/lib/gmail/token'
 import { isSuppressed } from '@/lib/gmail/suppression'
+import { cleanEmailHtml, stripEmDashes } from '@/lib/email/clean'
 
 export class GmailSendError extends Error {
   constructor(message: string, public code: 'not_connected' | 'missing_send_scope' | 'api_error' | 'suppressed') {
@@ -19,10 +20,15 @@ function encodeAddress(to: string): string {
   return m ? `${encodeHeader(m[1].trim())} <${m[2]}>` : to
 }
 
-/** RFC 2822 message as base64url, for Gmail messages.send / drafts.create. */
+/**
+ * RFC 2822 message as base64url, for Gmail messages.send / drafts.create. Every outreach email
+ * passes through here, so this is where em dashes go and links get their UTM tags.
+ */
 export function buildRawMessage(
   { to, subject, body, inReplyTo }: { to: string; subject: string; body: string; inReplyTo?: string | null },
 ): string {
+  subject = stripEmDashes(subject)
+  body = cleanEmailHtml(body, 'outreach')
   // In-Reply-To/References + threadId make Gmail file a follow-up under the original thread
   const message = [
     `To: ${encodeAddress(to)}`,
@@ -69,6 +75,9 @@ export async function sendGmailMessage(
   }
 
   const encoded = buildRawMessage({ to, subject, body, inReplyTo })
+  // Save what was actually sent
+  subject = stripEmDashes(subject)
+  body = cleanEmailHtml(body, 'outreach')
 
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method: 'POST',

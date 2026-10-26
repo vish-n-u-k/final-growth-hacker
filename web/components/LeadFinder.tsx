@@ -55,7 +55,9 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
   const [page, setPage] = useState(1)
   const [earlier, setEarlier] = useState(false)
   const [toast, notify] = useToast()
-  const scans = useShowAll(history, earlier, 5)
+  // Earlier scans of the source on screen (Trustpilot or the Shopify App Store)
+  const platformHistory = history.filter(h => h.platform === platform)
+  const scans = useShowAll(platformHistory, earlier, 5)
   const listTop = useRef<HTMLDivElement>(null)
   // Back to page 1 whenever the list itself changes
   useEffect(() => { setPage(1) }, [q, stars, tab, scan?.id])
@@ -126,6 +128,17 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
     }
   }
 
+  // The two sources are the two tabs, like Email and Community in the Lead Agent
+  function switchPlatform(p: Platform) {
+    if (p === platform) return
+    stopRef.current = true
+    setPlatform(p); setEarlier(false); setFailure(null)
+    const last = history.find(h => h.platform === p)
+    if (last) { openScan(last.id); return }
+    scoringFor.current = null; setScoring(null)
+    setScan(null); setReviews([]); setInput(''); setPhase('empty')
+  }
+
   async function openScan(id: string) {
     const s = history.find(x => x.id === id)
     if (!s || s.id === scan?.id) return
@@ -193,11 +206,6 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
   const scanForm = (
     <form className="tu-scan" onSubmit={e => { e.preventDefault(); run() }}>
       <div className="tu-scan-row">
-        <div className="cl-seg" role="group" aria-label="Where their reviews are">
-          {(['trustpilot', 'shopify'] as const).map(p => (
-            <button key={p} type="button" aria-pressed={platform === p} onClick={() => setPlatform(p)}>{p === 'trustpilot' ? 'Trustpilot' : 'Shopify App Store'}</button>
-          ))}
-        </div>
         <input className="cl-in" value={input} onChange={e => setInput(e.target.value)} aria-label="Competitor"
           placeholder={platform === 'trustpilot' ? 'competitor.com or their Trustpilot link' : 'apps.shopify.com/competitor-app'} />
         {phase === 'running'
@@ -211,7 +219,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
         {scan && phase !== 'running' && (
           <span className="cl-muted">
             {competitorLabel(scan.competitor)} · {scan.reviewsRead} reviews read {ago(scan.scannedAt)}
-            {history.length > 1 && <> · <button type="button" className="th-link tu-linkbtn" aria-expanded={earlier} onClick={() => setEarlier(v => !v)}>Earlier scans {earlier ? '▴' : '▾'}</button></>}
+            {platformHistory.length > 1 && <> · <button type="button" className="th-link tu-linkbtn" aria-expanded={earlier} onClick={() => setEarlier(v => !v)}>Earlier scans {earlier ? '▴' : '▾'}</button></>}
           </span>
         )}
       </div>
@@ -257,6 +265,10 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
     <div className="tool-page">
       {header}
       <div className="cl">
+        <Tabs value={platform} onChange={switchPlatform} tabs={[
+          { key: 'trustpilot', label: 'Trustpilot' },
+          { key: 'shopify', label: 'Shopify App Store' },
+        ]} />
         {scanForm}
 
         {phase === 'empty' && !scan && (
@@ -281,7 +293,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
             <p>{failure}</p>
             <div className="cl-acts">
               <button className="btn btn-primary" type="button" onClick={() => run(input)}>Try again</button>
-              {platform === 'trustpilot' && <button className="btn btn-ghost" type="button" onClick={() => { setPlatform('shopify'); setPhase(scan ? 'done' : 'empty'); setInput('') }}>Use Shopify App Store</button>}
+              {platform === 'trustpilot' && <button className="btn btn-ghost" type="button" onClick={() => switchPlatform('shopify')}>Use Shopify App Store</button>}
               {scan && <button className="btn btn-ghost" type="button" onClick={() => setPhase('done')}>Back to {competitorLabel(scan.competitor)}</button>}
             </div>
           </div>
@@ -302,11 +314,15 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
                 <button type="button" className="th-link" onClick={() => scoreAll(scan.id, reviews)}>Try again</button>
               </div>
             )}
-            <Tabs value={tab} onChange={k => { setTab(k); setQ(''); setStars('') }} tabs={[
-              { key: 'good', label: 'Good fits', count: count('good') },
-              { key: 'sent', label: 'Emailed', count: count('sent') },
-              { key: 'nofit', label: 'Not a fit', count: count('nofit') },
-            ]} />
+            {/* Same filter as the Lead Agent's To do / Waiting / Done */}
+            <div className="tu-filter">
+              <div className="cl-seg" role="group" aria-label="Show">
+                {([['good', 'Good fits'], ['sent', 'Emailed'], ['nofit', 'Not a fit']] as const).map(([k, label]) => (
+                  <button key={k} type="button" aria-pressed={tab === k} onClick={() => { setTab(k); setQ(''); setStars('') }}>{label} <span>{count(k)}</span></button>
+                ))}
+              </div>
+              <span className="cl-muted">{tab === 'good' ? `Unhappy reviewers ${brandName} could help.` : tab === 'sent' ? 'Emailed from here. You get a follow-up reminder after 5 days.' : `Their complaint isn’t something ${brandName} fixes, or you skipped them.`}</span>
+            </div>
             <div ref={listTop} className="tu-anchor" />
             <ListTools q={q} setQ={setQ} shown={shown.length} total={inTab.length} onClear={() => { setQ(''); setStars('') }}
               filter={

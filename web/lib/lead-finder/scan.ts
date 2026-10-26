@@ -6,6 +6,7 @@
 //   contact  → the reviewer's store website, then an email (Hunter, else the site's own pages)
 //   draft    → a short personal email
 
+import { stripEmDashes } from '@/lib/email/clean'
 import * as cheerio from 'cheerio'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
@@ -247,5 +248,5 @@ Return {"subject":"under 60 characters, specific, no clickbait","body":"..."}`,
   const start = raw.indexOf('{'), end = raw.lastIndexOf('}')
   const j = start !== -1 && end > start ? (() => { try { return JSON.parse(raw.slice(start, end + 1)) as { subject?: string; body?: string } } catch { return null } })() : null
   if (!j?.subject || !j.body) throw new Error('The writer returned no email. Try again.')
-  return { subject: j.subject.trim(), body: j.body.replace(/—/g, ',').trim() }
+  return { subject: stripEmDashes(j.subject).trim(), body: stripEmDashes(j.body).trim() }
 }

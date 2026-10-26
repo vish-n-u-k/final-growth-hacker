@@ -1,3 +1,4 @@
+import { stripEmDashes } from '@/lib/email/clean'
 import { NextRequest, NextResponse } from 'next/server'
 import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
@@ -93,7 +94,7 @@ function buildEmailHTML(copy: EmailCopy, brandName: string, websiteUrl: string, 
 </table>`
 }
 
-const noEmDash = (s: string) => s.replace(/—/g, '').replace(/\s{2,}/g, ' ').trim()
+const noEmDash = (s: string) => stripEmDashes(s).replace(/\s{2,}/g, ' ').trim()
 
 export async function POST(req: NextRequest) {
   const proBlock = await requirePro()

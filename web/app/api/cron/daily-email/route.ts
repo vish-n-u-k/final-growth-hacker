@@ -1,3 +1,4 @@
+import { cleanEmailHtml, stripEmDashes } from '@/lib/email/clean'
 import { NextRequest, NextResponse } from 'next/server'
 import { getAccess } from '@/lib/billing/plan'
 import { db } from '@/lib/db'
@@ -172,10 +173,10 @@ function computeFlags(ga4: Ga4Summary | null, ph: PhSummary | null): string[] {
 
   if (ph) {
     if (ph.unsubscribed > 0) {
-      candidates.push({ severity: 3, msg: `${ph.unsubscribed} user${ph.unsubscribed > 1 ? 's' : ''} unsubscribed yesterday — worth reviewing offboarding feedback.` })
+      candidates.push({ severity: 3, msg: `${ph.unsubscribed} user${ph.unsubscribed > 1 ? 's' : ''} unsubscribed yesterday. Worth reviewing offboarding feedback.` })
     }
     if (ph.signups === 0 && ph.signupsPrior === 0) {
-      candidates.push({ severity: 2, msg: 'No new signups in the past two days — check if the signup flow or top-of-funnel traffic has dropped.' })
+      candidates.push({ severity: 2, msg: 'No new signups in the past two days. Check if the signup flow or top-of-funnel traffic has dropped.' })
     }
     if (ph.dauPrior > 0) {
       const delta = Math.round(((ph.dau - ph.dauPrior) / ph.dauPrior) * 100)
@@ -183,8 +184,8 @@ function computeFlags(ga4: Ga4Summary | null, ph: PhSummary | null): string[] {
         const priorDays = ph.dauTrend.slice(0, -1)
         const peak = priorDays.length ? priorDays.reduce((m, d) => d.dau > m.dau ? d : m, priorDays[0]) : null
         const msg = (peak && peak.dau > ph.dau + 2)
-          ? (() => { const d = new Date(peak.date); return `DAU dropped sharply after the ${mo[d.getUTCMonth()]} ${d.getUTCDate()} peak — worth checking what drove that spike and why it didn't hold.` })()
-          : `DAU dropped ${Math.abs(delta)}% vs the prior day — worth investigating what changed.`
+          ? (() => { const d = new Date(peak.date); return `DAU dropped sharply after the ${mo[d.getUTCMonth()]} ${d.getUTCDate()} peak. Worth checking what drove that spike and why it didn't hold.` })()
+          : `DAU dropped ${Math.abs(delta)}% vs the prior day. Worth investigating what changed.`
         candidates.push({ severity: 2, msg })
       }
     }
@@ -192,7 +193,7 @@ function computeFlags(ga4: Ga4Summary | null, ph: PhSummary | null): string[] {
   if (ga4 && ga4.visitsPrior > 0) {
     const delta = Math.round(((ga4.visits - ga4.visitsPrior) / ga4.visitsPrior) * 100)
     if (delta <= -25) {
-      candidates.push({ severity: 1, msg: `Website traffic dropped ${Math.abs(delta)}% vs the prior day — check if any campaigns paused or a source dried up.` })
+      candidates.push({ severity: 1, msg: `Website traffic dropped ${Math.abs(delta)}% vs the prior day. Check if any campaigns paused or a source dried up.` })
     }
   }
   return candidates.sort((a, b) => b.severity - a.severity).slice(0, 2).map(f => f.msg)
@@ -201,7 +202,7 @@ function computeFlags(ga4: Ga4Summary | null, ph: PhSummary | null): string[] {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function deltaBadge(current: number, prior: number): string {
-  if (prior === 0) return `<span style="display:inline-block;font-size:11px;font-weight:600;color:#6b7280;background:#f3f4f6;border-radius:99px;padding:2px 8px;">—</span>`
+  if (prior === 0) return `<span style="display:inline-block;font-size:11px;font-weight:600;color:#6b7280;background:#f3f4f6;border-radius:99px;padding:2px 8px;">-</span>`
   const pct = Math.round(((current - prior) / prior) * 100)
   if (pct === 0) return `<span style="display:inline-block;font-size:11px;font-weight:600;color:#6b7280;background:#f3f4f6;border-radius:99px;padding:2px 8px;">0%</span>`
   const [bg, color, arrow] = pct > 0 ? ['#f0fdf4', '#15803d', '&#8593;'] : ['#fef2f2', '#dc2626', '&#8595;']
@@ -401,7 +402,7 @@ function buildHtml(brandName: string, date: string, ga4: Ga4Summary | null, ph: 
         </tr>
       </table>
       <p style="margin:10px 0 0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">
-        ${brandName} &mdash; latest summary
+        ${brandName}: latest summary
       </p>
     </td></tr>
 
@@ -505,6 +506,8 @@ function buildTodayTasksSection(today: TodayTasks, brandId: string | null): stri
 async function sendViaGmail(
   accessToken: string, from: string, to: string, subject: string, html: string,
 ): Promise<boolean> {
+  subject = stripEmDashes(subject)
+  html = cleanEmailHtml(html, 'daily_digest')
   const message = [
     `From: GrowJin <${from}>`,
     `To: ${to}`,

@@ -78,7 +78,7 @@ function sourceBadgeStyle(source: string): { bg: string; color: string } {
   if (s === 'direct') return { bg: '#F0EEE6', color: M.muted }
   if (s.includes('google')) return { bg: '#EEF2FF', color: '#4338CA' }
   if (s.includes('linkedin')) return { bg: '#E8F4FD', color: '#0A66C2' }
-  if (s.includes('twitter') || s.includes('x')) return { bg: '#F0F0F0', color: '#14171A' }
+  if (s.includes('twitter') || s === 'x' || s === 'x.com' || s === 't.co') return { bg: '#F0F0F0', color: '#14171A' }
   if (s.includes('facebook')) return { bg: '#E7F0FF', color: '#1877F2' }
   if (s.includes('instagram')) return { bg: '#FDF2F8', color: '#C13584' }
   if (s.includes('youtube')) return { bg: '#FFF2F2', color: '#FF0000' }
