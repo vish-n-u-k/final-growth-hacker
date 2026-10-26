@@ -94,6 +94,41 @@
   .focus .why { margin: 0; color: var(--dim); }
   .upnext { margin-top: 18px; font-size: 14px; color: var(--faint); }
 
+  /* Dashboard (sketch D): number tiles, then a to-do panel beside small read-only panels. Still one green button. */
+  .page.wide { max-width: 1060px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 26px; }
+  .kpi { padding: 16px 18px 14px; border: 1px solid var(--line); border-radius: 14px; min-width: 0; }
+  .kpi-l { font-size: 13px; color: var(--faint); }
+  .kpi-v { display: flex; align-items: baseline; gap: 8px; margin-top: 2px; font: 600 28px/1.2 var(--display); font-variant-numeric: tabular-nums; }
+  .kpi-v small { font: 500 13px var(--body); color: var(--dim); }
+  .kpi.alert { background: var(--red-soft); border-color: transparent; }
+  .kpi.alert .kpi-v { color: var(--red); }
+  .kpi svg { display: block; width: 100%; height: 34px; margin-top: 8px; }
+  .kpi .prog { height: 6px; margin-top: 22px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .kpi .prog i { display: block; height: 100%; background: var(--bar); }
+  .kpi .sub { margin-top: 6px; font-size: 12.5px; color: var(--faint); }
+  .dash { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 12px; margin-top: 12px; align-items: start; }
+  .col { display: grid; gap: 12px; min-width: 0; }
+  .panel { padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; min-width: 0; }
+  .panel-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+  .panel-h b { font-size: 15px; }
+  .panel-h span { font-size: 13px; color: var(--faint); }
+  .panel .next { margin-top: 0; padding: 16px 18px; }
+  .panel .rest { margin-top: 10px; }
+  .panel .row:last-child { border-bottom: 0; }
+  .src { display: grid; grid-template-columns: 82px minmax(0, 1fr) 40px; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; }
+  .src .b { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+  .src .b i { display: block; height: 100%; background: var(--bar); }
+  .src .p { text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
+  .funnel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .funnel div { padding: 10px 0 2px; }
+  .funnel b { display: block; font: 600 22px var(--display); font-variant-numeric: tabular-nums; }
+  .funnel span { font-size: 13px; color: var(--faint); }
+  .plain { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; font-size: 14px; }
+  .plain li { display: flex; justify-content: space-between; gap: 10px; }
+  .plain li span:last-child { color: var(--faint); white-space: nowrap; }
+  @media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dash { grid-template-columns: 1fr; } }
+
   /* One item opened */
   .back { margin: 0 0 22px; }
   .item h2 { margin: 0 0 6px; font: 600 26px/1.25 var(--display); text-wrap: balance; }
@@ -131,7 +166,7 @@
 
 <div class="picker">
   <div class="picker-in">
-    <div class="picker-h">Today: three calm sketches</div>
+    <div class="picker-h">Today: four calm sketches</div>
     <div class="opts" id="opts"></div>
     <p class="picker-note" id="pnote"></p>
   </div>
@@ -160,10 +195,24 @@ const ITEMS = [
   { id: 'a6', name: 'Call Priya at Nimbus Studio', why: 'You set this reminder on Monday.', todo: 'Call or email Priya. She asked to talk after her launch.', helps: 'She has a team of 8 who post every day.', cta: 'Open the reminder' },
 ]
 const STATS = { visits: 412, delta: 18, via: 'Google', signups: 3, users: 142, next: 155, stageName: 'First 150' }
+// Last 14 days, oldest first (dashboard sketch only)
+const TREND = {
+  visits: [248, 262, 231, 290, 305, 270, 284, 318, 296, 331, 344, 322, 349, 412],
+  signups: [1, 0, 2, 1, 1, 3, 0, 2, 1, 2, 4, 1, 2, 3],
+}
+const SOURCES = [['Google', 46], ['LinkedIn', 22], ['Direct', 18], ['Instagram', 9], ['Other', 5]]
+function spark(d) {
+  const w = 120, h = 34, max = Math.max(...d), min = Math.min(...d)
+  const pts = d.map((v, i) => [i / (d.length - 1) * w, h - 3 - (v - min) / (max - min || 1) * (h - 8)])
+  const line = pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')
+  const [ex, ey] = pts[pts.length - 1]
+  return `<svg viewBox="-3 0 ${w + 6} ${h}" preserveAspectRatio="none" aria-hidden="true"><polygon points="0,${h} ${line} ${w},${h}" fill="var(--soft)"/><polyline points="${line}" fill="none" stroke="var(--bar)" stroke-width="1.6" vector-effect="non-scaling-stroke"/><circle cx="${ex}" cy="${ey}" r="2.6" fill="var(--text)"/></svg>`
+}
 const SKETCHES = [
   { id: 'A', name: 'A · One list (recommended)', note: 'Title, one grey line with yesterday’s numbers, the next step, then the rest as quiet rows. Everything else moves to its own tool or into Settings.' },
   { id: 'B', name: 'B · Morning note', note: 'Same list, but it opens with three plain sentences about yesterday and one grey progress bar to 500 users. For people who want the story before the to-do.' },
   { id: 'C', name: 'C · One at a time', note: 'Only one task on screen, with its details already open. Finish it and the next one slides in. The full list is one click away.' },
+  { id: 'D', name: 'D · Dashboard', note: 'Feels like a dashboard: four number tiles with 14-day lines, then the to-do list beside small panels (where visitors came from, outreach, content). Still grey, still one green button.' },
   { id: 'X', name: 'What changes', note: 'Every part of the current Today page, and where it goes in the calm version.' },
 ]
 const CHANGES = [
@@ -247,6 +296,23 @@ const VIEWS = {
       <div class="acts"><button class="btn go" data-finish="${i.id}">${esc(i.cta)}</button><button class="btn quiet" data-skip="${i.id}">Skip for today</button></div></div>
       ${l[1] ? `<p class="upnext">Up next: ${esc(l[1].name)}</p>` : ''}`
   },
+  D() {
+    if (S.open) return itemView(ITEMS.find(i => i.id === S.open))
+    const l = left(), replies = l.filter(i => i.reply).length
+    const kpis = `<div class="kpis">
+      <div class="kpi"><div class="kpi-l">Visitors yesterday</div><div class="kpi-v">${STATS.visits}<small>+${STATS.delta}%</small></div>${spark(TREND.visits)}</div>
+      <div class="kpi"><div class="kpi-l">Sign-ups yesterday</div><div class="kpi-v">${STATS.signups}<small>${TREND.signups.reduce((a, b) => a + b, 0)} in 14 days</small></div>${spark(TREND.signups)}</div>
+      <div class="kpi"><div class="kpi-l">Users</div><div class="kpi-v">${STATS.users}<small>of 500</small></div><div class="prog"><i style="width:${pct}%"></i></div><div class="sub">${STATS.next - STATS.users} to the next stage</div></div>
+      <div class="kpi${replies ? ' alert' : ''}"><div class="kpi-l">Replies waiting</div><div class="kpi-v">${replies}</div><div class="sub" style="margin-top:22px">${replies ? 'Tom Becker, 2 h ago' : 'All answered'}</div></div>
+    </div>`
+    const todo = `<div class="panel"><div class="panel-h"><b>To do today</b><span>${l.length} left · ${S.done.length} done</span></div>${startHere(l[0])}${rows(l.slice(1))}</div>`
+    const side = `<div class="col">
+      <div class="panel"><div class="panel-h"><b>Where visitors came from</b><span>Yesterday</span></div>${SOURCES.map(([n, p]) => `<div class="src"><span>${n}</span><span class="b"><i style="width:${p}%"></i></span><span class="p">${p}%</span></div>`).join('')}</div>
+      <div class="panel"><div class="panel-h"><b>Outreach</b><span>This week</span></div><div class="funnel"><div><b>24</b><span>sent</span></div><div><b>11</b><span>opened</span></div><div><b>3</b><span>replied</span></div></div></div>
+      <div class="panel"><div class="panel-h"><b>Content</b><span>This week</span></div><ul class="plain"><li><span>Blog: “5 caption ideas for cafés”</span><span>Draft ready</span></li><li><span>LinkedIn post</span><span>Thu 10:00</span></li><li><span>Instagram post</span><span>Not planned</span></li></ul></div>
+    </div>`
+    return header('Today', '<span>Tue 27 Oct</span><span>Updated 2 h ago</span>') + kpis + `<div class="dash">${todo}${side}</div>`
+  },
   X() {
     return `<div class="crumbs">Design notes</div><h1>What changes on Today</h1>
       <p class="chg-intro">Today currently stacks about 13 parts on one page, with five colours and up to three buttons per card. The calm version keeps one job: show what to do next. The rest moves to the tool it belongs to, or into Settings.</p>
@@ -258,7 +324,9 @@ const VIEWS = {
 function render() {
   document.getElementById('opts').innerHTML = SKETCHES.map(o => `<button class="opt" aria-pressed="${S.sketch === o.id}" data-sketch="${o.id}">${o.name}</button>`).join('')
   document.getElementById('pnote').textContent = SKETCHES.find(o => o.id === S.sketch).note
-  document.getElementById('page').innerHTML = VIEWS[S.sketch]()
+  const page = document.getElementById('page')
+  page.classList.toggle('wide', S.sketch === 'D' && !S.open)
+  page.innerHTML = VIEWS[S.sketch]()
   document.getElementById('toast').innerHTML = S.toast ? `<div class="toast" role="status">${esc(S.toast.text)}<button data-a="undo">Undo</button></div>` : ''
 }
 let toastTimer
