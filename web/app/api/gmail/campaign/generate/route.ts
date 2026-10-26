@@ -1,3 +1,4 @@
+import { stripEmDashes } from '@/lib/email/clean'
 import { NextRequest, NextResponse } from 'next/server'
 import { requirePro } from '@/lib/billing/guard'
 import { createClient } from '@/lib/supabase/server'
@@ -230,7 +231,7 @@ Return ONLY this JSON (no markdown, no code fences, no extra text):
     const copy  = JSON.parse(stripped.slice(start, end + 1)) as EmailCopy
     if (!copy.subject || !copy.hero || !copy.bullets?.length) throw new Error('Missing required fields in AI response')
     // Strip em dashes from all generated text fields
-    const noEmDash = (s: string) => s.replace(/—/g, '').replace(/\s{2,}/g, ' ').trim()
+    const noEmDash = (s: string) => stripEmDashes(s).replace(/\s{2,}/g, ' ').trim()
     copy.hero        = noEmDash(copy.hero)
     copy.intro       = noEmDash(copy.intro)
     copy.boldPhrase  = noEmDash(copy.boldPhrase)

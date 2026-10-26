@@ -7,6 +7,7 @@
 // reads, edits and sends from Gmail. One follow-up goes out 5 days later unless they reply.
 // Runs weekly from the Search Agent's schedule (lib/agents/search-agent.ts) or on "Find now".
 
+import { stripEmDashes } from '@/lib/email/clean'
 import { callAI, withAIContext } from '@/lib/ai/client'
 import { sendGmailMessage, GmailSendError } from '@/lib/gmail/send'
 import { getValidGmailToken } from '@/lib/gmail/token'
@@ -124,7 +125,7 @@ For each website return {"i": number, "keep": boolean, "why": "...", "subject": 
 - keep: false if a small business can't realistically get a link or mention there (major news outlets, government, universities, a competitor's own site, spammy or unrelated sites).
 - why: one plain sentence a non-technical founder understands, e.g. "Their 'best scheduling tools' article lists RivalOne and RivalTwo but not you."
 - subject: under 60 characters, specific, no clickbait.
-- body: 80-130 words, plain text, no greeting line with a name (we add it). Mention the page by its title, say in one or two sentences why ${b.name} is useful for their readers, make one clear ask (add ${b.name} to the list, or mention it), offer to send anything that helps. No flattery, no invented facts, numbers or customer names. Sign off with "${b.name}".`,
+- body: 80-130 words, plain text, no greeting line with a name (we add it). Mention the page by its title, say in one or two sentences why ${b.name} is useful for their readers, make one clear ask (add ${b.name} to the list, or mention it), offer to send anything that helps. No flattery, no em dashes, no invented facts, numbers or customer names. Sign off with "${b.name}".`,
   })
   const arr = parseJsonLoose<Drafted[]>(raw, 'array') ?? []
   return new Map(arr.filter(x => typeof x?.i === 'number').map(x => [x.i, x]))
@@ -262,7 +263,7 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
           id: idOf(c.domain), domain: c.domain, source: c.source, url: c.url, title: c.title,
           authority: c.rank !== null ? Math.round(c.rank / 10) : null, names: [...c.names],
           why: x.why || (c.source === 'list' ? 'This article compares options like yours and leaves you out.' : `Links to ${[...c.names].join(' and ')}, not to you.`),
-          pitch: x.subject && x.body ? { subject: x.subject, body: x.body } : undefined,
+          pitch: x.subject && x.body ? { subject: stripEmDashes(x.subject), body: stripEmDashes(x.body) } : undefined,
           status: 'new', foundAt: now,
         })
       })
