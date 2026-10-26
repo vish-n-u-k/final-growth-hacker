@@ -1,6 +1,6 @@
 # GrowJin: handoff for the next session
 
-Last updated 23 Oct 2026. Read this first. It covers what the app is, how the code is laid out, what was built recently, and what we are in the middle of.
+Last updated 26 Oct 2026. Read this first. It covers what the app is, how the code is laid out, what was built recently, and what we are in the middle of.
 
 ## 1. What the app is
 
@@ -70,8 +70,8 @@ What each tool does today:
 
 | Service | Used for | Key |
 |---|---|---|
-| DataForSEO | Google Maps businesses, search data, rankings, AI answers | `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD` |
-| Hunter | Emails | `HUNTER_API_KEY` |
+| DataForSEO | Google Maps businesses, search data, rankings, AI answers, backlinks, Trustpilot reviews. All calls in `web/lib/agents/dataforseo.ts`. Pay-as-you-go; the owner bought $50 of credit on 26 Oct 2026. Backlinks no longer need a monthly commitment (dropped 1 Jul 2026). | `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD` |
+| Hunter | Emails, all through `findEmail` in `web/lib/agents/hunter.ts`. Free plan for now: 50 credits a month, 1 credit per email returned, misses free. | `HUNTER_API_KEY` |
 | Gmail | Sending, through OAuth per brand | (per-brand OAuth) |
 | Claude | Scoring and writing, through `web/lib/ai/client.ts` | — |
 
@@ -180,6 +180,20 @@ One board for every lead source, built from the approved preview `design-preview
 - Sidebar: first item under Get customers, icon `people`. Parked like the others (`/leads` in `lib/features.ts`), so only early-access users see it.
 - Not done yet: the competitor part has no demo mode (the switch only covers the Lead Agent part); replies to competitor emails aren't tracked on the board (they show in Email Outreach); there's no way to remove a competitor from the row.
 
+## 4c. Costs: Usage & costs tab and Hunter credits
+
+- **Settings → Usage & costs** (`web/components/settings/UsageSection.tsx`, data shaped in `web/lib/usage.ts`, `st-usage-*` CSS). Per account, this month: the total, split by tool, by DataForSEO API and by AI feature, plus up to 12 past months.
+  - DataForSEO dollars and Hunter credits are stored per brand in `signal_snapshots` key `agent:usage`, as `{ months: { 'YYYY-MM': { dataforseo, hunter, tools, apis, hunterOutAt } } }` (`addUsage` / `readAccountCosts` in `web/lib/agents/store.ts`). The old one-month shape is still read.
+  - Each DataForSEO call adds its cost to the run's meter under an API name (`apiLabel` in `dataforseo.ts`). `addUsage(brandId, meter, tool)` takes the tool: Lead Agent, Search Agent or Competitor Leads.
+  - AI dollars come from `ai_usage_logs` for the whole app, grouped by feature (names in `lib/usage.ts`).
+  - The split by API only exists for runs after 26 Oct 2026; older spend shows in the totals with a note.
+- **Hunter** (`web/lib/agents/hunter.ts`):
+  - Every request asks for one email: Email Finder when the person's name is known, then Domain Search with `limit=1` for an owner, manager or marketing person, then any one address. A lead costs at most 1 credit (it used to ask for 10, costing up to 10).
+  - `meter.hunter` counts credits, i.e. emails returned, not requests. Hunter doesn't charge repeats in the same month, so the count can run slightly high.
+  - HTTP 429 means the credits are used up (403 is only the rate limit). The meter gets `hunterOut`, Hunter isn't asked again that run, and `hunterOutAt` is saved for the month. It clears once Hunter returns an email again.
+  - Where it shows: Lead Agent run progress and a note on the page, Competitor Leads' "No public email found", Search Agent's contacts step, Settings and the agents overview.
+  - Not checked on the real free plan: whether Domain Search's `department` and `type` filters are allowed there. If not, that request fails and the plain one-email search still runs.
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:
@@ -224,6 +238,9 @@ One board for every lead source, built from the approved preview `design-preview
 ## 6. Known open items
 
 - **Not tested against real services:** none of the recent work has been tried with real Gmail, DataForSEO, Hunter or Claude. Test on a test account before relying on it.
+- **Stale backlinks message:** `web/lib/agents/link-opportunities.ts` (~line 242) still says backlinks need DataForSEO's subscription. That's no longer true; reword it.
+- **"Credits used up" is per brand:** all brands share one Hunter key, but each brand's note only shows once its own run hits the limit.
+- **DataForSEO ideas, not built** (agreed with the owner, nothing started): a spending cap per brand; queued instead of live calls for the daily run (about a third of the price); caching keyword data for 30 days; replacing SerpAPI, Serper and DuckDuckGo scraping in the SEO, Outreach Targets and Community Finder modules; real competitors and a keyword gap from DataForSEO Labs; Google reviews as a Competitor Leads source; Search Agent rank drops and wrong AI descriptions as Today tasks; LLM Mentions to bring back the "how often AI names you" chart.
 - **Unused code:** `/api/gmail/set-followup` and some old `gh-*` CSS are no longer used (the old full-mailbox `inbox`, `thread` and `summarize-thread` routes were deleted). The new Inbox reuses the `gh-thread-*` / `gh-msg-*` styles.
 - **Inbox isn't "calm" yet:** it still uses coloured tags and avatars. Apply section 5's rules when Email Outreach gets its pass.
 - **Possibly lost feature:** the Search Agent's old "how often AI names you vs competitors" bar chart was dropped. Ask the owner whether they want it back.
