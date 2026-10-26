@@ -196,7 +196,11 @@ Gotchas:
 - Published: https://claude.ai/artifact/VBumsgS9fSHqmntQyJMSBq (private to the owner; share from the page)
 - The owner is showing it to the people from the demo.
 
-**Today is done (sketch E, "Open & close").** Preview: `design-previews/tools-cleanup/today-calm.html` (https://claude.ai/artifact/L6h5DFDAEBKYmZPK5zrEiC). The real page (`TodayDashboard.tsx`) is now five sections that open and close: To do today (Start here + quiet rows; finishing a task opens the next), How it's going, Blog and posts, Social accounts, Done. Each closed section shows a one-line summary. Only To do starts open; open state is kept in `localStorage` (`today-folds`). The daily email switch and "check again" moved into Settings; the streak pill, analytics bar, Today's focus box and coloured card labels are gone. Not yet calmed: the insides of the blog, social stats and What happened blocks.
+**Today is done (sketch E, "Open & close").** Preview: `design-previews/tools-cleanup/today-calm.html` (https://claude.ai/artifact/L6h5DFDAEBKYmZPK5zrEiC). The real page (`TodayDashboard.tsx`) is five sections that open and close, in this order: How it's going, To do today, Blog and posts, Social accounts, Done. Each closed section shows a one-line summary. How it's going and To do start open; open state is kept in `localStorage` (`today-folds-v2`).
+- To do: one Start here panel (the page's only green), then quiet rows with a faint icon per task type. List text is `data.finding` without the "Overdue: waiting N days." lead-in (the opened task, daily email and MCP keep it). Finishing a task opens the next. A ring shows done today / today's total.
+- How it's going: Road to 500, What happened (visitors and signups have a 14-day line from `trend` in `/api/today/activity`), What's working.
+- Type: 400 reading, 500 names/labels/numbers, 600 only the title and the green button (scoped block at the end of Today's styles).
+- Settings holds the daily email switch and "check again". Not yet calmed: the insides of the blog and social stats blocks.
 
 **Next steps:**
 
