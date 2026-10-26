@@ -208,6 +208,7 @@ One board for every lead source, built from the approved preview `design-preview
   - **Small agencies and brands** from Hunter Discover, now **smallest first** (fewest addresses on file) instead of most emails first, which surfaced big PR firms.
   - Names or home pages matching `NOT_A_FIT` (PR, B2B, enterprise, consulting, award-winning, staffing…) are dropped before scoring.
   - The home page is read for title, description and **social links** (`socialsIn`: Instagram, Facebook, TikTok…); the scorer gives 8-10 to small businesses that post or should post on social.
+  - **Trade check (free, before scoring):** every company's home page is read; `tradeMatch` keeps it only if its name, description or page text has one of the trade words from `companyFilters.keywords` (plain words like shop, online, brand don't count). This drops Hunter's loose matches, e.g. an estate agent "matching" etsy shop. The scorer also gets "Companies we look for" (`companyQuery`) and scores a different trade 1-3. Each run logs `[lead-agent] companies: N found · … kept`.
   - Up to `COMPANY_CHECK` (10) companies are scored per run; Hunter still looks up at most `PER_SOURCE` (3) emails.
   - The run summary adds "Companies: N checked, N good fits, N with an email".
 - **Picked from the brand:** `pickSources` (Claude) chooses Google Maps / companies / Reddit with a who-line each and one `why` sentence, saved as `settings.picked = { at, why }`.

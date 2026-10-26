@@ -263,13 +263,33 @@ Return {"keywords":[...],"headcount":[...],"platforms":[...]}:
 }
 
 /** Title, description and social links from a site's home page, so the fit score has something to go on. */
-async function aboutSite(domain: string): Promise<{ text: string; socials: string[] }> {
+async function aboutSite(domain: string): Promise<{ text: string; socials: string[]; page: string }> {
   const html = await fetchHtml(`https://${domain}`).catch(() => null)
-  if (!html) return { text: '', socials: [] }
+  if (!html) return { text: '', socials: [], page: '' }
   const title = html.match(/<title[^>]*>([^<]{1,160})/i)?.[1] ?? ''
   const desc = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{1,300})/i)?.[1]
     ?? html.match(/<meta[^>]+content=["']([^"']{1,300})["'][^>]+name=["']description["']/i)?.[1] ?? ''
-  return { text: [title, desc].map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · '), socials: socialsIn(html) }
+  const page = html.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').slice(0, 8000)
+  return { text: [title, desc].map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · '), socials: socialsIn(html), page }
+}
+
+// Words too common to show a trade ("etsy shop" is about Etsy, not "shop")
+const PLAIN_WORDS = new Set(['shop', 'shops', 'store', 'stores', 'online', 'brand', 'brands', 'small', 'business', 'businesses', 'company', 'companies', 'agency', 'agencies', 'studio', 'services', 'service', 'digital', 'local', 'the', 'and', 'for', 'co'])
+
+/**
+ * Does the business's own site say it is what we look for? True when its name, description or page
+ * text has one of the trade words ("handmade", "etsy"…), or a whole keyword phrase. Free, and it
+ * stops Hunter's loose keyword matches (an estate agent "matching" etsy shop) before any scoring.
+ */
+function tradeMatch(keywords: string[], text: string): boolean {
+  if (!keywords.length) return true
+  const t = ` ${text.toLowerCase().replace(/[^a-z0-9&]+/g, ' ')} `
+  return keywords.some(k => {
+    const phrase = k.toLowerCase().replace(/[^a-z0-9&]+/g, ' ').trim()
+    if (!phrase) return false
+    if (t.includes(` ${phrase} `) || t.includes(` ${phrase}s `)) return true
+    return phrase.split(' ').filter(w => w.length > 2 && !PLAIN_WORDS.has(w)).some(w => t.includes(` ${w} `) || t.includes(` ${w}s `))
+  })
 }
 
 /** Which social networks a page links to (a business that links Instagram cares about posting). */
@@ -314,11 +334,16 @@ async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData,
   const list = [...stores.slice(0, half), ...agencies.slice(0, COMPANY_CHECK - half), ...stores.slice(half), ...agencies.slice(COMPANY_CHECK - half)]
     .filter(x => !seen.has(x.domain) && seen.add(x.domain))
     .slice(0, COMPANY_CHECK + 4)
-  const pages = await Promise.all(list.map(c => (c.about && c.socials?.length ? Promise.resolve({ text: c.about, socials: c.socials }) : aboutSite(c.domain))))
-  return list
-    .map((c, i) => ({ c, text: c.about || pages[i].text, socials: c.socials?.length ? c.socials : pages[i].socials }))
-    // Big PR / B2B / consulting firms aren't small-business buyers: don't spend a score on them
-    .filter(x => !NOT_A_FIT.test(`${x.c.name} ${x.text}`))
+  // Every home page is read: the trade check needs the page text, not just Hunter's or DataForSEO's word
+  const pages = await Promise.all(list.map(c => aboutSite(c.domain)))
+  const checked = list.map((c, i) => ({ c, text: c.about || pages[i].text, socials: c.socials?.length ? c.socials : pages[i].socials, page: pages[i].page }))
+  // Big PR / B2B / consulting firms aren't small-business buyers: don't spend a score on them
+  const small = checked.filter(x => !NOT_A_FIT.test(`${x.c.name} ${x.text}`))
+  // Not what you look for, by its own site (e.g. an estate agent Hunter matched to "etsy shop")
+  const right = small.filter(x => tradeMatch(f.keywords, `${x.c.name} ${x.text} ${x.page}`))
+  console.log(`[lead-agent] companies: ${list.length} found · ${checked.length - small.length} big or B2B dropped · ${small.length - right.length} not what you look for (${small.filter(x => !right.includes(x)).slice(0, 4).map(x => x.c.domain).join(', ') || '—'}) · ${right.length} kept`)
+  if (small.length && !right.length) warn(`Companies: none of the ${small.length} found says on its own site that it is what you look for (${f.keywords.slice(0, 4).join(', ')}). Try other words in “Who to look for”.`)
+  return right
     .slice(0, COMPANY_CHECK)
     .map(({ c, text, socials }) => ({
       source: 'company' as const,
@@ -404,13 +429,14 @@ async function scoreCandidates(b: BrandContext, s: LeadSettings, list: Candidate
     maxTokens: 2500,
     system: 'You qualify sales leads. Be strict: most posts are not buyers. Return only a raw JSON array.',
     prompt: `${brandBlock(b)}
-Ideal customer: ${s.customer || b.targetAudience || 'not given'}
+Ideal customer: ${s.customer || b.targetAudience || 'not given'}${s.sources.companies && s.companyQuery.trim() ? `
+Companies we look for: ${s.companyQuery.trim()}` : ''}
 
 Score each item 1-10 for how likely this person or business would want ${b.name} now:
 - reddit / forum: 8-10 only if they are asking for a tool or help that ${b.name} gives; 1-4 for news, rants, promotions, or other products' launches
 - review: an unhappy customer of a competitor; high only if their complaint is something ${b.name} solves
 - local: a business that matches the ideal customer and shows a need (no website, low rating, few reviews)
-- company: a business, described by its own home page and the social networks it links to. 8-10: a small business (a shop, an online store, a brand, a small agency) that matches the ideal customer and clearly posts or should post on social media, e.g. it links to Instagram or Facebook. 4-6: small but unclear need. 1-3: big or B2B firms, PR, consulting, software companies, directories, marketplaces, or no description at all
+- company: a business, described by its own home page and the social networks it links to. First check its trade against "Companies we look for": a different trade (e.g. real estate when we look for Etsy sellers) is 1-3, however active it is on social media. Then 8-10: a small business (a shop, an online store, a brand, a small agency) that matches the ideal customer and clearly posts or should post on social media, e.g. it links to Instagram or Facebook. 4-6: small but unclear need. 1-3: big or B2B firms, PR, consulting, software companies, directories, marketplaces, or no description at all
 
 ${lines}
 
