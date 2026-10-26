@@ -202,9 +202,16 @@ const TYPE_ICON: Record<string, LucideIcon> = {
   outreach: Mail, social: Share2, seo: Search, content: FileText, 'module-item': Wrench,
   alert: CircleAlert, play: Target, blog: PenLine, reminder: Bell,
 }
-function TaskIcon({ type, big }: { type: string; big?: boolean }) {
+function TaskIcon({ type }: { type: string }) {
   const Icon = TYPE_ICON[type] ?? ListChecks
-  return <span className={`td-ticon${big ? ' td-ticon--big' : ''}`} aria-hidden="true"><Icon size={big ? 20 : 16} strokeWidth={1.8} /></span>
+  return <span className="td-ticon" aria-hidden="true"><Icon size={16} strokeWidth={1.7} /></span>
+}
+
+// The one-line "why" in the list: the finding itself, without "Overdue: waiting N days." in front.
+// The opened task still shows the full reason.
+const shortWhy = (card: ActionCard) => {
+  const finding = typeof card.data?.finding === 'string' && card.data.finding.trim() ? card.data.finding : card.reason
+  return finding.replace(/^Overdue: waiting \d+ days?\.\s*/, '').replace(/\*\*/g, '')
 }
 
 // Tasks done today out of today's total, as a small ring
@@ -212,7 +219,7 @@ function DoneRing({ done, total }: { done: number; total: number }) {
   const r = 11, c = 2 * Math.PI * r, part = total ? done / total : 0
   return (
     <span className="td-ring" role="img" aria-label={`${done} of ${total} done today`}>
-      <svg width="28" height="28" viewBox="0 0 28 28">
+      <svg width="22" height="22" viewBox="0 0 28 28">
         <circle cx="14" cy="14" r={r} className="td-ring-bg" />
         <circle cx="14" cy="14" r={r} className="td-ring-fg" strokeDasharray={`${c * part} ${c}`} transform="rotate(-90 14 14)" />
       </svg>
@@ -1030,7 +1037,7 @@ function Fold({ id, title, icon: Icon, summary, aside, open, onToggle, children 
   return (
     <section className="td-fold">
       <button type="button" className="td-fold-h" aria-expanded={open} aria-controls={`td-fold-${id}`} onClick={onToggle}>
-        <span className="td-fold-icon" aria-hidden="true"><Icon size={18} strokeWidth={1.8} /></span>
+        <span className="td-fold-icon" aria-hidden="true"><Icon size={18} strokeWidth={1.7} /></span>
         <span className="td-fold-t">
           <b>{title}</b>
           <span className="td-fold-sum">{summary}</span>
@@ -1290,11 +1297,10 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           if (i === 0 && !cards.some(c => c.id === openId)) {
             return (
               <div key={card.id} className="td-next">
-                <TaskIcon type={card.type} big />
                 <div className="td-next-text">
                   <span className="td-eyebrow">Start here</span>
                   <b>{card.headline}</b>
-                  <span>{withBold(card.reason)}</span>
+                  <span>{shortWhy(card)}</span>
                 </div>
                 <button type="button" className="btn btn-primary td-next-go" onClick={() => openTask(card.id)}>Start</button>
               </div>
@@ -1305,7 +1311,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
               <TaskIcon type={card.type} />
               <span className="td-row-main">
                 <span className="td-row-name">{card.headline}</span>
-                <span className="td-row-why">{card.reason.replace(/\*\*/g, '')}</span>
+                <span className="td-row-why">{shortWhy(card)}</span>
               </span>
               <span className="td-row-go" aria-hidden="true">Open ›</span>
             </button>
@@ -1533,28 +1539,21 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-folds { margin-top: 6px; border-top: 1px solid var(--line); }
         .td-fold { border-bottom: 1px solid var(--line); }
         .td-fold-h {
-          display: flex; align-items: center; gap: 14px; width: 100%; padding: 18px 4px;
+          display: flex; align-items: center; gap: 12px; width: 100%; padding: 16px 4px;
           border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; font-family: var(--font-body);
         }
         .td-fold-h:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 8px; }
-        .td-fold-icon {
-          flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center;
-          background: var(--bg-soft); border: 1px solid var(--line); color: var(--text-dim);
-        }
-        .td-fold-h[aria-expanded="true"] .td-fold-icon { color: var(--text); }
-        .td-ticon {
-          flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
-          background: var(--bg-soft); color: var(--text-dim);
-        }
-        .td-ticon--big { width: 44px; height: 44px; background: var(--card); color: var(--green); }
+        /* Icons are wayfinding only: plain, faint, no boxes, so they never compete with the text */
+        .td-fold-icon { flex: none; width: 20px; display: grid; place-items: center; color: var(--text-faint); }
+        .td-ticon { flex: none; width: 20px; display: grid; place-items: center; color: var(--text-faint); }
         .td-ring { position: relative; flex: none; display: inline-flex; align-items: center; gap: 8px; }
         .td-ring svg { display: block; }
         .td-ring-bg { fill: none; stroke: var(--line); stroke-width: 3; }
         .td-ring-fg { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray .4s; }
-        .td-ring-t { font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+        .td-ring-t { font-size: 13px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
         @media (prefers-reduced-motion: reduce) { .td-ring-fg { transition: none; } }
         .td-fold-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-        .td-fold-t b { font-size: 17px; font-weight: 500; }
+        .td-fold-t b { font-size: 16px; font-weight: 500; }
         .td-fold-sum { font-size: 14px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .td-fold-h:hover .td-fold-t b { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
         .td-fold-chev { flex: none; color: var(--text-faint); transition: transform .15s; }
@@ -1575,15 +1574,18 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-todo { display: flex; flex-direction: column; }
         .td-next {
           display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-          padding: 20px 22px; border-radius: 14px; background: var(--accent); margin-bottom: 6px;
+          padding: 16px 20px; border-radius: 12px; background: var(--accent); margin-bottom: 6px;
         }
         .td-next-text { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-        .td-next-text > b { font-size: 18px; font-weight: 500; color: var(--text); }
-        .td-next-text > span:last-child { font-size: 15px; color: var(--text-dim); line-height: 1.5; }
+        .td-next-text > b { font-size: 16px; font-weight: 500; color: var(--text); }
+        .td-next-text > span:last-child {
+          font-size: 14px; color: var(--text-dim); line-height: 1.5;
+          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+        }
         .td-next .td-eyebrow { color: var(--text-dim); margin-bottom: 2px; }
-        .td-next-go { height: 42px; padding: 0 24px; font-size: 14px; }
+        .td-next-go { height: 38px; padding: 0 20px; font-size: 14px; }
         .td-row {
-          display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 4px;
+          display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 4px;
           border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--text);
           text-align: left; cursor: pointer; font-family: var(--font-body);
         }
@@ -1592,8 +1594,10 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-row:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 8px; }
         .td-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
         .td-row-name { font-size: 15px; font-weight: 500; }
-        .td-row-why { font-size: 14px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .td-row-go { font-size: 14px; color: var(--text-faint); white-space: nowrap; }
+        .td-row-why { font-size: 14px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .td-row-go { font-size: 13px; color: var(--text-faint); white-space: nowrap; opacity: 0; transition: opacity .15s; }
+        .td-row:hover .td-row-go, .td-row:focus-visible .td-row-go { opacity: 1; }
+        @media (hover: none) { .td-row-go { opacity: 1; } }
         .td-todo > .td-cell { margin: 6px 0; }
 
         /* What's working: plain lines */
@@ -1872,7 +1876,9 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
            17 section names, 22 serif for an opened task, 32 the page title. */
         .td-root .th-meta, .td-root .th-meta span, .td-root .th-meta .last-refreshed-btn { font-size: 14px; }
         .td-root .td-connect-btn { font-weight: 500; }
-        .td-root .last-refreshed-btn { font-weight: 500; }
+        /* Refresh is a quiet link here: green is kept for the one next step */
+        .td-root .th-meta .last-refreshed-btn { font-weight: 500; color: var(--text-dim); text-decoration-color: var(--line); }
+        .td-root .th-meta .last-refreshed-dot { display: none; }
         .td-root .ta-num { font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
         .td-root .ta-delta { font-size: 12px; font-weight: 500; }
         .td-root .ta-label { font-size: 13px; }
