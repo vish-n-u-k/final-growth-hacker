@@ -37,6 +37,8 @@ export interface TodayActivity {
   // PostHog covers the app; the website is measured with Google Analytics / Search Console.
   // 'connect-ga' = Google Analytics isn't connected, so nothing measures the website.
   website: { status: 'ok' | 'connect-ga'; host: string }
+  // The last 14 days, oldest first, one row per day (days with nothing are 0): Today's small trend lines
+  trend?: { date: string; visitors: number; signups: number }[]
   fetchedAt?: string // when PostHog was asked (responses are cached for a few minutes)
 }
 
@@ -89,7 +91,7 @@ export async function GET(request: NextRequest) {
   // Sign-ins only count people who already had an account, so they don't repeat the signups.
   const existingUsers = `person_id IN (SELECT id FROM persons WHERE is_identified = 1 AND created_at < ${since} ${personAnd})`
 
-  const [visitorRows, signupCountRows, signupRows, returningRows, channelRows, referrerRows, pageRows, gaRows, signinCountRows, signinRows] = await Promise.all([
+  const [visitorRows, signupCountRows, signupRows, returningRows, channelRows, referrerRows, pageRows, gaRows, signinCountRows, signinRows, visitorDayRows, signupDayRows] = await Promise.all([
     q(`SELECT count(DISTINCT if(timestamp >= ${since}, person_id, null)), count(DISTINCT if(timestamp < ${since}, person_id, null))
        FROM events WHERE event = '$pageview' AND timestamp >= ${priorFrom}`),
     q(`SELECT count(DISTINCT if(created_at >= ${since}, ${personKey}, null)), count(DISTINCT if(created_at < ${since}, ${personKey}, null))
@@ -126,6 +128,10 @@ export async function GET(request: NextRequest) {
               any(coalesce(toString(properties.$geoip_country_name), '')), any(coalesce(toString(properties.$device_type), ''))
        FROM events WHERE event = '$identify' AND timestamp >= ${since} AND ${existingUsers}
        GROUP BY person_id ORDER BY max(timestamp) DESC LIMIT 8`),
+    q(`SELECT toString(toDate(timestamp)), count(DISTINCT person_id), toString(today()) FROM events
+       WHERE event = '$pageview' AND timestamp >= toStartOfDay(now()) - interval 13 day GROUP BY 1`),
+    q(`SELECT toString(toDate(created_at)), count(DISTINCT ${personKey}) FROM persons
+       WHERE is_identified = 1 AND created_at >= toStartOfDay(now()) - interval 13 day ${personAnd} GROUP BY 1`),
   ])
 
   const n = (v: unknown) => Number(v ?? 0) || 0
@@ -161,6 +167,18 @@ export async function GET(request: NextRequest) {
     return normalizeSource(utm, refDomain)
   }
 
+  // Fill in the days PostHog returned nothing for, so the line always spans 14 days
+  const perDay = (rows: unknown[][] | null) => new Map((rows ?? []).map(r => [String(r[0]).slice(0, 10), n(r[1])]))
+  const visitorDays = perDay(visitorDayRows), signupDays = perDay(signupDayRows)
+  // Count back from PostHog's own "today" (its project timezone), not the server's UTC date
+  const lastDay = Date.parse(String(visitorDayRows?.[0]?.[2] ?? '').slice(0, 10)) || Date.parse(new Date().toISOString().slice(0, 10))
+  const trend = visitorDayRows || signupDayRows
+    ? Array.from({ length: 14 }, (_, i) => {
+        const date = new Date(lastDay - (13 - i) * 86_400_000).toISOString().slice(0, 10)
+        return { date, visitors: visitorDays.get(date) ?? 0, signups: signupDays.get(date) ?? 0 }
+      })
+    : undefined
+
   const data: TodayActivity = {
     connected: true,
     days,
@@ -195,6 +213,7 @@ export async function GET(request: NextRequest) {
     referrers: (referrerRows ?? []).map(r => ({ domain: String(r[0]).replace(/^www\./, ''), visitors: n(r[1]) })),
     pages: (pageRows ?? []).map(r => ({ path: String(r[0]), visitors: n(r[1]) })),
     website,
+    trend,
   }
   data.fetchedAt = new Date().toISOString()
   cache.set(cacheKey, { at: Date.now(), data })
