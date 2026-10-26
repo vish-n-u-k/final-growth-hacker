@@ -288,7 +288,7 @@ async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData,
   // Online stores: sites running Shopify, WooCommerce… in the country (DataForSEO), a new page each day
   if (f.platforms.length && !searchDataReady()) warn('Online stores: needs GrowJin’s DataForSEO account, which isn’t set up')
   const storeRows = f.platforms.length && searchDataReady()
-    ? await storesByPlatform(f.platforms, s.country, meter, { limit: 50, offset: (day % 20) * 50 }).catch(e => { if (!f.keywords.length) throw e; warn(`Online stores: ${e instanceof Error ? e.message : 'failed'}`); return null })
+    ? await storesByPlatform(f.platforms, s.country, meter, { limit: 50, offset: (day % 20) * 50, keywords: f.keywords }).catch(e => { if (!f.keywords.length) throw e; warn(`Online stores: ${e instanceof Error ? e.message : 'failed'}`); return null })
     : null
   if (storeRows) {
     console.log(`[lead-agent] online stores (${f.platforms.join(', ')}, ${s.country}): ${storeRows.length} back${storeRows[0] ? `, e.g. ${storeRows.slice(0, 3).map(x => x.domain).join(', ')}` : ''}`)

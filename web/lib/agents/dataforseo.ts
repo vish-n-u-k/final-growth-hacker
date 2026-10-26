@@ -207,21 +207,38 @@ export async function googleResults(keyword: string, country: string, meter?: Us
 export interface PlatformSite { domain: string; title: string; description: string; emails: string[]; socials: string[]; rank: number | null }
 
 /**
- * Websites in a country that run one of these platforms (Shopify, WooCommerce…), from DataForSEO's
- * technology index. Smaller sites only (low domain rank), a different page each day so new ones come up.
+ * Websites that run one of these platforms (Shopify, WooCommerce…), from DataForSEO's technology
+ * index, optionally only those whose title or description has one of `keywords` (what they sell).
+ * Smaller sites only (low domain rank), a different page each day so new ones come up.
+ * Platform names are matched partly (`mode: entry`), as DataForSEO's own names can differ in case
+ * or wording. With keywords and nothing found, it tries again without them, so the log shows
+ * whether the platform names or the keywords were the problem.
  */
-export async function storesByPlatform(platforms: string[], country: string, meter?: UsageMeter, opts: { limit?: number; offset?: number } = {}): Promise<PlatformSite[]> {
+export async function storesByPlatform(platforms: string[], country: string, meter?: UsageMeter, opts: { limit?: number; offset?: number; keywords?: string[] } = {}): Promise<PlatformSite[]> {
   if (!platforms.length) return []
   if (agentsDemo()) return demoStores(platforms)
   type Item = { domain?: string; title?: string | null; description?: string | null; emails?: string[] | null; social_graph_urls?: string[] | null; domain_rank?: number | null }
-  const r = await post<{ items?: Item[] | null }>('/domain_analytics/technologies/domains_by_technology/live', {
-    technologies: platforms.slice(0, 3),
-    // Anywhere: small sites in every country
-    filters: country === 'ANY' ? [['domain_rank', '<', 300]] : [['country_iso_code', '=', country.toUpperCase()], 'and', ['domain_rank', '<', 300]],
-    order_by: ['last_visited,desc'],
-    limit: opts.limit ?? 50,
-    offset: opts.offset ?? 0,
-  }, meter)
+  const keywords = (opts.keywords ?? []).map(k => k.trim().toLowerCase()).filter(Boolean).slice(0, 10)
+  const ask = async (withKeywords: boolean, offset: number) => {
+    const task: Record<string, unknown> = {
+      technologies: platforms.slice(0, 3),
+      mode: 'entry',
+      // Anywhere: small sites in every country
+      filters: country === 'ANY' ? [['domain_rank', '<', 300]] : [['country_iso_code', '=', country.toUpperCase()], 'and', ['domain_rank', '<', 300]],
+      order_by: ['last_visited,desc'],
+      limit: opts.limit ?? 50,
+      offset,
+    }
+    if (withKeywords && keywords.length) task.keywords = keywords
+    const r = await post<{ items?: Item[] | null; total_count?: number | null }>('/domain_analytics/technologies/domains_by_technology/live', task, meter)
+    console.log(`[dataforseo] stores ${platforms.join('/')} · ${country}${withKeywords && keywords.length ? ` · keywords ${keywords.join(', ')}` : ''} · offset ${offset}: ${r.items?.length ?? 0} back of ${r.total_count ?? '?'}`)
+    return r
+  }
+  let r = await ask(true, opts.offset ?? 0)
+  // Past the end of a small result set (the daily page moves on): start from the top
+  if (!r.items?.length && (opts.offset ?? 0) > 0 && (r.total_count ?? 0) > 0) r = await ask(true, 0)
+  // Nothing with the keywords: try the platforms alone, so stores still come up (the scorer checks the fit)
+  if (!r.items?.length && keywords.length) r = await ask(false, opts.offset ?? 0)
   return (r.items ?? [])
     .filter(i => i.domain)
     .map(i => ({
