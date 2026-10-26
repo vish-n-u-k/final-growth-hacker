@@ -178,6 +178,8 @@ One board for every lead source, built from the approved preview `design-preview
 - A competitor's reviewers are merged across all its reads, so people already emailed or skipped stay that way after a re-read.
 - The big search button runs the Lead Agent search and re-reads competitors not read in the last 24 h.
 - Sidebar: first item under Get customers, icon `people`. Parked like the others (`/leads` in `lib/features.ts`), so only early-access users see it.
+- **Calm colours (27 Oct):** no colour per source or person any more. Avatars, source coins, the mix bar, stars, fit bars, follow-up dots, switches and the radar/search buttons are grey. Green is only the "Start here" tag and the drawer's main button; red only marks a reply (thin border + dot on the tile, the Replied lane icon, their message).
+- **Caught up with the Lead Agent:** the Hunter "credits used up" note (`hunterOut` flag from `hunterOutThisMonth`), "Finding companies like your customers" in the progress steps, and "Pick for me" in Settings (Google Maps search field only shows when Maps is on).
 - Not done yet: the competitor part has no demo mode (the switch only covers the Lead Agent part); replies to competitor emails aren't tracked on the board (they show in Email Outreach); there's no way to remove a competitor from the row.
 
 ## 4c. Costs: Usage & costs tab and Hunter credits

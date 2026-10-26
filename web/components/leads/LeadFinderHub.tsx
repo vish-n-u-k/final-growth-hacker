@@ -20,20 +20,19 @@ import { MAX_SCORED, buildItems, buildSources, byFit, isForum, mergeReviews, riv
 // this page only joins the two (components/leads/model.ts).
 
 export interface RivalScan { scan: SavedScan; reviews: SavedReview[] }
-export interface LeadFinderFlags { dataforseo: boolean; trustpilot: boolean; hunter: boolean; gmail: boolean; demo: boolean; demoForced: boolean }
+export interface LeadFinderFlags { dataforseo: boolean; trustpilot: boolean; hunter: boolean; hunterOut?: boolean; gmail: boolean; demo: boolean; demoForced: boolean }
 
 type Panel =
   | { kind: 'item'; key: string }
   | { kind: 'settings' } | { kind: 'add' } | { kind: 'aside' } | { kind: 'about' } | { kind: 'caught-up' }
 
 const PLATFORM: Record<Platform, string> = { trustpilot: 'Trustpilot', shopify: 'Shopify App Store' }
-const PROGRESS = ['Checking replies', 'Searching Google Maps', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies']
+const PROGRESS = ['Checking replies', 'Searching Google Maps', 'Finding companies like your customers', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies']
 // ANY = anywhere: companies and stores from every country (Google searches use the US as their place)
 const COUNTRIES: [string, string][] = [['ANY', 'Anywhere'], ['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
 const BATCH = 6
 const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
 const textToHtml = (t: string) => t.trim().split(/\n{2,}/).map(p => `<p>${p.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p>`).join('')
-const tint = (h: number) => `hsl(${h} var(--lfh-av-s) var(--lfh-av-l))`
 const sameDay = (iso: string) => new Date(iso).toDateString() === new Date().toDateString()
 const subreddit = (url: string) => url.match(/reddit\.com\/r\/([^/]+)/i)?.[1]
 const plural = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`
@@ -86,10 +85,10 @@ function Coin({ s }: { s: Source }) {
   const reviews = s.type === 'rival'
   return (
     <span className="lfh-coin">
-      {reviews && <span className="lfh-coin-ring" style={{ background: `conic-gradient(var(--crit) 0 var(--lfh-ring, 0deg), var(--line) 0)` }} />}
+      {reviews && <span className="lfh-coin-ring" style={{ background: `conic-gradient(var(--text-faint) 0 var(--lfh-ring, 0deg), var(--line) 0)` }} />}
       {s.type === 'own'
         ? <span className="lfh-coin-face lfh-coin-face--own"><Ic d={P.list} /></span>
-        : <span className="lfh-coin-face" style={{ background: tint(s.hue) }}>{s.glyph}</span>}
+        : <span className="lfh-coin-face">{s.glyph}</span>}
     </span>
   )
 }
@@ -304,11 +303,8 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
     if (!cur) {
       const counts = sources.filter(x => x.type !== 'own').map(x => ({ x, n: todoOf(x.id) })).filter(c => c.n)
       const total = counts.reduce((a, c) => a + c.n, 0)
-      const rivalsIdx = sources.filter(x => x.type === 'rival')
-      const color = (x: Source) => x.type === 'maps' ? 'var(--green)'
-        : x.type === 'companies' ? 'color-mix(in srgb, var(--green) 55%, transparent)'
-        : x.type === 'forum' ? (x.id === 'reddit' ? 'var(--warn)' : 'color-mix(in srgb, var(--warn) 55%, transparent)')
-        : x.type === 'rival' ? `color-mix(in srgb, var(--crit) ${[90, 65, 45, 30][rivalsIdx.indexOf(x) % 4]}%, transparent)` : 'var(--text-faint)'
+      // One grey in fading shades: the bar shows how the people split, not which colour a source is
+      const color = (x: Source) => `color-mix(in srgb, var(--text-faint) ${[90, 60, 40, 25, 15][counts.findIndex(c => c.x === x) % 5]}%, transparent)`
       return (
         <section className="lfh-hero">
           <div className={`lfh-radar${running || anyReading ? ' is-on' : ''}`}>
@@ -358,7 +354,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
       const queries = data.queries?.list ?? []
       return (
         <section className="lfh-hero">
-          <span className="lfh-glyph" style={{ background: tint(cur.hue) }}>{cur.type === 'maps' ? <Ic d={P.pin} size={26} /> : cur.glyph}</span>
+          <span className="lfh-glyph">{cur.type === 'maps' ? <Ic d={P.pin} size={26} /> : cur.glyph}</span>
           <div className="lfh-grow lfh-col">
             {cur.type === 'maps'
               ? <MapsQuery value={s.localQuery} saving={busy === 'settings'} onSave={q => call('settings', { settings: { ...s, localQuery: q, sources: { ...s.sources, local: true } } })} />
@@ -371,6 +367,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
               {cur.type === 'companies' && <span>· Online businesses, emails from Hunter</span>}
             </div>
             {cur.type === 'companies' && !flags.hunter && <div className="lfh-meta lfh-warn">Company emails need GrowJin&apos;s Hunter key, which isn&apos;t set up yet.</div>}
+            {cur.type !== 'forum' && flags.hunterOut && !demo && <div className="lfh-meta lfh-warn">Hunter&apos;s email credits are used up, so new leads come without an email until they renew. You can still add one by hand.</div>}
             {cur.type !== 'companies' && !flags.dataforseo && <div className="lfh-meta lfh-warn">{cur.type === 'maps' ? 'Google Maps' : 'Reddit'} search needs GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet.</div>}
           </div>
           <div className="lfh-actbox">{busyBtn('Search now', () => call('run'), running, !cur.on)}</div>
@@ -400,8 +397,8 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
     if (i.origin === 'agent') {
       const l = i.lead
       av = isForum(l)
-        ? <span className="lfh-av" style={{ background: tint(x?.hue ?? 20) }}>{x?.glyph}</span>
-        : <span className="lfh-av" style={{ background: tint((i.name.charCodeAt(0) * 37) % 360) }}>{initials(i.name).slice(0, 1)}</span>
+        ? <span className="lfh-av">{x?.glyph}</span>
+        : <span className="lfh-av">{initials(i.name).slice(0, 1)}</span>
       sub = isForum(l) ? <>{l.source === 'reddit' && subreddit(l.url) ? `r/${subreddit(l.url)}` : x?.name} · {fmtAgo(l.foundAt)}</>
         : l.source === 'own' ? <><Ic d={P.list} size={12} />Your list</>
         : <><Ic d={P.pin} size={12} />{l.website || l.company || 'Google Maps'}</>
@@ -412,13 +409,13 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
         : <span className="lfh-rdot" />
     } else {
       const r = i.review
-      av = <span className="lfh-av lfh-av--round" style={{ background: tint((r.name.charCodeAt(0) * 53) % 360) }}>{initials(r.name)}</span>
+      av = <span className="lfh-av lfh-av--round">{initials(r.name)}</span>
       sub = <><Stars n={r.rating} />{all ? x?.name : r.date ? fmtDate(r.date) : ''}</>
       right = i.stage === 'todo' ? <>{r.contactChecked && !r.email && <span className="lfh-noemail" title="Email not found yet"><Ic d={P.noat} size={15} /></span>}<Bars n={i.fit} /></>
         : <span className="lfh-ok" title="Emailed"><Ic d={P.check} /></span>
     }
     const badge = all && x && i.kind === 'email' && (
-      <span className="lfh-badge" style={{ background: x.type === 'own' ? 'var(--accent)' : tint(x.hue) }} title={x.name}>{x.type === 'own' ? <Ic d={P.list} size={10} /> : x.glyph}</span>
+      <span className="lfh-badge" title={x.name}>{x.type === 'own' ? <Ic d={P.list} size={10} /> : x.glyph}</span>
     )
     return (
       <button key={i.key} type="button" className={`lfh-tile${i.stage === 'replied' ? ' is-replied' : ''}${open?.key === i.key ? ' is-sel' : ''}`}
@@ -533,7 +530,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
         </div>
       </>
     } else if (panel.kind === 'settings') {
-      body = <SettingsPanel initial={s} saving={busy === 'settings'} gmail={flags.gmail} demo={demo} demoForced={flags.demoForced} rivals={sources.filter(x => x.type === 'rival')}
+      body = <SettingsPanel key={s.picked?.at ?? 'none'} initial={s} saving={busy === 'settings'} picking={busy === 'pick'} onPick={() => call('pick')} gmail={flags.gmail} demo={demo} demoForced={flags.demoForced} rivals={sources.filter(x => x.type === 'rival')}
         busy={!!busy} onClose={close}
         onDemo={async on => {
           const r = await call('demo', { on }) as { demo?: boolean } | null
@@ -646,8 +643,8 @@ function AgentItem({ item, source, settings, gmail, busy, act, notify, left, onS
   useEffect(() => { if (l.draft && !subject && !body) { setSubject(l.draft.subject); setBody(l.draft.body) } }, [l.draft, subject, body])
 
   const av = forum
-    ? <span className="lfh-av lfh-av--lg" style={{ background: tint(source?.hue ?? 20) }}>{source?.glyph}</span>
-    : <span className="lfh-av lfh-av--lg" style={{ background: tint((item.name.charCodeAt(0) * 37) % 360) }}>{initials(item.name).slice(0, 1)}</span>
+    ? <span className="lfh-av lfh-av--lg">{source?.glyph}</span>
+    : <span className="lfh-av lfh-av--lg">{initials(item.name).slice(0, 1)}</span>
   const subLine = forum ? <>{source?.name} · {fmtAgo(l.foundAt)}</> : l.source === 'own' ? 'Your list' : <>{l.website || l.company || 'Google Maps'}{l.url && <a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See it ↗</a>}</>
   const head = <Head av={av} title={forum ? (subreddit(l.url) ? `r/${subreddit(l.url)}` : source?.name) : item.name} sub={subLine} onClose={onClose} />
   const why = l.why && <div className="lfh-why"><Ic d={P.spark} /><span>{l.why}</span></div>
@@ -812,7 +809,7 @@ function RivalItem({ item, source, gmail, notify, left, onChange, onSkip, onDone
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const head = <Head av={<span className="lfh-av lfh-av--lg lfh-av--round" style={{ background: tint((r.name.charCodeAt(0) * 53) % 360) }}>{initials(r.name)}</span>}
+  const head = <Head av={<span className="lfh-av lfh-av--lg lfh-av--round">{initials(r.name)}</span>}
     title={r.name} sub={<><Stars n={r.rating} size={12} /> on {source?.name}</>} onClose={onClose} />
   const review = (
     <div className="lfh-review">
@@ -910,8 +907,8 @@ function MapsQuery({ value, saving, onSave, label = 'Google Maps search', placeh
   )
 }
 
-function SettingsPanel({ initial, saving, gmail, demo, demoForced, rivals, busy, onSave, onDemo, onClose }: {
-  initial: LeadSettings; saving: boolean; gmail: boolean; demo: boolean; demoForced: boolean; rivals: Source[]; busy: boolean
+function SettingsPanel({ initial, saving, picking, gmail, demo, demoForced, rivals, busy, onSave, onPick, onDemo, onClose }: {
+  initial: LeadSettings; saving: boolean; picking: boolean; onPick: () => void; gmail: boolean; demo: boolean; demoForced: boolean; rivals: Source[]; busy: boolean
   onSave: (s: LeadSettings) => void; onDemo: (on: boolean) => void; onClose: () => void
 }) {
   const [s, setS] = useState(initial)
@@ -925,12 +922,12 @@ function SettingsPanel({ initial, saving, gmail, demo, demoForced, rivals, busy,
     <form id="lfh-settings" className="lfh-d-body" onSubmit={e => { e.preventDefault(); onSave({ ...s, followUpDays: days.split(/[,\s]+/).map(Number).filter(n => n > 0) }) }}>
       <div className="lfh-set"><span className="lfh-set-t">Search every morning<small>New people wait for you. Nothing is sent without you.</small></span><Sw on={s.enabled} label="Search every morning" onChange={v => set('enabled', v)} /></div>
       <label className="lfh-field">Who is your customer?<textarea rows={2} value={s.customer} onChange={e => set('customer', e.target.value)} placeholder="e.g. Small business owners who post on Instagram" /></label>
-      <div className="lfh-grp">Sources</div>
+      <div className="lfh-grp lfh-grp--row">Sources<button type="button" className="btn btn-ghost btn-sm" disabled={picking} onClick={onPick}>{picking ? <><Spinner />Picking…</> : 'Pick for me'}</button></div>
       {initial.picked?.why && <p className="lfh-meta">{initial.picked.why}</p>}
       <div className="lfh-set"><span className="lfh-set-t">Companies like your customers<small>{s.companyQuery || 'Online businesses that match your customer'}</small></span><Sw on={!!s.sources.companies} label="Companies like your customers" onChange={v => set('sources', { ...s.sources, companies: v })} /></div>
       {s.sources.companies && <label className="lfh-field">Who to look for<input value={s.companyQuery} onChange={e => set('companyQuery', e.target.value)} placeholder="e.g. small fashion and beauty online stores, 1-50 people" /></label>}
       <div className="lfh-set"><span className="lfh-set-t">Google Maps<small>{s.localQuery || 'Add a search, e.g. cafés in Pune'}</small></span><Sw on={s.sources.local} label="Google Maps" onChange={v => set('sources', { ...s.sources, local: v })} /></div>
-      <label className="lfh-field">Google Maps search<input value={s.localQuery} onChange={e => set('localQuery', e.target.value)} placeholder="e.g. cafés in Pune" /></label>
+      {s.sources.local && <label className="lfh-field">Google Maps search<input value={s.localQuery} onChange={e => set('localQuery', e.target.value)} placeholder="e.g. cafés in Pune" /></label>}
       <div className="lfh-set"><span className="lfh-set-t">Reddit and Hacker News<small>Posts asking for a tool like yours. You post every reply.</small></span><Sw on={s.sources.reddit} label="Reddit and Hacker News" onChange={v => set('sources', { ...s.sources, reddit: v })} /></div>
       {rivals.map(r => (
         <div key={r.id} className="lfh-set"><span className="lfh-set-t">{r.name}<small>Competitor · {PLATFORM[r.platform ?? 'trustpilot']}{r.scans?.[0] ? ` · read ${fmtAgo(r.scans[0].scannedAt)}` : ''}</small></span></div>
