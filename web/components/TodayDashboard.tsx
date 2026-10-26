@@ -446,7 +446,7 @@ function PlatformCard({ p }: { p: PlatformStats }) {
           {p.handle && <span className="td-platform-handle">{p.handle}</span>}
         </div>
         {p.followers != null && (
-          <div className="td-platform-followers" style={{ color: c.color, background: c.bg }}>
+          <div className="td-platform-followers">
             {fmt(p.followers)} followers
           </div>
         )}
@@ -1517,7 +1517,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         }
         .td-fold-h:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 8px; }
         .td-fold-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-        .td-fold-t b { font-size: 16px; font-weight: 600; }
+        .td-fold-t b { font-size: 17px; font-weight: 500; }
         .td-fold-sum { font-size: 14px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .td-fold-h:hover .td-fold-t b { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
         .td-fold-chev { flex: none; color: var(--text-faint); transition: transform .15s; }
@@ -1531,7 +1531,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-fold-b > .td-social-analytics > .td-section-label:first-child,
         .td-fold-b > .td-social-feed > .td-section-label:first-child,
         .td-fold-b > .ta-wrap .ta-title { display: none; }
-        .td-eyebrow { display: block; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
+        .td-eyebrow { display: block; font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); }
         @media (prefers-reduced-motion: reduce) { .td-fold-chev { transition: none; } }
 
         /* To do today: "Start here" (the one green button), then quiet rows */
@@ -1541,8 +1541,8 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           padding: 20px 22px; border-radius: 14px; background: var(--accent); margin-bottom: 6px;
         }
         .td-next-text { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-        .td-next-text > b { font-size: 17px; font-weight: 600; color: var(--text); }
-        .td-next-text > span:last-child { font-size: 14px; color: var(--text-dim); line-height: 1.5; }
+        .td-next-text > b { font-size: 18px; font-weight: 500; color: var(--text); }
+        .td-next-text > span:last-child { font-size: 15px; color: var(--text-dim); line-height: 1.5; }
         .td-next .td-eyebrow { color: var(--text-dim); margin-bottom: 2px; }
         .td-next-go { height: 42px; padding: 0 24px; font-size: 14px; }
         .td-row {
@@ -1554,14 +1554,16 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-row:hover .td-row-name { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
         .td-row:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 8px; }
         .td-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-        .td-row-name { font-size: 15px; font-weight: 600; }
+        .td-row-name { font-size: 15px; font-weight: 500; }
         .td-row-why { font-size: 14px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .td-row-go { font-size: 14px; color: var(--text-faint); white-space: nowrap; }
         .td-todo > .td-cell { margin: 6px 0; }
 
         /* What's working: plain lines */
         .td-impacts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-        .td-impact-row { display: flex; flex-direction: column; gap: 1px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+        .td-impact-row { display: flex; flex-direction: column; gap: 1px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+        .td-impact-row b { font-weight: 500; }
+        .td-impact-row span { font-size: 14px; }
         .td-impact-row:last-child { border-bottom: 0; }
         .td-impact-row span { color: var(--text-dim); }
 
@@ -1598,23 +1600,25 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-card-close { flex: none; font-size: 13px; }
         .td-card-headline {
           font-family: var(--font-display, serif);
-          font-size: 20px; font-weight: 700; color: var(--text);
-          letter-spacing: -0.3px; margin: 0; line-height: 1.2;
+          font-size: 22px; font-weight: 500; color: var(--text);
+          letter-spacing: -0.2px; margin: 0; line-height: 1.25;
         }
         .td-card-reason {
-          font-size: 13px; color: var(--text-dim); line-height: 1.6; margin: 0;
+          font-size: 15px; color: var(--text-dim); line-height: 1.55; margin: 0;
         }
-        .td-card-why { font-size: 14px; color: var(--text); line-height: 1.6; }
+        .td-card-reason strong, .td-card-reason b { font-weight: 500; color: var(--text); }
+        .td-card-why { font-size: 15px; color: var(--text); line-height: 1.6; }
+        .td-card-why b { font-weight: 500; }
         .td-why-label {
-          display: block; font-size: 10px; font-weight: 700;
-          text-transform: uppercase; letter-spacing: .1em;
-          color: var(--text-faint); margin-bottom: 3px;
+          display: block; font-size: 12px; font-weight: 500;
+          text-transform: uppercase; letter-spacing: .08em;
+          color: var(--text-faint); margin-bottom: 2px;
         }
 
         /* CTA button */
         .td-cta-btn {
           display: inline-flex; align-items: center; align-self: flex-start;
-          font-size: 13px; font-weight: 600; height: 36px; padding: 0 16px; box-sizing: border-box;
+          font-size: 14px; font-weight: 600; height: 38px; padding: 0 16px; box-sizing: border-box;
           border-radius: 9px; background: var(--green); color: #fff;
           border: none; text-decoration: none; cursor: pointer;
           transition: opacity .15s; margin-top: 4px;
@@ -1626,7 +1630,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         /* ghost button */
         .td-ghost-btn {
           display: inline-flex; align-items: center;
-          font-size: 13px; font-weight: 600; height: 36px; padding: 0 16px; box-sizing: border-box;
+          font-size: 14px; font-weight: 500; height: 38px; padding: 0 16px; box-sizing: border-box;
           border-radius: 9px; background: var(--card); color: var(--text-dim);
           border: 1px solid var(--line); text-decoration: none; cursor: pointer;
           transition: background .12s, border-color .12s, color .12s;
@@ -1709,8 +1713,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-platform-name { font-size: 14px; font-weight: 700; color: var(--text); }
         .td-platform-handle { font-size: 12px; color: var(--text-faint); }
         .td-platform-followers {
-          font-size: 12px; font-weight: 600; padding: 4px 10px;
-          border-radius: 99px; flex-shrink: 0;
+          font-size: 13px; color: var(--text-dim); flex-shrink: 0;
         }
         .td-platform-stats {
           display: flex; flex-wrap: wrap; gap: 10px;
@@ -1793,16 +1796,10 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         }
         .td-blog-latest-label { font-weight: 600; flex-shrink: 0; }
         .td-blog-latest-title { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .td-ghost-btn--sm { height: 30px; padding: 0 12px; font-size: 12.5px; border-radius: 8px; }
+        .td-ghost-btn--sm { height: 32px; padding: 0 12px; font-size: 13px; border-radius: 8px; }
         .td-blog-write-now { align-self: flex-start; }
 
-        .td-blog-status {
-          font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; flex-shrink: 0;
-        }
-        .td-blog-status--draft     { background: var(--info-soft); color: var(--info); }
-        .td-blog-status--scheduled { background: var(--warn-soft); color: var(--warn); }
-        .td-blog-status--published { background: var(--accent); color: var(--accent-foreground); }
-        .td-blog-status--replaced  { background: var(--bg-soft); color: var(--text-faint); }
+        .td-blog-status { font-size: 13px; color: var(--text-faint); flex-shrink: 0; text-transform: capitalize; }
 
         .td-blog-result {
           background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--info);
@@ -1857,6 +1854,40 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px;
         }
         .td-blog-live-link:hover { text-decoration: underline; }
+
+        /* Type on Today: 400 for reading, 500 for names, labels and numbers, 600 only for the page
+           title and the one green button. Sizes: 13 meta, 14 secondary, 15 body and names,
+           17 section names, 22 serif for an opened task, 32 the page title. */
+        .td-root .th-meta, .td-root .th-meta span, .td-root .th-meta .last-refreshed-btn { font-size: 14px; }
+        .td-root .td-connect-btn { font-weight: 500; }
+        .td-root .last-refreshed-btn { font-weight: 500; }
+        .td-root .ta-num { font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
+        .td-root .ta-delta { font-size: 12px; font-weight: 500; }
+        .td-root .ta-label { font-size: 13px; }
+        .td-root .ta-sub { font-size: 13px; font-weight: 500; color: var(--text-dim); }
+        .td-root .ta-person-main b { font-size: 15px; font-weight: 500; }
+        .td-root .ta-muted { font-size: 13px; }
+        .td-root .ta-avatar { font-weight: 500; }
+        .td-root .ta-bar-name, .td-root .ta-bar-num { font-size: 13px; font-weight: 400; font-variant-numeric: tabular-nums; }
+        .td-root .ta-chip b { font-weight: 500; }
+        .td-root .ta-toggle button, .td-root .ta-connect, .td-root .ta-view-all { font-size: 13px; font-weight: 500; }
+        .td-root .ta-fetched { font-size: 13px; }
+        .td-root .gp-eyebrow { font-size: 12px; font-weight: 500; }
+        .td-root .gp-count { font-size: 22px; font-weight: 500; }
+        .td-root .gp-count-label, .td-root .gp-journey-note { font-size: 13px; font-weight: 400; }
+        .td-root .gp-journey-note strong, .td-root .gp-journey-note b { font-weight: 500; }
+        .td-root .gp-band-range, .td-root .gp-band-name { font-size: 12px; font-weight: 400; }
+        .td-root .gp-journey-mrr-toggle { font-size: 13px; font-weight: 500; }
+        .td-root .td-platform-name { font-size: 15px; font-weight: 500; }
+        .td-root .td-stat-val { font-size: 20px; font-weight: 500; }
+        .td-root .td-stat-label { font-size: 12px; }
+        .td-root .td-platform-posts-label, .td-root .td-section-label { font-size: 12px; font-weight: 500; letter-spacing: .08em; }
+        .td-root .td-post-caption, .td-root .td-blog-latest-title, .td-root .td-blog-next-due { font-size: 14px; }
+        .td-root .td-post-meta { font-size: 12.5px; }
+        .td-root .td-blog-latest-label { font-weight: 400; color: var(--text-dim); }
+        .td-root .td-done-label { font-size: 15px; font-weight: 500; }
+        .td-root .td-done-note { font-size: 14px; }
+        .td-root .td-done-link { font-weight: 500; }
 
         /* responsive */
         @media (max-width: 640px) {
