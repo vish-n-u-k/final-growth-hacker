@@ -18,6 +18,25 @@ function Delta({ current, prior }: { current: number; prior: number }) {
   return <span className={`ta-delta ${pct > 0 ? 'ta-delta--up' : 'ta-delta--dn'}`}>{pct > 0 ? '↑' : '↓'}{Math.abs(pct)}%</span>
 }
 
+// A small 14-day line under a number: area, line and a dot on the latest day.
+function Spark({ values, label }: { values: number[]; label: string }) {
+  if (values.length < 2 || values.every(v => v === 0)) return null
+  const w = 120, h = 32, max = Math.max(...values), min = Math.min(...values)
+  const pts = values.map((v, i) => [(i / (values.length - 1)) * w, h - 3 - ((v - min) / (max - min || 1)) * (h - 8)])
+  const line = pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
+  const [ex, ey] = pts[pts.length - 1]
+  return (
+    <span className="ta-spark">
+      <svg viewBox={`-3 0 ${w + 6} ${h}`} preserveAspectRatio="none" role="img" aria-label={`${label}, last 14 days: ${values.join(', ')}`}>
+        <polygon points={`0,${h} ${line} ${w},${h}`} className="ta-spark-area" />
+        <polyline points={line} className="ta-spark-line" vectorEffect="non-scaling-stroke" />
+        <circle cx={ex} cy={ey} r="2.6" className="ta-spark-dot" />
+      </svg>
+      <span className="ta-spark-cap">14 days</span>
+    </span>
+  )
+}
+
 // Referrer domain → social platform (for its logo); '' when it isn't a social network.
 const SOCIAL_DOMAINS: [RegExp, string][] = [
   [/(^|\.)linkedin\.com$|^lnkd\.in$/, 'linkedin'], [/(^|\.)facebook\.com$|^fb\.me$/, 'facebook'], [/(^|\.)instagram\.com$/, 'instagram'],
@@ -105,10 +124,12 @@ export default function TodayActivity() {
             <div className="ta-stat">
               <span className="ta-num">{data.visitors.current.toLocaleString()} <Delta current={data.visitors.current} prior={data.visitors.prior} /></span>
               <span className="ta-label">app visitors</span>
+              {data.trend && <Spark values={data.trend.map(d => d.visitors)} label="Visitors" />}
             </div>
             <div className="ta-stat">
               <span className="ta-num">{data.signups.count.toLocaleString()} <Delta current={data.signups.count} prior={data.signups.prior} /></span>
               <span className="ta-label">signups</span>
+              {data.trend && <Spark values={data.trend.map(d => d.signups)} label="Signups" />}
             </div>
             <div className="ta-stat">
               <span className="ta-num">{(data.signins?.count ?? 0).toLocaleString()} <Delta current={data.signins?.count ?? 0} prior={data.signins?.prior ?? 0} /></span>

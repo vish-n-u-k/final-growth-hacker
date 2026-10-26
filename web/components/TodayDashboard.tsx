@@ -20,6 +20,7 @@ import { ListSkeleton, Spinner } from '@/components/ui/loading'
 import Link from 'next/link'
 import DailyEmailToggle from '@/components/DailyEmailToggle'
 import ToolHeader from '@/components/ToolHeader'
+import { TrendingUp, ListChecks, PenLine, Share2, CircleCheck, Mail, Search, FileText, Wrench, CircleAlert, Target, Bell, type LucideIcon } from 'lucide-react'
 
 interface TrafficData {
   visits: number
@@ -195,6 +196,30 @@ function blogHandoff(blog: { id: string; title: string; mdUrl?: string }, c: Sit
 
 // "**bold**" from the AI's wording, shown as bold instead of literal asterisks
 const withBold = (text: string) => text.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part))
+
+// A grey icon per task type, so the list is easy to scan without colour
+const TYPE_ICON: Record<string, LucideIcon> = {
+  outreach: Mail, social: Share2, seo: Search, content: FileText, 'module-item': Wrench,
+  alert: CircleAlert, play: Target, blog: PenLine, reminder: Bell,
+}
+function TaskIcon({ type, big }: { type: string; big?: boolean }) {
+  const Icon = TYPE_ICON[type] ?? ListChecks
+  return <span className={`td-ticon${big ? ' td-ticon--big' : ''}`} aria-hidden="true"><Icon size={big ? 20 : 16} strokeWidth={1.8} /></span>
+}
+
+// Tasks done today out of today's total, as a small ring
+function DoneRing({ done, total }: { done: number; total: number }) {
+  const r = 11, c = 2 * Math.PI * r, part = total ? done / total : 0
+  return (
+    <span className="td-ring" role="img" aria-label={`${done} of ${total} done today`}>
+      <svg width="28" height="28" viewBox="0 0 28 28">
+        <circle cx="14" cy="14" r={r} className="td-ring-bg" />
+        <circle cx="14" cy="14" r={r} className="td-ring-fg" strokeDasharray={`${c * part} ${c}`} transform="rotate(-90 14 14)" />
+      </svg>
+      <span className="td-ring-t">{done}/{total}</span>
+    </span>
+  )
+}
 
 // which card types expand inline vs navigate away
 const INLINE_TYPES: Set<string> = new Set(['outreach', 'social', 'blog'])
@@ -972,12 +997,13 @@ function AllGoodState({ cachedAt, onRefresh, refreshing }: { cachedAt: string; o
 // ── Sections that open and close ───────────────────────────────────────────────
 
 type FoldId = 'todo' | 'numbers' | 'content' | 'social' | 'done'
-const FOLD_IDS: FoldId[] = ['todo', 'numbers', 'content', 'social', 'done']
-const FOLDS_KEY = 'today-folds'
+const FOLD_IDS: FoldId[] = ['numbers', 'todo', 'content', 'social', 'done']
+// v2: "How it's going" moved to the top and starts open; older saved choices had it closed
+const FOLDS_KEY = 'today-folds-v2'
 
-// Which sections are open, kept in this browser. Only "To do today" starts open.
+// Which sections are open, kept in this browser. "How it's going" and "To do today" start open.
 function useFolds() {
-  const [open, setOpen] = useState<Record<FoldId, boolean>>({ todo: true, numbers: false, content: false, social: false, done: false })
+  const [open, setOpen] = useState<Record<FoldId, boolean>>({ numbers: true, todo: true, content: false, social: false, done: false })
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(FOLDS_KEY) ?? 'null')
@@ -998,16 +1024,18 @@ function useFolds() {
 
 // A section's header shows a one-line summary, so the closed page still tells the day's story.
 // The body only mounts when open, so closed sections don't fetch anything.
-function Fold({ id, title, summary, open, onToggle, children }: {
-  id: FoldId; title: string; summary: React.ReactNode; open: boolean; onToggle: () => void; children: React.ReactNode
+function Fold({ id, title, icon: Icon, summary, aside, open, onToggle, children }: {
+  id: FoldId; title: string; icon: LucideIcon; summary: React.ReactNode; aside?: React.ReactNode; open: boolean; onToggle: () => void; children: React.ReactNode
 }) {
   return (
     <section className="td-fold">
       <button type="button" className="td-fold-h" aria-expanded={open} aria-controls={`td-fold-${id}`} onClick={onToggle}>
+        <span className="td-fold-icon" aria-hidden="true"><Icon size={18} strokeWidth={1.8} /></span>
         <span className="td-fold-t">
           <b>{title}</b>
           <span className="td-fold-sum">{summary}</span>
         </span>
+        {aside}
         <svg className="td-fold-chev" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5" /></svg>
       </button>
       {open && <div className="td-fold-b" id={`td-fold-${id}`}>{children}</div>}
@@ -1055,6 +1083,8 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
   const folds = useFolds()
   const yesterday = useYesterday()
   const done = useRecentlyDone()
+  // Tasks finished on this page since it loaded, so the done ring moves without a reload
+  const [doneHere, setDoneHere] = useState(0)
 
   useEffect(() => {
     const connected = searchParams.get('oauth_connected')
@@ -1130,7 +1160,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
     })
     if (!res.ok) throw new Error('complete failed')
     advance(card.id)
-    if (status === 'done') markAction()
+    if (status === 'done') { markAction(); setDoneHere(n => n + 1) }
   }, [markAction, advance])
 
   // A post went out from the "Create a post" panel: mark the task done and count today's action,
@@ -1139,6 +1169,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
   const publishedSocial = useCallback((card: ActionCard) => {
     setPublishedIds(prev => new Set(prev).add(card.id))
     markAction()
+    setDoneHere(n => n + 1)
     if (card.data?.taskKind) {
       fetch('/api/today/complete', {
         method: 'POST',
@@ -1162,9 +1193,12 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
   const openTask = (id: string) => { setOpenId(id); setExpandedCard(null) }
 
   // One-line summaries for the closed sections
+  const today = new Date().toDateString()
+  const doneToday = (done?.filter(t => new Date(t.at).toDateString() === today).length ?? 0) + doneHere
+  const todayTotal = doneToday + cards.length
   const todoSum = loading ? 'Checking your tasks…'
     : cards.length === 0 ? 'All caught up'
-    : `${cards.length} to do · next: ${cards[0].headline}`
+    : `${cards.length} to do${doneToday ? ` · ${doneToday} done` : ''} · next: ${cards[0].headline}`
   const numbersSum = [yesterday, impacts[0]?.headline].filter(Boolean).join(' · ') || 'Visitors, sign-ups and what’s working'
   const latestBlog = blogData.blogs[0]
   const contentSum = [
@@ -1185,7 +1219,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           onCta={markAction}
           expanded={expandedCard === card.id}
           onToggleExpand={() => expandedCard === card.id && card.type === 'social' ? closeSocialPanel(card) : setExpandedCard(expandedCard === card.id ? null : card.id)}
-          onDone={card.type === 'reminder' ? () => advance(card.id) : undefined}
+          onDone={card.type === 'reminder' ? () => { advance(card.id); setDoneHere(n => n + 1) } : undefined}
           onComplete={card.data?.taskKind ? (status) => completeTask(card, status) : undefined}
           onClaude={card.data?.route === 'code' && !INLINE_TYPES.has(card.type) ? () => handoff.start(taskHandoff(card, site)) : undefined}
           claudeHint={handoff.hint(`task:${card.id}`)}
@@ -1256,6 +1290,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           if (i === 0 && !cards.some(c => c.id === openId)) {
             return (
               <div key={card.id} className="td-next">
+                <TaskIcon type={card.type} big />
                 <div className="td-next-text">
                   <span className="td-eyebrow">Start here</span>
                   <b>{card.headline}</b>
@@ -1267,6 +1302,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           }
           return (
             <button key={card.id} type="button" className="td-row" onClick={() => openTask(card.id)}>
+              <TaskIcon type={card.type} />
               <span className="td-row-main">
                 <span className="td-row-name">{card.headline}</span>
                 <span className="td-row-why">{card.reason.replace(/\*\*/g, '')}</span>
@@ -1322,11 +1358,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         </div>
 
         <div className="td-folds">
-          <Fold id="todo" title="To do today" summary={todoSum} open={folds.open.todo} onToggle={() => folds.toggle('todo')}>
-            {renderTodo()}
-          </Fold>
-
-          <Fold id="numbers" title="How it’s going" summary={numbersSum} open={folds.open.numbers} onToggle={() => folds.toggle('numbers')}>
+          <Fold id="numbers" title="How it’s going" icon={TrendingUp} summary={numbersSum} open={folds.open.numbers} onToggle={() => folds.toggle('numbers')}>
             {/* Road to 500 users timeline (needs PostHog) */}
             {posthogConnected && <div className="td-journey"><RoadToFiveHundred posthogConnected /></div>}
             {/* What happened: visitors, signups and sources */}
@@ -1339,16 +1371,20 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
             )}
           </Fold>
 
-          <Fold id="content" title="Blog and posts" summary={contentSum} open={folds.open.content} onToggle={() => folds.toggle('content')}>
+          <Fold id="todo" title="To do today" icon={ListChecks} summary={todoSum} aside={!loading && todayTotal > 0 ? <DoneRing done={doneToday} total={todayTotal} /> : undefined} open={folds.open.todo} onToggle={() => folds.toggle('todo')}>
+            {renderTodo()}
+          </Fold>
+
+          <Fold id="content" title="Blog and posts" icon={PenLine} summary={contentSum} open={folds.open.content} onToggle={() => folds.toggle('content')}>
             <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
             <SocialFeed posts={recentPosts} />
           </Fold>
 
-          <Fold id="social" title="Social accounts" summary="Followers and recent posts on each account" open={folds.open.social} onToggle={() => folds.toggle('social')}>
+          <Fold id="social" title="Social accounts" icon={Share2} summary="Followers and recent posts on each account" open={folds.open.social} onToggle={() => folds.toggle('social')}>
             <SocialAnalytics />
           </Fold>
 
-          <Fold id="done" title="Done" summary={doneSum} open={folds.open.done} onToggle={() => folds.toggle('done')}>
+          <Fold id="done" title="Done" icon={CircleCheck} summary={doneSum} open={folds.open.done} onToggle={() => folds.toggle('done')}>
             {done === null ? <ListSkeleton rows={2} start={false} /> : <RecentlyDone done={done} />}
           </Fold>
         </div>
@@ -1501,6 +1537,22 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; font-family: var(--font-body);
         }
         .td-fold-h:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 8px; }
+        .td-fold-icon {
+          flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center;
+          background: var(--bg-soft); border: 1px solid var(--line); color: var(--text-dim);
+        }
+        .td-fold-h[aria-expanded="true"] .td-fold-icon { color: var(--text); }
+        .td-ticon {
+          flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+          background: var(--bg-soft); color: var(--text-dim);
+        }
+        .td-ticon--big { width: 44px; height: 44px; background: var(--card); color: var(--green); }
+        .td-ring { position: relative; flex: none; display: inline-flex; align-items: center; gap: 8px; }
+        .td-ring svg { display: block; }
+        .td-ring-bg { fill: none; stroke: var(--line); stroke-width: 3; }
+        .td-ring-fg { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray .4s; }
+        .td-ring-t { font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+        @media (prefers-reduced-motion: reduce) { .td-ring-fg { transition: none; } }
         .td-fold-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
         .td-fold-t b { font-size: 17px; font-weight: 500; }
         .td-fold-sum { font-size: 14px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
