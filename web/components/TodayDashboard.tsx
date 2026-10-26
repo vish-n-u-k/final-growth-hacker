@@ -1,7 +1,7 @@
 'use client'
 
 import RoadToFiveHundred from '@/components/RoadToFiveHundred'
-import RecentlyDone from '@/components/RecentlyDone'
+import RecentlyDone, { useRecentlyDone } from '@/components/RecentlyDone'
 import { useClaudeHandoff, repoLine, type HandoffArgs } from '@/components/useClaudeHandoff'
 import SocialIcon, { socialBrand } from '@/components/SocialIcon'
 import { useState, useEffect, useCallback } from 'react'
@@ -20,7 +20,6 @@ import { Spinner } from '@/components/ui/spinner'
 import Link from 'next/link'
 import DailyEmailToggle from '@/components/DailyEmailToggle'
 import ToolHeader from '@/components/ToolHeader'
-import { BarChart3 } from 'lucide-react'
 
 interface TrafficData {
   visits: number
@@ -92,19 +91,6 @@ interface Props {
 
 // ── Type config ───────────────────────────────────────────────────────────────
 
-// Same four status colours as the other tools (tokens in globals.css), so they follow light/dark mode
-const TYPE_CONFIG: Record<string, { label: string; dot: string; border: string }> = {
-  outreach:      { label: 'Traffic signal',  dot: 'var(--warn)',  border: 'var(--warn)' },
-  social:        { label: 'Social signal',   dot: 'var(--info)',  border: 'var(--info)' },
-  seo:           { label: 'SEO signal',      dot: 'var(--green)', border: 'var(--green)' },
-  content:       { label: 'Content signal',  dot: 'var(--info)',  border: 'var(--info)' },
-  'module-item': { label: 'Quick win',       dot: 'var(--crit)',  border: 'var(--crit)' },
-  alert:         { label: 'Alert',           dot: 'var(--crit)',  border: 'var(--crit)' },
-  play:          { label: 'Growth focus',    dot: 'var(--green)', border: 'var(--green)' },
-  blog:          { label: 'Blog signal',     dot: 'var(--info)',  border: 'var(--info)' },
-  reminder:      { label: 'Reminder',        dot: 'var(--warn)',  border: 'var(--warn)' },
-}
-
 const TYPE_WHY: Record<string, string> = {
   outreach:      'Visitors who leave without converting need a nudge. A well-timed email puts you back in front of people who already showed interest.',
   social:        'Gaps longer than 5 days cause the algorithm to deprioritise your account. Consistency beats perfection.',
@@ -117,92 +103,30 @@ const TYPE_WHY: Record<string, string> = {
   reminder:      '',
 }
 
-const IMPACT_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  'keyword-gain':   { label: 'SEO',     color: 'var(--accent-foreground)', bg: 'var(--accent)' },
-  'traffic-growth': { label: 'Traffic', color: 'var(--info)', bg: 'var(--info-soft)' },
-  'social-traffic': { label: 'Social',  color: 'var(--info)', bg: 'var(--info-soft)' },
-}
-
-const IMPACT_WHY: Record<string, string> = {
-  'keyword-gain':   'Your recent SEO changes are paying off. Keep optimising to hold this momentum before competitors catch up.',
-  'traffic-growth': 'More visitors means more chances to convert. Check which channel drove the spike and double down on it.',
-  'social-traffic': 'Your post drove measurable traffic. Post consistently to repeat this effect.',
-}
-
-const PLATFORM_COLOR: Record<string, string> = {
-  instagram: '#e1306c',
-  facebook:  '#1877f2',
-  linkedin:  '#0a66c2',
-  twitter:   '#1da1f2',
-  tiktok:    '#010101',
-  youtube:   '#ff0000',
-}
-
 // ── SVG icons ─────────────────────────────────────────────────────────────────
 
-function IconMail() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-}
-function IconSocial() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6ZM7 9a3 3 0 1 1 0 6A3 3 0 0 1 7 9Zm10 7a3 3 0 1 1 0 6 3 3 0 0 1 0-6Z"/><path d="m14 10.7-5 2.6M14 13.3 9 10.7"/></svg>
-}
-function IconSearch() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-}
-function IconDoc() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-}
-function IconCheck() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-}
 function IconPen() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
 }
-function IconBell() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-}
 
-const TYPE_ICON: Record<string, React.ReactNode> = {
-  outreach:      <IconMail />,
-  social:        <IconSocial />,
-  seo:           <IconSearch />,
-  content:       <IconDoc />,
-  'module-item': <IconCheck />,
-  blog:          <IconPen />,
-  reminder:      <IconBell />,
-  alert:         <IconBell />,
-  play:          <IconSearch />,
-}
+// ── Yesterday's visits ────────────────────────────────────────────────────────
 
-// ── Analytics bar ─────────────────────────────────────────────────────────────
-
-function AnalyticsBar() {
-  const [data, setData] = useState<{ traffic: TrafficData | null } | null>(null)
-
+// One line for the closed "How it's going" section: "412 visits yesterday (+18%) · most from Google"
+function useYesterday() {
+  const [line, setLine] = useState<string | null>(null)
   useEffect(() => {
     fetch('/api/analytics/daily-summary')
       .then(r => r.ok ? r.json() : null)
-      .then(setData)
+      .then((d: { traffic: TrafficData | null } | null) => {
+        if (!d?.traffic) return
+        const { visits, visitsPrior, channels } = d.traffic
+        const delta = visitsPrior > 0 ? Math.round(((visits - visitsPrior) / visitsPrior) * 100) : null
+        const top = channels[0]?.name
+        setLine(`${visits.toLocaleString()} visit${visits === 1 ? '' : 's'} yesterday${delta !== null && delta !== 0 ? ` (${delta > 0 ? '+' : ''}${delta}%)` : ''}${top ? ` · most from ${top}` : ''}`)
+      })
       .catch(() => {})
   }, [])
-
-  if (!data?.traffic) return null
-  const { visits, visitsPrior, channels } = data.traffic
-  const delta = visitsPrior > 0 ? Math.round(((visits - visitsPrior) / visitsPrior) * 100) : null
-  const top = channels[0]?.name
-
-  return (
-    <Link href="/analytics" className="td-analytics-bar" title="Open analytics">
-      <span className="td-analytics-label">Yesterday</span>
-      <span className="td-analytics-num">{visits.toLocaleString()} visits</span>
-      {delta !== null && (
-        <span className={`td-analytics-delta ${delta >= 0 ? 'td-analytics-delta--up' : 'td-analytics-delta--dn'}`}>
-          {delta >= 0 ? '+' : ''}{delta}%
-        </span>
-      )}
-      {top && <span className="td-analytics-channel">via {top}</span>}
-    </Link>
-  )
+  return line
 }
 
 // ── "Do it with Claude" prompts ─────────────────────────────────────────────────
@@ -277,11 +201,12 @@ const INLINE_TYPES: Set<string> = new Set(['outreach', 'social', 'blog'])
 
 // ── Action card ───────────────────────────────────────────────────────────────
 
-function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, onComplete, onClaude, claudeHint, composer }: {
+// One task, opened from the "To do today" list. No type label or colour: the name, why, and the steps.
+function ActionCardItem({ card, onClose, onCta, expanded, onToggleExpand, onDone, onComplete, onClaude, claudeHint, composer }: {
   card: ActionCard
   onClaude?: () => void
   claudeHint?: React.ReactNode
-  rank: number
+  onClose: () => void
   onCta: () => void
   expanded: boolean
   onToggleExpand: () => void
@@ -301,8 +226,6 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
     setCompleting(status)
     try { await onComplete(status) } catch { setCompleting(null) }
   }
-  const cfg = TYPE_CONFIG[card.type] ?? TYPE_CONFIG.outreach
-  const icon = TYPE_ICON[card.type]
   const isInline = INLINE_TYPES.has(card.type)
 
   async function handleMarkDone() {
@@ -320,16 +243,11 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
   }
 
   return (
-    <div className="td-card" style={{ '--td-card-border': cfg.border } as React.CSSProperties}>
+    <div className="td-card">
       <div className="td-card-header">
-        <div className="td-card-label">
-          <span className="td-card-icon" style={{ color: cfg.dot }}>{icon}</span>
-          <span className="td-card-type">{cfg.label}</span>
-        </div>
-        <span className="td-card-rank">#{rank}</span>
+        <h3 className="td-card-headline">{card.headline}</h3>
+        <button type="button" className="btn btn-link td-card-close" onClick={onClose}>Close</button>
       </div>
-
-      <h3 className="td-card-headline">{card.headline}</h3>
       <p className="td-card-reason">{helps && card.reason ? <strong>Why: </strong> : null}{withBold(card.reason)}</p>
 
       {/* The module check's picture: the failing elements on the page, or the Google / share preview */}
@@ -416,25 +334,14 @@ function ActionCardItem({ card, rank, onCta, expanded, onToggleExpand, onDone, o
   )
 }
 
-// ── Impact card ───────────────────────────────────────────────────────────────
+// ── What's working ────────────────────────────────────────────────────────────
 
-function ImpactCardItem({ card }: { card: ImpactCard }) {
-  const cfg = IMPACT_CONFIG[card.type] ?? IMPACT_CONFIG['traffic-growth']
-
+function ImpactRow({ card }: { card: ImpactCard }) {
   return (
-    <div className="td-impact-card">
-      <div className="td-impact-badge" style={{ background: cfg.bg, color: cfg.color }}>
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M12 19V5M5 12l7-7 7 7"/>
-        </svg>
-        {cfg.label}
-      </div>
-      <div className="td-impact-headline">{card.headline}</div>
-      <div className="td-impact-detail" style={{ color: cfg.color }}>{card.detail}</div>
-      {IMPACT_WHY[card.type] && (
-        <div className="td-impact-why">{IMPACT_WHY[card.type]}</div>
-      )}
-    </div>
+    <li className="td-impact-row">
+      <b>{card.headline}</b>
+      <span>{card.detail}</span>
+    </li>
   )
 }
 
@@ -453,12 +360,11 @@ function SocialFeed({ posts }: { posts: RecentPost[] }) {
       </div>
       <div className="td-feed-list">
         {posts.map((post, i) => {
-          const color = PLATFORM_COLOR[post.platform] ?? '#888'
           const date = new Date(post.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })
           const label = post.platform.charAt(0).toUpperCase() + post.platform.slice(1)
           return (
             <div key={i} className="td-feed-row">
-              <span className="td-feed-platform" style={{ background: color + '18', color }}>
+              <span className="td-feed-platform">
                 <SocialIcon platform={post.platform} size={13} />
                 {label}
               </span>
@@ -1056,15 +962,10 @@ function WeeklyBlogSection({ initialData, frektoConnected = false, onAddToSite, 
 function AllGoodState({ cachedAt, onRefresh, refreshing }: { cachedAt: string; onRefresh: () => void; refreshing: boolean }) {
   return (
     <div className="td-allgood">
-      <div className="td-allgood-ring">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
-      </div>
-      <p className="td-allgood-headline">All signals clear</p>
-      <p className="td-allgood-sub">No action needed today. {cachedAt && <LastRefreshed at={cachedAt} prefix="Checked" staleAfterHours={4.5} />}</p>
-      <button className="td-ghost-btn" onClick={onRefresh} disabled={refreshing}>
-        {refreshing ? <><Spinner />Checking...</> : 'Refresh'}
+      <p className="td-allgood-headline">All caught up</p>
+      <p className="td-allgood-sub">New tasks appear after tomorrow morning&apos;s check. {cachedAt && <LastRefreshed at={cachedAt} prefix="Checked" staleAfterHours={4.5} />}</p>
+      <button className="btn btn-primary" onClick={onRefresh} disabled={refreshing}>
+        {refreshing ? <><Spinner />Checking…</> : 'Check again now'}
       </button>
     </div>
   )
@@ -1076,6 +977,52 @@ function LoadingState() {
       <div className="td-loading-dots"><span /><span /><span /></div>
       <p>Reading your signals...</p>
     </div>
+  )
+}
+
+// ── Sections that open and close ───────────────────────────────────────────────
+
+type FoldId = 'todo' | 'numbers' | 'content' | 'social' | 'done'
+const FOLD_IDS: FoldId[] = ['todo', 'numbers', 'content', 'social', 'done']
+const FOLDS_KEY = 'today-folds'
+
+// Which sections are open, kept in this browser. Only "To do today" starts open.
+function useFolds() {
+  const [open, setOpen] = useState<Record<FoldId, boolean>>({ todo: true, numbers: false, content: false, social: false, done: false })
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(FOLDS_KEY) ?? 'null')
+      if (saved && typeof saved === 'object') setOpen(o => ({ ...o, ...saved }))
+    } catch { /* storage blocked: use the defaults */ }
+  }, [])
+  const save = (next: Record<FoldId, boolean>) => {
+    setOpen(next)
+    try { localStorage.setItem(FOLDS_KEY, JSON.stringify(next)) } catch { /* ignore */ }
+  }
+  return {
+    open,
+    toggle: (id: FoldId) => save({ ...open, [id]: !open[id] }),
+    show: (id: FoldId) => { if (!open[id]) save({ ...open, [id]: true }) },
+    all: (on: boolean) => save(Object.fromEntries(FOLD_IDS.map(k => [k, on])) as Record<FoldId, boolean>),
+  }
+}
+
+// A section's header shows a one-line summary, so the closed page still tells the day's story.
+// The body only mounts when open, so closed sections don't fetch anything.
+function Fold({ id, title, summary, open, onToggle, children }: {
+  id: FoldId; title: string; summary: React.ReactNode; open: boolean; onToggle: () => void; children: React.ReactNode
+}) {
+  return (
+    <section className="td-fold">
+      <button type="button" className="td-fold-h" aria-expanded={open} aria-controls={`td-fold-${id}`} onClick={onToggle}>
+        <span className="td-fold-t">
+          <b>{title}</b>
+          <span className="td-fold-sum">{summary}</span>
+        </span>
+        <svg className="td-fold-chev" width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 8l5 5 5-5" /></svg>
+      </button>
+      {open && <div className="td-fold-b" id={`td-fold-${id}`}>{children}</div>}
+    </section>
   )
 }
 
@@ -1113,6 +1060,12 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
   const [refreshing, setRefreshing] = useState(false)
   const [ready, setReady] = useState(initialData.cards.length > 0 || initialData.allGood)
   const [oauthBanner, setOauthBanner] = useState<string | null>(null)
+  // The task opened from the list (null: the first one shows as "Start here")
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const folds = useFolds()
+  const yesterday = useYesterday()
+  const done = useRecentlyDone()
 
   useEffect(() => {
     const connected = searchParams.get('oauth_connected')
@@ -1170,6 +1123,15 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
     } catch { /* silent */ }
   }, [streak])
 
+  // A task left the list: open the one after it, so the next step is always on screen
+  const advance = useCallback((id: string) => {
+    const i = cards.findIndex(c => c.id === id)
+    const rest = cards.filter(c => c.id !== id)
+    setCards(rest)
+    setExpandedCard(null)
+    setOpenId(i >= 0 ? rest[i]?.id ?? null : null)
+  }, [cards])
+
   // Same effect as Claude's toggle_item / resolve_signal: the task leaves the list everywhere
   const completeTask = useCallback(async (card: ActionCard, status: TaskStatus) => {
     const res = await fetch('/api/today/complete', {
@@ -1178,9 +1140,9 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
       body: JSON.stringify({ kind: card.data?.taskKind, id: card.data?.taskId, status }),
     })
     if (!res.ok) throw new Error('complete failed')
-    setCards(prev => prev.filter(c => c.id !== card.id))
+    advance(card.id)
     if (status === 'done') markAction()
-  }, [markAction])
+  }, [markAction, advance])
 
   // A post went out from the "Create a post" panel: mark the task done and count today's action,
   // but keep the card (with its success message) until the panel is closed.
@@ -1198,13 +1160,135 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
   }, [markAction])
   const closeSocialPanel = useCallback((card: ActionCard) => {
     setExpandedCard(null)
-    if (publishedIds.has(card.id)) setCards(prev => prev.filter(c => c.id !== card.id))
-  }, [publishedIds])
+    if (publishedIds.has(card.id)) advance(card.id)
+  }, [publishedIds, advance])
 
   const now = new Date()
   const days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const dayLabel = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`
+
+  const loading = !ready || (refreshing && cards.length === 0)
+  const closeTask = () => { setOpenId(null); setExpandedCard(null) }
+  const openTask = (id: string) => { setOpenId(id); setExpandedCard(null) }
+
+  // One-line summaries for the closed sections
+  const todoSum = loading ? 'Checking your tasks…'
+    : cards.length === 0 ? 'All caught up'
+    : `${cards.length} to do · next: ${cards[0].headline}`
+  const numbersSum = [yesterday, impacts[0]?.headline].filter(Boolean).join(' · ') || 'Visitors, sign-ups and what’s working'
+  const latestBlog = blogData.blogs[0]
+  const contentSum = [
+    blogData.weeklyDue ? 'This week’s blog is due' : latestBlog ? `Latest blog: “${latestBlog.title}”` : 'No blog yet',
+    recentPosts.length ? `${recentPosts.length} recent post${recentPosts.length === 1 ? '' : 's'}` : '',
+  ].filter(Boolean).join(' · ')
+  const doneSum = [
+    done === null ? '' : done.length ? `${done.length} done lately` : 'Nothing yet',
+    streak > 0 ? `${streak}-day streak` : '',
+  ].filter(Boolean).join(' · ') || ' '
+
+  function renderTask(card: ActionCard) {
+    return (
+      <div key={card.id} className="td-cell">
+        <ActionCardItem
+          card={card}
+          onClose={closeTask}
+          onCta={markAction}
+          expanded={expandedCard === card.id}
+          onToggleExpand={() => expandedCard === card.id && card.type === 'social' ? closeSocialPanel(card) : setExpandedCard(expandedCard === card.id ? null : card.id)}
+          onDone={card.type === 'reminder' ? () => advance(card.id) : undefined}
+          onComplete={card.data?.taskKind ? (status) => completeTask(card, status) : undefined}
+          onClaude={card.data?.route === 'code' && !INLINE_TYPES.has(card.type) ? () => handoff.start(taskHandoff(card, site)) : undefined}
+          claudeHint={handoff.hint(`task:${card.id}`)}
+          composer={card.type === 'social' ? (
+            <TodaySocialPost
+              connected={frektoConnected}
+              ideas={postIdeas}
+              defaultPlatform={frektoDefaultPlatform}
+              timezone={frektoTimezone}
+              onPublished={() => publishedSocial(card)}
+              onCancel={() => closeSocialPanel(card)}
+            />
+          ) : undefined}
+        />
+        {/* Inline outreach panel */}
+        {card.type === 'outreach' && expandedCard === card.id && (
+          <div className="td-inline-panel">
+            <div className="td-inline-panel-header">
+              <span className="td-inline-panel-title">
+                {prospectItems.length > 0
+                  ? `Email Outreach: ${prospectItems.length} prospect${prospectItems.length !== 1 ? 's' : ''}`
+                  : 'Email Outreach'}
+              </span>
+              <button className="td-inline-panel-close" onClick={() => setExpandedCard(null)} aria-label="Close">×</button>
+            </div>
+            {prospectItems.length === 0 ? (
+              <div className="td-inline-analyze">
+                <p className="td-inline-analyze-msg">No prospects identified yet.</p>
+                <button
+                  className="td-inline-analyze-btn"
+                  onClick={runOutreachAnalysis}
+                  disabled={analyzing}
+                >
+                  {analyzing ? <><Spinner />Finding prospects…</> : 'Find prospects now'}
+                </button>
+              </div>
+            ) : (
+              <GmailOutreachProspects items={prospectItems} gmailConnected={gmailConnected} earlyAccess={earlyAccess} />
+            )}
+          </div>
+        )}
+
+        {/* Inline blog generation panel */}
+        {card.type === 'blog' && expandedCard === card.id && (
+          <div className="td-inline-panel">
+            <div className="td-inline-panel-header">
+              <span className="td-inline-panel-title">Write this week&apos;s blog</span>
+              <button className="td-inline-panel-close" onClick={() => setExpandedCard(null)} aria-label="Close">×</button>
+            </div>
+            <div style={{ padding: '8px 0' }}>
+              <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // "To do today": the first task as "Start here" (the page's one green button), the rest as quiet
+  // rows. Opening a row shows its details in place; finishing it opens the next one.
+  function renderTodo() {
+    if (loading) return <LoadingState />
+    if (cards.length === 0) return <AllGoodState cachedAt={cachedAt} onRefresh={() => fetchSignals(true)} refreshing={refreshing} />
+    return (
+      <div className="td-todo">
+        {cards.map((card, i) => {
+          if (card.id === openId) return renderTask(card)
+          if (i === 0 && !cards.some(c => c.id === openId)) {
+            return (
+              <div key={card.id} className="td-next">
+                <div className="td-next-text">
+                  <span className="td-eyebrow">Start here</span>
+                  <b>{card.headline}</b>
+                  <span>{withBold(card.reason)}</span>
+                </div>
+                <button type="button" className="btn btn-primary td-next-go" onClick={() => openTask(card.id)}>Start</button>
+              </div>
+            )
+          }
+          return (
+            <button key={card.id} type="button" className="td-row" onClick={() => openTask(card.id)}>
+              <span className="td-row-main">
+                <span className="td-row-name">{card.headline}</span>
+                <span className="td-row-why">{card.reason.replace(/\*\*/g, '')}</span>
+              </span>
+              <span className="td-row-go" aria-hidden="true">Open ›</span>
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     <div className="td-root">
@@ -1212,185 +1296,73 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
       {oauthBanner && (
         <div className={`td-oauth-banner ${oauthBanner.startsWith('Connection failed') ? 'td-oauth-banner--error' : 'td-oauth-banner--ok'}`}>
           <span>{oauthBanner}</span>
-          <button className="td-oauth-banner-close" onClick={() => setOauthBanner(null)}>✕</button>
+          <button className="td-oauth-banner-close" onClick={() => setOauthBanner(null)} aria-label="Close">✕</button>
         </div>
       )}
 
-      <div className="tool-page">
+      <div className="tool-page td-page">
       <ToolHeader
         icon="sun"
         title="Today"
         intro="today"
         meta={<>
           <span>{dayLabel}</span>
+          {cachedAt && <><span aria-hidden="true">·</span><LastRefreshed at={cachedAt} prefix="Tasks updated" staleAfterHours={4.5} onRefresh={() => fetchSignals(true)} refreshing={refreshing} /></>}
           <span aria-hidden="true">·</span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            {ready && cards.length > 0
-              ? `${cards.length} thing${cards.length === 1 ? ' needs' : 's need'} your attention`
-              : ready && !refreshing ? 'You\'re all caught up'
-              : <><Spinner size={12} />Checking your signals…</>}
-          </span>
-          {/* When the task list was last worked out (it's cached for up to 4 hours) */}
-          {cachedAt && <LastRefreshed at={cachedAt} prefix="Tasks updated" staleAfterHours={4.5} onRefresh={() => fetchSignals(true)} refreshing={refreshing} />}
+          <button type="button" className="btn btn-link td-settings-link" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(v => !v)}>Settings</button>
         </>}
-        actions={<div className="td-hero-right" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <AnalyticsBar />
-          {streak > 0 && (
-            <div className="td-streak-pill">
-              <span className="td-streak-num">{streak}</span>
-              <span className="td-streak-txt">day streak</span>
-            </div>
-          )}
-          <DailyEmailToggle initialEnabled={dailyEmailEnabled} email={dailyEmailTo} />
-          <Link href="/analytics" className="td-analytics-link">
-            <BarChart3 size={15} aria-hidden="true" />
-            Analytics
-          </Link>
-        </div>}
       />
 
-      {/* Body */}
-      <div className="td-body">
-        {/* Road to 500 users timeline (needs PostHog) */}
-        {posthogConnected && <div className="td-journey"><RoadToFiveHundred posthogConnected /></div>}
-
-        {/* What happened since yesterday (visitors, signups, sources) before what to do */}
-        <TodayActivity />
-
-        {!ready || (refreshing && cards.length === 0) ? (
-          <LoadingState />
-        ) : cards.length === 0 ? (
-          <>
-            <AllGoodState cachedAt={cachedAt} onRefresh={() => fetchSignals(true)} refreshing={refreshing} />
-            {impacts.length > 0 && (
-              <>
-                <div className="td-section-label">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
-                  </svg>
-                  What&apos;s working
-                </div>
-                <div className="td-cards">{impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}</div>
-              </>
-            )}
-            <RecentlyDone />
-            <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
-            <SocialAnalytics />
-            <SocialFeed posts={recentPosts} />
-          </>
-        ) : (
-          <>
-            {/* Today's focus (current growth bottleneck) */}
-            {/* Card #1 is usually this same growth focus; only show the box when it adds something. */}
-            {focus && cards[0]?.type !== 'play' && (
-              <div className="td-card-why" style={{ marginBottom: 12 }}>
-                <span className="td-why-label">Today&apos;s focus</span>
-                {focus.summary}
-              </div>
-            )}
-
-            {/* Action cards */}
-            <div className="td-section-label">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-              Actions for today
-            </div>
-            <div className="td-cards">
-            {cards.map((card, i) => (
-              <div key={card.id} className={`td-cell${expandedCard === card.id ? ' td-cell--wide' : ''}`}>
-                <ActionCardItem
-                  card={card}
-                  rank={i + 1}
-                  onCta={markAction}
-                  expanded={expandedCard === card.id}
-                  onToggleExpand={() => expandedCard === card.id && card.type === 'social' ? closeSocialPanel(card) : setExpandedCard(expandedCard === card.id ? null : card.id)}
-                  onDone={card.type === 'reminder' ? () => setCards(prev => prev.filter(c => c.id !== card.id)) : undefined}
-                  onComplete={card.data?.taskKind ? (status) => completeTask(card, status) : undefined}
-                  onClaude={card.data?.route === 'code' && !INLINE_TYPES.has(card.type) ? () => handoff.start(taskHandoff(card, site)) : undefined}
-                  claudeHint={handoff.hint(`task:${card.id}`)}
-                  composer={card.type === 'social' ? (
-                    <TodaySocialPost
-                      connected={frektoConnected}
-                      ideas={postIdeas}
-                      defaultPlatform={frektoDefaultPlatform}
-                      timezone={frektoTimezone}
-                      onPublished={() => publishedSocial(card)}
-                      onCancel={() => closeSocialPanel(card)}
-                    />
-                  ) : undefined}
-                />
-                {/* Inline outreach panel */}
-                {card.type === 'outreach' && expandedCard === card.id && (
-                  <div className="td-inline-panel">
-                    <div className="td-inline-panel-header">
-                      <span className="td-inline-panel-title">
-                        {prospectItems.length > 0
-                          ? `Email Outreach — ${prospectItems.length} prospect${prospectItems.length !== 1 ? 's' : ''}`
-                          : 'Email Outreach'}
-                      </span>
-                      <button className="td-inline-panel-close" onClick={() => setExpandedCard(null)}>×</button>
-                    </div>
-                    {prospectItems.length === 0 ? (
-                      <div className="td-inline-analyze">
-                        <p className="td-inline-analyze-msg">No prospects identified yet.</p>
-                        <button
-                          className="td-inline-analyze-btn"
-                          onClick={runOutreachAnalysis}
-                          disabled={analyzing}
-                        >
-                          {analyzing ? <><Spinner />Finding prospects…</> : 'Find prospects now'}
-                        </button>
-                      </div>
-                    ) : (
-                      <GmailOutreachProspects items={prospectItems} gmailConnected={gmailConnected} earlyAccess={earlyAccess} />
-                    )}
-                  </div>
-                )}
-
-                {/* Inline blog generation panel */}
-                {card.type === 'blog' && expandedCard === card.id && (
-                  <div className="td-inline-panel">
-                    <div className="td-inline-panel-header">
-                      <span className="td-inline-panel-title">Generate Weekly Blog</span>
-                      <button className="td-inline-panel-close" onClick={() => setExpandedCard(null)}>×</button>
-                    </div>
-                    <div style={{ padding: '8px 0' }}>
-                      <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-            </div>
-
-            {/* Impact cards */}
-            {impacts.length > 0 && (
-              <>
-                <div className="td-section-label td-section-label--gap">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
-                  </svg>
-                  What&apos;s working
-                </div>
-                <div className="td-cards">{impacts.map(c => <ImpactCardItem key={c.id} card={c} />)}</div>
-              </>
-            )}
-
-            <RecentlyDone />
-
-            {/* Weekly blog */}
-            <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
-
-            {/* Social analytics + post feed */}
-            <SocialAnalytics />
-            <SocialFeed posts={recentPosts} />
-
-            <button className="td-recheck" onClick={() => fetchSignals(true)} disabled={refreshing}>
-              {refreshing ? <><Spinner />Refreshing...</> : 'Refresh tasks'}
+      {/* Settings: the daily email, checking again, and the full numbers. Off the page until asked for. */}
+      {settingsOpen && (
+        <div className="td-settings">
+          <DailyEmailToggle initialEnabled={dailyEmailEnabled} email={dailyEmailTo} variant="full" />
+          <div className="td-settings-foot">
+            <button type="button" className="btn btn-link" onClick={() => fetchSignals(true)} disabled={refreshing}>
+              {refreshing ? <><Spinner />Checking…</> : 'Check for new tasks now'}
             </button>
-          </>
-        )}
+            <Link href="/analytics" className="btn btn-link">Open Analytics</Link>
+          </div>
+        </div>
+      )}
+
+      <div className="td-body">
+        <div className="td-fold-tools">
+          <button type="button" className="btn btn-link" onClick={() => folds.all(true)}>Open all</button>
+          <button type="button" className="btn btn-link" onClick={() => folds.all(false)}>Close all</button>
+        </div>
+
+        <div className="td-folds">
+          <Fold id="todo" title="To do today" summary={todoSum} open={folds.open.todo} onToggle={() => folds.toggle('todo')}>
+            {renderTodo()}
+          </Fold>
+
+          <Fold id="numbers" title="How it’s going" summary={numbersSum} open={folds.open.numbers} onToggle={() => folds.toggle('numbers')}>
+            {/* Road to 500 users timeline (needs PostHog) */}
+            {posthogConnected && <div className="td-journey"><RoadToFiveHundred posthogConnected /></div>}
+            {/* What happened: visitors, signups and sources */}
+            <TodayActivity />
+            {impacts.length > 0 && (
+              <div className="td-fold-part">
+                <div className="td-eyebrow">What&apos;s working</div>
+                <ul className="td-impacts">{impacts.map(c => <ImpactRow key={c.id} card={c} />)}</ul>
+              </div>
+            )}
+          </Fold>
+
+          <Fold id="content" title="Blog and posts" summary={contentSum} open={folds.open.content} onToggle={() => folds.toggle('content')}>
+            <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
+            <SocialFeed posts={recentPosts} />
+          </Fold>
+
+          <Fold id="social" title="Social accounts" summary="Followers and recent posts on each account" open={folds.open.social} onToggle={() => folds.toggle('social')}>
+            <SocialAnalytics />
+          </Fold>
+
+          <Fold id="done" title="Done" summary={doneSum} open={folds.open.done} onToggle={() => folds.toggle('done')}>
+            {done === null ? <LoadingState /> : <RecentlyDone done={done} />}
+          </Fold>
+        </div>
       </div>
       </div>
 
@@ -1525,42 +1497,73 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         }
         .td-oauth-banner-close:hover { opacity: 1; }
 
-        /* header: the page frame and title come from the shared .tool-page / .tool-hd */
-        .td-hero-right { gap: 10px; }
-
-        /* analytics bar */
-        .td-analytics-bar {
-          display: flex; align-items: center; gap: 8px;
-          background: var(--bg-soft); border: 1px solid var(--line);
-          border-radius: 99px; padding: 6px 14px; font-size: 13px; color: var(--text-dim);
-        }
-        a.td-analytics-bar { text-decoration: none; transition: border-color .15s; }
-        a.td-analytics-bar:hover { border-color: var(--green); }
-        .td-analytics-link {
-          display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 99px;
-          border: 1px solid var(--line); background: var(--card, var(--bg-soft)); color: var(--text);
-          font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap;
-          transition: border-color .15s, color .15s;
-        }
-        .td-analytics-link:hover { border-color: var(--green); color: var(--green); }
-        .td-analytics-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); }
-        .td-analytics-num { font-weight: 700; color: var(--text); }
-        .td-analytics-delta { font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 99px; }
-        .td-analytics-delta--up { background: var(--accent); color: var(--accent-foreground); }
-        .td-analytics-delta--dn { background: var(--crit-soft); color: var(--crit); }
-        .td-analytics-channel { color: var(--text-faint); font-size: 12px; }
-
-        /* streak */
-        .td-streak-pill {
-          display: flex; align-items: center; gap: 5px;
-          background: var(--bg-soft); border: 1px solid var(--line);
-          border-radius: 99px; padding: 6px 14px;
-        }
-        .td-streak-num { font-size: 15px; font-weight: 700; color: var(--green); }
-        .td-streak-txt { font-size: 12px; color: var(--text-dim); }
-
         /* body */
-        .td-body { display: flex; flex-direction: column; gap: 14px; }
+        .td-body { display: flex; flex-direction: column; }
+        .td-page .th { margin-bottom: 0; }
+
+        /* Settings: daily email, check again, Analytics */
+        .td-settings-link { font-size: inherit; padding: 0; color: var(--text-dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+        .td-settings { margin-top: 18px; padding: 18px 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); max-width: 640px; }
+        .td-settings-foot { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+
+        /* Sections that open and close. A closed one still shows its one-line summary. */
+        .td-fold-tools { display: flex; justify-content: flex-end; gap: 16px; margin-top: 14px; }
+        .td-fold-tools .btn-link { font-size: 13px; }
+        .td-folds { margin-top: 6px; border-top: 1px solid var(--line); }
+        .td-fold { border-bottom: 1px solid var(--line); }
+        .td-fold-h {
+          display: flex; align-items: center; gap: 14px; width: 100%; padding: 18px 4px;
+          border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; font-family: var(--font-body);
+        }
+        .td-fold-h:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 8px; }
+        .td-fold-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .td-fold-t b { font-size: 16px; font-weight: 600; }
+        .td-fold-sum { font-size: 14px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .td-fold-h:hover .td-fold-t b { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+        .td-fold-chev { flex: none; color: var(--text-faint); transition: transform .15s; }
+        .td-fold-h[aria-expanded="true"] .td-fold-chev { transform: rotate(180deg); }
+        .td-fold-h[aria-expanded="true"] .td-fold-sum { display: none; }
+        .td-fold-b { padding: 0 4px 24px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+        .td-fold-part { display: flex; flex-direction: column; gap: 8px; }
+        .td-fold-empty { margin: 0; font-size: 14px; color: var(--text-faint); }
+        /* The section's own title already names these; don't repeat it inside */
+        .td-fold-b > .td-blog-section > .td-section-label:first-child,
+        .td-fold-b > .td-social-analytics > .td-section-label:first-child,
+        .td-fold-b > .td-social-feed > .td-section-label:first-child,
+        .td-fold-b > .ta-wrap .ta-title { display: none; }
+        .td-eyebrow { display: block; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
+        @media (prefers-reduced-motion: reduce) { .td-fold-chev { transition: none; } }
+
+        /* To do today: "Start here" (the one green button), then quiet rows */
+        .td-todo { display: flex; flex-direction: column; }
+        .td-next {
+          display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+          padding: 20px 22px; border-radius: 14px; background: var(--accent); margin-bottom: 6px;
+        }
+        .td-next-text { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .td-next-text > b { font-size: 17px; font-weight: 600; color: var(--text); }
+        .td-next-text > span:last-child { font-size: 14px; color: var(--text-dim); line-height: 1.5; }
+        .td-next .td-eyebrow { color: var(--text-dim); margin-bottom: 2px; }
+        .td-next-go { height: 42px; padding: 0 24px; font-size: 14px; }
+        .td-row {
+          display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 4px;
+          border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--text);
+          text-align: left; cursor: pointer; font-family: var(--font-body);
+        }
+        .td-row:last-child { border-bottom: 0; }
+        .td-row:hover .td-row-name { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+        .td-row:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 8px; }
+        .td-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+        .td-row-name { font-size: 15px; font-weight: 600; }
+        .td-row-why { font-size: 14px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .td-row-go { font-size: 14px; color: var(--text-faint); white-space: nowrap; }
+        .td-todo > .td-cell { margin: 6px 0; }
+
+        /* What's working: plain lines */
+        .td-impacts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+        .td-impact-row { display: flex; flex-direction: column; gap: 1px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+        .td-impact-row:last-child { border-bottom: 0; }
+        .td-impact-row span { color: var(--text-dim); }
 
         .td-journey .gp-journey { margin-bottom: 0; }
 
@@ -1585,24 +1588,14 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-card {
           background: var(--card);
           border: 1px solid var(--line);
-          border-left: 3px solid var(--td-card-border, var(--line));
           border-radius: 14px;
           padding: 22px 24px;
           display: flex; flex-direction: column; gap: 10px;
         }
         .td-card-header {
-          display: flex; align-items: center; justify-content: space-between;
+          display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
         }
-        .td-card-label { display: flex; align-items: center; gap: 8px; }
-        .td-card-icon { display: flex; flex-shrink: 0; }
-        .td-card-type {
-          font-size: 11px; font-weight: 700; text-transform: uppercase;
-          letter-spacing: .08em; color: var(--text-dim);
-        }
-        .td-card-rank {
-          font-size: 11px; font-weight: 600; color: var(--text-faint);
-          letter-spacing: .05em;
-        }
+        .td-card-close { flex: none; font-size: 13px; }
         .td-card-headline {
           font-family: var(--font-display, serif);
           font-size: 20px; font-weight: 700; color: var(--text);
@@ -1611,11 +1604,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-card-reason {
           font-size: 13px; color: var(--text-dim); line-height: 1.6; margin: 0;
         }
-        .td-card-why {
-          font-size: 12px; color: var(--text-dim); line-height: 1.65;
-          padding: 10px 14px; background: var(--bg-soft);
-          border-radius: 8px; border-left: 2px solid var(--line);
-        }
+        .td-card-why { font-size: 14px; color: var(--text); line-height: 1.6; }
         .td-why-label {
           display: block; font-size: 10px; font-weight: 700;
           text-transform: uppercase; letter-spacing: .1em;
@@ -1645,29 +1634,6 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-ghost-btn:hover { background: var(--bg-soft); border-color: var(--green); color: var(--text); }
         .td-ghost-btn:disabled { opacity: .5; cursor: not-allowed; }
 
-        /* impact card */
-        .td-impact-card {
-          background: var(--card); border: 1px solid var(--line);
-          border-radius: 14px; padding: 20px 24px;
-          display: flex; flex-direction: column; gap: 6px;
-        }
-        .td-impact-badge {
-          display: inline-flex; align-items: center; gap: 5px;
-          font-size: 11px; font-weight: 700; text-transform: uppercase;
-          letter-spacing: .07em; padding: 3px 10px 3px 8px; border-radius: 99px;
-          align-self: flex-start;
-        }
-        .td-impact-headline {
-          font-family: var(--font-display, serif);
-          font-size: 18px; font-weight: 700; color: var(--text);
-          letter-spacing: -0.3px; line-height: 1.2;
-        }
-        .td-impact-detail { font-size: 14px; font-weight: 600; line-height: 1.4; }
-        .td-impact-why {
-          font-size: 12px; color: var(--text-faint); line-height: 1.6;
-          margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line);
-        }
-
         /* social feed */
         .td-social-feed {
           background: var(--card); border: 1px solid var(--line);
@@ -1681,8 +1647,8 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           font-size: 13px;
         }
         .td-feed-platform {
-          font-size: 11px; font-weight: 700; padding: 3px 9px;
-          border-radius: 99px; flex-shrink: 0; text-transform: capitalize;
+          display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+          font-size: 12px; font-weight: 600; color: var(--text-dim); text-transform: capitalize;
         }
         .td-feed-topic {
           flex: 1; color: var(--text); overflow: hidden;
@@ -1693,19 +1659,13 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           font-size: 11px; font-weight: 600; flex-shrink: 0;
           padding: 2px 8px; border-radius: 99px;
         }
-        .td-feed-status--done      { background: var(--accent); color: var(--accent-foreground); }
-        .td-feed-status--scheduled { background: var(--warn-soft); color: var(--warn); }
-        .td-feed-status--failed    { background: var(--crit-soft); color: var(--crit); }
+        .td-feed-status { color: var(--text-faint); }
+        .td-feed-status--failed { color: var(--crit); }
 
         /* all good */
         .td-allgood {
           display: flex; flex-direction: column; align-items: center;
-          text-align: center; padding: 60px 40px; gap: 12px;
-        }
-        .td-allgood-ring {
-          width: 56px; height: 56px; border-radius: 50%;
-          border: 2px solid var(--green); display: grid; place-items: center;
-          color: var(--green); margin-bottom: 4px;
+          text-align: center; padding: 36px 22px; gap: 10px; border-radius: 14px; background: var(--bg-soft);
         }
         .td-allgood-headline {
           font-family: var(--font-display, serif); font-size: 20px; font-weight: 700;
@@ -1716,7 +1676,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         /* loading */
         .td-loading-state {
           display: flex; flex-direction: column; align-items: center;
-          gap: 14px; padding: 80px 40px; color: var(--text-dim); font-size: 14px;
+          gap: 14px; padding: 36px 20px; color: var(--text-dim); font-size: 14px;
         }
         .td-loading-dots { display: flex; gap: 6px; }
         .td-loading-dots span {
@@ -1729,14 +1689,6 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           0%, 80%, 100% { opacity: .3; transform: scale(.8); }
           40%            { opacity: 1;  transform: scale(1); }
         }
-
-        /* recheck */
-        .td-recheck {
-          font-size: 12px; color: var(--text-faint);
-          background: none; border: none; cursor: pointer; padding: 0; text-align: left;
-        }
-        .td-recheck:hover { color: var(--text-dim); }
-        .td-recheck:disabled { opacity: .5; cursor: not-allowed; }
 
         /* social analytics */
         .td-social-analytics { display: flex; flex-direction: column; gap: 12px; }
@@ -1908,15 +1860,12 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
 
         /* responsive */
         @media (max-width: 640px) {
-          .td-hero-right { flex-wrap: wrap; }
           .td-feed-row { flex-wrap: wrap; gap: 6px; }
-          .td-card, .td-blog-card, .td-impact-card { padding: 18px 16px; }
+          .td-card, .td-blog-card { padding: 18px 16px; }
           .td-connect-row { padding: 12px 14px; }
           .td-card-actions .td-cta-btn { flex: 1 1 100%; justify-content: center; }
           /* two per row; a third takes the full row instead of squeezing all three */
           .td-card-actions .td-ghost-btn { flex: 1 1 calc(50% - 4px); justify-content: center; padding: 9px 10px; white-space: nowrap; }
-          .td-analytics-bar { flex-wrap: wrap; row-gap: 2px; border-radius: 14px; }
-          .td-analytics-bar > * { white-space: nowrap; }
         }
       `}</style>
       {handoff.modal}

@@ -1,0 +1,265 @@
+<title>Calm Loaders</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: one quiet column. A switcher on top picks a loading moment; the frame below shows it as the Lead Agent would. */
+  :root {
+    --bg: #ffffff; --soft: #f3f5f3; --line: #e3e7e3; --text: #16201a; --dim: #4f5c53; --faint: #86918a;
+    --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --skel: #eceFec;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --skel: #1d2520; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --skel: #1d2520; color-scheme: dark }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--body); }
+  button { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  .wrap { max-width: 880px; margin: 0 auto; padding-block: 28px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 28px; }
+  h1 { margin: 0; font: 600 32px/1.15 var(--display); letter-spacing: -.01em; }
+  h2 { margin: 0 0 10px; font: 600 20px/1.2 var(--display); }
+  .eyebrow { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+  .sub { color: var(--faint); margin-top: 6px; }
+
+  /* Audit */
+  .audit { display: grid; gap: 0; border-top: 1px solid var(--line); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .row b { font-weight: 600; }
+  .row .now { color: var(--dim); font-size: 14px; }
+  .row .fix { font-size: 14px; }
+  .row .fix::before { content: "→ "; color: var(--faint); }
+  @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+
+  /* Switcher */
+  .switch { display: flex; flex-wrap: wrap; gap: 6px; }
+  .switch button { border: 1px solid var(--line); background: var(--bg); padding: 7px 12px; border-radius: 999px; font-size: 14px; color: var(--dim); cursor: pointer; }
+  .switch button[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--bg); }
+  .note { font-size: 13.5px; color: var(--faint); margin-top: 10px; }
+
+  /* Frame = a mock Lead Agent page */
+  .frame { border: 1px solid var(--line); border-radius: 14px; padding: 24px; min-height: 420px; background: var(--bg); position: relative; overflow: hidden; }
+  @media (max-width: 640px) { .frame { padding: 16px; } }
+  .ph1 { font: 600 28px/1.15 var(--display); margin: 0; }
+  .line { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 14px; color: var(--faint); }
+  .link { border: 0; background: none; padding: 0; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; font-size: 14px; }
+  .tabs { display: flex; gap: 4px; margin: 22px 0 18px; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+  .tabs span { padding: 8px 12px; color: var(--faint); }
+  .tabs span.on { color: var(--text); font-weight: 600; box-shadow: inset 0 -2px 0 var(--text); }
+  .start { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  .btn { border: 0; background: var(--green); color: #fff; border-radius: 10px; padding: 9px 16px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+  .btn[disabled] { opacity: .85; cursor: default; }
+  .quiet { list-style: none; margin: 14px 0 0; padding: 0; }
+  .quiet li { padding: 12px 2px; border-bottom: 1px solid var(--line); }
+  .quiet li small { display: block; color: var(--faint); font-size: 13.5px; }
+
+  /* Skeleton: same shapes as the real page, soft sheen */
+  .sk { background: var(--skel); border-radius: 8px; position: relative; overflow: hidden; }
+  .sk::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--bg) 55%, transparent), transparent); transform: translateX(-100%); animation: sheen 1.4s ease-in-out infinite; }
+  @keyframes sheen { to { transform: translateX(100%); } }
+  .fade { animation: fade .35s ease-out both; }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } }
+
+  .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: rot .7s linear infinite; flex: none; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+
+  /* Long run */
+  .run { border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 14px; }
+  .run-top { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .run-top .spin { color: var(--green); }
+  .run-top em { margin-left: auto; font-style: normal; font-weight: 400; color: var(--faint); font-size: 13.5px; }
+  .bar { height: 4px; background: var(--skel); border-radius: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--green); border-radius: 4px; transition: width .6s ease; }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; color: var(--faint); }
+  .steps li.on { color: var(--text); }
+  .steps li.done { color: var(--dim); }
+  .steps li span { display: inline-block; width: 18px; }
+  .steps li i { font-style: normal; color: var(--faint); }
+  .meanwhile { font-size: 13.5px; color: var(--faint); }
+
+  /* While you wait card */
+  .tip { background: var(--soft); border-radius: 14px; padding: 16px 18px; min-height: 118px; display: grid; gap: 6px; align-content: start; }
+  .tip .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .tip p { margin: 0; font-size: 15.5px; line-height: 1.45; text-wrap: pretty; }
+  .tip .src { font-size: 12.5px; color: var(--faint); }
+  .tip-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
+  .dots { display: flex; gap: 6px; }
+  .dots button { width: 7px; height: 7px; border-radius: 50%; border: 0; padding: 0; background: var(--line); cursor: pointer; }
+  .dots button.on { background: var(--dim); }
+  .tip-nav { display: flex; gap: 12px; }
+
+  /* About panel */
+  .scrim { position: absolute; inset: 0; background: color-mix(in srgb, var(--text) 18%, transparent); }
+  .panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(380px, 100%); background: var(--bg); border-left: 1px solid var(--line); padding: 22px; overflow: auto; display: grid; gap: 14px; align-content: start; animation: slide .25s ease-out both; }
+  @keyframes slide { from { transform: translateX(16px); opacity: 0; } }
+  .panel h3 { margin: 0; font: 600 22px/1.2 var(--display); }
+  .panel .x { position: absolute; top: 16px; right: 16px; }
+  .panel dl { margin: 0; display: grid; gap: 14px; }
+  .panel dt { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .panel dd { margin: 3px 0 0; font-size: 14.5px; }
+
+  @media (prefers-reduced-motion: reduce) { .sk::after, .spin, .fade, .panel { animation: none; } .bar i { transition: none; } }
+</style>
+
+<div class="wrap">
+  <div>
+    <div class="eyebrow">Preview · Loading states</div>
+    <h1>Calm loaders</h1>
+    <div class="sub">What is wrong with loading today, and how it would look on the Lead Agent.</div>
+  </div>
+
+  <section>
+    <h2>What can be better</h2>
+    <div class="audit">
+      <div class="row"><div><b>Page switch</b><div class="now">Same grey blocks on every page. The page jumps when it arrives.</div></div><div class="fix">Blocks shaped like the page that is coming (tool, module, Today), then a soft fade in.</div></div>
+      <div class="row"><div><b>Too many spinners</b><div class="now">About 10 different spinners and 6 skeleton styles (md-spin, tsp-spin, td-btn-spinner, an-skeleton, ov-skel…), some written inline.</div></div><div class="fix">One spinner, one skeleton, one progress panel. Everything uses them.</div></div>
+      <div class="row"><div><b>Flashing</b><div class="now">Spinners show even for very short waits, so the screen flickers.</div></div><div class="fix">Show nothing for the first 300 ms.</div></div>
+      <div class="row"><div><b>Long AI waits</b><div class="now">Module analysis, drafts, review reading and keyword scans show a tiny "Analysing…" in the button for up to 90 s.</div></div><div class="fix">Over 5 s: steps, time left, and a "While you wait" card.</div></div>
+      <div class="row"><div><b>Agent runs</b><div class="now">Steps list is good, but there is no sense of how far along it is and nothing to read for 1–3 min.</div></div><div class="fix">Add a progress bar, time left and the card. Keep "you can leave this page".</div></div>
+      <div class="row"><div><b>Words</b><div class="now">"Loading…", "Loading campaigns…", "Requesting…", "Scanning...".</div></div><div class="fix">Say what is happening: "Reading Bloom Salon's website".</div></div>
+      <div class="row"><div><b>Slow or failed</b><div class="now">Some waits never time out; others fail with a bare error.</div></div><div class="fix">After 2× the usual time: "Taking longer than usual", plus Try again.</div></div>
+      <div class="row"><div><b>Page info</b><div class="now">No place to learn what a tool is for, apart from the first-visit intro.</div></div><div class="fix">An "About this page" link in the grey top line, with the same cards.</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>How it would look</h2>
+    <div class="switch" role="group" aria-label="Loading moment">
+      <button type="button" id="m-page" data-m="page" aria-pressed="true">1. Page switch</button>
+      <button type="button" id="m-short" data-m="short" aria-pressed="false">2. Short wait</button>
+      <button type="button" id="m-long" data-m="long" aria-pressed="false">3. Long run</button>
+      <button type="button" id="m-about" data-m="about" aria-pressed="false">4. About this page</button>
+    </div>
+    <div class="note" id="note"></div>
+    <div class="frame" id="frame" aria-live="polite"></div>
+    <div class="note">Facts on the cards are example text. Each one gets checked against a real source before it ships.</div>
+  </section>
+</div>
+
+<script>
+const CARDS = [
+  { k: 'What this does', p: 'Lead Agent finds local businesses that could use Frekto, finds their email, and writes the first message. You only approve it.' },
+  { k: 'Why it matters', p: 'Early customers usually come from talking to people directly. Ads work better once you know who buys and why.' },
+  { k: 'Fun fact', p: 'Google Maps lists more than 200 million businesses and places. That is where these leads come from.', src: 'Source: Google (to confirm)' },
+  { k: 'Tip', p: 'Short emails that end with one easy question get more replies than long ones with a list of features.' },
+  { k: 'Fun fact', p: 'Reddit has over 100,000 active communities, so there is a good chance someone is asking for a tool like yours today.', src: 'Source: Reddit (to confirm)' },
+];
+const STEPS = [
+  ['Looking for businesses on Google Maps', '24 found'],
+  ['Checking which ones fit', '11 fit'],
+  ['Finding their emails', '7 emails'],
+  ['Writing the first emails', ''],
+];
+const NOTES = {
+  page: 'You clicked "Lead Agent" in the sidebar. The blocks match the real page, then it fades in.',
+  short: 'Pressing a button: nothing for 300 ms, then a spinner in the button with plain words.',
+  long: 'A real run takes 1–3 minutes. Here it is sped up. Cards change every 7 s, or tap the dots.',
+  about: 'The same cards, any time, from the grey line under the title.',
+};
+const frame = document.getElementById('frame');
+const note = document.getElementById('note');
+let timers = [];
+const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+const every = (fn, ms) => timers.push(setInterval(fn, ms));
+const clear = () => { timers.forEach(t => { clearTimeout(t); clearInterval(t); }); timers = []; };
+
+const head = (busy) => `
+  <h2 class="ph1">Lead Agent</h2>
+  <div class="line"><span>Last search 2 h ago</span><button class="link" type="button">Settings</button><button class="link" type="button" data-about>About this page</button></div>
+  <div class="tabs"><span class="on">Email</span><span>Community</span></div>`;
+const loaded = () => `${head()}
+  <div class="start fade"><div><b>3 emails ready for your OK.</b><div class="note" style="margin:2px 0 0">Start with Bloom Salon</div></div><button class="btn" type="button" id="review">Review the email</button></div>
+  <ul class="quiet fade"><li>Bloom Salon<small>Posts daily on Instagram, no designer</small></li><li>Corner Bakehouse<small>Runs weekly specials, posts by hand</small></li><li>Fitwell Studio<small>New studio, asking for social help</small></li></ul>`;
+
+function page() {
+  frame.innerHTML = `
+    <div class="sk" style="width:190px;height:28px"></div>
+    <div class="sk" style="width:260px;height:12px;margin-top:12px"></div>
+    <div style="display:flex;gap:14px;margin:26px 0 18px"><div class="sk" style="width:52px;height:14px"></div><div class="sk" style="width:80px;height:14px"></div></div>
+    <div class="sk" style="height:66px;border-radius:14px"></div>
+    <div style="display:grid;gap:14px;margin-top:18px">${[70,55,62].map(w => `<div><div class="sk" style="width:${w*2}px;height:13px"></div><div class="sk" style="width:${w*4}px;max-width:100%;height:11px;margin-top:8px"></div></div>`).join('')}</div>`;
+  later(() => { frame.innerHTML = loaded(); }, 1600);
+  later(page, 5200);
+}
+
+function short() {
+  frame.innerHTML = loaded();
+  const b = frame.querySelector('#review');
+  const go = () => {
+    b.disabled = true;
+    later(() => { b.innerHTML = '<span class="spin"></span>Opening Bloom Salon’s email'; }, 300);
+    later(() => { b.disabled = false; b.textContent = 'Review the email'; }, 2200);
+  };
+  b.addEventListener('click', go);
+  later(go, 600);
+}
+
+function cardHTML(i) {
+  const c = CARDS[i];
+  return `<div class="k">While you wait · ${c.k}</div><p>${c.p}</p>${c.src ? `<div class="src">${c.src}</div>` : ''}`;
+}
+function long() {
+  frame.innerHTML = `${head()}
+    <div class="run">
+      <div class="run-top"><span class="spin"></span><span id="cur"></span><em id="left"></em></div>
+      <div class="bar"><i id="bar"></i></div>
+      <ol class="steps" id="steps"></ol>
+      <div class="meanwhile">You can leave this page. We will put the emails here when they are ready.</div>
+    </div>
+    <div class="tip" style="margin-top:14px">
+      <div id="card" class="fade">${cardHTML(0)}</div>
+      <div class="tip-foot"><div class="dots" id="dots">${CARDS.map((_, i) => `<button type="button" aria-label="Card ${i+1}" class="${i ? '' : 'on'}"></button>`).join('')}</div>
+      <div class="tip-nav"><button class="link" type="button" id="next">Next</button></div></div>
+    </div>`;
+  let ci = 0;
+  const show = (i) => {
+    ci = (i + CARDS.length) % CARDS.length;
+    const el = frame.querySelector('#card');
+    el.classList.remove('fade'); void el.offsetWidth; el.classList.add('fade');
+    el.innerHTML = cardHTML(ci);
+    frame.querySelectorAll('#dots button').forEach((d, j) => d.classList.toggle('on', j === ci));
+  };
+  frame.querySelectorAll('#dots button').forEach((d, j) => d.addEventListener('click', () => show(j)));
+  frame.querySelector('#next').addEventListener('click', () => show(ci + 1));
+  every(() => show(ci + 1), 7000);
+
+  let s = 0;
+  const left = ['About 2 min left', 'About 1 min left', 'Less than a minute left', 'Almost done'];
+  const render = () => {
+    frame.querySelector('#steps').innerHTML = STEPS.map(([l, d], i) =>
+      `<li class="${i < s ? 'done' : i === s ? 'on' : ''}"><span>${i < s ? '✓' : i === s ? '•' : '○'}</span>${l}${i < s && d ? ` <i>· ${d}</i>` : ''}</li>`).join('');
+    frame.querySelector('#cur').textContent = s < STEPS.length ? STEPS[s][0] + '…' : 'Done';
+    frame.querySelector('#left').textContent = left[Math.min(s, 3)];
+    frame.querySelector('#bar').style.width = `${Math.round((s + .4) / STEPS.length * 100)}%`;
+  };
+  render();
+  for (let i = 1; i <= STEPS.length; i++) later(() => { s = i; if (s < STEPS.length) render(); else { frame.innerHTML = loaded(); later(long, 3500); } }, i * 5000);
+}
+
+function about() {
+  frame.innerHTML = loaded() + `<div class="scrim" data-close></div>
+    <aside class="panel" aria-label="About this page">
+      <button class="link x" type="button" data-close>Close</button>
+      <div class="eyebrow" style="margin:0">About this page</div>
+      <h3>Lead Agent</h3>
+      <dl>${CARDS.map(c => `<div><dt>${c.k}</dt><dd>${c.p}${c.src ? `<div class="src" style="color:var(--faint);font-size:12.5px">${c.src}</div>` : ''}</dd></div>`).join('')}</dl>
+    </aside>`;
+  frame.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => { frame.innerHTML = loaded(); wireAbout(); }));
+}
+function wireAbout() { frame.querySelectorAll('[data-about]').forEach(b => b.addEventListener('click', () => pick('about'))); }
+
+const MODES = { page, short, long, about };
+function pick(m) {
+  clear();
+  document.querySelectorAll('.switch button').forEach(b => b.setAttribute('aria-pressed', b.dataset.m === m));
+  note.textContent = NOTES[m];
+  MODES[m]();
+  wireAbout();
+}
+document.querySelectorAll('.switch button').forEach(b => b.addEventListener('click', () => pick(b.dataset.m)));
+pick('page');
+</script>
