@@ -31,7 +31,9 @@ const MIN_SCORE = 7
 const MAX_NEW_PER_RUN = 12
 const OPT_OUT = 'If this isn\'t relevant, just reply "no" and I won\'t email again.'
 
-const PER_SOURCE = 10
+// New finds per source per run, and Hunter email lookups per run. Kept at 3 while testing, to save
+// DataForSEO money, Hunter credits and AI tokens; AGENTS_LEADS_PER_SOURCE raises it (up to 10).
+const PER_SOURCE = Math.max(1, Math.min(10, Number(process.env.AGENTS_LEADS_PER_SOURCE) || 3))
 const DEMO_EMAIL_LEADS = 5   // demo mode: businesses to email per run, at least
 
 export const leadFallback = (b: BrandContext) => () => defaultLeadData(b, b.competitors.map(c => c.domain))
@@ -178,7 +180,8 @@ async function findReddit(queries: string[], country: string, meter: UsageMeter)
   if (!searchDataReady() || !queries.length) return []
   // Two phrases a day, rotating through the list
   const day = Math.floor(Date.now() / 86_400_000)
-  const picks = [queries[day % queries.length], queries[(day + 1) % queries.length]].filter((q, i, a) => a.indexOf(q) === i)
+  // One Google search when few finds are wanted, two otherwise
+  const picks = (PER_SOURCE <= 3 ? [queries[day % queries.length]] : [queries[day % queries.length], queries[(day + 1) % queries.length]]).filter((q, i, a) => a.indexOf(q) === i)
   const results = await Promise.all(picks.map(q => googleResults(`site:reddit.com ${q}`, country, meter, { recent: true })))
   return results.flat()
     .filter(r => /reddit\.com\/r\/[^/]+\/comments\//.test(r.url))
@@ -196,7 +199,7 @@ async function findHackerNews(queries: string[]): Promise<Candidate[]> {
   const q = queries[Math.floor(Date.now() / 86_400_000) % Math.max(1, queries.length)]
   if (!q) return []
   try {
-    const res = await fetch(`https://hn.algolia.com/api/v1/search_by_date?${new URLSearchParams({ query: q, tags: 'story', numericFilters: `created_at_i>${since}`, hitsPerPage: '10' })}`, { signal: AbortSignal.timeout(10_000) })
+    const res = await fetch(`https://hn.algolia.com/api/v1/search_by_date?${new URLSearchParams({ query: q, tags: 'story', numericFilters: `created_at_i>${since}`, hitsPerPage: String(Math.max(5, PER_SOURCE * 2)) })}`, { signal: AbortSignal.timeout(10_000) })
     if (!res.ok) return []
     const j = await res.json() as { hits?: { objectID: string; title?: string; story_text?: string | null; author?: string }[] }
     return (j.hits ?? []).filter(h => h.title).map(h => ({
@@ -261,7 +264,7 @@ async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData,
     .filter(c => !skip.has(c.domain) && !known.has(idOf(`https://${c.domain}`)))
     // Companies Hunter has personal emails for first: those are the ones we can reach
     .sort((x, y) => (y.personalEmails > 0 ? 1 : 0) - (x.personalEmails > 0 ? 1 : 0) || y.totalEmails - x.totalEmails)
-    .slice(0, PER_SOURCE + 4)
+    .slice(0, PER_SOURCE)
   const abouts = await Promise.all(list.map(c => (c.about !== undefined ? Promise.resolve(c.about) : aboutSite(c.domain))))
   return list.map((c, i) => ({
     source: 'company' as const,
@@ -313,7 +316,7 @@ Turn on the 1-2 sources that fit the buyers best (at least one). Return
 
 async function findLocal(query: string, country: string, meter: UsageMeter): Promise<Candidate[]> {
   if (!searchDataReady() || !query.trim()) return []
-  const list = await mapsBusinesses(query, country, meter)
+  const list = await mapsBusinesses(query, country, meter, Math.max(10, PER_SOURCE * 4))
   return list
     .filter(x => !x.domain || (x.rating !== null && x.rating < 4.2) || (x.reviews !== null && x.reviews < 30))
     .slice(0, 20)
@@ -551,7 +554,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
         if (l.source === 'reddit' || l.source === 'forum' || !l.website || euBlocked) continue
         const person = l.source === 'review' ? l.name : undefined
         // Emails come from Hunter only (businesses come from DataForSEO)
-        const found = lookups < 10 && hunterConfigured() ? await findEmail(l.website, person, meter).catch(() => null) : null
+        const found = lookups < PER_SOURCE && hunterConfigured() ? await findEmail(l.website, person, meter).catch(() => null) : null
         if (found) { lookups += 1; l.email = found.email; l.emailVerified = found.verified; if (found.name && l.source !== 'review') l.name = found.name }
       }
       const businesses = fresh.filter(l => l.source === 'review' || l.source === 'local' || l.source === 'company')

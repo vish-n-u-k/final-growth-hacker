@@ -187,7 +187,7 @@ export async function googleResults(keyword: string, country: string, meter?: Us
 
 export interface MapsBusiness { title: string; url: string | null; domain: string | null; phone: string | null; rating: number | null; reviews: number | null; category: string | null; address: string | null; mapsUrl: string | null }
 
-export async function mapsBusinesses(query: string, country: string, meter?: UsageMeter): Promise<MapsBusiness[]> {
+export async function mapsBusinesses(query: string, country: string, meter?: UsageMeter, depth = 40): Promise<MapsBusiness[]> {
   if (agentsDemo()) return demoMapsBusinesses(query)
   type Item = {
     type?: string; title?: string; url?: string | null; domain?: string | null; phone?: string | null
@@ -195,7 +195,7 @@ export async function mapsBusinesses(query: string, country: string, meter?: Usa
     category?: string | null; address?: string | null; check_url?: string | null; cid?: string | null
   }
   const r = await post<{ items?: Item[] | null }>('/serp/google/maps/live/advanced', {
-    keyword: query, location_code: locationOf(country), language_code: 'en', depth: 40,
+    keyword: query, location_code: locationOf(country), language_code: 'en', depth,
   }, meter)
   return (r.items ?? [])
     .filter(i => i.type === 'maps_search' && i.title)

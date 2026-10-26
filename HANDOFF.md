@@ -213,6 +213,7 @@ One board for every lead source, built from the approved preview `design-preview
   - Afterwards the action bar's grey line reads "Searching: Companies like your customers · Reddit and Hacker News".
   - Settings has "Where to look" with "Pick for me", a switch per source, and the who-line under each one that's on. `la-pick-*` / `la-src-*` CSS at the end of `globals.css`.
 - **Lead Finder (`/leads`):** a "Companies" source button with its own "Looking for" line, a switch and field in Settings. The first visit runs `pick` then searches.
+- **Kept small while testing:** `PER_SOURCE` in `lead-agent.ts` is 3: at most 3 new finds per source and 3 Hunter emails per run, one Reddit search instead of two, a Google Maps depth of 12 instead of 40. Set `AGENTS_LEADS_PER_SOURCE=10` to go back to the old size.
 - **Not tested against real Hunter:** whether Discover's keyword search gives good small online stores. If it's weak, DataForSEO's technology search ("sites running Shopify in the US") is the next thing to try.
 
 ## 5. What we are doing right now: making the tools calm
