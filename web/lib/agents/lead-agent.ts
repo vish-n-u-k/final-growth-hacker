@@ -28,6 +28,8 @@ import { brandBlock, daysFrom, domainOf, firstName, idOf, loadBrandContext, pars
 
 const EU = new Set(['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'])
 const MIN_SCORE = 7
+// Companies are already filtered (small, not PR/B2B, read from their own site), so 6 is good enough to email
+const MIN_COMPANY_SCORE = 6
 const MAX_NEW_PER_RUN = 12
 const OPT_OUT = 'If this isn\'t relevant, just reply "no" and I won\'t email again.'
 
@@ -284,11 +286,17 @@ async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData,
   type Found = { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string }
 
   // Online stores: sites running Shopify, WooCommerce… in the country (DataForSEO), a new page each day
-  const stores: Found[] = f.platforms.length && searchDataReady()
-    ? (await storesByPlatform(f.platforms, s.country, meter, { limit: 50, offset: (day % 20) * 50 }).catch(e => { if (!f.keywords.length) throw e; warn(`Online stores: ${e instanceof Error ? e.message : 'failed'}`); return [] }))
+  if (f.platforms.length && !searchDataReady()) warn('Online stores: needs GrowJin’s DataForSEO account, which isn’t set up')
+  const storeRows = f.platforms.length && searchDataReady()
+    ? await storesByPlatform(f.platforms, s.country, meter, { limit: 50, offset: (day % 20) * 50 }).catch(e => { if (!f.keywords.length) throw e; warn(`Online stores: ${e instanceof Error ? e.message : 'failed'}`); return null })
+    : null
+  if (storeRows) {
+    console.log(`[lead-agent] online stores (${f.platforms.join(', ')}, ${s.country}): ${storeRows.length} back${storeRows[0] ? `, e.g. ${storeRows.slice(0, 3).map(x => x.domain).join(', ')}` : ''}`)
+    if (!storeRows.length) warn(`Online stores: DataForSEO found no ${f.platforms.join(' / ')} sites in ${s.country} this time`)
+  }
+  const stores: Found[] = (storeRows ?? [])
       .filter(x => fresh(x.domain))
       .map(x => ({ domain: x.domain, name: x.title.split(/\s[|–-]\s/)[0].slice(0, 60) || x.domain, about: [x.title, x.description].filter(Boolean).join(' · '), socials: socialsIn(x.socials.join(' ')), email: x.emails.find(e => e.endsWith(x.domain)) ?? x.emails[0], from: `${f.platforms.join(' / ')} store` }))
-    : []
 
   // Small agencies and brands: Hunter Discover, three keywords a day (no paging, so the same keywords give the same companies)
   const picks = f.keywords.length ? [0, 1, 2].map(k => f.keywords[(day * 3 + k) % f.keywords.length]).filter((x, i, a) => a.indexOf(x) === i) : []
@@ -300,10 +308,10 @@ async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData,
       .map(c => ({ domain: c.domain, name: c.name, about: c.about, from: `matched “${picks.join('”, “')}”` }))
     : []
 
-  // Half and half when both have some, then fill up from either
-  const half = Math.ceil(COMPANY_CHECK / 2)
+  // Stores first (6 of 10) when there are some, agencies after, then fill up from either
+  const half = Math.ceil(COMPANY_CHECK * 0.6)
   const seen = new Set<string>()
-  const list = [...stores.slice(0, half), ...agencies.slice(0, half), ...stores.slice(half), ...agencies.slice(half)]
+  const list = [...stores.slice(0, half), ...agencies.slice(0, COMPANY_CHECK - half), ...stores.slice(half), ...agencies.slice(COMPANY_CHECK - half)]
     .filter(x => !seen.has(x.domain) && seen.add(x.domain))
     .slice(0, COMPANY_CHECK + 4)
   const pages = await Promise.all(list.map(c => (c.about && c.socials?.length ? Promise.resolve({ text: c.about, socials: c.socials }) : aboutSite(c.domain))))
@@ -573,7 +581,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
     const rejected: string[] = []
     if (candidates.length && Date.now() < deadline) {
       const scored = await pr.step('score', () => scoreCandidates(b, s, candidates)).catch(() => [] as Scored[])
-      const good = scored.filter(x => x.score >= MIN_SCORE).sort((x, y) => y.score - x.score).slice(0, MAX_NEW_PER_RUN)
+      const good = scored.filter(x => x.score >= (candidates[x.i].source === 'company' ? MIN_COMPANY_SCORE : MIN_SCORE)).sort((x, y) => y.score - x.score).slice(0, MAX_NEW_PER_RUN)
       // Demo mode: always keep a few made-up businesses with a website, so there are emails to approve
       // (Claude scores them strictly, and forum posts can fill the run)
       if (demo) {
