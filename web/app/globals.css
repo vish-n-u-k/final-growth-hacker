@@ -2042,6 +2042,16 @@ html.light .mlp-btn--locked { background: #f1f1ee; }
 .st-account-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .st-hint { font-size: 12.5px; color: #9aa3ad; margin: 0; line-height: 1.55; max-width: 400px; }
 
+/* Usage & costs */
+.st-usage-card { display: flex; flex-direction: column; gap: 10px; }
+.st-usage-total { font-family: var(--font-display, 'Fraunces', serif); font-size: 32px; font-weight: 600; color: var(--text); line-height: 1.1; }
+.st-usage-rows { display: flex; flex-direction: column; }
+.st-usage-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 10px 0; border-top: 1px solid var(--line); }
+.st-usage-row:first-child { border-top: none; padding-top: 4px; }
+.st-usage-name { font-size: 14px; font-weight: 500; color: var(--text); min-width: 0; }
+.st-usage-sub { font-size: 12.5px; font-weight: 400; color: var(--text-dim); margin-top: 2px; }
+.st-usage-val { font-size: 14px; font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
 /* ── Light mode ─────────────────────────────────────────────────────────── */
 html.light {
   --bg: #ffffff;

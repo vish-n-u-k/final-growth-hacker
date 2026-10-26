@@ -317,23 +317,48 @@ export async function updateSearchData(brandId: string, fallback: () => SearchAg
   return d
 }
 
-// ── Usage (what the agents spent on data this month) ──────────────────────────
+// ── Usage (what the agents spent on data, per month) ──────────────────────────
+// One document per brand: a month's DataForSEO dollars and Hunter lookups, split by tool and by
+// DataForSEO API. The last 12 months are kept, so Settings can show the history.
 
-export interface UsageMeter { dataforseo: number; hunter: number }
-export const newMeter = (): UsageMeter => ({ dataforseo: 0, hunter: 0 })
+export interface UsageMeter { dataforseo: number; hunter: number; apis: Record<string, number> }
+export const newMeter = (): UsageMeter => ({ dataforseo: 0, hunter: 0, apis: {} })
 
-interface UsageDoc { month: string; dataforseo: number; hunter: number }
+export type UsageTool = 'Lead Agent' | 'Search Agent' | 'Competitor Leads'
+export interface UsageMonth {
+  dataforseo: number
+  hunter: number
+  tools: Record<string, { dataforseo: number; hunter: number }>
+  apis: Record<string, number>   // DataForSEO dollars per API ("Google Maps businesses", …)
+}
+interface UsageDoc { months?: Record<string, UsageMonth>; month?: string; dataforseo?: number; hunter?: number }
 const thisMonth = () => new Date().toISOString().slice(0, 7)
+const round4 = (n: number) => Math.round(n * 10000) / 10000
 
-export async function addUsage(brandId: string, m: UsageMeter) {
+/** Months from the document, oldest shape included (one month, totals only, no breakdown). */
+function monthsOf(doc: UsageDoc | null): Record<string, UsageMonth> {
+  if (!doc) return {}
+  if (doc.months) return doc.months
+  if (!doc.month) return {}
+  return { [doc.month]: { dataforseo: doc.dataforseo ?? 0, hunter: doc.hunter ?? 0, tools: {}, apis: {} } }
+}
+
+export async function addUsage(brandId: string, m: UsageMeter, tool: UsageTool) {
   if (!m.dataforseo && !m.hunter) return
-  const cur = await getSnapshot<UsageDoc>(brandId, USAGE_KEY)
-  const base = cur && cur.month === thisMonth() ? cur : { month: thisMonth(), dataforseo: 0, hunter: 0 }
-  await saveSnapshot(brandId, USAGE_KEY, {
-    month: base.month,
-    dataforseo: Math.round((base.dataforseo + m.dataforseo) * 10000) / 10000,
-    hunter: base.hunter + m.hunter,
-  })
+  const months = monthsOf(await getSnapshot<UsageDoc>(brandId, USAGE_KEY))
+  const key = thisMonth()
+  const cur = months[key] ?? { dataforseo: 0, hunter: 0, tools: {}, apis: {} }
+  cur.dataforseo = round4(cur.dataforseo + m.dataforseo)
+  cur.hunter += m.hunter
+  const t = cur.tools[tool] ?? { dataforseo: 0, hunter: 0 }
+  cur.tools[tool] = { dataforseo: round4(t.dataforseo + m.dataforseo), hunter: t.hunter + m.hunter }
+  // Costs the meter couldn't place on an API still count, under "Other"
+  const placed = Object.values(m.apis).reduce((a, b) => a + b, 0)
+  const apis = { ...m.apis, ...(m.dataforseo - placed > 0.00005 ? { Other: m.dataforseo - placed } : {}) }
+  for (const [api, usd] of Object.entries(apis)) cur.apis[api] = round4((cur.apis[api] ?? 0) + usd)
+  months[key] = cur
+  const kept = Object.fromEntries(Object.entries(months).sort(([a], [b]) => b.localeCompare(a)).slice(0, 12))
+  await saveSnapshot(brandId, USAGE_KEY, { months: kept })
 }
 
 export interface AgentUsage { dataforseoUsd: number; hunterLookups: number; aiUsd: number }
@@ -346,6 +371,40 @@ export async function readUsage(brandId: string): Promise<AgentUsage> {
       .where(and(eq(aiUsageLogs.brandId, brandId), inArray(aiUsageLogs.moduleType, ['lead-agent', 'search-agent']), gte(aiUsageLogs.createdAt, monthStart)))
       .catch(() => [{ usd: 0 }]),
   ])
-  const cur = doc && doc.month === thisMonth() ? doc : null
+  const cur = monthsOf(doc)[thisMonth()]
   return { dataforseoUsd: cur?.dataforseo ?? 0, hunterLookups: cur?.hunter ?? 0, aiUsd: Number(ai[0]?.usd ?? 0) }
+}
+
+/** Everything this account spent, for Settings → Usage: data per month plus AI per month and feature. */
+export interface AccountCosts {
+  months: { month: string; dataforseo: number; hunter: number; ai: number }[]   // newest first
+  current: UsageMonth & { month: string; ai: number; aiByFeature: Record<string, number> }
+}
+
+export async function readAccountCosts(brandId: string): Promise<AccountCosts> {
+  const key = thisMonth()
+  const since = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 11, 1))
+  const monthExpr = sql<string>`to_char(${aiUsageLogs.createdAt} at time zone 'UTC', 'YYYY-MM')`
+  const [doc, ai] = await Promise.all([
+    getSnapshot<UsageDoc>(brandId, USAGE_KEY).catch(() => null),
+    db.select({ month: monthExpr, feature: aiUsageLogs.moduleType, usd: sql<number>`coalesce(sum(cast(${aiUsageLogs.costUsd} as numeric)), 0)` })
+      .from(aiUsageLogs)
+      .where(and(eq(aiUsageLogs.brandId, brandId), gte(aiUsageLogs.createdAt, since)))
+      .groupBy(monthExpr, aiUsageLogs.moduleType)
+      .catch(() => [] as { month: string; feature: string; usd: number }[]),
+  ])
+  const data = monthsOf(doc)
+  const aiByMonth: Record<string, number> = {}
+  const aiByFeature: Record<string, number> = {}
+  for (const r of ai) {
+    const usd = Number(r.usd) || 0
+    aiByMonth[r.month] = (aiByMonth[r.month] ?? 0) + usd
+    if (r.month === key) aiByFeature[r.feature] = (aiByFeature[r.feature] ?? 0) + usd
+  }
+  const months = [...new Set([key, ...Object.keys(data), ...Object.keys(aiByMonth)])]
+    .sort((a, b) => b.localeCompare(a))
+    .slice(0, 12)
+    .map(month => ({ month, dataforseo: data[month]?.dataforseo ?? 0, hunter: data[month]?.hunter ?? 0, ai: aiByMonth[month] ?? 0 }))
+  const cur = data[key] ?? { dataforseo: 0, hunter: 0, tools: {}, apis: {} }
+  return { months, current: { ...cur, month: key, ai: aiByMonth[key] ?? 0, aiByFeature } }
 }

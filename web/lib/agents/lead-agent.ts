@@ -498,7 +498,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       if (find) { x.lastRunAt = new Date().toISOString(); x.lastRunSummary = notes.join(' · ') }
       x.lastError = errors.length ? errors.join(' · ') : null
     })
-    await addUsage(brandId, meter).catch(() => {})
+    await addUsage(brandId, meter, 'Lead Agent').catch(() => {})
     const cost = costNote(meter)
     if (cost) notes.push(cost)
 
