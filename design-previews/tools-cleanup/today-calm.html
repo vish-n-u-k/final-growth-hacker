@@ -129,6 +129,24 @@
   .plain li span:last-child { color: var(--faint); white-space: nowrap; }
   @media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dash { grid-template-columns: 1fr; } }
 
+  /* Sections that open and close (sketch E): each header shows a one-line summary, so a closed page still tells the story. */
+  .folds { margin-top: 26px; border-top: 1px solid var(--line); }
+  .fold { border-bottom: 1px solid var(--line); }
+  .fold-h { display: flex; align-items: center; gap: 14px; width: 100%; padding: 16px 4px; border: 0; background: none; text-align: left; cursor: pointer; }
+  .fold-h .t { flex: 1; min-width: 0; }
+  .fold-h b { display: block; font-size: 16px; }
+  .fold-h .sum { display: block; color: var(--faint); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fold-h .sum.red { color: var(--red); }
+  .chev { width: 10px; height: 10px; flex: none; border-right: 1.6px solid var(--faint); border-bottom: 1.6px solid var(--faint); transform: rotate(45deg) translate(-2px, -2px); }
+  .fold-h[aria-expanded="true"] .chev { transform: rotate(-135deg) translate(-2px, -2px); }
+  .fold-b { padding: 0 4px 20px; }
+  .fold-b .next { margin-top: 0; }
+  .fold-b .rest { margin-top: 12px; }
+  .fold-b .row:last-child { border-bottom: 0; }
+  .fold-b .kpis { margin-top: 0; }
+  .tools { display: flex; gap: 14px; justify-content: flex-end; margin-top: 18px; font-size: 13.5px; }
+  @media (prefers-reduced-motion: no-preference) { .chev { transition: transform .15s; } }
+
   /* One item opened */
   .back { margin: 0 0 22px; }
   .item h2 { margin: 0 0 6px; font: 600 26px/1.25 var(--display); text-wrap: balance; }
@@ -166,7 +184,7 @@
 
 <div class="picker">
   <div class="picker-in">
-    <div class="picker-h">Today: four calm sketches</div>
+    <div class="picker-h">Today: five calm sketches</div>
     <div class="opts" id="opts"></div>
     <p class="picker-note" id="pnote"></p>
   </div>
@@ -213,6 +231,7 @@ const SKETCHES = [
   { id: 'B', name: 'B · Morning note', note: 'Same list, but it opens with three plain sentences about yesterday and one grey progress bar to 500 users. For people who want the story before the to-do.' },
   { id: 'C', name: 'C · One at a time', note: 'Only one task on screen, with its details already open. Finish it and the next one slides in. The full list is one click away.' },
   { id: 'D', name: 'D · Dashboard', note: 'Feels like a dashboard: four number tiles with 14-day lines, then the to-do list beside small panels (where visitors came from, outreach, content). Still grey, still one green button.' },
+  { id: 'E', name: 'E · Open & close', note: 'Five sections stacked down the page. Only “To do today” starts open. Each closed section still shows a one-line summary, so you see the whole day at a glance and open only what you need. The page remembers what you left open.' },
   { id: 'X', name: 'What changes', note: 'Every part of the current Today page, and where it goes in the calm version.' },
 ]
 const CHANGES = [
@@ -231,8 +250,9 @@ const CHANGES = [
   ['Intro strip', 'Shows on the first visit only.'],
 ]
 
-const S = { sketch: 'A', open: null, done: [], settings: false, toast: null }
+const S = { sketch: 'A', open: null, done: [], settings: false, toast: null, folds: { todo: true } }
 try { S.sketch = localStorage.getItem('today-calm-sketch') || 'A' } catch (e) {}
+try { S.folds = JSON.parse(localStorage.getItem('today-calm-folds')) || S.folds } catch (e) {}
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 const left = () => ITEMS.filter(i => !S.done.includes(i.id))
 const pct = Math.round(STATS.users / 500 * 100)
@@ -313,6 +333,31 @@ const VIEWS = {
     </div>`
     return header('Today', '<span>Tue 27 Oct</span><span>Updated 2 h ago</span>') + kpis + `<div class="dash">${todo}${side}</div>`
   },
+  E() {
+    if (S.open) return itemView(ITEMS.find(i => i.id === S.open))
+    const l = left(), reply = l.find(i => i.reply)
+    const doneList = ITEMS.filter(i => S.done.includes(i.id))
+    const sections = [
+      ['todo', 'To do today', reply ? `${l.length} left · ${reply.name}` : `${l.length} left${l[0] ? ' · next: ' + l[0].name : ''}`, !!reply,
+        () => startHere(l[0]) + rows(l.slice(1))],
+      ['numbers', 'How it’s going', `${STATS.visits} visitors (+${STATS.delta}%) · ${STATS.signups} sign-ups · ${STATS.users} of 500 users`, false,
+        () => `<div class="kpis">
+          <div class="kpi"><div class="kpi-l">Visitors yesterday</div><div class="kpi-v">${STATS.visits}<small>+${STATS.delta}%</small></div>${spark(TREND.visits)}</div>
+          <div class="kpi"><div class="kpi-l">Sign-ups yesterday</div><div class="kpi-v">${STATS.signups}</div>${spark(TREND.signups)}</div>
+          <div class="kpi"><div class="kpi-l">Users</div><div class="kpi-v">${STATS.users}<small>of 500</small></div><div class="prog"><i style="width:${pct}%"></i></div><div class="sub">${STATS.next - STATS.users} to the next stage</div></div>
+          <div class="kpi"><div class="kpi-l">Top source</div><div class="kpi-v" style="font-size:22px;margin-top:6px">${SOURCES[0][0]}</div><div class="sub" style="margin-top:14px">${SOURCES[0][1]}% of visitors</div></div></div>`],
+      ['outreach', 'Outreach', '24 sent this week · 11 opened · 3 replied', false,
+        () => `<div class="funnel"><div><b>24</b><span>sent</span></div><div><b>11</b><span>opened</span></div><div><b>3</b><span>replied</span></div></div>`],
+      ['content', 'Content', 'Blog draft ready · LinkedIn post Thu 10:00', false,
+        () => `<ul class="plain"><li><span>Blog: “5 caption ideas for cafés”</span><span>Draft ready</span></li><li><span>LinkedIn post</span><span>Thu 10:00</span></li><li><span>Instagram post</span><span>Not planned</span></li></ul>`],
+      ['done', 'Done today', doneList.length ? `${doneList.length} done` : 'Nothing yet', false,
+        () => doneList.length ? `<ul class="plain">${doneList.map(i => `<li><span>${esc(i.name)}</span><span>Done</span></li>`).join('')}</ul>` : '<p style="margin:0;color:var(--faint)">Finished tasks show up here.</p>'],
+    ]
+    return header('Today', '<span>Tue 27 Oct</span><span>Updated 2 h ago</span>') +
+      `<div class="tools"><button class="link" data-a="openall">Open all</button><button class="link" data-a="closeall">Close all</button></div>
+      <div class="folds" style="margin-top:8px">${sections.map(([id, t, sum, red, body]) =>
+        `<div class="fold"><button class="fold-h" data-fold="${id}" aria-expanded="${!!S.folds[id]}"><span class="t"><b>${t}</b><span class="sum${red && !S.folds[id] ? ' red' : ''}">${esc(sum)}</span></span><span class="chev" aria-hidden="true"></span></button>${S.folds[id] ? `<div class="fold-b">${body()}</div>` : ''}</div>`).join('')}</div>`
+  },
   X() {
     return `<div class="crumbs">Design notes</div><h1>What changes on Today</h1>
       <p class="chg-intro">Today currently stacks about 13 parts on one page, with five colours and up to three buttons per card. The calm version keeps one job: show what to do next. The rest moves to the tool it belongs to, or into Settings.</p>
@@ -340,8 +385,13 @@ function finish(id, text) {
   render(); window.scrollTo(0, 0)
 }
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-sketch],[data-open],[data-finish],[data-skip],[data-a]'); if (!t) return
-  if (t.dataset.sketch) { S.sketch = t.dataset.sketch; S.open = null; S.settings = false; try { localStorage.setItem('today-calm-sketch', S.sketch) } catch (err) {} }
+  const t = e.target.closest('[data-sketch],[data-open],[data-finish],[data-skip],[data-fold],[data-a]'); if (!t) return
+  const saveFolds = () => { try { localStorage.setItem('today-calm-folds', JSON.stringify(S.folds)) } catch (err) {} }
+  if (t.dataset.fold) { S.folds[t.dataset.fold] = !S.folds[t.dataset.fold]; saveFolds() }
+  else if (t.dataset.a === 'openall' || t.dataset.a === 'closeall') {
+    S.folds = Object.fromEntries(['todo', 'numbers', 'outreach', 'content', 'done'].map(k => [k, t.dataset.a === 'openall'])); saveFolds()
+  }
+  else if (t.dataset.sketch) { S.sketch = t.dataset.sketch; S.open = null; S.settings = false; try { localStorage.setItem('today-calm-sketch', S.sketch) } catch (err) {} }
   else if (t.dataset.open) { S.open = t.dataset.open; window.scrollTo(0, 0) }
   else if (t.dataset.finish) return finish(t.dataset.finish, 'Done. Opening the next one.')
   else if (t.dataset.skip) return finish(t.dataset.skip, 'Skipped for today.')
