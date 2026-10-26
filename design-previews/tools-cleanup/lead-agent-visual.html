@@ -1,0 +1,546 @@
+<title>Lead Agent Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap">
+<style>
+/* Layout: one board of three lanes (to check → out → replied). Click anything; a drawer slides in with the detail. */
+:root{
+  --bg:#EEF1F7; --surface:#FFFFFF; --sunk:#E3E8F2; --ink:#141A2E; --dim:#5A6380; --faint:#9AA2BC; --line:#D6DCEA;
+  --accent:#2E54F5; --accent-ink:#FFFFFF; --accent-soft:#E2E8FF;
+  --reply:#F2603F; --reply-soft:#FFE7E0; --ok:#1E9E6A;
+  --shadow:0 1px 2px rgba(20,26,46,.06),0 8px 24px rgba(20,26,46,.07);
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Figtree",ui-sans-serif,system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0E1220; --surface:#171C2E; --sunk:#0A0D18; --ink:#E9ECF7; --dim:#A0A8C4; --faint:#5F6886; --line:#262D45;
+  --accent:#6F8BFF; --accent-ink:#0B0F1C; --accent-soft:#1F2850; --reply:#FF7E60; --reply-soft:#3A1E19; --ok:#3FCB8E;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1220; --surface:#171C2E; --sunk:#0A0D18; --ink:#E9ECF7; --dim:#A0A8C4; --faint:#5F6886; --line:#262D45;
+  --accent:#6F8BFF; --accent-ink:#0B0F1C; --accent-soft:#1F2850; --reply:#FF7E60; --reply-soft:#3A1E19; --ok:#3FCB8E;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35); color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:focus-visible,textarea:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+svg{display:block}
+.wrap{max-width:1120px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 80px}
+
+/* top */
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto}
+.mark{width:36px;height:36px;border-radius:11px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center}
+.brand h1{font-family:var(--display);font-weight:700;font-size:22px;margin:0;letter-spacing:-.01em}
+.mode{display:flex;background:var(--sunk);border-radius:999px;padding:4px}
+.mode button{display:flex;align-items:center;gap:7px;padding:7px 14px;border-radius:999px;color:var(--dim);font-weight:500}
+.mode button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.iconbtn{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:var(--dim);background:var(--surface);box-shadow:var(--shadow)}
+.iconbtn:hover{color:var(--ink)}
+
+/* radar strip */
+.scan{margin-top:20px;background:var(--surface);border-radius:22px;box-shadow:var(--shadow);padding:18px;display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+.radar{position:relative;width:120px;height:120px;flex:none;border-radius:50%;
+  background:radial-gradient(circle,var(--accent-soft) 0 22%,transparent 23% 44%,var(--accent-soft) 45% 46%,transparent 47% 70%,var(--accent-soft) 71% 72%,transparent 73%);
+  border:1px solid var(--line)}
+.radar .sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 300deg,color-mix(in srgb,var(--accent) 45%,transparent) 360deg);opacity:0}
+.radar.on .sweep{opacity:1;animation:spin 1.1s linear infinite}
+.radar .blip{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--accent);opacity:0;transform:scale(.4);transition:.35s}
+.radar .blip.show{opacity:1;transform:scale(1)}
+.radar .go{position:absolute;inset:34px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 40%,transparent);transition:transform .15s}
+.radar .go:hover{transform:scale(1.06)}
+.radar.on .go{pointer-events:none;opacity:.85}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sources{display:flex;gap:10px;flex-wrap:wrap;flex:1;min-width:0}
+.src{display:flex;align-items:center;gap:9px;padding:9px 13px 9px 9px;border-radius:14px;background:var(--bg);color:var(--dim);font-weight:500;transition:.3s}
+.src .ico{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--surface);color:var(--ink);font-family:var(--display);font-weight:700;font-size:13px}
+.src.lit{background:var(--accent-soft);color:var(--ink)}
+.src.off{opacity:.4}
+.src small{display:block;font-size:12px;color:var(--faint);font-weight:400;line-height:1.2}
+.meter{display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:120px}
+.meter .big{font-family:var(--display);font-weight:700;font-size:28px;line-height:1;font-variant-numeric:tabular-nums}
+.meter .bar{width:120px;height:6px;border-radius:9px;background:var(--sunk);overflow:hidden}
+.meter .bar i{display:block;height:100%;background:var(--accent);border-radius:9px;transition:width .4s}
+.meter small{color:var(--faint);font-size:12px}
+
+/* board */
+.board{margin-top:20px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.board.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.lane{background:var(--sunk);border-radius:20px;padding:12px;min-height:200px;display:flex;flex-direction:column;gap:10px}
+.lane-h{display:flex;align-items:center;gap:9px;padding:4px 6px 6px}
+.lane-h .dot{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:var(--surface);color:var(--dim)}
+.lane-h b{font-family:var(--display);font-weight:500;font-size:16px}
+.lane-h .n{margin-left:auto;font-family:var(--display);font-weight:700;font-size:20px;color:var(--faint);font-variant-numeric:tabular-nums}
+.lane.l-check .lane-h .dot{background:var(--accent);color:var(--accent-ink)}
+.lane.l-replied .lane-h .dot{background:var(--reply);color:#fff}
+.lane.l-replied .lane-h .n{color:var(--reply)}
+
+.tile{position:relative;display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:var(--surface);border-radius:15px;padding:11px 12px;box-shadow:var(--shadow);transition:transform .15s,box-shadow .15s}
+.tile:hover{transform:translateY(-2px)}
+.tile.sel{outline:2px solid var(--accent)}
+.tile.new{animation:drop .5s cubic-bezier(.2,1.4,.4,1)}
+@keyframes drop{from{opacity:0;transform:translateY(-14px) scale(.96)}}
+.tile.replied{box-shadow:0 0 0 2px var(--reply),var(--shadow)}
+.av{width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:16px;color:#1A1F33}
+.tile .t{min-width:0;flex:1}
+.tile .name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .sub{font-size:13px;color:var(--faint);display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden}
+.fit{display:flex;gap:2px;align-items:flex-end;height:16px;flex:none}
+.fit i{width:3px;border-radius:2px;background:var(--line)}
+.fit i:nth-child(1){height:6px}.fit i:nth-child(2){height:9px}.fit i:nth-child(3){height:12px}.fit i:nth-child(4){height:16px}
+.fit i.on{background:var(--accent)}
+.fu{display:flex;gap:4px;flex:none}
+.fu i{width:8px;height:8px;border-radius:50%;border:1.5px solid var(--faint)}
+.fu i.on{background:var(--accent);border-color:var(--accent)}
+.bubble-dot{width:10px;height:10px;border-radius:50%;background:var(--reply);flex:none;box-shadow:0 0 0 4px var(--reply-soft)}
+.start{position:absolute;top:-9px;right:12px;background:var(--accent);color:var(--accent-ink);font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;letter-spacing:.02em;animation:bob 1.6s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-3px)}}
+.addtile{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:11px;border-radius:15px;border:1.5px dashed var(--line);color:var(--dim);font-weight:500;background:transparent}
+.addtile:hover{border-color:var(--accent);color:var(--accent)}
+.empty{flex:1;display:grid;place-items:center;text-align:center;color:var(--faint);font-size:13px;padding:20px 8px}
+.empty svg{margin:0 auto 8px;opacity:.6}
+.donebtn{margin-top:auto;font-size:13px;color:var(--faint);padding:6px;border-radius:10px}
+.donebtn:hover{color:var(--ink)}
+
+/* drawer */
+.scrim{position:fixed;inset:0;background:rgba(10,13,24,.32);opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(460px,100%);background:var(--surface);z-index:21;transform:translateX(104%);transition:transform .28s cubic-bezier(.3,.9,.3,1);display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px);box-shadow:-20px 0 40px rgba(10,13,24,.18)}
+.drawer.on{transform:none}
+.d-head{display:flex;align-items:center;gap:12px;padding:18px 20px 14px}
+.d-head .av{width:48px;height:48px;font-size:20px;border-radius:15px}
+.d-head h2{font-family:var(--display);font-weight:700;font-size:21px;margin:0;line-height:1.15}
+.d-head .sub{color:var(--faint);font-size:13px;display:flex;align-items:center;gap:4px}
+.d-head .x{margin-left:auto}
+.d-body{flex:1;overflow:auto;padding:4px 20px 20px;display:flex;flex-direction:column;gap:14px}
+.d-foot{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--line)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;border-radius:14px;font-weight:600}
+.btn.primary{background:var(--accent);color:var(--accent-ink);flex:1}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:var(--sunk);color:var(--dim)}
+.btn.ghost:hover{color:var(--ink)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:10px;background:var(--bg);font-size:13px;color:var(--dim)}
+.chip b{color:var(--ink);font-weight:500}
+.why{display:flex;gap:10px;align-items:flex-start;padding:12px;border-radius:14px;background:var(--accent-soft);font-size:14px}
+.why svg{flex:none;margin-top:2px;color:var(--accent)}
+.letter{border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.letter .to{display:flex;gap:8px;padding:10px 14px;font-size:13px;color:var(--faint);border-bottom:1px solid var(--line)}
+.letter .to b{color:var(--ink);font-weight:500}
+.letter input,.letter textarea{width:100%;border:0;background:transparent;color:var(--ink);font:inherit;padding:10px 14px;resize:none}
+.letter input{font-weight:600;border-bottom:1px solid var(--line)}
+.letter textarea{min-height:190px;line-height:1.55}
+.hint{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--faint)}
+.timeline{display:flex;flex-direction:column;gap:0;padding-left:4px}
+.step{display:grid;grid-template-columns:22px 1fr auto;gap:12px;align-items:start;position:relative;padding-bottom:18px}
+.step::before{content:"";position:absolute;left:10px;top:22px;bottom:0;width:2px;background:var(--line)}
+.step:last-child::before{display:none}
+.step .p{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);background:var(--surface);display:grid;place-items:center}
+.step.done .p{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.step.reply .p{background:var(--reply);border-color:var(--reply);color:#fff}
+.step .lbl{font-weight:500}
+.step .when{font-size:13px;color:var(--faint)}
+.msg{padding:12px 14px;border-radius:16px;font-size:14px;max-width:92%}
+.msg.them{background:var(--reply-soft);border-top-left-radius:4px}
+.msg.us{background:var(--accent-soft);margin-left:auto;border-top-right-radius:4px}
+.msg.post{background:var(--bg);border-top-left-radius:4px}
+.msg .who{font-size:12px;color:var(--faint);margin-bottom:3px;display:flex;gap:6px;align-items:center}
+.done-ill{display:grid;place-items:center;text-align:center;gap:10px;padding:40px 10px;color:var(--dim)}
+.done-ill .ring{width:84px;height:84px;border-radius:50%;background:var(--accent-soft);display:grid;place-items:center;color:var(--accent)}
+.done-ill h3{font-family:var(--display);margin:0;font-size:22px;color:var(--ink)}
+
+/* own list steps */
+.stepper{display:flex;gap:6px}
+.stepper i{flex:1;height:5px;border-radius:9px;background:var(--sunk)}
+.stepper i.on{background:var(--accent)}
+.drop{border:1.5px dashed var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.drop textarea{width:100%;min-height:150px;border:0;background:transparent;color:var(--ink);font:inherit;font-size:14px;resize:vertical}
+.people{display:flex;flex-wrap:wrap;gap:6px}
+.person{display:flex;align-items:center;gap:6px;padding:4px 10px 4px 4px;border-radius:999px;background:var(--bg);font-size:13px}
+.person .av{width:24px;height:24px;border-radius:50%;font-size:11px}
+.person.skip{opacity:.45;text-decoration:line-through}
+.tok{display:inline-block;padding:0 6px;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-weight:600}
+.carousel{display:flex;align-items:center;gap:8px}
+.carousel .letter{flex:1;min-width:0}
+.carousel .pv{padding:12px 14px;font-size:14px;white-space:pre-wrap}
+
+/* settings */
+.set{display:flex;align-items:center;gap:12px;padding:12px;border-radius:14px;background:var(--bg)}
+.set .ico{width:34px;height:34px;border-radius:10px;background:var(--surface);display:grid;place-items:center;flex:none;color:var(--dim)}
+.set .t{flex:1;min-width:0}
+.set .t small{display:block;color:var(--faint);font-size:12px}
+.sw{width:42px;height:24px;border-radius:999px;background:var(--line);position:relative;flex:none;transition:.2s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.sw[aria-checked="true"]{background:var(--accent)}
+.sw[aria-checked="true"]::after{left:21px}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ok);font-weight:500}
+.status::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok)}
+input[type=range]{accent-color:var(--accent);width:100%}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translate(-50%,140%);background:var(--ink);color:var(--bg);padding:10px 10px 10px 16px;border-radius:14px;display:flex;align-items:center;gap:14px;z-index:30;transition:transform .25s;max-width:calc(100% - 32px)}
+.toast.on{transform:translate(-50%,0)}
+.toast button{color:var(--bg);font-weight:600;padding:6px 10px;border-radius:9px;background:color-mix(in srgb,var(--bg) 16%,transparent)}
+
+.legend{margin-top:14px;display:flex;gap:16px;flex-wrap:wrap;color:var(--faint);font-size:12px}
+.legend span{display:flex;align-items:center;gap:6px}
+
+@media (max-width:760px){
+  .board,.board.two{grid-template-columns:1fr}
+  .lane{min-height:0}
+  .meter{align-items:flex-start}
+  .scan{gap:16px}
+  .radar{width:100px;height:100px}.radar .go{inset:28px}
+  .brand h1{font-size:19px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="mark"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
+      <h1>Lead Agent</h1>
+    </div>
+    <div class="mode" role="group" aria-label="What to find">
+      <button id="m-email" aria-pressed="true" data-mode="email"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg>Email</button>
+      <button id="m-comm" aria-pressed="false" data-mode="community"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/></svg>Community</button>
+    </div>
+    <button class="iconbtn" id="gear" title="Settings" aria-label="Settings"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></button>
+  </div>
+
+  <section class="scan" aria-label="Find leads">
+    <div class="radar" id="radar">
+      <div class="sweep"></div>
+      <i class="blip" style="left:22px;top:30px"></i><i class="blip" style="left:84px;top:22px"></i><i class="blip" style="left:76px;top:86px"></i><i class="blip" style="left:18px;top:78px"></i>
+      <button class="go" id="go" title="Find new leads" aria-label="Find new leads"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.2-4.2"/></svg></button>
+    </div>
+    <div class="sources" id="sources"></div>
+    <div class="meter" title="Emails sent today out of your daily limit">
+      <div class="big"><span id="sentToday">4</span><span style="color:var(--faint);font-size:18px">/<span id="limit">20</span></span></div>
+      <div class="bar"><i id="sentBar" style="width:20%"></i></div>
+      <small>sent today</small>
+    </div>
+  </section>
+
+  <div class="board" id="board"></div>
+  <div class="legend" id="legend"></div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-modal="true" role="dialog"></aside>
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="undo">Undo</button></div>
+
+<script>
+const I = {
+  check:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>',
+  eye:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>',
+  send:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg>',
+  reply:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/></svg>',
+  x:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  pin:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+  spark:'<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.2 6.3L20 10l-5.8 1.7L12 18l-2.2-6.3L4 10l5.8-1.7L12 2Z"/></svg>',
+  plus:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  copy:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="9" width="12" height="12" rx="3"/><path d="M5 15V6a3 3 0 0 1 3-3h9"/></svg>',
+  out:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>',
+  clock:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  mail:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg>',
+  inbox:'<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5.5 5h13L21 13v6H3v-6l2.5-8Z"/></svg>',
+  file:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5M12 12v6M9 15l3-3 3 3"/></svg>',
+  left:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m15 6-6 6 6 6"/></svg>',
+  right:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>',
+  stop:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>',
+};
+const SRC = {
+  maps:{g:'M', name:'Google Maps', note:'local businesses'},
+  reddit:{g:'r/', name:'Reddit', note:'people asking'},
+  hn:{g:'Y', name:'Hacker News', note:'people asking'},
+};
+const hue = s => [...s].reduce((a,c)=>a+c.charCodeAt(0),0)%360;
+const avBg = s => `hsl(${hue(s)} 70% 82%)`;
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const body = (first, co, hook) => `Hi ${first},\n\n${hook}\n\nFrekto turns a photo of your work into a ready post for Instagram and Facebook in about a minute. No design skills needed.\n\nWant me to make 3 free posts for ${co} so you can see?\n\nGopal\nFrekto`;
+let leads = [
+  {id:1,name:'Bloom Salon',city:'Austin, TX',email:'hello@bloomsalon.co',person:'Maya',fit:4,stage:'check',why:'Great reviews, but last Instagram post was 5 months ago.',subject:'A few posts for Bloom Salon?',body:body('Maya','Bloom Salon','Your 4.9 stars on Google are impressive. I noticed your Instagram has been quiet since spring.')},
+  {id:2,name:'Rise Bakery',city:'Portland, OR',email:'orders@risebakery.com',person:'Tom',fit:4,stage:'check',why:'Posts daily specials on a chalkboard, not online.',subject:'Your daily specials, posted for you',body:body('Tom','Rise Bakery','Your chalkboard specials look great in customer photos. They would do well on Instagram too.')},
+  {id:3,name:'Peak Fitness',city:'Denver, CO',email:'team@peakfit.studio',person:'Jess',fit:3,stage:'check',why:'New studio, 12 reviews, no social links on site.',subject:'Quick idea for Peak Fitness',body:body('Jess','Peak Fitness','Congrats on the new studio. I saw your site has no social links yet.')},
+  {id:4,name:'Ember Coffee',city:'Austin, TX',email:'hi@embercoffee.com',person:'Leo',fit:3,stage:'out',sent:'Mon',fu:1,why:'Busy café, posts once a month.'},
+  {id:5,name:'Corner Books',city:'Madison, WI',email:'shop@cornerbooks.net',person:'Ana',fit:2,stage:'out',sent:'Thu',fu:0,why:'Runs events, rarely announces them.'},
+  {id:6,name:'Luna Yoga',city:'Boulder, CO',email:'namaste@lunayoga.co',person:'Priya',fit:4,stage:'out',sent:'Last week',fu:2,why:'Class schedule only on a PDF.'},
+  {id:7,name:'Northside Florist',city:'Chicago, IL',email:'flowers@northside.fl',person:'Sam',fit:4,stage:'replied',sent:'Tue',fu:1,why:'Seasonal stock, no posts.',reply:'This sounds handy. Can we do a quick call Thursday afternoon?'},
+];
+let posts = [
+  {id:101,src:'reddit',where:'r/smallbusiness',name:'Tool that makes Instagram posts for my shop?',fit:4,stage:'check',ago:'3 h',post:'I run a small candle shop and I hate making posts. Is there anything that just takes my product photo and writes the caption?',reply:'I make Frekto, which does exactly that: upload a product photo and it writes the caption and lays out the post. Happy to set you up with a few free posts to try.'},
+  {id:102,src:'hn',where:'Ask HN',name:'Automating social posts for a side project',fit:3,stage:'check',ago:'7 h',post:'Ask HN: What do you use to keep a side project’s social accounts alive without spending hours a week?',reply:'Disclosure: I built Frekto. It drafts posts from your site and photos, and you approve them in one place. Free to try, and I’d love feedback from HN folks.'},
+  {id:103,src:'reddit',where:'r/Etsy',name:'I spend 5 hours a week in Canva',fit:4,stage:'check',ago:'1 d',post:'Between listings and promo posts I’m in Canva 5+ hours a week. How do other sellers handle this?',reply:'Batching helps a lot. Another option is an AI post maker like Frekto (I made it): one photo in, a finished post out. Could save most of those 5 hours.'},
+  {id:104,src:'reddit',where:'r/Entrepreneur',name:'How do you stay consistent on Instagram?',fit:2,stage:'posted',ago:'2 d',post:'I always start strong and then stop posting after 2 weeks.',reply:'…'},
+];
+let mode = 'email', sentToday = 4, limit = 20, firstVisit = true, nextId = 200, current = null, undoFn = null;
+const settings = {auto:true, maps:true, reddit:true, hn:true, demo:true};
+
+const $ = id => document.getElementById(id);
+const items = () => mode==='email' ? leads : posts;
+
+function fitBars(n){return `<span class="fit" title="Fit ${n} of 4">${[1,2,3,4].map(i=>`<i class="${i<=n?'on':''}"></i>`).join('')}</span>`}
+function fuDots(l){return `<span class="fu" title="Follow-ups: ${l.fu} of 2 sent">${[0,1,2].map(i=>`<i class="${i<=l.fu?'on':''}"></i>`).join('')}</span>`}
+function avatar(it){
+  if (mode==='community' || it.src) return `<span class="av" style="background:${it.src==='hn'?'#FFD9C2':'#FFE0D6'}">${SRC[it.src].g}</span>`;
+  return `<span class="av" style="background:${avBg(it.name)}">${esc(it.name[0])}</span>`;
+}
+
+function renderSources(){
+  const keys = mode==='email' ? ['maps'] : ['reddit','hn'];
+  $('sources').innerHTML = keys.map(k=>`<div class="src ${settings[k]?'':'off'}" data-src="${k}"><span class="ico">${SRC[k].g}</span><span>${SRC[k].name}<small>${SRC[k].note}</small></span></div>`).join('')
+    + (mode==='email' ? `<div class="src" data-src="hunter"><span class="ico">@</span><span>Find email<small>for each one</small></span></div><div class="src" data-src="write"><span class="ico">${I.spark}</span><span>Write email<small>you check it</small></span></div>`
+                      : `<div class="src" data-src="write"><span class="ico">${I.spark}</span><span>Write reply<small>you post it</small></span></div>`);
+}
+
+function renderBoard(){
+  const list = items();
+  const lanes = mode==='email'
+    ? [{k:'check',t:'Check',ic:I.eye},{k:'out',t:'Sent',ic:I.send},{k:'replied',t:'Replied',ic:I.reply}]
+    : [{k:'check',t:'Reply',ic:I.eye},{k:'posted',t:'Posted',ic:I.check}];
+  const b = $('board'); b.className = 'board' + (lanes.length===2?' two':'');
+  b.innerHTML = lanes.map(L=>{
+    const its = list.filter(x=>x.stage===L.k);
+    let tiles = its.map((it,i)=>{
+      const right = L.k==='check' ? fitBars(it.fit) : L.k==='out' ? fuDots(it) : L.k==='replied' ? '<span class="bubble-dot"></span>' : `<span style="color:var(--ok)">${I.check}</span>`;
+      const sub = mode==='email' ? `${I.pin}${esc(it.city)}` : `${esc(it.where)} · ${esc(it.ago)}`;
+      return `<button class="tile ${it.isNew?'new':''} ${L.k==='replied'?'replied':''} ${current===it.id?'sel':''}" data-id="${it.id}">
+        ${firstVisit && L.k==='check' && i===0 ? '<span class="start">Start here</span>':''}
+        ${avatar(it)}<span class="t"><span class="name">${esc(it.name)}</span><span class="sub">${sub}</span></span>${right}</button>`;
+    }).join('');
+    if (!its.length) tiles = `<div class="empty"><div>${I.inbox}${L.k==='check'?'All clear. Tap the search button for more.':L.k==='replied'?'Replies land here.':'Nothing yet.'}</div></div>`;
+    const add = (mode==='email' && L.k==='check') ? `<button class="addtile" id="addOwn">${I.plus}Add your own emails</button>` : '';
+    const doneN = list.filter(x=>x.stage==='done').length;
+    const done = (L.k==='out' || L.k==='posted') && doneN ? `<button class="donebtn" id="showDone">+ ${doneN} skipped</button>` : '';
+    return `<section class="lane l-${L.k}"><div class="lane-h"><span class="dot">${L.ic}</span><b>${L.t}</b><span class="n">${its.length}</span></div>${tiles}${add}${done}</section>`;
+  }).join('');
+  list.forEach(x=>delete x.isNew);
+  $('legend').innerHTML = mode==='email'
+    ? `<span>${fitBars(4)} how good a fit</span><span>${fuDots({fu:1})} follow-ups (stop when they reply)</span><span><span class="bubble-dot"></span> they replied</span>`
+    : `<span>${fitBars(4)} how good a fit</span><span>You post the reply yourself</span>`;
+  b.querySelectorAll('.tile').forEach(t=>t.onclick=()=>openItem(+t.dataset.id));
+  $('addOwn') && ($('addOwn').onclick = () => openOwnList());
+  $('showDone') && ($('showDone').onclick = openDone);
+}
+
+function renderMeter(){ $('sentToday').textContent = sentToday; $('limit').textContent = limit; $('sentBar').style.width = Math.min(100, sentToday/limit*100)+'%'; }
+function render(){ renderSources(); renderBoard(); renderMeter(); }
+
+/* drawer */
+function openDrawer(html){ $('drawer').innerHTML = html; $('drawer').classList.add('on'); $('scrim').classList.add('on'); $('drawer').querySelectorAll('[data-close]').forEach(b=>b.onclick=closeDrawer); }
+function closeDrawer(){ $('drawer').classList.remove('on'); $('scrim').classList.remove('on'); current=null; renderBoard(); }
+$('scrim').onclick = closeDrawer;
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDrawer(); });
+const head = (av, title, sub) => `<div class="d-head">${av}<div style="min-width:0"><h2>${esc(title)}</h2><div class="sub">${sub}</div></div><button class="iconbtn x" data-close aria-label="Close">${I.x}</button></div>`;
+
+function openItem(id){
+  const it = items().find(x=>x.id===id); if(!it) return;
+  current = id; firstVisit = false; renderBoard();
+  if (mode==='community') return openPost(it);
+  if (it.stage==='check') return openCheck(it);
+  if (it.stage==='out') return openOut(it);
+  if (it.stage==='replied') return openReplied(it);
+}
+
+function openCheck(l){
+  const left = leads.filter(x=>x.stage==='check').length;
+  openDrawer(`${head(avatar(l), l.name, `${I.pin.replace('12','13')} ${esc(l.city)}`)}
+    <div class="d-body">
+      <div class="why">${I.spark}<span>${esc(l.why)}</span></div>
+      <div class="letter">
+        <div class="to">To <b>${esc(l.person)}</b> ${esc(l.email)}</div>
+        <input id="subj" value="${esc(l.subject)}" aria-label="Subject">
+        <textarea id="bodyTxt" aria-label="Email">${esc(l.body)}</textarea>
+      </div>
+      <div class="hint">${I.clock} 2 follow-ups go out by themselves · they stop when ${esc(l.person)} replies</div>
+    </div>
+    <div class="d-foot"><button class="btn ghost" id="skip">Skip</button><button class="btn primary" id="send">${I.send} Send <span style="opacity:.6;font-weight:500">${left>1?`· ${left-1} more`:''}</span></button></div>`);
+  $('subj').oninput = e => l.subject = e.target.value;
+  $('bodyTxt').oninput = e => l.body = e.target.value;
+  $('send').onclick = () => move(l,'out',`Sent to ${l.name}`, () => { l.sent='Today'; l.fu=0; sentToday++; renderMeter(); }, () => { sentToday--; renderMeter(); });
+  $('skip').onclick = () => move(l,'done',`Skipped ${l.name}`);
+}
+
+function openOut(l){
+  const steps = [
+    {lbl:'First email', when:l.sent, done:true},
+    {lbl:'Follow-up 1', when:l.fu>=1?'Sent':'In 3 days', done:l.fu>=1},
+    {lbl:'Follow-up 2', when:l.fu>=2?'Sent':'In 7 days', done:l.fu>=2},
+  ];
+  openDrawer(`${head(avatar(l), l.name, esc(l.email))}
+    <div class="d-body">
+      <div class="timeline">${steps.map(s=>`<div class="step ${s.done?'done':''}"><span class="p">${s.done?I.check.replace(/16/g,'12'):''}</span><span class="lbl">${s.lbl}</span><span class="when">${s.when}</span></div>`).join('')}
+        <div class="step"><span class="p"></span><span class="lbl" style="color:var(--faint)">Waiting for a reply</span><span></span></div></div>
+    </div>
+    <div class="d-foot"><button class="btn ghost" id="stopFu" style="flex:1">${I.stop} Stop follow-ups</button></div>`);
+  $('stopFu').onclick = () => move(l,'done',`Stopped follow-ups for ${l.name}`);
+}
+
+function openReplied(l){
+  openDrawer(`${head(avatar(l), l.name, esc(l.email))}
+    <div class="d-body">
+      <div class="msg us"><div class="who">You · ${esc(l.sent)}</div>A few posts for ${esc(l.name)}?</div>
+      <div class="msg them"><div class="who">${esc(l.person)} · today</div>${esc(l.reply)}</div>
+      <div class="hint">${I.check} Follow-ups stopped</div>
+    </div>
+    <div class="d-foot"><button class="btn ghost" id="arch">Done</button><a class="btn primary" href="https://mail.google.com" target="_blank" rel="noopener" style="text-decoration:none">${I.out} Reply in Gmail</a></div>`);
+  $('arch').onclick = () => move(l,'done',`Moved ${l.name} to done`);
+}
+
+function openPost(p){
+  const posted = p.stage==='posted';
+  openDrawer(`${head(avatar(p), p.where, `${SRC[p.src].name} · ${esc(p.ago)} ago`)}
+    <div class="d-body">
+      <div class="msg post"><div class="who">${esc(p.name)}</div>${esc(p.post)}</div>
+      ${posted?'':`<div class="msg us"><div class="who">${I.spark.replace(/16/g,'12')} Your reply</div><span id="rep" contenteditable="true" style="outline:none">${esc(p.reply)}</span></div>
+      <div class="chips"><span class="chip">1 <b>Copy</b></span><span class="chip">2 <b>Open post</b></span><span class="chip">3 <b>Paste & post</b></span></div>`}
+    </div>
+    <div class="d-foot">${posted?`<button class="btn ghost" data-close style="flex:1">Close</button>`:
+      `<button class="btn ghost" id="skip">Skip</button><button class="btn ghost" id="cp">${I.copy}</button><a class="btn ghost" id="op" href="https://www.reddit.com" target="_blank" rel="noopener" title="Open post">${I.out}</a><button class="btn primary" id="did">${I.check} I posted it</button>`}</div>`);
+  if (posted) return;
+  $('cp').onclick = async () => { const t=$('rep').innerText; try{ await navigator.clipboard.writeText(t); toast('Reply copied'); }catch{ const r=document.createRange(); r.selectNodeContents($('rep')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Selected. Press Ctrl+C'); } };
+  $('did').onclick = () => move(p,'posted','Marked as posted');
+  $('skip').onclick = () => move(p,'done','Skipped');
+}
+
+function openDone(){
+  const done = items().filter(x=>x.stage==='done');
+  openDrawer(`${head(`<span class="av" style="background:var(--sunk);color:var(--dim)">${done.length}</span>`, 'Skipped', 'Tap to bring one back')}
+    <div class="d-body">${done.map(x=>`<button class="tile" data-back="${x.id}">${avatar(x)}<span class="t"><span class="name">${esc(x.name)}</span></span>${I.reply}</button>`).join('')}</div>`);
+  $('drawer').querySelectorAll('[data-back]').forEach(b=>b.onclick=()=>{ const x=items().find(i=>i.id==b.dataset.back); x.stage = mode==='email' ? (x.sent?'out':'check') : 'check'; x.isNew=true; renderBoard(); openDone(); if(!items().some(i=>i.stage==='done')) closeDrawer(); });
+}
+
+function move(it, stage, msg, after, undoAfter){
+  const prev = it.stage; it.stage = stage; it.isNew = true; after && after();
+  toast(msg, () => { it.stage = prev; it.isNew = true; undoAfter && undoAfter(); renderBoard(); });
+  const nxt = items().find(x=>x.stage==='check');
+  if (prev==='check' && nxt) { openItem(nxt.id); }
+  else if (prev==='check') { current=null; renderBoard(); openDrawer(`<div class="d-head"><button class="iconbtn x" data-close aria-label="Close">${I.x}</button></div><div class="d-body"><div class="done-ill"><div class="ring">${I.check.replace(/16/g,'40')}</div><h3>All caught up</h3><div>${mode==='email'?'Follow-ups run by themselves.':'Nice work.'}</div></div></div><div class="d-foot"><button class="btn primary" id="more">${I.spark} Find more</button></div>`); $('more').onclick=()=>{closeDrawer(); runScan();}; }
+  else { closeDrawer(); }
+}
+
+function toast(msg, undo){
+  $('toastMsg').textContent = msg; undoFn = undo || null; $('undo').hidden = !undo;
+  $('toast').classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(()=>$('toast').classList.remove('on'), 4000);
+}
+$('undo').onclick = () => { undoFn && undoFn(); $('toast').classList.remove('on'); };
+
+/* find */
+const fresh = {
+  email:[
+    {name:'Copper Barbers',city:'Austin, TX',email:'book@copperbarbers.com',person:'Dan',fit:4,why:'Fully booked on weekdays, empty Saturdays. No Instagram.',hook:'Your reviews mention great fades, but I could not find you on Instagram.'},
+    {name:'Golden Thai Kitchen',city:'Austin, TX',email:'eat@goldenthai.co',person:'Nok',fit:3,why:'Beautiful dishes in customer photos, page inactive.',hook:'Your customers post beautiful photos of your dishes. Your page could too.'},
+  ],
+  community:[
+    {src:'reddit',where:'r/shopify',name:'Best way to make product posts fast?',fit:4,ago:'12 min',post:'Launching 30 new products next month. Need posts for each. Any shortcuts?',reply:'For a batch like that, a tool like Frekto (I built it) can turn each product photo into a post in about a minute. Happy to share a free trial.'},
+  ]
+};
+function runScan(){
+  const r = $('radar'); if (r.classList.contains('on')) return;
+  r.classList.add('on'); closeDrawer();
+  const srcs = [...document.querySelectorAll('.src:not(.off)')]; const blips = [...r.querySelectorAll('.blip')];
+  srcs.forEach((s,i)=>setTimeout(()=>{ srcs.forEach(x=>x.classList.remove('lit')); s.classList.add('lit'); blips[i%blips.length].classList.add('show'); }, 450*i+200));
+  setTimeout(()=>{
+    r.classList.remove('on'); srcs.forEach(x=>x.classList.remove('lit')); blips.forEach(b=>b.classList.remove('show'));
+    const pool = fresh[mode].splice(0);
+    if (!pool.length){ toast('Nothing new right now. The agent checks again tomorrow.'); return; }
+    pool.forEach(n => {
+      const it = mode==='email' ? {...n,id:nextId++,stage:'check',subject:`Quick idea for ${n.name}`,body:body(n.person,n.name,n.hook),isNew:true} : {...n,id:nextId++,stage:'check',isNew:true};
+      items().unshift(it);
+    });
+    renderBoard(); toast(`${pool.length} new ${mode==='email'?(pool.length>1?'leads':'lead'):(pool.length>1?'posts':'post')} to check`);
+  }, 450*srcs.length+700);
+}
+$('go').onclick = runScan;
+
+/* mode */
+document.querySelectorAll('.mode button').forEach(b=>b.onclick=()=>{ mode=b.dataset.mode; document.querySelectorAll('.mode button').forEach(x=>x.setAttribute('aria-pressed', x===b)); current=null; render(); });
+
+/* own list */
+function openOwnList(step=1, raw=`maya@bloomsalon.co\nTom Reed, tom@reedframing.com\nkate@harborpets.com, Harbor Pets\nraj@fixitbikes.com\nnina@lilacnails.com\nmaya@bloomsalon.co\nbob@optedout.com`){
+  const ppl = parsePeople(raw);
+  const ok = ppl.filter(p=>!p.skip);
+  const steps = `<div class="stepper">${[1,2,3].map(i=>`<i class="${i<=step?'on':''}"></i>`).join('')}</div>`;
+  if (step===1){
+    openDrawer(`${head(`<span class="av" style="background:var(--accent-soft);color:var(--accent)">${I.plus}</span>`, 'Your own list', 'Who gets it')}
+      <div class="d-body">${steps}
+        <div class="drop"><textarea id="raw" aria-label="Paste emails">${esc(raw)}</textarea>
+          <label class="btn ghost" style="align-self:flex-start;cursor:pointer">${I.file} Upload file<input type="file" hidden></label></div>
+        <div class="people" id="ppl">${peopleHtml(ppl)}</div>
+      </div>
+      <div class="d-foot"><button class="btn primary" id="nx">${ok.length} people ${I.right}</button></div>`);
+    $('raw').oninput = e => { const p = parsePeople(e.target.value); $('ppl').innerHTML = peopleHtml(p); $('nx').innerHTML = `${p.filter(x=>!x.skip).length} people ${I.right}`; };
+    $('nx').onclick = () => openOwnList(2, $('raw').value);
+  } else if (step===2){
+    openDrawer(`${head(`<span class="av" style="background:var(--accent-soft);color:var(--accent)">${I.mail}</span>`, 'One email for all', `${ok.length} people`)}
+      <div class="d-body">${steps}
+        <div class="letter"><input id="osubj" value="3 free posts for {company}?" aria-label="Subject"><textarea id="obody" aria-label="Email">Hi {first name},\n\nI made Frekto, which turns a photo into a ready Instagram post in about a minute.\n\nCan I make 3 free posts for {company} so you can see?\n\nGopal</textarea></div>
+        <div class="chips"><button class="chip" data-tok="{first name}"><span class="tok">{first name}</span></button><button class="chip" data-tok="{company}"><span class="tok">{company}</span></button></div>
+      </div>
+      <div class="d-foot"><button class="btn ghost" id="bk">${I.left}</button><button class="btn primary" id="nx">Preview ${I.right}</button></div>`);
+    $('drawer').querySelectorAll('[data-tok]').forEach(c=>c.onclick=()=>{ const t=$('obody'); const p=t.selectionStart; t.value=t.value.slice(0,p)+c.dataset.tok+t.value.slice(t.selectionEnd); t.focus(); });
+    $('bk').onclick = () => openOwnList(1, raw);
+    $('nx').onclick = () => { ownTpl = {s:$('osubj').value, b:$('obody').value}; openOwnList(3, raw); };
+  } else {
+    let i = 0;
+    const fill = (s,p) => s.replaceAll('{first name}', p.first).replaceAll('{company}', p.company);
+    const pv = () => { const p = ok[i]; $('pvBox').innerHTML = `<div class="to">To <b>${esc(p.first)}</b> ${esc(p.email)}</div><div class="pv"><b>${esc(fill(ownTpl.s,p))}</b>\n\n${esc(fill(ownTpl.b,p))}</div>`; $('pvN').textContent = `${i+1} / ${ok.length}`; };
+    const today = Math.min(ok.length, limit - sentToday);
+    openDrawer(`${head(`<span class="av" style="background:var(--accent-soft);color:var(--accent)">${I.eye}</span>`, 'Looks right?', `<span id="pvN"></span>`)}
+      <div class="d-body">${steps}
+        <div class="carousel"><button class="iconbtn" id="pp" aria-label="Previous">${I.left}</button><div class="letter" id="pvBox"></div><button class="iconbtn" id="pn" aria-label="Next">${I.right}</button></div>
+        <div class="chips"><span class="chip">${I.send}<b>${today}</b> today</span><span class="chip">${I.clock}<b>${ok.length-today}</b> tomorrow</span><span class="chip">${I.reply}2 follow-ups each</span></div>
+      </div>
+      <div class="d-foot"><button class="btn ghost" id="bk">${I.left}</button><button class="btn primary" id="go2">${I.check} Send to all ${ok.length}</button></div>`);
+    pv();
+    $('pp').onclick = () => { i = (i-1+ok.length)%ok.length; pv(); };
+    $('pn').onclick = () => { i = (i+1)%ok.length; pv(); };
+    $('bk').onclick = () => openOwnList(2, raw);
+    $('go2').onclick = () => {
+      ok.forEach((p,k)=>leads.push({id:nextId++,name:p.company,city:'Your list',email:p.email,person:p.first,fit:3,stage:'out',sent:k<today?'Today':'Tomorrow',fu:0,why:'From your own list.',isNew:true}));
+      sentToday += today; renderMeter(); closeDrawer(); toast(`${ok.length} added · ${today} sent now`);
+    };
+  }
+}
+let ownTpl = {s:'',b:''};
+function parsePeople(raw){
+  const seen = new Set(), inAgent = new Set(leads.map(l=>l.email.split('@')[1]));
+  return raw.split(/\n+/).map(line=>{
+    const m = line.match(/[\w.+-]+@[\w-]+\.[\w.]+/); if(!m) return null;
+    const email = m[0].toLowerCase(), dom = email.split('@')[1];
+    const bits = line.replace(m[0],'').split(',').map(s=>s.trim()).filter(Boolean);
+    const person = bits.find(s=>/^[A-Z][a-z]+( [A-Z][a-z]+)?$/.test(s) && !/(Pets|Bikes|Shop|Co)$/.test(s));
+    const company = bits.find(s=>s!==person) || dom.split('.')[0].replace(/^\w/,c=>c.toUpperCase());
+    const first = person ? person.split(' ')[0] : email.split('@')[0];
+    let skip = '';
+    if (seen.has(email)) skip = 'Repeat'; else if (/optedout/.test(email)) skip = 'Opted out'; else if (inAgent.has(dom)) skip = 'Already a lead';
+    seen.add(email);
+    return {email, first: first[0].toUpperCase()+first.slice(1), company, skip};
+  }).filter(Boolean);
+}
+function peopleHtml(ppl){ return ppl.map(p=>`<span class="person ${p.skip?'skip':''}" title="${p.skip||p.email}"><span class="av" style="background:${avBg(p.email)}">${esc(p.first[0])}</span>${esc(p.first)}</span>`).join(''); }
+
+/* settings */
+$('gear').onclick = () => {
+  const sw = (k) => `<button class="sw" role="switch" aria-checked="${settings[k]}" data-k="${k}" aria-label="${k}"></button>`;
+  openDrawer(`${head(`<span class="av" style="background:var(--sunk);color:var(--dim)">${I.clock}</span>`, 'Settings', 'Frekto')}
+    <div class="d-body">
+      <div class="set"><span class="ico">${I.clock}</span><span class="t">Search every morning<small>New leads wait for you</small></span>${sw('auto')}</div>
+      <div class="set"><span class="ico">${I.send}</span><span class="t">Emails per day <b id="lv">${limit}</b><input type="range" id="lim" min="5" max="50" step="5" value="${limit}"></span></div>
+      <div class="set"><span class="ico">${I.mail}</span><span class="t">Gmail<small>gopal@frekto.com</small></span><span class="status">On</span></div>
+      <div class="set"><span class="ico" style="font-weight:700">M</span><span class="t">Google Maps<small>“salons, cafés, gyms in Austin”</small></span>${sw('maps')}</div>
+      <div class="set"><span class="ico" style="font-weight:700">r/</span><span class="t">Reddit</span>${sw('reddit')}</div>
+      <div class="set"><span class="ico" style="font-weight:700">Y</span><span class="t">Hacker News</span>${sw('hn')}</div>
+      <div class="set"><span class="ico">${I.eye}</span><span class="t">Demo mode<small>Made-up leads, nothing is sent</small></span>${sw('demo')}</div>
+    </div>`);
+  $('drawer').querySelectorAll('.sw').forEach(s=>s.onclick=()=>{ settings[s.dataset.k]=!settings[s.dataset.k]; s.setAttribute('aria-checked',settings[s.dataset.k]); renderSources(); });
+  $('lim').oninput = e => { limit = +e.target.value; $('lv').textContent = limit; renderMeter(); };
+};
+
+render();
+</script>
