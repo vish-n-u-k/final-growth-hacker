@@ -49,7 +49,22 @@ function charge(meter: UsageMeter | undefined, path: string, cost: number | unde
 interface DfsTask<T> { status_code?: number; status_message?: string; cost?: number; result?: T[] | null }
 interface DfsResponse<T> { status_code?: number; status_message?: string; tasks?: DfsTask<T>[] }
 
+/** DataForSEO's 5xxxx codes ("Internal SE Server Error" etc.): Google or DataForSEO had a hiccup; worth one retry. */
+export class DfsBusyError extends Error {}
+const busy = (code: number | undefined) => typeof code === 'number' && code >= 50000
+
 async function post<T>(path: string, task: Record<string, unknown>, meter?: UsageMeter, timeoutMs = 60_000): Promise<T> {
+  try {
+    return await postOnce<T>(path, task, meter, timeoutMs)
+  } catch (e) {
+    if (!(e instanceof DfsBusyError)) throw e
+    // Failed tasks aren't charged, so one retry after a short pause costs nothing extra
+    await new Promise(r => setTimeout(r, 2500))
+    return postOnce<T>(path, task, meter, timeoutMs)
+  }
+}
+
+async function postOnce<T>(path: string, task: Record<string, unknown>, meter?: UsageMeter, timeoutMs = 60_000): Promise<T> {
   if (!dataForSeoConfigured()) throw new Error('DataForSEO is not set up (DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD).')
   const auth = Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString('base64')
   const res = await fetch(`${BASE}${path}`, {
@@ -64,17 +79,20 @@ async function post<T>(path: string, task: Record<string, unknown>, meter?: Usag
     let why = ''
     try { const j = JSON.parse(body) as DfsResponse<T>; why = j.tasks?.[0]?.status_message ?? j.status_message ?? '' } catch { why = body.slice(0, 200) }
     console.error(`[dataforseo] ${path} → HTTP ${res.status}${why ? `: ${why}` : ''}`)
+    if (res.status >= 500) throw new DfsBusyError(`DataForSEO ${res.status}${why ? `: ${why}` : ''} (${path.split('/').slice(-2).join('/')})`)
     throw new Error(`DataForSEO ${res.status}${why ? `: ${why}` : ''} (${path.split('/').slice(-2).join('/')})`)
   }
   const json = await res.json() as DfsResponse<T>
   if (json.status_code !== 20000) {
     console.error(`[dataforseo] ${path} → ${json.status_code}: ${json.status_message}`)
+    if (busy(json.status_code)) throw new DfsBusyError(`DataForSEO: ${json.status_message ?? json.status_code}`)
     throw new Error(`DataForSEO: ${json.status_message ?? json.status_code}`)
   }
   const t = json.tasks?.[0]
   charge(meter, path, t?.cost)
   if (!t || t.status_code !== 20000) {
     console.error(`[dataforseo] ${path} → task ${t?.status_code}: ${t?.status_message}`)
+    if (busy(t?.status_code)) throw new DfsBusyError(`DataForSEO: ${t?.status_message ?? 'no result'}`)
     throw new Error(`DataForSEO: ${t?.status_message ?? 'no result'}`)
   }
   const result = t.result?.[0]

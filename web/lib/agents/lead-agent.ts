@@ -15,7 +15,7 @@ import { getValidGmailToken } from '@/lib/gmail/token'
 import { checkThreadReply } from '@/lib/gmail/reply-check'
 import { openSignal, clearSignals } from '@/lib/signals'
 import { fetchHtml } from '@/lib/lead-finder/reviews'
-import { searchDataReady, googleResults, mapsBusinesses } from './dataforseo'
+import { searchDataReady, googleResults, mapsBusinesses, DfsBusyError } from './dataforseo'
 import { agentsDemo, demoLocalQuery, demoReply, demoSend, setDemoContext } from './demo'
 import { Progress } from './progress'
 import { hunterConfigured, findEmail, discoverCompanies } from './hunter'
@@ -182,7 +182,14 @@ async function findReddit(queries: string[], country: string, meter: UsageMeter)
   const day = Math.floor(Date.now() / 86_400_000)
   // One Google search when few finds are wanted, two otherwise
   const picks = (PER_SOURCE <= 3 ? [queries[day % queries.length]] : [queries[day % queries.length], queries[(day + 1) % queries.length]]).filter((q, i, a) => a.indexOf(q) === i)
-  const results = await Promise.all(picks.map(q => googleResults(`site:reddit.com ${q}`, country, meter, { recent: true })))
+  // Google sometimes chokes on long phrases with quotes behind site:, so a second try uses a plain, short version
+  const plain = (q: string) => q.replace(/["“”'()]/g, ' ').replace(/\b(OR|AND)\b/g, ' ').split(/\s+/).filter(Boolean).slice(0, 6).join(' ')
+  const search = (q: string) => googleResults(`site:reddit.com ${q}`, country, meter, { recent: true })
+    .catch(e => (plain(q) && plain(q) !== q ? googleResults(`site:reddit.com ${plain(q)}`, country, meter) : Promise.reject(e)))
+  const settled = await Promise.allSettled(picks.map(search))
+  const results = settled.flatMap(r => (r.status === 'fulfilled' ? [r.value] : []))
+  // Only an error when every search failed (one bad phrase shouldn't flag the whole run)
+  if (!results.length) { const r = settled.find(x => x.status === 'rejected') as PromiseRejectedResult | undefined; if (r) throw r.reason }
   return results.flat()
     .filter(r => /reddit\.com\/r\/[^/]+\/comments\//.test(r.url))
     .map(r => ({
@@ -501,7 +508,9 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
     if (find) try {
       const queries = s.sources.reddit ? await pr.step('queries', () => searchQueries(b, s, d), q => ({ detail: n(q.length, 'phrase'), items: q.slice(0, 4) })) : []
       // One failing source (e.g. a search error) shouldn't stop the others; it's reported on the page
-      const source = <T>(label: string, p: Promise<T[]>) => p.catch(e => { errors.push(`${label}: ${e instanceof Error ? e.message : 'failed'}`); return [] as T[] })
+      // DataForSEO's own hiccups ("Internal SE Server Error") get plain words: nothing for the user to fix
+      const why = (e: unknown) => e instanceof DfsBusyError ? 'Google didn’t answer (a hiccup on DataForSEO’s side, nothing to fix). It tries again on the next search.' : e instanceof Error ? e.message : 'failed'
+      const source = <T>(label: string, p: Promise<T[]>) => p.catch(e => { errors.push(`${label}: ${why(e)}`); return [] as T[] })
       const fresh = (x: Candidate) => !known.has(idOf(x.url))
       const found = await Promise.all([
         s.sources.reddit ? source('Reddit search', pr.step('reddit', async () => [...await findReddit(queries, s.country, meter), ...await findHackerNews(queries)], r => ({ detail: `${r.filter(fresh).length} new posts`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
