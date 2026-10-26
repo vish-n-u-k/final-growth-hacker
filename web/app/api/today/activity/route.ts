@@ -37,7 +37,7 @@ export interface TodayActivity {
   // PostHog covers the app; the website is measured with Google Analytics / Search Console.
   // 'connect-ga' = Google Analytics isn't connected, so nothing measures the website.
   website: { status: 'ok' | 'connect-ga'; host: string }
-  // The 14 full days up to yesterday, oldest first, one row per day (days with nothing are 0): Today's charts
+  // The last 14 days, oldest first, one row per day (days with nothing are 0): Today's small trend lines
   trend?: { date: string; visitors: number; signups: number }[]
   fetchedAt?: string // when PostHog was asked (responses are cached for a few minutes)
 }
@@ -128,10 +128,10 @@ export async function GET(request: NextRequest) {
               any(coalesce(toString(properties.$geoip_country_name), '')), any(coalesce(toString(properties.$device_type), ''))
        FROM events WHERE event = '$identify' AND timestamp >= ${since} AND ${existingUsers}
        GROUP BY person_id ORDER BY max(timestamp) DESC LIMIT 8`),
-    q(`SELECT toString(toDate(timestamp)), count(DISTINCT person_id), toString(yesterday()) FROM events
-       WHERE event = '$pageview' AND timestamp >= toStartOfDay(now()) - interval 14 day AND timestamp < toStartOfDay(now()) GROUP BY 1`),
+    q(`SELECT toString(toDate(timestamp)), count(DISTINCT person_id), toString(today()) FROM events
+       WHERE event = '$pageview' AND timestamp >= toStartOfDay(now()) - interval 13 day GROUP BY 1`),
     q(`SELECT toString(toDate(created_at)), count(DISTINCT ${personKey}) FROM persons
-       WHERE is_identified = 1 AND created_at >= toStartOfDay(now()) - interval 14 day AND created_at < toStartOfDay(now()) ${personAnd} GROUP BY 1`),
+       WHERE is_identified = 1 AND created_at >= toStartOfDay(now()) - interval 13 day ${personAnd} GROUP BY 1`),
   ])
 
   const n = (v: unknown) => Number(v ?? 0) || 0
@@ -170,9 +170,8 @@ export async function GET(request: NextRequest) {
   // Fill in the days PostHog returned nothing for, so the line always spans 14 days
   const perDay = (rows: unknown[][] | null) => new Map((rows ?? []).map(r => [String(r[0]).slice(0, 10), n(r[1])]))
   const visitorDays = perDay(visitorDayRows), signupDays = perDay(signupDayRows)
-  // Count back from PostHog's own "yesterday" (its project timezone), not the server's UTC date.
-  // Today is left out: half a day would show as a drop at the end of every line.
-  const lastDay = Date.parse(String(visitorDayRows?.[0]?.[2] ?? '').slice(0, 10)) || Date.parse(new Date(Date.now() - 86_400_000).toISOString().slice(0, 10))
+  // Count back from PostHog's own "today" (its project timezone), not the server's UTC date
+  const lastDay = Date.parse(String(visitorDayRows?.[0]?.[2] ?? '').slice(0, 10)) || Date.parse(new Date().toISOString().slice(0, 10))
   const trend = visitorDayRows || signupDayRows
     ? Array.from({ length: 14 }, (_, i) => {
         const date = new Date(lastDay - (13 - i) * 86_400_000).toISOString().slice(0, 10)

@@ -20,9 +20,7 @@ import { ListSkeleton, Spinner } from '@/components/ui/loading'
 import Link from 'next/link'
 import DailyEmailToggle from '@/components/DailyEmailToggle'
 import ToolHeader from '@/components/ToolHeader'
-import { TrendingUp, PenLine, Share2, CircleCheck, ArrowRight, Check, type LucideIcon } from 'lucide-react'
-import type { TodayActivity as Activity } from '@/app/api/today/activity/route'
-import { JOURNEY_PHASES } from '@/lib/journey'
+import { TrendingUp, ListChecks, PenLine, Share2, CircleCheck, Mail, Search, FileText, Wrench, CircleAlert, Target, Bell, type LucideIcon } from 'lucide-react'
 
 interface TrafficData {
   visits: number
@@ -199,6 +197,16 @@ function blogHandoff(blog: { id: string; title: string; mdUrl?: string }, c: Sit
 // "**bold**" from the AI's wording, shown as bold instead of literal asterisks
 const withBold = (text: string) => text.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part))
 
+// A grey icon per task type, so the list is easy to scan without colour
+const TYPE_ICON: Record<string, LucideIcon> = {
+  outreach: Mail, social: Share2, seo: Search, content: FileText, 'module-item': Wrench,
+  alert: CircleAlert, play: Target, blog: PenLine, reminder: Bell,
+}
+function TaskIcon({ type }: { type: string }) {
+  const Icon = TYPE_ICON[type] ?? ListChecks
+  return <span className="td-ticon" aria-hidden="true"><Icon size={16} strokeWidth={1.7} /></span>
+}
+
 // The one-line "why" in the list: the finding itself, without "Overdue: waiting N days." in front.
 // The opened task still shows the full reason.
 const shortWhy = (card: ActionCard) => {
@@ -226,13 +234,11 @@ const INLINE_TYPES: Set<string> = new Set(['outreach', 'social', 'blog'])
 // ── Action card ───────────────────────────────────────────────────────────────
 
 // One task, opened from the "To do today" list. No type label or colour: the name, why, and the steps.
-function ActionCardItem({ card, bare, onClose, onCta, expanded, onToggleExpand, onDone, onComplete, onClaude, claudeHint, composer }: {
+function ActionCardItem({ card, onClose, onCta, expanded, onToggleExpand, onDone, onComplete, onClaude, claudeHint, composer }: {
   card: ActionCard
-  // Inside Today's plan: the timeline already shows the name and why, so only the steps show here
-  bare?: boolean
   onClaude?: () => void
   claudeHint?: React.ReactNode
-  onClose?: () => void
+  onClose: () => void
   onCta: () => void
   expanded: boolean
   onToggleExpand: () => void
@@ -269,14 +275,12 @@ function ActionCardItem({ card, bare, onClose, onCta, expanded, onToggleExpand, 
   }
 
   return (
-    <div className={`td-card${bare ? ' td-card--bare' : ''}`}>
-      {!bare && <>
-        <div className="td-card-header">
-          <h3 className="td-card-headline">{card.headline}</h3>
-          {onClose && <button type="button" className="btn btn-link td-card-close" onClick={onClose}>Close</button>}
-        </div>
-        <p className="td-card-reason">{helps && card.reason ? <strong>Why: </strong> : null}{withBold(card.reason)}</p>
-      </>}
+    <div className="td-card">
+      <div className="td-card-header">
+        <h3 className="td-card-headline">{card.headline}</h3>
+        <button type="button" className="btn btn-link td-card-close" onClick={onClose}>Close</button>
+      </div>
+      <p className="td-card-reason">{helps && card.reason ? <strong>Why: </strong> : null}{withBold(card.reason)}</p>
 
       {/* The module check's picture: the failing elements on the page, or the Google / share preview */}
       {card.data?.visual != null && (
@@ -997,122 +1001,16 @@ function AllGoodState({ cachedAt, onRefresh, refreshing }: { cachedAt: string; o
   )
 }
 
-// ── Pulse: the numbers beside the plan ─────────────────────────────────────────
-
-// The last 24 hours from PostHog (with the 14-day trend) and the live user count for Road to 500
-function usePulse(posthogConnected: boolean) {
-  const [activity, setActivity] = useState<Activity | null>(null)
-  const [users, setUsers] = useState<number | null>(null)
-  useEffect(() => {
-    let alive = true
-    fetch('/api/today/activity?days=1')
-      .then(r => r.ok ? r.json() : null)
-      .then((d: Activity | null) => { if (alive) setActivity(d ?? { connected: false } as Activity) })
-      .catch(() => { if (alive) setActivity({ connected: false } as Activity) })
-    if (posthogConnected) {
-      fetch('/api/posthog/user-count')
-        .then(r => r.ok ? r.json() : null)
-        .then((d: { count?: number } | null) => { if (alive && d?.count) setUsers(d.count) })
-        .catch(() => {})
-    }
-    return () => { alive = false }
-  }, [posthogConnected])
-  return { activity, users }
-}
-
-// 14 days as an area chart, in ink (green stays for the next step)
-function AreaChart({ values, height, from }: { values: number[]; height: number; from?: string }) {
-  if (values.length < 2 || values.every(v => v === 0)) return null
-  const w = 300, max = Math.max(...values), min = Math.min(...values)
-  const pts = values.map((v, i) => [(i / (values.length - 1)) * w, height - 4 - ((v - min) / (max - min || 1)) * (height - 12)])
-  const line = pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
-  const [ex, ey] = pts[pts.length - 1]
-  return (
-    <div className="td-chart">
-      <svg viewBox={`-3 0 ${w + 6} ${height}`} preserveAspectRatio="none" style={{ height }} role="img" aria-label={`Visitors per day, last 14 days: ${values.join(', ')}`}>
-        <polygon points={`0,${height} ${line} ${w},${height}`} className="td-chart-area" />
-        <polyline points={line} className="td-chart-line" vectorEffect="non-scaling-stroke" />
-        <circle cx={ex} cy={ey} r="3" className="td-chart-dot" />
-      </svg>
-      <div className="td-chart-axis"><span>{from}</span><span>Yesterday</span></div>
-    </div>
-  )
-}
-
-function Pulse({ activity, users, yesterday, impact }: { activity: Activity | null; users: number | null; yesterday: string | null; impact?: ImpactCard }) {
-  const ok = activity?.connected && !activity.error
-  const v = activity?.visitors
-  const delta = v && v.prior > 0 ? Math.round(((v.current - v.prior) / v.prior) * 100) : null
-  const chans = activity?.channels ?? []
-  const chanTotal = chans.reduce((a, c) => a + c.visitors, 0)
-  const phase = users != null ? JOURNEY_PHASES.find(p => users < p.max) ?? JOURNEY_PHASES[JOURNEY_PHASES.length - 1] : null
-  const next = phase ? (phase.max === Infinity ? 500 : phase.max) : null
-  const from = activity?.trend?.[0] ? new Date(activity.trend[0].date + 'T12:00:00').toLocaleDateString([], { day: 'numeric', month: 'short' }) : undefined
-  return (
-    <aside className="td-pulse" aria-label="Pulse">
-      <span className="td-eyebrow">Pulse</span>
-      {activity === null ? (
-        <ListSkeleton rows={3} start={false} />
-      ) : ok && v ? (
-        <>
-          <div className="td-pulse-row">
-            <span className="td-pulse-big">{v.current.toLocaleString()}</span>
-            <span className="td-pulse-delta">visitors, last 24 h{delta !== null && delta !== 0 ? ` · ${delta > 0 ? '+' : ''}${delta}%` : ''}</span>
-          </div>
-          {chans[0] && <div className="td-pulse-sub">Mostly from {chans[0].name}</div>}
-          {activity.trend && <AreaChart values={activity.trend.map(d => d.visitors)} height={90} from={from} />}
-          <div className="td-pulse-trio">
-            <div><b>{activity.signups.count}</b><span>sign-ups</span></div>
-            <div><b>{activity.signins?.count ?? 0}</b><span>signed in</span></div>
-            <div><b>{activity.returning}</b><span>came back</span></div>
-          </div>
-        </>
-      ) : (
-        <div className="td-pulse-empty">
-          {yesterday && <p className="td-pulse-sub" style={{ color: 'var(--text)' }}>{yesterday}</p>}
-          <p>{activity?.error ?? 'Connect PostHog to see visitors, sign-ups and a 14-day chart here.'}</p>
-          <Link href={connectUrl('posthog')} className="td-pulse-link">{activity?.error ? 'Open Integrations' : 'Connect PostHog'} <ArrowRight size={13} aria-hidden="true" /></Link>
-        </div>
-      )}
-      {users != null && next != null && (
-        <div className="td-pulse-part">
-          <span className="td-eyebrow">Road to 500</span>
-          <div className="td-road" role="img" aria-label={`${users} of 500 users`}><i style={{ width: `${Math.min(100, users / 5)}%` }} /></div>
-          <div className="td-road-t"><span>{users.toLocaleString()} users</span><span>{users >= 500 ? '500 reached' : `next: ${next}`}</span></div>
-        </div>
-      )}
-      {/* Sources and what's working stay on wide screens; on phones they'd push the plan down (they're in Full analytics) */}
-      {ok && chanTotal > 0 && (
-        <div className="td-pulse-part td-pulse-part--wide">
-          <span className="td-eyebrow">Where visitors came from</span>
-          <ul className="td-srcs">
-            {chans.slice(0, 4).map(c => {
-              const pct = Math.round((c.visitors / chanTotal) * 100)
-              return <li key={c.name}><span>{c.name}</span><i style={{ width: `${Math.max(3, pct)}%` }} /><span>{pct}%</span></li>
-            })}
-          </ul>
-        </div>
-      )}
-      {impact && (
-        <div className="td-pulse-part td-pulse-part--wide">
-          <span className="td-eyebrow">What&apos;s working</span>
-          <p className="td-pulse-work"><b>{impact.headline}</b> {impact.detail}</p>
-        </div>
-      )}
-      <Link href="/analytics" className="td-pulse-link td-pulse-more">Full analytics <ArrowRight size={13} aria-hidden="true" /></Link>
-    </aside>
-  )
-}
-
 // ── Sections that open and close ───────────────────────────────────────────────
 
-type FoldId = 'numbers' | 'content' | 'social' | 'done'
-// v3: the plan and the pulse are always shown; these extras sit under the plan and start closed
-const FOLDS_KEY = 'today-folds-v3'
+type FoldId = 'todo' | 'numbers' | 'content' | 'social' | 'done'
+const FOLD_IDS: FoldId[] = ['numbers', 'todo', 'content', 'social', 'done']
+// v2: "How it's going" moved to the top and starts open; older saved choices had it closed
+const FOLDS_KEY = 'today-folds-v2'
 
-// Which extra sections are open, kept in this browser
+// Which sections are open, kept in this browser. "How it's going" and "To do today" start open.
 function useFolds() {
-  const [open, setOpen] = useState<Record<FoldId, boolean>>({ numbers: false, content: false, social: false, done: false })
+  const [open, setOpen] = useState<Record<FoldId, boolean>>({ numbers: true, todo: true, content: false, social: false, done: false })
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(FOLDS_KEY) ?? 'null')
@@ -1126,6 +1024,8 @@ function useFolds() {
   return {
     open,
     toggle: (id: FoldId) => save({ ...open, [id]: !open[id] }),
+    show: (id: FoldId) => { if (!open[id]) save({ ...open, [id]: true }) },
+    all: (on: boolean) => save(Object.fromEntries(FOLD_IDS.map(k => [k, on])) as Record<FoldId, boolean>),
   }
 }
 
@@ -1190,10 +1090,8 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
   const folds = useFolds()
   const yesterday = useYesterday()
   const done = useRecentlyDone()
-  // Tasks finished on this page since it loaded, so the plan and ring update without a reload
-  const [doneHere, setDoneHere] = useState<{ id: string; label: string }[]>([])
-  const addDone = useCallback((card: ActionCard) => setDoneHere(d => [...d, { id: card.id, label: card.headline }]), [])
-  const pulse = usePulse(posthogConnected)
+  // Tasks finished on this page since it loaded, so the done ring moves without a reload
+  const [doneHere, setDoneHere] = useState(0)
 
   useEffect(() => {
     const connected = searchParams.get('oauth_connected')
@@ -1269,8 +1167,8 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
     })
     if (!res.ok) throw new Error('complete failed')
     advance(card.id)
-    if (status === 'done') { markAction(); addDone(card) }
-  }, [markAction, advance, addDone])
+    if (status === 'done') { markAction(); setDoneHere(n => n + 1) }
+  }, [markAction, advance])
 
   // A post went out from the "Create a post" panel: mark the task done and count today's action,
   // but keep the card (with its success message) until the panel is closed.
@@ -1278,7 +1176,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
   const publishedSocial = useCallback((card: ActionCard) => {
     setPublishedIds(prev => new Set(prev).add(card.id))
     markAction()
-    addDone(card)
+    setDoneHere(n => n + 1)
     if (card.data?.taskKind) {
       fetch('/api/today/complete', {
         method: 'POST',
@@ -1286,7 +1184,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         body: JSON.stringify({ kind: card.data.taskKind, id: card.data.taskId, status: 'done' }),
       }).catch(() => {})
     }
-  }, [markAction, addDone])
+  }, [markAction])
   const closeSocialPanel = useCallback((card: ActionCard) => {
     setExpandedCard(null)
     if (publishedIds.has(card.id)) advance(card.id)
@@ -1298,20 +1196,17 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
   const dayLabel = `${days[now.getDay()]}, ${months[now.getMonth()]} ${now.getDate()}`
 
   const loading = !ready || (refreshing && cards.length === 0)
+  const closeTask = () => { setOpenId(null); setExpandedCard(null) }
   const openTask = (id: string) => { setOpenId(id); setExpandedCard(null) }
 
-  // Today's plan: tasks finished today (from the server and on this page), then what's left
-  const today = new Date().toDateString()
-  const doneList = [
-    ...(done ?? []).filter(t => new Date(t.at).toDateString() === today).map(t => ({ id: t.id, label: t.label })),
-    ...doneHere,
-  ]
-  const doneToday = doneList.length
-  const todayTotal = doneToday + cards.length
-  const current = cards.find(c => c.id === openId) ?? cards[0]
-
   // One-line summaries for the closed sections
-  const numbersSum = [yesterday, 'Road to 500, sign-ups and who came'].filter(Boolean).join(' · ')
+  const today = new Date().toDateString()
+  const doneToday = (done?.filter(t => new Date(t.at).toDateString() === today).length ?? 0) + doneHere
+  const todayTotal = doneToday + cards.length
+  const todoSum = loading ? 'Checking your tasks…'
+    : cards.length === 0 ? 'All caught up'
+    : `${cards.length} to do${doneToday ? ` · ${doneToday} done` : ''} · next: ${cards[0].headline}`
+  const numbersSum = [yesterday, impacts[0]?.headline].filter(Boolean).join(' · ') || 'Visitors, sign-ups and what’s working'
   const latestBlog = blogData.blogs[0]
   const contentSum = [
     blogData.weeklyDue ? 'This week’s blog is due' : latestBlog ? `Latest blog: “${latestBlog.title}”` : 'No blog yet',
@@ -1321,21 +1216,17 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
     done === null ? '' : done.length ? `${done.length} done lately` : 'Nothing yet',
     streak > 0 ? `${streak}-day streak` : '',
   ].filter(Boolean).join(' · ') || ' '
-  const waitLine = (card: ActionCard) =>
-    card.type === 'reminder' ? card.reason
-    : card.data?.overdue && Number(card.data.daysPending) > 0 ? `Waiting ${card.data.daysPending} day${Number(card.data.daysPending) === 1 ? '' : 's'}`
-    : ''
 
   function renderTask(card: ActionCard) {
     return (
       <div key={card.id} className="td-cell">
         <ActionCardItem
           card={card}
-          bare
+          onClose={closeTask}
           onCta={markAction}
           expanded={expandedCard === card.id}
           onToggleExpand={() => expandedCard === card.id && card.type === 'social' ? closeSocialPanel(card) : setExpandedCard(expandedCard === card.id ? null : card.id)}
-          onDone={card.type === 'reminder' ? () => { advance(card.id); addDone(card) } : undefined}
+          onDone={card.type === 'reminder' ? () => { advance(card.id); setDoneHere(n => n + 1) } : undefined}
           onComplete={card.data?.taskKind ? (status) => completeTask(card, status) : undefined}
           onClaude={card.data?.route === 'code' && !INLINE_TYPES.has(card.type) ? () => handoff.start(taskHandoff(card, site)) : undefined}
           claudeHint={handoff.hint(`task:${card.id}`)}
@@ -1394,46 +1285,39 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
     )
   }
 
-  // Today's plan as a timeline: done first (ticked), then what's left in order. The current task is
-  // open in place with its steps and the page's one green button; finishing it opens the next.
-  function renderPlan() {
+  // "To do today": the first task as "Start here" (the page's one green button), the rest as quiet
+  // rows. Opening a row shows its details in place; finishing it opens the next one.
+  function renderTodo() {
     if (loading) return <ListSkeleton rows={4} />
+    if (cards.length === 0) return <AllGoodState cachedAt={cachedAt} onRefresh={() => fetchSignals(true)} refreshing={refreshing} />
     return (
-      <>
-        {(doneList.length > 0 || cards.length > 0) && (
-          <ol className="td-tl">
-            {doneList.map(d => (
-              <li key={`done-${d.id}`} className="td-tl-item is-done">
-                <span className="td-tl-mk" aria-hidden="true"><Check size={14} strokeWidth={2.4} /></span>
-                <div className="td-tl-body"><div className="td-tl-t">{d.label}</div><span className="sr-only">Done</span></div>
-              </li>
-            ))}
-            {cards.map((card, i) => {
-              const cur = card === current
-              const meta = waitLine(card)
-              const head = (
-                <>
-                  <span className="td-tl-t">{card.headline}</span>
-                  <span className="td-tl-w">{shortWhy(card)}</span>
-                  {meta && <span className="td-tl-m">{meta}</span>}
-                </>
-              )
-              return (
-                <li key={card.id} className={`td-tl-item${cur ? ' is-cur' : ''}`}>
-                  <span className="td-tl-mk" aria-hidden="true">{i + 1}</span>
-                  <div className="td-tl-body">
-                    {cur
-                      ? <div className="td-tl-head">{head}</div>
-                      : <button type="button" className="td-tl-head td-tl-open" onClick={() => openTask(card.id)}>{head}</button>}
-                    {cur && <div className="td-tl-box">{renderTask(card)}</div>}
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
-        )}
-        {cards.length === 0 && <AllGoodState cachedAt={cachedAt} onRefresh={() => fetchSignals(true)} refreshing={refreshing} />}
-      </>
+      <div className="td-todo">
+        {cards.map((card, i) => {
+          if (card.id === openId) return renderTask(card)
+          if (i === 0 && !cards.some(c => c.id === openId)) {
+            return (
+              <div key={card.id} className="td-next">
+                <div className="td-next-text">
+                  <span className="td-eyebrow">Start here</span>
+                  <b>{card.headline}</b>
+                  <span>{shortWhy(card)}</span>
+                </div>
+                <button type="button" className="btn btn-primary td-next-go" onClick={() => openTask(card.id)}>Start</button>
+              </div>
+            )
+          }
+          return (
+            <button key={card.id} type="button" className="td-row" onClick={() => openTask(card.id)}>
+              <TaskIcon type={card.type} />
+              <span className="td-row-main">
+                <span className="td-row-name">{card.headline}</span>
+                <span className="td-row-why">{shortWhy(card)}</span>
+              </span>
+              <span className="td-row-go" aria-hidden="true">Open ›</span>
+            </button>
+          )
+        })}
+      </div>
     )
   }
 
@@ -1473,49 +1357,43 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         </div>
       )}
 
-      {/* Plan on the left, the numbers in a panel that stays in view on the right (on top on phones) */}
-      <div className="td-pp">
-        <section className="td-plan" aria-labelledby="td-plan-h">
-          <div className="td-plan-h">
-            <h2 id="td-plan-h">Today&apos;s plan</h2>
-            {!loading && todayTotal > 0 && (
-              <span className="td-plan-n">
-                {cards.length ? `${cards.length} left` : 'All done'}
-                <DoneRing done={doneToday} total={todayTotal} />
-              </span>
+      <div className="td-body">
+        <div className="td-fold-tools">
+          <button type="button" className="btn btn-link" onClick={() => folds.all(true)}>Open all</button>
+          <button type="button" className="btn btn-link" onClick={() => folds.all(false)}>Close all</button>
+        </div>
+
+        <div className="td-folds">
+          <Fold id="numbers" title="How it’s going" icon={TrendingUp} summary={numbersSum} open={folds.open.numbers} onToggle={() => folds.toggle('numbers')}>
+            {/* Road to 500 users timeline (needs PostHog) */}
+            {posthogConnected && <div className="td-journey"><RoadToFiveHundred posthogConnected /></div>}
+            {/* What happened: visitors, signups and sources */}
+            <TodayActivity />
+            {impacts.length > 0 && (
+              <div className="td-fold-part">
+                <div className="td-eyebrow">What&apos;s working</div>
+                <ul className="td-impacts">{impacts.map(c => <ImpactRow key={c.id} card={c} />)}</ul>
+              </div>
             )}
-          </div>
-          {renderPlan()}
+          </Fold>
 
-          <div className="td-folds">
-            <Fold id="numbers" title="Visitors and sign-ups" icon={TrendingUp} summary={numbersSum} open={folds.open.numbers} onToggle={() => folds.toggle('numbers')}>
-              {/* Road to 500 with Projected MRR (needs PostHog), then who came and from where */}
-              {posthogConnected && <div className="td-journey"><RoadToFiveHundred posthogConnected /></div>}
-              <TodayActivity />
-              {impacts.length > 1 && (
-                <div className="td-fold-part">
-                  <div className="td-eyebrow">What&apos;s working</div>
-                  <ul className="td-impacts">{impacts.map(c => <ImpactRow key={c.id} card={c} />)}</ul>
-                </div>
-              )}
-            </Fold>
+          <Fold id="todo" title="To do today" icon={ListChecks} summary={todoSum} aside={!loading && todayTotal > 0 ? <DoneRing done={doneToday} total={todayTotal} /> : undefined} open={folds.open.todo} onToggle={() => folds.toggle('todo')}>
+            {renderTodo()}
+          </Fold>
 
-            <Fold id="content" title="Blog and posts" icon={PenLine} summary={contentSum} open={folds.open.content} onToggle={() => folds.toggle('content')}>
-              <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
-              <SocialFeed posts={recentPosts} />
-            </Fold>
+          <Fold id="content" title="Blog and posts" icon={PenLine} summary={contentSum} open={folds.open.content} onToggle={() => folds.toggle('content')}>
+            <WeeklyBlogSection initialData={blogData} frektoConnected={frektoConnected} onAddToSite={addBlogToSite} addHint={id => handoff.hint(`blog:${id}`)} />
+            <SocialFeed posts={recentPosts} />
+          </Fold>
 
-            <Fold id="social" title="Social accounts" icon={Share2} summary="Followers and recent posts on each account" open={folds.open.social} onToggle={() => folds.toggle('social')}>
-              <SocialAnalytics />
-            </Fold>
+          <Fold id="social" title="Social accounts" icon={Share2} summary="Followers and recent posts on each account" open={folds.open.social} onToggle={() => folds.toggle('social')}>
+            <SocialAnalytics />
+          </Fold>
 
-            <Fold id="done" title="Done lately" icon={CircleCheck} summary={doneSum} open={folds.open.done} onToggle={() => folds.toggle('done')}>
-              {done === null ? <ListSkeleton rows={2} start={false} /> : <RecentlyDone done={done} />}
-            </Fold>
-          </div>
-        </section>
-
-        <Pulse activity={pulse.activity} users={pulse.users} yesterday={yesterday} impact={impacts[0]} />
+          <Fold id="done" title="Done" icon={CircleCheck} summary={doneSum} open={folds.open.done} onToggle={() => folds.toggle('done')}>
+            {done === null ? <ListSkeleton rows={2} start={false} /> : <RecentlyDone done={done} />}
+          </Fold>
+        </div>
       </div>
       </div>
 
@@ -1656,7 +1534,9 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-settings-foot { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 
         /* Sections that open and close. A closed one still shows its one-line summary. */
-        .td-folds { margin-top: 28px; border-top: 1px solid var(--line); }
+        .td-fold-tools { display: flex; justify-content: flex-end; gap: 16px; margin-top: 14px; }
+        .td-fold-tools .btn-link { font-size: 13px; }
+        .td-folds { margin-top: 6px; border-top: 1px solid var(--line); }
         .td-fold { border-bottom: 1px solid var(--line); }
         .td-fold-h {
           display: flex; align-items: center; gap: 12px; width: 100%; padding: 16px 4px;
@@ -1665,6 +1545,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-fold-h:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 8px; }
         /* Icons are wayfinding only: plain, faint, no boxes, so they never compete with the text */
         .td-fold-icon { flex: none; width: 20px; display: grid; place-items: center; color: var(--text-faint); }
+        .td-ticon { flex: none; width: 20px; display: grid; place-items: center; color: var(--text-faint); }
         .td-ring { position: relative; flex: none; display: inline-flex; align-items: center; gap: 8px; }
         .td-ring svg { display: block; }
         .td-ring-bg { fill: none; stroke: var(--line); stroke-width: 3; }
@@ -1689,75 +1570,35 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .td-eyebrow { display: block; font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); }
         @media (prefers-reduced-motion: reduce) { .td-fold-chev { transition: none; } }
 
-        /* Plan and pulse: the plan on the left, the numbers on the right (on top on phones) */
-        .td-pp { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(300px, 1fr); gap: 36px; align-items: start; margin-top: 26px; }
-        @media (max-width: 960px) { .td-pp { grid-template-columns: minmax(0, 1fr); gap: 24px; } .td-pulse { order: -1; position: static; } }
-        .td-plan { min-width: 0; }
-        .td-plan-h { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-        .td-plan-h h2 { margin: 0; font: 500 18px var(--font-body); color: var(--text); }
-        .td-plan-n { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; color: var(--text-faint); }
-
-        /* The timeline: a marker per task joined by a line; done ones ticked, the current one open */
-        .td-tl { list-style: none; margin: 0; padding: 0; }
-        .td-tl-item { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 14px; padding-bottom: 20px; }
-        .td-tl-item::before { content: ""; position: absolute; left: 13px; top: 30px; bottom: 2px; width: 1.5px; background: var(--line); }
-        .td-tl-item:last-child::before { display: none; }
-        .td-tl-mk {
-          position: relative; z-index: 1; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
-          border: 1.5px solid var(--line); background: var(--bg); font-size: 13px; color: var(--text-faint); font-variant-numeric: tabular-nums;
+        /* To do today: "Start here" (the one green button), then quiet rows */
+        .td-todo { display: flex; flex-direction: column; }
+        .td-next {
+          display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+          padding: 16px 20px; border-radius: 12px; background: var(--accent); margin-bottom: 6px;
         }
-        .td-tl-item.is-cur .td-tl-mk { border-color: var(--text); color: var(--text); font-weight: 500; }
-        .td-tl-item.is-done .td-tl-mk { border-color: var(--text-dim); background: var(--text-dim); color: var(--bg); }
-        .td-tl-body { min-width: 0; padding-top: 3px; }
-        .td-tl-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-        .td-tl-open { width: 100%; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; font-family: var(--font-body); }
-        .td-tl-open:hover .td-tl-t { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
-        .td-tl-open:focus-visible { outline: 2px solid var(--green); outline-offset: 4px; border-radius: 6px; }
-        .td-tl-t { font-size: 15px; font-weight: 500; color: var(--text); }
-        .td-tl-item.is-cur .td-tl-t { font-size: 17px; }
-        .td-tl-item.is-done .td-tl-t { font-weight: 400; color: var(--text-faint); text-decoration: line-through; text-decoration-color: var(--line); }
-        .td-tl-w { font-size: 14px; color: var(--text-dim); line-height: 1.5; }
-        .td-tl-item:not(.is-cur) .td-tl-w { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-faint); }
-        .td-tl-m { font-size: 13px; color: var(--text-faint); }
-        .td-tl-box { margin-top: 12px; padding: 18px 20px; border-radius: 14px; background: var(--accent); }
-        .td-tl-box .td-card.td-card--bare { background: none; border: 0; padding: 0; border-radius: 0; box-shadow: none; }
-        .td-tl-box .td-card-why { color: var(--text); }
-        .td-tl-box .td-inline-panel { margin: 12px 0 0; }
-
-        /* Pulse: a panel that stays in view, numbers and charts in ink */
-        .td-pulse {
-          position: sticky; top: 20px; min-width: 0; display: flex; flex-direction: column; gap: 4px;
-          padding: 22px; border: 1px solid var(--line); border-radius: 18px; background: var(--card);
+        .td-next-text { flex: 1 1 260px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .td-next-text > b { font-size: 16px; font-weight: 500; color: var(--text); }
+        .td-next-text > span:last-child {
+          font-size: 14px; color: var(--text-dim); line-height: 1.5;
+          display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
         }
-        .td-pulse-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; }
-        .td-pulse-big { font: 500 40px/1 var(--font-display, serif); color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
-        .td-pulse-delta { font-size: 14px; color: var(--text-dim); }
-        .td-pulse-sub { margin: 2px 0 0; font-size: 14px; color: var(--text-faint); }
-        .td-pulse-empty p { margin: 8px 0 0; font-size: 14px; color: var(--text-dim); }
-        .td-pulse-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 10px; font-size: 14px; font-weight: 500; color: var(--text-dim); text-decoration: none; }
-        .td-pulse-link:hover { color: var(--text); }
-        .td-pulse-more { margin-top: 16px; }
-        .td-chart { margin-top: 16px; }
-        .td-chart svg { display: block; width: 100%; overflow: visible; }
-        .td-chart-area { fill: color-mix(in srgb, var(--text) 7%, transparent); }
-        .td-chart-line { fill: none; stroke: var(--text-dim); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
-        .td-chart-dot { fill: var(--text); }
-        .td-chart-axis { display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; color: var(--text-faint); }
-        .td-pulse-trio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
-        .td-pulse-trio b { display: block; font: 500 22px var(--font-display, serif); color: var(--text); font-variant-numeric: tabular-nums; }
-        .td-pulse-trio span { font-size: 13px; color: var(--text-faint); }
-        .td-pulse-part { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
-        .td-road { height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--text) 8%, transparent); overflow: hidden; }
-        .td-road i { display: block; height: 100%; border-radius: 4px; background: var(--text-dim); }
-        .td-road-t { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
-        .td-srcs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-        .td-srcs li { display: grid; grid-template-columns: 84px minmax(0, 1fr) 36px; gap: 10px; align-items: center; font-size: 13.5px; color: var(--text); }
-        .td-srcs li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .td-srcs i { display: block; height: 6px; border-radius: 3px; background: var(--text-dim); opacity: .5; }
-        .td-srcs li span:last-child { text-align: right; color: var(--text-faint); font-variant-numeric: tabular-nums; }
-        .td-pulse-work { margin: 0; font-size: 14px; color: var(--text-dim); }
-        .td-pulse-work b { font-weight: 500; color: var(--text); }
-        @media (max-width: 960px) { .td-pulse { padding: 18px; } .td-pulse-big { font-size: 34px; } .td-chart svg { height: 64px !important; } .td-pulse-part--wide { display: none; } }
+        .td-next .td-eyebrow { color: var(--text-dim); margin-bottom: 2px; }
+        .td-next-go { height: 38px; padding: 0 20px; font-size: 14px; }
+        .td-row {
+          display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 4px;
+          border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--text);
+          text-align: left; cursor: pointer; font-family: var(--font-body);
+        }
+        .td-row:last-child { border-bottom: 0; }
+        .td-row:hover .td-row-name { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+        .td-row:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 8px; }
+        .td-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+        .td-row-name { font-size: 15px; font-weight: 500; }
+        .td-row-why { font-size: 14px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .td-row-go { font-size: 13px; color: var(--text-faint); white-space: nowrap; opacity: 0; transition: opacity .15s; }
+        .td-row:hover .td-row-go, .td-row:focus-visible .td-row-go { opacity: 1; }
+        @media (hover: none) { .td-row-go { opacity: 1; } }
+        .td-todo > .td-cell { margin: 6px 0; }
 
         /* What's working: plain lines */
         .td-impacts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
