@@ -183,6 +183,8 @@ Gotchas:
 - Published: https://claude.ai/artifact/VBumsgS9fSHqmntQyJMSBq (private to the owner; share from the page)
 - The owner is showing it to the people from the demo.
 
+**Today is done (sketch E, "Open & close").** Preview: `design-previews/tools-cleanup/today-calm.html` (https://claude.ai/artifact/L6h5DFDAEBKYmZPK5zrEiC). The real page (`TodayDashboard.tsx`) is now five sections that open and close: To do today (Start here + quiet rows; finishing a task opens the next), How it's going, Blog and posts, Social accounts, Done. Each closed section shows a one-line summary. Only To do starts open; open state is kept in `localStorage` (`today-folds`). The daily email switch and "check again" moved into Settings; the streak pill, analytics bar, Today's focus box and coloured card labels are gone. Not yet calmed: the insides of the blog, social stats and What happened blocks.
+
 **Next steps:**
 
 1. Wait for the owner's feedback on the calm preview, then change it if needed.
