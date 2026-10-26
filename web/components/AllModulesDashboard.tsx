@@ -33,7 +33,7 @@ import ElementEvidence, { isElementEvidence, describeElements } from '@/componen
 import PagePreview from '@/components/PagePreview'
 import { isPagePreview } from '@/lib/audit/page-preview'
 import { connectUrl } from '@/lib/integrations/connect-url'
-import { Spinner } from '@/components/ui/spinner'
+import { Spinner, WhileYouWait } from '@/components/ui/loading'
 
 function renderMdStep(step: string): React.ReactNode {
   const parts = step.split(/(\[[^\]]+\]\([^)]+\))/g)
@@ -1800,7 +1800,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                       disabled={generatingDraft.has(itemKey)}
                       onClick={(e) => { e.stopPropagation(); handleGenerateDraft(modId, item.id, item.slug) }}
                     >
-                      {generatingDraft.has(itemKey) ? <><span className="md-spin" />Generating draft…</> : '✦ Generate AI draft'}
+                      {generatingDraft.has(itemKey) ? <><Spinner />Generating draft…</> : '✦ Generate AI draft'}
                     </button>
                   )}
                 </div>
@@ -1898,7 +1898,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
           style={{ cursor: skipped ? 'default' : 'pointer' }}
         >
           {isVerifying ? (
-            <span className="md-spin" style={{ width: '10px', height: '10px' }} />
+            <Spinner size={10} />
           ) : (aiV || userC) ? (
             <svg viewBox="0 0 24 24" fill="none">
               <path d="M5 13l4 4L19 7" stroke={aiV ? '#06140c' : 'var(--lime)'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
@@ -2465,12 +2465,13 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                 ))}
               </ol>
               <p className="gp-live-note">{liveRun.slow ? 'Taking longer than usual, but still working. ' : 'Usually 1–3 minutes. '}You can leave this page; it keeps going.</p>
+              {!(lastAnalyzedAtMap[liveMod.id] ?? liveMod.lastAnalyzedAt) && <WhileYouWait page="modules" />}
             </section>
           ) : (!hasAnyAnalysis || nextStep.cta) && (
           <section className={`gp-next${nextStep.busy ? ' gp-next--busy' : ''}`} aria-live="polite">
             <div className="gp-next-body">
               <div className="gp-next-label">
-                {nextStep.busy && <span className="gp-next-spin" aria-hidden="true" />}
+                {nextStep.busy && <Spinner size={12} />}
                 {nextStep.label}<span className="gp-next-progress"> · {nextStep.progress}</span>
               </div>
               <h2 className="gp-next-title">{nextStep.title}</h2>
@@ -2556,7 +2557,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '5px', opacity: bsBusy ? 0.6 : 1, whiteSpace: 'nowrap', flexShrink: 0,
                       }}
                     >
-                      {bsBusy ? <><svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>{ensuringBs ? 'Setting up…' : 'Analysing…'}</> : 'Re-analyse'}
+                      {bsBusy ? <><Spinner size={10} />{ensuringBs ? 'Setting up…' : 'Analysing…'}</> : 'Re-analyse'}
                     </button>
                     <button
                       onClick={() => setStageModalOpen(false)}
@@ -2953,7 +2954,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                         style={requested ? { opacity: 1, color: 'var(--gold)', borderColor: 'var(--gold)', cursor: 'default' } : undefined}
                       >
                         {reanalyzing ? (
-                          <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg><span className="level-reanalyze-label">{runsDirect ? 'Analysing…' : 'Requesting…'}</span></>
+                          <><Spinner size={11} /><span className="level-reanalyze-label">{runsDirect ? 'Analysing…' : 'Starting…'}</span></>
                         ) : requested ? (
                           <>
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
@@ -3062,7 +3063,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                           className={`md-run-btn${requested ? ' is-requested' : ''}${reanalyzing ? ' btn-analysing' : ''}`}
                         >
                           {reanalyzing ? (
-                            <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>{runsDirect ? 'Analysing…' : 'Requesting…'}</>
+                            <><Spinner size={12} />{runsDirect ? 'Analysing…' : 'Starting…'}</>
                           ) : requested ? (
                             <>
                               <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
@@ -3126,7 +3127,7 @@ export default function AllModulesDashboard({ brand, allModulesData, pendingModu
                               style={{ fontSize: 12, padding: '6px 14px' }}
                             >
                               {reanalyzing ? (
-                                <><svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>Running…</>
+                                <><Spinner size={10} />Running…</>
                               ) : 'Save & Re-analyse'}
                             </button>
                           </div>

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, RefreshCw, ChevronDown, ChevronRight } from 'lucide-react'
+import { Spinner } from '@/components/ui/loading'
 
 interface CoverageData {
   websiteUrl: string
@@ -133,7 +134,7 @@ export default function SitemapCoverageDashboard({
       <Header />
       <div style={{ maxWidth: 900, margin: '40px auto', padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {[80, 200, 180].map((h, i) => (
-          <div key={i} style={{ height: h, borderRadius: 14, background: 'var(--line)', animation: 'an-skeleton-pulse 1.4s ease-in-out infinite', opacity: 0.8 - i * 0.2 }} />
+          <div key={i} className="skel" style={{ height: h, borderRadius: 14, opacity: 0.8 - i * 0.2 }} />
         ))}
       </div>
     </div>
@@ -166,7 +167,7 @@ export default function SitemapCoverageDashboard({
           disabled={busy}
           style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, padding: '6px 14px', borderRadius: 99, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer', opacity: busy ? 0.6 : 1 }}
         >
-          <RefreshCw size={11} style={{ animation: busy ? 'an-spin 0.8s linear infinite' : 'none' }} />
+          {busy ? <Spinner size={11} /> : <RefreshCw size={11} />}
           Refresh
         </button>
       } />

@@ -52,12 +52,9 @@ function SourceBadge({ source }: { source: string | null }) {
   )
 }
 
+// Kept as a name for the buttons below; it is the app's shared spinner
 function SpinnerIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}>
-      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31.4" strokeDashoffset="10"/>
-    </svg>
-  )
+  return <Spinner size={12} />
 }
 
 function GscConnectForm({ onConnected }: { onConnected: () => void }) {

@@ -56,7 +56,7 @@ export default function Done({ reloadKey, sent, notify, onChanged, onCancel }: {
   return (
     <div className="eo-done">
       <h2 className="eo-h">Follow-ups closed <span className="eo-count">{closed.length}</span></h2>
-      {loading ? <div className="ro-working eo-loading"><Spinner /><span>Loading…</span><i /></div>
+      {loading ? <div className="ro-working eo-loading"><Spinner /><span>Getting what you’ve sent…</span><i /></div>
         : closed.length === 0 ? <p className="eo-empty">Nothing in the last {CLOSED_WINDOW_DAYS} days. When someone replies, opts out or bounces, the follow-up closes by itself and shows up here.</p>
         : (
           <div className="eo-list">

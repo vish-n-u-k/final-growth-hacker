@@ -329,7 +329,7 @@ function StatCard({
       </div>
       <div>
         {loading && !comingSoon ? (
-          <div className="an-skeleton" style={{ width: 56, height: 32, borderRadius: 8 }} />
+          <div className="skel" style={{ width: 56, height: 32, borderRadius: 8 }} />
         ) : (
           <div style={{
             fontSize: 'clamp(24px, 5vw, 38px)', fontWeight: 800, lineHeight: 1, letterSpacing: '-1px',
@@ -349,7 +349,7 @@ function StatCard({
       {comingSoon
         ? <span style={{ fontSize: 12.5, color: MOCK.muted }}>Connect Stripe to unlock</span>
         : loading
-          ? <div className="an-skeleton" style={{ width: 90, height: 13, borderRadius: 4 }} />
+          ? <div className="skel" style={{ width: 90, height: 13, borderRadius: 4 }} />
           : <Delta value={deltaValue} invertGood={invertGood} period={period} />
       }
       {!comingSoon && !loading && onViewDetails && (
@@ -390,7 +390,7 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon, i
         </div>
       </div>
       {loading && !comingSoon ? (
-        <div className="an-skeleton" style={{ width: 64, height: 30, borderRadius: 8 }} />
+        <div className="skel" style={{ width: 64, height: 30, borderRadius: 8 }} />
       ) : (
         <div style={{
           fontSize: 'clamp(22px, 5vw, 30px)', fontWeight: 800, letterSpacing: '-1px', lineHeight: 1,
@@ -406,7 +406,7 @@ function KpiCard({ label, value, sub, source, delta, bad, loading, comingSoon, i
       {comingSoon
         ? <span style={{ fontSize: 12.5, color: MOCK.muted }}>Connect Stripe to unlock</span>
         : loading
-          ? <div className="an-skeleton" style={{ width: 90, height: 13, borderRadius: 4 }} />
+          ? <div className="skel" style={{ width: 90, height: 13, borderRadius: 4 }} />
           : <Delta value={delta} invertGood={bad} />
       }
     </div>
@@ -860,7 +860,7 @@ function DetailView({
           </h1>
           {(type === 'signups' || type === 'signins' || type === 'dau' || type === 'deleted' || type === 'custom') && (
             <p style={{ fontSize: 13.5, fontWeight: 600, color: MOCK.green, marginTop: 4 }}>
-              {loading ? <><Spinner />Loading...</> : `${users.length} result${users.length === 1 ? '' : 's'}`}
+              {loading ? <><Spinner />Finding users…</> : `${users.length} result${users.length === 1 ? '' : 's'}`}
             </p>
           )}
         </div>
@@ -2149,7 +2149,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 Users on board
               </div>
               {phLoading ? (
-                <div className="an-skeleton" style={{ width: 80, height: 52, borderRadius: 8 }} />
+                <div className="skel" style={{ width: 80, height: 52, borderRadius: 8 }} />
               ) : (
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
                   <span style={{
@@ -2167,10 +2167,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             {/* Progress track */}
             {phLoading ? (
               <div style={{ position: 'relative', paddingBottom: 36 }}>
-                <div className="an-skeleton" style={{ height: 5, borderRadius: 99 }} />
+                <div className="skel" style={{ height: 5, borderRadius: 99 }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
                   {[0, 1, 2, 3, 4].map(i => (
-                    <div key={i} className="an-skeleton" style={{ width: 24, height: 11, borderRadius: 4 }} />
+                    <div key={i} className="skel" style={{ width: 24, height: 11, borderRadius: 4 }} />
                   ))}
                 </div>
               </div>

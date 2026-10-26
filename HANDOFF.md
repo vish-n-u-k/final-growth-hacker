@@ -63,6 +63,7 @@ What each tool does today:
 | Email Outreach | `web/components/GmailHub.tsx`, `web/components/email-outreach/*` (Campaigns, FollowUps, Done, shared), `web/components/InboxTab.tsx`, `web/lib/email-outreach/followups.ts`, `web/lib/gmail/conversations.ts` (Inbox list), `web/lib/outreach/file-contacts.ts` (file upload), `web/app/api/outreach/campaign/route.ts` |
 | Demo mode | `web/lib/agents/demo.ts` (`withDemo` / `agentsDemo` use AsyncLocalStorage, so the setting applies per brand, per request) |
 | Today | `web/components/TodayDashboard.tsx` |
+| Loading | `web/components/ui/loading.tsx` (every loader), `web/lib/page-info.ts` (the cards' words), `ld-*` block in `globals.css` |
 | Modules | `web/components/AllModulesDashboard.tsx`, `web/lib/modules/registry.ts` |
 
 ### Outside services and keys
@@ -154,6 +155,13 @@ Gotchas:
    - Module page width.
    - Eyebrow section labels, 14px card corners.
    - Applies to every tool and Today.
+
+8. **Loaders, all in one place** (preview: `design-previews/tools-cleanup/loaders-calm.html`).
+   - `web/components/ui/loading.tsx` holds every loader: `Spinner`, `LoadingState`, `Skeleton` / `ListSkeleton` / `PageSkeleton`, `WaitPanel`, `WhileYouWait`, `AboutPage`. `ui/spinner.tsx` only re-exports. Styles are the `ld-*` block in `globals.css`. To change or replace the look, change those two places; the `LOADING` settings at the top set the 300 ms delay, the card speed, and `cards: false` hides the "While you wait" cards everywhere.
+   - Page switch: grey blocks in the shape of the page (tool, module, Today), fading in after 150 ms.
+   - Long waits (Lead and Search Agent runs, reading reviews, first module analysis, onboarding) show steps, a bar, time left, "Taking longer than usual" after 2× the usual time, and a "While you wait" card.
+   - "About this page" sits in every tool header that has an intro (and Today). Card text lives in `web/lib/page-info.ts`; each fact names its source.
+   - The ~10 old spinners and 6 skeleton styles were replaced; "Loading…" texts now say what is happening.
 
 ## 5. What we are doing right now: making the tools calm
 

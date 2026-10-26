@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { DBItemFull } from '@/lib/modules/types'
 import { connectUrl } from '@/lib/integrations/connect-url'
+import { Spinner } from '@/components/ui/loading'
 
 export interface CampaignBrief {
   campaignName: string
@@ -160,10 +161,7 @@ export default function MetaAdLaunchPanel({ moduleId, item, demo = false }: Prop
 
         {state === 'generating' && (
           <div className="mlp-status">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ animation: 'md-spin .7s linear infinite' }}>
-              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/>
-              <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
-            </svg>
+            <Spinner size={13} />
             Creating your ad video…
           </div>
         )}
@@ -206,10 +204,7 @@ export default function MetaAdLaunchPanel({ moduleId, item, demo = false }: Prop
 
         {state === 'launching' && (
           <div className="mlp-status">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ animation: 'md-spin .7s linear infinite' }}>
-              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/>
-              <path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
-            </svg>
+            <Spinner size={13} />
             Setting up your campaign…
           </div>
         )}

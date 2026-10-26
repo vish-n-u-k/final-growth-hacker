@@ -689,7 +689,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
               className="gap-2 w-30 border-[var(--green)] px-5 h-10 text-[var(--green-bright)] hover:bg-[var(--accent)] hover:text-[var(--green-bright)] bg-[var(--card)] text-sm font-semibold"
             >
               {reanalyzing ? (
-                <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>Re-analysing…</>
+                <><Spinner size={12} />Re-analysing…</>
               ) : (
                 <>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className='px-4'>
@@ -925,7 +925,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
               className="mt-3 gap-1.5 bg-[var(--green)] text-white hover:bg-[var(--green-bright)] font-semibold"
             >
               {reanalyzing ? (
-                <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>Analysing…</>
+                <><Spinner size={12} />Analysing…</>
               ) : (
                 <>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
@@ -986,7 +986,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                 >
                   {reanalyzing ? (
                     <>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
+                      <Spinner size={12} />
                       Running…
                     </>
                   ) : (
@@ -1237,7 +1237,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                                 onClick={(e) => { e.stopPropagation(); handleGenerateDraft(item.id, item.slug) }}
                                               >
                                                 {generatingDraft.has(item.slug) ? (
-                                                  <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>Generating draft…</>
+                                                  <><Spinner size={12} />Generating draft…</>
                                                 ) : (
                                                   '✦ Generate AI draft'
                                                 )}
@@ -1369,7 +1369,7 @@ export default function ModuleDashboard({ brand, module: mod, definition: def, i
                                           style={{ cursor: skipped ? 'default' : 'pointer' }}
                                         >
                                           {isVerifying ? (
-                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0}}><circle cx="12" cy="12" r="9" stroke="var(--green-bright)" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="var(--green-bright)" strokeWidth="3" strokeLinecap="round"/></svg>
+                                            <Spinner size={10} />
                                           ) : (aiV || userC) ? (
                                             <svg viewBox="0 0 24 24" fill="none">
                                               <path d="M5 13l4 4L19 7" stroke={aiV ? '#06140c' : 'var(--lime)'} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
@@ -1864,7 +1864,7 @@ function FrektoContentStudio({
           >
             {generating ? (
               <>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>
+                <Spinner size={12} />
                 Generating… (15–90s)
               </>
             ) : (
@@ -2130,7 +2130,7 @@ function SmartScheduler({
             }}
           >
             {generating ? (
-              <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/></svg>Analyzing brand…</>
+              <><Spinner size={12} />Analyzing brand…</>
             ) : (
               <>{hasGenerated ? 'Regenerate ideas' : 'Generate post ideas'}</>
             )}
@@ -2273,7 +2273,7 @@ function SmartScheduler({
                         >
                           {status?.scheduling ? (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" style={{animation:'md-spin .7s linear infinite',flexShrink:0,verticalAlign:'middle'}}><circle cx="12" cy="12" r="9" stroke={color} strokeWidth="3" strokeOpacity="0.35"/><path d="M12 3a9 9 0 0 1 9 9" stroke={color} strokeWidth="3" strokeLinecap="round"/></svg>
+                              <Spinner size={10} />
                               Scheduling…
                             </span>
                           ) : 'Schedule via Frekto'}

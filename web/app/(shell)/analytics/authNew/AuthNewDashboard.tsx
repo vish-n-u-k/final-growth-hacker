@@ -254,7 +254,7 @@ export default function AuthNewDashboard({ brand }: { brand: { id: string; name:
       </div>
 
       {loading && !data ? (
-        <div className="aj-stack">{[0, 1, 2].map(i => <div key={i} className="aj-card aj-skel" />)}</div>
+        <div className="aj-stack">{[0, 1, 2].map(i => <div key={i} className="aj-card skel aj-skel" />)}</div>
       ) : failed && !data ? (
         <section className="aj-card"><p className="aj-muted">Couldn&apos;t load this right now. <button type="button" className="aj-link" onClick={load}>Try again</button></p></section>
       ) : nothingConnected ? (

@@ -95,7 +95,7 @@ export default function TodayActivity() {
 
       {loading && !data ? (
         <div className="ta-stats">
-          {[0, 1, 2].map(i => <div key={i} className="ta-stat ta-stat--skel" />)}
+          {[0, 1, 2].map(i => <div key={i} className="ta-stat skel ta-stat--skel" />)}
         </div>
       ) : data && quiet ? (
         <p className="ta-muted ta-quiet">Quiet {days === 1 ? 'day' : 'week'}: no visitors in {period}.</p>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import ToolHeader from '@/components/ToolHeader'
-import { Spinner } from '@/components/ui/spinner'
+import { Spinner, WaitPanel } from '@/components/ui/loading'
 import { Stars, competitorLabel, ago, fmtDate, initials, reviewHref, saveReview, step } from '@/components/lead-finder/ui'
 import { useToast } from '@/components/email-outreach/shared'
 import { Card, ListTools, Tabs, Tag, useShowAll } from '@/components/tool-ui'
@@ -284,7 +284,7 @@ export default function LeadFinder({ brandName, gmailConnected, competitors = []
         )}
 
         {phase === 'running' && (
-          <div className="cl-reading" aria-live="polite"><Spinner size={16} /><div><b>Reading reviews</b><span>{detail}</span></div></div>
+          <WaitPanel steps={[{ label: 'Reading reviews', state: 'on' }]} expectedMs={45_000} page="competitorLeads" note={detail || null} />
         )}
 
         {phase === 'failed' && (

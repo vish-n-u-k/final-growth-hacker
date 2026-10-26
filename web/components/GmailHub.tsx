@@ -273,7 +273,7 @@ export default function GmailHub({
       ]} />
 
       <div className="eo-body">
-        {tab === null && <div className="ro-working eo-loading"><Spinner /><span>Loading…</span><i /></div>}
+        {tab === null && <div className="ro-working eo-loading"><Spinner /><span>Opening Email Outreach…</span><i /></div>}
         {tab === 'followups' && <FollowUps reloadKey={reloadKey} notify={notify} onCount={onCount} onNewCampaign={startCampaign} />}
         {tab === 'inbox' && <InboxTab refreshKey={reloadKey} gmailAddress={gmailAddress} onOpenFollowups={() => setTab('followups')} />}
         {tab === 'campaigns' && <Campaigns newPending={newPending} onNewOpened={() => setNewPending(false)} notify={notify} onSent={() => { loadSent(); setReloadKey(k => k + 1) }} />}

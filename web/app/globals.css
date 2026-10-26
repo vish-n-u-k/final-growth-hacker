@@ -720,19 +720,12 @@ html.light .hero-social-icon--dim { color: #a3aaa6; background: #f3f4f3; border-
 
 /* Spinner */
 @keyframes spin { to { transform: rotate(360deg); } }
-.ob-spinner {
-  width: 15px; height: 15px; border-radius: 50%;
-  border: 2px solid #06140c40; border-top-color: #06140c;
-  animation: spin .6s linear infinite; flex-shrink: 0;
-}
-
 .ob-footer-note { font-size: 12px; color: var(--text-faint); }
 
 /* Analyzing state */
 .ob-analyzing { align-items: center; text-align: center; gap: 16px; }
 .ob-analyze-spinner { width: 64px; height: 64px; margin-bottom: 4px; }
 @keyframes rotate { to { transform: rotate(360deg); } }
-.ob-spinner-svg { animation: rotate 1.4s linear infinite; width: 100%; height: 100%; }
 .ob-analyze-msg {
   color: var(--green-bright); font-size: 14px; font-weight: 500;
   min-height: 20px; transition: opacity .3s;
@@ -801,12 +794,6 @@ html.light .hero-social-icon--dim { color: #a3aaa6; background: #f3f4f3; border-
   0% { transform: translateX(-150%); }
   100% { transform: translateX(250%); }
 }
-.md-spin {
-  display: inline-block; width: 13px; height: 13px; border-radius: 50%;
-  border: 2px solid rgba(47,191,113,0.35); border-top-color: var(--green-bright);
-  animation: md-spin .7s linear infinite; flex-shrink: 0; vertical-align: middle;
-}
-html.light .md-spin { border-color: rgba(23,154,80,0.3); border-top-color: var(--green); }
 
 /* Overview */
 .md-overview {
@@ -2665,16 +2652,6 @@ html.light .mrr-tip-box { background: #1a1a2a; color: #ffffff; }
   padding: 0;
 }
 
-/* ── Skeleton loading ─────────────────────────────────────────────────────── */
-@keyframes skel-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: .4; }
-}
-.skel {
-  background: var(--bg-soft); border: none;
-  animation: skel-pulse 1.6s ease-in-out infinite;
-}
-
 /* ── Export button (level header) ─────────────────────────────────────────── */
 .level-export-btn {
   display: inline-flex; align-items: center; gap: 6px;
@@ -2713,12 +2690,10 @@ html.light .level-export-btn:hover { background: #e0e0e0; }
   background: linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.28) 50%, transparent 70%);
   animation: btn-shimmer 1.4s ease-in-out infinite;
 }
-.btn-analysing .md-spin,
+.btn-analysing .spinner,
 .btn-analysing .level-reanalyze-label {
   position: relative; z-index: 1;
 }
-.level-reanalyze-btn .md-spin { border-top-color: var(--green); border-color: rgba(47,191,113,0.45); border-width: 2px; }
-html.light .level-reanalyze-btn .md-spin { border-top-color: var(--green); border-color: rgba(23,154,80,0.4); border-width: 2px; }
 
 /* ── Mobile Responsive ───────────────────────────────────────────────────── */
 
@@ -4083,7 +4058,6 @@ a.gh-qa-btn { text-decoration: none; display: inline-flex; align-items: center; 
 .tl-card-title { font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -.2px; }
 .tl-card-desc { font-size: 13px; color: var(--text-dim); line-height: 1.5; flex: 1; }
 .tl-card-arrow { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
-.tl-card-spinner { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; flex-shrink: 0; }
 .tl-card:has(.tl-card-arrow.is-pending) { border-color: var(--tl-color, var(--green)); box-shadow: 0 4px 18px var(--tl-glow, var(--green-glow)); cursor: progress; }
 .tl-card:has(.tl-card-arrow.is-pending)::before { animation: tl-bar 1s ease-in-out infinite; }
 @keyframes tl-bar { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
@@ -4316,7 +4290,6 @@ a.gh-qa-btn { text-decoration: none; display: inline-flex; align-items: center; 
 
 /* ── Analytics Brief (/analytics) ──────────────────────────────────────────── */
 
-@keyframes an-spin { to { transform: rotate(360deg); } }
 
 .an-root { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--font-body, sans-serif); }
 
@@ -4424,8 +4397,6 @@ a.gh-qa-btn { text-decoration: none; display: inline-flex; align-items: center; 
 
 /* Skeletons */
 .an-metrics-loading { display: flex; flex-direction: column; gap: 10px; }
-.an-skeleton { background: var(--line); border-radius: 6px; animation: an-skeleton-pulse 1.4s ease-in-out infinite; }
-@keyframes an-skeleton-pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.45 } }
 .an-skeleton-action { height: 52px; }
 .an-skeleton-line { height: 16px; margin-bottom: 6px; }
 .an-skeleton-short { width: 65%; }
@@ -4434,8 +4405,6 @@ a.gh-qa-btn { text-decoration: none; display: inline-flex; align-items: center; 
 
 /* ── Overview Dashboard (/analytics) ov-* ──────────────────────────────────── */
 
-@keyframes ov-spin { to { transform: rotate(360deg); } }
-@keyframes ov-pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.4 } }
 
 /* Root */
 .ov-root { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--font-body, sans-serif); }
@@ -4598,7 +4567,7 @@ a.gh-qa-btn { text-decoration: none; display: inline-flex; align-items: center; 
 .ov-next-tag-info { background: #2fbf711f; color: var(--green); border: 1px solid #2fbf7140; }
 
 /* Skeletons */
-.ov-skel { background: var(--bg-soft); border-radius: 6px; animation: ov-pulse 1.4s ease-in-out infinite; }
+.ov-skel { border-radius: 6px; }
 .ov-skel-h2 { height: 28px; width: 70%; margin-bottom: 8px; }
 .ov-skel-line { height: 15px; margin-bottom: 8px; }
 .ov-skel-short { width: 55%; }
@@ -6669,7 +6638,6 @@ html.light .rm-outreach-days { color: var(--text-faint); }
 .gp-next-text { font-size: 13.5px; line-height: 1.55; color: var(--text-dim); margin: 0; max-width: 640px; }
 .gp-next-cta { flex-shrink: 0; padding: 10px 18px; border-radius: 10px; border: none; background: var(--green); color: #fff; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .gp-next-cta:hover { filter: brightness(1.08); }
-.gp-next-spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: md-spin .8s linear infinite; }
 @media (max-width: 760px) {
   .gp-next { padding: 16px; }
   .gp-next-title { font-size: 17px; }
@@ -6968,13 +6936,6 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 @media (min-width: 901px) { .gp-toast { left: 256px; right: 16px; } }
 @keyframes gp-toast-up { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
 
-/* ── Page loading inside the app shell ── */
-.shell-loading-top { padding: 22px max(32px, calc((100% - 1140px) / 2 + 36px)); border-bottom: 1px solid var(--line); background: var(--card); }
-.shell-loading-body { display: flex; flex-direction: column; gap: 14px; max-width: 1140px; margin: 0 auto; padding: 24px 36px; }
-@media (max-width: 760px) {
-  .shell-loading-top { padding: 16px; }
-  .shell-loading-body { padding: 16px; }
-}
 
 /* Sidebar: a clicked item highlights at once, with a small spinner until its page arrives. */
 .app-nav-pending { width: 12px; height: 12px; margin-left: auto; flex-shrink: 0; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; opacity: 0; }
@@ -7068,8 +7029,6 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .ta-dim { opacity: .55; transition: opacity .15s; }
 .ta-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .ta-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 12px; border-radius: 10px; background: var(--bg-soft); min-height: 52px; box-sizing: border-box; }
-.ta-stat--skel { animation: ta-pulse 1.2s ease-in-out infinite; }
-@keyframes ta-pulse { 50% { opacity: .5; } }
 .ta-num { font-size: 22px; font-weight: 700; color: var(--text); letter-spacing: -.4px; line-height: 1.1; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; row-gap: 0; }
 .ta-label { font-size: 12px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ta-delta { font-size: 11px; font-weight: 600; letter-spacing: 0; }
@@ -7167,7 +7126,7 @@ button.gp-users-chip { font: inherit; font-size: 12.5px; cursor: pointer; }
 .aj-refresh:disabled { opacity: .6; cursor: default; }
 .aj-stack { display: flex; flex-direction: column; gap: 14px; }
 .aj-card { border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 18px 20px; }
-.aj-skel { height: 140px; animation: ta-pulse 1.2s ease-in-out infinite; }
+.aj-skel { height: 140px; }
 .aj-h2 { margin: 0 0 12px; font-size: 15px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .aj-count { font-size: 12px; font-weight: 600; color: var(--text-dim); background: var(--bg-soft); border-radius: 99px; padding: 1px 8px; }
 .aj-cta { display: inline-block; margin-top: 12px; font-size: 13px; font-weight: 600; color: var(--accent-foreground); text-decoration: none; }
@@ -7719,8 +7678,7 @@ a.ta-more:hover { color: var(--text); }
 .td-feed-platform { gap: 5px; }
 .ta-chip { display: inline-flex; align-items: center; gap: 5px; }
 /* Person details while loading: grey bars in the same rows as the real details. */
-.ta-skel { display: block; height: 10px; margin: 4px 0; border-radius: 99px; background: var(--line); animation: ta-pulse 1.2s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .ta-skel { animation: none; } }
+.ta-skel { display: block; height: 10px; margin: 4px 0; border-radius: 99px; }
 .ta-skel--label { width: 90px; max-width: 70%; height: 8px; opacity: .7; }
 /* Today › What happened: website isn't joined up with signups in PostHog. */
 .ta-journey { margin: 14px 0 4px; padding: 12px 14px; border-radius: 10px; border: 1px solid color-mix(in srgb, #d97706 45%, var(--line)); background: color-mix(in srgb, #d97706 8%, var(--card)); }
@@ -7862,21 +7820,95 @@ html.light .pp-serp { --serp-bg: #ffffff; --serp-link: #1a0dab; --serp-text: #4d
   transition: outline-color .6s ease;
 }
 
-/* Shared loading indicator (components/ui/spinner.tsx) */
+/* ── Loading (components/ui/loading.tsx) ──────────────────────────────────────
+   Every loader in the app: spinner, grey blocks, long-wait panel, "While you wait" card and the
+   "About this page" panel. To change how loading looks, change this block and loading.tsx. */
 .spinner {
   display: inline-block; flex-shrink: 0; box-sizing: border-box; border-radius: 50%;
   border: 2px solid currentColor; border-right-color: transparent; opacity: .8;
   animation: md-spin .7s linear infinite; vertical-align: -2px; margin-right: 6px;
 }
 /* flex containers space their children with gap already */
-:where(.inline-flex, .flex, [data-slot="button"]) > .spinner, .loading-state > .spinner { margin-right: 0; }
+:where(.inline-flex, .flex, [data-slot="button"], .btn, .ld-wait-top) > .spinner, .loading-state > .spinner { margin-right: 0; }
 .loading-state {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   padding: 40px 24px; color: var(--text-faint); font-size: 13px; text-align: center;
 }
 .loading-state > .spinner { color: var(--green); opacity: 1; }
-.loading-state--compact { flex-direction: row; padding: 14px 16px; gap: 8px; justify-content: flex-start; }
-@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 1.6s; } }
+.loading-state--compact { flex-direction: row; padding: 14px 16px; gap: 8px; justify-content: flex-start; flex-wrap: wrap; }
+.loading-state--wait { min-height: 1px; }
+.ld-slow { font-size: 12.5px; color: var(--text-faint); }
+.ld-link { border: 0; background: none; padding: 0; font: inherit; color: var(--text-dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; }
+.ld-link:hover { color: var(--text); text-decoration-color: currentColor; }
+.ld-link:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 3px; }
+.ld-eyebrow { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
+.ld-src { display: block; margin-top: 4px; font-size: 12px; color: var(--text-faint); }
+
+/* Grey blocks in the shape of what is coming, with a soft sheen */
+@keyframes ld-sheen { to { transform: translateX(100%); } }
+@keyframes ld-in { from { opacity: 0; } }
+.skel { display: block; position: relative; overflow: hidden; max-width: 100%; background: var(--bg-soft); border: none; }
+.skel::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--card) 60%, transparent), transparent); animation: ld-sheen 1.4s ease-in-out infinite; }
+.ld-list { display: grid; gap: 0; }
+.ld-start { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 14px; }
+.ld-start > div, .ld-row { display: grid; gap: 8px; }
+.ld-row { padding: 14px 2px; border-bottom: 1px solid var(--line); }
+/* A page on its way: appears after a short pause, so a fast page switch shows no flash */
+.ld-page { width: 100%; max-width: 1140px; margin: 0 auto; padding: 22px 36px 80px; box-sizing: border-box; animation: ld-in .2s ease-out .15s both; }
+.ld-head { display: grid; gap: 12px; margin-bottom: 28px; }
+.ld-head > .skel:first-child:not(:only-child) { margin-bottom: 16px; }
+.ld-tabs { display: flex; gap: 22px; padding-bottom: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
+.ld-page--tool, .ld-page--today { max-width: 1560px; }
+@media (max-width: 760px) { .ld-page { padding: 16px 16px 56px; } }
+
+/* A long wait: what is happening, a bar, the steps, time left */
+.ld-wait { display: grid; gap: 12px; padding: 18px 20px; margin: 0 0 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+.ld-wait-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 14.5px; }
+.ld-wait-top .spinner { color: var(--green); opacity: 1; }
+.ld-wait-top b { font-weight: 600; color: var(--text); }
+.ld-wait-top span:last-child { margin-left: auto; font-size: 13px; color: var(--text-faint); }
+.ld-bar { height: 4px; border-radius: 4px; overflow: hidden; background: var(--bg-soft); }
+.ld-bar i { display: block; height: 100%; border-radius: 4px; background: var(--green); transition: width .6s ease; }
+.ld-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13.5px; color: var(--text-faint); }
+.ld-steps li > span { display: inline-block; width: 18px; }
+.ld-steps li.is-on { color: var(--text); }
+.ld-steps li.is-done { color: var(--text-dim); }
+.ld-steps li i { font-style: normal; color: var(--text-faint); }
+.ld-note { margin: 0; font-size: 13px; color: var(--text-faint); }
+.ld-wait--compact { gap: 10px; padding: 14px 16px; }
+.gp-live .ld-tip { margin-top: 14px; }
+
+/* "While you wait" card */
+@keyframes ld-up { from { opacity: 0; transform: translateY(4px); } }
+.ld-tip { display: grid; gap: 10px; padding: 16px 18px; border-radius: 14px; background: var(--bg-soft); }
+.ld-tip-body { display: grid; gap: 6px; min-height: 78px; align-content: start; animation: ld-up .35s ease-out both; }
+.ld-tip-body p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--text); text-wrap: pretty; }
+.ld-tip-body .ld-src { margin-top: 0; }
+.ld-tip-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 13px; }
+.ld-dots { display: flex; gap: 2px; }
+.ld-dots button { width: 18px; height: 18px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; }
+.ld-dots button::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.ld-dots button[aria-current="true"]::before { background: var(--text-dim); }
+.ld-dots button:focus-visible { outline: 2px solid var(--green); border-radius: 50%; }
+
+/* "About this page" */
+.ld-about-link { font-size: 14px; }
+@keyframes ld-slide { from { opacity: 0; transform: translateX(16px); } }
+.ld-about { position: fixed; inset: 0; z-index: 200; }
+.ld-about-scrim { position: absolute; inset: 0; background: color-mix(in srgb, #000 35%, transparent); animation: ld-in .2s ease-out both; }
+.ld-about-panel { position: absolute; top: 0; right: 0; bottom: 0; width: min(400px, 100%); overflow: auto; display: grid; gap: 14px; align-content: start; padding: calc(24px + env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) 24px; background: var(--card); border-left: 1px solid var(--line); color: var(--text); animation: ld-slide .25s ease-out both; }
+.ld-about-panel h2 { margin: 0; font-family: var(--font-display); font-size: 24px; font-weight: 600; line-height: 1.2; }
+.ld-about-x { position: absolute; top: calc(20px + env(safe-area-inset-top, 0px)); right: max(20px, env(safe-area-inset-right, 0px)); font-size: 14px; }
+.ld-about-panel dl { margin: 6px 0 0; display: grid; gap: 16px; }
+.ld-about-panel dt { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
+.ld-about-panel dd { margin: 4px 0 0; font-size: 14.5px; line-height: 1.5; color: var(--text); }
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation-duration: 1.6s; }
+  .skel::after { animation: none; }
+  .ld-page, .ld-tip-body, .ld-about-scrim, .ld-about-panel { animation: none; }
+  .ld-bar i { transition: none; }
+}
 
 /* Pickers: TimezoneSelect (searchable) and TimeField (components/) */
 .pk-wrap { position: relative; display: inline-block; max-width: 100%; }
@@ -8607,9 +8639,6 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .cl-scoring-bar { flex: 1 1 120px; height: 5px; border-radius: 99px; background: color-mix(in srgb, var(--green) 18%, var(--card)); overflow: hidden; }
 .cl-scoring-bar i { display: block; height: 100%; border-radius: 99px; background: var(--green); transition: width .3s; }
 .cl-scoring--bad { justify-content: space-between; background: var(--crit-soft); color: var(--crit); }
-.cl-reading { display: flex; align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
-.cl-reading div { display: grid; gap: 2px; font-size: 13px; color: var(--text-dim); }
-.cl-reading b { font-size: 14px; color: var(--text); }
 .cl-back { margin: 0 0 12px; font-size: 13px; }
 .cl-empty .cl-back { max-width: 600px; margin: 18px auto 0; padding-top: 16px; border-top: 1px solid var(--line); }
 /* Reach out to one reviewer (components/lead-finder/ReachOut) */
@@ -8920,13 +8949,6 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .tu-more summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--accent-foreground); margin-bottom: 12px; }
 .tu-panel-acts { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 
-.tu-prog { padding: 16px 20px; margin-bottom: 18px; border: 1px solid color-mix(in srgb, var(--green) 45%, var(--line)); border-radius: 16px; background: var(--accent); }
-.tu-prog-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: var(--text); }
-.tu-prog-top b { font-size: 15px; }
-.tu-prog ol { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; font-size: 13.5px; color: var(--text-faint); }
-.tu-prog li.is-done { color: var(--accent-foreground); }
-.tu-prog li.is-on { color: var(--text); font-weight: 700; }
-.tu-prog li i { font-style: normal; font-weight: 400; color: var(--text-faint); }
 
 .tu-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
 .tu-tools .cl-search { height: 38px; }
@@ -9034,8 +9056,7 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 /* ── One look for every tool page and Today, matched to the Growth Path module page ──
    Cards: 14px corners, 20px 24px inside (.gp-sum-result). Card titles 15px, body 14px dim.
    A step page's title is the module detail title (.gp-detail-title). Buttons in bars are 40px. */
-.cl-rv, .tu-abar, .tu-panel, .tu-scan, .tu-empty, .tu-hello, .tu-later, .ro-card, .ro-side, .eo-list, .tu-tbl, .cl-none, .tu-prog { border-radius: 14px; }
-.cl-rv { margin-bottom: 12px; }
+.cl-rv, .tu-abar, .tu-panel, .tu-scan, .tu-empty, .tu-hello, .tu-later, .ro-card, .ro-side, .eo-list, .tu-tbl, .cl-none, .cl-rv { margin-bottom: 12px; }
 .cl-rv-head { padding: 16px 20px 0; }
 .cl-rv-body { padding: 8px 20px 16px 68px; }
 .cl-rv-foot { padding: 10px 20px; min-height: 54px; }

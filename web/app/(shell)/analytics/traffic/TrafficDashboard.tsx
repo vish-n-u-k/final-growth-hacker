@@ -114,7 +114,7 @@ function DeltaPill({ curr, prior }: { curr: number; prior: number }) {
 }
 
 function SkeletonBlock({ h }: { h: number }) {
-  return <div style={{ height: h, borderRadius: 14, background: 'var(--line)', animation: 'an-skeleton-pulse 1.4s ease-in-out infinite' }} />
+  return <div className="skel" style={{ height: h, borderRadius: 14 }} />
 }
 
 function InfoTooltip({ text }: { text: string }) {
@@ -284,7 +284,7 @@ export default function TrafficDashboard({ brandId, brandName }: { brandId: stri
     <div style={{ minHeight: '100vh', background: 'var(--bg)', fontFamily: 'var(--font-body, Outfit, sans-serif)' }}>
       <Header right={
         <button onClick={() => load(true)} disabled={busy} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, padding: '6px 14px', borderRadius: 99, border: '1px solid var(--line)', background: 'transparent', color: 'var(--text-dim)', cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
-          <RefreshCw size={11} style={{ animation: busy ? 'an-spin 0.8s linear infinite' : 'none' }} />
+          {busy ? <Spinner size={11} /> : <RefreshCw size={11} />}
           Refresh
         </button>
       } />
@@ -314,7 +314,7 @@ export default function TrafficDashboard({ brandId, brandName }: { brandId: stri
           {aiLoading && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[24, 14, 14, 14].map((h, i) => (
-                <div key={i} style={{ height: h, borderRadius: 6, background: 'var(--line)', animation: 'an-skeleton-pulse 1.4s ease-in-out infinite', width: i === 0 ? '70%' : `${55 + i * 10}%` }} />
+                <div key={i} className="skel" style={{ height: h, borderRadius: 6, width: i === 0 ? '70%' : `${55 + i * 10}%` }} />
               ))}
             </div>
           )}

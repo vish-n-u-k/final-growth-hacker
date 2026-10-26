@@ -12,6 +12,7 @@ import SocialIcon from '@/components/SocialIcon'
 import { connectUrl } from '@/lib/integrations/connect-url'
 import TimezoneSelect, { canonicalTimezone } from '@/components/TimezoneSelect'
 import TimeField from '@/components/TimeField'
+import { Skeleton, Spinner } from '@/components/ui/loading'
 
 export interface PostIdea {
   label: string
@@ -216,7 +217,7 @@ export default function TodaySocialPost({ connected, ideas: auditIdeas, defaultP
           {/* 1. What to post about */}
           <fieldset className="tsp-q" disabled={busy}>
             <legend>What should the post be about?</legend>
-            {ideasLoading && <div className="tsp-skel" aria-label="Loading ideas"><i /><i /><i /></div>}
+            {ideasLoading && <div className="tsp-skel" aria-busy="true" aria-label="Getting post ideas"><Skeleton h={44} r={10} /><Skeleton h={44} r={10} /><Skeleton h={44} r={10} /></div>}
             {ideas.map(i => (
               <label key={i.label} className={`tsp-opt${picked === i.label ? ' is-on' : ''}`}>
                 <input type="radio" name="tsp-idea" checked={picked === i.label}
@@ -258,7 +259,7 @@ export default function TodaySocialPost({ connected, ideas: auditIdeas, defaultP
           <div className="tsp-foot">
             {stage === 'making' ? (
               <div className="tsp-progress" role="status">
-                <span className="tsp-spin" aria-hidden="true" />
+                <Spinner size={16} />
                 <div><b>Creating your {nameOf(platform)} post…</b><p>This usually takes under a minute. Nothing is published yet.</p></div>
               </div>
             ) : (
@@ -308,7 +309,7 @@ export default function TodaySocialPost({ connected, ideas: auditIdeas, defaultP
 
             <div className="tsp-foot">
               <button type="button" className="tsp-btn" disabled={busy} onClick={() => publish(false)}>
-                {stage === 'publishing' ? <><span className="tsp-spin" aria-hidden="true" />Sending…</> : when === 'now' ? `Post to ${nameOf(platform)}` : 'Schedule post'}
+                {stage === 'publishing' ? <><Spinner size={16} />Sending…</> : when === 'now' ? `Post to ${nameOf(platform)}` : 'Schedule post'}
               </button>
               {canRegenerate && <button type="button" className="tsp-ghost" disabled={busy} onClick={() => publish(true)}>Schedule a fresh version</button>}
               <button type="button" className="tsp-link" disabled={busy} onClick={() => { setStage('choose'); setPreview(null); setError(null) }}>Back</button>

@@ -38,7 +38,7 @@ export default function PersonPanel({ id }: { id: string }) {
     <div className="ta-panel ta-panel--loading" role="status" aria-label="Loading details">
       <dl className="ta-dl">
         {[62, 48, 70, 40, 55].map((w, i) => (
-          <div key={i}><dt><span className="ta-skel ta-skel--label" /></dt><dd><span className="ta-skel" style={{ width: `${w}%` }} /></dd></div>
+          <div key={i}><dt><span className="skel ta-skel ta-skel--label" /></dt><dd><span className="skel ta-skel" style={{ width: `${w}%` }} /></dd></div>
         ))}
       </dl>
     </div>

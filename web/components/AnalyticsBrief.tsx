@@ -156,12 +156,11 @@ export default function AnalyticsBrief({ brand, connectedProviders: _ }: Props) 
           <div className="ov-header-right">
             <span className="ov-brand-chip">{brand.name}</span>
             <button className="ov-refresh-btn" onClick={load} disabled={loading}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                style={{ animation: loading ? 'ov-spin 1s linear infinite' : 'none' }}>
+              {!loading && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M23 4v6h-6" /><path d="M1 20v-6h6" />
                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-              </svg>
-              {loading ? <><Spinner />Loading…</> : 'Refresh'}
+              </svg>}
+              {loading ? <><Spinner />Refreshing…</> : 'Refresh'}
             </button>
           </div>
         </div>
@@ -177,7 +176,7 @@ export default function AnalyticsBrief({ brand, connectedProviders: _ }: Props) 
             Top priority today
           </div>
           {loading ? (
-            <div className="ov-skel ov-skel-h2" />
+            <div className="skel ov-skel ov-skel-h2" />
           ) : (
             <>
               <h2 className="ov-priority-title">{data?.topPriority?.title ?? 'Run your first module analysis'}</h2>
@@ -190,7 +189,7 @@ export default function AnalyticsBrief({ brand, connectedProviders: _ }: Props) 
         <div className="ov-summary-card">
           <div className="ov-eyebrow ov-eyebrow-faint">Summary — in plain terms</div>
           {loading ? (
-            <><div className="ov-skel ov-skel-line" /><div className="ov-skel ov-skel-line ov-skel-short" /></>
+            <><div className="skel ov-skel ov-skel-line" /><div className="skel ov-skel ov-skel-line ov-skel-short" /></>
           ) : data?.brief ? (
             <BriefText text={data.brief} />
           ) : null}
@@ -200,7 +199,7 @@ export default function AnalyticsBrief({ brand, connectedProviders: _ }: Props) 
         <div className="ov-stats">
           {/* Growth audit avg */}
           <div className="ov-stat ov-stat-ring">
-            {loading ? <div className="ov-skel ov-skel-ring" /> : <Ring pct={data?.stats.growthAuditAvg ?? 0} />}
+            {loading ? <div className="skel ov-skel ov-skel-ring" /> : <Ring pct={data?.stats.growthAuditAvg ?? 0} />}
             <div>
               <div className="ov-stat-label">Module avg</div>
               <div className="ov-stat-big">{loading ? '—' : data?.stats.growthAuditAvg ?? 0}<small>%</small></div>
@@ -234,7 +233,7 @@ export default function AnalyticsBrief({ brand, connectedProviders: _ }: Props) 
           {/* Stickiness */}
           <div className="ov-stat">
             <div className="ov-stat-label">DAU / MAU</div>
-            {loading ? <div className="ov-skel ov-skel-num" /> : (
+            {loading ? <div className="skel ov-skel ov-skel-num" /> : (
               <>
                 <div className="ov-stat-big" style={{ color: data?.stats.stickiness != null && data.stats.stickiness < 10 ? 'var(--gold)' : 'var(--text)' }}>
                   {data?.stats.stickiness != null ? `${data.stats.stickiness}` : '—'}<small>%</small>
@@ -274,7 +273,7 @@ export default function AnalyticsBrief({ brand, connectedProviders: _ }: Props) 
 
         <div className="ov-list-card">
           {loading ? (
-            [1,2,3].map(i => <div key={i} className="ov-list-row"><div className="ov-skel ov-skel-row" /></div>)
+            [1,2,3].map(i => <div key={i} className="ov-list-row"><div className="skel ov-skel ov-skel-row" /></div>)
           ) : (
             (data?.statusBoard[tab] ?? []).length > 0
               ? (data?.statusBoard[tab] ?? []).map((item, i) => <StatusRow key={i} item={item} />)

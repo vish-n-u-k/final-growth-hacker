@@ -230,8 +230,8 @@ export default function FeaturesPage() {
               disabled={checking}
               className="bg-gradient-to-br from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:from-slate-600 disabled:to-slate-600 text-white rounded-xl p-6 font-semibold transition-all duration-300 flex items-center justify-center gap-2 group"
             >
-              <RefreshCw size={20} className={checking ? 'animate-spin' : 'group-hover:rotate-12 transition-transform'} />
-              <span>{checking ? <><Spinner />Scanning...</> : 'Scan Commits'}</span>
+              {!checking && <RefreshCw size={20} className="group-hover:rotate-12 transition-transform" />}
+              <span>{checking ? <><Spinner />Scanning…</> : 'Scan Commits'}</span>
             </button>
           </div>
         </div>
@@ -365,7 +365,7 @@ export default function FeaturesPage() {
               </h2>
 
               {loading ? (
-                <LoadingState>Loading…</LoadingState>
+                <LoadingState>Getting features…</LoadingState>
               ) : features.length === 0 ? (
                 <div className="text-center text-slate-400 py-8">
                   <p className="text-sm">No features yet</p>

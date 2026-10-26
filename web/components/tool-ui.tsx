@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { RunProgress } from '@/lib/agents/progress'
-import { Spinner } from '@/components/ui/spinner'
+import { WaitPanel, type WaitStep } from '@/components/ui/loading'
 
 // The pieces every tool page is built from (Lead Agent, Search Agent, Competitor Leads), so they
 // look and work the same: underline tabs with counts, the action bar of an agent, item cards
@@ -171,7 +171,7 @@ export function Finished({ title, text, grey }: { title: string; text: React.Rea
  * What the agent is doing right now, shown on the page while it runs: the steps of the live
  * run (lib/agents/progress), polled from /api/agents/progress.
  */
-export function LiveProgress({ agent, active, fallback }: { agent: 'lead' | 'search'; active: boolean; fallback: string[] }) {
+export function LiveProgress({ agent, active, fallback, expectedMs = 120_000 }: { agent: 'lead' | 'search'; active: boolean; fallback: string[]; expectedMs?: number }) {
   const [run, setRun] = useState<RunProgress | null>(null)
   const started = useRef(0)
   useEffect(() => {
@@ -191,21 +191,11 @@ export function LiveProgress({ agent, active, fallback }: { agent: 'lead' | 'sea
     return () => { stop = true }
   }, [active, agent])
   if (!active) return null
-  const steps = run?.steps.length ? run.steps.map(s => ({ label: s.label, state: s.status === 'running' ? 'on' : s.status === 'pending' ? '' : 'done', detail: s.detail }))
-    : fallback.map((label, i) => ({ label, state: i === 0 ? 'on' : '', detail: undefined }))
-  const current = steps.find(s => s.state === 'on') ?? steps.find(s => s.state === '')
-  return (
-    <section className="tu-prog" aria-live="polite">
-      <div className="tu-prog-top"><Spinner size={16} /><b>{current?.label ?? 'Finishing'}…</b><span className="cl-muted">Usually 1–3 minutes. You can leave this page.</span></div>
-      <ol>
-        {steps.map(s => (
-          <li key={s.label} className={s.state === 'done' ? 'is-done' : s.state === 'on' ? 'is-on' : undefined}>
-            <span aria-hidden="true">{s.state === 'done' ? '✓' : s.state === 'on' ? '•' : '○'}</span> {s.label}{s.detail && s.state === 'done' ? <i> · {s.detail}</i> : null}
-          </li>
-        ))}
-      </ol>
-    </section>
-  )
+  const steps: WaitStep[] = run?.steps.length
+    ? run.steps.map(s => ({ label: s.label, state: s.status === 'running' ? 'on' : s.status === 'pending' ? 'todo' : 'done', detail: s.detail }))
+    : fallback.map((label, i) => ({ label, state: i === 0 ? 'on' : 'todo' }))
+  return <WaitPanel steps={steps} expectedMs={expectedMs} startedAt={run ? Date.parse(run.startedAt) : undefined}
+    page={agent === 'lead' ? 'leadAgent' : 'searchAgent'} note="You can leave this page. Results show up here when they're ready." />
 }
 
 /** The demo-mode switch on the agent pages: made-up data, nothing sent (lib/agents/demo.ts). */

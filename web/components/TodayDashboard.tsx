@@ -16,7 +16,7 @@ import type { ActionCard, ImpactCard } from '@/lib/daily/signals'
 import type { PlatformStats } from '@/app/api/social/analytics/route'
 import type { DBItemFull } from '@/lib/modules/types'
 import { connectUrl } from '@/lib/integrations/connect-url'
-import { Spinner } from '@/components/ui/spinner'
+import { ListSkeleton, Spinner } from '@/components/ui/loading'
 import Link from 'next/link'
 import DailyEmailToggle from '@/components/DailyEmailToggle'
 import ToolHeader from '@/components/ToolHeader'
@@ -509,9 +509,7 @@ function SocialAnalytics() {
       </div>
 
       {loading ? (
-        <div className="td-social-loading">
-          <div className="td-loading-dots"><span /><span /><span /></div>
-        </div>
+        <div className="td-social-loading"><ListSkeleton rows={2} start={false} /></div>
       ) : (
         <>
           {platforms.some(p => p.connected) && (
@@ -621,10 +619,10 @@ function BlogComposer({ frektoConnected, generating, topic, setTopic, mode, setM
           </div>
           <div className="td-blog-compose-actions">
             <button className="td-cta-btn" onClick={() => onWrite('frekto')} disabled={busy}>
-              {generating === 'frekto' ? <><span className="td-btn-spinner" />Frekto is writing… (up to a minute)</> : mode === 'draft' ? 'Write with Frekto' : mode === 'linkedin' ? 'Write and schedule on LinkedIn' : 'Write and publish on my blog'}
+              {generating === 'frekto' ? <><Spinner />Frekto is writing… (up to a minute)</> : mode === 'draft' ? 'Write with Frekto' : mode === 'linkedin' ? 'Write and schedule on LinkedIn' : 'Write and publish on my blog'}
             </button>
             <button className="td-ghost-btn" onClick={() => onWrite('growjin')} disabled={busy}>
-              {generating === 'growjin' ? <><span className="td-btn-spinner td-btn-spinner--dark" />Writing…</> : 'Longer SEO post instead'}
+              {generating === 'growjin' ? <><Spinner />Writing…</> : 'Longer SEO post instead'}
             </button>
           </div>
         </>
@@ -632,7 +630,7 @@ function BlogComposer({ frektoConnected, generating, topic, setTopic, mode, setM
         <>
           <div className="td-blog-compose-actions">
             <button className="td-cta-btn" onClick={() => onWrite('growjin')} disabled={busy}>
-              {generating ? <><span className="td-btn-spinner" />Writing…</> : 'Write the blog post'}
+              {generating ? <><Spinner />Writing…</> : 'Write the blog post'}
             </button>
           </div>
           <p className="td-blog-ideas-note">Connect Frekto in <a href={connectUrl('frekto')}>Settings → Integrations</a> to post articles to LinkedIn or your blog automatically.</p>
@@ -818,7 +816,7 @@ function WeeklyBlogSection({ initialData, frektoConnected = false, onAddToSite, 
             <div className="td-blog-verify-row">
               {verifyingId === generatedBlog.id || generatedBlog.verificationStatus === 'pending' ? (
                 <span className="td-blog-verify-checking">
-                  <span className="td-btn-spinner td-btn-spinner--dark" />
+                  <Spinner />
                   Checking if live...
                 </span>
               ) : generatedBlog.verificationStatus === 'live' ? (
@@ -878,7 +876,7 @@ function WeeklyBlogSection({ initialData, frektoConnected = false, onAddToSite, 
             style={{ marginTop: 12 }}
           >
             {generating ? (
-              <><span className="td-btn-spinner" />Generating...</>
+              <><Spinner />Writing…</>
             ) : (
               'Generate replacing selected'
             )}
@@ -925,7 +923,7 @@ function WeeklyBlogSection({ initialData, frektoConnected = false, onAddToSite, 
                   {latestBlog.status === 'published' && (
                     verifyingId === latestBlog.id || latestBlog.verificationStatus === 'pending' ? (
                       <span className="td-blog-verify-checking">
-                        <span className="td-btn-spinner td-btn-spinner--dark" />Checking...
+                        <Spinner />Checking…
                       </span>
                     ) : latestBlog.verificationStatus === 'live' ? (
                       <span className="td-blog-verify-live">
@@ -967,15 +965,6 @@ function AllGoodState({ cachedAt, onRefresh, refreshing }: { cachedAt: string; o
       <button className="btn btn-primary" onClick={onRefresh} disabled={refreshing}>
         {refreshing ? <><Spinner />Checking…</> : 'Check again now'}
       </button>
-    </div>
-  )
-}
-
-function LoadingState() {
-  return (
-    <div className="td-loading-state">
-      <div className="td-loading-dots"><span /><span /><span /></div>
-      <p>Reading your signals...</p>
     </div>
   )
 }
@@ -1258,7 +1247,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
   // "To do today": the first task as "Start here" (the page's one green button), the rest as quiet
   // rows. Opening a row shows its details in place; finishing it opens the next one.
   function renderTodo() {
-    if (loading) return <LoadingState />
+    if (loading) return <ListSkeleton rows={4} />
     if (cards.length === 0) return <AllGoodState cachedAt={cachedAt} onRefresh={() => fetchSignals(true)} refreshing={refreshing} />
     return (
       <div className="td-todo">
@@ -1360,7 +1349,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           </Fold>
 
           <Fold id="done" title="Done" summary={doneSum} open={folds.open.done} onToggle={() => folds.toggle('done')}>
-            {done === null ? <LoadingState /> : <RecentlyDone done={done} />}
+            {done === null ? <ListSkeleton rows={2} start={false} /> : <RecentlyDone done={done} />}
           </Fold>
         </div>
       </div>
@@ -1418,8 +1407,6 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .tsp-opt span { flex: 1; min-width: 0; line-height: 1.4; }
         .tsp-opt em { font-style: normal; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-faint); flex: none; }
         .tsp-skel { display: flex; flex-direction: column; gap: 8px; }
-        .tsp-skel i { height: 44px; border-radius: 10px; background: var(--bg-soft); animation: tsp-pulse 1.2s ease-in-out infinite; }
-        @keyframes tsp-pulse { 50% { opacity: .5; } }
         .tsp-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
         .tsp-chips--small .tsp-chip { padding: 5px 11px; font-size: 12.5px; }
         .tsp-chip {
@@ -1448,9 +1435,7 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         .tsp-progress { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-radius: 10px; background: var(--bg-soft); }
         .tsp-progress b { font-size: 14px; color: var(--text); }
         .tsp-progress p { margin: 2px 0 0; font-size: 12.5px; color: var(--text-faint); }
-        .tsp-progress .tsp-spin { border-color: var(--line); border-top-color: var(--green); }
-        .tsp-spin { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; animation: tsp-spin .8s linear infinite; }
-        @keyframes tsp-spin { to { transform: rotate(360deg); } }
+        .tsp-progress .spinner { color: var(--green); opacity: 1; }
         .tsp-review { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
         @media (max-width: 760px) { .tsp-review { grid-template-columns: 1fr; } }
         .tsp-review-side { display: flex; flex-direction: column; gap: 14px; }
@@ -1677,22 +1662,6 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
         }
         .td-allgood-sub { font-size: 13px; color: var(--text-dim); margin: 0; }
 
-        /* loading */
-        .td-loading-state {
-          display: flex; flex-direction: column; align-items: center;
-          gap: 14px; padding: 36px 20px; color: var(--text-dim); font-size: 14px;
-        }
-        .td-loading-dots { display: flex; gap: 6px; }
-        .td-loading-dots span {
-          width: 7px; height: 7px; border-radius: 50%;
-          background: var(--text-faint); animation: td-pulse 1.2s ease-in-out infinite;
-        }
-        .td-loading-dots span:nth-child(2) { animation-delay: .2s; }
-        .td-loading-dots span:nth-child(3) { animation-delay: .4s; }
-        @keyframes td-pulse {
-          0%, 80%, 100% { opacity: .3; transform: scale(.8); }
-          40%            { opacity: 1;  transform: scale(1); }
-        }
 
         /* social analytics */
         .td-social-analytics { display: flex; flex-direction: column; gap: 12px; }
@@ -1822,15 +1791,6 @@ export default function TodayDashboard({ initialData, brandName, websiteUrl = nu
           font-family: var(--font-body, sans-serif);
         }
 
-        .td-btn-spinner {
-          display: inline-block; width: 12px; height: 12px; border-radius: 50%;
-          border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
-          animation: td-spin .7s linear infinite; margin-right: 7px; flex-shrink: 0;
-        }
-        .td-btn-spinner--dark {
-          border-color: rgba(0,0,0,.15); border-top-color: var(--text-dim);
-        }
-        @keyframes td-spin { to { transform: rotate(360deg); } }
 
         /* verification */
         .td-blog-verify-row {

@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Globe, UserPlus, KeyRound, Crown, UserMinus, BarChart2, Flame, AlertTriangle, RefreshCw, Loader2, ArrowUp, ArrowDown } from 'lucide-react'
+import { Globe, UserPlus, KeyRound, Crown, UserMinus, BarChart2, Flame, AlertTriangle, RefreshCw, ArrowUp, ArrowDown } from 'lucide-react'
+import { Spinner } from '@/components/ui/loading'
 
 interface Channel { name: string; sessions: number }
 interface TopPage { page: string; sessions: number; engagementRate: number | null }
@@ -76,7 +77,7 @@ export default function DailySummaryCard({ hidePosthog = false }: { hidePosthog?
 
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 120 }}>
-      <Loader2 size={18} color='var(--text-dim)' style={{ animation: 'spin 1s linear infinite' }} />
+      <Spinner size={18} label="Loading the daily summary" style={{ color: 'var(--text-dim)' }} />
     </div>
   )
 

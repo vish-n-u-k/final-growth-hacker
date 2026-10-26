@@ -1,10 +1,11 @@
 import ToolIntro from '@/components/ToolIntro'
+import { AboutPage } from '@/components/ui/loading'
 import type { ToolIntroId } from '@/lib/tool-intros'
 
 // The header every tool page uses, in the same style as a Growth Path module (Website Audit,
 // Foundation…): a breadcrumb with the sidebar group, the tool's name in large type, a line of
-// status chips and short info under it, the main buttons on the right, then the one-line
-// "what this does" strip.
+// status chips and short info under it (ending in "About this page"), the main buttons on the
+// right, then the one-line "what this does" strip.
 
 // The sidebar group each tool sits in (components/AppSidebar), for the breadcrumb
 const GROUP: Record<string, string> = {
@@ -29,7 +30,7 @@ export default function ToolHeader({ title, chips, meta, actions, intro }: {
         <div className="th-row">
           <div className="th-main">
             <h1 className="th-title">{title}</h1>
-            {(chips || meta) && <div className="th-sub">{chips}{meta && <span className="th-meta">{meta}</span>}</div>}
+            {(chips || meta || intro) && <div className="th-sub">{chips}{meta && <span className="th-meta">{meta}</span>}{intro && <AboutPage page={intro} />}</div>}
           </div>
           {actions && <div className="th-actions">{actions}</div>}
         </div>

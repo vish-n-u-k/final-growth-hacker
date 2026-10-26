@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import type { SiteCheckResult } from '@/app/api/check-site/route'
+import { LoadingState, Spinner, WhileYouWait } from '@/components/ui/loading'
 
 type State = 'step1' | 'step2' | 'error'
 type SiteCheck = { status: 'checking' } | ({ status: 'done' } & SiteCheckResult) | null
@@ -49,7 +50,7 @@ function SiteCheckNotice({ check }: { check: NonNullable<SiteCheck> }) {
   if (check.status === 'checking') {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: 'var(--text-dim)', padding: '2px 0' }}>
-        <span className="md-spin" style={{ width: '13px', height: '13px', borderWidth: '2px', flexShrink: 0 }} />
+        <Spinner size={13} />
         Checking your site…
       </div>
     )
@@ -263,14 +264,9 @@ export default function OnboardingPage() {
                 Used to personalise your Brand Audit and competitor analysis.
               </p>
               {prefilling ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '32px 0', color: 'var(--text-dim)', fontSize: '12px' }}>
-                  <div style={{ width: '32px', height: '32px' }}>
-                    <svg viewBox="0 0 50 50" className="ob-spinner-svg">
-                      <circle cx="25" cy="25" r="20" fill="none" stroke="var(--line)" strokeWidth="5" />
-                      <circle cx="25" cy="25" r="20" fill="none" stroke="var(--green-bright)" strokeWidth="5" strokeDasharray="40 90" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                  Reading your website…
+                <div style={{ display: 'grid', gap: '12px', padding: '16px 0' }}>
+                  <LoadingState compact>Reading your website to fill in your details…</LoadingState>
+                  <WhileYouWait page="onboarding" />
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -381,7 +377,7 @@ export default function OnboardingPage() {
                     style={{ cursor: submitting ? 'not-allowed' : undefined }}
                   >
                     {submitting ? (
-                      <><span className="md-spin" style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#ffffff' }} />Setting up…</>
+                      <><Spinner />Setting up…</>
                     ) : (
                       <>Set Up My Website
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
