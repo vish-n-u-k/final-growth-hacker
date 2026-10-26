@@ -42,7 +42,7 @@ export const sentToday = (d: LeadAgentData) => d.sentLog.filter(t => t.slice(0, 
 // ── Sending ───────────────────────────────────────────────────────────────────
 
 /** Sends a lead's first email now. Returns the fields to save on the lead. */
-async function sendFirstEmail(brandId: string, lead: Lead, followUpDays: number[]): Promise<Partial<Lead>> {
+export async function sendFirstEmail(brandId: string, lead: Lead, followUpDays: number[]): Promise<Partial<Lead>> {
   if (!lead.email || !lead.draft) return { error: 'No email or draft.' }
   try {
     // Demo mode: recorded as sent, nothing leaves GrowJin
@@ -332,11 +332,14 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
   // Switching between demo and real data: start the lead list afresh (settings are kept)
   const saved = await readLeadData(brandId)
   if (saved && !!saved.demo !== demo) {
-    await updateLeadData(brandId, fallback, x => { x.leads = []; x.sentLog = []; x.approvedCount = 0; x.rejected = []; x.lastError = null; x.demo = demo })
+    await updateLeadData(brandId, fallback, x => { x.leads = []; x.lists = []; x.sentLog = []; x.approvedCount = 0; x.rejected = []; x.lastError = null; x.demo = demo })
   }
   const d = (await readLeadData(brandId)) ?? fallback()
   d.demo = demo
-  if (!d.settings.enabled && !opts.manual) return { ok: true, summary: 'Agent is off.' }
+  // Daily search off: the daily run still checks replies, sends follow-ups and sends what you
+  // approved (your own lists go out over several days), but doesn't look for new leads
+  const find = d.settings.enabled || !!opts.manual
+  if (!find && !d.leads.some(l => l.status === 'queued' || l.status === 'sent')) return { ok: true, summary: 'Agent is off.' }
   const deadline = opts.deadline ?? Date.now() + 240_000
   const s = d.settings
   // Demo mode with no Google Maps search set: use a made-up one, or the Email tab stays empty
@@ -349,14 +352,16 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
   const pr = new Progress(brandId, 'lead', 'Lead Agent run', [
     { key: 'replies', label: 'Checking replies', hint: 'Replies to emails you sent, and follow-ups that are due' },
     { key: 'queued', label: 'Sending queued emails', hint: 'Approved emails that waited for today\'s limit' },
-    ...(s.sources.reddit ? [
+    ...(find && s.sources.reddit ? [
       { key: 'queries', label: 'Picking search phrases', hint: 'How your buyers ask for help online' },
       { key: 'reddit', label: 'Searching Reddit & HN', hint: 'People asking for a tool like yours' },
     ] : []),
-    ...(s.sources.local ? [{ key: 'local', label: 'Searching Google Maps', hint: `“${localQuery}”: businesses with no website or low ratings` }] : []),
-    { key: 'score', label: 'Scoring leads', hint: 'How well each one fits your product' },
-    { key: 'emails', label: 'Finding emails', hint: 'Looked up with Hunter' },
-    { key: 'drafts', label: 'Drafting messages', hint: 'Personal emails and forum replies for your OK' },
+    ...(find && s.sources.local ? [{ key: 'local', label: 'Searching Google Maps', hint: `“${localQuery}”: businesses with no website or low ratings` }] : []),
+    ...(find ? [
+      { key: 'score', label: 'Scoring leads', hint: 'How well each one fits your product' },
+      { key: 'emails', label: 'Finding emails', hint: 'Looked up with Hunter' },
+      { key: 'drafts', label: 'Drafting messages', hint: 'Personal emails and forum replies for your OK' },
+    ] : []),
   ])
 
   return withAIContext({ brandId, moduleType: 'lead-agent', websiteUrl: b.websiteUrl }, async () => {
@@ -388,7 +393,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
     // 3. Find new leads
     const known = new Set([...d.leads.map(l => l.id), ...(d.rejected ?? [])])
     let candidates: Candidate[] = []
-    try {
+    if (find) try {
       const queries = s.sources.reddit ? await pr.step('queries', () => searchQueries(b, s, d), q => ({ detail: n(q.length, 'phrase'), items: q.slice(0, 4) })) : []
       // One failing source (e.g. a search error) shouldn't stop the others; it's reported on the page
       const source = <T>(label: string, p: Promise<T[]>) => p.catch(e => { errors.push(`${label}: ${e instanceof Error ? e.message : 'failed'}`); return [] as T[] })
@@ -461,7 +466,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
         else if (x?.subject && x.body && l.email) { l.draft = { subject: stripEmDashes(x.subject), body: stripEmDashes(x.body) }; l.status = 'ready' }
       }
       notes.push(`${fresh.length} new lead${fresh.length === 1 ? '' : 's'}`)
-    } else if (!errors.length) {
+    } else if (find && !errors.length) {
       notes.push('no new leads')
       pr.set('score', 'skipped', 'Nothing new')
     }
@@ -489,8 +494,8 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       if (d.queries) x.queries = d.queries
       x.demo = demo
       if (rejected.length) x.rejected = [...(x.rejected ?? []), ...rejected]
-      x.lastRunAt = new Date().toISOString()
-      x.lastRunSummary = notes.join(' · ')
+      // "Last search" on the page: only runs that searched
+      if (find) { x.lastRunAt = new Date().toISOString(); x.lastRunSummary = notes.join(' · ') }
       x.lastError = errors.length ? errors.join(' · ') : null
     })
     await addUsage(brandId, meter).catch(() => {})

@@ -1,0 +1,218 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import { Spinner } from '@/components/ui/spinner'
+import { Flow, Side } from '@/components/tool-ui'
+import { EMAIL, MAX_LIST, fillFor, readPasted, type Person, type Skipped } from '@/lib/agents/own-list-text'
+
+// "Add your own emails" in the Lead Agent's Email tab, in three steps like an Email Outreach
+// campaign: who gets it (paste or upload), the email (one for all, name and company filled in),
+// then check and approve all. The agent sends it within the daily limit, with follow-ups.
+
+type Call = (op: string, payload?: Record<string, unknown>, busyKey?: string) => Promise<unknown>
+const STEPS = ['Who gets it', 'The email', 'Review & approve']
+const label = (p: Person) => (p.first ? `${p.first}${p.company ? ` · ${p.company}` : ''}` : p.company || p.email)
+
+export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDays, notify, onClose }: {
+  call: Call
+  busy: string | null
+  gmail: boolean
+  dailyLimit: number
+  followUpDays: number[]
+  notify: (msg: string) => void
+  onClose: () => void
+}) {
+  const [step, setStep] = useState(1)
+  const [name, setName] = useState('')
+  const [raw, setRaw] = useState('')
+  const [reading, setReading] = useState(false)
+  const [fileErr, setFileErr] = useState<string | null>(null)
+  const [people, setPeople] = useState<Person[]>([])
+  const [skipped, setSkipped] = useState<Skipped[]>([])
+  const [about, setAbout] = useState('')
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [who, setWho] = useState(0)
+  const [openEmail, setOpenEmail] = useState<string | null>(null)
+  const [edits, setEdits] = useState<Record<string, string>>({})
+
+  const pasted = useMemo(() => readPasted(raw), [raw])
+  const unique = useMemo(() => new Set(pasted.map(p => p.email).filter(e => EMAIL.test(e))).size, [pasted])
+  const checking = busy === 'list_check', writing = busy === 'list_draft', approving = busy === 'list_add'
+  const drafted = !!(subject && body)
+  const days = Math.ceil(people.length / Math.max(1, dailyLimit))
+
+  async function upload(file: File | undefined) {
+    if (!file) return
+    setReading(true); setFileErr(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/outreach/parse-file', { method: 'POST', body: form })
+      const j = await res.json().catch(() => ({})) as { prospects?: { email: string; name?: string }[]; error?: string }
+      if (!res.ok) throw new Error(j.error ?? 'Could not read that file')
+      const list = j.prospects ?? []
+      if (!list.length) { setFileErr(`No email addresses found in ${file.name}.`); return }
+      setRaw(r => [r.trim(), ...list.map(p => p.name ? `${p.email}, ${p.name}` : p.email)].filter(Boolean).join('\n'))
+      if (!name.trim()) setName(file.name.replace(/\.[^.]+$/, '').slice(0, 80))
+      notify(`Read ${list.length} ${list.length === 1 ? 'email' : 'emails'} from ${file.name}`)
+    } catch (e) {
+      setFileErr(e instanceof Error ? e.message : 'Could not read that file')
+    } finally {
+      setReading(false)
+    }
+  }
+
+  async function check() {
+    const r = await call('list_check', { people: pasted }, 'list_check') as { people?: Person[]; skipped?: Skipped[] } | null
+    if (!r?.people) return
+    setPeople(r.people); setSkipped(r.skipped ?? [])
+    setEdits(e => Object.fromEntries(Object.entries(e).filter(([k]) => r.people!.some(p => p.email === k))))
+    if (r.people.length) { setStep(2); setWho(0) }
+  }
+
+  async function write() {
+    const r = await call('list_draft', { about }, 'list_draft') as { draft?: { subject: string; body: string } } | null
+    if (r?.draft) { setSubject(r.draft.subject); setBody(r.draft.body); setEdits({}) }
+  }
+
+  async function approve() {
+    const r = await call('list_add', {
+      name, about, subject, body,
+      people: people.map(p => ({ email: p.email, name: p.first || undefined, text: edits[p.email] })),
+    }, 'list_add') as { ok?: boolean } | null
+    if (r?.ok) onClose()
+  }
+
+  function remove(email: string) {
+    setPeople(ps => ps.filter(p => p.email !== email))
+    setOpenEmail(null)
+    notify('Removed from the list')
+  }
+
+  const side = <Side av="+" name={name.trim() || 'Your own list'}
+    sub={<span>{step === 1 ? (unique ? `${unique} ${unique === 1 ? 'email' : 'emails'} so far` : 'No emails yet') : `${people.length} ${people.length === 1 ? 'person' : 'people'}`}</span>}
+    whyLabel="How it goes out"
+    why={`From your Gmail, up to ${dailyLimit} a day. A short follow-up after ${followUpDays.join(' and ') || '3'} days if they don’t reply. It stops for anyone who replies, and their reply shows in the Email tab.`} />
+  const back = { label: 'Lead Agent', onClick: onClose }
+  const flow = (title: string, hint: React.ReactNode, content: React.ReactNode, actions: React.ReactNode) =>
+    <Flow back={back} crumb="Add your own emails" side={side} steps={STEPS} at={step} title={title} hint={hint} actions={actions} stepKey={`own:${step}`}>{content}</Flow>
+
+  if (step === 1) {
+    return flow('Who gets it?', 'Paste the emails, one per line. A name after the email is used if it’s there. To send one email to everyone right now, without follow-ups, use Email Outreach.',
+      <div className="tu-stack">
+        <div className="ro-field">
+          <label htmlFor="own-name">Name this list</label>
+          <input id="own-name" value={name} maxLength={80} onChange={e => setName(e.target.value)} placeholder="e.g. Café owners from the Pune meetup" />
+        </div>
+        <div className="ro-field">
+          <label htmlFor="own-raw">Emails</label>
+          <textarea id="own-raw" className="own-raw" rows={7} value={raw} onChange={e => setRaw(e.target.value)} placeholder={'anna@brewlab.in, Anna Rao\nravi@kiteprints.com'} />
+        </div>
+        <label className={`eo-drop${reading ? ' eo-drop--busy' : ''}`}
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => { e.preventDefault(); if (!reading) upload(e.dataTransfer.files[0]) }}>
+          <input type="file" className="eo-drop-in" disabled={reading}
+            accept=".csv,.tsv,.txt,.vcf,.xlsx,.pdf,.docx,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            onChange={e => { upload(e.target.files?.[0]); e.target.value = '' }} />
+          {reading
+            ? <span className="eo-drop-t"><Spinner />Reading the file…</span>
+            : <><span className="eo-drop-t">Or upload a file: drop it here or <u>choose one</u></span>
+                <span className="cl-muted">CSV, Excel (.xlsx), PDF, Word (.docx), text or contact cards (.vcf), up to 5 MB.</span></>}
+        </label>
+        {fileErr && <div className="ro-error"><span>{fileErr}</span></div>}
+        <p className="cl-muted own-count">
+          {unique ? <><b>{unique} {unique === 1 ? 'email' : 'emails'}</b> found. Anyone already emailed, already in the Lead Agent or who asked not to be emailed is skipped on the next step.</> : 'No emails yet.'}
+          {unique > MAX_LIST && <> Up to {MAX_LIST} people per list.</>}
+        </p>
+      </div>,
+      <>
+        <button key="cancel" type="button" className="btn btn-ghost ro-back" onClick={onClose}>Cancel</button>
+        <button key="go" type="button" className="btn btn-primary" disabled={!unique || checking || reading} onClick={check}>
+          {checking ? <><Spinner />Checking…</> : 'Continue →'}
+        </button>
+      </>)
+  }
+
+  if (step === 2) {
+    const p = people[Math.min(who, people.length - 1)]
+    return flow('What’s the email about?', 'One line is enough. GrowJin writes one email and puts in each person’s first name and company.',
+      <div className="tu-stack">
+        {skipped.length > 0 && (
+          <p className="cl-muted own-skips">Skipped {skipped.length}: {skipped.slice(0, 6).map(s => `${s.email} (${s.why})`).join(', ')}{skipped.length > 6 ? ` and ${skipped.length - 6} more` : ''}.</p>
+        )}
+        <form className="ro-field" onSubmit={e => { e.preventDefault(); if (!writing) write() }}>
+          <label htmlFor="own-about">In one line</label>
+          <input id="own-about" value={about} maxLength={300} onChange={e => setAbout(e.target.value)} placeholder="e.g. We make a week of café posts from your menu photos" />
+        </form>
+        {writing && <div className="ro-working"><Spinner /><span>Writing the email…</span><i /></div>}
+        {drafted && !writing && <>
+          <div className="ro-mail">
+            <label className="ro-mail-row"><span>Subject</span><input value={subject} onChange={e => setSubject(e.target.value)} /></label>
+            <textarea className="ro-mail-body" aria-label="Email" rows={9} value={body} onChange={e => setBody(e.target.value)} />
+            <div className="ro-mail-tools"><span className="cl-muted">{'{first name}'} and {'{company}'} are filled in for each person. With no name, it starts with “Hi,”.</span></div>
+          </div>
+          {p && (
+            <div className="own-prev">
+              <div className="cl-seg" role="group" aria-label="Preview for">
+                {people.slice(0, 3).map((q, i) => (
+                  <button key={q.email} type="button" aria-pressed={q === p} onClick={() => setWho(i)}>{q.first || q.email}</button>
+                ))}
+              </div>
+              <div className="own-prev-b"><b>{fillFor(subject, p)}</b>{fillFor(body, p)}</div>
+            </div>
+          )}
+        </>}
+      </div>,
+      <>
+        <button key="b1" type="button" className="btn btn-ghost ro-back" disabled={writing} onClick={() => setStep(1)}>← Back</button>
+        {drafted && <button key="again" type="button" className="btn btn-ghost" disabled={writing} onClick={write}>Write it again</button>}
+        {drafted
+          ? <button key="to3" type="button" className="btn btn-primary" disabled={writing || !subject.trim() || !body.trim()} onClick={() => { setStep(3); setOpenEmail(null) }}>Continue →</button>
+          : <button key="write" type="button" className="btn btn-primary" disabled={writing} onClick={write}>{writing ? <><Spinner />Writing…</> : 'Write the email'}</button>}
+      </>)
+  }
+
+  return flow('Check, then approve all', null,
+    <div className="tu-stack">
+      {!gmail && <div className="ro-error"><span>Connect Gmail so the emails go out from your address.</span><a className="btn btn-primary btn-sm" href="/api/gmail/connect">Connect Gmail</a></div>}
+      <div className="own-sum">
+        <b>{people.length} {people.length === 1 ? 'email' : 'emails'}{name.trim() ? ` to ${name.trim()}` : ''}</b>
+        <ul>
+          <li>{days <= 1 ? 'All go out today, within your daily limit' : `${dailyLimit} a day, so it takes about ${days} days`}</li>
+          <li>A short follow-up after {followUpDays.join(' and ') || '3'} days if they don’t reply</li>
+          <li>Stops for anyone who replies</li>
+        </ul>
+      </div>
+      <div className="own-ppl">
+        {people.map(q => {
+          const open = openEmail === q.email
+          return (
+            <div key={q.email} className="own-pp">
+              <button type="button" className="own-pp-row" aria-expanded={open} onClick={() => setOpenEmail(open ? null : q.email)}>
+                <span className="own-pp-main"><b>{label(q)}</b><span>{q.email}{edits[q.email] ? ' · edited' : ''}</span></span>
+                <span className="cl-muted">{open ? 'Close' : 'See email'}</span>
+              </button>
+              {open && (
+                <div className="own-pp-open">
+                  <div className="ro-mail">
+                    <label className="ro-mail-row"><span>Subject</span><input value={fillFor(subject, q)} readOnly /></label>
+                    <textarea className="ro-mail-body" aria-label={`Email to ${q.email}`} rows={8}
+                      value={edits[q.email] ?? fillFor(body, q)} onChange={e => setEdits(x => ({ ...x, [q.email]: e.target.value }))} />
+                  </div>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => remove(q.email)}>Remove from list</button>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <p className="cl-muted">Nothing goes out until you approve. Ends with a short “reply no if this isn’t relevant” line.</p>
+    </div>,
+    <>
+      <button key="b2" type="button" className="btn btn-ghost ro-back" disabled={approving} onClick={() => setStep(2)}>← Back</button>
+      <button key="approve" type="button" className="btn btn-primary" disabled={approving || !gmail || !people.length} onClick={approve}>
+        {approving ? <><Spinner />Approving…</> : `Approve all ${people.length}`}
+      </button>
+    </>)
+}

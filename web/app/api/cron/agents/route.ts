@@ -27,7 +27,12 @@ export async function GET(req: NextRequest) {
     .from(signalSnapshots).where(inArray(signalSnapshots.source, [LEAD_KEY, SEARCH_KEY]))
 
   const jobs = rows
-    .filter(r => (r.data as { settings?: { enabled?: boolean } })?.settings?.enabled)
+    // Switched on, or a Lead Agent with emails still to send or follow up (your own lists keep
+    // going out, and follow-ups keep running, with the daily search off)
+    .filter(r => {
+      const x = r.data as { settings?: { enabled?: boolean }; leads?: { status?: string }[] } | null
+      return x?.settings?.enabled || (r.source === LEAD_KEY && x?.leads?.some(l => l.status === 'queued' || l.status === 'sent'))
+    })
     .sort((x, y) => (x.updatedAt?.getTime() ?? 0) - (y.updatedAt?.getTime() ?? 0))
 
   const results: { brandId: string; agent: string; summary?: string; error?: string }[] = []
