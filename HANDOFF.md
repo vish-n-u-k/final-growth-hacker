@@ -196,11 +196,12 @@ Gotchas:
 - Published: https://claude.ai/artifact/VBumsgS9fSHqmntQyJMSBq (private to the owner; share from the page)
 - The owner is showing it to the people from the demo.
 
-**Today is done (sketch E, "Open & close").** Preview: `design-previews/tools-cleanup/today-calm.html` (https://claude.ai/artifact/L6h5DFDAEBKYmZPK5zrEiC). The real page (`TodayDashboard.tsx`) is five sections that open and close, in this order: How it's going, To do today, Blog and posts, Social accounts, Done. Each closed section shows a one-line summary. How it's going and To do start open; open state is kept in `localStorage` (`today-folds-v2`).
-- To do: one Start here panel (the page's only green), then quiet rows with a faint icon per task type. List text is `data.finding` without the "Overdue: waiting N days." lead-in (the opened task, daily email and MCP keep it). Finishing a task opens the next. A ring shows done today / today's total.
-- How it's going: Road to 500, What happened (visitors and signups have a 14-day line from `trend` in `/api/today/activity`), What's working.
-- Type: 400 reading, 500 names/labels/numbers, 600 only the title and the green button (scoped block at the end of Today's styles).
-- Settings holds the daily email switch and "check again". Not yet calmed: the insides of the blog and social stats blocks.
+**Today is "Plan and pulse" (option C of `design-previews/tools-cleanup/today-directions.html`, https://claude.ai/artifact/GJtr1YQoUsM9qSviSk2zCn).** In `TodayDashboard.tsx`:
+- Left, **Today's plan**: a timeline. Tasks done today come first, ticked (from `/api/today/done` plus ones finished on the page). Then the open tasks in order; the current one is open in place (`ActionCardItem` with `bare`) in a light green box holding the page's only green button. Finishing a task opens the next; clicking another opens it. A ring shows done today / total. List text is `data.finding` without the "Overdue: waiting N days." lead-in, with "Waiting N days" as a grey line.
+- Right, **Pulse** (sticky; on phones it sits on top, without sources and What's working): visitors in the last 24 h with change, a 14-day chart (`trend` in `/api/today/activity`, 14 full days up to yesterday), sign-ups / signed in / came back, Road to 500 (`/api/posthog/user-count`, `lib/journey.ts`), where visitors came from, What's working, Full analytics. Charts are in ink, not green.
+- Under the plan, closed sections (`localStorage` `today-folds-v3`): Visitors and sign-ups (Road to 500 with MRR, What happened), Blog and posts, Social accounts, Done lately.
+- Type: 400 reading, 500 names/labels/numbers, 600 only the title and the green button. Settings holds the daily email switch and "check again".
+- Earlier Today previews: `today-calm.html` (sketches A–E).
 
 **Next steps:**
 
