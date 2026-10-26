@@ -219,30 +219,41 @@ export async function storesByPlatform(platforms: string[], country: string, met
   if (!platforms.length) return []
   if (agentsDemo()) return demoStores(platforms)
   type Item = { domain?: string; title?: string | null; description?: string | null; emails?: string[] | null; social_graph_urls?: string[] | null; domain_rank?: number | null }
-  const keywords = (opts.keywords ?? []).map(k => k.trim().toLowerCase()).filter(Boolean).slice(0, 10)
+  // Single words only: DataForSEO matches them in a site's title or description
+  const keywords = [...new Set((opts.keywords ?? []).flatMap(k => k.trim().toLowerCase().split(/\s+/)).filter(w => w.length > 2))].slice(0, 10)
   const ask = async (withKeywords: boolean, offset: number) => {
     const task: Record<string, unknown> = {
       technologies: platforms.slice(0, 3),
       mode: 'entry',
-      // Anywhere: small sites in every country
-      // One filter is sent on its own (DataForSEO's shape for a single condition), several joined with "and"
-      filters: country === 'ANY' ? ['domain_rank', '<', 300] : [['country_iso_code', '=', country.toUpperCase()], 'and', ['domain_rank', '<', 300]],
       order_by: ['last_visited,desc'],
       limit: opts.limit ?? 50,
       offset,
     }
+    // No rank filter: most small shops have no domain rank at all, and "rank < 300" left them out.
+    // Big sites are dropped below instead.
+    if (country !== 'ANY') task.filters = ['country_iso_code', '=', country.toUpperCase()]
     if (withKeywords && keywords.length) task.keywords = keywords
     const r = await post<{ items?: Item[] | null; total_count?: number | null }>('/domain_analytics/technologies/domains_by_technology/live', task, meter)
     console.log(`[dataforseo] stores ${platforms.join('/')} · ${country}${withKeywords && keywords.length ? ` · keywords ${keywords.join(', ')}` : ''} · offset ${offset}: ${r.items?.length ?? 0} back of ${r.total_count ?? '?'}`)
     return r
   }
-  let r = await ask(true, opts.offset ?? 0)
-  // Past the end of a small result set (the daily page moves on): start from the top
-  if (!r.items?.length && (opts.offset ?? 0) > 0 && (r.total_count ?? 0) > 0) r = await ask(true, 0)
-  // Nothing with the keywords: try the platforms alone, so stores still come up (the scorer checks the fit)
-  if (!r.items?.length && keywords.length) r = await ask(false, opts.offset ?? 0)
+  // The day's page, or (past the end of the results) the same place counted from the top
+  const page = async (withKeywords: boolean) => {
+    const offset = opts.offset ?? 0
+    const r = await ask(withKeywords, offset)
+    const total = r.total_count ?? 0
+    if (!r.items?.length && offset > 0 && total > 0) {
+      const limit = opts.limit ?? 50
+      return ask(withKeywords, Math.floor((offset % total) / limit) * limit)
+    }
+    return r
+  }
+  let r = await page(true)
+  // Nothing with the keywords: try the platforms alone, so stores still come up (the trade check and scorer judge them)
+  if (!r.items?.length && keywords.length) r = await page(false)
   return (r.items ?? [])
-    .filter(i => i.domain)
+    // Big, well-linked sites aren't small shops (rank runs 0-1000; most small shops have none)
+    .filter(i => i.domain && (i.domain_rank ?? 0) < 400)
     .map(i => ({
       domain: i.domain!.replace(/^www\./, '').toLowerCase(),
       title: (i.title ?? '').trim(),

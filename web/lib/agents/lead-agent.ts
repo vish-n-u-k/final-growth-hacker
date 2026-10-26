@@ -236,7 +236,8 @@ const HEADCOUNTS = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000
 
 /** The company search in plain words, turned into Hunter Discover filters once per wording. */
 async function companyFilters(b: BrandContext, s: LeadSettings, d: LeadAgentData): Promise<{ keywords: string[]; headcount: string[]; platforms: string[] }> {
-  const want = s.companyQuery.trim() || s.customer
+  // v2: the rules below changed (no describing words), so keywords made before are redone once
+  const want = `v2:${s.companyQuery.trim() || s.customer}`
   const saved = d.companyFilters
   if (saved?.for === want && saved.keywords.length && saved.platforms) return { ...saved, platforms: saved.platforms }
   const raw = await callAI({
@@ -245,10 +246,10 @@ async function companyFilters(b: BrandContext, s: LeadSettings, d: LeadAgentData
     maxTokens: 300,
     system: 'You turn a description of target companies into search filters. Return only a raw JSON object.',
     prompt: `${brandBlock(b)}
-Companies to find: ${want || 'companies that would buy this product'}
+Companies to find: ${want.slice(3) || 'companies that would buy this product'}
 
 Return {"keywords":[...],"headcount":[...],"platforms":[...]}:
-- keywords: 8 single words or short phrases (1-2 words) these companies use to describe themselves on their own website, e.g. "skincare", "handmade jewelry", "coffee roaster", "social media agency". Their products or trade, not ${b.name}'s. Never "PR", "public relations", "B2B", "enterprise" or "consulting": those are big firms, not small businesses.
+- keywords: 8 single words or short phrases (1-2 words) these companies use to describe themselves on their own website, e.g. "skincare", "handmade jewelry", "coffee roaster", "social media agency". Their products or trade, not ${b.name}'s. Never "PR", "public relations", "B2B", "enterprise" or "consulting": those are big firms, not small businesses. Never a describing word on its own ("boutique", "creative", "premium", "luxury"): law and property firms call themselves boutique too. Name what they make or sell ("candles", "handmade jewelry", "etsy").
 - headcount: company sizes to include, from ${HEADCOUNTS.join(', ')}. Small businesses: ["1-10","11-50"].
 - platforms: if online stores are among the buyers, the store platforms to search, from ${PLATFORMS.join(', ')} (e.g. ["Shopify","WooCommerce"]); else [].`,
   })
@@ -274,7 +275,8 @@ async function aboutSite(domain: string): Promise<{ text: string; socials: strin
 }
 
 // Words too common to show a trade ("etsy shop" is about Etsy, not "shop")
-const PLAIN_WORDS = new Set(['shop', 'shops', 'store', 'stores', 'online', 'brand', 'brands', 'small', 'business', 'businesses', 'company', 'companies', 'agency', 'agencies', 'studio', 'services', 'service', 'digital', 'local', 'the', 'and', 'for', 'co'])
+// and describing words ("boutique" law firm, "creative" agency) that say nothing about the trade
+const PLAIN_WORDS = new Set(['shop', 'shops', 'store', 'stores', 'online', 'brand', 'brands', 'small', 'business', 'businesses', 'company', 'companies', 'agency', 'agencies', 'studio', 'services', 'service', 'digital', 'local', 'the', 'and', 'for', 'co', 'boutique', 'creative', 'premium', 'luxury', 'independent', 'modern', 'custom', 'quality', 'best', 'top', 'global', 'group', 'firm'])
 
 /**
  * Does the business's own site say it is what we look for? True when its name, description or page
@@ -287,8 +289,11 @@ function tradeMatch(keywords: string[], text: string): boolean {
   return keywords.some(k => {
     const phrase = k.toLowerCase().replace(/[^a-z0-9&]+/g, ' ').trim()
     if (!phrase) return false
-    if (t.includes(` ${phrase} `) || t.includes(` ${phrase}s `)) return true
-    return phrase.split(' ').filter(w => w.length > 2 && !PLAIN_WORDS.has(w)).some(w => t.includes(` ${w} `) || t.includes(` ${w}s `))
+    const words = phrase.split(' ')
+    const trade = words.filter(w => w.length > 2 && !PLAIN_WORDS.has(w))
+    // A lone describing word ("boutique") never counts; a phrase of them ("online boutique") only as a whole
+    if (words.length > 1 && (t.includes(` ${phrase} `) || t.includes(` ${phrase}s `))) return true
+    return trade.some(w => t.includes(` ${w} `) || t.includes(` ${w}s `))
   })
 }
 
