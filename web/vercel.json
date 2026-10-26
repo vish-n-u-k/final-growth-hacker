@@ -1,4 +1,11 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "dev": true,
+      "claude/*": false
+    }
+  },
   "crons": [
     { "path": "/api/cron/daily-signals",  "schedule": "0 0 * * *" },
     { "path": "/api/cron/daily-email",    "schedule": "30 0 * * *" },
