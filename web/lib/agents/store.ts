@@ -33,7 +33,7 @@ export interface LeadSettings {
   customer: string              // who the brand sells to, in plain words
   country: string               // ISO code (see LOCATION_CODES)
   // reviews / competitors: no longer used. Competitor reviews are Competitor Leads' job (lib/lead-finder)
-  // companies = "Companies like your customers": online businesses found with Hunter Discover
+  // companies = "Companies like your customers": websites found with DataForSEO, emails with Hunter
   sources: { reddit: boolean; reviews: boolean; local: boolean; companies: boolean }
   competitors: string[]
   localQuery: string            // e.g. "cafés in Pune"
@@ -47,7 +47,7 @@ export interface LeadSettings {
 }
 
 // own = added by the user from their own list (Email tab, "Add your own emails")
-// company = found with Hunter Discover ("Companies like your customers")
+// company = a website found with DataForSEO ("Companies like your customers")
 export type LeadSource = 'reddit' | 'forum' | 'review' | 'local' | 'company' | 'own'
 export type LeadStatus =
   | 'ready'          // draft waiting for the user's OK
@@ -107,7 +107,7 @@ export interface LeadAgentData {
   lists?: OwnList[]             // lists the user added (newest first)
   demo?: boolean                // made with demo data (lib/agents/demo.ts)
   queries?: { for: string; list: string[] }
-  // companyQuery turned into Hunter Discover filters (written once per query)
+  // companyQuery turned into DataForSEO search terms (written once per query)
   // platforms: online-store platforms to search (DataForSEO technology index); [] when the buyers aren't online stores
   companyFilters?: { for: string; keywords: string[]; headcount: string[]; platforms?: string[] }
   lastRunAt?: string

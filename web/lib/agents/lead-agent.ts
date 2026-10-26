@@ -2,7 +2,8 @@
 //   1. checks sent emails for replies, opt-outs and bounces, and sends due follow-ups
 //   2. sends approved emails that waited for today's sending limit
 //   3. finds new leads: Reddit / Hacker News posts asking for this kind of product, local
-//      businesses on Google Maps, and online companies like the brand's customers (Hunter Discover)
+//      businesses on Google Maps, and online companies like the brand's customers (websites from
+//      DataForSEO, emails from Hunter)
 //   4. scores them (Claude), finds an email (Hunter, else the company website), drafts a short
 //      personal email or a forum reply, and waits for the user's OK (or sends on its own in
 //      auto mode, once the user has approved 20)
@@ -18,7 +19,7 @@ import { fetchHtml } from '@/lib/lead-finder/reviews'
 import { searchDataReady, googleResults, mapsBusinesses, storesByPlatform, DfsBusyError } from './dataforseo'
 import { agentsDemo, demoLocalQuery, demoReply, demoSend, setDemoContext } from './demo'
 import { Progress } from './progress'
-import { hunterConfigured, findEmail, discoverCompanies } from './hunter'
+import { hunterConfigured, findEmail } from './hunter'
 import { costNote } from './services'
 import {
   addUsage, defaultLeadData, newMeter, readLeadData, updateLeadData,
@@ -234,7 +235,7 @@ async function findHackerNews(queries: string[]): Promise<Candidate[]> {
 
 const HEADCOUNTS = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10001+']
 
-/** The company search in plain words, turned into Hunter Discover filters once per wording. */
+/** The company search in plain words, turned into DataForSEO search terms once per wording. */
 async function companyFilters(b: BrandContext, s: LeadSettings, d: LeadAgentData): Promise<{ keywords: string[]; headcount: string[]; platforms: string[] }> {
   // v2: the rules below changed (no describing words), so keywords made before are redone once
   const want = `v2:${s.companyQuery.trim() || s.customer}`
@@ -310,35 +311,20 @@ async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData,
   const fresh = (domain: string) => !skip.has(domain) && !known.has(idOf(`https://${domain}`))
   type Found = { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string }
 
-  // Online stores: sites running Shopify, WooCommerce… in the country (DataForSEO), a new page each day
-  if (f.platforms.length && !searchDataReady()) warn('Online stores: needs GrowJin’s DataForSEO account, which isn’t set up')
-  const storeRows = f.platforms.length && searchDataReady()
-    ? await storesByPlatform(f.platforms, s.country, meter, { limit: 50, offset: (day % 20) * 50, keywords: f.keywords }).catch(e => { if (!f.keywords.length) throw e; warn(`Online stores: ${e instanceof Error ? e.message : 'failed'}`); return null })
-    : null
-  if (storeRows) {
-    console.log(`[lead-agent] online stores (${f.platforms.join(', ')}, ${s.country}): ${storeRows.length} back${storeRows[0] ? `, e.g. ${storeRows.slice(0, 3).map(x => x.domain).join(', ')}` : ''}`)
-    if (!storeRows.length) warn(`Online stores: DataForSEO found no ${f.platforms.join(' / ')} sites ${s.country === 'ANY' ? 'anywhere' : `in ${s.country}`} this time`)
-  }
-  const stores: Found[] = (storeRows ?? [])
-      .filter(x => fresh(x.domain))
-      .map(x => ({ domain: x.domain, name: x.title.split(/\s[|–-]\s/)[0].slice(0, 60) || x.domain, about: [x.title, x.description].filter(Boolean).join(' · '), socials: socialsIn(x.socials.join(' ')), email: x.emails.find(e => e.endsWith(x.domain)) ?? x.emails[0], from: `${f.platforms.join(' / ')} store` }))
-
-  // Small agencies and brands: Hunter Discover, three keywords a day (no paging, so the same keywords give the same companies)
-  const picks = f.keywords.length ? [0, 1, 2].map(k => f.keywords[(day * 3 + k) % f.keywords.length]).filter((x, i, a) => a.indexOf(x) === i) : []
-  const agencies: Found[] = picks.length
-    ? (await discoverCompanies({ keywords: picks, headcount: f.headcount, country: s.country }, meter).catch(e => { if (!stores.length) throw e; warn(`Hunter companies: ${e instanceof Error ? e.message : 'failed'}`); return [] }))
-      .filter(c => fresh(c.domain))
-      // Small first: reachable (Hunter has a person's email) but few addresses on file; big firms have dozens
-      .sort((x, y) => (y.personalEmails > 0 ? 1 : 0) - (x.personalEmails > 0 ? 1 : 0) || x.totalEmails - y.totalEmails)
-      .map(c => ({ domain: c.domain, name: c.name, about: c.about, from: `matched “${picks.join('”, “')}”` }))
-    : []
-
-  // Stores first (6 of 10) when there are some, agencies after, then fill up from either
-  const half = Math.ceil(COMPANY_CHECK * 0.6)
-  const seen = new Set<string>()
-  const list = [...stores.slice(0, half), ...agencies.slice(0, COMPANY_CHECK - half), ...stores.slice(half), ...agencies.slice(COMPANY_CHECK - half)]
-    .filter(x => !seen.has(x.domain) && seen.add(x.domain))
+  // DataForSEO finds the websites: sites whose title or description has the trade words, running
+  // the store platforms Claude picked (or any site, when the buyers aren't online stores), a new page
+  // each day. Hunter only finds emails, later.
+  if (!searchDataReady()) { warn('Companies: needs GrowJin’s DataForSEO account, which isn’t set up'); return [] }
+  if (!f.platforms.length && !f.keywords.length) return []
+  const rows = await storesByPlatform(f.platforms, s.country, meter, { limit: 50, offset: (day % 20) * 50, keywords: f.keywords })
+  const what = f.platforms.length ? `${f.platforms.join(' / ')} sites` : 'sites'
+  console.log(`[lead-agent] DataForSEO websites (${f.platforms.join(', ') || 'any platform'}, ${s.country}): ${rows.length} back${rows[0] ? `, e.g. ${rows.slice(0, 3).map(x => x.domain).join(', ')}` : ''}`)
+  if (!rows.length) warn(`Companies: DataForSEO found no ${what} ${s.country === 'ANY' ? 'anywhere' : `in ${s.country}`} for “${f.keywords.slice(0, 4).join('”, “')}” this time`)
+  const list: Found[] = rows
+    .filter(x => fresh(x.domain))
+    .map(x => ({ domain: x.domain, name: x.title.split(/\s[|–-]\s/)[0].slice(0, 60) || x.domain, about: [x.title, x.description].filter(Boolean).join(' · '), socials: socialsIn(x.socials.join(' ')), email: x.emails.find(e => e.endsWith(x.domain)) ?? x.emails[0], from: f.platforms.length ? `${f.platforms.join(' / ')} store` : 'website' }))
     .slice(0, COMPANY_CHECK + 4)
+
   // Every home page is read: the trade check needs the page text, not just Hunter's or DataForSEO's word
   const pages = await Promise.all(list.map(c => aboutSite(c.domain)))
   const checked = list.map((c, i) => ({ c, text: c.about || pages[i].text, socials: c.socials?.length ? c.socials : pages[i].socials, page: pages[i].page }))

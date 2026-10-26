@@ -216,14 +216,13 @@ export interface PlatformSite { domain: string; title: string; description: stri
  * whether the platform names or the keywords were the problem.
  */
 export async function storesByPlatform(platforms: string[], country: string, meter?: UsageMeter, opts: { limit?: number; offset?: number; keywords?: string[] } = {}): Promise<PlatformSite[]> {
-  if (!platforms.length) return []
-  if (agentsDemo()) return demoStores(platforms)
+  if (!platforms.length && !opts.keywords?.length) return []
+  if (agentsDemo()) return demoStores(platforms.length ? platforms : ['site'])
   type Item = { domain?: string; title?: string | null; description?: string | null; emails?: string[] | null; social_graph_urls?: string[] | null; domain_rank?: number | null }
   // Single words only: DataForSEO matches them in a site's title or description
   const keywords = [...new Set((opts.keywords ?? []).flatMap(k => k.trim().toLowerCase().split(/\s+/)).filter(w => w.length > 2))].slice(0, 10)
   const ask = async (withKeywords: boolean, offset: number) => {
     const task: Record<string, unknown> = {
-      technologies: platforms.slice(0, 3),
       mode: 'entry',
       order_by: ['last_visited,desc'],
       limit: opts.limit ?? 50,
@@ -232,6 +231,7 @@ export async function storesByPlatform(platforms: string[], country: string, met
     // No rank filter: most small shops have no domain rank at all, and "rank < 300" left them out.
     // Big sites are dropped below instead.
     if (country !== 'ANY') task.filters = ['country_iso_code', '=', country.toUpperCase()]
+    if (platforms.length) task.technologies = platforms.slice(0, 3)
     if (withKeywords && keywords.length) task.keywords = keywords
     const r = await post<{ items?: Item[] | null; total_count?: number | null }>('/domain_analytics/technologies/domains_by_technology/live', task, meter)
     console.log(`[dataforseo] stores ${platforms.join('/')} · ${country}${withKeywords && keywords.length ? ` · keywords ${keywords.join(', ')}` : ''} · offset ${offset}: ${r.items?.length ?? 0} back of ${r.total_count ?? '?'}`)
@@ -250,7 +250,7 @@ export async function storesByPlatform(platforms: string[], country: string, met
   }
   let r = await page(true)
   // Nothing with the keywords: try the platforms alone, so stores still come up (the trade check and scorer judge them)
-  if (!r.items?.length && keywords.length) r = await page(false)
+  if (!r.items?.length && keywords.length && platforms.length) r = await page(false)
   return (r.items ?? [])
     // Big, well-linked sites aren't small shops (rank runs 0-1000; most small shops have none)
     .filter(i => i.domain && (i.domain_rank ?? 0) < 400)

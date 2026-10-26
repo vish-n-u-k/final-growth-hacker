@@ -370,7 +370,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
               {cur.type === 'forum' && <span>· You post every reply yourself</span>}
               {cur.type === 'companies' && <span>· Online businesses, emails from Hunter</span>}
             </div>
-            {cur.type === 'companies' && !flags.hunter && <div className="lfh-meta lfh-warn">Company search needs GrowJin&apos;s Hunter key, which isn&apos;t set up yet.</div>}
+            {cur.type === 'companies' && !flags.hunter && <div className="lfh-meta lfh-warn">Company emails need GrowJin&apos;s Hunter key, which isn&apos;t set up yet.</div>}
             {cur.type !== 'companies' && !flags.dataforseo && <div className="lfh-meta lfh-warn">{cur.type === 'maps' ? 'Google Maps' : 'Reddit'} search needs GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet.</div>}
           </div>
           <div className="lfh-actbox">{busyBtn('Search now', () => call('run'), running, !cur.on)}</div>

@@ -99,7 +99,7 @@ function Settings({ initial, saving, picking, hunter, onSave, onCancel, onPick }
           <button type="button" className="btn btn-ghost btn-sm" disabled={picking} onClick={onPick}>{picking ? <><Spinner />Picking…</> : 'Pick for me'}</button>
         </div>
         <label className="tu-chk tu-full"><input type="checkbox" checked={s.sources.companies} onChange={e => set('sources', { ...s.sources, companies: e.target.checked })} />
-          <span>Email: companies like your customers<small>Online businesses that match who you look for, with Hunter.{hunter ? '' : ' Needs GrowJin’s Hunter key, which isn’t set up yet.'}</small></span></label>
+          <span>Email: companies like your customers<small>Websites that match who you look for, found with DataForSEO; emails found with Hunter.{hunter ? '' : ' Needs GrowJin’s Hunter key for the emails, which isn’t set up yet.'}</small></span></label>
         {s.sources.companies && <label className="tu-full la-src-who">Who to look for
           <input value={s.companyQuery} onChange={e => set('companyQuery', e.target.value)} placeholder="e.g. small fashion and beauty online stores, 1-50 people" />
         </label>}
@@ -487,7 +487,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
       ) : listId ? listView(listId) : <>
         {!gmail && <div className="ag-note ag-note-warn">Connect Gmail so approved emails go out from your address. <a href="/api/gmail/connect">Connect Gmail</a></div>}
         {!flags.dataforseo && (s.sources.reddit || s.sources.local) && <div className="ag-note ag-note-warn">Reddit and Google Maps search need GrowJin&apos;s DataForSEO account, which isn&apos;t set up yet. Hacker News and competitor reviews still work.</div>}
-        {s.sources.companies && !flags.hunter && <div className="ag-note ag-note-warn">Companies like your customers needs GrowJin&apos;s Hunter key, which isn&apos;t set up yet.</div>}
+        {s.sources.companies && !flags.hunter && <div className="ag-note ag-note-warn">Companies like your customers needs GrowJin&apos;s Hunter key to find their emails, which isn&apos;t set up yet.</div>}
         {flags.hunterOut && !demo && <div className="ag-note ag-note-warn">Hunter’s email credits are used up, so new leads come without an email until they renew. You can still add one by hand, or upgrade Hunter.</div>}
         {data.lastError && !running && <div className="ag-note ag-note-crit">The last search had a problem: {data.lastError}</div>}
 

@@ -4,7 +4,7 @@
 // When the credits are used up (HTTP 429) the meter is flagged and Hunter isn't asked again this run.
 
 import type { UsageMeter } from './store'
-import { agentsDemo, demoDiscover, demoFindEmail } from './demo'
+import { agentsDemo, demoFindEmail } from './demo'
 
 const BASE = 'https://api.hunter.io/v2'
 
@@ -64,47 +64,4 @@ export async function findEmail(domain: string, personName: string | undefined, 
   if (lead) return toFound(lead)
   const any = await ask('domain-search', { domain: host, limit: '1' }, meter)
   return any ? toFound(any) : null
-}
-
-// ── Companies like your customers (Hunter Discover) ───────────────────────────
-// Free: no credits. Filters only (keywords, size, country): the natural-language `query` uses the
-// plan's few "AI searches" a month. Without a Premium plan every search returns the same first page,
-// so the Lead Agent rotates keywords between runs to see new companies.
-
-export interface DiscoveredCompany { domain: string; name: string; about?: string; personalEmails: number; totalEmails: number }
-
-export async function discoverCompanies(f: { keywords: string[]; headcount: string[]; country: string }, meter?: UsageMeter): Promise<DiscoveredCompany[]> {
-  if (!hunterConfigured() || !f.keywords.length) return []
-  if (agentsDemo()) return demoDiscover(f.keywords)
-  const body: Record<string, unknown> = {
-    keywords: { include: f.keywords.slice(0, 5), match: 'any' },
-    company_type: { exclude: ['educational', 'educational institution', 'government agency', 'non profit'] },
-    limit: 100,
-  }
-  if (f.headcount.length) body.headcount = f.headcount
-  // Anywhere: no country filter
-  if (f.country !== 'ANY') body.headquarters_location = { include: [{ country: f.country }] }
-  const res = await fetch(`${BASE}/discover?${new URLSearchParams({ api_key: process.env.HUNTER_API_KEY! })}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(20_000),
-  })
-  if (res.status === 429 && meter) meter.hunterOut = true
-  if (!res.ok) {
-    const j = await res.json().catch(() => null) as { errors?: { id?: string; details?: string }[] } | null
-    const why = j?.errors?.[0]?.details ?? j?.errors?.[0]?.id ?? `HTTP ${res.status}`
-    console.error(`[hunter] discover → ${why}`)
-    throw new Error(`Hunter Discover: ${why}`)
-  }
-  type Row = { domain?: string; organization?: string | null; emails_count?: { personal?: number; total?: number } | null }
-  const j = await res.json() as { data?: Row[] }
-  return (j.data ?? [])
-    .filter(r => r.domain)
-    .map(r => ({
-      domain: r.domain!.replace(/^www\./, '').toLowerCase(),
-      name: r.organization || r.domain!,
-      personalEmails: r.emails_count?.personal ?? 0,
-      totalEmails: r.emails_count?.total ?? 0,
-    }))
 }
