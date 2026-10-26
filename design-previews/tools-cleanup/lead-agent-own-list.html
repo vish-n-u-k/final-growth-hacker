@@ -155,7 +155,7 @@
   .st { font-size: 13px; color: var(--faint); white-space: nowrap; }
   .st.r { color: var(--red); }
   .err { color: var(--red); font-size: 13px; }
-  .addown { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--line); }
+  .addown { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: -6px 0 18px; }
   .addown .btn { border-style: dashed; }
 </style>
 
@@ -268,13 +268,12 @@ function tabView() {
   const items = LEADS.filter(l => l.lane === S.lane)
   const [first, ...rest] = items
   const what = S.lane === 'email' ? `${items.length} emails ready for your OK` : `${items.length} posts to answer`
-  let html = `<div class="next"><div class="next-text"><b>${what}</b><span>Start with ${esc(first.name.length > 40 ? first.name.slice(0, 40) + '…' : first.name)}.</span></div><button class="btn go" data-a="noop">${S.lane === 'email' ? 'Review the email' : 'Write the reply'} →</button></div>
+  let html = (S.lane === 'email' ? `<div class="addown"><button class="btn" data-a="add">+ Add your own emails</button><span class="tip">Paste or upload people you already know. They get the same emails and follow-ups.</span></div>` : '') + `<div class="next"><div class="next-text"><b>${what}</b><span>Start with ${esc(first.name.length > 40 ? first.name.slice(0, 40) + '…' : first.name)}.</span></div><button class="btn go" data-a="noop">${S.lane === 'email' ? 'Review the email' : 'Write the reply'} →</button></div>
     <div class="rest"><p class="rest-h">Then</p>${rest.map(l => `<div class="row"><div class="row-main"><div class="row-name">${esc(l.name)}</div><div class="row-why">${esc(l.why)}</div></div><span class="row-go">Open</span></div>`).join('')}</div>`
   if (S.lane === 'email') {
     html += `<div class="lists"><p class="rest-h">Your lists</p>
       ${S.lists.map(L => `<div class="row" data-list="${L.id}" role="button" tabindex="0">${L.replied ? '<span class="dot" title="Someone replied"></span>' : ''}<div class="row-main"><div class="row-name">${esc(L.name)}</div><div class="row-why">${L.sent} of ${L.total} sent${L.replied ? ` · ${L.replied} replied` : ''}${L.sent < L.total ? ` · the rest by ${lastDay(L.total - L.sent)}` : ''}</div></div><span class="row-go">Open</span></div>`).join('')}
-      </div>
-      <div class="addown"><button class="btn" data-a="add">+ Add your own emails</button><span class="tip">Paste or upload people you already know. They get the same emails and follow-ups.</span></div>`
+      </div>`
   }
   return html
 }
