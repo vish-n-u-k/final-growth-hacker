@@ -20,13 +20,25 @@ export interface PersonDetail {
   recent: { at: string; label: string }[]
 }
 
-const SEARCH = ['google', 'bing', 'duckduckgo', 'yahoo', 'baidu', 'yandex', 'ecosia', 'brave']
-const SOCIAL: [string, string][] = [
-  ['facebook', 'Facebook'], ['instagram', 'Instagram'], ['linkedin', 'LinkedIn'], ['lnkd.in', 'LinkedIn'],
-  ['t.co', 'X (Twitter)'], ['twitter', 'X (Twitter)'], ['x.com', 'X (Twitter)'], ['reddit', 'Reddit'],
-  ['youtube', 'YouTube'], ['tiktok', 'TikTok'], ['pinterest', 'Pinterest'], ['producthunt', 'Product Hunt'],
-  ['news.ycombinator', 'Hacker News'], ['chatgpt', 'ChatGPT'], ['perplexity', 'Perplexity'],
+// Short names (t.co, x.com, bing.com) must match the whole host: a substring check made
+// chatgpt.com count as X (Twitter) and netflix.com as x.com.
+const SEARCH: [string, string][] = [
+  ['google', 'Google'], ['bing.com', 'Bing'], ['duckduckgo', 'DuckDuckGo'], ['yahoo', 'Yahoo'], ['baidu', 'Baidu'],
+  ['yandex', 'Yandex'], ['ecosia', 'Ecosia'], ['search.brave.com', 'Brave'],
 ]
+// AI assistants go first so gemini.google.com isn't read as Google search.
+const AI: [string, string][] = [
+  ['chatgpt', 'ChatGPT'], ['openai.com', 'ChatGPT'], ['perplexity', 'Perplexity'], ['claude.ai', 'Claude'],
+  ['gemini.google.com', 'Gemini'], ['copilot.microsoft.com', 'Copilot'],
+]
+const SOCIAL: [string, string][] = [
+  ['facebook', 'Facebook'], ['fb.com', 'Facebook'], ['instagram', 'Instagram'], ['linkedin', 'LinkedIn'], ['lnkd.in', 'LinkedIn'],
+  ['t.co', 'X (Twitter)'], ['twitter', 'X (Twitter)'], ['x.com', 'X (Twitter)'], ['reddit', 'Reddit'],
+  ['youtube', 'YouTube'], ['youtu.be', 'YouTube'], ['tiktok', 'TikTok'], ['pinterest', 'Pinterest'], ['producthunt', 'Product Hunt'],
+  ['news.ycombinator.com', 'Hacker News'],
+]
+// A key with a dot is a host (matches it or its subdomains); a plain word may appear anywhere.
+const matches = (d: string, key: string) => key.includes('.') ? d === key || d.endsWith(`.${key}`) : d.includes(key)
 
 function foundVia(p: { utmSource: string; utmMedium: string; utmCampaign: string; domain: string }, ownHost: string): string {
   const campaign = p.utmCampaign ? ` (campaign “${p.utmCampaign}”)` : ''
@@ -37,9 +49,11 @@ function foundVia(p: { utmSource: string; utmMedium: string; utmCampaign: string
   const d = p.domain.toLowerCase().replace(/^www\./, '')
   if (!d || d === '$direct') return 'Came directly (typed your address, a bookmark or an app link)'
   if (ownHost && d.endsWith(ownHost)) return 'Came from your website'
-  const engine = SEARCH.find(s => d.includes(s))
-  if (engine) return `Found you on ${engine[0].toUpperCase()}${engine.slice(1)} search`
-  const social = SOCIAL.find(([k]) => d.includes(k))
+  const ai = AI.find(([k]) => matches(d, k))
+  if (ai) return `Clicked a link on ${ai[1]}`
+  const engine = SEARCH.find(([k]) => matches(d, k))
+  if (engine) return `Found you on ${engine[1]} search`
+  const social = SOCIAL.find(([k]) => matches(d, k))
   if (social) return `Clicked a link on ${social[1]}`
   return `Clicked a link on ${d}`
 }

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { normalizeSource } from '@/lib/posthog/source'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 55
@@ -104,20 +105,6 @@ function extractPath(rawUrl: string): string {
 
 function normalizeChannel(ch: string): string {
   return (ch || 'unknown').toLowerCase().replace(/\s+/g, '_')
-}
-
-function normalizeSource(utmSource: string, referringDomain: string): string {
-  const src = (utmSource || referringDomain || '').toLowerCase()
-  if (!src || src === '(direct)' || src === 'direct') return 'Direct'
-  if (src.includes('google')) return 'Google'
-  if (src.includes('facebook') || src.includes('fb')) return 'Facebook'
-  if (src.includes('instagram')) return 'Instagram'
-  if (src.includes('linkedin')) return 'LinkedIn'
-  if (src.includes('twitter') || src.includes('t.co') || src === 'x') return 'Twitter/X'
-  if (src.includes('youtube')) return 'YouTube'
-  if (src.includes('tiktok')) return 'TikTok'
-  const domain = referringDomain.replace(/^www\./, '').split('/')[0]
-  return domain || utmSource || 'Direct'
 }
 
 function getStatus(lastSeenIso: string | null): 'active' | 'dormant' | 'churned' | 'new' {
