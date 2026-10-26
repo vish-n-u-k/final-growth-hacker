@@ -202,6 +202,26 @@
   .more { display: inline-flex; margin-top: 16px; font-size: 14px; font-weight: 500; color: var(--dim); text-decoration: none; }
   .connect { margin-top: 10px; padding: 14px; border-radius: 12px; background: var(--soft); font-size: 14px; color: var(--dim); }
 
+  /* Fewer words: icons on rows, numbers with tiny labels, bars instead of percentages */
+  .row1 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .ic { flex: none; color: var(--faint); }
+  .tli.cur .ic { color: var(--text); }
+  .age { margin-left: auto; padding-left: 8px; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .tl-head .w { padding-left: 26px; }
+  .todo { margin: 0 0 12px !important; font-size: 15px; }
+  .whytxt { margin: -4px 0 12px !important; font-size: 14px; color: var(--dim); }
+  .why-link { margin-left: auto; font-size: 13px; }
+  .kpi { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; }
+  .kpi b { font: 500 24px/1 var(--display); }
+  .kpi.big b { font-size: 44px; letter-spacing: -.01em; }
+  .kpi span { font-size: 13px; color: var(--faint); }
+  .chip { display: inline-block; font-style: normal; font-size: 12px; color: var(--dim); padding: 1px 6px; border-radius: 99px; background: var(--soft); margin-left: 2px; }
+  .road-top { display: flex; justify-content: space-between; align-items: baseline; }
+  .road-n { font-size: 13px; color: var(--faint); }
+  .road-n b { font: 500 18px var(--display); color: var(--text); }
+  .src { grid-template-columns: 74px minmax(0, 1fr) !important; }
+  .fold-h .fs { flex: none; font-size: 13px; }
+
   /* Modal and toast */
   .shade { position: fixed; inset: 0; background: var(--shade); display: grid; place-items: center; padding: 16px; z-index: 30; }
   .modal { width: min(560px, 100%); max-height: 90vh; overflow: auto; padding: 22px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }
@@ -215,7 +235,7 @@
 <div class="pv">
   <div class="pv-in">
     <b>Plan and pulse: how it works</b>
-    <label><input type="checkbox" id="pv-notes" checked> Show notes (blue boxes)</label>
+    <label><input type="checkbox" id="pv-notes"> Show notes (blue boxes)</label>
     <label>Scenario <select id="pv-scen"><option value="normal">A normal day</option><option value="new">New brand, PostHog not connected</option><option value="done">Everything done</option></select></label>
     <button class="pv-reset" id="pv-reset">Start over</button>
   </div>
@@ -265,20 +285,28 @@ const STAGES = [[0, 10, 'First customers'], [10, 50, 'Early adopters'], [50, 100
 const USERS = 142
 
 const TASKS = [
-  { id: 't1', kind: 'pitch', name: 'Get mentioned on socialbee.com', why: 'AI answers cited socialbee.com twice this week, in answers that don’t mention Frekto.', wait: 4,
+  { id: 't1', short: 'Cited twice in AI answers, not you', kind: 'pitch', name: 'Get mentioned on socialbee.com', why: 'AI answers cited socialbee.com twice this week, in answers that don’t mention Frekto.', wait: 4,
     todo: 'Ask SocialBee to add Frekto to “I tested 6 AI tools for social media content creation”. The pitch is written for you.', helps: 'Pages that AI answers cite are where new customers first hear about tools like yours.', cta: 'Review the pitch',
     note: '<b>From the Search Agent.</b> It reads AI answers (ChatGPT, Perplexity, Google) every week and spots sites that get cited without you. The pitch email is drafted there; sending uses your Gmail.' },
-  { id: 't2', kind: 'post', name: 'Post on social media today', why: 'Your last post was 9 days ago. Days you post bring about twice the visits.', wait: 6,
+  { id: 't2', short: 'Last post 9 days ago', kind: 'post', name: 'Post on social media today', why: 'Your last post was 9 days ago. Days you post bring about twice the visits.', wait: 6,
     todo: 'Pick one of three ideas, check the draft and schedule it.', helps: 'LinkedIn is your second-best source of visitors.', cta: 'Write the post',
     note: '<b>From the social signal.</b> It compares your posting days with visits. Writing and scheduling go through Frekto, so nothing leaves this page.' },
-  { id: 't3', kind: 'code', name: 'Set up a welcome email', why: 'New sign-ups get no email from you, and no email tool is connected.', wait: 7,
+  { id: 't3', short: 'Sign-ups get no email', kind: 'code', name: 'Set up a welcome email', why: 'New sign-ups get no email from you, and no email tool is connected.', wait: 7,
     todo: 'Claude writes a 3-email welcome series and adds it to your site’s sign-up flow.', helps: 'A welcome email in the first hour roughly doubles how many people come back.', cta: 'Fix with Claude',
     note: '<b>From the Grow &amp; keep module.</b> Website tasks hand over to Claude Code with a ready prompt; Claude marks the task done here when it finishes.' },
-  { id: 't4', kind: 'reminder', name: 'Call Priya at Nimbus Studio', why: 'You set this reminder on Monday. She asked to talk after her launch.', wait: 0,
+  { id: 't4', short: 'Reminder · due today', kind: 'reminder', name: 'Call Priya at Nimbus Studio', why: 'You set this reminder on Monday. She asked to talk after her launch.', wait: 0,
     todo: 'Call or email Priya. Her number is in the reminder.', helps: 'Her team of 8 posts every day.', cta: 'Mark done',
     note: '<b>From Reminders.</b> Due reminders join the plan; marking done here marks them done in Reminders too.' },
 ]
 const DONE_TODAY = [{ id: 'd1', name: 'Add alt text to homepage images', by: 'Claude', at: '07:42', note: 'Described 6 images on the homepage.', link: 'View the change on GitHub' }]
+// Small line icons (stroke), so rows can be scanned without reading
+const ICON = {
+  pitch: '<path d="M4 13a8 8 0 0 1 7-7.9M4 13h4l5 4V5l-5 4H4"/><path d="M17 9a4 4 0 0 1 0 6"/>',
+  post: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.4M8.2 13.2l7.6 4.4"/>',
+  code: '<path d="m8 7-5 5 5 5M16 7l5 5-5 5"/>',
+  reminder: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/>',
+}
+const icon = k => `<svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`
 const IDEAS = [
   ['Before and after: one photo, three captions', 'Show the same café photo with three AI captions.'],
   ['“I posted every day for a month”: what changed', 'A short story post with your own numbers.'],
@@ -286,7 +314,7 @@ const IDEAS = [
 ]
 
 // ── State ────────────────────────────────────────────────────────────────────────────────────────
-const fresh = () => ({ period: '24h', cur: null, done: [], skipped: [], flow: {}, idea: null, drawer: null, person: null, src: null, road: false, price: 19, paying: 8, hover: null, settings: false, email: true, folds: {}, doneOpen: null, modal: null, toast: null })
+const fresh = () => ({ period: '24h', cur: null, done: [], skipped: [], flow: {}, idea: null, drawer: null, person: null, src: null, road: false, price: 19, paying: 8, hover: null, why: null, settings: false, email: true, folds: {}, doneOpen: null, modal: null, toast: null })
 let S = fresh()
 let scen = 'normal'
 const $ = id => document.getElementById(id)
@@ -300,11 +328,11 @@ const current = () => { const l = left(); return l.find(t => t.id === S.cur) || 
 // ── Header and settings ──────────────────────────────────────────────────────────────────────────
 function header() {
   return `<h1>Today</h1>
-    <div class="meta"><span>Monday, 26 Oct</span><span>·</span><span>Tasks updated 2 h ago</span><button class="link" data-a="refresh">Refresh</button><span>·</span><button class="link" data-a="settings" aria-expanded="${S.settings}">Settings</button></div>
+    <div class="meta"><span>Monday, 26 Oct</span><button class="link" data-a="settings" aria-expanded="${S.settings}">Settings</button></div>
     ${note('<b>Tasks</b> are worked out from all your data (modules, agents, reminders) and kept for 4 hours; Refresh works them out again now.')}
     ${S.settings ? `<div class="sheet">
       <div class="sw-row"><div>Daily email<small>${S.email ? 'Every morning at 6:00 to you@frekto.com: yesterday’s numbers and today’s plan.' : 'Off. Turn on to get this page in your inbox each morning.'}</small></div><button class="switch" role="switch" aria-checked="${S.email}" data-a="email" aria-label="Daily email"></button></div>
-      <div class="sheet-foot"><button class="link" data-a="refresh">Check for new tasks now</button><button class="link" data-a="analytics">Open Analytics</button></div>
+      <div class="sheet-foot"><span style="color:var(--faint)">Tasks updated 2 h ago</span><button class="link" data-a="refresh">Check again now</button><button class="link" data-a="analytics">Open Analytics</button></div>
       ${note('Settings holds what you set once. It stays off the page until you open it.')}</div>` : ''}`
 }
 
@@ -315,8 +343,8 @@ function ring(done, total) {
 }
 function taskBox(t) {
   const f = S.flow[t.id] || 'intro'
-  const extra = t.kind === 'reminder' ? `<button class="btn quiet" data-skip="${t.id}" data-msg="Snoozed to tomorrow.">Snooze to tomorrow</button>`
-    : `<button class="btn quiet" data-finish="${t.id}" data-msg="Marked done.">Already done</button><button class="btn quiet" data-skip="${t.id}" data-msg="Hidden: not relevant.">Not relevant</button>`
+  const extra = t.kind === 'reminder' ? `<button class="btn quiet" data-skip="${t.id}" data-msg="Snoozed to tomorrow.">Tomorrow</button>`
+    : `<button class="btn quiet" data-finish="${t.id}" data-msg="Marked done.">Done</button><button class="btn quiet" data-skip="${t.id}" data-msg="Hidden: not relevant.">Skip</button>`
   if (t.kind === 'pitch' && f === 'draft') return `<div class="box">
       <div class="steps"><span>1 · The idea</span><span class="on">2 · The email</span></div>
       <label class="field">To<input id="f-to" value="editor@socialbee.com"></label>
@@ -347,21 +375,24 @@ Try it free: frekto.com</textarea></label>
       <div class="acts" style="margin-top:12px"><button class="btn go" data-finish="${t.id}" data-msg="Scheduled for today 17:30 on LinkedIn.">Schedule</button><button class="btn quiet" data-flow="${t.id}:pick">Back</button></div></div>`
   const main = t.kind === 'pitch' ? `<button class="btn go" data-flow="${t.id}:draft">${t.cta}</button>`
     : t.kind === 'post' ? `<button class="btn go" data-flow="${t.id}:pick">${t.cta}</button>`
-    : t.kind === 'code' ? `<button class="btn go" data-a="claude">${t.cta}</button><button class="btn quiet" data-a="module">Open Grow &amp; keep</button>`
+    : t.kind === 'code' ? `<button class="btn go" data-a="claude">${t.cta}</button>`
     : `<button class="btn go" data-finish="${t.id}" data-msg="Marked done in Reminders.">${t.cta}</button>`
-  return `<div class="box"><span class="lbl">What to do</span><p>${esc(t.todo)}</p><span class="lbl">Why it helps</span><p>${esc(t.helps)}</p><div class="acts">${main}${extra}</div>${note(t.note)}</div>`
+  const why = S.why === t.id
+  return `<div class="box"><p class="todo">${esc(t.todo)}</p>
+    ${why ? `<p class="whytxt">${esc(t.why)} ${esc(t.helps)}</p>` : ''}
+    <div class="acts">${main}${extra}<button class="link why-link" data-why="${t.id}">${why ? 'Hide why' : 'Why?'}</button></div>${note(t.note)}</div>`
 }
 function plan() {
   const l = left(), c = current()
   const doneItems = [...DONE_TODAY, ...TASKS.filter(t => S.done.includes(t.id)).map(t => ({ id: t.id, name: t.name, by: 'You', at: 'just now', note: '' }))]
   const total = doneItems.length + l.length
-  const head = `<div class="plan-h"><h2>Today’s plan</h2><span class="plan-n">${l.length ? `${l.length} left` : 'All done'} ${ring(doneItems.length, total)} <span class="num">${doneItems.length}/${total}</span></span></div>
+  const head = `<div class="plan-h"><h2>Today’s plan</h2><span class="plan-n">${ring(doneItems.length, total)} <span class="num">${doneItems.length}/${total}</span></span></div>
     ${note('<b>The ring</b> counts tasks finished today (by you, Claude or the auto-fix) out of today’s total. Skipped and “not relevant” ones leave the total.')}`
   const done = doneItems.map(d => `<li class="tli done"><span class="mk" aria-hidden="true">✓</span><div class="tl-body"><button class="tl-head" data-doneopen="${d.id}"><span class="t">${esc(d.name)}</span></button>
       ${S.doneOpen === d.id ? `<div class="done-note">${d.by} · ${d.at}${d.note ? ` · ${esc(d.note)}` : ''}${d.link ? ` · <a href="#" onclick="return false">${d.link}</a>` : ''}</div>` : ''}</div></li>`).join('')
   const items = l.map((t, i) => {
-    const cur = t === c, meta = t.wait ? `Waiting ${t.wait} days` : 'Due today'
-    const headHtml = `<span class="t">${esc(t.name)}</span><span class="w">${esc(t.why)}</span><span class="m">${meta}</span>`
+    const cur = t === c
+    const headHtml = `<span class="row1">${icon(t.kind)}<span class="t">${esc(t.name)}</span>${t.wait ? `<span class="age" title="Waiting ${t.wait} days">${t.wait}d</span>` : ''}</span><span class="w">${esc(t.short)}</span>`
     return `<li class="tli${cur ? ' cur' : ''}"><span class="mk" aria-hidden="true">${i + 1}</span><div class="tl-body">${cur ? `<div class="tl-head">${headHtml}</div>${taskBox(t)}` : `<button class="tl-head" data-cur="${t.id}">${headHtml}</button>`}</div></li>`
   }).join('')
   const empty = l.length ? '' : `<div class="empty"><b>All caught up</b><p>${doneItems.length} done today. New tasks arrive after tomorrow morning’s check.</p><button class="btn go" data-a="reset">Show the example again</button></div>`
@@ -378,11 +409,11 @@ function chartInner() {
   const k = S.hover ?? VISITS.length - 1, [hx, hy] = pts[k]
   const tip = S.hover !== null ? `<div class="tip" style="left:${hx / w * 100}%">${fmtDay(DAYS[k])} · ${VISITS[k]} visitors · ${SIGNUPS[k]} sign-up${SIGNUPS[k] === 1 ? '' : 's'}</div>` : ''
   return `${tip}<svg viewBox="-3 0 ${w + 6} ${h}" preserveAspectRatio="none" role="img" aria-label="Visitors per day, last 14 days"><polygon class="c-area" points="0,${h} ${line} ${w},${h}"/><polyline class="c-line" points="${line}"/>${S.hover !== null ? `<line class="c-hov" x1="${hx}" x2="${hx}" y1="0" y2="${h}"/>` : ''}<circle class="c-dot" cx="${hx}" cy="${hy}" r="3.2"/></svg>
-    <div class="c-axis"><span>${fmtDay(DAYS[0])}</span><span>Yesterday</span></div>`
+`
 }
 function drawer(kind, title, count) {
   const ppl = PEOPLE[kind]
-  return `<div class="drawer"><div class="drawer-h"><span>${title}</span><button class="link" data-a="analytics">View all ${count}</button></div>
+  return `<div class="drawer"><div class="drawer-h"><span>${title}</span><button class="link" data-a="analytics">All ${count}</button></div>
     ${ppl.map(p => `<button class="person" data-person="${p.id}" aria-expanded="${S.person === p.id}"><span class="av">${p.name[0]}</span><span style="min-width:0"><b>${esc(p.name)}</b><span>${esc(p.line)}</span></span><span class="ago">${p.ago}</span></button>
       ${S.person === p.id ? `<div class="pdetail">${p.detail.map(([a, b]) => `<div><b>${a}:</b> ${esc(b)}</div>`).join('')}</div>` : ''}`).join('')}
     ${note(kind === 'signups' ? '<b>Sign-ups</b>: people who made an account in this period (PostHog). Where they came from is their first visit ever. Tap a person for their path and what they did next.'
@@ -392,63 +423,59 @@ function drawer(kind, title, count) {
 function pulse() {
   const P = PERIOD[S.period]
   if (scen === 'new') return `<aside class="pulse"><span class="lbl">Pulse</span>
-    <div class="connect"><b style="color:var(--text);font-weight:500">Connect PostHog to see who visits and signs up.</b><br>Visitors, sign-ups, a 14-day chart, Road to 500 and where people come from appear here.<div style="margin-top:10px"><button class="btn" data-a="connect">Connect PostHog</button></div></div>
-    <div class="part"><span class="lbl">Website (Google Analytics)</span><p class="work"><b>380 visits yesterday</b> · +9% · most from Google</p></div>
-    ${note('<b>Without PostHog</b> the Pulse shows what it can (Google Analytics visits, if connected) and one Connect button. It isn’t green: the green button stays in the plan.')}
-    <a class="more" href="#" data-a="analytics">Full analytics →</a></aside>`
+    <div class="connect"><b style="color:var(--text);font-weight:500">See who visits and signs up</b><div style="margin-top:10px"><button class="btn" data-a="connect">Connect PostHog</button></div></div>
+    <div class="part"><div class="kpi"><b class="num">380</b><span>website visits <i class="chip">+9%</i></span></div></div>
+    ${note('<b>Without PostHog</b> the Pulse shows Google Analytics visits (if connected) and one Connect button. It isn’t green: the green button stays in the plan.')}</aside>`
   const d = pct(P.visitors, P.prior), ds = pct(P.signups, P.signupsPrior)
-  const total = P.sources.reduce((a, s) => a + s[1], 0)
+  const max = Math.max(...P.sources.map(s => s[1]))
   const stageIdx = STAGES.findIndex(s => USERS < s[1]), next = STAGES[stageIdx][1]
   const mrrAt = n => '$' + Math.round(n * S.paying / 100 * S.price).toLocaleString()
+  const chip = v => v ? `<i class="chip">${v > 0 ? '+' : ''}${v}%</i>` : ''
   return `<aside class="pulse" aria-label="Pulse">
-    <div class="p-top"><span class="lbl">Pulse</span><div class="seg" role="group" aria-label="Period"><button data-period="24h" aria-pressed="${S.period === '24h'}">24 h</button><button data-period="7d" aria-pressed="${S.period === '7d'}">7 days</button></div></div>
-    <div class="p-big"><b class="num">${P.visitors.toLocaleString()}</b><span>visitors, ${P.label}${d !== null ? ` · ${d > 0 ? '+' : ''}${d}%` : ''}</span></div>
-    <div class="p-sub">Mostly from ${P.sources[0][0]}</div>
-    ${note(`<b>Visitors</b>: different people who opened any page of the app or site in the ${P.label} (PostHog), compared with the ${P.label === 'last 24 h' ? '24 h' : '7 days'} before.`)}
+    <div class="p-top"><span class="lbl">Pulse</span><div class="seg" role="group" aria-label="Period"><button data-period="24h" aria-pressed="${S.period === '24h'}">24 h</button><button data-period="7d" aria-pressed="${S.period === '7d'}">7 d</button></div></div>
+    <div class="kpi big"><b class="num">${P.visitors.toLocaleString()}</b><span>visitors ${chip(d)}</span></div>
+    ${note(`<b>Visitors</b>: different people who opened any page in the ${P.label} (PostHog), compared with the period before.`)}
     ${chart()}
-    ${note('<b>The chart</b> is visitors per day for the 14 full days up to yesterday (today is left out so half a day doesn’t look like a drop). Hover or drag along it for each day.')}
+    ${note('<b>The chart</b>: visitors per day, the 14 full days up to yesterday. Hover or drag for each day.')}
     <div class="trio">
-      ${[['signups', P.signups, 'sign-ups', ds], ['signins', P.signedIn, 'signed in', null], ['back', P.back, 'came back', null]].map(([k, n, l, dd]) => `<button data-drawer="${k}" aria-expanded="${S.drawer === k}"><b class="num">${n}</b><span>${l}${dd ? `<i>${dd > 0 ? '+' : ''}${dd}%</i>` : ''}</span></button>`).join('')}
+      ${[['signups', P.signups, 'sign-ups', ds], ['signins', P.signedIn, 'signed in', null], ['back', P.back, 'back', null]].map(([k, n, l, dd]) => `<button data-drawer="${k}" aria-expanded="${S.drawer === k}"><b class="num">${n}</b><span>${l} ${chip(dd)}</span></button>`).join('')}
     </div>
     ${note('<b>Tap a number</b> to see the people behind it.')}
-    ${S.drawer ? drawer(S.drawer, S.drawer === 'signups' ? `New accounts, ${P.label}` : S.drawer === 'signins' ? `Logged in, ${P.label}` : `Back after a break, ${P.label}`, S.drawer === 'signups' ? P.signups : S.drawer === 'signins' ? P.signedIn : P.back) : ''}
-    <div class="part"><button class="part-btn" data-a="road" aria-expanded="${S.road}"><span class="lbl">Road to 500 ${S.road ? '▴' : '▾'}</span>
-      <div class="road" role="img" aria-label="${USERS} of 500 users"><i style="width:${USERS / 5}%"></i></div>
-      <div class="road-t"><span class="num">${USERS} users · ${STAGES[stageIdx][2]}</span><span>next: ${next}</span></div></button>
+    ${S.drawer ? drawer(S.drawer, S.drawer === 'signups' ? 'New accounts' : S.drawer === 'signins' ? 'Logged in' : 'Back after a break', S.drawer === 'signups' ? P.signups : S.drawer === 'signins' ? P.signedIn : P.back) : ''}
+    <div class="part"><button class="part-btn" data-a="road" aria-expanded="${S.road}">
+      <div class="road-top"><span class="lbl">Road to 500</span><span class="num road-n"><b>${USERS}</b> / ${next}</span></div>
+      <div class="road" role="img" aria-label="${USERS} users; next stage at ${next}"><i style="width:${USERS / next * 100}%"></i></div></button>
       ${S.road ? `<ul class="stages">${STAGES.map((s, i) => `<li class="${i === stageIdx ? 'now' : i < stageIdx ? 'past' : ''}"><span>${s[0]}–${s[1]} · ${s[2]}</span><span>${i < stageIdx ? '✓' : i === stageIdx ? `${next - USERS} to go` : ''}</span></li>`).join('')}</ul>
-        <div class="mrr"><label class="field">Price per month ($)<input type="number" min="1" id="f-price" value="${S.price}"></label><label class="field">Who pays (%)<input type="number" min="0" max="100" id="f-pay" value="${S.paying}"></label>
+        <div class="mrr"><label class="field">Price / month ($)<input type="number" min="1" id="f-price" value="${S.price}"></label><label class="field">Who pays (%)<input type="number" min="0" max="100" id="f-pay" value="${S.paying}"></label>
           <div class="mrr-out"><div><b>${mrrAt(USERS)}</b><span>MRR now</span></div><div><b>${mrrAt(250)}</b><span>at 250</span></div><div><b>${mrrAt(500)}</b><span>at 500</span></div></div></div>` : ''}
-      ${note('<b>Road to 500</b>: your total users from PostHog against the five stages GrowJin uses for advice. Tap for the stages and a projected monthly revenue; price and share are yours to set.')}</div>
-    <div class="part wide-only"><span class="lbl">Where visitors came from</span><div class="srcs">
-      ${P.sources.map(([n, v, refs]) => `<button class="src" data-src="${n}" aria-expanded="${S.src === n}"><span>${n}</span><i style="width:${Math.max(3, v / total * 100)}%"></i><span class="num">${Math.round(v / total * 100)}%</span></button>
+      ${note('<b>Road to 500</b>: total users from PostHog against the next stage (bar fills to 250). Tap for all five stages and a projected monthly revenue.')}</div>
+    <div class="part wide-only"><span class="lbl">Sources</span><div class="srcs">
+      ${P.sources.map(([n, v, refs]) => `<button class="src" data-src="${n}" aria-expanded="${S.src === n}" title="${v} visitors"><span>${n}</span><i style="width:${Math.max(3, v / max * 100)}%"></i></button>
         ${S.src === n ? `<div class="refs">${refs.map(([r, c]) => `<div class="mini-row"><span>${esc(r)}</span><span class="num">${c}</span></div>`).join('')}</div>` : ''}`).join('')}</div>
-      ${note('<b>Sources</b>: each visitor’s first page in the period, sorted into channels. Tap a channel for the sites behind it.')}</div>
-    <div class="part wide-only"><span class="lbl">What’s working</span><p class="work"><b>Visits up 18% this week.</b> Most of the rise is Google search for “ai caption generator”.</p>
-      ${note('Shown when something clearly improved; otherwise this part is hidden.')}</div>
+      ${note('<b>Sources</b>: each visitor’s first page, sorted into channels; the bars show the mix without percentages. Tap one for the sites and counts.')}</div>
     <a class="more" href="#" data-a="analytics">Full analytics →</a>
-    ${note('<b>On a phone</b> the Pulse sits above the plan and drops Sources and What’s working (both are in Full analytics), so the plan stays close.')}
   </aside>`
 }
 
 // ── Sections under the plan ──────────────────────────────────────────────────────────────────────
 function folds() {
   const F = [
-    ['numbers', 'Visitors and sign-ups', '412 visits yesterday · Road to 500 with revenue · who came', () => `
+    ['numbers', 'Visitors', '412', () => `
       <div class="stats4"><div><b>412</b><span>app visitors</span></div><div><b>3</b><span>sign-ups</span></div><div><b>9</b><span>signed in</span></div><div><b>5</b><span>came back</span></div></div>
       <div class="mini"><span class="lbl">Most viewed pages</span><div class="mini-row" style="margin-top:6px"><span>/pricing</span><span>80</span></div><div class="mini-row"><span>/blog/ai-captions</span><span>54</span></div><div class="mini-row"><span>/features</span><span>41</span></div></div>
       ${note('The longer view of the same numbers (today’s “What happened”), with most viewed pages. Kept closed so the plan stays short.')}`],
-    ['content', 'Blog and posts', 'Latest blog: “5 caption ideas for cafés” · 2 posts scheduled', () => `
+    ['content', 'Blog and posts', '1 draft · 2 scheduled', () => `
       <div class="mini"><div class="mini-row"><span><b style="font-weight:500">“5 caption ideas for cafés”</b><br><span style="color:var(--faint);font-size:13px">Draft · written 2 days ago · next blog due Monday</span></span><span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn" data-a="toast" data-msg="Claude gets a prompt to add the post to your site.">Add to my website with Claude</button><button class="btn quiet" data-a="toast" data-msg="Marked as published.">Mark as published</button></span></div></div>
       <div class="mini"><span class="lbl">Scheduled posts</span><div class="mini-row" style="margin-top:6px"><span>LinkedIn · “Before and after: one photo…”</span><span style="color:var(--faint)">Tue 17:30</span></div><div class="mini-row"><span>Instagram · “3 caption mistakes”</span><span style="color:var(--faint)">Thu 12:00</span></div></div>`],
-    ['social', 'Social accounts', 'LinkedIn 1.2k followers · Instagram not connected', () => `
+    ['social', 'Social', '1.2k followers', () => `
       <div class="mini"><div class="mini-row"><b style="font-weight:500">LinkedIn <span style="color:var(--faint);font-weight:400">@frekto</span></b><span style="color:var(--faint)">1.2k followers</span></div>
         <div class="stats4" style="margin-top:10px;grid-template-columns:repeat(3,minmax(0,1fr))"><div><b>5.3k</b><span>impressions (7d)</span></div><div><b>210</b><span>engagements (7d)</span></div><div><b>64</b><span>clicks (7d)</span></div></div></div>
       <div class="mini mini-row"><span>Instagram isn’t connected.</span><button class="btn" data-a="connect">Connect Instagram</button></div>`],
-    ['done', 'Done lately', '6 done this week · 4-day streak', () => `
+    ['done', 'Done', '6 this week', () => `
       ${[['Add alt text to homepage images', 'Claude · today', 'Described 6 images.'], ['Fix the pricing page title', 'You · yesterday', ''], ['List Frekto on G2', 'You · Thursday', 'Profile approved.']].map(([a, b, c]) => `<div class="mini"><div class="mini-row"><b style="font-weight:500">${a}</b><span style="color:var(--faint);font-size:13px">${b}</span></div>${c ? `<div style="color:var(--dim);font-size:14px">${c}</div>` : ''}</div>`).join('')}`],
   ]
-  return `<div class="folds">${F.map(([id, t, sum, body]) => `<div class="fold"><button class="fold-h" data-fold="${id}" aria-expanded="${!!S.folds[id]}"><span class="ft"><b>${t}</b><span class="fs">${esc(sum)}</span></span><span class="chev" aria-hidden="true"></span></button>${S.folds[id] ? `<div class="fold-b">${body()}</div>` : ''}</div>`).join('')}</div>
-    ${note('<b>Everything else</b> sits here, closed. Each line says what’s inside, so you can skip it. The page remembers what you leave open.')}`
+  return `<div class="folds">${F.map(([id, t, sum, body]) => `<div class="fold"><button class="fold-h" data-fold="${id}" aria-expanded="${!!S.folds[id]}"><span class="ft"><b>${t}</b></span><span class="fs">${esc(sum)}</span><span class="chev" aria-hidden="true"></span></button>${S.folds[id] ? `<div class="fold-b">${body()}</div>` : ''}</div>`).join('')}</div>
+    ${note('<b>Everything else</b> sits here, closed, with just a count. The page remembers what you leave open.')}`
 }
 
 // ── Modal, toast, render ─────────────────────────────────────────────────────────────────────────
@@ -489,11 +516,12 @@ function finish(id, msg, skip) {
 }
 
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-a],[data-cur],[data-finish],[data-skip],[data-flow],[data-drawer],[data-person],[data-src],[data-period],[data-fold],[data-doneopen]'); if (!t) return
+  const t = e.target.closest('[data-a],[data-cur],[data-finish],[data-skip],[data-flow],[data-drawer],[data-person],[data-src],[data-period],[data-fold],[data-doneopen],[data-why]'); if (!t) return
   const d = t.dataset
   if (d.finish) return finish(d.finish, d.msg)
   if (d.skip) return finish(d.skip, d.msg, true)
-  if (d.cur) S.cur = d.cur
+  if (d.why) S.why = S.why === d.why ? null : d.why
+  else if (d.cur) S.cur = d.cur
   else if (d.flow) { const [id, f] = d.flow.split(':'); S.flow[id] = f }
   else if (d.drawer) { S.drawer = S.drawer === d.drawer ? null : d.drawer; S.person = null }
   else if (d.person) S.person = S.person === d.person ? null : d.person
