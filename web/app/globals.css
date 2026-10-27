@@ -9453,7 +9453,8 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .tu-stack > .cl-seg { justify-self: start; margin-bottom: 0; }
 
 /* Lead Agent / Lead Finder Settings: the ideal-customer card (components/agents/IcpFields.tsx) */
-.icp-draft { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.icp-draft small { color: var(--text-faint); font-size: 12.5px; }
 .icp-note { margin: 0; color: var(--text-faint); font-size: 12.5px; }
 .tu-grid > label > small, .lfh-field > small { color: var(--text-faint); font-weight: 400; font-size: 12px; }
+.icp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 4px; }
+.icp-head > span { display: grid; gap: 2px; font-weight: 600; color: var(--text); font-size: 14px; }
+.icp-head small { color: var(--text-faint); font-weight: 400; font-size: 12.5px; }

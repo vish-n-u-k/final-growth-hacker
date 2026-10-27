@@ -58,36 +58,34 @@ export function IcpFields({ s, onChange, label = 'tu-full' }: {
   }
 
   return <>
+    <div className={`${label} icp-head`}>
+      <span>Your ideal customer<small>{err || (icp?.by === 'ai' ? 'Filled in by AI from your brand. Change anything.' : sites.length ? `AI uses your brand and ${sites.length === 1 ? 'that site' : `those ${sites.length} sites`}.` : 'Let AI fill the whole card from your brand, then change anything.')}</small></span>
+      <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={draft}>
+        {busy ? <><Spinner />Filling in…</> : icp ? 'Fill in again with AI' : 'Fill in with AI'}
+      </button>
+    </div>
     <label className={label}>Who is your customer?
       <textarea rows={2} value={icp?.who ?? s.customer} onChange={e => (icp ? edit({ who: e.target.value }) : onChange({ customer: e.target.value }))}
         placeholder="e.g. Founders of small SaaS products who do their own marketing" />
     </label>
-    <label className={label}>Customers you’d love (optional)
-      <input value={examples} onChange={e => { setExamples(e.target.value); if (icp) edit({ examples: e.target.value.split(/[\s,]+/).filter(v => v.includes('.')).slice(0, 5) }) }}
-        placeholder="2-5 websites, e.g. tool-one.com, tool-two.io" />
+    <label className={label}>They are
+      <select value={icp?.kind ?? 'other'} onChange={e => edit({ kind: e.target.value as IcpKind })}>
+        {KINDS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+      </select>
     </label>
-    <div className={`${label} icp-draft`}>
-      <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={draft}>
-        {busy ? <><Spinner />Describing…</> : icp ? 'Describe them again' : 'Describe them for me'}
-      </button>
-      <small>{err || (sites.length ? `Uses ${sites.length === 1 ? 'that site' : `those ${sites.length} sites`} to see what your customers have in common.` : 'Reads your brand. Add example sites for a sharper picture.')}</small>
-    </div>
-    {icp && <>
-      <label className={label}>They are
-        <select value={icp.kind} onChange={e => edit({ kind: e.target.value as IcpKind })}>
-          {KINDS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
-        </select>
-      </label>
-      <label className={label}>How they market today
-        <input value={icp.marketing} onChange={e => edit({ marketing: e.target.value })} placeholder="e.g. The founder posts on X and LinkedIn themselves" />
-      </label>
-      <label className={label}>Good fit when… <small>One per line</small>
-        <Lines key={`f${version}`} value={icp.fit} onChange={fit => edit({ fit })} placeholder="Launched in the last year" />
-      </label>
-      <label className={label}>Not a fit when… <small>One per line. These are never kept.</small>
-        <Lines key={`n${version}`} value={icp.notFit} onChange={notFit => edit({ notFit })} placeholder={'Has a marketing team or agency\nHires influencers or creators'} />
-      </label>
-      <p className={`${label} icp-note`}>Saving a changed card starts the search afresh.</p>
-    </>}
+    <label className={label}>How they market today
+      <input value={icp?.marketing ?? ''} onChange={e => edit({ marketing: e.target.value })} placeholder="e.g. The founder posts on X and LinkedIn themselves" />
+    </label>
+    <label className={label}>Good fit when… <small>One per line</small>
+      <Lines key={`f${version}`} value={icp?.fit ?? []} onChange={fit => edit({ fit })} placeholder="Launched in the last year" />
+    </label>
+    <label className={label}>Not a fit when… <small>One per line. These are never kept.</small>
+      <Lines key={`n${version}`} value={icp?.notFit ?? []} onChange={notFit => edit({ notFit })} placeholder={'Has a marketing team or agency\nHires influencers or creators'} />
+    </label>
+    <label className={label}>Customers you’d love <small>Optional: 2-5 websites. “Fill in with AI” then finds what they have in common.</small>
+      <input value={examples} onChange={e => { setExamples(e.target.value); if (icp) edit({ examples: e.target.value.split(/[\s,]+/).filter(v => v.includes('.')).slice(0, 5) }) }}
+        placeholder="e.g. tool-one.com, tool-two.io" />
+    </label>
+    <p className={`${label} icp-note`}>Saving a changed card starts the search afresh.</p>
   </>
 }

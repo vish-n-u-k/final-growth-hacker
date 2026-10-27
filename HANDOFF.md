@@ -244,7 +244,7 @@ One board for every lead source, built from the approved preview `design-preview
 Why: Frekto's leads stayed e-commerce after the owner asked for SaaS founders who do their own social marketing.
 - **The card** (`settings.icp`, type `Icp` in `store.ts`): `kind` (ecommerce / saas / local / creator / other), `who`, `marketing` (how they market today), `fit[]`, `notFit[]`, `examples[]` (domains of customers the user loves), `by`.
   - Drafted by `draftIcp` in `lead-agent.ts` (reads the example sites for free), op `icp_draft` (fills the form, not saved until Save). Op `pick` drafts and saves one first when there's none.
-  - Edited in Settings of the Lead Agent and Lead Finder (`components/agents/IcpFields.tsx`, `icp-*` CSS). "Who is your customer" now is the card's `who` (kept in `customer` too).
+  - Edited in Settings of the Lead Agent and Lead Finder (`components/agents/IcpFields.tsx`, `icp-*` CSS). All fields always show; **Fill in with AI** at the top fills the whole card from the brand (and the example sites, if given). "Who is your customer" now is the card's `who` (kept in `customer` too).
   - `customerBlock(b, s)` puts it in every prompt (search phrases, company search words, checks, scoring, drafting, source pick). "NOT a fit" items score 1-3.
 - **Fresh start:** saving a changed card, "who to look for" or customer line clears `waiting`, `cursor`, `companyFilters` and `queries` (`freshStart` in the route). The search-word cache key includes `icpKey`. Older To-do company leads not matching the new words move to Skipped (existing `tradeMatch` re-check).
 - **SaaS buyers (`kind: 'saas'`):**
