@@ -232,6 +232,17 @@ One board for every lead source, built from the approved preview `design-preview
 - **Kept small while testing:** `PER_SOURCE` in `lead-agent.ts` is 3: at most 3 new finds per source and 3 Hunter emails per run, one Reddit search instead of two, a Google Maps depth of 12 instead of 40. Set `AGENTS_LEADS_PER_SOURCE=10` to go back to the old size.
 - **Not tested against real Hunter:** whether Discover's keyword search gives good small online stores. If it's weak, DataForSEO's technology search ("sites running Shopify in the US") is the next thing to try.
 
+## 4e. Search Agent: better output (27 Oct)
+
+Built from the review in `md_files/SEARCH_AGENT_HOW_IT_WORKS.md` (the report the owner shared).
+- **Improve, don't compete:** searches the site already ranks #5-#20 for become topics with `kind: 'improve'` and `pageUrl`. "Write" then rewrites that page (`readOwnPage` reads it) instead of a new post, and lists what changed. A "Refresh a page" to-do has **Draft a rewrite** (op `improve`, `refreshToTopic`), which turns it into such a topic.
+- **What only the business knows:** before writing, the page asks three optional questions (a real example, a number, their view), saved as `topic.inputs` and sent with op `write`. Without them the writer is told not to invent stories or numbers. Posts also show 2-3 labelled examples of what the product makes, when it makes something visible.
+- **Length follows the search:** about 1.15× the typical top-3 result, 600-2,500 words (else 1,200-1,600).
+- **AI answers you can trust more:** `AGENTS_AI_QUESTIONS` (default 5) questions × `AGENTS_AI_REPEATS` (default 2) per engine, merged into one answer with `samples` / `hits` (named = half or more). Google's **AI Overview** for each starting keyword (`googleAiOverview`, `load_async_ai_overview`, engine `google_ai`). Brands named are read by a fast AI call (`namedBrands`), with the old text search as the fallback.
+  - "Write a page answering…" and "Get mentioned on…" to-dos only appear when the pattern held last week too (or, in the first week, in every sample / 3+ citations).
+  - The AI answers tab leads with the **4-week average** and **the sites AI cites when it leaves you out**, then the questions ("1 of 2") and Google AI Overviews.
+- **Pitches:** "best of" list pitches go to the article's **author by name** (`authorOf`: JSON-LD, meta author, rel=author, microdata, byline class; "Staff"/"Team" skipped), looked up with Hunter's Email Finder. Pitches are 50-90 words: their page, the gap, an offer (a free account, a ready-to-paste two-line description), one question. The same rules apply to `taskToPitch`.
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

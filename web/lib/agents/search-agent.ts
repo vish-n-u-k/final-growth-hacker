@@ -17,7 +17,7 @@ import { openSignal, clearSignals } from '@/lib/signals'
 import { fetchHtml } from '@/lib/lead-finder/reviews'
 import { slugify } from '@/lib/frekto/blog'
 import {
-  AI_ENGINES, ENGINE_LABEL, aiAnswer, searchDataReady, googleResults, keywordIdeas, rankedKeywords,
+  AI_ENGINES, ENGINE_LABEL, aiAnswer, googleAiOverview, searchDataReady, googleResults, keywordIdeas, rankedKeywords,
   type AiEngine, type KeywordIdea, type RankedKeyword,
 } from './dataforseo'
 import { readGoogleAdsCreds, wastedSearchTerms } from './google-ads'
@@ -32,9 +32,11 @@ import { runLinkFollowUps, runLinkOpportunities } from './link-opportunities'
 import { costNote } from './services'
 
 export const searchFallback = (b: BrandContext) => () => defaultSearchData(b)
-// Each question is asked to 3 AI engines, the costliest part of research. AGENTS_AI_QUESTIONS caps
-// how many are asked (e.g. 3 while testing on DataForSEO's trial credit); default 10.
-const aiQuestionLimit = () => Math.max(1, Math.min(15, Number(process.env.AGENTS_AI_QUESTIONS) || 10))
+// Each question is asked to 3 AI engines, the costliest part of research. Answers vary from one ask
+// to the next, so fewer questions are asked more times: AGENTS_AI_QUESTIONS (default 5) questions,
+// each AGENTS_AI_REPEATS times (default 2) per engine. Same cost as 10 questions asked once.
+const aiQuestionLimit = () => Math.max(1, Math.min(15, Number(process.env.AGENTS_AI_QUESTIONS) || 5))
+const aiRepeats = () => Math.max(1, Math.min(4, Number(process.env.AGENTS_AI_REPEATS) || 2))
 const WEEK = 6.5 * 86_400_000
 
 // ── Setup the agent needs once ────────────────────────────────────────────────
@@ -91,12 +93,90 @@ function analyseAnswer(question: string, engine: AiEngine, text: string, citatio
   }
 }
 
-async function askEngines(b: BrandContext, questions: string[], meter: ReturnType<typeof newMeter>): Promise<AiAnswer[]> {
-  const jobs = questions.flatMap(q => AI_ENGINES.map(engine => ({ q, engine })))
-  const settled = await Promise.allSettled(jobs.map(j => aiAnswer(j.engine, j.q, meter)))
-  return settled.map((r, i) => r.status === 'fulfilled'
-    ? analyseAnswer(jobs[i].q, jobs[i].engine, r.value.text, r.value.citations, b)
-    : { question: jobs[i].q, engine: jobs[i].engine, mentioned: false, position: null, brands: [], citations: [], error: r.reason instanceof Error ? r.reason.message : 'failed' })
+type Raw = { question: string; engine: string; text: string; citations: { url: string; title: string }[]; error?: string }
+
+/**
+ * Which tracked brands each answer names, in order, read by a fast AI model: it catches spelling
+ * variants ("Frekto AI", "frekto.ai") and doesn't take ordinary words for short brand names.
+ * Returns null on failure (the text search is used instead).
+ */
+async function namedBrands(b: BrandContext, raws: Raw[]): Promise<string[][] | null> {
+  const tracked = [b.name, ...b.competitors.map(c => c.name)]
+  const list = raws.map((r, i) => `[${i}]\n${r.text.slice(0, 1500)}`).join('\n\n')
+  const raw = await callAI({
+    feature: 'search-agent',
+    model: 'claude-haiku-4-5-20251001',
+    maxTokens: 2500,
+    system: 'You read AI assistant answers and list which brands they recommend or name. Return only a raw JSON array.',
+    prompt: `Brands we track: ${tracked.map(t => `"${t}"`).join(', ')}
+(${b.name}'s website is ${b.domain}; ${b.competitors.map(c => `${c.name} is ${c.domain}`).join('; ') || 'no competitors set'}.)
+
+For each answer below, list which of the tracked brands it names, in the order they first appear. Count a brand when it's named in any form (a spelling variant, with or without "AI" or ".com", its website). Don't count an ordinary word that happens to match a short brand name.
+
+${list}
+
+Return [{"i":0,"brands":["..."]}] using the tracked names exactly as written above.`,
+  }).catch(() => null)
+  const arr = raw === null ? null : parseJsonLoose<{ i: number; brands?: string[] }[]>(raw, 'array')
+  if (!Array.isArray(arr)) return null
+  const out: string[][] = raws.map(() => [])
+  const known = new Map(tracked.map(t => [t.toLowerCase(), t]))
+  for (const x of arr) {
+    if (typeof x?.i !== 'number' || !out[x.i]) continue
+    out[x.i] = [...new Set((x.brands ?? []).map(n => known.get(String(n).toLowerCase())).filter((n): n is string => !!n))]
+  }
+  return out
+}
+
+/**
+ * Asks every question to every engine `aiRepeats()` times, plus Google's AI Overview for each
+ * starting keyword, then merges the repeats: one answer per question and engine, with how many of
+ * its samples named the brand (named = half or more).
+ */
+async function askEngines(b: BrandContext, questions: string[], seeds: string[], country: string, meter: ReturnType<typeof newMeter>): Promise<AiAnswer[]> {
+  const jobs = questions.flatMap(q => AI_ENGINES.flatMap(engine => Array.from({ length: aiRepeats() }, () => ({ q, engine: engine as string }))))
+  const [settled, overviews] = await Promise.all([
+    Promise.allSettled(jobs.map(j => aiAnswer(j.engine as AiEngine, j.q, meter))),
+    Promise.allSettled(seeds.slice(0, 5).map(k => googleAiOverview(k, country, meter))),
+  ])
+  const raws: Raw[] = [
+    ...settled.map((r, i) => r.status === 'fulfilled'
+      ? { question: jobs[i].q, engine: jobs[i].engine, text: r.value.text, citations: r.value.citations }
+      : { question: jobs[i].q, engine: jobs[i].engine, text: '', citations: [], error: r.reason instanceof Error ? r.reason.message : 'failed' }),
+    // Google's AI Overview, for the searches themselves (only when Google shows one)
+    ...overviews.flatMap((r, i) => (r.status === 'fulfilled' && r.value ? [{ question: seeds[i], engine: 'google_ai', text: r.value.text, citations: r.value.citations }] : [])),
+  ]
+  const ok = raws.filter(r => !r.error && r.text)
+  const named = ok.length ? await namedBrands(b, ok) : null
+  const one = (r: Raw): AiAnswer => {
+    if (r.error || !r.text) return { question: r.question, engine: r.engine, mentioned: false, position: null, brands: [], citations: [], error: r.error ?? 'empty answer' }
+    const base = analyseAnswer(r.question, r.engine as AiEngine, r.text, r.citations, b)
+    const list = named?.[ok.indexOf(r)]
+    if (!list) return base
+    const pos = list.indexOf(b.name)
+    return { ...base, brands: list, mentioned: pos >= 0, position: pos >= 0 ? pos + 1 : null }
+  }
+  // Merge the repeats of each question and engine
+  const groups = new Map<string, AiAnswer[]>()
+  for (const r of raws) {
+    const k = `${r.engine}|${r.question}`
+    groups.set(k, [...(groups.get(k) ?? []), one(r)])
+  }
+  return [...groups.values()].map(list => {
+    const good = list.filter(a => !a.error)
+    if (!good.length) return list[0]
+    const hits = good.filter(a => a.mentioned).length
+    const positions = good.map(a => a.position).filter((p): p is number => p !== null)
+    const seen = new Set<string>()
+    return {
+      question: good[0].question, engine: good[0].engine,
+      mentioned: hits * 2 >= good.length && hits > 0,
+      position: positions.length ? Math.min(...positions) : null,
+      brands: [...new Set(good.flatMap(a => a.brands))],
+      citations: good.flatMap(a => a.citations).filter(c => !seen.has(c.url) && seen.add(c.url)).slice(0, 15),
+      samples: good.length, hits,
+    }
+  })
 }
 
 async function checkDescription(b: BrandContext, meter: ReturnType<typeof newMeter>): Promise<SearchAgentData['description']> {
@@ -156,9 +236,13 @@ async function pickTopics(b: BrandContext, d: SearchAgentData, ideas: KeywordIde
   for (const r of ranked) {
     if (r.rank < 5 || r.rank > 20 || r.volume < 30 || isBranded(r.keyword)) continue
     const idea = ideas.find(i => i.keyword === r.keyword)
+    // Improve the page that already ranks: a new post on the same search would compete with it
+    let path = r.url
+    try { path = new URL(r.url).pathname || '/' } catch { /* keep the url */ }
     cands.push({
       keyword: r.keyword, volume: r.volume, difficulty: idea?.difficulty ?? null, cpc: idea?.cpc ?? null,
-      why: `You already rank #${r.rank}. A better page can reach the top 3.`, status: 'picked', pickedAt: now,
+      why: `Your page ${path === '/' ? '(your homepage)' : path} ranks #${r.rank}. Improving it can reach the top 3.`, status: 'picked', pickedAt: now,
+      kind: 'improve', pageUrl: r.url,
       score: (r.volume / 10) * 2,
     })
   }
@@ -167,7 +251,7 @@ async function pickTopics(b: BrandContext, d: SearchAgentData, ideas: KeywordIde
     cands.push({
       keyword: i.keyword, volume: i.volume, difficulty: i.difficulty, cpc: i.cpc,
       why: `${i.volume.toLocaleString('en-US')} searches a month, ${difficultyLabel(i.difficulty)}${i.intent === 'commercial' ? ', people comparing options' : ''}.`,
-      status: 'picked', pickedAt: now, score: i.volume / (i.difficulty + 10),
+      status: 'picked', pickedAt: now, kind: 'new', score: i.volume / (i.difficulty + 10),
     })
   }
   const words = (k: string) => new Set(k.toLowerCase().split(/\s+/))
@@ -194,14 +278,22 @@ async function pickTopics(b: BrandContext, d: SearchAgentData, ideas: KeywordIde
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 
-function buildTasks(b: BrandContext, answers: AiAnswer[], changes: RankChange[], desc: SearchAgentData['description']): AgentTask[] {
+function buildTasks(b: BrandContext, answers: AiAnswer[], changes: RankChange[], desc: SearchAgentData['description'], prev: AiAnswer[] | null): AgentTask[] {
   const tasks: AgentTask[] = []
   const ok = answers.filter(a => !a.error)
-  // Questions where rivals are named and the brand never is
-  const byQ = new Map<string, AiAnswer[]>()
-  for (const a of ok) byQ.set(a.question, [...(byQ.get(a.question) ?? []), a])
-  const gaps = [...byQ.entries()]
-    .filter(([, list]) => !list.some(a => a.mentioned) && list.some(a => a.brands.length))
+  const prevOk = (prev ?? []).filter(a => !a.error)
+  // Questions where rivals are named and the brand never is (Google's AI Overviews are answers to
+  // searches, not questions, so they only feed the cited sites below)
+  const gapIn = (list: AiAnswer[]) => {
+    const byQ = new Map<string, AiAnswer[]>()
+    for (const a of list.filter(x => x.engine !== 'google_ai')) byQ.set(a.question, [...(byQ.get(a.question) ?? []), a])
+    return new Map([...byQ.entries()].filter(([, l]) => !l.some(a => (a.hits ?? (a.mentioned ? 1 : 0)) > 0) && l.some(a => a.brands.length)))
+  }
+  // Answers vary, so a gap becomes a to-do only when it holds: also last week, or (first week) in
+  // every sample this week, which gapIn already requires (no sample named the brand)
+  const before = gapIn(prevOk)
+  const gaps = [...gapIn(ok).entries()]
+    .filter(([q]) => !prevOk.length || before.has(q))
     .slice(0, 3)
   for (const [q, list] of gaps) {
     const rivals = [...new Set(list.flatMap(a => a.brands))].slice(0, 3)
@@ -222,11 +314,14 @@ function buildTasks(b: BrandContext, answers: AiAnswer[], changes: RankChange[],
       counts.set(c.domain, cur)
     }
   }
-  for (const [dom, c] of [...counts.entries()].filter(([, c]) => c.n >= 2).sort((x, y) => y[1].n - x[1].n).slice(0, 3)) {
+  // Cited last week too (or 3+ times in the first week): a site AI keeps going back to
+  const citedBefore = new Set(prevOk.filter(x => !x.mentioned).flatMap(a => a.citations.map(c => c.domain)))
+  const holds = (dom: string, n: number) => (prevOk.length ? citedBefore.has(dom) && n >= 2 : n >= 3)
+  for (const [dom, c] of [...counts.entries()].filter(([dom, c]) => holds(dom, c.n)).sort((x, y) => y[1].n - x[1].n).slice(0, 3)) {
     tasks.push({
       key: `listing:${dom}`, kind: 'listing', status: 'open', url: c.url,
       title: dom.includes('reddit.com') ? 'Join the Reddit threads AI answers cite' : `Get mentioned on ${dom}`,
-      detail: `AI answers cited ${dom} ${c.n} times this week, in answers that don't mention ${b.name}.${c.title ? ` Example: "${c.title}".` : ''}`,
+      detail: `AI answers cited ${dom} ${c.n} times this week${prevOk.length ? ' and last week' : ''}, in answers that don't mention ${b.name}.${c.title ? ` Example: "${c.title}".` : ''}`,
     })
   }
   // Pages that dropped on Google
@@ -287,7 +382,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
     { key: 'setup', label: 'Reading your brand', hint: 'Your keywords, competitors and buyer questions' },
     { key: 'keywords', label: 'Finding keywords', hint: 'Ideas with monthly searches and difficulty' },
     { key: 'ranks', label: 'Checking Google rankings', hint: `Where ${b.domain} shows up on Google` },
-    { key: 'ai', label: 'Asking AI assistants', hint: 'Who ChatGPT, Perplexity and Gemini recommend' },
+    { key: 'ai', label: 'Asking AI assistants', hint: 'Who ChatGPT, Perplexity, Gemini and Google’s AI Overviews recommend' },
     { key: 'describe', label: 'Checking how AI describes you', hint: 'Whether ChatGPT gets your product right' },
     { key: 'ads', label: 'Checking Google Ads', hint: 'Spend on searches that never converted' },
     { key: 'topics', label: 'Picking blog topics', hint: 'Searches you can realistically win' },
@@ -307,9 +402,10 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
         .catch(e => { errors.push(`Keywords: ${e instanceof Error ? e.message : e}`); return [] as KeywordIdea[] }),
       p.step('ranks', () => rankedKeywords(b.domain, s.country, meter), r => ({ detail: `${r.filter(x => x.rank <= 10).length} on page 1`, note: `${b.domain} shows up for ${n(r.length, 'search', 'searches')}.` }))
         .catch(e => { errors.push(`Rankings: ${e instanceof Error ? e.message : e}`); return null }),
-      p.step('ai', () => askEngines(b, s.questions.slice(0, aiQuestionLimit()), meter), r => {
+      p.step('ai', () => askEngines(b, s.questions.slice(0, aiQuestionLimit()), s.seeds, s.country, meter), r => {
         const ok = r.filter(a => !a.error)
-        return { detail: `Named in ${ok.filter(a => a.mentioned).length} of ${ok.length}`, note: `${n(s.questions.length, 'buyer question')} asked to ChatGPT, Perplexity and Gemini.` }
+        const asked = ok.reduce((t, a) => t + (a.samples ?? 1), 0), hits = ok.reduce((t, a) => t + (a.hits ?? (a.mentioned ? 1 : 0)), 0)
+        return { detail: `Named in ${hits} of ${asked}`, note: `${n(Math.min(s.questions.length, aiQuestionLimit()), 'buyer question')} asked ${aiRepeats()}× to ChatGPT, Perplexity and Gemini, plus Google’s AI Overviews.` }
       }),
       p.step('describe', () => checkDescription(b, meter), r => r?.issue ? 'Needs a fix' : 'Looks right').catch(() => null),
       demo ? p.step('ads', () => Promise.resolve(demoWastedSpend()), r => ({ detail: `${r.currency} ${r.total} wasted`, items: r.terms.slice(0, 4).map(t => t.term) }))
@@ -321,7 +417,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
     const changes = ranked ? rankChanges(d.ranks, rows, d.topics) : d.rankChanges
     const picks = await pickTopics(b, d, ideas, rows).catch(() => [] as Topic[])
     p.set('topics', 'done', picks.length ? { detail: `${picks.length} new`, items: picks.map(t => t.keyword) } : { detail: 'None new', note: 'Topics from earlier are still waiting to be written.' })
-    const fresh = buildTasks(b, answers, changes, desc)
+    const fresh = buildTasks(b, answers, changes, desc, d.answers?.items ?? null)
     const listings = fresh.filter(t => t.kind === 'listing').map(t => t.key.replace(/^listing:/, ''))
     p.set('tasks', 'done', { items: listings, detail: fresh.length ? n(fresh.length, 'task') : 'Nothing new', note: [
       listings.length ? `${n(listings.length, 'site')} to get listed on` : null,
@@ -354,7 +450,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       if (ranked) { x.ranks = { at: new Date().toISOString(), rows: rows.slice(0, 200) }; x.rankChanges = changes }
       if (okAnswers.length) {
         x.answers = { at: new Date().toISOString(), items: answers }
-        x.mentionHistory.push({ at: new Date().toISOString(), mentioned: okAnswers.filter(a => a.mentioned).length, asked: okAnswers.length })
+        x.mentionHistory.push({ at: new Date().toISOString(), mentioned: okAnswers.reduce((t, a) => t + (a.hits ?? (a.mentioned ? 1 : 0)), 0), asked: okAnswers.reduce((t, a) => t + (a.samples ?? 1), 0) })
       }
       if (desc) x.description = desc
       // Keep what the user already closed; drop open tasks the data no longer supports
@@ -377,10 +473,12 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       await clearSignals(brandId, 'search-agent', stale)
     } catch { /* Today cards are optional */ }
 
-    const mentioned = okAnswers.filter(a => a.mentioned).length
+    // A single week is noisy: the summary gives the 4-week average
+    const last4 = saved.mentionHistory.slice(-4)
+    const avg = last4.reduce((t, h) => t + h.asked, 0) ? Math.round(100 * last4.reduce((t, h) => t + h.mentioned, 0) / last4.reduce((t, h) => t + h.asked, 0)) : null
     const summary = [
       `${picks.length} new topic${picks.length === 1 ? '' : 's'}`,
-      okAnswers.length ? `named in ${mentioned} of ${okAnswers.length} AI answers` : null,
+      avg !== null ? `named in ${avg}% of AI answers (${last4.length}-week average)` : null,
       `${fresh.length} task${fresh.length === 1 ? '' : 's'}`,
       costNote(meter),
     ].filter(Boolean).join(' · ')
@@ -393,6 +491,24 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
 }
 
 // ── Write step ────────────────────────────────────────────────────────────────
+
+/** The text of one of the brand's own pages, for a rewrite (headings kept as markdown). */
+async function readOwnPage(url: string): Promise<string> {
+  if (agentsDemo()) return '# Your current page\n\nAbout 600 words, written in 2023. Sections: What it is | Features | Pricing'
+  const html = await fetchHtml(url)
+  if (!html) return ''
+  const $ = cheerio.load(html)
+  $('script,style,nav,footer,header,noscript,form').remove()
+  const root = $('main').length ? $('main') : $('body')
+  const parts: string[] = []
+  root.find('h1,h2,h3,p,li').each((_, el) => {
+    const t = $(el).text().replace(/\s+/g, ' ').trim()
+    if (!t) return
+    const tag = el.tagName.toLowerCase()
+    parts.push(tag === 'h1' ? `# ${t}` : tag === 'h2' ? `## ${t}` : tag === 'h3' ? `### ${t}` : tag === 'li' ? `- ${t}` : t)
+  })
+  return parts.join('\n').slice(0, 9000)
+}
 
 async function readPage(url: string): Promise<string> {
   // Demo results point at made-up pages: describe a typical competitor article instead
@@ -408,19 +524,21 @@ async function readPage(url: string): Promise<string> {
   return `Title: ${$('title').first().text().trim()}\nAbout ${words} words. Newest year mentioned: ${years.length ? Math.max(...years) : 'none'}.\nSections: ${heads.join(' | ') || 'none found'}`
 }
 
-export async function runSearchWrite(brandId: string, keyword?: string): Promise<{ ok: boolean; summary: string; error?: string }> {
+export async function runSearchWrite(brandId: string, keyword?: string, inputs?: Topic['inputs']): Promise<{ ok: boolean; summary: string; error?: string }> {
   const b = await loadBrandContext(brandId)
   if (!b) return { ok: false, summary: '', error: 'Brand not found.' }
   const fallback = searchFallback(b)
+  // What only the business knows, if the user answered before writing
+  if (keyword && inputs) await updateSearchData(brandId, fallback, x => { const t = x.topics.find(y => y.keyword === keyword); if (t) t.inputs = inputs })
   const d = (await readSearchData(brandId)) ?? fallback()
   // A topic the user picked to write now, else the next one in line
   const topic = d.topics.find(t => t.status === 'picked' && (!keyword || t.keyword === keyword))
   if (!topic) return { ok: true, summary: 'No topic waiting to be written.' }
   const meter = newMeter()
-  const p = new Progress(brandId, 'search', `Writing a post for “${topic.keyword}”`, [
+  const p = new Progress(brandId, 'search', topic.kind === 'improve' ? `Rewriting your page for “${topic.keyword}”` : `Writing a post for “${topic.keyword}”`, [
     { key: 'serp', label: 'Checking top results', hint: `Today's top Google results for “${topic.keyword}”` },
     { key: 'read', label: 'Reading them', hint: 'Length, sections and how current they are' },
-    { key: 'write', label: 'Writing the article', hint: '1,200–1,600 words, with an FAQ and a table' },
+    { key: 'write', label: topic.kind === 'improve' ? 'Rewriting your page' : 'Writing the article', hint: 'As long as the search needs, with an FAQ' },
     { key: 'save', label: 'Saving the draft', hint: 'To your blog drafts, for you to review' },
   ])
 
@@ -432,6 +550,19 @@ export async function runSearchWrite(brandId: string, keyword?: string): Promise
             r => r.length ? { detail: `${r.length} to beat`, items: r.map(x => `#${x.rank} ${x.domain}`) } : 'None to compare')
         : (p.set('serp', 'skipped', 'Not set up'), [])
       const pages = await p.step('read', () => Promise.all(serp.map(async r => `#${r.rank} ${r.url}\n${await readPage(r.url)}`)), r => `${r.length} page${r.length === 1 ? '' : 's'}`)
+      // The length follows what ranks now (a bit longer than the typical top result), within 600-2,500 words
+      const counts = pages.map(x => Number(x.match(/About (\d+) words/)?.[1] ?? 0)).filter(w => w > 200).sort((x, y) => x - y)
+      const typical = counts.length ? counts[Math.floor(counts.length / 2)] : 0
+      const target = typical ? Math.min(2500, Math.max(600, Math.round((typical * 1.15) / 100) * 100)) : 0
+      const length = target ? `about ${target.toLocaleString('en-US')} words (the top results run about ${typical.toLocaleString('en-US')})` : '1,200-1,600 words'
+      const improve = topic.kind === 'improve' && !!topic.pageUrl
+      const current = improve ? await readOwnPage(topic.pageUrl!) : ''
+      const inp = topic.inputs ?? {}
+      const own = [
+        inp.example?.trim() && `A real example or customer story: ${inp.example.trim()}`,
+        inp.number?.trim() && `A number they know: ${inp.number.trim()}`,
+        inp.opinion?.trim() && `Their own view: ${inp.opinion.trim()}`,
+      ].filter(Boolean)
       p.set('write', 'running')
       const raw = await callAI({
         feature: 'search-agent',
@@ -441,9 +572,16 @@ export async function runSearchWrite(brandId: string, keyword?: string): Promise
         prompt: `${brandBlock(b)}
 
 Target search: "${topic.keyword}" (${topic.volume} searches a month)
-
+${improve ? `
+This is a REWRITE of the brand's own page ${topic.pageUrl}, which already ranks for this search. Keep what works, keep the same topic and promise so the page keeps its place, and make it the best answer on the page: fix what's out of date, fill what the top results cover and this page lacks, cut padding. The page now:
+--- current page ---
+${current || 'Could not read the page; write the best version of a page on this topic.'}
+--- end of current page ---
+` : ''}
 Today's top Google results:
 ${pages.join('\n\n') || 'Not available. Write the best possible article for this search.'}
+
+${own.length ? `From the business itself (use these, they are what no other page has; don't change the facts):\n${own.map(x => `- ${x}`).join('\n')}` : `The business gave no examples or numbers: don't invent customer stories, numbers or quotes.`}
 
 Return:
 {
@@ -451,12 +589,12 @@ Return:
   "title": "...",
   "metaTitle": "50-60 characters",
   "metaDescription": "145-160 characters, includes the search phrase",
-  "content": "the full article in markdown"
+  "content": "the full article in markdown"${improve ? ',\n  "changes": ["3-5 short points on what changed from the current page"]' : ''}
 }
 
-Article rules: 1,200-1,600 words; H2/H3 headings; answer the search in the first paragraph; practical examples; a comparison table if it helps; an FAQ with 3-4 questions; mention ${b.name} honestly where it fits (never more than 3 times) and end with a short call to action. No invented statistics, prices or quotes: if a number is needed, describe it without inventing it.`,
+Article rules: ${length}; H2/H3 headings; answer the search in the first paragraph; practical examples; a comparison table if it helps; an FAQ with 3-4 questions; mention ${b.name} honestly where it fits (never more than 3 times) and end with a short call to action. If ${b.name} makes something people can see (posts, designs, copy, templates), add a short section showing 2-3 realistic examples of what it would make for this topic, labelled as examples made with ${b.name}. No invented statistics, prices or quotes: if a number is needed, describe it without inventing it.`,
       })
-      const j = parseJsonLoose<{ brief?: { top?: string; beats?: string[] }; title?: string; metaTitle?: string; metaDescription?: string; content?: string }>(raw, 'object')
+      const j = parseJsonLoose<{ brief?: { top?: string; beats?: string[] }; title?: string; metaTitle?: string; metaDescription?: string; content?: string; changes?: string[] }>(raw, 'object')
       if (!j?.title || !j.content) { p.set('write', 'error', 'No article came back'); throw new Error('The writer returned no article.') }
       p.set('write', 'done', { detail: `~${j.content.split(/\s+/).length.toLocaleString('en-US')} words`, note: `“${j.title}”` })
       p.set('save', 'running')
@@ -467,14 +605,15 @@ Article rules: 1,200-1,600 words; H2/H3 headings; answer the search in the first
       }).returning({ id: brandBlogs.id })
       await updateSearchData(brandId, fallback, x => {
         const t = x.topics.find(y => y.keyword === topic.keyword)
-        if (t) { t.status = 'drafted'; t.blogId = blog.id; t.brief = { top: j.brief?.top ?? '', beats: (j.brief?.beats ?? []).slice(0, 4) } }
+        // A rewrite lists what changed; a new post how it beats today's #1
+        if (t) { t.status = 'drafted'; t.blogId = blog.id; t.brief = { top: j.brief?.top ?? '', beats: ((improve && j.changes?.length ? j.changes : j.brief?.beats) ?? []).slice(0, 5) } }
         x.lastWriteAt = new Date().toISOString()
       })
       await addUsage(brandId, meter, 'Search Agent').catch(() => {})
       await openSignal(brandId, {
         source: 'search-agent', signalKey: `draft:${blog.id}`, priority: 2,
-        title: `Blog draft ready: "${j.title}"`,
-        detail: `Written by your Search Agent for "${topic.keyword}" to beat today's #1 result.`,
+        title: improve ? `Page rewrite ready: "${j.title}"` : `Blog draft ready: "${j.title}"`,
+        detail: improve ? `A better version of ${topic.pageUrl}, which ranks for "${topic.keyword}".` : `Written by your Search Agent for "${topic.keyword}" to beat today's #1 result.`,
         action: 'Read it in the Search Agent, then add it to your site.',
       }).catch(() => {})
       p.set('save', 'done', 'Saved')
@@ -507,6 +646,26 @@ export async function runSearchAgentScheduled(brandId: string): Promise<{ ok: bo
   const lastWrite = d.lastWriteAt ? Date.parse(d.lastWriteAt) : 0
   if (Date.now() - lastWrite > WEEK && d.topics.some(t => t.status === 'picked')) return runSearchWrite(brandId)
   return { ok: true, summary: 'Nothing due today.' }
+}
+
+/** A "Refresh a page" to-do (its search dropped) becomes a page to rewrite. */
+export async function refreshToTopic(brandId: string, key: string): Promise<{ ok: boolean; keyword?: string; message?: string }> {
+  const b = await loadBrandContext(brandId)
+  if (!b) return { ok: false, message: 'Brand not found.' }
+  const d = await readSearchData(brandId)
+  const t = d?.tasks.find(x => x.key === key && x.kind === 'refresh')
+  const kw = t?.detail.match(/^"([^"]+)"/)?.[1]
+  if (!t || !kw || !t.url) return { ok: false, message: 'That to-do is gone. Refresh the page.' }
+  const row = d?.ranks?.rows.find(r => r.keyword === kw)
+  await updateSearchData(brandId, searchFallback(b), x => {
+    if (!x.topics.some(y => y.keyword === kw && (y.status === 'picked' || y.status === 'writing'))) {
+      x.topics.push({ keyword: kw, volume: row?.volume ?? 0, difficulty: null, cpc: null, why: t.detail, status: 'picked', pickedAt: new Date().toISOString(), kind: 'improve', pageUrl: t.url })
+    }
+    const y = x.tasks.find(z => z.key === key)
+    if (y) y.status = 'done'
+  })
+  await clearSignals(brandId, 'search-agent', [key]).catch(() => {})
+  return { ok: true, keyword: kw }
 }
 
 /** Marks a topic / draft as approved, published or skipped. */

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ToolHeader from '@/components/ToolHeader'
 import { DIRECTORIES, helpOf, listingDomain } from '@/lib/agents/task-kinds'
-import type { AgentTask, LinkOpportunity, SearchAgentData, SearchSettings, Topic } from '@/lib/agents/store'
+import type { AgentTask, AiAnswer, LinkOpportunity, SearchAgentData, SearchSettings, Topic } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
 import { useToast } from '@/components/email-outreach/shared'
 import { ActionBar, Card, DemoSwitch, Pager, usePages, useShowAll, Finished, Flow, ListTools, LiveProgress, Sec, Side, Src, Tabs, Tag } from '@/components/tool-ui'
@@ -22,7 +22,7 @@ type TabKey = 'todo' | 'done' | 'rank' | 'ai'
 type Item = { kind: 'topic'; key: string; t: Topic } | { kind: 'link'; key: string; l: LinkOpportunity } | { kind: 'task'; key: string; k: AgentTask }
 
 const COUNTRIES: [string, string][] = [['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
-const ENGINE: Record<string, string> = { chat_gpt: 'ChatGPT', perplexity: 'Perplexity', gemini: 'Gemini' }
+const ENGINE: Record<string, string> = { chat_gpt: 'ChatGPT', perplexity: 'Perplexity', gemini: 'Gemini', google_ai: 'Google AI Overview' }
 const TASK: Record<AgentTask['kind'], [string, string]> = { write: ['✍', 'Write'], listing: ['🔗', 'Get listed'], refresh: ['↻', 'Refresh'], fix: ['!', 'Fix'], ads: ['$', 'Ads'] }
 const PROGRESS = ['Finding what people search', 'Checking where you rank', 'Asking ChatGPT and Perplexity about you', 'Finding sites that list competitors']
 // Article sites are pitched and Reddit is joined, not "listed"
@@ -87,6 +87,8 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [reviewUrl, setReviewUrl] = useState('')
+  // What only the business knows, asked before a post is written (all optional)
+  const [inputs, setInputs] = useState<{ example: string; number: string; opinion: string }>({ example: '', number: '', opinion: '' })
 
   const researching = busy === 'research'
   const writing = busy?.startsWith('write') ?? false
@@ -123,6 +125,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
     // The new wording is written the first time the fix is opened
     if (i.kind === 'task' && helpOf(i.k) === 'describe' && !i.k.copy && i.k.status === 'open') call('task_copy', {}, 'task_copy')
     setReviewUrl('')
+    if (i.kind === 'topic') setInputs({ example: i.t.inputs?.example ?? '', number: i.t.inputs?.number ?? '', opinion: i.t.inputs?.opinion ?? '' })
     window.scrollTo({ top: 0 })
   }
   // An article site becomes a site to pitch, and opens straight in the pitch steps
@@ -141,8 +144,14 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
     if (i.kind === 'task') { call('task', { key: i.k.key, status: 'dismissed' }, `task:${i.key}`); notify('Skipped. Moved to Done.', () => { call('task', { key: i.k.key, status: 'open' }) }) }
   }
   async function writeNow(t: Topic) {
-    await call('write', { keyword: t.keyword }, `write:${t.keyword}`)
+    await call('write', { keyword: t.keyword, inputs }, `write:${t.keyword}`)
     router.refresh()
+  }
+  // A "Refresh a page" to-do becomes a page to rewrite, opened at the "what only you know" step
+  async function improveTask(k: AgentTask) {
+    const r = await call('improve', { key: k.key }, `task:i:${k.key}`) as { keyword?: string; data?: SearchAgentData } | null
+    const t = r?.data?.topics.find(x => x.keyword === r.keyword && (x.status === 'picked' || x.status === 'writing'))
+    if (t) openItem({ kind: 'topic', key: `t:${t.keyword}`, t })
   }
 
   // ── Cards ──────────────────────────────────────────────────────────────────
@@ -154,13 +163,13 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       const t = i.t
       const st = t.status
       return (
-        <Card key={i.key} av="✍" square name={t.keyword}
-          sub={<><span>{t.volume.toLocaleString('en-US')} searches a month</span>{t.difficulty !== null && <span>· {t.difficulty < 30 ? 'easy to win' : t.difficulty < 60 ? 'some competition' : 'hard to win'}</span>}</>}
+        <Card key={i.key} av={t.kind === 'improve' ? '↻' : '✍'} square name={t.keyword}
+          sub={<>{t.kind === 'improve' && <Src label="Improve your page" />}<span>{t.volume.toLocaleString('en-US')} searches a month</span>{t.difficulty !== null && <span>· {t.difficulty < 30 ? 'easy to win' : t.difficulty < 60 ? 'some competition' : 'hard to win'}</span>}</>}
           why={t.why} quote={t.brief?.top ? `Today’s #1 result: ${t.brief.top}` : undefined}
           state={st === 'drafted' ? <Tag tone="ok">Draft ready</Tag> : st === 'approved' ? <Tag tone="ok">Approved · put it on your site</Tag> : st === 'writing' ? <Tag><Spinner size={10} />Writing</Tag> : st === 'published' ? <Tag tone="ok">✓ Published</Tag> : st === 'skipped' ? <Tag>Skipped</Tag> : <Tag>Written next</Tag>}
           onSkip={isTodo && st !== 'writing' ? () => skip(i) : undefined}
           action={!isTodo ? view : st === 'picked'
-            ? <button type="button" className="btn btn-primary btn-sm cl-reach" disabled={!!busy} onClick={() => openItem(i)}>Write it now →</button>
+            ? <button type="button" className="btn btn-primary btn-sm cl-reach" disabled={!!busy} onClick={() => openItem(i)}>{t.kind === 'improve' ? 'Rewrite it →' : 'Write it now →'}</button>
             : <button type="button" className="btn btn-primary btn-sm cl-reach" disabled={st === 'writing'} onClick={() => openItem(i)}>{st === 'approved' ? 'Publish →' : 'Read draft →'}</button>} />
       )
     }
@@ -191,6 +200,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
           : help === 'directory' ? <button type="button" className="btn btn-primary btn-sm cl-reach" onClick={() => openItem(i)}>Get listed on {dir?.name ?? 'it'} →</button>
           : help === 'article' ? <button type="button" className="btn btn-primary btn-sm cl-reach" disabled={!!busy} onClick={() => pitchTask(k)}>{pitching ? <><Spinner />Writing a pitch…</> : 'Pitch them →'}</button>
           : help === 'reddit' ? <button type="button" className="btn btn-primary btn-sm cl-reach" onClick={() => openItem(i)}>Join in →</button>
+          : k.kind === 'refresh' && k.url ? <button type="button" className="btn btn-primary btn-sm cl-reach" disabled={!!busy} onClick={() => improveTask(k)}>{busy === `task:i:${k.key}` ? <><Spinner />Opening…</> : 'Draft a rewrite →'}</button>
           : isTodo
           ? <button type="button" className="btn btn-primary btn-sm cl-reach" disabled={!!busy} onClick={() => { call('task', { key: k.key, status: 'done' }, `task:${i.key}`); notify('Marked as done', () => { call('task', { key: k.key, status: 'open' }) }) }}>Mark as done</button>
           : <button type="button" className="btn btn-sm cl-btn-outline" disabled={!!busy} onClick={() => call('task', { key: k.key, status: 'open' }, `task:${i.key}`)}>Bring it back</button>} />
@@ -240,7 +250,8 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
     if (i.kind === 'topic') {
       const t = i.t
       const draft = t.blogId ? draftById.get(t.blogId) : undefined
-      const side = <Side av="✍" square name={t.keyword} sub={<span>{t.volume.toLocaleString('en-US')} searches a month</span>} quote={t.brief?.top ? `Today’s #1: ${t.brief.top}` : undefined} why={t.why} whyLabel="Why this one" />
+      const improve = t.kind === 'improve'
+      const side = <Side av={improve ? '↻' : '✍'} square name={t.keyword} sub={<span>{improve && t.pageUrl ? <>Your page <a className="th-link" href={t.pageUrl} target="_blank" rel="noopener noreferrer">{t.pageUrl.replace(/^https?:\/\/(www\.)?/, '')} ↗</a> · </> : null}{t.volume.toLocaleString('en-US')} searches a month</span>} quote={t.brief?.top ? `Today’s #1: ${t.brief.top}` : undefined} why={t.why} whyLabel="Why this one" />
       const flow = (at: number, title: string, hint: React.ReactNode, content: React.ReactNode, actions: React.ReactNode) =>
         <Flow back={back} crumb={t.keyword} side={side} steps={['Read the draft', 'Publish']} at={at} title={title} hint={hint} actions={actions} stepKey={`${i.key}:${at}:${t.status}`}>{content}</Flow>
       if (t.status === 'published' || t.status === 'skipped') {
@@ -254,28 +265,40 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       }
       if (t.status === 'picked' || t.status === 'writing') {
         const w = busy === `write:${t.keyword}` || t.status === 'writing'
-        return flow(1, w ? 'Writing the post' : 'Not written yet', w ? 'Reading today’s top results, then writing 1,200–1,600 words in your brand voice.' : `It’s next in line for the weekly post. Write it now if you want it sooner.`,
+        const field = (k: keyof typeof inputs, label: string, hint: string) => (
+          <label className="sa-in">{label}<small>{hint}</small>
+            <textarea rows={2} value={inputs[k]} maxLength={600} onChange={e => setInputs(x => ({ ...x, [k]: e.target.value }))} />
+          </label>
+        )
+        return flow(1, w ? (improve ? 'Rewriting your page' : 'Writing the post') : 'Add what only you know',
+          w ? 'Reading today’s top results, then writing it as long as this search needs, in your brand voice.'
+            : <>Optional, 30 seconds. {improve ? 'The rewrite' : 'The post'} uses your own example and numbers, which no other page has. Leave them empty and nothing is made up.</>,
           <>
-            {w && <div className="ro-working"><Spinner /><span>Writing a post for “{t.keyword}”. Usually 1–2 minutes.</span><i /></div>}
+            {w && <div className="ro-working"><Spinner /><span>{improve ? 'Rewriting your page' : 'Writing a post'} for “{t.keyword}”. Usually 1–2 minutes.</span><i /></div>}
+            {!w && <div className="tu-stack">
+              {field('example', 'A real example or customer story', `e.g. how a customer used ${brandName} for this`)}
+              {field('number', 'A number you know', 'e.g. customers, time saved, posts made')}
+              {field('opinion', 'Your own view, in one line', `what you think most people get wrong about “${t.keyword}”`)}
+            </div>}
             {t.brief && !w && <div className="tu-brief"><b>How the post will beat today’s #1</b><ul>{t.brief.beats.map(b => <li key={b}>{b}</li>)}</ul></div>}
           </>,
           <>
             <button key="skip" type="button" className="btn btn-ghost ro-back" disabled={w} onClick={() => skip(i)}>Skip</button>
-            <button key="w" type="button" className="btn btn-primary" disabled={w || !!busy} onClick={() => writeNow(t)}>{w ? <><Spinner />Writing…</> : 'Write it now'}</button>
+            <button key="w" type="button" className="btn btn-primary" disabled={w || !!busy} onClick={() => writeNow(t)}>{w ? <><Spinner />Writing…</> : improve ? 'Rewrite it now' : 'Write it now'}</button>
           </>)
       }
       if (stepNo === 1) {
         return flow(1, 'Read the draft', <>Written for “{t.keyword}”, in your brand voice{draft ? `, about ${draft.content.split(/\s+/).length.toLocaleString('en-US')} words` : ''}.</>,
           <>
             {draft && <div className="tu-draft tu-article"><h4>{draft.title}</h4>{draft.content}</div>}
-            {t.brief && <div className="tu-brief"><b>How it beats today’s #1</b><ul>{t.brief.beats.map(b => <li key={b}>{b}</li>)}</ul></div>}
+            {t.brief && <div className="tu-brief"><b>{improve ? 'What changed from your page' : 'How it beats today’s #1'}</b><ul>{t.brief.beats.map(b => <li key={b}>{b}</li>)}</ul></div>}
           </>,
           <>
             <button key="skip" type="button" className="btn btn-ghost ro-back" onClick={() => skip(i)}>Skip</button>
             <button key="ok" type="button" className="btn btn-primary" disabled={!!busy} onClick={async () => { if (t.status === 'drafted') await call('topic', { keyword: t.keyword, status: 'approved' }, `topic:${i.key}`); setStepNo(2) }}>{t.status === 'drafted' ? 'Approve draft →' : 'Next: publish →'}</button>
           </>)
       }
-      return flow(2, 'Put it on your site', 'Copy it into your blog, or give Claude the link and ask it to publish the post.',
+      return flow(2, 'Put it on your site', improve && t.pageUrl ? <>Replace the text on <a className="th-link" href={t.pageUrl} target="_blank" rel="noopener noreferrer">{t.pageUrl.replace(/^https?:\/\/(www\.)?/, '')}</a> with this, keeping the same address so it keeps its place on Google.</> : 'Copy it into your blog, or give Claude the link and ask it to publish the post.',
         <div className="tu-row">
           <button type="button" className="btn cl-btn-outline" disabled={!draft} onClick={async () => { if (!draft) return; try { await navigator.clipboard.writeText(`# ${draft.title}\n\n${draft.content}`); notify('Copied as Markdown') } catch { notify('Couldn’t copy') } }}>Copy Markdown</button>
           <button type="button" className="btn cl-btn-outline" disabled={!draft} onClick={async () => { if (!draft) return; try { await navigator.clipboard.writeText(draft.mdUrl); notify('Link copied. Paste it to Claude.') } catch { notify('Couldn’t copy') } }}>Copy link for Claude</button>
@@ -496,36 +519,98 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
     </>
   )
 
-  const answers = (data.answers?.items ?? []).filter(a => !a.error)
+  const all = (data.answers?.items ?? []).filter(a => !a.error)
+  const answers = all.filter(a => a.engine !== 'google_ai')
+  const overviews = all.filter(a => a.engine === 'google_ai')
   const questions = [...new Set(answers.map(a => a.question))]
   const qRows = useShowAll(questions, tab)
   const engines = ['chat_gpt', 'perplexity', 'gemini'].filter(e => answers.some(a => a.engine === e))
-  const mentioned = answers.filter(a => a.mentioned).length
-  const aiTab = answers.length ? (
+  // One week is noisy (answers change from one ask to the next): the headline is the 4-week average
+  const last4 = data.mentionHistory.slice(-4)
+  const asked4 = last4.reduce((t, h) => t + h.asked, 0)
+  const avg = asked4 ? Math.round((100 * last4.reduce((t, h) => t + h.mentioned, 0)) / asked4) : null
+  // The steadier, more useful part: which sites AI answers keep citing when they leave the brand out
+  const cited = new Map<string, { n: number; url: string; title: string }>()
+  for (const a of all.filter(x => !x.mentioned)) {
+    for (const c of a.citations) {
+      if (!c.domain || /(^|\.)google\.|vertexaisearch/.test(c.domain)) continue
+      const cur = cited.get(c.domain) ?? { n: 0, url: c.url, title: c.title }
+      cur.n += 1
+      cited.set(c.domain, cur)
+    }
+  }
+  const topCited = [...cited.entries()].sort((x, y) => y[1].n - x[1].n).slice(0, 8)
+  const cell = (a: AiAnswer | undefined) => {
+    if (!a) return '—'
+    const hits = a.hits ?? (a.mentioned ? 1 : 0), n = a.samples ?? 1
+    const label = n > 1 ? `${hits} of ${n}` : a.mentioned ? 'Names you' : 'Not yet'
+    return <span title={a.brands.length ? `Named: ${a.brands.join(', ')}` : 'No tracked brand named'}><Tag tone={hits && a.mentioned ? 'ok' : undefined}>{label}{a.mentioned && a.position ? ` · #${a.position}` : ''}</Tag></span>
+  }
+  const aiTab = all.length ? (
     <>
-      <p className="tu-lead"><b>{brandName} is named in {mentioned} of {answers.length} answers</b> <span className="cl-muted">· asked <Day iso={data.answers?.at} /></span></p>
+      <p className="tu-lead">
+        <b>{avg !== null ? `${brandName} is named in ${avg}% of AI answers` : `${brandName} AI answers`}</b>{' '}
+        <span className="cl-muted">· {last4.length > 1 ? `${last4.length}-week average` : 'first week, the average builds up weekly'} · asked <Day iso={data.answers?.at} /></span>
+      </p>
+      {topCited.length > 0 && <>
+        <Sec label="Sites AI answers cite when they leave you out" count={topCited.length} />
+        <p className="cl-muted tu-note">These change less from week to week than who gets named. Getting mentioned on them is the surest way into the answers.</p>
+        <div className="tu-tbl">
+          <table>
+            <thead><tr><th>Site</th><th>Cited</th><th>Example page</th></tr></thead>
+            <tbody>
+              {topCited.map(([dom, c]) => (
+                <tr key={dom}>
+                  <td><b>{dom}</b></td>
+                  <td className="tu-num">{c.n}×</td>
+                  <td className="tu-faint"><a className="th-link" href={c.url} target="_blank" rel="noopener noreferrer">{(c.title || c.url).slice(0, 70)}</a></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>}
       {data.description && (
         <div className={`ag-note ${data.description.issue ? 'ag-note-warn' : ''}`}>
           <b>How ChatGPT describes {brandName}:</b> {data.description.text || '(nothing)'}{data.description.issue ? <><br /><b>Problem:</b> {data.description.issue}</> : null}
         </div>
       )}
-      <div className="tu-tbl">
-        <table>
-          <thead><tr><th>Question buyers ask</th>{engines.map(e => <th key={e}>{ENGINE[e]}</th>)}</tr></thead>
-          <tbody>
-            {qRows.items.map(qq => (
-              <tr key={qq}>
-                <td>{qq}</td>
-                {engines.map(e => {
-                  const a = answers.find(x => x.question === qq && x.engine === e)
-                  return <td key={e}>{!a ? '—' : a.mentioned ? <Tag tone="ok">Names you{a.position ? ` · #${a.position}` : ''}</Tag> : <span title={a.brands.join(', ')}><Tag>Not yet</Tag></span>}</td>
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {qRows.toggle}
+      {questions.length > 0 && <>
+        <Sec label="Questions buyers ask" count={questions.length} />
+        <p className="cl-muted tu-note">Each question is asked more than once, because answers change: “1 of 2” means one of two answers named you.</p>
+        <div className="tu-tbl">
+          <table>
+            <thead><tr><th>Question</th>{engines.map(e => <th key={e}>{ENGINE[e]}</th>)}</tr></thead>
+            <tbody>
+              {qRows.items.map(qq => (
+                <tr key={qq}>
+                  <td>{qq}</td>
+                  {engines.map(e => <td key={e}>{cell(answers.find(x => x.question === qq && x.engine === e))}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {qRows.toggle}
+      </>}
+      {overviews.length > 0 && <>
+        <Sec label="Google AI Overviews" count={overviews.length} />
+        <p className="cl-muted tu-note">The AI answer Google shows above the results, for your main searches.</p>
+        <div className="tu-tbl">
+          <table>
+            <thead><tr><th>Search</th><th>Names you?</th><th>Brands named</th></tr></thead>
+            <tbody>
+              {overviews.map(o => (
+                <tr key={o.question}>
+                  <td><b>{o.question}</b></td>
+                  <td>{o.mentioned ? <Tag tone="ok">Yes</Tag> : <Tag>Not yet</Tag>}</td>
+                  <td className="tu-faint">{o.brands.join(', ') || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>}
     </>
   ) : <div className="tu-empty">Shown after the first research.</div>
 

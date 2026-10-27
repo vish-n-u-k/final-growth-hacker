@@ -71,7 +71,7 @@ export async function taskToPitch(brandId: string, key: string): Promise<{ ok: b
       prompt: `${brandBlock(b)}
 
 AI assistants keep citing ${dom}${example ? ` (for example the page "${example}")` : ''} when people ask about tools like ${b.name}, but the page doesn't mention ${b.name}.
-Write a pitch to the editor asking them to consider adding ${b.name}: "subject" (3-7 words) and "body" (under 110 words, no greeting line, plain words, one clear ask, sign off with "${b.name}").
+Write a pitch to the editor asking them to consider adding ${b.name}: "subject" (3-7 words) and "body" (50-90 words, no greeting line, plain words). In this order: their page; the gap (it leaves ${b.name} out); what you offer to make adding it easy (a free account to try it, and a ready-to-paste two-line description of ${b.name} written into the email); ONE short question to end. Mention a price or affiliate programme only if the brand info gives one. Sign off with "${b.name}".
 Return {"subject":"...","body":"..."}`,
     })
     const x = parseJsonLoose<{ subject?: string; body?: string }>(raw, 'object')

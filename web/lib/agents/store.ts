@@ -134,6 +134,11 @@ export interface Topic {
   pickedAt: string
   blogId?: string
   brief?: { top: string; beats: string[] }
+  // improve = the site already ranks for it (#5-#20) or a page dropped: rewrite that page instead of a new post
+  kind?: 'new' | 'improve'
+  pageUrl?: string              // improve: the page to rewrite
+  // What only the business knows, asked before writing (all optional)
+  inputs?: { example?: string; number?: string; opinion?: string }
 }
 
 export interface RankRow { keyword: string; volume: number; rank: number; url: string }
@@ -146,6 +151,9 @@ export interface AiAnswer {
   position: number | null       // 1 = named first among the brands we track
   brands: string[]              // tracked brands named, in order
   citations: { domain: string; url: string; title: string }[]
+  // The same question is asked more than once (answers vary): how often the brand was named
+  samples?: number
+  hits?: number
   error?: string
 }
 

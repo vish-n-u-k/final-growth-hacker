@@ -264,6 +264,33 @@ export async function storesByPlatform(platforms: string[], country: string, met
     }))
 }
 
+// ── Google's AI Overview ───────────────────────────────────────────────────────
+
+/**
+ * The AI Overview Google shows on top of the results for a search, with the pages it cites, or
+ * null when Google shows none. `load_async_ai_overview` costs $0.002 more, refunded when there's none.
+ */
+export async function googleAiOverview(keyword: string, country: string, meter?: UsageMeter): Promise<AiAnswerRaw | null> {
+  if (agentsDemo()) return null
+  type Ref = { url?: string; title?: string; source?: string }
+  type El = { text?: string | null; markdown?: string | null; references?: Ref[] | null }
+  type Item = { type?: string; markdown?: string | null; items?: El[] | null; references?: Ref[] | null }
+  const r = await post<{ items?: Item[] | null }>('/serp/google/organic/live/advanced', {
+    keyword, location_code: locationOf(country), language_code: 'en', depth: 10, load_async_ai_overview: true,
+  }, meter)
+  const o = (r.items ?? []).find(i => i.type === 'ai_overview')
+  if (!o) return null
+  const text = (o.markdown || (o.items ?? []).map(e => e.markdown || e.text || '').join('\n')).trim()
+  const seen = new Set<string>()
+  const citations: AiAnswerRaw['citations'] = []
+  for (const ref of [...(o.references ?? []), ...(o.items ?? []).flatMap(e => e.references ?? [])]) {
+    if (!ref.url || seen.has(ref.url)) continue
+    seen.add(ref.url)
+    citations.push({ url: ref.url, title: ref.title ?? ref.source ?? '' })
+  }
+  return text ? { text, citations } : null
+}
+
 // ── Local businesses on Google Maps ───────────────────────────────────────────
 
 export interface MapsBusiness { title: string; url: string | null; domain: string | null; phone: string | null; rating: number | null; reviews: number | null; category: string | null; address: string | null; mapsUrl: string | null }

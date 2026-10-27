@@ -9432,3 +9432,9 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .la-src-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-top: 4px; font-size: 13px; font-weight: 600; color: var(--text-dim); }
 .la-src-hd small { display: block; margin-top: 2px; font-size: 12.5px; font-weight: 400; color: var(--text-faint); }
 .tu-grid .la-src-who { margin: -6px 0 0 26px; }
+
+/* Search Agent: "Add what only you know" before a post is written */
+.sa-in { display: grid; gap: 4px; font-size: 13.5px; font-weight: 600; color: var(--text); }
+.sa-in small { font-weight: 400; color: var(--text-faint); font-size: 12.5px; }
+.sa-in textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font: 400 14.5px/1.5 var(--font-body); resize: vertical; }
+.sa-in textarea:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 14%, transparent); }

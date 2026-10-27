@@ -3,7 +3,7 @@ import { agentAccess } from '@/lib/agents/access'
 import { demoForced, withDemo } from '@/lib/agents/demo'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
-import { runSearchResearch, runSearchWrite, searchFallback, setTopicStatus } from '@/lib/agents/search-agent'
+import { runSearchResearch, runSearchWrite, searchFallback, setTopicStatus, refreshToTopic } from '@/lib/agents/search-agent'
 import { readSearchData, updateSearchData, type AgentTask, type SearchSettings, type Topic } from '@/lib/agents/store'
 import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
 import { runLinkOpportunities, sendLinkPitch, updateLink } from '@/lib/agents/link-opportunities'
@@ -43,7 +43,11 @@ async function post(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as {
     op?: string; on?: boolean; settings?: Partial<SearchSettings>; keyword?: string; status?: string; key?: string
     id?: string; email?: string; subject?: string; body?: string
+    inputs?: { example?: unknown; number?: unknown; opinion?: unknown }
   }
+  // What only the business knows, typed before writing (each optional, kept short)
+  const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 600) : undefined)
+  const inputs = body.inputs ? { example: text(body.inputs.example), number: text(body.inputs.number), opinion: text(body.inputs.opinion) } : undefined
 
   switch (body.op) {
     case 'demo': {
@@ -69,8 +73,14 @@ async function post(req: NextRequest) {
       return NextResponse.json({ result, data: await readSearchData(brandId) })
     }
     case 'write': {
-      const result = await runSearchWrite(brandId, typeof body.keyword === 'string' ? body.keyword : undefined)
+      const result = await runSearchWrite(brandId, typeof body.keyword === 'string' ? body.keyword : undefined, inputs)
       return NextResponse.json({ result, data: await readSearchData(brandId) })
+    }
+    case 'improve': {
+      // A "Refresh a page" to-do becomes a page to rewrite (opened on the page, written from there)
+      if (!body.key) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+      const r = await refreshToTopic(brandId, body.key)
+      return NextResponse.json({ ...(r.ok ? { keyword: r.keyword } : { error: r.message }), data: await readSearchData(brandId) })
     }
     case 'topic': {
       const allowed: Topic['status'][] = ['approved', 'published', 'skipped', 'picked']

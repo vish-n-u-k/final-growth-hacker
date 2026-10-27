@@ -44,6 +44,34 @@ interface Candidate {
   title: string
   rank: number | null
   names: Set<string>
+  author?: string               // list articles: the writer named on the page (pitched by name)
+}
+
+/**
+ * The person who wrote an article, from its own markup: JSON-LD author, <meta name="author">, or a
+ * rel="author" link. Only real-looking names (2-4 words, no "team" / "staff" / "editor").
+ */
+function authorOf(html: string): string | undefined {
+  const tries = [
+    ...[...html.matchAll(/"author"\s*:\s*(?:\[\s*)?\{[^{}]*?"name"\s*:\s*"([^"]{3,60})"/gi)].map(m => m[1]),
+    html.match(/<meta[^>]+name=["']author["'][^>]+content=["']([^"']{3,60})["']/i)?.[1],
+    html.match(/<meta[^>]+content=["']([^"']{3,60})["'][^>]+name=["']author["']/i)?.[1],
+    html.match(/<a[^>]+rel=["'][^"']*author[^"']*["'][^>]*>\s*([^<]{3,60})</i)?.[1],
+    // schema.org microdata: itemprop="author" … itemprop="name"
+    html.match(/itemprop=["']author["'][\s\S]{0,600}?itemprop=["']name["'][^>]*?(?:content=["']([^"']{3,60})["']|>\s*([^<]{3,60})<)/i)?.slice(1).find(Boolean),
+    // a byline element such as class="author-name" / "authorName"
+    html.match(/class=["'][^"']*author[-_]{0,2}name[^"']*["'][^>]*>\s*([^<]{3,60})</i)?.[1],
+  ]
+  for (const raw of tries) {
+    const name = raw?.replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').trim()
+    if (!name) continue
+    const words = name.split(' ')
+    if (words.length < 2 || words.length > 4) continue
+    if (!words.every(w => /^[A-Z][\p{L}'.-]*$/u.test(w))) continue
+    if (/\b(team|staff|editor|editors|admin|guest|contributor|newsroom|desk)\b/i.test(name)) continue
+    return name
+  }
+  return undefined
 }
 
 const fallbackFor = (b: BrandContext) => () => defaultSearchData(b)
@@ -90,17 +118,18 @@ async function findLists(b: BrandContext, d: SearchAgentData, skip: (domain: str
   // Read each page: drop the ones that already mention the brand, note which rivals they name
   const brandName = b.name.toLowerCase()
   const checked = await Promise.all([...pages.entries()].slice(0, 12).map(async ([dom, p]) => {
-    if (agentsDemo()) return { dom, p, names: rivals.map(c => c.name), listed: false }
-    const html = (await fetchHtml(p.url).catch(() => null))?.toLowerCase() ?? ''
-    if (!html) return { dom, p, names: [] as string[], listed: false }
+    if (agentsDemo()) return { dom, p, names: rivals.map(c => c.name), listed: false, author: undefined as string | undefined }
+    const raw = (await fetchHtml(p.url).catch(() => null)) ?? ''
+    const html = raw.toLowerCase()
+    if (!html) return { dom, p, names: [] as string[], listed: false, author: undefined }
     const listed = html.includes(b.domain) || (brandName.length > 3 && html.includes(brandName))
-    return { dom, p, names: rivals.filter(c => html.includes(c.domain) || html.includes(c.name.toLowerCase())).map(c => c.name), listed }
+    return { dom, p, names: rivals.filter(c => html.includes(c.domain) || html.includes(c.name.toLowerCase())).map(c => c.name), listed, author: authorOf(raw) }
   }))
   for (const c of checked) {
     if (c.listed) continue
     const cur = out.get(c.dom)
     // The exact list page is the better thing to pitch than an older link elsewhere on the site
-    out.set(c.dom, { domain: c.dom, source: 'list', url: c.p.url, title: c.p.title, rank: cur?.rank ?? null, names: new Set([...(cur?.names ?? []), ...c.names]) })
+    out.set(c.dom, { domain: c.dom, source: 'list', url: c.p.url, title: c.p.title, rank: cur?.rank ?? null, names: new Set([...(cur?.names ?? []), ...c.names]), author: c.author })
   }
 }
 
@@ -119,13 +148,13 @@ async function draftPitches(b: BrandContext, list: Candidate[]): Promise<Map<num
 Websites that link to or list this brand's competitors but not the brand:
 ${list.map((c, i) => `${i}. ${c.domain} (${c.source === 'list' ? 'a list/comparison article' : 'links to competitors'})
    Page: "${c.title || c.url}" ${c.url}
-   Names: ${[...c.names].join(', ') || 'competitors in this space'}`).join('\n')}
+   Names: ${[...c.names].join(', ') || 'competitors in this space'}${c.author ? `\n   Written by: ${c.author}` : ''}`).join('\n')}
 
 For each website return {"i": number, "keep": boolean, "why": "...", "subject": "...", "body": "..."}.
 - keep: false if a small business can't realistically get a link or mention there (major news outlets, government, universities, a competitor's own site, spammy or unrelated sites).
 - why: one plain sentence a non-technical founder understands, e.g. "Their 'best scheduling tools' article lists RivalOne and RivalTwo but not you."
 - subject: under 60 characters, specific, no clickbait.
-- body: 80-130 words, plain text, no greeting line with a name (we add it). Mention the page by its title, say in one or two sentences why ${b.name} is useful for their readers, make one clear ask (add ${b.name} to the list, or mention it), offer to send anything that helps. No flattery, no em dashes, no invented facts, numbers or customer names. Sign off with "${b.name}".`,
+- body: 50-90 words, plain text, no greeting line (we add "Hi <first name>," when the writer is known). In this order: their page by its title; the gap (it lists rivals but not ${b.name}); what you offer them to make adding it easy (a free account to try it, and a ready-to-paste two-line description of ${b.name}, written into the email); ONE short question to end. List owners often earn from affiliate links, so if the brand info mentions an affiliate or partner programme, say so in a few words. Mention a price only if the brand info gives one. No flattery, no em dashes, no invented facts, numbers or customer names. Sign off with "${b.name}".`,
   })
   const arr = parseJsonLoose<Drafted[]>(raw, 'array') ?? []
   return new Map(arr.filter(x => typeof x?.i === 'number').map(x => [x.i, x]))
@@ -264,16 +293,18 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
           authority: c.rank !== null ? Math.round(c.rank / 10) : null, names: [...c.names],
           why: x.why || (c.source === 'list' ? 'This article compares options like yours and leaves you out.' : `Links to ${[...c.names].join(' and ')}, not to you.`),
           pitch: x.subject && x.body ? { subject: stripEmDashes(x.subject), body: stripEmDashes(x.body) } : undefined,
+          contactName: c.author,
           status: 'new', foundAt: now,
         })
       })
       p.set('pick', 'done', { detail: `${fresh.length} worth pitching`, items: fresh.slice(0, 4).map(l => l.domain) })
-      // Contacts: Hunter for a named person, else a mailto: on their own pages
+      // Contacts: the article's writer by name through Hunter (else the right person Hunter knows),
+      // else an address on their own pages
       p.set('contacts', fresh.length ? 'running' : 'skipped')
       let lookups = 0
       for (const l of fresh) {
-        const viaHunter = lookups < MAX_LOOKUPS && hunterConfigured() ? await findEmail(l.domain, undefined, meter).catch(() => null) : null
-        if (viaHunter) { lookups += 1; l.email = viaHunter.email; l.emailVerified = viaHunter.verified; l.contactName = viaHunter.name }
+        const viaHunter = lookups < MAX_LOOKUPS && hunterConfigured() ? await findEmail(l.domain, l.contactName, meter).catch(() => null) : null
+        if (viaHunter) { lookups += 1; l.email = viaHunter.email; l.emailVerified = viaHunter.verified; l.contactName = viaHunter.name || l.contactName }
         else {
           const site = await emailFromWebsite(l.domain).catch(() => null)
           if (site) { l.email = site; l.emailVerified = false }
