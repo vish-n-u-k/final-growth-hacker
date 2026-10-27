@@ -32,6 +32,8 @@ const EU = new Set(['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 
 const MIN_SCORE = 7
 // Companies are already filtered (small, not PR/B2B, read from their own site), so 6 is good enough to email
 const MIN_COMPANY_SCORE = 6
+// Hacker News launches are often developer tools, so they need a clearer fit
+const MIN_LAUNCH_SCORE = 7
 const MAX_NEW_PER_RUN = 12
 const OPT_OUT = 'If this isn\'t relevant, just reply "no" and I won\'t email again.'
 
@@ -228,6 +230,7 @@ interface Candidate {
   rating?: number | null
   email?: string                // already known from the source (no Hunter lookup needed)
   judge?: string                // companies: everything the AI checks (page text, store facts), not shown
+  launch?: boolean              // companies: found as a Hacker News launch
 }
 
 async function searchQueries(b: BrandContext, s: LeadSettings, d: LeadAgentData): Promise<string[]> {
@@ -445,16 +448,19 @@ async function checkSites(list: WaitingSite[]): Promise<Candidate[]> {
     const team = page.html ? await marketingFacts(c.domain, page.html).catch(() => null) : null
     return { page, store, team }
   })
-  const checked = list.map((c, i) => ({ c, text: [c.about, read[i].page.text].filter(Boolean).join(' · '), socials: c.socials?.length ? c.socials : read[i].page.socials, page: read[i].page.page, store: read[i].store, team: read[i].team }))
+  const checked = list.map((c, i) => ({ c, text: [c.about, read[i].page.text].filter(Boolean).join(' · '), socials: c.socials?.length ? c.socials : read[i].page.socials, page: read[i].page.page, store: read[i].store, team: read[i].team,
+    siteName: read[i].page.text.split(' · ')[0].split(/\s[|–—-]\s|:\s/)[0].trim().slice(0, 60) }))
   // Big PR / B2B / consulting firms aren't small-business buyers: don't spend AI on them
   const small = checked.filter(x => !NOT_A_FIT.test(`${x.c.name} ${x.text}`))
   console.log(`[lead-agent] companies: ${list.length} found · ${checked.length - small.length} big or B2B dropped · ${small.filter(x => x.store).length} with a readable product list · ${Math.min(small.length, COMPANY_CHECK)} to the AI check`)
   return small
     .slice(0, COMPANY_CHECK)
-    .map(({ c, text, socials, page, store, team }) => ({
+    .map(({ c, text, socials, page, store, team, siteName }) => ({
       source: 'company' as const,
       url: `https://${c.domain}`,
-      title: c.name,
+      // A launch post's title can read like a sentence ("I made a benchmark…"): use the site's own name then
+      title: c.from.startsWith('Launched') && (c.name.split(/\s+/).length > 4 || /^(i|we|my|our)\b/i.test(c.name)) && siteName ? siteName : c.name,
+      launch: c.from.startsWith('Launched'),
       // What the user sees on the card: the store facts and social links first, then their own words
       snippet: [c.from.startsWith('Launched') ? c.from : null, store ? storeLine(store) : null, team?.hiring.length ? `Hiring: ${team.hiring.join(', ')}` : null, socials.length ? `Links to ${socials.join(', ')}` : 'No social links on their home page', text.slice(0, 200) || 'no description on their home page', `website ${c.domain}`].filter(Boolean).join(' · '),
       website: c.domain,
@@ -483,7 +489,7 @@ function judgeText(name: string, domain: string, about: string, page: string, so
  * the right trade, small, still active, and a need for help with social posts. Only all-yes are
  * kept; the score orders them.
  */
-interface CompanyCheck extends Scored { trade?: boolean; small?: boolean; active?: boolean | null; need?: boolean; diy?: boolean | null }
+interface CompanyCheck extends Scored { trade?: boolean; small?: boolean; active?: boolean | null; need?: boolean; diy?: boolean | null; reach?: boolean | null }
 async function judgeCompanies(b: BrandContext, s: LeadSettings, list: Candidate[]): Promise<CompanyCheck[]> {
   if (!list.length) return []
   const raw = await callAI({
@@ -500,24 +506,27 @@ For each business answer:
 - small: true for a one-person to small team business (a product list under about 500 items, no corporate wording). False for big brands, chains, agencies with many offices.
 - active: true if it looks alive (a product added in the last 6 months, or a current-looking site); false if clearly abandoned (newest product over a year ago, "closed", "coming soon" only); null if unknown.
 - need: true if it would plausibly want what ${b.name} offers now, judged against the ideal customer above. False if it shows any "NOT a fit" sign.
-- diy: who does their marketing. true if the founder or a tiny team seems to do it themselves (no marketing roles on careers or team pages, a person's own X / LinkedIn, a quiet blog or social links but little posting); false if they have a marketing team or agency, are hiring marketers or content people, or work with influencers / creators; null if unknown.
+- diy: who does their marketing. true if the founder or a tiny team seems to do it themselves (no marketing roles on careers or team pages, their own X account (the founder's or the company's) or a founder's LinkedIn, a quiet blog or social links but little posting); false if they have a marketing team or agency, are hiring marketers or content people, or work with influencers / creators; null if unknown.
 - score: 1-10, how good a lead it is overall.
 - why: one plain sentence a non-technical owner understands, naming what they sell.
 
 ${list.map((c, i) => `[${i}]\n${c.judge ?? `${c.title}\n${c.snippet}`}`).join('\n\n')}
 
-Return [{"i":0,"trade":true,"small":true,"active":true,"need":true,"diy":true,"score":8,"why":"..."}]`,
+- reach: does ${b.name} help this business reach ITS OWN buyers? Think about who they sell to. For a social media tool: true when their buyers find products on social media (consumers, creators, small businesses, marketers, founders, everyday software users); false when they sell to developers, engineers, hardware makers, IT or enterprise buyers, or investors who don't pick products from social posts. Judge the same way for any other kind of product. null if unknown.
+
+Return [{"i":0,"trade":true,"small":true,"active":true,"need":true,"diy":true,"reach":true,"score":8,"why":"..."}]`,
   })
   return (parseJsonLoose<CompanyCheck[]>(raw, 'array') ?? []).filter(x => typeof x.i === 'number' && x.i >= 0 && x.i < list.length)
 }
 
 /** Which check a company failed, for the run summary. */
-function failed(x: CompanyCheck): 'trade' | 'small' | 'active' | 'need' | 'diy' | null {
+function failed(x: CompanyCheck): 'trade' | 'small' | 'active' | 'need' | 'diy' | 'reach' | null {
   if (x.trade === false) return 'trade'
   if (x.small === false) return 'small'
   if (x.active === false) return 'active'
   if (x.need === false) return 'need'
   if (x.diy === false) return 'diy'
+  if (x.reach === false) return 'reach'
   return null
 }
 
@@ -858,9 +867,9 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
         // A company that fails any check can't be kept, whatever its score
         ...companyBack.map(x => (failed(x) ? { ...x, score: Math.min(x.score, 3) } : x)),
       ]
-      const fails = { trade: 0, small: 0, active: 0, need: 0, diy: 0 }
+      const fails = { trade: 0, small: 0, active: 0, need: 0, diy: 0, reach: 0 }
       for (const x of companyBack) { const f = failed(x); if (f) fails[f] += 1 }
-      const good = scored.filter(x => x.score >= (candidates[x.i].source === 'company' ? MIN_COMPANY_SCORE : MIN_SCORE)).sort((x, y) => y.score - x.score).slice(0, MAX_NEW_PER_RUN)
+      const good = scored.filter(x => x.score >= (candidates[x.i].launch ? MIN_LAUNCH_SCORE : candidates[x.i].source === 'company' ? MIN_COMPANY_SCORE : MIN_SCORE)).sort((x, y) => y.score - x.score).slice(0, MAX_NEW_PER_RUN)
       // Demo mode: always keep a few made-up businesses with a website, so there are emails to approve
       // (Claude scores them strictly, and forum posts can fill the run)
       if (demo) {
@@ -875,7 +884,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       const now = new Date().toISOString()
       // The ones that came close go on the "maybe" list (companies the checks dropped, posts and
       // businesses scoring 4-6), so the user can still use one
-      const REASON = { trade: 'Sells something else', small: 'Looks too big', active: 'Doesn’t look active', need: 'Not a clear fit', diy: 'Has a marketing team or creators' }
+      const REASON = { trade: 'Sells something else', small: 'Looks too big', active: 'Doesn’t look active', need: 'Not a clear fit', diy: 'Has a marketing team or creators', reach: 'Their buyers aren’t reached this way' }
       for (const x of scored) {
         if (keptIdx.has(x.i)) continue
         const c = candidates[x.i]
@@ -931,7 +940,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       const checked = candidates.filter(c => c.source === 'company').length
       if (checked) {
         const fits = fresh.filter(l => l.source === 'company')
-        const why = [fails.trade && `${fails.trade} wrong trade`, fails.small && `${fails.small} too big`, fails.active && `${fails.active} not active`, fails.need && `${fails.need} no clear need`, fails.diy && `${fails.diy} with a marketing team`].filter(Boolean).join(', ')
+        const why = [fails.trade && `${fails.trade} wrong trade`, fails.small && `${fails.small} too big`, fails.active && `${fails.active} not active`, fails.need && `${fails.need} no clear need`, fails.diy && `${fails.diy} with a marketing team`, fails.reach && `${fails.reach} whose buyers aren’t reached this way`].filter(Boolean).join(', ')
         notes.push(`Companies: ${checked} checked${why ? ` (${why})` : ''}, ${fits.length} good fit${fits.length === 1 ? '' : 's'}${fits.length ? `, ${fits.filter(l => l.email).length} with an email` : ''}`)
       }
     } else if (find && !errors.length) {

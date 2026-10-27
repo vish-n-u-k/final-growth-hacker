@@ -252,6 +252,11 @@ Why: Frekto's leads stayed e-commerce after the owner asked for SaaS founders wh
   - Reddit searches r/SaaS, r/indiehackers, r/startups, r/Entrepreneur, r/microsaas instead of all of Reddit.
   - Product Hunt / BetaList not added (no free API).
 - **Who does their marketing** (`marketingFacts` / `marketingLine` in `site-facts.ts`, free): marketing roles on /careers or /jobs and /about or /team, creator / ambassador / affiliate programmes, a person's own X or LinkedIn on the home page, newest blog date. Sent to `judgeCompanies`, which now has a `diy` check; failing it is "Has a marketing team or creators" in "Checked but not kept" and "N with a marketing team" in the summary. `need` is judged against the card, not "social posts" any more.
+- **After the first real Frekto run (27 Oct):** Show HN gave real founder-led products, but mostly developer tools. Added:
+  - a `reach` check in `judgeCompanies`: does the brand help this business reach *its own* buyers (for Frekto: are their buyers found on social media; dev, hardware, IT and investor tools fail). Reason "Their buyers aren’t reached this way".
+  - Show HN finds (`Candidate.launch`) need a score of 7 (`MIN_LAUNCH_SCORE`), other companies 6.
+  - A launch whose post title reads like a sentence ("I made…") takes the site's own name.
+  - The owner's call: a company X account counts like the founder's own (both mean they post themselves); non-English sites are fine.
 - Not tested against real AI / DataForSEO yet.
 
 ## 4e. Search Agent: better output (27 Oct)
