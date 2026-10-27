@@ -42,7 +42,9 @@ const WEEK = 6.5 * 86_400_000
 // ── Setup the agent needs once ────────────────────────────────────────────────
 
 async function ensureSeedsAndQuestions(b: BrandContext, d: SearchAgentData) {
-  if (d.settings.seeds.length && d.settings.questions.length) return
+  // Seeds saved before seedsBy existed were copied from the brand profile: written afresh once
+  const writeSeeds = d.settings.seedsBy !== 'user' && (!d.settings.seeds.length || !d.settings.seedsBy)
+  if (!writeSeeds && d.settings.questions.length) return
   const raw = await callAI({
     feature: 'search-agent',
     model: 'claude-haiku-4-5-20251001',
@@ -51,11 +53,12 @@ async function ensureSeedsAndQuestions(b: BrandContext, d: SearchAgentData) {
     prompt: `${brandBlock(b)}
 
 Return {"seeds":[...],"questions":[...]}:
-- seeds: 5 short keywords (1-3 words) people type into Google when looking for what ${b.name} offers. Never the brand name.
+- seeds: 5 searches a buyer types into Google to find a product like ${b.name}. 2-5 words each, in the buyer's plain words: the kind of tool plus what it makes or who it's for (e.g. "ai instagram post generator", "social media post maker for small business"). Not the site's own slogans or category words, not one broad word like "marketing", never a brand name.
 - questions: 10 questions a buyer would ask ChatGPT when choosing a product like this, e.g. "What's the best tool for ...?", "Which app can ... for a small business?". Never mention ${b.name} or any brand.`,
   })
   const j = parseJsonLoose<{ seeds?: string[]; questions?: string[] }>(raw, 'object') ?? {}
-  if (!d.settings.seeds.length) d.settings.seeds = (j.seeds ?? []).filter(s => typeof s === 'string').slice(0, 5)
+  const seeds = (j.seeds ?? []).filter(s => typeof s === 'string' && s.trim()).map(s => s.trim().toLowerCase()).slice(0, 5)
+  if (writeSeeds && seeds.length) { d.settings.seeds = seeds; d.settings.seedsBy = 'auto' }
   if (!d.settings.questions.length) d.settings.questions = (j.questions ?? []).filter(s => typeof s === 'string').slice(0, 10)
 }
 
@@ -293,6 +296,43 @@ function ideaRows(b: BrandContext, topics: Topic[], ideas: KeywordIdea[], checke
   return ideas.slice(0, 100).map(i => ({ keyword: i.keyword, volume: i.volume, difficulty: i.difficulty, cpc: i.cpc, verdict: verdict(i) }))
 }
 
+/**
+ * The agent's own seeds get better each research: a seed with too few or too many searches, or that
+ * Claude says isn't a buyer's search, is swapped for the best good-fit idea (at most 2 a week, so the
+ * list stays broad). One fit check covers the seeds and the candidates. Typed-in seeds are left alone.
+ */
+async function reviewSeeds(b: BrandContext, seeds: string[], ideas: KeywordIdea[]): Promise<{ seeds: string[]; dropped: string[] }> {
+  if (!seeds.length || !ideas.length) return { seeds, dropped: [] }
+  const brandWords = [b.name.toLowerCase(), b.domain.split('.')[0]]
+  const volume = new Map(ideas.map(i => [i.keyword.toLowerCase(), i.volume]))
+  const words = (k: string) => new Set(k.toLowerCase().split(/\s+/))
+  const similar = (x: string, y: string) => {
+    const a = words(x), c = words(y)
+    return [...a].filter(w => c.has(w)).length / Math.min(a.size, c.size) >= 0.75
+  }
+  const cands = ideas
+    .filter(i => i.volume >= 50 && i.volume <= MAX_IDEA_VOLUME && i.difficulty !== null && i.difficulty <= 40
+      && !brandWords.some(w => w.length > 2 && i.keyword.includes(w)) && !seeds.some(x => similar(x, i.keyword)))
+    .sort((x, y) => y.volume / (y.difficulty! + 10) - x.volume / (x.difficulty! + 10))
+    .slice(0, 15)
+    .map(i => i.keyword)
+  const fits = await relevantKeywords(b, [...seeds, ...cands])
+  // A seed with no search data is kept unless the fit check says no: DataForSEO may just not list it
+  const weak = seeds.filter(x => {
+    const v = volume.get(x.toLowerCase())
+    return !fits.has(x) || (v !== undefined && (v < 50 || v > MAX_IDEA_VOLUME))
+  })
+  const out = [...seeds]
+  const dropped: string[] = []
+  for (const w of weak.slice(0, 2)) {
+    const next = cands.find(c => fits.has(c) && !out.some(x => similar(x, c)))
+    if (!next) break
+    out[out.indexOf(w)] = next
+    dropped.push(w)
+  }
+  return { seeds: out, dropped }
+}
+
 /** "Write about this" on the Keywords tab: a saved idea becomes a post to write. */
 export async function ideaToTopic(brandId: string, keyword: string): Promise<{ ok: boolean; message?: string }> {
   const b = await loadBrandContext(brandId)
@@ -451,7 +491,10 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
     const rows = ranked ?? []
     const changes = ranked ? rankChanges(d.ranks, rows, d.topics) : d.rankChanges
     const { picks, checked, fits } = await pickTopics(b, d, ideas, rows).catch(() => ({ picks: [] as Topic[], checked: new Set<string>(), fits: new Set<string>() }))
-    p.set('topics', 'done', picks.length ? { detail: `${picks.length} new`, items: picks.map(t => t.keyword) } : { detail: 'None new', note: 'Topics from earlier are still waiting to be written.' })
+    // The agent's own starting keywords: weak ones are swapped for good-fit ideas for next week
+    const review = s.seedsBy === 'auto' ? await reviewSeeds(b, s.seeds, ideas).catch(() => null) : null
+    const swapped = review?.dropped.length ? `Starting keywords for next time: dropped ${review.dropped.map(x => `“${x}”`).join(', ')}.` : undefined
+    p.set('topics', 'done', picks.length ? { detail: `${picks.length} new`, items: picks.map(t => t.keyword), note: swapped } : { detail: 'None new', note: swapped ?? 'Topics from earlier are still waiting to be written.' })
     const fresh = buildTasks(b, answers, changes, desc, d.answers?.items ?? null)
     const listings = fresh.filter(t => t.kind === 'listing').map(t => t.key.replace(/^listing:/, ''))
     p.set('tasks', 'done', { items: listings, detail: fresh.length ? n(fresh.length, 'task') : 'Nothing new', note: [
@@ -476,10 +519,14 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       })
     }
     const okAnswers = answers.filter(a => !a.error)
+    const failed = answers.filter(a => a.error && a.engine !== 'google_ai')
     if (!okAnswers.length && answers.length) errors.push(`AI answers: ${answers[0].error ?? 'failed'}`)
+    // Some failed: say so, or the AI answers tab quietly shows fewer questions than were asked
+    else if (failed.length) errors.push(`AI answers: ${failed.length} of ${answers.filter(a => a.engine !== 'google_ai').length} couldn't be read (${failed[0].error ?? 'failed'}), so this week's numbers use fewer answers`)
 
     const saved = await updateSearchData(brandId, fallback, x => {
-      x.settings.seeds = x.settings.seeds.length ? x.settings.seeds : s.seeds
+      // Unless the user typed their own keywords in the meantime
+      if (x.settings.seedsBy !== 'user' && s.seedsBy === 'auto') { x.settings.seeds = review?.seeds ?? s.seeds; x.settings.seedsBy = 'auto' }
       x.settings.questions = x.settings.questions.length ? x.settings.questions : s.questions
       x.topics.push(...picks)
       // Keep the last ideas when this run got none (a DataForSEO error)

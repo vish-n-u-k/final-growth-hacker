@@ -147,6 +147,9 @@ export interface SearchSettings {
   enabled: boolean
   country: string
   seeds: string[]               // starting keywords
+  // Who chose the seeds: 'auto' = written and improved by the agent each research; 'user' = typed in
+  // Settings, left alone. Missing = saved before this existed (copied from the brand profile): rewritten once.
+  seedsBy?: 'auto' | 'user'
   questions: string[]           // buyer questions asked to the AI engines
 }
 
@@ -292,7 +295,9 @@ export function defaultSearchData(brand: { websiteUrl?: string | null; keywords?
     settings: {
       enabled: false,
       country: defaultCountry(brand.websiteUrl),
-      seeds: (brand.keywords ?? '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 5),
+      // The profile's keywords describe the product, not what buyers type: the agent writes these
+      seeds: [],
+      seedsBy: 'auto',
       questions: [],
     },
     topics: [],

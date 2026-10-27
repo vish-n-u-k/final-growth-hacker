@@ -62,7 +62,12 @@ async function post(req: NextRequest) {
       const data = await updateSearchData(brandId, fallback, d => {
         if (typeof s.enabled === 'boolean') d.settings.enabled = s.enabled
         if (typeof s.country === 'string' && LOCATION_CODES[s.country]) d.settings.country = s.country
-        d.settings.seeds = lines(s.seeds, 10, 60) ?? d.settings.seeds
+        const seeds = lines(s.seeds, 10, 60)
+        // Typed-in keywords are kept as they are; an emptied list goes back to the agent
+        if (seeds && seeds.join('\n') !== d.settings.seeds.join('\n')) {
+          d.settings.seeds = seeds
+          d.settings.seedsBy = seeds.length ? 'user' : 'auto'
+        }
         d.settings.questions = lines(s.questions, 15, 200) ?? d.settings.questions
       })
       if (!data.settings.enabled) await clearSignals(brandId, 'search-agent', data.tasks.map(t => t.key)).catch(() => {})

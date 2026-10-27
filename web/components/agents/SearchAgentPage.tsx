@@ -51,7 +51,7 @@ function Settings({ initial, saving, onSave, onCancel }: { initial: SearchSettin
   return (
     <form className="tu-panel" onSubmit={e => { e.preventDefault(); onSave({ enabled, country, seeds: split(seeds), questions: split(questions) }) }}>
       <h3>Search settings</h3>
-      <p className="tu-hint">Suggested from your site. Leave a list empty and it&apos;s written from your brand on the next research.</p>
+      <p className="tu-hint">The agent picks the keywords and improves them after each research. Type your own to keep them fixed; empty the list to hand it back.</p>
       <div className="tu-grid">
         <label>Keywords (one per line)
           <textarea rows={4} value={seeds} onChange={e => setSeeds(e.target.value)} placeholder={'social media scheduler\ninstagram post maker'} />
