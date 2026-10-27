@@ -89,6 +89,26 @@ export interface Lead {
   error?: string
 }
 
+/** A website found but not checked yet. */
+export interface WaitingSite { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string }
+/** A forum post found but not scored yet. */
+export interface WaitingPost { source: LeadSource; url: string; title: string; snippet: string; name?: string }
+/** A find the checks didn't keep, with the reason, shown under the leads ("Use anyway"). */
+export interface MaybeLead {
+  id: string
+  source: LeadSource
+  title: string
+  url: string
+  snippet: string
+  website?: string
+  name?: string
+  email?: string
+  why: string                   // the AI's sentence
+  reason: string                // why it wasn't kept, in plain words
+  score: number
+  at: string
+}
+
 /** A list of people the user added themselves: one email for all, approved at once, sent over days. */
 export interface OwnList {
   id: string
@@ -104,6 +124,12 @@ export interface LeadAgentData {
   sentLog: string[]             // when first emails went out (daily limit)
   approvedCount: number         // first emails the user approved (auto mode unlocks at 20)
   rejected?: string[]           // ids of finds scored too low, so they aren't scored again
+  // Finds not checked yet (a search brings back more than a run checks): "Show 10 more" uses these first
+  waiting?: { sites: WaitingSite[]; posts: WaitingPost[] }
+  // Checked but not kept (wrong trade, unclear need, a middling score), newest first, so the user can use one anyway
+  maybe?: MaybeLead[]
+  // Where the next search starts: each search moves on to the next page of websites and the next phrase
+  cursor?: { sites: number; phrase: number }
   lists?: OwnList[]             // lists the user added (newest first)
   demo?: boolean                // made with demo data (lib/agents/demo.ts)
   queries?: { for: string; list: string[] }

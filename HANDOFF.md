@@ -232,6 +232,13 @@ One board for every lead source, built from the approved preview `design-preview
 - **Kept small while testing:** `PER_SOURCE` in `lead-agent.ts` is 3: at most 3 new finds per source and 3 Hunter emails per run, one Reddit search instead of two, a Google Maps depth of 12 instead of 40. Set `AGENTS_LEADS_PER_SOURCE=10` to go back to the old size.
 - **Not tested against real Hunter:** whether Discover's keyword search gives good small online stores. If it's weak, DataForSEO's technology search ("sites running Shopify in the US") is the next thing to try.
 
+## 4d-2. Lead Agent: more than one batch (27 Oct)
+
+- **Each search moves on:** `data.cursor = { sites, phrase }` counts searches; the next company search asks DataForSEO for the next page of 50, and Reddit / Hacker News use the next phrase (no longer once a day).
+- **Waiting list:** finds not checked in a run (sites beyond the 30, posts beyond `PER_SOURCE`) are kept in `data.waiting = { sites, posts }`.
+- **"Show 10 more"** under each tab's To do list (op `more`, `runLeadAgent({ more: 'email' | 'community' })`): skips replies and sending, checks the next 10 from the waiting list, or searches the next page / phrase when fewer are waiting, then the usual checks, emails and drafts. It doesn't change "Last search".
+- **"Checked but not kept":** companies that failed a check, and posts or businesses scoring 4-6, go to `data.maybe` (newest first, up to 60) with a plain reason. Shown under the list; **Use anyway** (op `use`, `useMaybe`) makes it a lead (a forum post gets its reply drafted; a business gets an email from its pages or one Hunter lookup, then its email drafted).
+
 ## 4e. Search Agent: better output (27 Oct)
 
 Built from the review in `md_files/SEARCH_AGENT_HOW_IT_WORKS.md` (the report the owner shared).

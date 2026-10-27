@@ -9438,3 +9438,14 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .sa-in small { font-weight: 400; color: var(--text-faint); font-size: 12.5px; }
 .sa-in textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font: 400 14.5px/1.5 var(--font-body); resize: vertical; }
 .sa-in textarea:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 14%, transparent); }
+
+/* Lead Agent: "Show 10 more" and "Checked but not kept" under the To do list */
+.la-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 18px 0 6px; }
+.la-maybe { margin-top: 22px; }
+.la-maybe-row { display: flex; align-items: center; gap: 12px; padding: 11px 4px; border-bottom: 1px solid var(--line); }
+.la-maybe-main { display: grid; gap: 2px; flex: 1; min-width: 0; }
+.la-maybe-main b { font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.la-maybe-main b a { color: inherit; text-decoration: none; }
+.la-maybe-main b a:hover { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.la-maybe-main span { color: var(--text-dim); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.la-maybe-all { margin-top: 10px; }

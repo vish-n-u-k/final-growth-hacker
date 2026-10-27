@@ -236,6 +236,46 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     )
   }
 
+  // ── More, and the ones not kept ─────────────────────────────────────────────
+
+  const [maybeAll, setMaybeAll] = useState(false)
+  const inThisLane = (src: Lead['source']) => (src === 'reddit' || src === 'forum') === (lane === 'community')
+  function extra() {
+    const waiting = lane === 'email' ? data.waiting?.sites.length ?? 0 : data.waiting?.posts.length ?? 0
+    const canMore = lane === 'email' ? s.sources.companies : s.sources.reddit
+    const maybe = (data.maybe ?? []).filter(m => inThisLane(m.source))
+    const shownMaybe = maybeAll ? maybe : maybe.slice(0, 5)
+    const loading = busy === 'more'
+    return <>
+      {canMore && (
+        <div className="la-more">
+          <button type="button" className="btn cl-btn-outline" disabled={!!busy} onClick={() => call('more', { lane }, 'more')}>
+            {loading ? <><Spinner />Checking the next ones…</> : lane === 'email' ? 'Show 10 more' : 'Show 10 more posts'}
+          </button>
+          <span className="cl-muted">{waiting ? `${waiting} waiting from the last search, checked the same way.` : 'Starts a new search where the last one stopped.'}</span>
+        </div>
+      )}
+      {maybe.length > 0 && (
+        <div className="la-maybe">
+          <Sec label="Checked but not kept" count={maybe.length} />
+          <p className="cl-muted tu-note">Newest first. If one looks right to you, use it anyway.</p>
+          {shownMaybe.map(m => (
+            <div key={m.id} className="la-maybe-row">
+              <div className="la-maybe-main">
+                <b>{m.url ? <a href={m.url} target="_blank" rel="noopener noreferrer">{m.title}</a> : m.title}</b>
+                <span>{m.reason} · {m.why}</span>
+              </div>
+              <button type="button" className="btn btn-ghost btn-sm" disabled={!!busy} onClick={() => call('use', { id: m.id }, `use:${m.id}`)}>
+                {busy === `use:${m.id}` ? <><Spinner />Adding…</> : 'Use anyway'}
+              </button>
+            </div>
+          ))}
+          {maybe.length > 5 && <button type="button" className="th-link tu-linkbtn la-maybe-all" onClick={() => setMaybeAll(v => !v)}>{maybeAll ? 'Show fewer' : `Show all ${maybe.length}`}</button>}
+        </div>
+      )}
+    </>
+  }
+
   function list() {
     const all = tabAll
     const tools = <>
@@ -257,7 +297,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
           ? (s.sources.local || s.sources.companies ? 'No emails to approve. New ones appear after the next search.' : 'Google Maps and company search are off. Turn one on in Search settings to find people to email.')
           : (s.sources.reddit ? 'No posts to answer. New ones appear after the next search.' : 'Reddit and Hacker News are off. Turn them on in Search settings.'))
         : tab === 'waiting' ? (lane === 'email' ? 'Nothing waiting. Emails you send show up here until they reply.' : 'Nothing waiting. Replies you post show up here.')
-        : 'Nothing here yet.'}</div></>
+        : 'Nothing here yet.'}</div>{tab === 'needs' && extra()}</>
     }
     if (tab !== 'needs') return <>{tools}{pg.items.map(card)}<Pager p={pg} top={listTop} /></>
     const approvable = shown.filter(l => l.status === 'ready' && !l.reply && l.email && l.draft).length
@@ -283,6 +323,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
         )
       })}
       <Pager p={pg} top={listTop} />
+      {extra()}
     </>
   }
 

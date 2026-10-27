@@ -24,7 +24,7 @@ import { contactEmail, inBatches, storeFacts, storeLine, type StoreFacts } from 
 import { costNote } from './services'
 import {
   addUsage, defaultLeadData, newMeter, readLeadData, updateLeadData,
-  type Lead, type LeadAgentData, type LeadSettings, type LeadSource, type UsageMeter,
+  type Lead, type LeadAgentData, type LeadSettings, type LeadSource, type MaybeLead, type UsageMeter, type WaitingPost, type WaitingSite,
 } from './store'
 import { brandBlock, daysFrom, domainOf, firstName, idOf, loadBrandContext, parseJsonLoose, textToHtml, type BrandContext } from './context'
 
@@ -188,12 +188,11 @@ async function searchQueries(b: BrandContext, s: LeadSettings, d: LeadAgentData)
   return list
 }
 
-async function findReddit(queries: string[], country: string, meter: UsageMeter): Promise<Candidate[]> {
+async function findReddit(queries: string[], country: string, meter: UsageMeter, turn: number): Promise<Candidate[]> {
   if (!searchDataReady() || !queries.length) return []
-  // Two phrases a day, rotating through the list
-  const day = Math.floor(Date.now() / 86_400_000)
-  // One Google search when few finds are wanted, two otherwise
-  const picks = (PER_SOURCE <= 3 ? [queries[day % queries.length]] : [queries[day % queries.length], queries[(day + 1) % queries.length]]).filter((q, i, a) => a.indexOf(q) === i)
+  // Each search moves on to the next phrase (`turn` counts searches); one Google search when few
+  // finds are wanted, two otherwise
+  const picks = (PER_SOURCE <= 3 ? [queries[turn % queries.length]] : [queries[turn % queries.length], queries[(turn + 1) % queries.length]]).filter((q, i, a) => a.indexOf(q) === i)
   // Google sometimes chokes on long phrases with quotes behind site:, so a second try uses a plain, short version
   const plain = (q: string) => q.replace(/["“”'()]/g, ' ').replace(/\b(OR|AND)\b/g, ' ').split(/\s+/).filter(Boolean).slice(0, 6).join(' ')
   const search = (q: string) => googleResults(`site:reddit.com ${q}`, country, meter, { recent: true })
@@ -213,9 +212,9 @@ async function findReddit(queries: string[], country: string, meter: UsageMeter)
     }))
 }
 
-async function findHackerNews(queries: string[]): Promise<Candidate[]> {
+async function findHackerNews(queries: string[], turn: number): Promise<Candidate[]> {
   const since = Math.floor(Date.now() / 1000) - 30 * 86400
-  const q = queries[Math.floor(Date.now() / 86_400_000) % Math.max(1, queries.length)]
+  const q = queries[turn % Math.max(1, queries.length)]
   if (!q) return []
   try {
     const res = await fetch(`https://hn.algolia.com/api/v1/search_by_date?${new URLSearchParams({ query: q, tags: 'story', numericFilters: `created_at_i>${since}`, hitsPerPage: String(Math.max(5, PER_SOURCE * 2)) })}`, { signal: AbortSignal.timeout(10_000) })
@@ -306,26 +305,40 @@ function socialsIn(text: string): string[] {
   return nets.filter(([, re]) => re.test(text)).map(([n]) => n)
 }
 
-async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData, known: Set<string>, meter: UsageMeter, warn: (msg: string) => void): Promise<Candidate[]> {
+/**
+ * Websites to check: first the ones waiting from an earlier search (`queue`), then, when there
+ * aren't `limit` of them, a new search on the next page (`turn`). Sites beyond `limit` go back to
+ * the waiting list through `rest`, for "Show 10 more".
+ */
+async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData, known: Set<string>, meter: UsageMeter, warn: (msg: string) => void,
+  o: { turn: number; limit: number; queue: WaitingSite[]; searched: () => void; rest: (sites: WaitingSite[]) => void }): Promise<Candidate[]> {
   const f = await companyFilters(b, s, d)
-  const day = Math.floor(Date.now() / 86_400_000)
   const skip = new Set([b.domain, ...b.competitors.map(c => domainOf(c.domain))])
   const fresh = (domain: string) => !skip.has(domain) && !known.has(idOf(`https://${domain}`))
-  type Found = { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string }
+  type Found = WaitingSite
+  const queued = o.queue.filter(x => fresh(x.domain))
+  if (queued.length >= o.limit) { o.rest(queued.slice(o.limit)); return checkSites(queued.slice(0, o.limit)) }
 
   // DataForSEO finds the websites: sites whose title or description has the trade words, running
   // the store platforms Claude picked (or any site, when the buyers aren't online stores), a new page
   // each day. Hunter only finds emails, later.
   if (!searchDataReady()) { warn('Companies: needs GrowJin’s DataForSEO account, which isn’t set up'); return [] }
   if (!f.platforms.length && !f.keywords.length) return []
-  const rows = await storesByPlatform(f.platforms, s.country, meter, { limit: 50, offset: (day % 20) * 50, keywords: f.keywords })
+  o.searched()
+  const rows = await storesByPlatform(f.platforms, s.country, meter, { limit: 50, offset: (o.turn % 20) * 50, keywords: f.keywords })
   const what = f.platforms.length ? `${f.platforms.join(' / ')} sites` : 'sites'
   console.log(`[lead-agent] DataForSEO websites (${f.platforms.join(', ') || 'any platform'}, ${s.country}): ${rows.length} back${rows[0] ? `, e.g. ${rows.slice(0, 3).map(x => x.domain).join(', ')}` : ''}`)
   if (!rows.length) warn(`Companies: DataForSEO found no ${what} ${s.country === 'ANY' ? 'anywhere' : `in ${s.country}`} for “${f.keywords.slice(0, 4).join('”, “')}” this time`)
-  const list: Found[] = rows
-    .filter(x => fresh(x.domain))
-    .map(x => ({ domain: x.domain, name: x.title.split(/\s[|–-]\s/)[0].slice(0, 60) || x.domain, about: [x.title, x.description].filter(Boolean).join(' · '), socials: socialsIn(x.socials.join(' ')), email: x.emails.find(e => e.endsWith(x.domain)) ?? x.emails[0], from: f.platforms.length ? `${f.platforms.join(' / ')} store` : 'website' }))
-    .slice(0, COMPANY_CHECK + 4)
+  const seen = new Set(queued.map(x => x.domain))
+  const pool: Found[] = [...queued, ...rows
+    .filter(x => fresh(x.domain) && !seen.has(x.domain))
+    .map(x => ({ domain: x.domain, name: x.title.split(/\s[|–-]\s/)[0].slice(0, 60) || x.domain, about: [x.title, x.description].filter(Boolean).join(' · '), socials: socialsIn(x.socials.join(' ')), email: x.emails.find(e => e.endsWith(x.domain)) ?? x.emails[0], from: f.platforms.length ? `${f.platforms.join(' / ')} store` : 'website' }))]
+  o.rest(pool.slice(o.limit))
+  return checkSites(pool.slice(0, o.limit))
+}
+
+/** Reads each site for free (home page, store facts) and turns it into a candidate for the AI check. */
+async function checkSites(list: WaitingSite[]): Promise<Candidate[]> {
 
   // Every site is read for free: its home page (title, description, text, social links) and, for
   // online stores, its public product list (what it sells, how many products, when it last added one)
@@ -554,11 +567,53 @@ export async function addLeadEmail(brandId: string, leadId: string, email: strin
   return { ok: true, message: 'Email written.' }
 }
 
+/**
+ * "Use anyway" on a find the checks didn't keep: it becomes a lead. A forum post gets its reply
+ * drafted; a business gets an email from its own pages (free) or Hunter, then its email drafted.
+ */
+export async function useMaybe(brandId: string, id: string): Promise<{ ok: boolean; message: string }> {
+  const b = await loadBrandContext(brandId)
+  if (!b) return { ok: false, message: 'Brand not found.' }
+  const fallback = leadFallback(b)
+  const d = (await readLeadData(brandId)) ?? fallback()
+  const m = d.maybe?.find(x => x.id === id)
+  if (!m) return { ok: false, message: 'That one is gone. Refresh the page.' }
+  const lead: Lead = {
+    id: m.id, source: m.source, foundAt: new Date().toISOString(), title: m.title, url: m.url, snippet: m.snippet,
+    name: m.name, website: m.website, score: m.score, why: m.why, status: 'needs_contact', followupsSent: 0,
+    ...(m.email ? { email: m.email, emailVerified: false } : {}),
+  }
+  const forum = m.source === 'reddit' || m.source === 'forum'
+  return withAIContext({ brandId, moduleType: 'lead-agent', websiteUrl: b.websiteUrl }, async () => {
+    if (forum) {
+      const x = (await draftMessages(b, d.settings, [lead]).catch(() => new Map())).get(lead.id)
+      if (x?.reply) { lead.reply = x.reply; lead.status = 'ready' }
+    }
+    await updateLeadData(brandId, fallback, y => {
+      y.maybe = (y.maybe ?? []).filter(z => z.id !== id)
+      if (!y.leads.some(l => l.id === id)) y.leads = [lead, ...y.leads]
+    })
+    if (forum) return { ok: true, message: lead.reply ? 'Added, with a reply to check.' : 'Added. Write the reply yourself.' }
+    // A business: its own pages first, then one Hunter lookup
+    let email = lead.email ?? (lead.website ? await contactEmail(lead.website).catch(() => null) : null)
+    if (!email && lead.website && hunterConfigured()) {
+      const meter = newMeter()
+      email = (await findEmail(lead.website, undefined, meter).catch(() => null))?.email ?? null
+      await addUsage(brandId, meter, 'Lead Agent').catch(() => {})
+    }
+    if (!email) return { ok: true, message: 'Added. No email found: paste one if you know it.' }
+    const r = await addLeadEmail(brandId, id, email)
+    return { ok: true, message: r.ok ? 'Added, with an email to check.' : r.message }
+  })
+}
+
 // ── The run ───────────────────────────────────────────────────────────────────
 
 export interface RunResult { ok: boolean; summary: string; error?: string }
 
-export async function runLeadAgent(brandId: string, opts: { manual?: boolean; deadline?: number } = {}): Promise<RunResult> {
+// more: "Show 10 more" for one tab: no reply check or sending, just the next finds (waiting ones
+// first, then a new search) through the same checks, scoring and drafting
+export async function runLeadAgent(brandId: string, opts: { manual?: boolean; deadline?: number; more?: 'email' | 'community' } = {}): Promise<RunResult> {
   const b = await loadBrandContext(brandId)
   if (!b) return { ok: false, summary: '', error: 'Brand not found.' }
   const fallback = leadFallback(b)
@@ -567,13 +622,25 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
   // Switching between demo and real data: start the lead list afresh (settings are kept)
   const saved = await readLeadData(brandId)
   if (saved && !!saved.demo !== demo) {
-    await updateLeadData(brandId, fallback, x => { x.leads = []; x.lists = []; x.sentLog = []; x.approvedCount = 0; x.rejected = []; x.lastError = null; x.demo = demo })
+    await updateLeadData(brandId, fallback, x => { x.leads = []; x.lists = []; x.sentLog = []; x.approvedCount = 0; x.rejected = []; x.waiting = undefined; x.maybe = []; x.lastError = null; x.demo = demo })
   }
   const d = (await readLeadData(brandId)) ?? fallback()
   d.demo = demo
   // Daily search off: the daily run still checks replies, sends follow-ups and sends what you
   // approved (your own lists go out over several days), but doesn't look for new leads
-  const find = d.settings.enabled || !!opts.manual
+  const find = d.settings.enabled || !!opts.manual || !!opts.more
+  const more = opts.more
+  // Which sources this run searches: all that are on, or just one tab's for "Show 10 more"
+  const use = {
+    reddit: d.settings.sources.reddit && more !== 'email',
+    local: d.settings.sources.local && !more,
+    companies: d.settings.sources.companies && more !== 'community',
+  }
+  // Searches done so far: each one starts where the last stopped
+  const turn = { sites: d.cursor?.sites ?? 0, phrase: d.cursor?.phrase ?? 0 }
+  let searchedSites = false, searchedPosts = false
+  let leftSites: WaitingSite[] = d.waiting?.sites ?? []
+  let leftPosts: WaitingPost[] = d.waiting?.posts ?? []
   if (!find && !d.leads.some(l => l.status === 'queued' || l.status === 'sent')) return { ok: true, summary: 'Agent is off.' }
   const deadline = opts.deadline ?? Date.now() + 240_000
   const s = d.settings
@@ -584,15 +651,17 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
   const errors: string[] = []
 
   const n = (x: number, one: string, many = `${one}s`) => `${x} ${x === 1 ? one : many}`
-  const pr = new Progress(brandId, 'lead', 'Lead Agent run', [
-    { key: 'replies', label: 'Checking replies', hint: 'Replies to emails you sent, and follow-ups that are due' },
-    { key: 'queued', label: 'Sending queued emails', hint: 'Approved emails that waited for today\'s limit' },
-    ...(find && s.sources.reddit ? [
+  const pr = new Progress(brandId, 'lead', more ? 'Finding more leads' : 'Lead Agent run', [
+    ...(more ? [] : [
+      { key: 'replies', label: 'Checking replies', hint: 'Replies to emails you sent, and follow-ups that are due' },
+      { key: 'queued', label: 'Sending queued emails', hint: 'Approved emails that waited for today\'s limit' },
+    ]),
+    ...(find && use.reddit ? [
       { key: 'queries', label: 'Picking search phrases', hint: 'How your buyers ask for help online' },
       { key: 'reddit', label: 'Searching Reddit & HN', hint: 'People asking for a tool like yours' },
     ] : []),
-    ...(find && s.sources.local ? [{ key: 'local', label: 'Searching Google Maps', hint: `“${localQuery}”: businesses with no website or low ratings` }] : []),
-    ...(find && s.sources.companies ? [{ key: 'companies', label: 'Finding companies like your customers', hint: s.companyQuery ? `Online stores and small businesses: ${s.companyQuery}` : 'Online stores and small businesses that match your customer' }] : []),
+    ...(find && use.local ? [{ key: 'local', label: 'Searching Google Maps', hint: `“${localQuery}”: businesses with no website or low ratings` }] : []),
+    ...(find && use.companies ? [{ key: 'companies', label: 'Finding companies like your customers', hint: s.companyQuery ? `Online stores and small businesses: ${s.companyQuery}` : 'Online stores and small businesses that match your customer' }] : []),
     ...(find ? [
       { key: 'score', label: 'Scoring leads', hint: 'How well each one fits your product' },
       { key: 'emails', label: 'Finding emails', hint: 'Looked up with Hunter' },
@@ -601,14 +670,14 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
   ])
 
   return withAIContext({ brandId, moduleType: 'lead-agent', websiteUrl: b.websiteUrl }, async () => {
-    // 1. Replies and follow-ups
-    pr.set('replies', 'running')
+    // 1. Replies and follow-ups ("Show 10 more" skips this and the sending below)
+    if (!more) pr.set('replies', 'running')
     const sentBefore = d.leads.filter(l => l.status === 'sent').length
-    const { patches, replies, error: gmailError } = await processSentLeads(brandId, b, d, deadline)
+    const { patches, replies, error: gmailError } = more ? { patches: new Map<string, Partial<Lead>>(), replies: [] as Lead[], error: undefined } : await processSentLeads(brandId, b, d, deadline)
     if (gmailError && d.leads.some(l => l.status === 'sent')) errors.push(`Gmail: ${gmailError}`)
     if (replies.length) notes.push(`${replies.length} new repl${replies.length === 1 ? 'y' : 'ies'}`)
     const followups = [...patches.values()].filter(x => x.followupsSent !== undefined && !x.status).length
-    pr.set('replies', gmailError && sentBefore ? 'error' : 'done', sentBefore
+    if (!more) pr.set('replies', gmailError && sentBefore ? 'error' : 'done', sentBefore
       ? { detail: `${n(replies.length, 'new reply', 'new replies')}${followups ? ` · ${n(followups, 'follow-up')}` : ''}`, note: `${n(sentBefore, 'sent email')} checked.` }
       : 'Nothing sent yet')
 
@@ -616,44 +685,62 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
     let sentNow = sentToday(d)
     const queued = d.leads.filter(x => x.status === 'queued').length
     const sentAtStart = sentNow
-    pr.set('queued', queued ? 'running' : 'skipped', queued ? undefined : 'None waiting')
-    for (const l of d.leads.filter(x => x.status === 'queued')) {
+    if (!more) pr.set('queued', queued ? 'running' : 'skipped', queued ? undefined : 'None waiting')
+    for (const l of more ? [] : d.leads.filter(x => x.status === 'queued')) {
       if (sentNow >= s.dailyLimit || Date.now() > deadline) break
       const p = await sendFirstEmail(brandId, l, s.followUpDays)
       patches.set(l.id, p)
       if (p.status === 'sent') { sentNow += 1; d.sentLog.push(p.sentAt!) }
     }
 
-    if (queued) pr.set('queued', 'done', { detail: `${sentNow - sentAtStart} sent`, note: queued > sentNow - sentAtStart ? `${queued - (sentNow - sentAtStart)} wait for tomorrow's limit.` : undefined })
+    if (queued && !more) pr.set('queued', 'done', { detail: `${sentNow - sentAtStart} sent`, note: queued > sentNow - sentAtStart ? `${queued - (sentNow - sentAtStart)} wait for tomorrow's limit.` : undefined })
 
     // 3. Find new leads
     const known = new Set([...d.leads.map(l => l.id), ...(d.rejected ?? [])])
     let candidates: Candidate[] = []
     if (find) try {
-      const queries = s.sources.reddit ? await pr.step('queries', () => searchQueries(b, s, d), q => ({ detail: n(q.length, 'phrase'), items: q.slice(0, 4) })) : []
+      const queries = use.reddit ? await pr.step('queries', () => searchQueries(b, s, d), q => ({ detail: n(q.length, 'phrase'), items: q.slice(0, 4) })) : []
+      // How many of each to check: a normal run checks PER_SOURCE posts and COMPANY_CHECK sites;
+      // "Show 10 more" checks 10 of its tab
+      const postLimit = more === 'community' ? 10 : PER_SOURCE
+      const siteLimit = more === 'email' ? 10 : COMPANY_CHECK
+      // Posts: waiting ones first ("Show 10 more"), then a new search on the next phrase
+      const posts = async (): Promise<Candidate[]> => {
+        const queuedPosts = more ? leftPosts.filter(x => !known.has(idOf(x.url))).map(x => ({ ...x } as Candidate)) : []
+        if (queuedPosts.length >= postLimit) return queuedPosts
+        searchedPosts = true
+        return [...queuedPosts, ...await findReddit(queries, s.country, meter, turn.phrase), ...await findHackerNews(queries, turn.phrase)]
+      }
       // One failing source (e.g. a search error) shouldn't stop the others; it's reported on the page
       // DataForSEO's own hiccups ("Internal SE Server Error") get plain words: nothing for the user to fix
       const why = (e: unknown) => e instanceof DfsBusyError ? 'Google didn’t answer (a hiccup on DataForSEO’s side, nothing to fix). It tries again on the next search.' : e instanceof Error ? e.message : 'failed'
       const source = <T>(label: string, p: Promise<T[]>) => p.catch(e => { errors.push(`${label}: ${why(e)}`); return [] as T[] })
       const fresh = (x: Candidate) => !known.has(idOf(x.url))
       const found = await Promise.all([
-        s.sources.reddit ? source('Reddit search', pr.step('reddit', async () => [...await findReddit(queries, s.country, meter), ...await findHackerNews(queries)], r => ({ detail: `${r.filter(fresh).length} new posts`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
-        s.sources.local ? source('Google Maps search', pr.step('local', () => findLocal(localQuery, s.country, meter), r => ({ detail: n(r.length, 'business', 'businesses'), items: r.slice(0, 3).map(x => x.title) }))) : [],
-        s.sources.companies ? source('Company search', pr.step('companies', () => findCompanies(b, s, d, known, meter, m => errors.push(m)), r => ({ detail: n(r.length, 'company', 'companies'), items: r.slice(0, 3).map(x => x.title) }))) : [],
+        use.reddit ? source('Reddit search', pr.step('reddit', posts, r => ({ detail: `${r.filter(fresh).length} new posts`, items: r.filter(fresh).slice(0, 3).map(x => x.title) }))) : [],
+        use.local ? source('Google Maps search', pr.step('local', () => findLocal(localQuery, s.country, meter), r => ({ detail: n(r.length, 'business', 'businesses'), items: r.slice(0, 3).map(x => x.title) }))) : [],
+        use.companies ? source('Company search', pr.step('companies', () => findCompanies(b, s, d, known, meter, m => errors.push(m), {
+          turn: turn.sites, limit: siteLimit, queue: more ? leftSites : [],
+          searched: () => { searchedSites = true }, rest: r => { leftSites = r },
+        }), r => ({ detail: n(r.length, 'company', 'companies'), items: r.slice(0, 3).map(x => x.title) }))) : [],
       ])
       // Up to 10 new finds from each source, so a busy one (often Reddit) can't crowd out the rest
       const seen = new Set<string>()
-      candidates = found.flatMap(list => list.filter(c => {
+      const newOnes = found.map(list => list.filter(c => {
         if (known.has(idOf(c.url)) || seen.has(c.url)) return false
         seen.add(c.url)
         return true
-      }).slice(0, list[0]?.source === 'company' ? COMPANY_CHECK : PER_SOURCE))
+      }))
+      candidates = newOnes.flatMap(list => list.slice(0, list[0]?.source === 'company' ? siteLimit : postLimit))
+      // Posts found but not checked this time wait for "Show 10 more"
+      if (use.reddit) leftPosts = newOnes[0].slice(postLimit).map(c => ({ source: c.source, url: c.url, title: c.title, snippet: c.snippet, name: c.name }))
     } catch (e) {
       errors.push(e instanceof Error ? e.message : 'Search failed')
     }
 
     const fresh: Lead[] = []
     const rejected: string[] = []
+    const newMaybe: MaybeLead[] = []
     if (candidates.length && Date.now() < deadline) {
       // Companies get the AI's separate yes/no checks; everything else the usual 1-10 score
       const idxCompany = candidates.map((c, i) => (c.source === 'company' ? i : -1)).filter(i => i >= 0)
@@ -683,6 +770,19 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       const keptIdx = new Set(good.map(g => g.i))
       rejected.push(...scored.filter(x => !keptIdx.has(x.i)).map(x => idOf(candidates[x.i].url)))
       const now = new Date().toISOString()
+      // The ones that came close go on the "maybe" list (companies the checks dropped, posts and
+      // businesses scoring 4-6), so the user can still use one
+      const REASON = { trade: 'Sells something else', small: 'Looks too big', active: 'Doesn’t look active', need: 'No clear need for help with posts' }
+      for (const x of scored) {
+        if (keptIdx.has(x.i)) continue
+        const c = candidates[x.i]
+        const f = c.source === 'company' ? failed(x as CompanyCheck) : null
+        if (!f && x.score < 4) continue
+        newMaybe.push({
+          id: idOf(c.url), source: c.source, title: c.title, url: c.url, snippet: c.snippet, website: c.website, name: c.name, email: c.email,
+          why: x.why, reason: f ? REASON[f] : `Scored ${x.score}/10`, score: x.score, at: now,
+        })
+      }
       for (const g of good) {
         const c = candidates[g.i]
         const website = c.website || (g.website ? domainOf(g.website) : undefined)
@@ -771,8 +871,15 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       if (d.companyFilters) x.companyFilters = d.companyFilters
       x.demo = demo
       if (rejected.length) x.rejected = [...(x.rejected ?? []), ...rejected]
+      // Newest "maybe" first; what's waiting for "Show 10 more"; where the next search starts
+      if (newMaybe.length) {
+        const ids = new Set(newMaybe.map(m => m.id))
+        x.maybe = [...newMaybe, ...(x.maybe ?? []).filter(m => !ids.has(m.id))].slice(0, 60)
+      }
+      if (find) x.waiting = { sites: leftSites.slice(0, 120), posts: leftPosts.slice(0, 60) }
+      if (searchedSites || searchedPosts) x.cursor = { sites: turn.sites + (searchedSites ? 1 : 0), phrase: turn.phrase + (searchedPosts ? 1 : 0) }
       // "Last search" on the page: only runs that searched
-      if (find) { x.lastRunAt = new Date().toISOString(); x.lastRunSummary = notes.join(' · ') }
+      if (find && !more) { x.lastRunAt = new Date().toISOString(); x.lastRunSummary = notes.join(' · ') }
       x.lastError = errors.length ? errors.join(' · ') : null
     })
     await addUsage(brandId, meter, 'Lead Agent').catch(() => {})

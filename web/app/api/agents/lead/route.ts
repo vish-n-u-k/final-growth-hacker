@@ -3,7 +3,7 @@ import { agentAccess } from '@/lib/agents/access'
 import { demoForced, withDemo } from '@/lib/agents/demo'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
-import { addLeadEmail, approveLead, demoSkipDays, leadFallback, pickSources, runLeadAgent } from '@/lib/agents/lead-agent'
+import { addLeadEmail, approveLead, demoSkipDays, leadFallback, pickSources, runLeadAgent, useMaybe } from '@/lib/agents/lead-agent'
 import { readLeadData, updateLeadData, type LeadSettings } from '@/lib/agents/store'
 import { addOwnList, checkPeople, draftListEmail } from '@/lib/agents/own-list'
 import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
@@ -65,7 +65,7 @@ async function post(req: NextRequest) {
   const fallback = leadFallback(b)
   const body = await req.json().catch(() => ({})) as {
     op?: string; on?: boolean; id?: string; subject?: string; body?: string; reply?: string; email?: string; settings?: Partial<LeadSettings>
-    name?: string; about?: string; people?: { email: string; name?: string; text?: string }[]
+    name?: string; about?: string; people?: { email: string; name?: string; text?: string }[]; lane?: string
   }
   const people = Array.isArray(body.people) ? body.people.slice(0, 500).filter(p => p && typeof p.email === 'string') : []
 
@@ -104,6 +104,17 @@ async function post(req: NextRequest) {
     case 'run': {
       const result = await runLeadAgent(brandId, { manual: true, deadline: Date.now() + 270_000 })
       return NextResponse.json({ result, data: await readLeadData(brandId) })
+    }
+    case 'more': {
+      // "Show 10 more" in one tab: the next finds, checked and drafted like a search
+      const lane = body.lane === 'community' ? 'community' : 'email'
+      const result = await runLeadAgent(brandId, { more: lane, deadline: Date.now() + 240_000 })
+      return NextResponse.json({ result, data: await readLeadData(brandId) })
+    }
+    case 'use': {
+      if (!body.id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+      const r = await useMaybe(brandId, body.id)
+      return NextResponse.json({ ...(r.ok ? { message: r.message } : { error: r.message }), data: await readLeadData(brandId) }, { status: r.ok ? 200 : 400 })
     }
     case 'demo_skip': {
       const result = await demoSkipDays(brandId, 3)
