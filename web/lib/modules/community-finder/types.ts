@@ -74,5 +74,5 @@ export interface CommunityFinderFetchResult {
   keywords: string[]
   discovery?: DiscoveryResult
   fetchErrors: string[]
-  apifyConnected?: boolean // whether Facebook/LinkedIn discovery ran this call
+  apifyConnected?: boolean // whether server-side Apify (FB/LinkedIn) discovery ran this call
 }

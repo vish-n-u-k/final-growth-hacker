@@ -1,7 +1,4 @@
 import { load } from 'cheerio'
-import { db } from '@/lib/db'
-import { brandIntegrations } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
 import type { CommunityFinderFetchResult, Community } from './types'
 
 // ── Data sources ──────────────────────────────────────────────────────────────
@@ -10,7 +7,7 @@ import type { CommunityFinderFetchResult, Community } from './types'
 // Facebook + LinkedIn: no free/official discovery exists (FB Groups API removed
 //   2024, LinkedIn Groups API long dead). Only reachable via a paid scraper.
 //   Apify's group-search actors handle it; Apify's free tier ($5/mo) covers it.
-//   These only run if the brand has connected an Apify token in Settings.
+//   These only run if the server has APIFY_API_TOKEN set (developer-managed).
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -288,23 +285,8 @@ export async function fetchCommunityDiscovery(
     return base
   }
 
-  // Optional Apify token unlocks Facebook + LinkedIn.
-  let apifyKey: string | undefined
-  try {
-    const [apifyRow] = await db
-      .select()
-      .from(brandIntegrations)
-      .where(
-        and(
-          eq(brandIntegrations.brandId, brandId),
-          eq(brandIntegrations.provider, 'apify'),
-          eq(brandIntegrations.status, 'connected'),
-        ),
-      )
-    apifyKey = apifyRow?.apiKey ?? undefined
-  } catch {
-    // Non-fatal — Reddit still runs
-  }
+  // Developer-managed token (env) unlocks Facebook + LinkedIn.
+  const apifyKey = process.env.APIFY_API_TOKEN?.trim() || undefined
 
   const redditKeywords = keywords.slice(0, 2) // keeps below DuckDuckGo's rate limit
   const apifyKeywords = keywords.slice(0, 2) // bounds Apify cost per run
