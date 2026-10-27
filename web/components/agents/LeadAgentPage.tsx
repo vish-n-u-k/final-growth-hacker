@@ -8,6 +8,7 @@ import { useToast } from '@/components/email-outreach/shared'
 import { ActionBar, Card, DemoSwitch, Pager, usePages, Finished, Flow, ListTools, LiveProgress, Sec, Side, Src, Tabs, Tag } from '@/components/tool-ui'
 import { Day, fmtAgo, fmtDate, initials, useAgentApi } from './shared'
 import OwnListFlow from './OwnListFlow'
+import { IcpFields } from './IcpFields'
 
 // Lead Agent: finds people who need the product in two places, Reddit / Hacker News posts (a reply
 // to post yourself) and Google Maps businesses or companies like your customers (an email to approve), and follows up until they
@@ -91,9 +92,7 @@ function Settings({ initial, saving, picking, hunter, onSave, onCancel, onPick }
       <h3>Search settings</h3>
       <p className="tu-hint">Filled in from your brand. Change anything.</p>
       <div className="tu-grid">
-        <label className="tu-full">Who is your customer?
-          <textarea rows={2} value={s.customer} onChange={e => set('customer', e.target.value)} placeholder="e.g. Small business owners (cafés, salons, shops) who post on Instagram and struggle to make content" />
-        </label>
+        <IcpFields s={s} onChange={p => setS(x => ({ ...x, ...p }))} />
         <div className="tu-full la-src-hd">
           <span>Where to look{initial.picked?.why ? <small>{initial.picked.why}</small> : null}</span>
           <button type="button" className="btn btn-ghost btn-sm" disabled={picking} onClick={onPick}>{picking ? <><Spinner />Picking…</> : 'Pick for me'}</button>

@@ -44,6 +44,20 @@ export interface LeadSettings {
   followUpDays: number[]        // days after the first email, e.g. [3, 7]
   skipEU: boolean               // don't cold-email leads in the EU
   mode: 'approve' | 'auto'      // auto = send 8+ leads without asking once 20 were approved
+  // The ideal-customer card: drafted by the AI from the brand (and example customers), editable.
+  // Every search, check and score reads it; changing it starts the search afresh.
+  icp?: Icp | null
+}
+
+export type IcpKind = 'ecommerce' | 'saas' | 'local' | 'creator' | 'other'
+export interface Icp {
+  kind: IcpKind                 // what kind of business the buyers are: picks the sources
+  who: string                   // who they are, in plain words
+  marketing: string             // how they market today, e.g. "the founder posts on X and LinkedIn themselves"
+  fit: string[]                 // signs of a good fit
+  notFit: string[]              // not a fit, e.g. "has a marketing team or agency", "hires creators"
+  examples: string[]            // domains of ideal customers the user gave
+  by: 'ai' | 'user'
 }
 
 // own = added by the user from their own list (Email tab, "Add your own emails")

@@ -239,6 +239,21 @@ One board for every lead source, built from the approved preview `design-preview
 - **"Show 10 more"** under each tab's To do list (op `more`, `runLeadAgent({ more: 'email' | 'community' })`): skips replies and sending, checks the next 10 from the waiting list, or searches the next page / phrase when fewer are waiting, then the usual checks, emails and drafts. It doesn't change "Last search".
 - **"Checked but not kept":** companies that failed a check, and posts or businesses scoring 4-6, go to `data.maybe` (newest first, up to 60) with a plain reason. Shown under the list; **Use anyway** (op `use`, `useMaybe`) makes it a lead (a forum post gets its reply drafted; a business gets an email from its pages or one Hunter lookup, then its email drafted).
 
+## 4d-3. Lead Agent: the ideal-customer card (27 Oct)
+
+Why: Frekto's leads stayed e-commerce after the owner asked for SaaS founders who do their own social marketing.
+- **The card** (`settings.icp`, type `Icp` in `store.ts`): `kind` (ecommerce / saas / local / creator / other), `who`, `marketing` (how they market today), `fit[]`, `notFit[]`, `examples[]` (domains of customers the user loves), `by`.
+  - Drafted by `draftIcp` in `lead-agent.ts` (reads the example sites for free), op `icp_draft` (fills the form, not saved until Save). Op `pick` drafts and saves one first when there's none.
+  - Edited in Settings of the Lead Agent and Lead Finder (`components/agents/IcpFields.tsx`, `icp-*` CSS). "Who is your customer" now is the card's `who` (kept in `customer` too).
+  - `customerBlock(b, s)` puts it in every prompt (search phrases, company search words, checks, scoring, drafting, source pick). "NOT a fit" items score 1-3.
+- **Fresh start:** saving a changed card, "who to look for" or customer line clears `waiting`, `cursor`, `companyFilters` and `queries` (`freshStart` in the route). The search-word cache key includes `icpKey`. Older To-do company leads not matching the new words move to Skipped (existing `tradeMatch` re-check).
+- **SaaS buyers (`kind: 'saas'`):**
+  - Companies: recent Hacker News "Show HN" launches first (`showHnSites`, free Algolia, last 90 days, a new page of 50 per search; code hosts, app stores, blogs dropped), then DataForSEO websites by keyword. Store platforms are never searched when the card isn't `ecommerce`.
+  - Reddit searches r/SaaS, r/indiehackers, r/startups, r/Entrepreneur, r/microsaas instead of all of Reddit.
+  - Product Hunt / BetaList not added (no free API).
+- **Who does their marketing** (`marketingFacts` / `marketingLine` in `site-facts.ts`, free): marketing roles on /careers or /jobs and /about or /team, creator / ambassador / affiliate programmes, a person's own X or LinkedIn on the home page, newest blog date. Sent to `judgeCompanies`, which now has a `diy` check; failing it is "Has a marketing team or creators" in "Checked but not kept" and "N with a marketing team" in the summary. `need` is judged against the card, not "social posts" any more.
+- Not tested against real AI / DataForSEO yet.
+
 ## 4e. Search Agent: better output (27 Oct)
 
 Built from the review in `md_files/SEARCH_AGENT_HOW_IT_WORKS.md` (the report the owner shared).

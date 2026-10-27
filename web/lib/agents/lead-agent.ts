@@ -20,11 +20,11 @@ import { searchDataReady, googleResults, mapsBusinesses, storesByPlatform, DfsBu
 import { agentsDemo, demoLocalQuery, demoReply, demoSend, setDemoContext } from './demo'
 import { Progress } from './progress'
 import { hunterConfigured, findEmail } from './hunter'
-import { contactEmail, inBatches, storeFacts, storeLine, type StoreFacts } from './site-facts'
+import { contactEmail, inBatches, marketingFacts, marketingLine, storeFacts, storeLine, type MarketingFacts, type StoreFacts } from './site-facts'
 import { costNote } from './services'
 import {
   addUsage, defaultLeadData, newMeter, readLeadData, updateLeadData,
-  type Lead, type LeadAgentData, type LeadSettings, type LeadSource, type MaybeLead, type UsageMeter, type WaitingPost, type WaitingSite,
+  type Icp, type IcpKind, type Lead, type LeadAgentData, type LeadSettings, type LeadSource, type MaybeLead, type UsageMeter, type WaitingPost, type WaitingSite,
 } from './store'
 import { brandBlock, daysFrom, domainOf, firstName, idOf, loadBrandContext, parseJsonLoose, textToHtml, type BrandContext } from './context'
 
@@ -158,6 +158,63 @@ async function processSentLeads(brandId: string, b: BrandContext, d: LeadAgentDa
   return { patches, replies }
 }
 
+// ── The ideal customer ────────────────────────────────────────────────────────
+
+const ICP_KINDS: IcpKind[] = ['ecommerce', 'saas', 'local', 'creator', 'other']
+
+/** Who we look for, for every AI prompt: the ideal-customer card when there is one, else the plain line. */
+export function customerBlock(b: BrandContext, s: LeadSettings): string {
+  const c = s.icp
+  if (!c?.who) return `Ideal customer: ${s.customer || b.targetAudience || 'not given'}`
+  return [
+    `Ideal customer: ${c.who}`,
+    c.marketing ? `How they market today: ${c.marketing}` : null,
+    c.fit.length ? `Signs of a good fit: ${c.fit.join('; ')}` : null,
+    c.notFit.length ? `NOT a fit (score 1-3, never keep): ${c.notFit.join('; ')}` : null,
+    c.examples.length ? `Examples of ideal customers: ${c.examples.join(', ')}` : null,
+  ].filter(Boolean).join('\n')
+}
+
+/** A short key for the card, so saved search words are redone when it changes. */
+export const icpKey = (s: LeadSettings) => (s.icp ? idOf(JSON.stringify([s.icp.kind, s.icp.who, s.icp.marketing, s.icp.fit, s.icp.notFit, s.icp.examples])).slice(0, 8) : '')
+
+/**
+ * Drafts the ideal-customer card from the brand and, when given, a few example customers' sites
+ * (read for free): who they are, how they market today, signs of fit, and who is not a fit.
+ */
+export async function draftIcp(b: BrandContext, s: LeadSettings, examples: string[]): Promise<{ icp: Icp; companyQuery: string } | null> {
+  const domains = [...new Set(examples.map(domainOf).filter(x => x.includes('.')))].slice(0, 5)
+  const read = await inBatches(domains, 5, async d => `${d}: ${(await aboutSite(d)).text.slice(0, 300) || 'could not read the site'}`)
+  const raw = await withAIContext({ brandId: b.id, moduleType: 'lead-agent', websiteUrl: b.websiteUrl }, () => callAI({
+    feature: 'lead-agent',
+    model: 'claude-sonnet-4-6',
+    maxTokens: 900,
+    system: 'You describe a product\'s ideal customer so a lead finder can tell good leads from bad. Be specific and practical. Return only a raw JSON object.',
+    prompt: `${brandBlock(b)}
+What the owner wrote about their customer: ${s.customer || 'nothing'}
+${read.length ? `Examples of ideal customers the owner gave (find what they have in common):\n${read.join('\n')}\n` : ''}
+Return {"kind":"...","who":"...","marketing":"...","fit":[...],"notFit":[...],"companyQuery":"..."}
+- kind: what the buyers mostly are: "ecommerce" (online stores), "saas" (software / app founders), "local" (shops with a street address), "creator" (individual creators or freelancers), or "other"
+- who: one plain sentence, e.g. "Founders of small SaaS products (1-10 people) who do their own marketing"
+- marketing: how they market today, in one sentence, e.g. "The founder posts on X and LinkedIn themselves, with no marketing hire"
+- fit: 3-5 short signs someone is a good fit that can be seen on their website or posts (e.g. "launched in the last year", "founder links their own X account", "blog not updated in months")
+- notFit: 3-6 short signs someone is NOT a fit (e.g. "has a marketing team or agency", "hires influencers or creators", "big brand", and the buyer types this product is wrongly confused with)
+- companyQuery: who to search for, in plain words, e.g. "small SaaS and app startups, 1-10 people"`,
+  }))
+  const j = parseJsonLoose<Partial<Icp> & { companyQuery?: string }>(raw, 'object')
+  if (!j?.who) return null
+  const list = (x: unknown, n: number) => (Array.isArray(x) ? x : []).filter((v): v is string => typeof v === 'string' && !!v.trim()).map(v => v.trim().slice(0, 140)).slice(0, n)
+  return {
+    icp: {
+      kind: ICP_KINDS.includes(j.kind as IcpKind) ? j.kind as IcpKind : 'other',
+      who: String(j.who).trim().slice(0, 300),
+      marketing: typeof j.marketing === 'string' ? j.marketing.trim().slice(0, 300) : '',
+      fit: list(j.fit, 6), notFit: list(j.notFit, 8), examples: domains, by: 'ai',
+    },
+    companyQuery: typeof j.companyQuery === 'string' ? j.companyQuery.trim().slice(0, 200) : '',
+  }
+}
+
 // ── Finding ───────────────────────────────────────────────────────────────────
 
 interface Candidate {
@@ -174,28 +231,32 @@ interface Candidate {
 }
 
 async function searchQueries(b: BrandContext, s: LeadSettings, d: LeadAgentData): Promise<string[]> {
-  const key = `${s.customer}|${b.usp ?? ''}`
+  const key = `${s.customer}|${b.usp ?? ''}|${icpKey(s)}`
   if (d.queries?.for === key && d.queries.list.length) return d.queries.list
   const raw = await callAI({
     feature: 'lead-agent',
     model: 'claude-haiku-4-5-20251001',
     maxTokens: 300,
     system: 'You write Google search phrases that find forum posts where people ask for a product like this one. Return only a JSON array of strings.',
-    prompt: `${brandBlock(b)}\nCustomer: ${s.customer || b.targetAudience || 'not given'}\n\nWrite 6 short phrases (3-7 words) a potential customer would write when asking for help, e.g. "looking for a tool to", "any app that", "how do you manage". Describe the problem in their words, never the brand name.`,
+    prompt: `${brandBlock(b)}\n${customerBlock(b, s)}\n\nWrite 6 short phrases (3-7 words) a potential customer would write when asking for help, e.g. "looking for a tool to", "any app that", "how do you manage". Describe the problem in their words, never the brand name.`,
   })
   const list = (parseJsonLoose<string[]>(raw, 'array') ?? []).filter(q => typeof q === 'string' && q.length > 3).slice(0, 6)
   d.queries = { for: key, list }
   return list
 }
 
-async function findReddit(queries: string[], country: string, meter: UsageMeter, turn: number): Promise<Candidate[]> {
+// Where founders ask for help: used instead of all of Reddit when the buyers are SaaS founders
+const FOUNDER_SUBS = ['SaaS', 'indiehackers', 'startups', 'Entrepreneur', 'microsaas']
+
+async function findReddit(queries: string[], country: string, meter: UsageMeter, turn: number, kind?: IcpKind): Promise<Candidate[]> {
   if (!searchDataReady() || !queries.length) return []
   // Each search moves on to the next phrase (`turn` counts searches); one Google search when few
   // finds are wanted, two otherwise
   const picks = (PER_SOURCE <= 3 ? [queries[turn % queries.length]] : [queries[turn % queries.length], queries[(turn + 1) % queries.length]]).filter((q, i, a) => a.indexOf(q) === i)
   // Google sometimes chokes on long phrases with quotes behind site:, so a second try uses a plain, short version
   const plain = (q: string) => q.replace(/["“”'()]/g, ' ').replace(/\b(OR|AND)\b/g, ' ').split(/\s+/).filter(Boolean).slice(0, 6).join(' ')
-  const search = (q: string) => googleResults(`site:reddit.com ${q}`, country, meter, { recent: true })
+  const where = kind === 'saas' ? `(${FOUNDER_SUBS.map(r => `site:reddit.com/r/${r}`).join(' OR ')})` : 'site:reddit.com'
+  const search = (q: string) => googleResults(`${where} ${q}`, country, meter, { recent: true })
     .catch(e => (plain(q) && plain(q) !== q ? googleResults(`site:reddit.com ${plain(q)}`, country, meter) : Promise.reject(e)))
   const settled = await Promise.allSettled(picks.map(search))
   const results = settled.flatMap(r => (r.status === 'fulfilled' ? [r.value] : []))
@@ -234,12 +295,42 @@ async function findHackerNews(queries: string[], turn: number): Promise<Candidat
 
 // ── Companies like your customers ─────────────────────────────────────────────
 
+// Not a product's own site: code hosts, app stores, blogs and social networks
+const NOT_A_PRODUCT_SITE = /(^|\.)(github\.com|gitlab\.com|youtube\.com|youtu\.be|medium\.com|substack\.com|apps\.apple\.com|play\.google\.com|chromewebstore\.google\.com|chrome\.google\.com|npmjs\.com|pypi\.org|huggingface\.co|x\.com|twitter\.com|reddit\.com|ycombinator\.com|linkedin\.com|notion\.site|github\.io|docs\.google\.com|arxiv\.org|wikipedia\.org)$/i
+
+/**
+ * Founders who just launched their product on Hacker News ("Show HN"), newest first, a new page
+ * each search. Free (Algolia's HN search). Founders who launch there mostly do their own marketing.
+ */
+async function showHnSites(turn: number): Promise<WaitingSite[]> {
+  if (agentsDemo()) return []
+  const since = Math.floor(Date.now() / 1000) - 90 * 86400
+  try {
+    const res = await fetch(`https://hn.algolia.com/api/v1/search_by_date?${new URLSearchParams({ tags: 'show_hn', numericFilters: `created_at_i>${since}`, hitsPerPage: '50', page: String(turn % 15) })}`, { signal: AbortSignal.timeout(10_000) })
+    if (!res.ok) return []
+    const j = await res.json() as { hits?: { title?: string; url?: string | null; author?: string; created_at_i?: number; points?: number | null }[] }
+    const seen = new Set<string>()
+    return (j.hits ?? []).flatMap(h => {
+      const domain = h.url ? domainOf(h.url) : ''
+      if (!domain || !domain.includes('.') || NOT_A_PRODUCT_SITE.test(domain) || seen.has(domain)) return []
+      seen.add(domain)
+      const title = (h.title ?? '').replace(/^show hn:\s*/i, '').trim()
+      const days = h.created_at_i ? Math.round((Date.now() / 1000 - h.created_at_i) / 86400) : null
+      return [{ domain, name: title.split(/\s[–—-]\s|:\s/)[0].slice(0, 60) || domain, about: title, from: `Launched on Hacker News${days !== null ? ` ${days === 0 ? 'today' : `${days} day${days === 1 ? '' : 's'} ago`}` : ''} by ${h.author ?? 'its maker'}` }]
+    })
+  } catch {
+    return []
+  }
+}
+
+
 const HEADCOUNTS = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000', '5001-10000', '10001+']
 
 /** The company search in plain words, turned into DataForSEO search terms once per wording. */
 async function companyFilters(b: BrandContext, s: LeadSettings, d: LeadAgentData): Promise<{ keywords: string[]; headcount: string[]; platforms: string[] }> {
-  // v2: the rules below changed (no describing words), so keywords made before are redone once
-  const want = `v2:${s.companyQuery.trim() || s.customer}`
+  // v3: the ideal-customer card is part of the key, so editing it redoes the search words
+  const what = s.companyQuery.trim() || s.icp?.who || s.customer
+  const want = `v3:${icpKey(s)}:${what}`
   const saved = d.companyFilters
   if (saved?.for === want && saved.keywords.length && saved.platforms) return { ...saved, platforms: saved.platforms }
   const raw = await callAI({
@@ -248,32 +339,34 @@ async function companyFilters(b: BrandContext, s: LeadSettings, d: LeadAgentData
     maxTokens: 300,
     system: 'You turn a description of target companies into search filters. Return only a raw JSON object.',
     prompt: `${brandBlock(b)}
-Companies to find: ${want.slice(3) || 'companies that would buy this product'}
+${customerBlock(b, s)}
+Companies to find: ${what || 'companies that would buy this product'}
 
 Return {"keywords":[...],"headcount":[...],"platforms":[...]}:
 - keywords: 8 single words or short phrases (1-2 words) these companies use to describe themselves on their own website, e.g. "skincare", "handmade jewelry", "coffee roaster", "social media agency". Their products or trade, not ${b.name}'s. Never "PR", "public relations", "B2B", "enterprise" or "consulting": those are big firms, not small businesses. Never a describing word on its own ("boutique", "creative", "premium", "luxury"): law and property firms call themselves boutique too. Name what they make or sell ("candles", "handmade jewelry", "etsy").
 - headcount: company sizes to include, from ${HEADCOUNTS.join(', ')}. Small businesses: ["1-10","11-50"].
-- platforms: if online stores are among the buyers, the store platforms to search, from ${PLATFORMS.join(', ')} (e.g. ["Shopify","WooCommerce"]); else [].`,
+- platforms: only if the ideal customers are online stores, the store platforms to search, from ${PLATFORMS.join(', ')} (e.g. ["Shopify","WooCommerce"]); else [].`,
   })
   const j = parseJsonLoose<{ keywords?: string[]; headcount?: string[]; platforms?: string[] }>(raw, 'object') ?? {}
   const f = {
     keywords: (j.keywords ?? []).filter(k => typeof k === 'string' && k.trim()).map(k => k.trim().toLowerCase()).slice(0, 8),
     headcount: (j.headcount ?? []).filter(h => HEADCOUNTS.includes(h)),
-    platforms: (j.platforms ?? []).filter(p => PLATFORMS.includes(p)).slice(0, 2),
+    // A card that says the buyers aren't online stores never searches store platforms
+    platforms: s.icp && s.icp.kind !== 'ecommerce' ? [] : (j.platforms ?? []).filter(p => PLATFORMS.includes(p)).slice(0, 2),
   }
   d.companyFilters = { for: want, ...f }
   return f
 }
 
 /** Title, description and social links from a site's home page, so the fit score has something to go on. */
-async function aboutSite(domain: string): Promise<{ text: string; socials: string[]; page: string }> {
+async function aboutSite(domain: string): Promise<{ text: string; socials: string[]; page: string; html: string }> {
   const html = await fetchHtml(`https://${domain}`).catch(() => null)
-  if (!html) return { text: '', socials: [], page: '' }
+  if (!html) return { text: '', socials: [], page: '', html: '' }
   const title = html.match(/<title[^>]*>([^<]{1,160})/i)?.[1] ?? ''
   const desc = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{1,300})/i)?.[1]
     ?? html.match(/<meta[^>]+content=["']([^"']{1,300})["'][^>]+name=["']description["']/i)?.[1] ?? ''
   const page = html.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').slice(0, 8000)
-  return { text: [title, desc].map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · '), socials: socialsIn(html), page }
+  return { text: [title, desc].map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · '), socials: socialsIn(html), page, html }
 }
 
 // Words too common to show a trade ("etsy shop" is about Etsy, not "shop")
@@ -301,7 +394,7 @@ function tradeMatch(keywords: string[], text: string): boolean {
 
 /** Which social networks a page links to (a business that links Instagram cares about posting). */
 function socialsIn(text: string): string[] {
-  const nets: [string, RegExp][] = [['Instagram', /instagram\.com\/[\w.]+/i], ['Facebook', /facebook\.com\/[\w.-]+/i], ['TikTok', /tiktok\.com\/@[\w.]+/i], ['LinkedIn', /linkedin\.com\/company\//i], ['Pinterest', /pinterest\.[a-z.]+\/[\w-]+/i], ['YouTube', /youtube\.com\/(@|c\/|channel\/)/i]]
+  const nets: [string, RegExp][] = [['Instagram', /instagram\.com\/[\w.]+/i], ['Facebook', /facebook\.com\/[\w.-]+/i], ['TikTok', /tiktok\.com\/@[\w.]+/i], ['LinkedIn', /linkedin\.com\/company\//i], ['Pinterest', /pinterest\.[a-z.]+\/[\w-]+/i], ['YouTube', /youtube\.com\/(@|c\/|channel\/)/i], ['X', /(twitter|x)\.com\/(?!intent|share|home|search)\w{2,15}["'/?]/i]]
   return nets.filter(([, re]) => re.test(text)).map(([n]) => n)
 }
 
@@ -322,15 +415,19 @@ async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData,
   // DataForSEO finds the websites: sites whose title or description has the trade words, running
   // the store platforms Claude picked (or any site, when the buyers aren't online stores), a new page
   // each day. Hunter only finds emails, later.
-  if (!searchDataReady()) { warn('Companies: needs GrowJin’s DataForSEO account, which isn’t set up'); return [] }
-  if (!f.platforms.length && !f.keywords.length) return []
+  // SaaS buyers: products their founders just launched on Hacker News come first (free)
+  const launches = s.icp?.kind === 'saas' ? (await showHnSites(o.turn)).filter(x => fresh(x.domain) && !queued.some(q => q.domain === x.domain)) : []
+  if (launches.length) console.log(`[lead-agent] Show HN launches: ${launches.length} new`)
+  if (queued.length + launches.length >= o.limit) { o.searched(); const pool = [...queued, ...launches]; o.rest(pool.slice(o.limit)); return checkSites(pool.slice(0, o.limit)) }
+  if (!searchDataReady()) { if (launches.length) { o.searched(); return checkSites([...queued, ...launches]) } warn('Companies: needs GrowJin’s DataForSEO account, which isn’t set up'); return [] }
+  if (!f.platforms.length && !f.keywords.length) return checkSites([...queued, ...launches])
   o.searched()
   const rows = await storesByPlatform(f.platforms, s.country, meter, { limit: 50, offset: (o.turn % 20) * 50, keywords: f.keywords })
   const what = f.platforms.length ? `${f.platforms.join(' / ')} sites` : 'sites'
   console.log(`[lead-agent] DataForSEO websites (${f.platforms.join(', ') || 'any platform'}, ${s.country}): ${rows.length} back${rows[0] ? `, e.g. ${rows.slice(0, 3).map(x => x.domain).join(', ')}` : ''}`)
-  if (!rows.length) warn(`Companies: DataForSEO found no ${what} ${s.country === 'ANY' ? 'anywhere' : `in ${s.country}`} for “${f.keywords.slice(0, 4).join('”, “')}” this time`)
-  const seen = new Set(queued.map(x => x.domain))
-  const pool: Found[] = [...queued, ...rows
+  if (!rows.length && !launches.length) warn(`Companies: DataForSEO found no ${what} ${s.country === 'ANY' ? 'anywhere' : `in ${s.country}`} for “${f.keywords.slice(0, 4).join('”, “')}” this time`)
+  const seen = new Set([...queued, ...launches].map(x => x.domain))
+  const pool: Found[] = [...queued, ...launches, ...rows
     .filter(x => fresh(x.domain) && !seen.has(x.domain))
     .map(x => ({ domain: x.domain, name: x.title.split(/\s[|–-]\s/)[0].slice(0, 60) || x.domain, about: [x.title, x.description].filter(Boolean).join(' · '), socials: socialsIn(x.socials.join(' ')), email: x.emails.find(e => e.endsWith(x.domain)) ?? x.emails[0], from: f.platforms.length ? `${f.platforms.join(' / ')} store` : 'website' }))]
   o.rest(pool.slice(o.limit))
@@ -344,30 +441,34 @@ async function checkSites(list: WaitingSite[]): Promise<Candidate[]> {
   // online stores, its public product list (what it sells, how many products, when it last added one)
   const read = await inBatches(list, 8, async c => {
     const [page, store] = await Promise.all([aboutSite(c.domain), storeFacts(c.domain).catch(() => null)])
-    return { page, store }
+    // Who does their marketing: careers, team and blog pages (only for sites that answered)
+    const team = page.html ? await marketingFacts(c.domain, page.html).catch(() => null) : null
+    return { page, store, team }
   })
-  const checked = list.map((c, i) => ({ c, text: c.about || read[i].page.text, socials: c.socials?.length ? c.socials : read[i].page.socials, page: read[i].page.page, store: read[i].store }))
+  const checked = list.map((c, i) => ({ c, text: [c.about, read[i].page.text].filter(Boolean).join(' · '), socials: c.socials?.length ? c.socials : read[i].page.socials, page: read[i].page.page, store: read[i].store, team: read[i].team }))
   // Big PR / B2B / consulting firms aren't small-business buyers: don't spend AI on them
   const small = checked.filter(x => !NOT_A_FIT.test(`${x.c.name} ${x.text}`))
   console.log(`[lead-agent] companies: ${list.length} found · ${checked.length - small.length} big or B2B dropped · ${small.filter(x => x.store).length} with a readable product list · ${Math.min(small.length, COMPANY_CHECK)} to the AI check`)
   return small
     .slice(0, COMPANY_CHECK)
-    .map(({ c, text, socials, page, store }) => ({
+    .map(({ c, text, socials, page, store, team }) => ({
       source: 'company' as const,
       url: `https://${c.domain}`,
       title: c.name,
       // What the user sees on the card: the store facts and social links first, then their own words
-      snippet: [store ? storeLine(store) : null, socials.length ? `Links to ${socials.join(', ')}` : 'No social links on their home page', text.slice(0, 200) || 'no description on their home page', `website ${c.domain}`].filter(Boolean).join(' · '),
+      snippet: [c.from.startsWith('Launched') ? c.from : null, store ? storeLine(store) : null, team?.hiring.length ? `Hiring: ${team.hiring.join(', ')}` : null, socials.length ? `Links to ${socials.join(', ')}` : 'No social links on their home page', text.slice(0, 200) || 'no description on their home page', `website ${c.domain}`].filter(Boolean).join(' · '),
       website: c.domain,
       email: c.email,
-      judge: judgeText(c.name, c.domain, text, page, socials, store),
+      judge: judgeText(c.name, c.domain, text, page, socials, store, team, c.from),
     }))
 }
 
 /** Everything the AI looks at for one company, in a fixed order. */
-function judgeText(name: string, domain: string, about: string, page: string, socials: string[], store: StoreFacts | null): string {
+function judgeText(name: string, domain: string, about: string, page: string, socials: string[], store: StoreFacts | null, team: MarketingFacts | null, from: string): string {
   return [
     `${name} (${domain})`,
+    `Found: ${from}`,
+    `Who does their marketing: ${team ? marketingLine(team) : 'unknown (site not read)'}`,
     store
       ? `Online store: ${store.platform}, ${store.products}${store.more ? '+' : ''} products${store.types.length ? `; sells: ${store.types.join(', ')}` : ''}${store.examples.length ? `; e.g. ${store.examples.join(', ')}` : ''}${store.newestDays === null ? '' : `; newest product added ${store.newestDays} days ago`}`
       : 'No public product list (not a Shopify / WooCommerce store we could read)',
@@ -382,7 +483,7 @@ function judgeText(name: string, domain: string, about: string, page: string, so
  * the right trade, small, still active, and a need for help with social posts. Only all-yes are
  * kept; the score orders them.
  */
-interface CompanyCheck extends Scored { trade?: boolean; small?: boolean; active?: boolean | null; need?: boolean }
+interface CompanyCheck extends Scored { trade?: boolean; small?: boolean; active?: boolean | null; need?: boolean; diy?: boolean | null }
 async function judgeCompanies(b: BrandContext, s: LeadSettings, list: Candidate[]): Promise<CompanyCheck[]> {
   if (!list.length) return []
   const raw = await callAI({
@@ -391,30 +492,32 @@ async function judgeCompanies(b: BrandContext, s: LeadSettings, list: Candidate[
     maxTokens: 4000,
     system: 'You check whether businesses are the right customers for a product. Judge only from the facts given. Return only a raw JSON array.',
     prompt: `${brandBlock(b)}
-Ideal customer: ${s.customer || b.targetAudience || 'not given'}
-Companies we look for: ${s.companyQuery.trim() || s.customer || 'not given'}
+${customerBlock(b, s)}
+Companies we look for: ${s.companyQuery.trim() || s.icp?.who || s.customer || 'not given'}
 
 For each business answer:
 - trade: true only if what it actually sells or does (product list first, then its own words) matches "Companies we look for". A passing mention of a word is not enough; a law firm, estate agent, software company, marketplace or directory is false.
 - small: true for a one-person to small team business (a product list under about 500 items, no corporate wording). False for big brands, chains, agencies with many offices.
 - active: true if it looks alive (a product added in the last 6 months, or a current-looking site); false if clearly abandoned (newest product over a year ago, "closed", "coming soon" only); null if unknown.
-- need: true if it would plausibly want help making social media posts (it sells products people buy on looks, links to Instagram / Facebook / TikTok, or has social links but little else).
+- need: true if it would plausibly want what ${b.name} offers now, judged against the ideal customer above. False if it shows any "NOT a fit" sign.
+- diy: who does their marketing. true if the founder or a tiny team seems to do it themselves (no marketing roles on careers or team pages, a person's own X / LinkedIn, a quiet blog or social links but little posting); false if they have a marketing team or agency, are hiring marketers or content people, or work with influencers / creators; null if unknown.
 - score: 1-10, how good a lead it is overall.
 - why: one plain sentence a non-technical owner understands, naming what they sell.
 
 ${list.map((c, i) => `[${i}]\n${c.judge ?? `${c.title}\n${c.snippet}`}`).join('\n\n')}
 
-Return [{"i":0,"trade":true,"small":true,"active":true,"need":true,"score":8,"why":"..."}]`,
+Return [{"i":0,"trade":true,"small":true,"active":true,"need":true,"diy":true,"score":8,"why":"..."}]`,
   })
   return (parseJsonLoose<CompanyCheck[]>(raw, 'array') ?? []).filter(x => typeof x.i === 'number' && x.i >= 0 && x.i < list.length)
 }
 
 /** Which check a company failed, for the run summary. */
-function failed(x: CompanyCheck): 'trade' | 'small' | 'active' | 'need' | null {
+function failed(x: CompanyCheck): 'trade' | 'small' | 'active' | 'need' | 'diy' | null {
   if (x.trade === false) return 'trade'
   if (x.small === false) return 'small'
   if (x.active === false) return 'active'
   if (x.need === false) return 'need'
+  if (x.diy === false) return 'diy'
   return null
 }
 
@@ -430,12 +533,12 @@ export async function pickSources(b: BrandContext, s: LeadSettings): Promise<Sou
     maxTokens: 500,
     system: 'You decide where a small business should look for customers. Return only a raw JSON object.',
     prompt: `${brandBlock(b)}
-Ideal customer: ${s.customer || b.targetAudience || 'not given'}
+${customerBlock(b, s)}
 Country: ${s.country === 'ANY' ? 'anywhere (no one country)' : s.country}
 
 Sources:
 - local: businesses on Google Maps (shops, salons, cafés, clinics). Right when the buyers are local businesses with a street address.
-- companies: online businesses found by what they sell (online stores, brands, agencies, software companies). Right when the buyers are companies that live online.
+- companies: online businesses found by what they sell (online stores, brands, agencies), and software products their founders just launched (Hacker News "Show HN"). Right when the buyers are companies or founders that live online.
 - reddit: Reddit and Hacker News posts where people ask for a tool like this. Right when buyers are individuals, creators, founders or developers who ask online.
 
 Turn on the 1-2 sources that fit the buyers best (at least one). Return
@@ -491,14 +594,14 @@ async function scoreCandidates(b: BrandContext, s: LeadSettings, list: Candidate
     maxTokens: 2500,
     system: 'You qualify sales leads. Be strict: most posts are not buyers. Return only a raw JSON array.',
     prompt: `${brandBlock(b)}
-Ideal customer: ${s.customer || b.targetAudience || 'not given'}${s.sources.companies && s.companyQuery.trim() ? `
+${customerBlock(b, s)}${s.sources.companies && s.companyQuery.trim() ? `
 Companies we look for: ${s.companyQuery.trim()}` : ''}
 
 Score each item 1-10 for how likely this person or business would want ${b.name} now:
 - reddit / forum: 8-10 only if they are asking for a tool or help that ${b.name} gives; 1-4 for news, rants, promotions, or other products' launches
 - review: an unhappy customer of a competitor; high only if their complaint is something ${b.name} solves
 - local: a business that matches the ideal customer and shows a need (no website, low rating, few reviews)
-- company: a business, described by its own home page and the social networks it links to. First check its trade against "Companies we look for": a different trade (e.g. real estate when we look for Etsy sellers) is 1-3, however active it is on social media. Then 8-10: a small business (a shop, an online store, a brand, a small agency) that matches the ideal customer and clearly posts or should post on social media, e.g. it links to Instagram or Facebook. 4-6: small but unclear need. 1-3: big or B2B firms, PR, consulting, software companies, directories, marketplaces, or no description at all
+- company: a business, described by its own home page and the social networks it links to. Anything matching "NOT a fit" above is 1-3. First check its trade against "Companies we look for": a different trade (e.g. real estate when we look for Etsy sellers) is 1-3, however active it is on social media. Then 8-10: a small business (a shop, an online store, a brand, a small agency) that matches the ideal customer and clearly posts or should post on social media, e.g. it links to Instagram or Facebook. 4-6: small but unclear need. 1-3: big or B2B firms, PR, consulting, software companies, directories, marketplaces, or no description at all
 
 ${lines}
 
@@ -530,7 +633,7 @@ async function draftMessages(b: BrandContext, s: LeadSettings, leads: Lead[]): P
     maxTokens: 4000,
     system: 'You write short, personal outreach that gets replies. Plain words, no hype, no buzzwords, no emojis. Return only a raw JSON array.',
     prompt: `${brandBlock(b)}
-Ideal customer: ${s.customer || b.targetAudience || 'not given'}
+${customerBlock(b, s)}
 
 For each item write:
 - EMAIL: "subject" (3-6 words, lower-key, mentions their situation, never clickbait) and "body" (under 90 words). Start with "Hi <first name>," if a person's name is known, else "Hi,". First line: the specific thing you noticed (their review, post or business detail). Then one sentence on how ${b.name} helps with exactly that. End with ONE small ask (e.g. "Want me to make 3 free examples for you?"). Sign off with "${b.name}". No em dashes. No links, no opt-out line (added automatically).
@@ -661,7 +764,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       { key: 'reddit', label: 'Searching Reddit & HN', hint: 'People asking for a tool like yours' },
     ] : []),
     ...(find && use.local ? [{ key: 'local', label: 'Searching Google Maps', hint: `“${localQuery}”: businesses with no website or low ratings` }] : []),
-    ...(find && use.companies ? [{ key: 'companies', label: 'Finding companies like your customers', hint: s.companyQuery ? `Online stores and small businesses: ${s.companyQuery}` : 'Online stores and small businesses that match your customer' }] : []),
+    ...(find && use.companies ? [{ key: 'companies', label: 'Finding companies like your customers', hint: s.icp?.kind === 'saas' ? 'New launches on Hacker News and websites that match your customer' : s.companyQuery ? `Online stores and small businesses: ${s.companyQuery}` : 'Online stores and small businesses that match your customer' }] : []),
     ...(find ? [
       { key: 'score', label: 'Scoring leads', hint: 'How well each one fits your product' },
       { key: 'emails', label: 'Finding emails', hint: 'Looked up with Hunter' },
@@ -709,7 +812,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
         const queuedPosts = more ? leftPosts.filter(x => !known.has(idOf(x.url))).map(x => ({ ...x } as Candidate)) : []
         if (queuedPosts.length >= postLimit) return queuedPosts
         searchedPosts = true
-        return [...queuedPosts, ...await findReddit(queries, s.country, meter, turn.phrase), ...await findHackerNews(queries, turn.phrase)]
+        return [...queuedPosts, ...await findReddit(queries, s.country, meter, turn.phrase, s.icp?.kind), ...await findHackerNews(queries, turn.phrase)]
       }
       // One failing source (e.g. a search error) shouldn't stop the others; it's reported on the page
       // DataForSEO's own hiccups ("Internal SE Server Error") get plain words: nothing for the user to fix
@@ -755,7 +858,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
         // A company that fails any check can't be kept, whatever its score
         ...companyBack.map(x => (failed(x) ? { ...x, score: Math.min(x.score, 3) } : x)),
       ]
-      const fails = { trade: 0, small: 0, active: 0, need: 0 }
+      const fails = { trade: 0, small: 0, active: 0, need: 0, diy: 0 }
       for (const x of companyBack) { const f = failed(x); if (f) fails[f] += 1 }
       const good = scored.filter(x => x.score >= (candidates[x.i].source === 'company' ? MIN_COMPANY_SCORE : MIN_SCORE)).sort((x, y) => y.score - x.score).slice(0, MAX_NEW_PER_RUN)
       // Demo mode: always keep a few made-up businesses with a website, so there are emails to approve
@@ -772,7 +875,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       const now = new Date().toISOString()
       // The ones that came close go on the "maybe" list (companies the checks dropped, posts and
       // businesses scoring 4-6), so the user can still use one
-      const REASON = { trade: 'Sells something else', small: 'Looks too big', active: 'Doesn’t look active', need: 'No clear need for help with posts' }
+      const REASON = { trade: 'Sells something else', small: 'Looks too big', active: 'Doesn’t look active', need: 'Not a clear fit', diy: 'Has a marketing team or creators' }
       for (const x of scored) {
         if (keptIdx.has(x.i)) continue
         const c = candidates[x.i]
@@ -828,7 +931,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       const checked = candidates.filter(c => c.source === 'company').length
       if (checked) {
         const fits = fresh.filter(l => l.source === 'company')
-        const why = [fails.trade && `${fails.trade} wrong trade`, fails.small && `${fails.small} too big`, fails.active && `${fails.active} not active`, fails.need && `${fails.need} no clear need`].filter(Boolean).join(', ')
+        const why = [fails.trade && `${fails.trade} wrong trade`, fails.small && `${fails.small} too big`, fails.active && `${fails.active} not active`, fails.need && `${fails.need} no clear need`, fails.diy && `${fails.diy} with a marketing team`].filter(Boolean).join(', ')
         notes.push(`Companies: ${checked} checked${why ? ` (${why})` : ''}, ${fits.length} good fit${fits.length === 1 ? '' : 's'}${fits.length ? `, ${fits.filter(l => l.email).length} with an email` : ''}`)
       }
     } else if (find && !errors.length) {

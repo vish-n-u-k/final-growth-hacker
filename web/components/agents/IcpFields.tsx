@@ -1,0 +1,93 @@
+'use client'
+
+// The ideal-customer card in the Lead Agent's and Lead Finder's Settings: who the buyers are, how
+// they market today, signs of fit and who is NOT a fit, plus a few example customers. "Describe
+// them for me" drafts it (op icp_draft); Save keeps it, and a changed card starts the search afresh.
+
+import { useState } from 'react'
+import { Spinner } from '@/components/ui/loading'
+import type { Icp, IcpKind, LeadSettings } from '@/lib/agents/store'
+
+const KINDS: [IcpKind, string][] = [
+  ['saas', 'Software or app founders'],
+  ['ecommerce', 'Online stores'],
+  ['local', 'Local businesses'],
+  ['creator', 'Creators and freelancers'],
+  ['other', 'Something else'],
+]
+
+const fromLines = (x: string) => x.split('\n').map(v => v.trim()).filter(Boolean)
+
+/** A one-per-line list that keeps what is being typed (blank lines too) until it's saved. */
+function Lines({ value, onChange, placeholder }: { value: string[]; onChange: (v: string[]) => void; placeholder: string }) {
+  const [text, setText] = useState(value.join('\n'))
+  return <textarea rows={3} value={text} onChange={e => { setText(e.target.value); onChange(fromLines(e.target.value)) }} placeholder={placeholder} />
+}
+
+export function IcpFields({ s, onChange, label = 'tu-full' }: {
+  s: LeadSettings
+  onChange: (patch: Partial<LeadSettings>) => void
+  label?: string                 // class for each field (the two Settings forms lay out differently)
+}) {
+  const icp = s.icp ?? null
+  const [examples, setExamples] = useState((icp?.examples ?? []).join(', '))
+  const [busy, setBusy] = useState(false)
+  const [version, setVersion] = useState(0)    // a new draft resets the lists being typed
+  const [err, setErr] = useState('')
+  const sites = examples.split(/[\s,]+/).map(v => v.trim()).filter(v => v.includes('.')).slice(0, 5)
+  // Any edit makes the card the user's; the plain customer line follows "who"
+  const edit = (patch: Partial<Icp>) => {
+    const base: Icp = icp ?? { kind: 'other', who: s.customer, marketing: '', fit: [], notFit: [], examples: sites, by: 'user' }
+    const next = { ...base, ...patch, by: 'user' as const }
+    onChange({ icp: next, customer: next.who })
+  }
+
+  async function draft() {
+    setBusy(true); setErr('')
+    try {
+      const res = await fetch('/api/agents/lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'icp_draft', examples: sites }) })
+      const j = await res.json().catch(() => ({})) as { icp?: Icp; companyQuery?: string; error?: string }
+      if (!j.icp) { setErr(j.error ?? 'Couldn’t describe them right now. Try again.'); return }
+      onChange({ icp: j.icp, customer: j.icp.who, ...(j.companyQuery ? { companyQuery: j.companyQuery } : {}) })
+      setVersion(v => v + 1)
+    } catch {
+      setErr('Network error. Try again.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <>
+    <label className={label}>Who is your customer?
+      <textarea rows={2} value={icp?.who ?? s.customer} onChange={e => (icp ? edit({ who: e.target.value }) : onChange({ customer: e.target.value }))}
+        placeholder="e.g. Founders of small SaaS products who do their own marketing" />
+    </label>
+    <label className={label}>Customers you’d love (optional)
+      <input value={examples} onChange={e => { setExamples(e.target.value); if (icp) edit({ examples: e.target.value.split(/[\s,]+/).filter(v => v.includes('.')).slice(0, 5) }) }}
+        placeholder="2-5 websites, e.g. tool-one.com, tool-two.io" />
+    </label>
+    <div className={`${label} icp-draft`}>
+      <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={draft}>
+        {busy ? <><Spinner />Describing…</> : icp ? 'Describe them again' : 'Describe them for me'}
+      </button>
+      <small>{err || (sites.length ? `Uses ${sites.length === 1 ? 'that site' : `those ${sites.length} sites`} to see what your customers have in common.` : 'Reads your brand. Add example sites for a sharper picture.')}</small>
+    </div>
+    {icp && <>
+      <label className={label}>They are
+        <select value={icp.kind} onChange={e => edit({ kind: e.target.value as IcpKind })}>
+          {KINDS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+        </select>
+      </label>
+      <label className={label}>How they market today
+        <input value={icp.marketing} onChange={e => edit({ marketing: e.target.value })} placeholder="e.g. The founder posts on X and LinkedIn themselves" />
+      </label>
+      <label className={label}>Good fit when… <small>One per line</small>
+        <Lines key={`f${version}`} value={icp.fit} onChange={fit => edit({ fit })} placeholder="Launched in the last year" />
+      </label>
+      <label className={label}>Not a fit when… <small>One per line. These are never kept.</small>
+        <Lines key={`n${version}`} value={icp.notFit} onChange={notFit => edit({ notFit })} placeholder={'Has a marketing team or agency\nHires influencers or creators'} />
+      </label>
+      <p className={`${label} icp-note`}>Saving a changed card starts the search afresh.</p>
+    </>}
+  </>
+}

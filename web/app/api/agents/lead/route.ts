@@ -3,8 +3,8 @@ import { agentAccess } from '@/lib/agents/access'
 import { demoForced, withDemo } from '@/lib/agents/demo'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
-import { addLeadEmail, approveLead, demoSkipDays, leadFallback, pickSources, runLeadAgent, useMaybe } from '@/lib/agents/lead-agent'
-import { readLeadData, updateLeadData, type LeadSettings } from '@/lib/agents/store'
+import { addLeadEmail, approveLead, demoSkipDays, draftIcp, icpKey, leadFallback, pickSources, runLeadAgent, useMaybe } from '@/lib/agents/lead-agent'
+import { readLeadData, updateLeadData, type Icp, type IcpKind, type LeadAgentData, type LeadSettings } from '@/lib/agents/store'
 import { addOwnList, checkPeople, draftListEmail } from '@/lib/agents/own-list'
 import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
 import { clearSignals } from '@/lib/signals'
@@ -26,6 +26,33 @@ async function get() {
   const b = await loadBrandContext(a.brandId)
   if (!b) return NextResponse.json({ error: 'No brand' }, { status: 404 })
   return NextResponse.json({ data: (await readLeadData(a.brandId)) ?? leadFallback(b)() })
+}
+
+const KINDS: IcpKind[] = ['ecommerce', 'saas', 'local', 'creator', 'other']
+const lines = (x: unknown, n: number) => (Array.isArray(x) ? x : []).map(v => String(v ?? '').trim().slice(0, 140)).filter(Boolean).slice(0, n)
+function cleanIcp(cur: Icp | null | undefined, x: unknown): Icp | null | undefined {
+  if (x === undefined) return cur
+  if (!x || typeof x !== 'object') return null
+  const c = x as Partial<Icp>
+  const who = typeof c.who === 'string' ? c.who.trim().slice(0, 300) : ''
+  if (!who) return null
+  return {
+    kind: KINDS.includes(c.kind as IcpKind) ? c.kind as IcpKind : 'other',
+    who,
+    marketing: typeof c.marketing === 'string' ? c.marketing.trim().slice(0, 300) : '',
+    fit: lines(c.fit, 6),
+    notFit: lines(c.notFit, 8),
+    examples: lines(c.examples, 5).map(d => d.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]).filter(d => d.includes('.')),
+    by: c.by === 'ai' ? 'ai' : 'user',
+  }
+}
+
+/** The card changed: what was found or saved for the old one is dropped, so the next search starts afresh. */
+function freshStart(d: LeadAgentData) {
+  d.waiting = undefined
+  d.cursor = undefined
+  d.companyFilters = undefined
+  d.queries = undefined
 }
 
 function cleanSettings(cur: LeadSettings, s: Partial<LeadSettings>): LeadSettings {
@@ -52,6 +79,7 @@ function cleanSettings(cur: LeadSettings, s: Partial<LeadSettings>): LeadSetting
     followUpDays: days,
     skipEU: typeof s.skipEU === 'boolean' ? s.skipEU : cur.skipEU,
     mode: s.mode === 'auto' || s.mode === 'approve' ? s.mode : cur.mode,
+    icp: cleanIcp(cur.icp, s.icp),
   }
 }
 
@@ -65,7 +93,7 @@ async function post(req: NextRequest) {
   const fallback = leadFallback(b)
   const body = await req.json().catch(() => ({})) as {
     op?: string; on?: boolean; id?: string; subject?: string; body?: string; reply?: string; email?: string; settings?: Partial<LeadSettings>
-    name?: string; about?: string; people?: { email: string; name?: string; text?: string }[]; lane?: string
+    name?: string; about?: string; examples?: string[]; people?: { email: string; name?: string; text?: string }[]; lane?: string
   }
   const people = Array.isArray(body.people) ? body.people.slice(0, 500).filter(p => p && typeof p.email === 'string') : []
 
@@ -83,20 +111,34 @@ async function post(req: NextRequest) {
         // Sources changed by hand: GrowJin's one-line reason no longer describes them
         const was = d.settings.sources
         if (next.picked && (next.sources.local !== was.local || next.sources.companies !== was.companies || next.sources.reddit !== was.reddit)) next.picked = { ...next.picked, why: '' }
+        // A new ideal customer or "who to look for": old waiting finds and search words go
+        if (icpKey(next) !== icpKey(d.settings) || next.companyQuery !== d.settings.companyQuery || next.customer !== d.settings.customer) freshStart(d)
         d.settings = next
       })
       if (!data.settings.enabled) await clearSignals(brandId, 'lead-agent', ['approvals']).catch(() => {})
       return NextResponse.json({ data })
     }
-    // GrowJin picks the sources from the brand (first visit, or "Pick for me" in Settings)
+    // The ideal-customer card, drafted from the brand and the example customers given. Not saved:
+    // it fills the Settings form, and Save keeps it
+    case 'icp_draft': {
+      const cur = (await readLeadData(brandId)) ?? fallback()
+      const r = await draftIcp(b, cur.settings, lines(body.examples, 5)).catch(() => null)
+      return r ? NextResponse.json(r) : NextResponse.json({ error: 'Couldn’t describe your customer right now. Try again.' }, { status: 500 })
+    }
+    // GrowJin picks the sources from the brand (first visit, or "Pick for me" in Settings).
+    // With no ideal-customer card yet, it drafts one first and saves it, so the pick follows it
     case 'pick': {
       const cur = (await readLeadData(brandId)) ?? fallback()
-      const p = await pickSources(b, cur.settings).catch(() => null)
+      const drafted = cur.settings.icp ? null : await draftIcp(b, cur.settings, []).catch(() => null)
+      const withCard = drafted ? { ...cur.settings, icp: drafted.icp, companyQuery: drafted.companyQuery || cur.settings.companyQuery } : cur.settings
+      const p = await pickSources(b, withCard).catch(() => null)
       if (!p) return NextResponse.json({ error: 'Couldn’t pick sources right now. Choose them in Change.' })
       const data = await updateLeadData(brandId, fallback, d => {
+        if (drafted && !d.settings.icp) { d.settings.icp = drafted.icp; freshStart(d) }
         d.settings.sources = { ...d.settings.sources, local: p.local, companies: p.companies, reddit: p.reddit }
         if (p.localQuery) d.settings.localQuery = p.localQuery
-        if (p.companyQuery) d.settings.companyQuery = p.companyQuery
+        const query = drafted?.companyQuery || p.companyQuery
+        if (query && query !== d.settings.companyQuery) { d.settings.companyQuery = query; freshStart(d) }
         d.settings.picked = { at: new Date().toISOString(), why: p.why }
       })
       return NextResponse.json({ data })
