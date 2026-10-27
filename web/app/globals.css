@@ -9449,3 +9449,5 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .la-maybe-main b a:hover { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
 .la-maybe-main span { color: var(--text-dim); font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .la-maybe-all { margin-top: 10px; }
+.own-ai-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-top: 6px; }
+.tu-stack > .cl-seg { justify-self: start; margin-bottom: 0; }

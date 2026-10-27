@@ -29,6 +29,11 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
   const [raw, setRaw] = useState('')
   const [reading, setReading] = useState(false)
   const [fileErr, setFileErr] = useState<string | null>(null)
+  // How the list is given, like an Email Outreach campaign: one per line, any text (AI picks the
+  // emails out), or a file
+  const [mode, setMode] = useState<'lines' | 'ai' | 'file'>('lines')
+  const [aiText, setAiText] = useState('')
+  const [picking, setPicking] = useState(false)
   const [people, setPeople] = useState<Person[]>([])
   const [skipped, setSkipped] = useState<Skipped[]>([])
   const [about, setAbout] = useState('')
@@ -59,11 +64,33 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
       if (!list.length) { setFileErr(`No email addresses found in ${file.name}.`); return }
       setRaw(r => [r.trim(), ...list.map(p => p.name ? `${p.email}, ${p.name}` : p.email)].filter(Boolean).join('\n'))
       if (!name.trim()) setName(file.name.replace(/\.[^.]+$/, '').slice(0, 80))
+      setMode('lines')
       notify(`Read ${list.length} ${list.length === 1 ? 'email' : 'emails'} from ${file.name}`)
     } catch (e) {
       setFileErr(e instanceof Error ? e.message : 'Could not read that file')
     } finally {
       setReading(false)
+    }
+  }
+
+  // "Any format": AI reads pasted text (LinkedIn profiles, notes, a spreadsheet column) and picks out
+  // the emails and names; they're added to the list, one per line, for the user to check
+  async function pickOut() {
+    if (!aiText.trim()) return
+    setPicking(true); setFileErr(null)
+    try {
+      const res = await fetch('/api/outreach/parse-prospects', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: aiText }) })
+      const j = await res.json().catch(() => ({})) as { prospects?: { email: string; name?: string }[]; error?: string }
+      if (!res.ok) throw new Error(j.error ?? 'Couldn’t read that')
+      const list = (j.prospects ?? []).filter(p => p.email)
+      if (!list.length) { setFileErr('No emails found in that text.'); return }
+      setRaw(r => [r.trim(), ...list.map(p => p.name ? `${p.email}, ${p.name}` : p.email)].filter(Boolean).join('\n'))
+      setAiText(''); setMode('lines')
+      notify(`Found ${list.length} ${list.length === 1 ? 'email' : 'emails'}. Check them below.`)
+    } catch (e) {
+      setFileErr(e instanceof Error ? e.message : 'Couldn’t read that')
+    } finally {
+      setPicking(false)
     }
   }
 
@@ -103,17 +130,37 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
     <Flow back={back} crumb="Add your own emails" side={side} steps={STEPS} at={step} title={title} hint={hint} actions={actions} stepKey={`own:${step}`}>{content}</Flow>
 
   if (step === 1) {
-    return flow('Who gets it?', 'Paste the emails, one per line. A name after the email is used if it’s there. To send one email to everyone right now, without follow-ups, use Email Outreach.',
+    return flow('Who gets it?', 'Paste the emails, paste any text and let AI pick them out, or upload a file. To send one email to everyone right now, without follow-ups, use Email Outreach.',
       <div className="tu-stack">
         <div className="ro-field">
           <label htmlFor="own-name">Name this list</label>
           <input id="own-name" value={name} maxLength={80} onChange={e => setName(e.target.value)} placeholder="e.g. Café owners from the Pune meetup" />
         </div>
-        <div className="ro-field">
-          <label htmlFor="own-raw">Emails</label>
-          <textarea id="own-raw" className="own-raw" rows={7} value={raw} onChange={e => setRaw(e.target.value)} placeholder={'anna@brewlab.in, Anna Rao\nravi@kiteprints.com'} />
+        <div className="cl-seg" role="group" aria-label="How to add people">
+          <button type="button" aria-pressed={mode === 'lines'} onClick={() => { setMode('lines'); setFileErr(null) }}>One per line</button>
+          <button type="button" aria-pressed={mode === 'ai'} onClick={() => { setMode('ai'); setFileErr(null) }}>Any format (AI)</button>
+          <button type="button" aria-pressed={mode === 'file'} onClick={() => { setMode('file'); setFileErr(null) }}>Upload a file</button>
         </div>
-        <label className={`eo-drop${reading ? ' eo-drop--busy' : ''}`}
+        {mode === 'ai' && (
+          <div className="ro-field">
+            <label htmlFor="own-ai">Paste anything</label>
+            <textarea id="own-ai" className="own-raw" rows={6} value={aiText} onChange={e => setAiText(e.target.value)} disabled={picking}
+              placeholder={'LinkedIn profiles, notes, a spreadsheet column…\ne.g. "Anna Rao runs Brewlab, anna@brewlab.in"'} />
+            <div className="own-ai-row">
+              <span className="cl-muted">AI picks out the emails and names. Nothing is made up.</span>
+              <button type="button" className="btn cl-btn-outline btn-sm" disabled={!aiText.trim() || picking} onClick={pickOut}>
+                {picking ? <><Spinner />Reading…</> : 'Pick out the emails'}
+              </button>
+            </div>
+          </div>
+        )}
+        {(mode === 'lines' || raw.trim()) && (
+          <div className="ro-field">
+            <label htmlFor="own-raw">{mode === 'lines' ? 'Emails' : 'Emails so far'}</label>
+            <textarea id="own-raw" className="own-raw" rows={mode === 'lines' ? 7 : 4} value={raw} onChange={e => setRaw(e.target.value)} placeholder={'anna@brewlab.in, Anna Rao\nravi@kiteprints.com'} />
+          </div>
+        )}
+        {mode === 'file' && <label className={`eo-drop${reading ? ' eo-drop--busy' : ''}`}
           onDragOver={e => e.preventDefault()}
           onDrop={e => { e.preventDefault(); if (!reading) upload(e.dataTransfer.files[0]) }}>
           <input type="file" className="eo-drop-in" disabled={reading}
@@ -121,9 +168,9 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
             onChange={e => { upload(e.target.files?.[0]); e.target.value = '' }} />
           {reading
             ? <span className="eo-drop-t"><Spinner />Reading the file…</span>
-            : <><span className="eo-drop-t">Or upload a file: drop it here or <u>choose one</u></span>
+            : <><span className="eo-drop-t">Drop a file here or <u>choose one</u></span>
                 <span className="cl-muted">CSV, Excel (.xlsx), PDF, Word (.docx), text or contact cards (.vcf), up to 5 MB.</span></>}
-        </label>
+        </label>}
         {fileErr && <div className="ro-error"><span>{fileErr}</span></div>}
         <p className="cl-muted own-count">
           {unique ? <><b>{unique} {unique === 1 ? 'email' : 'emails'}</b> found. Anyone already emailed, already in the {tool} or who asked not to be emailed is skipped on the next step.</> : 'No emails yet.'}
@@ -132,7 +179,7 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
       </div>,
       <>
         <button key="cancel" type="button" className="btn btn-ghost ro-back" onClick={onClose}>Cancel</button>
-        <button key="go" type="button" className="btn btn-primary" disabled={!unique || checking || reading} onClick={check}>
+        <button key="go" type="button" className="btn btn-primary" disabled={!unique || checking || reading || picking} onClick={check}>
           {checking ? <><Spinner />Checking…</> : 'Continue →'}
         </button>
       </>)
