@@ -7,7 +7,7 @@ The Community Finder module is **fully integrated** as a TypeScript module. It d
 - **Reddit — free, no setup.** Real subreddits found via DuckDuckGo search (Reddit content, unlike FB/LinkedIn groups, is indexed by search engines). Always runs.
 - **Facebook & LinkedIn — optional, via Apify.** Neither platform has any free/official discovery path (Facebook's Groups API was fully removed in 2024; LinkedIn's Groups API has been dead for years and the main workaround, Proxycurl, was shut down by lawsuit in 2025). The only route is a scraping backend. Apify's group-search actors handle it, and Apify's **free tier ($5/month, no credit card)** covers this module's usage (~$0.005/community → ~50-100 runs/month).
 
-**Setup:** Nothing required for Reddit. To also get Facebook + LinkedIn, go to Settings → Integrations → connect **Apify** with an API token from console.apify.com (free). When Apify isn't connected, the module shows Reddit results plus a one-line hint on how to unlock the other two platforms. No sample/placeholder data is ever shown.
+**Setup:** Nothing required for Reddit. Facebook + LinkedIn are developer-managed: set `APIFY_API_TOKEN` in the server env (token from console.apify.com). Users have nothing to connect; when the env var is unset, only Reddit results are shown. No sample/placeholder data is ever shown.
 
 ---
 

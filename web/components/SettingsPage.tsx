@@ -661,7 +661,6 @@ const PROVIDER_ICON_DOMAIN: Record<string, string> = {
   posthog: 'posthog.com',
   serpapi: 'serpapi.com',
   serper: 'serper.dev',
-  apify: 'apify.com',
   youtube: 'youtube.com',
   twitter: 'x.com',
   instagram: 'instagram.com',

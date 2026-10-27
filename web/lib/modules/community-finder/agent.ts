@@ -29,32 +29,18 @@ function communityFinding(community: Community, idx: number): DynamicModuleAnaly
   }
 }
 
-// Emits findings for one Apify-backed platform (Facebook / LinkedIn): a
-// connect-Apify prompt when the token isn't set, the discovered groups when it
-// is, or an empty-result note.
+// Emits findings for one Apify-backed platform (Facebook / LinkedIn): the
+// discovered groups, or an empty-result note. Nothing when Apify isn't
+// configured on the server — users have nothing to connect.
 function apifyPlatformFindings(
   platform: 'facebook' | 'linkedin',
   communities: Community[],
-  apifyConnected: boolean,
+  apifyEnabled: boolean,
 ): DynamicModuleAnalysisResult[] {
   const category = CATEGORY_BY_PLATFORM[platform]
   const label = PLATFORM_LABEL[platform]
 
-  if (!apifyConnected) {
-    return [
-      {
-        category,
-        slug: `${platform}-connect-apify`,
-        label: `Connect Apify to discover ${label} groups`,
-        weight: 2,
-        detail: `${label} discovery is not active yet.`,
-        narrative: `${label} has no free or official way to search groups by keyword, so it needs a scraping backend. Apify covers it and its free tier ($5/month, no credit card) is enough for this module (~50-100 runs).`,
-        action: `1. Go to console.apify.com → sign up free (Google sign-in, no card)\n2. Settings → API & Integrations → copy your API token\n3. In this app: Settings → Integrations → connect Apify\n4. Re-run this module to populate ${label} groups here`,
-        verified: false,
-        fixable: false,
-      },
-    ]
-  }
+  if (!apifyEnabled) return []
 
   if (communities.length === 0) {
     return [
@@ -64,7 +50,7 @@ function apifyPlatformFindings(
         label: `No ${label} groups found`,
         weight: 1,
         detail: `${label} search returned no groups for these keywords.`,
-        narrative: `Apify is connected, but no ${label} groups matched. This can happen with very niche or very broad keywords.`,
+        narrative: `No ${label} groups matched. This can happen with very niche or very broad keywords.`,
         action: 'Try different or more specific brand keywords, then re-run.',
         verified: false,
         fixable: false,
