@@ -25,7 +25,7 @@ import { agentsDemo, demoWastedSpend, setDemoContext } from './demo'
 import { Progress } from './progress'
 import {
   addUsage, defaultSearchData, newMeter, readSearchData, updateSearchData,
-  type AdsTip, type AgentTask, type AiAnswer, type RankChange, type SearchAgentData, type Topic,
+  type AdsTip, type AgentTask, type IdeaRow, type IdeaVerdict, type AiAnswer, type RankChange, type SearchAgentData, type Topic,
 } from './store'
 import { brandBlock, domainOf, idOf, loadBrandContext, parseJsonLoose, type BrandContext } from './context'
 import { runLinkFollowUps, runLinkOpportunities } from './link-opportunities'
@@ -226,7 +226,7 @@ Return the searches, copied exactly, where the person searching could become a c
   return new Set(keywords.filter(k => wanted.has(k.toLowerCase())))
 }
 
-async function pickTopics(b: BrandContext, d: SearchAgentData, ideas: KeywordIdea[], ranked: RankedKeyword[]): Promise<Topic[]> {
+async function pickTopics(b: BrandContext, d: SearchAgentData, ideas: KeywordIdea[], ranked: RankedKeyword[]): Promise<{ picks: Topic[]; checked: Set<string>; fits: Set<string> }> {
   const brandWords = [b.name.toLowerCase(), b.domain.split('.')[0]]
   const used = new Set(d.topics.map(t => t.keyword.toLowerCase()))
   const isBranded = (k: string) => brandWords.some(w => w.length > 2 && k.includes(w))
@@ -261,10 +261,11 @@ async function pickTopics(b: BrandContext, d: SearchAgentData, ideas: KeywordIde
     return shared / Math.min(a.size, c.size) >= 0.75
   }
   const open = d.topics.filter(t => t.status === 'picked' || t.status === 'writing').length
-  if (open >= 3) return []
+  if (open >= 3) return { picks: [], checked: new Set(), fits: new Set() }
   // The best 20 unused candidates go to Claude for a fit check
   const short = cands.sort((x, y) => y.score - x.score).filter(c => !used.has(c.keyword.toLowerCase())).slice(0, 20)
-  const fits = await relevantKeywords(b, [...new Set(short.map(c => c.keyword))])
+  const checked = new Set(short.map(c => c.keyword))
+  const fits = await relevantKeywords(b, [...checked])
   const out: Topic[] = []
   for (const c of short) {
     if (out.length >= 3 - open) break
@@ -273,7 +274,41 @@ async function pickTopics(b: BrandContext, d: SearchAgentData, ideas: KeywordIde
     const { score: _score, ...topic } = c
     out.push(topic)
   }
-  return out
+  return { picks: out, checked, fits }
+}
+
+/** The top 100 ideas, each with why it was or wasn't picked, in the same order as pickTopics' checks. */
+function ideaRows(b: BrandContext, topics: Topic[], ideas: KeywordIdea[], checked: Set<string>, fits: Set<string>): IdeaRow[] {
+  const brandWords = [b.name.toLowerCase(), b.domain.split('.')[0]]
+  const topicWords = new Set(topics.filter(t => t.status !== 'skipped').map(t => t.keyword.toLowerCase()))
+  const verdict = (i: KeywordIdea): IdeaVerdict =>
+    topicWords.has(i.keyword.toLowerCase()) ? 'picked'
+      : brandWords.some(w => w.length > 2 && i.keyword.includes(w)) ? 'branded'
+      : i.volume < 50 ? 'small'
+      : i.volume > MAX_IDEA_VOLUME ? 'broad'
+      : i.difficulty === null ? 'unknown'
+      : i.difficulty > 40 ? 'hard'
+      : !checked.has(i.keyword) ? 'unchecked'
+      : fits.has(i.keyword) ? 'fit' : 'off'
+  return ideas.slice(0, 100).map(i => ({ keyword: i.keyword, volume: i.volume, difficulty: i.difficulty, cpc: i.cpc, verdict: verdict(i) }))
+}
+
+/** "Write about this" on the Keywords tab: a saved idea becomes a post to write. */
+export async function ideaToTopic(brandId: string, keyword: string): Promise<{ ok: boolean; message?: string }> {
+  const b = await loadBrandContext(brandId)
+  if (!b) return { ok: false, message: 'Brand not found.' }
+  const row = (await readSearchData(brandId))?.ideas?.rows.find(r => r.keyword === keyword)
+  if (!row) return { ok: false, message: 'That keyword is gone. Refresh the page.' }
+  await updateSearchData(brandId, searchFallback(b), x => {
+    const t = x.topics.find(y => y.keyword === keyword)
+    const why = `You picked it. ${row.volume.toLocaleString('en-US')} searches a month, ${difficultyLabel(row.difficulty)}.`
+    // A skipped or finished topic goes back on the list; one already there is left as it is
+    if (t && (t.status === 'skipped' || t.status === 'published')) Object.assign(t, { status: 'picked', why, pickedAt: new Date().toISOString() })
+    else if (!t) x.topics.push({ keyword, volume: row.volume, difficulty: row.difficulty, cpc: row.cpc, why, status: 'picked', pickedAt: new Date().toISOString(), kind: 'new' })
+    const r = x.ideas?.rows.find(y => y.keyword === keyword)
+    if (r) r.verdict = 'picked'
+  })
+  return { ok: true }
 }
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
@@ -370,7 +405,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
   if (saved && !!saved.demo !== agentsDemo()) {
     await updateSearchData(brandId, fallback, x => {
       x.topics = []; x.ranks = null; x.rankChanges = []; x.answers = null; x.mentionHistory = []
-      x.description = null; x.tasks = []; x.adsTips = []; x.links = []; x.lastError = null; x.demo = agentsDemo()
+      x.description = null; x.ideas = null; x.tasks = []; x.adsTips = []; x.links = []; x.lastError = null; x.demo = agentsDemo()
     })
   }
   const d = (await readSearchData(brandId)) ?? fallback()
@@ -415,7 +450,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
     if (desc?.issue) p.set('describe', 'warn', { detail: 'Needs a fix', note: desc.issue })
     const rows = ranked ?? []
     const changes = ranked ? rankChanges(d.ranks, rows, d.topics) : d.rankChanges
-    const picks = await pickTopics(b, d, ideas, rows).catch(() => [] as Topic[])
+    const { picks, checked, fits } = await pickTopics(b, d, ideas, rows).catch(() => ({ picks: [] as Topic[], checked: new Set<string>(), fits: new Set<string>() }))
     p.set('topics', 'done', picks.length ? { detail: `${picks.length} new`, items: picks.map(t => t.keyword) } : { detail: 'None new', note: 'Topics from earlier are still waiting to be written.' })
     const fresh = buildTasks(b, answers, changes, desc, d.answers?.items ?? null)
     const listings = fresh.filter(t => t.kind === 'listing').map(t => t.key.replace(/^listing:/, ''))
@@ -447,6 +482,8 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       x.settings.seeds = x.settings.seeds.length ? x.settings.seeds : s.seeds
       x.settings.questions = x.settings.questions.length ? x.settings.questions : s.questions
       x.topics.push(...picks)
+      // Keep the last ideas when this run got none (a DataForSEO error)
+      if (ideas.length) x.ideas = { at: new Date().toISOString(), rows: ideaRows(b, x.topics, ideas, checked, fits) }
       if (ranked) { x.ranks = { at: new Date().toISOString(), rows: rows.slice(0, 200) }; x.rankChanges = changes }
       if (okAnswers.length) {
         x.answers = { at: new Date().toISOString(), items: answers }
