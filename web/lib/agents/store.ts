@@ -168,6 +168,10 @@ export interface Topic {
 }
 
 export interface RankRow { keyword: string; volume: number; rank: number; url: string }
+
+// A keyword idea from the last research, with why it was or wasn't picked (Keywords tab)
+export type IdeaVerdict = 'picked' | 'fit' | 'broad' | 'hard' | 'off' | 'unknown' | 'small' | 'branded' | 'unchecked'
+export interface IdeaRow { keyword: string; volume: number; difficulty: number | null; cpc: number | null; verdict: IdeaVerdict }
 export interface RankChange { keyword: string; before: number | null; now: number | null; url: string }
 
 export interface AiAnswer {
@@ -234,6 +238,7 @@ export interface SearchAgentData {
   settings: SearchSettings
   topics: Topic[]
   ranks: { at: string; rows: RankRow[] } | null
+  ideas?: { at: string; rows: IdeaRow[] } | null   // keyword ideas from the last research
   rankChanges: RankChange[]
   answers: { at: string; items: AiAnswer[] } | null
   mentionHistory: { at: string; mentioned: number; asked: number }[]

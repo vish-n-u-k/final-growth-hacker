@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import ToolHeader from '@/components/ToolHeader'
 import { DIRECTORIES, helpOf, listingDomain } from '@/lib/agents/task-kinds'
-import type { AgentTask, AiAnswer, LinkOpportunity, SearchAgentData, SearchSettings, Topic } from '@/lib/agents/store'
+import type { AgentTask, AiAnswer, IdeaVerdict, LinkOpportunity, SearchAgentData, SearchSettings, Topic } from '@/lib/agents/store'
 import { Spinner } from '@/components/ui/spinner'
 import { useToast } from '@/components/email-outreach/shared'
 import { ActionBar, Card, DemoSwitch, Pager, usePages, useShowAll, Finished, Flow, ListTools, LiveProgress, Sec, Side, Src, Tabs, Tag } from '@/components/tool-ui'
@@ -12,7 +12,7 @@ import { Day, DemoBanner, fmtAgo, fmtDate, useAgentApi } from './shared'
 
 // Search Agent: gets the brand found on Google and in AI answers. The bar at the top says what it
 // tracks (Change opens the settings); it researches by itself the first time the page is opened.
-// Tabs: To do (posts to write, sites to pitch, other fixes), Done, Rankings and AI answers.
+// Tabs: To do (posts to write, sites to pitch, other fixes), Done, Keywords (ideas and rankings) and AI answers.
 // A post or a site opens into two short steps, like the other tools.
 
 export interface SearchAgentFlags { dataforseo: boolean; googleAds: boolean; demo: boolean; demoForced: boolean }
@@ -27,6 +27,11 @@ const TASK: Record<AgentTask['kind'], [string, string]> = { write: ['✍', 'Writ
 const PROGRESS = ['Finding what people search', 'Checking where you rank', 'Asking ChatGPT and Perplexity about you', 'Finding sites that list competitors']
 // Article sites are pitched and Reddit is joined, not "listed"
 const taskLabel = (k: AgentTask) => ({ article: 'Pitch', reddit: 'Reddit' } as Record<string, string>)[helpOf(k)] ?? TASK[k.kind][1]
+// Why a keyword idea was or wasn't picked (Keywords tab)
+const VERDICT: Record<IdeaVerdict, string> = {
+  picked: 'In your to-do', fit: 'Good fit, waiting for room', broad: 'Too broad', hard: 'Hard to win',
+  off: 'Not your buyers', unknown: 'Difficulty unknown', small: 'Too few searches', branded: 'Your brand name', unchecked: 'Not checked for fit',
+}
 const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
 
 function tabOf(i: Item): 'todo' | 'done' {
@@ -483,8 +488,40 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
 
   const change = new Map(data.rankChanges.map(c => [c.keyword, c]))
   const rankRows = useShowAll(data.ranks?.rows.slice(0, 30) ?? [], tab)
-  const rankings = (
+  const [ideaQ, setIdeaQ] = useState('')
+  const ideaAll = data.ideas?.rows ?? []
+  const ideaNeedle = ideaQ.trim().toLowerCase()
+  const ideaShown = ideaAll.filter(r => !ideaNeedle || r.keyword.includes(ideaNeedle))
+  const ideaRows = useShowAll(ideaShown, [tab, ideaNeedle])
+  const keywords = (
     <>
+      <Sec label="Keyword ideas" count={ideaAll.length} />
+      {ideaAll.length > 8 && <ListTools q={ideaQ} setQ={setIdeaQ} shown={ideaShown.length} total={ideaAll.length} onClear={() => setIdeaQ('')} />}
+      {ideaShown.length > 0 ? (
+        <div className="tu-tbl">
+          <table>
+            <thead><tr><th>Keyword</th><th>Searches</th><th>Difficulty</th><th>Why</th><th /></tr></thead>
+            <tbody>
+              {ideaRows.items.map(r => (
+                <tr key={r.keyword}>
+                  <td><b>{r.keyword}</b></td>
+                  <td className="tu-num">{r.volume.toLocaleString('en-US')}</td>
+                  <td className="tu-num">{r.difficulty ?? '—'}</td>
+                  <td className="tu-faint">{VERDICT[r.verdict]}</td>
+                  <td>{r.verdict === 'picked' ? null
+                    : <button type="button" className="btn btn-ghost btn-sm" disabled={!!busy}
+                        onClick={async () => { const j = await call('idea', { keyword: r.keyword }, `idea:${r.keyword}`); if (j && !j.error) notify('Added to your to-do') }}>
+                        {busy === `idea:${r.keyword}` ? <Spinner /> : 'Write about this'}</button>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : <div className="tu-empty">{ideaAll.length ? 'No keyword matches that search.' : 'Shown after the next research.'}</div>}
+      {ideaRows.toggle}
+      {data.ideas && <p className="cl-muted tu-note">From the research on <Day iso={data.ideas.at} />. Searches a month in {COUNTRIES.find(([c]) => c === s.country)?.[1] ?? s.country}; difficulty 0-100.</p>}
+
+      <Sec label="Where you rank now" count={data.ranks?.rows.length ?? 0} />
       {data.ranks && data.ranks.rows.length > 0 ? (
         <div className="tu-tbl">
           <table>
@@ -649,12 +686,12 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
         <Tabs value={tab} onChange={k => { setTab(k); setQ('') }} tabs={[
           { key: 'todo', label: 'To do', count: todo.length, hot },
           { key: 'done', label: 'Done', count: done.length },
-          { key: 'rank', label: 'Rankings' },
+          { key: 'rank', label: 'Keywords' },
           { key: 'ai', label: 'AI answers' },
         ]} />
         {tab === 'todo' && list(todo, true)}
         {tab === 'done' && list(done, false)}
-        {tab === 'rank' && rankings}
+        {tab === 'rank' && keywords}
         {tab === 'ai' && aiTab}
       </>}
       {toast}

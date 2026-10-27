@@ -3,7 +3,7 @@ import { agentAccess } from '@/lib/agents/access'
 import { demoForced, withDemo } from '@/lib/agents/demo'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
-import { runSearchResearch, runSearchWrite, searchFallback, setTopicStatus, refreshToTopic } from '@/lib/agents/search-agent'
+import { runSearchResearch, runSearchWrite, searchFallback, setTopicStatus, refreshToTopic, ideaToTopic } from '@/lib/agents/search-agent'
 import { readSearchData, updateSearchData, type AgentTask, type SearchSettings, type Topic } from '@/lib/agents/store'
 import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
 import { runLinkOpportunities, sendLinkPitch, updateLink } from '@/lib/agents/link-opportunities'
@@ -81,6 +81,12 @@ async function post(req: NextRequest) {
       if (!body.key) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
       const r = await refreshToTopic(brandId, body.key)
       return NextResponse.json({ ...(r.ok ? { keyword: r.keyword } : { error: r.message }), data: await readSearchData(brandId) })
+    }
+    case 'idea': {
+      // Keywords tab: "Write about this" turns a keyword idea into a post to write
+      if (!body.keyword) return NextResponse.json({ error: 'Bad request' }, { status: 400 })
+      const r = await ideaToTopic(brandId, body.keyword)
+      return NextResponse.json({ ...(r.ok ? {} : { error: r.message }), data: await readSearchData(brandId) })
     }
     case 'topic': {
       const allowed: Topic['status'][] = ['approved', 'published', 'skipped', 'picked']
