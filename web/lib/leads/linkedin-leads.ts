@@ -83,8 +83,10 @@ export function normalizeLead(item: Record<string, unknown>, index: number): Lin
 }
 
 function apifyErrorMessage(status: number): string {
-  if (status === 401 || status === 403)
-    return 'The lead search service refused our key. This is a setup problem on our side, not yours. Please let support know.'
+  if (status === 401)
+    return 'The lead search service did not accept our key. This is a setup problem on our side, not yours. Please let support know.'
+  if (status === 403)
+    return 'The lead search service would not let us run this search. This is a setup problem on our side, not yours. Please let support know.'
   if (status === 402)
     return 'The lead search service is out of credit right now. Please try again later or let support know.'
   if (status === 404)
@@ -123,7 +125,9 @@ export async function searchLeads(input: LeadSearchInput): Promise<LeadSearchRes
       signal: AbortSignal.timeout(170000),
     })
     if (!res.ok) {
-      console.error('[linkedin-leads] Apify returned', res.status)
+      // Apify says why in the body ({ error: { type, message } }); log it for the developer, never show it
+      const detail = await res.text().then((t) => t.slice(0, 300)).catch(() => '')
+      console.error('[linkedin-leads] Apify returned', res.status, detail)
       return { ok: false, error: apifyErrorMessage(res.status) }
     }
     const items = (await res.json()) as unknown
