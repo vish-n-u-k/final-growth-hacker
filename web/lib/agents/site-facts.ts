@@ -111,3 +111,64 @@ export async function inBatches<T, R>(items: T[], limit: number, fn: (item: T) =
   }))
   return out
 }
+
+export interface MarketingFacts {
+  hiring: string[]            // marketing or content roles on their careers / jobs page
+  team: string[]              // marketing roles named on their team / about page
+  creators: boolean           // they work with influencers or creators (an ambassador / creator programme)
+  founderSocial: string[]     // their own X (founder's or the company's) or a founder's LinkedIn, linked from the home page
+  blogDays: number | null     // days since the newest dated blog post, when one could be read
+  read: string[]              // which pages were read, for the AI ("careers, team")
+}
+
+// Roles that mean someone else already does their marketing
+const MARKETING_ROLE = /\b(head of marketing|vp,? marketing|marketing (director|manager|lead|coordinator|specialist|associate)|cmo|chief marketing officer|growth (marketer|lead|manager)|content (marketer|writer|creator|manager|strategist|lead)|social media (manager|coordinator|specialist|lead)|community manager|brand manager|copywriter|seo (manager|specialist)|performance marketer|demand gen\w*)\b/gi
+const CREATORS = /\b(influencer|ugc creator|creator program|brand ambassador|ambassador program|affiliate program|partner with creators)\b/i
+
+/**
+ * Who does a business's marketing, from free pages: marketing roles on its careers or team page,
+ * a creator or ambassador programme, their own X (founder or company) / a founder's LinkedIn, and how fresh
+ * its blog is. Founders who post themselves are the buyers for a do-it-yourself tool; a company
+ * with a marketing team or creators isn't.
+ */
+export async function marketingFacts(domain: string, homeHtml = ''): Promise<MarketingFacts> {
+  const page = async (paths: string[]) => {
+    for (const p of paths) {
+      const html = await (await get(`https://${domain}${p}`, 'text/html', 4000))?.text().catch(() => null)
+      if (html && html.length > 500) return { path: p, text: html.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ') }
+    }
+    return null
+  }
+  const [jobs, team, blog] = await Promise.all([
+    page(['/careers', '/jobs']),
+    page(['/about', '/team']),
+    get(`https://${domain}/blog`, 'text/html', 4000).then(r => r?.text().catch(() => null) ?? null),
+  ])
+  const roles = (t?: string) => [...new Set([...(t ?? '').matchAll(MARKETING_ROLE)].map(m => m[0].toLowerCase()))].slice(0, 4)
+  // Their own X, a founder's or the company's (either means they post themselves), or a person's LinkedIn
+  const founderSocial = [
+    /(twitter|x)\.com\/(?!intent|share|home|search|i\/)[A-Za-z0-9_]{2,15}["'/?]/i.test(homeHtml) ? 'X' : null,
+    /linkedin\.com\/in\/[\w-]+/i.test(homeHtml) ? 'LinkedIn (a person)' : null,
+  ].filter((x): x is string => !!x)
+  const dates = [...(blog ?? '').matchAll(/(?:datetime=["']|"datePublished"\s*:\s*")(\d{4}-\d{2}-\d{2})/g)].map(m => Date.parse(m[1])).filter(t => !Number.isNaN(t) && t < Date.now() + DAY)
+  const newest = dates.length ? Math.max(...dates) : null
+  return {
+    hiring: roles(jobs?.text),
+    team: roles(team?.text),
+    creators: CREATORS.test(`${homeHtml} ${team?.text ?? ''} ${jobs?.text ?? ''}`),
+    founderSocial,
+    blogDays: newest ? Math.round((Date.now() - newest) / DAY) : null,
+    read: [jobs && 'careers', team && 'team / about', blog && 'blog'].filter((x): x is string => !!x),
+  }
+}
+
+/** One line for the AI, e.g. "Hiring: content writer · No marketing roles on the team page · Founder links X". */
+export function marketingLine(m: MarketingFacts): string {
+  return [
+    m.hiring.length ? `Hiring for marketing: ${m.hiring.join(', ')}` : m.read.includes('careers') ? 'Careers page has no marketing roles' : null,
+    m.team.length ? `Team / about page names marketing roles: ${m.team.join(', ')}` : m.read.includes('team / about') ? 'Team / about page names no marketing roles' : null,
+    m.creators ? 'Works with influencers, creators or ambassadors' : null,
+    m.founderSocial.length ? `Home page links their own ${m.founderSocial.join(' and ')} (founder or company account)` : null,
+    m.blogDays !== null ? `Newest blog post ${m.blogDays} days ago` : m.read.includes('blog') ? 'Has a blog (no dates read)' : null,
+  ].filter(Boolean).join(' · ') || 'No careers, team or blog page found'
+}

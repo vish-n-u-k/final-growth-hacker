@@ -11,6 +11,7 @@ import { competitorLabel, firstName, initials, saveReview, step } from '@/compon
 import type { Lead, LeadAgentData, LeadSettings } from '@/lib/agents/store'
 import type { Platform, SavedReview, SavedScan } from '@/lib/lead-finder/saved'
 import { MAX_SCORED, buildItems, buildSources, byFit, isForum, mergeReviews, rivalId, type Item, type Source } from './model'
+import { IcpFields } from '@/components/agents/IcpFields'
 
 // Lead Finder: every place leads come from on one board. The buttons at the top are the sources
 // (Google Maps, each competitor's unhappy reviewers, Reddit, Hacker News, your own lists); the panel
@@ -921,7 +922,7 @@ function SettingsPanel({ initial, saving, picking, gmail, demo, demoForced, riva
     <Head title="Settings" sub="Lead Finder" onClose={onClose} />
     <form id="lfh-settings" className="lfh-d-body" onSubmit={e => { e.preventDefault(); onSave({ ...s, followUpDays: days.split(/[,\s]+/).map(Number).filter(n => n > 0) }) }}>
       <div className="lfh-set"><span className="lfh-set-t">Search every morning<small>New people wait for you. Nothing is sent without you.</small></span><Sw on={s.enabled} label="Search every morning" onChange={v => set('enabled', v)} /></div>
-      <label className="lfh-field">Who is your customer?<textarea rows={2} value={s.customer} onChange={e => set('customer', e.target.value)} placeholder="e.g. Small business owners who post on Instagram" /></label>
+      <IcpFields s={s} onChange={p => setS(x => ({ ...x, ...p }))} label="lfh-field" />
       <div className="lfh-grp lfh-grp--row">Sources<button type="button" className="btn btn-ghost btn-sm" disabled={picking} onClick={onPick}>{picking ? <><Spinner />Picking…</> : 'Pick for me'}</button></div>
       {initial.picked?.why && <p className="lfh-meta">{initial.picked.why}</p>}
       <div className="lfh-set"><span className="lfh-set-t">Companies like your customers<small>{s.companyQuery || 'Online businesses that match your customer'}</small></span><Sw on={!!s.sources.companies} label="Companies like your customers" onChange={v => set('sources', { ...s.sources, companies: v })} /></div>

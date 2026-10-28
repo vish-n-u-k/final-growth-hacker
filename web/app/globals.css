@@ -9451,3 +9451,10 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .la-maybe-all { margin-top: 10px; }
 .own-ai-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-top: 6px; }
 .tu-stack > .cl-seg { justify-self: start; margin-bottom: 0; }
+
+/* Lead Agent / Lead Finder Settings: the ideal-customer card (components/agents/IcpFields.tsx) */
+.icp-note { margin: 0; color: var(--text-faint); font-size: 12.5px; }
+.tu-grid > label > small, .lfh-field > small { color: var(--text-faint); font-weight: 400; font-size: 12px; }
+.icp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 4px; }
+.icp-head > span { display: grid; gap: 2px; font-weight: 600; color: var(--text); font-size: 14px; }
+.icp-head small { color: var(--text-faint); font-weight: 400; font-size: 12.5px; }

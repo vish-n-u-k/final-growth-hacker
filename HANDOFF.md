@@ -239,6 +239,41 @@ One board for every lead source, built from the approved preview `design-preview
 - **"Show 10 more"** under each tab's To do list (op `more`, `runLeadAgent({ more: 'email' | 'community' })`): skips replies and sending, checks the next 10 from the waiting list, or searches the next page / phrase when fewer are waiting, then the usual checks, emails and drafts. It doesn't change "Last search".
 - **"Checked but not kept":** companies that failed a check, and posts or businesses scoring 4-6, go to `data.maybe` (newest first, up to 60) with a plain reason. Shown under the list; **Use anyway** (op `use`, `useMaybe`) makes it a lead (a forum post gets its reply drafted; a business gets an email from its pages or one Hunter lookup, then its email drafted).
 
+## 4d-3. Lead Agent: the ideal-customer card (27 Oct)
+
+Why: Frekto's leads stayed e-commerce after the owner asked for SaaS founders who do their own social marketing.
+- **The card** (`settings.icp`, type `Icp` in `store.ts`): `kind` (ecommerce / saas / local / creator / other), `who`, `marketing` (how they market today), `fit[]`, `notFit[]`, `examples[]` (domains of customers the user loves), `by`.
+  - Drafted by `draftIcp` in `lead-agent.ts` (reads the example sites for free), op `icp_draft` (fills the form, not saved until Save). Op `pick` drafts and saves one first when there's none.
+  - Edited in Settings of the Lead Agent and Lead Finder (`components/agents/IcpFields.tsx`, `icp-*` CSS). All fields always show; **Fill in with AI** at the top fills the whole card from the brand (and the example sites, if given). "Who is your customer" now is the card's `who` (kept in `customer` too).
+  - `customerBlock(b, s)` puts it in every prompt (search phrases, company search words, checks, scoring, drafting, source pick). "NOT a fit" items score 1-3.
+- **Fresh start:** saving a changed card, "who to look for" or customer line clears `waiting`, `cursor`, `companyFilters` and `queries` (`freshStart` in the route). The search-word cache key includes `icpKey`. Older To-do company leads not matching the new words move to Skipped (existing `tradeMatch` re-check).
+- **SaaS buyers (`kind: 'saas'`):**
+  - Companies: recent Hacker News "Show HN" launches first (`showHnSites`, free Algolia, last 90 days, a new page of 50 per search; code hosts, app stores, blogs dropped), then DataForSEO websites by keyword. Store platforms are never searched when the card isn't `ecommerce`.
+  - Reddit searches r/SaaS, r/indiehackers, r/startups, r/Entrepreneur, r/microsaas instead of all of Reddit.
+  - Product Hunt / BetaList not added (no free API).
+- **Who does their marketing** (`marketingFacts` / `marketingLine` in `site-facts.ts`, free): marketing roles on /careers or /jobs and /about or /team, creator / ambassador / affiliate programmes, their own X (founder or company) or a founder's LinkedIn on the home page, newest blog date. Sent to `judgeCompanies`, which now has a `diy` check; failing it is "Has a marketing team or creators" in "Checked but not kept" and "N with a marketing team" in the summary. `need` is judged against the card, not "social posts" any more.
+- **After the first real Frekto run (27 Oct):** Show HN gave real founder-led products, but mostly developer tools. Added:
+  - a `reach` check in `judgeCompanies`: does the brand help this business reach *its own* buyers (for Frekto: are their buyers found on social media; dev, hardware, IT and investor tools fail). Reason "Their buyers aren’t reached this way".
+  - Show HN finds (`Candidate.launch`) need a score of 7 (`MIN_LAUNCH_SCORE`), other companies 6.
+  - A launch whose post title reads like a sentence ("I made…") takes the site's own name.
+  - The owner's call: a company X account counts like the founder's own (both mean they post themselves); non-English sites are fine.
+- Not tested against real AI / DataForSEO yet.
+
+## 4d-4. Lead Agent: DataForSEO playbook for companies (28 Oct)
+
+- **Why:** the company search always asked one question ("Shopify sites with these words in their title"), sorted by crawl date, so leads were random.
+- **Playbook** (`web/lib/agents/lead-playbook.ts`, `PLAYBOOK`): tells Claude which DataForSEO questions find small, live businesses. Three kinds (`LeadQuery.kind`):
+  - `google`: a Google search with operators (`"powered by shopify" soy candles`, `inurl:collections …`, `<trade> "book now"`). Each search reads 20 results deeper (up to 100).
+  - `stores`: the old technology index search (trade words + platforms), next page of 50 each time.
+  - `lookalike`: `similarSites` (Labs `competitors_domain`) on a customer site: companies the owner approved, the example customers on the ideal-customer card, plus business email domains of PostHog paying users (`getPosthogProUsers`, re-read weekly).
+- **Plan and memory** (`data.plan`): 3 active questions. Each search records `page`, `checked`, `kept`, `empty`; approvals and skips per question come from `lead.queryId`. A question is dropped when nothing new came back twice, fewer than 1 in 10 checked was kept (after 12), the owner skipped most of its leads, or a Google search is used up. Claude (Sonnet) then writes different replacements, seeing what worked and what was dropped.
+- **Size check:** `siteVisits` (Labs `bulk_traffic_estimation`, one call per run) estimates visits from Google; over 20,000 a month is dropped, and the number goes to the AI check.
+- **AI check learns from the owner:** `judgeCompanies` gets up to 8 approved and 8 skipped companies (`ownerExamples`). Skips the agent made itself are marked `skippedBy: 'auto'` and don't count.
+- Marketplaces, social networks and big sites are dropped (`NOT_A_SITE`). Spend cap per run: `AGENTS_LEADS_DFS_CAP` (default $0.25). Usage shows "Similar sites" and "Site size (visits)".
+- A new plan is made when "who to look for" or the card changes (`icpKey`). `stores` questions are only allowed for e-commerce cards (when `companyFilters.platforms` isn't empty). Show HN launches (SaaS cards) still come first, then the plan's questions.
+- The old "move off-trade To-do leads to Skipped" only applies to leads found before this (no `queryId`).
+- Not tried with the real API yet: `competitors_domain` and `bulk_traffic_estimation`. Google Jobs and Google Shopping were left out: DataForSEO only offers them as queued tasks, not live calls.
+
 ## 4e. Search Agent: better output (27 Oct)
 
 Built from the review in `md_files/SEARCH_AGENT_HOW_IT_WORKS.md` (the report the owner shared).

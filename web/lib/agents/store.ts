@@ -44,6 +44,20 @@ export interface LeadSettings {
   followUpDays: number[]        // days after the first email, e.g. [3, 7]
   skipEU: boolean               // don't cold-email leads in the EU
   mode: 'approve' | 'auto'      // auto = send 8+ leads without asking once 20 were approved
+  // The ideal-customer card: drafted by the AI from the brand (and example customers), editable.
+  // Every search, check and score reads it; changing it starts the search afresh.
+  icp?: Icp | null
+}
+
+export type IcpKind = 'ecommerce' | 'saas' | 'local' | 'creator' | 'other'
+export interface Icp {
+  kind: IcpKind                 // what kind of business the buyers are: picks the sources
+  who: string                   // who they are, in plain words
+  marketing: string             // how they market today, e.g. "the founder posts on X and LinkedIn themselves"
+  fit: string[]                 // signs of a good fit
+  notFit: string[]              // not a fit, e.g. "has a marketing team or agency", "hires creators"
+  examples: string[]            // domains of ideal customers the user gave
+  by: 'ai' | 'user'
 }
 
 // own = added by the user from their own list (Email tab, "Add your own emails")
@@ -86,11 +100,33 @@ export interface Lead {
   repliedAt?: string
   handledAt?: string            // the user answered their reply (moves it to Done)
   listId?: string               // source 'own': the list it was added with (OwnList.id)
+  queryId?: string              // source 'company': the search that found it (LeadQuery.id)
+  skippedBy?: 'auto'            // skipped by the agent (no longer what you look for), not by the user
   error?: string
 }
 
 /** A website found but not checked yet. */
-export interface WaitingSite { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string }
+export interface WaitingSite { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string; queryId?: string; visits?: number | null }
+
+/**
+ * One question the Lead Agent asks DataForSEO for companies, picked with the playbook in
+ * lead-playbook.ts, and how it has done so far (the next plan keeps the good ones, replaces the rest).
+ * google = a Google search with operators; stores = the technology index (trade words + platforms);
+ * lookalike = sites that rank for the same searches as one of your customers.
+ */
+export interface LeadQuery {
+  id: string
+  kind: 'google' | 'stores' | 'lookalike'
+  q: string                     // google: the search; stores: trade words, comma separated; lookalike: a domain
+  platforms?: string[]          // stores only
+  why: string
+  page: number                  // searches made with it (each asks for the next page)
+  checked: number               // sites it found that the AI checked
+  kept: number                  // of those, kept as leads
+  empty: number                 // searches in a row that brought nothing new
+  retired?: string              // why it was dropped (kept for the planner's history)
+}
+export interface LeadPlan { for: string; at: string; queries: LeadQuery[]; retired: LeadQuery[]; seeds?: { at: string; domains: string[] } }
 /** A forum post found but not scored yet. */
 export interface WaitingPost { source: LeadSource; url: string; title: string; snippet: string; name?: string }
 /** A find the checks didn't keep, with the reason, shown under the leads ("Use anyway"). */
@@ -136,6 +172,7 @@ export interface LeadAgentData {
   // companyQuery turned into DataForSEO search terms (written once per query)
   // platforms: online-store platforms to search (DataForSEO technology index); [] when the buyers aren't online stores
   companyFilters?: { for: string; keywords: string[]; headcount: string[]; platforms?: string[] }
+  plan?: LeadPlan               // the DataForSEO questions for companies, and how each has done
   lastRunAt?: string
   lastRunSummary?: string
   lastError?: string | null
