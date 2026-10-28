@@ -723,7 +723,10 @@ Return [{"i":0,"subject":"...","body":"..."}] or [{"i":1,"reply":"..."}]`,
   return out
 }
 
-/** The user added an email to a good lead that had none: save it and write the first email. */
+/**
+ * The user added an email to a good lead that had none, or opened a lead whose email isn't written
+ * yet ("Review email"): save the address and write the first email.
+ */
 export async function addLeadEmail(brandId: string, leadId: string, email: string): Promise<{ ok: boolean; message: string }> {
   const b = await loadBrandContext(brandId)
   if (!b) return { ok: false, message: 'Brand not found.' }
@@ -739,7 +742,7 @@ export async function addLeadEmail(brandId: string, leadId: string, email: strin
   if (!draft) return { ok: false, message: 'Couldn’t write the email. Try again.' }
   await updateLeadData(brandId, fallback, x => {
     const l = x.leads.find(y => y.id === leadId)
-    if (l) Object.assign(l, { email, emailVerified: false, draft, status: 'ready' })
+    if (l) Object.assign(l, { email, emailVerified: email === l.email ? l.emailVerified : false, draft, status: 'ready' })
   })
   return { ok: true, message: 'Email written.' }
 }
@@ -842,7 +845,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
     ...(find ? [
       { key: 'score', label: 'Scoring leads', hint: 'How well each one fits your product' },
       { key: 'emails', label: 'Finding emails', hint: 'Looked up with Hunter' },
-      { key: 'drafts', label: 'Drafting messages', hint: 'Personal emails and forum replies for your OK' },
+      { key: 'drafts', label: 'Drafting replies', hint: 'Forum replies for your OK. Emails are written when you open one' },
     ] : []),
   ])
 
@@ -997,9 +1000,12 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       else pr.set('emails', 'done', businesses.length
         ? { detail: `${businesses.filter(l => l.email).length} of ${businesses.length} found`, note: meter.hunterOut ? 'Hunter’s email credits are used up, so the rest have no email yet.' : euBlocked ? 'EU leads are not emailed (your setting).' : undefined }
         : { detail: 'Not needed', note: 'Only forum posts this time: you reply on the post.' })
-      // Drafts
-      const toDraft = fresh.filter(l => l.email || l.source === 'reddit' || l.source === 'forum')
-      if (!toDraft.length) pr.set('drafts', 'skipped', 'Nothing to draft')
+      // Drafts: forum replies now; an email is written when the user opens the lead ("Review email"),
+      // except in auto mode, where the strong ones are sent without opening
+      const autoDraft = s.mode === 'auto' && d.approvedCount >= 20
+      const toDraft = fresh.filter(l => l.source === 'reddit' || l.source === 'forum' || (autoDraft && l.email && l.score >= 8))
+      for (const l of fresh) if (l.email && l.source !== 'reddit' && l.source !== 'forum') l.status = 'ready'
+      if (!toDraft.length) pr.set('drafts', 'skipped', 'Emails are written when you open one')
       const drafts = Date.now() < deadline && toDraft.length ? await pr.step('drafts', () => draftMessages(b, s, toDraft), r => `${n(r.size, 'draft')} ready`).catch(() => new Map()) : new Map()
       for (const l of fresh) {
         const x = drafts.get(l.id)
@@ -1077,7 +1083,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
         await openSignal(brandId, {
           source: 'lead-agent', signalKey: 'approvals', priority: 2, cooldownDays: 0,
           title: `${waiting} lead${waiting === 1 ? '' : 's'} ready for your OK`,
-          detail: 'Your Lead Agent drafted emails and forum replies. Nothing is sent until you approve it.',
+          detail: 'Your Lead Agent found people to email and drafted forum replies. Nothing is sent until you approve it.',
           action: 'Open the Lead Agent and approve, edit or skip each one.',
         })
       } else {

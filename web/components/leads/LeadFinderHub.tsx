@@ -642,6 +642,13 @@ function AgentItem({ item, source, settings, gmail, busy, act, notify, left, onS
   const [reply, setReply] = useState(l.reply ?? '')
   // A draft written after the email was added comes in with fresh data
   useEffect(() => { if (l.draft && !subject && !body) { setSubject(l.draft.subject); setBody(l.draft.body) } }, [l.draft, subject, body])
+  // Emails are written when a lead is opened, not during the search
+  const asked = useRef(false)
+  useEffect(() => {
+    if (asked.current || forum || l.status !== 'ready' || !l.email || l.draft) return
+    asked.current = true
+    act('email', { id: l.id, email: l.email })
+  }, [act, forum, l.id, l.status, l.email, l.draft])
 
   const av = forum
     ? <span className="lfh-av lfh-av--lg">{source?.glyph}</span>

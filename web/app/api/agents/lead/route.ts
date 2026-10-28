@@ -169,7 +169,9 @@ async function post(req: NextRequest) {
     }
     case 'approve_all': {
       const d = (await readLeadData(brandId)) ?? fallback()
-      const ids = d.leads.filter(l => l.status === 'ready' && l.email && l.draft).map(l => l.id)
+      // Emails are written when a lead is opened: write the ones nobody opened before sending
+      const ids = d.leads.filter(l => l.status === 'ready' && !l.reply && l.email && l.source !== 'reddit' && l.source !== 'forum').map(l => l.id)
+      for (const l of d.leads.filter(x => ids.includes(x.id) && !x.draft)) await addLeadEmail(brandId, l.id, l.email!)
       let sent = 0, queued = 0
       const failed: string[] = []
       for (const id of ids) {

@@ -196,6 +196,13 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     setOpenId(l.id); setStepNo(1)
     setTo(l.email ?? ''); setSubject(l.draft?.subject ?? ''); setBody(l.draft?.body ?? ''); setReply(l.reply ?? '')
     window.scrollTo({ top: 0 })
+    // Emails are written when opened, not during the search
+    if (!isForum(l) && l.status === 'ready' && l.email && !l.draft) {
+      act('email', { id: l.id, email: l.email }).then(r => {
+        const fresh = r?.data?.leads.find(x => x.id === l.id)
+        if (fresh?.draft) { setSubject(fresh.draft.subject); setBody(fresh.draft.body) }
+      })
+    }
   }
   function skip(l: Lead) {
     act('skip', { id: l.id })
@@ -211,7 +218,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     const state =
       l.status === 'replied' ? <Tag tone={l.handledAt ? 'ok' : 'crit'}>{l.handledAt ? '✓ Answered' : `Replied${l.repliedAt ? ` ${fmtDate(l.repliedAt)}` : ''}`}</Tag>
       : l.status === 'needs_contact' ? <Tag tone="warn">Needs an email</Tag>
-      : l.status === 'ready' ? <Tag>{l.reply ? 'Reply drafted' : 'Email drafted'}</Tag>
+      : l.status === 'ready' ? <Tag>{l.reply ? 'Reply drafted' : l.draft ? 'Email drafted' : 'Email found'}</Tag>
       : l.status === 'queued' ? <Tag tone="warn">{l.source === 'own' ? 'Approved · waiting its turn' : 'Approved · goes out tomorrow'}</Tag>
       : l.status === 'sent' ? <Tag tone="ok">✓ Emailed {fmtDate(l.sentAt)}</Tag>
       : l.status === 'posted' ? <Tag tone="ok">✓ Posted</Tag>
@@ -299,7 +306,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
         : 'Nothing here yet.'}</div>{tab === 'needs' && extra()}</>
     }
     if (tab !== 'needs') return <>{tools}{pg.items.map(card)}<Pager p={pg} top={listTop} /></>
-    const approvable = shown.filter(l => l.status === 'ready' && !l.reply && l.email && l.draft).length
+    const approvable = shown.filter(l => l.status === 'ready' && !l.reply && l.email).length
     return <>{tools}
       {([['replied', 'Replied: answer while they’re interested', 'crit'], ['approve', 'Emails to approve', undefined], ['post', 'Replies to post', undefined]] as const).map(([k, label, tone]) => {
         // This page's cards of the section; the heading counts the whole section
