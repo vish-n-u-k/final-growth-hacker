@@ -3,6 +3,8 @@
 // LinkedIn URL, email). Priced per lead, so every call is capped with fetch_count
 // and maxItems. The token is developer-managed (APIFY_API_TOKEN), never per user.
 
+import { ACTOR_INDUSTRIES, ACTOR_LOCATIONS } from './linkedin-options'
+
 const ACTOR = 'code_crafter~leads-finder'
 export const MAX_LEADS_PER_SEARCH = 50
 export const DEFAULT_LEADS_PER_SEARCH = 25
@@ -100,6 +102,36 @@ function apifyErrorMessage(status: number): string {
   return `The lead search service turned the request down (error ${status}). Check the filters and try again.`
 }
 
+const LOCATION_SET = new Set(ACTOR_LOCATIONS)
+const INDUSTRY_SET = new Set(ACTOR_INDUSTRIES)
+
+// The actor only accepts its own lists for location and industry (anything else is a 400), so what the
+// user typed is matched to them: exactly, or by one unambiguous partial match. A place that doesn't match
+// goes to the free-text city filter, and an industry that doesn't match becomes a company keyword.
+export function mapFilters(input: Pick<LeadSearchInput, 'locations' | 'industries' | 'keywords'>) {
+  const locations: string[] = []
+  const cities: string[] = []
+  for (const raw of input.locations) {
+    const q = raw.trim().toLowerCase()
+    if (!q) continue
+    if (LOCATION_SET.has(q)) { locations.push(q); continue }
+    const starts = ACTOR_LOCATIONS.filter((l) => l.startsWith(`${q},`))
+    if (starts.length === 1) locations.push(starts[0])
+    else cities.push(raw.trim())
+  }
+  const industries: string[] = []
+  const keywords = [...input.keywords]
+  for (const raw of input.industries) {
+    const q = raw.trim().toLowerCase()
+    if (!q) continue
+    if (INDUSTRY_SET.has(q)) { industries.push(q); continue }
+    const part = ACTOR_INDUSTRIES.filter((i) => i.includes(q))
+    if (part.length === 1) industries.push(part[0])
+    else keywords.push(raw.trim())
+  }
+  return { locations: [...new Set(locations)], cities: [...new Set(cities)], industries: [...new Set(industries)], keywords: [...new Set(keywords)] }
+}
+
 export async function searchLeads(input: LeadSearchInput): Promise<LeadSearchResult> {
   const token = process.env.APIFY_API_TOKEN?.trim()
   if (!token) return { ok: false, error: 'LinkedIn lead search is not switched on yet.' }
@@ -110,10 +142,12 @@ export async function searchLeads(input: LeadSearchInput): Promise<LeadSearchRes
     file_name: 'GrowJin leads',
     email_status: ['validated'],
   }
+  const f = mapFilters(input)
   if (input.jobTitles.length) body.contact_job_title = input.jobTitles
-  if (input.locations.length) body.contact_location = input.locations
-  if (input.industries.length) body.company_industry = input.industries
-  if (input.keywords.length) body.company_keywords = input.keywords
+  if (f.locations.length) body.contact_location = f.locations
+  if (f.cities.length) body.contact_city = f.cities
+  if (f.industries.length) body.company_industry = f.industries
+  if (f.keywords.length) body.company_keywords = f.keywords
 
   try {
     // maxItems also caps what Apify can charge for pay-per-result runs
