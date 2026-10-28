@@ -9471,3 +9471,9 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .lfh-li-more { flex-basis: 100%; padding: 6px 0 2px 48px; display: grid; gap: 6px; font-size: 13.5px; color: var(--text-dim); }
 .lfh-li-more p { margin: 0; }
 .lfh-li-more a { color: var(--text-dim); text-decoration: underline; }
+.lfh-li-sizes { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.lfh-li-sizes .lfh-chip { cursor: pointer; font-size: 13px; padding: 5px 11px; }
+.lfh-li-sizes .lfh-chip[aria-pressed="true"] { background: var(--text); color: var(--bg); }
+.lfh-li-site { font-size: 13px; color: var(--text-dim); text-decoration: underline; white-space: nowrap; }
+.lfh-li-more b { font-weight: 600; color: var(--text); }
+@media (max-width: 640px) { .lfh-li-site { flex-basis: 100%; padding-left: 48px; } }

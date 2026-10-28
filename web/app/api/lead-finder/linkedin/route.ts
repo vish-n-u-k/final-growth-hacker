@@ -36,15 +36,17 @@ export async function POST(req: NextRequest) {
   try { body = await req.json() } catch { /* handled below */ }
 
   const jobTitles = list(body.jobTitles)
-  const locations = list(body.locations)
+  const countries = list(body.countries)
   const industries = list(body.industries)
   const keywords = list(body.keywords)
-  if (jobTitles.length + industries.length + keywords.length === 0) {
-    return NextResponse.json({ error: 'Add at least a job title, an industry or a keyword to search for.' }, { status: 400 })
+  const technologies = list(body.technologies)
+  const sizes = list(body.sizes)
+  if (jobTitles.length + industries.length + keywords.length + technologies.length === 0) {
+    return NextResponse.json({ error: 'Add at least a job title, an industry, a technology or a keyword to search for.' }, { status: 400 })
   }
 
   const count = Number(body.count) || DEFAULT_LEADS_PER_SEARCH
-  const result = await searchLeads({ jobTitles, locations, industries, keywords, count })
+  const result = await searchLeads({ jobTitles, countries, industries, keywords, technologies, sizes, count })
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 })
 
   const leads = await scoreLeads(brand.id, result.leads)
