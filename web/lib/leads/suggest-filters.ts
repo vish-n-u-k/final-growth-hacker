@@ -11,6 +11,7 @@ import { mapFilters } from './linkedin-leads'
 
 export interface SuggestedFilters {
   jobTitles: string[]
+  excludeTitles: string[]
   industries: string[]
   keywords: string[]
   countries: string[]
@@ -39,12 +40,13 @@ ${customer}
 
 We are searching a database of people (name, job title, company, work email) to find the PEOPLE WHO WOULD BUY from this brand.
 
-Return {"jobTitles":[...],"industries":[...],"keywords":[...],"countries":[...],"sizes":[...],"technologies":[...],"why":"..."}
-- jobTitles: 2-4 job titles of the person who decides to buy, in the words people put on their profile ("Founder", "Owner", "Head of Marketing"). For a small business the owner or founder; for a larger one the marketing or ecommerce lead.
+Return {"jobTitles":[...],"excludeTitles":[...],"industries":[...],"keywords":[...],"countries":[...],"sizes":[...],"technologies":[...],"why":"..."}
+- jobTitles: 3-5 job titles of the person who decides to buy, in the words people put on their profile ("Founder", "Owner", "Co-Founder", "Head of Marketing"). For a small business the owner or founder (always include "Owner" and "Founder" then); for a larger one the marketing or ecommerce lead.
+- excludeTitles: 3-8 titles that would match the titles above but are NOT the buyer for this brand, e.g. for a social media tool "CTO", "Chief Technology Officer", "Engineer", "Developer"; for a developer tool the opposite (sales and marketing titles). Never a title that is also in jobTitles.
 - industries: 1-4 industries of the BUYER's company (not the brand's own), each exactly one of: ${ACTOR_INDUSTRIES.join(' | ')}
 - keywords: 0-3 words the buyers' own companies use to describe themselves, only if industries alone are too loose. Never words that describe companies that SERVE these buyers (agencies, apps, software).
-- countries: [] unless the brand clearly sells to one country; then full English country names (e.g. "United States").
-- sizes: company sizes of the buyers, from ${ACTOR_SIZES.join(', ')}. Small businesses: ["1-10","11-50"].
+- countries: the brand's main market, worked out from its language, currency and address (for example "United States" for a dollar-priced English site). 1-3 full English country names. [] only if the brand clearly sells worldwide in many languages.
+- sizes: ALWAYS 1-3 company sizes of the buyers, from ${ACTOR_SIZES.join(', ')}. Small businesses with an owner or founder as the buyer: ["1-10","11-50"]. Never empty.
 - technologies: only if the buyers' websites run on a known platform that the brand connects to (for example a store platform), chosen from ${TECH_HINTS.join(', ')}; else [].
 - why: one plain sentence (max 25 words) saying who we are looking for and why, written to the brand's owner.`,
   }))
@@ -55,15 +57,17 @@ Return {"jobTitles":[...],"industries":[...],"keywords":[...],"countries":[...],
     industries: list(j.industries, 4), keywords: list(j.keywords, 3), countries: list(j.countries, 3),
     sizes: list(j.sizes, 4), technologies: list(j.technologies, 3),
   })
-  const titles = list(j.jobTitles, 4)
+  const titles = list(j.jobTitles, 5)
+  const excludes = list(j.excludeTitles, 8).filter(t => !titles.some(x => x.toLowerCase() === t.toLowerCase()))
   if (!titles.length && !m.industries.length && !m.keywords.length) return null
   return {
     jobTitles: titles,
+    excludeTitles: excludes,
     industries: m.industries,
     // An industry the actor does not know was moved to keywords by mapFilters
     keywords: m.keywords,
     countries: m.countries.concat(m.cities),
-    sizes: m.sizes,
+    sizes: m.sizes.length ? m.sizes : ['1-10', '11-50'],
     technologies: m.technologies,
     why: typeof j.why === 'string' ? j.why.trim().slice(0, 220) : '',
   }

@@ -30,7 +30,7 @@ interface Lead {
   fitReason: string | null
 }
 
-interface Suggested { jobTitles: string[]; industries: string[]; keywords: string[]; countries: string[]; sizes: string[]; technologies: string[]; why: string }
+interface Suggested { jobTitles: string[]; excludeTitles: string[]; industries: string[]; keywords: string[]; countries: string[]; sizes: string[]; technologies: string[]; why: string }
 
 type Phase = 'idle' | 'running' | 'done' | 'failed'
 type Detect = 'detecting' | 'done' | 'none'
@@ -48,6 +48,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
 }) {
   const f0 = saved?.filters
   const [titles, setTitles] = useState(f0?.titles ?? '')
+  const [excludeTitles, setExcludeTitles] = useState(f0?.excludeTitles ?? '')
   const [industries, setIndustries] = useState(f0?.industries ?? '')
   const [keywords, setKeywords] = useState(f0?.keywords ?? '')
   const [technologies, setTechnologies] = useState(f0?.technologies ?? '')
@@ -74,7 +75,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
       if (!res.ok || !j.filters) throw new Error(j.error ?? 'We could not work out who to look for. Fill the search in by hand.')
       if (force || !touched.current) {
         const f = j.filters
-        setTitles(csv(f.jobTitles)); setIndustries(csv(f.industries)); setKeywords(csv(f.keywords))
+        setTitles(csv(f.jobTitles)); setExcludeTitles(csv(f.excludeTitles ?? [])); setIndustries(csv(f.industries)); setKeywords(csv(f.keywords))
         setTechnologies(csv(f.technologies)); setCountries(csv(f.countries)); setSizes(f.sizes); setWhy(f.why)
       }
       setDetect('done')
@@ -96,7 +97,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
       const res = await fetch('/api/lead-finder/linkedin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobTitles: titles, industries, keywords, technologies, countries, sizes, count }),
+        body: JSON.stringify({ jobTitles: titles, excludeTitles, industries, keywords, technologies, countries, sizes, count }),
       })
       const j = await res.json().catch(() => ({})) as { leads?: Lead[]; error?: string; upgrade?: boolean }
       if (res.status === 401) throw new Error('You have been signed out. Reload the page and sign in again, then search.')
@@ -141,6 +142,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
         </div>
         <div className="lfh-li-grid">
           {field('Job titles', titles, setTitles, 'Founder, Head of Marketing')}
+          {field('Skip these titles', excludeTitles, setExcludeTitles, 'CTO, Engineer')}
           {field('Industries', industries, setIndustries, 'Retail, Apparel & Fashion')}
           {field('Website runs on', technologies, setTechnologies, 'Shopify')}
           {field('Company keywords', keywords, setKeywords, 'sportswear, handmade')}

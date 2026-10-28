@@ -13,6 +13,7 @@ const PRICE_PER_LEAD = 0.002   // USD on the free tier; the call is capped at ab
 
 export interface LeadSearchInput {
   jobTitles: string[]
+  excludeTitles: string[]
   industries: string[]
   keywords: string[]
   countries: string[]
@@ -66,7 +67,7 @@ function match(q: string, map: Map<string, string>): string | null {
 // The actor only accepts its own lists for industry, country, size and technology (anything else is a
 // 400). A place that is not a country goes to the free-text city filter, an industry that does not match
 // becomes a company keyword, and a technology or size that does not match is dropped.
-export function mapFilters(input: Omit<LeadSearchInput, 'count' | 'jobTitles'>) {
+export function mapFilters(input: Omit<LeadSearchInput, 'count' | 'jobTitles' | 'excludeTitles'>) {
   const countries: string[] = []
   const cities: string[] = []
   for (const raw of input.countries) {
@@ -205,6 +206,7 @@ export async function searchLeads(input: LeadSearchInput): Promise<LeadSearchRes
     dontSaveProgress: true,
   }
   if (input.jobTitles.length) body.personTitleIncludes = input.jobTitles
+  if (input.excludeTitles.length) body.personTitleExcludes = input.excludeTitles
   if (f.industries.length) body.companyIndustryIncludes = f.industries
   if (f.keywords.length) body.companyKeywordIncludes = f.keywords
   if (f.technologies.length) body.technologiesIncludes = f.technologies
@@ -248,9 +250,11 @@ export async function searchLeads(input: LeadSearchInput): Promise<LeadSearchRes
       if (!raw || typeof raw !== 'object') return
       const lead = normalizeLead(raw as Record<string, unknown>, i)
       if (!lead) return
+      // The database often holds one person twice (two company records, a work and a shared address)
       const key = (lead.email ?? lead.linkedinUrl ?? lead.id).toLowerCase()
-      if (seen.has(key)) return
-      seen.add(key)
+      const person = `${lead.name.toLowerCase()}|${lead.domain ?? ''}`
+      if (seen.has(key) || seen.has(person)) return
+      seen.add(key); seen.add(person)
       leads.push(lead)
     })
     if (items.length > 0 && leads.length === 0) {
