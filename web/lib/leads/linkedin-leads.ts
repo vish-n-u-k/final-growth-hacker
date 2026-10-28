@@ -189,6 +189,14 @@ export async function searchLeads(input: LeadSearchInput): Promise<LeadSearchRes
     const first = items.find((x) => x && typeof x === 'object') as Record<string, unknown> | undefined
     console.log('[linkedin-leads] Apify sent', items.length, 'items; fields:', first ? Object.keys(first).join(', ') : 'none')
 
+    // The actor answers refused runs with one item that only has an "error" field (for example the free
+    // Apify plan can only run it from the Apify website, not through the API)
+    const refusal = items.length === 1 && first && typeof first.error === 'string' && Object.keys(first).length === 1 ? first.error : null
+    if (refusal) {
+      console.error('[linkedin-leads] actor refused the run:', refusal.slice(0, 200))
+      return { ok: false, error: 'The lead search is not available on our current plan yet. This is a setup problem on our side, not yours. Please let support know.' }
+    }
+
     const seen = new Set<string>()
     const leads: LinkedInLead[] = []
     items.forEach((raw, i) => {
