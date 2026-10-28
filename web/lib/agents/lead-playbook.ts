@@ -5,7 +5,7 @@
 
 import { callAI } from '@/lib/ai/client'
 import { getPosthogProUsers } from '@/lib/mcp/tools/get_posthog_pro_users'
-import { brandBlock, domainOf, parseJsonLoose, type BrandContext } from './context'
+import { leadBrandBlock, domainOf, parseJsonLoose, type BrandContext } from './context'
 import type { LeadAgentData, LeadPlan, LeadQuery, LeadSettings } from './store'
 
 export const PLAYBOOK = `# Finding small businesses with DataForSEO
@@ -121,7 +121,7 @@ export async function planLeadQueries(b: BrandContext, s: LeadSettings, d: LeadA
     model: 'claude-sonnet-4-6',
     maxTokens: 800,
     system: `${PLAYBOOK}\nReturn only a raw JSON array.`,
-    prompt: `${brandBlock(b)}
+    prompt: `${leadBrandBlock(b, s.useBrand !== false)}
 ${hints.customer}
 Companies we look for: ${s.companyQuery.trim() || s.customer || 'companies that would buy this product'}
 Trade words: ${hints.keywords.join(', ') || 'none yet'}

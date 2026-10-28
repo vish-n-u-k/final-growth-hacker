@@ -80,6 +80,7 @@ function cleanSettings(cur: LeadSettings, s: Partial<LeadSettings>): LeadSetting
     skipEU: typeof s.skipEU === 'boolean' ? s.skipEU : cur.skipEU,
     mode: s.mode === 'auto' || s.mode === 'approve' ? s.mode : cur.mode,
     icp: cleanIcp(cur.icp, s.icp),
+    useBrand: typeof s.useBrand === 'boolean' ? s.useBrand : cur.useBrand,
   }
 }
 

@@ -280,6 +280,13 @@ Why: Frekto's leads stayed e-commerce after the owner asked for SaaS founders wh
 - **The real cause:** that error comes back as task code **40101**, which `dataforseo.ts` didn't count as busy (only 5xxxx), so nothing retried. `busy()` now includes 40101 (one retry, then the simpler wordings), and **40102** "No Search Results" becomes an empty list (`DfsNoResults`). Reddit: when every phrase gets 40101, it's logged and the run moves on (next phrase next time), with no message on the page.
 - A failed question is logged and counts as an empty try (`q.empty`, so `weak()` replaces it after two). The page only shows "The last search had a problem" when **every** question of the run failed.
 
+## 4d-5. Lead Agent: "Also use my brand profile" switch (28 Oct)
+
+- `settings.useBrand` (default on), a checkbox at the top of the ideal-customer card (`IcpFields.tsx`, `icp-brand` CSS), so it's in both the Lead Agent's and Lead Finder's Settings.
+- Off: every Lead Agent prompt (search phrases, company filters, playbook plan, checks, scoring, drafting, source pick) uses `leadBrandBlock(b, false)` in `context.ts`: only name, website, what it does and what it doesn't offer. The brand's "Who it's for", keywords and notes are left out. `draftIcp` ("Fill in with AI") still reads the full brand on purpose.
+- On or off, `customerBlock` now says the search settings win where they differ from the brand's "Who it's for".
+- The switch is part of `icpKey`, so changing it starts the search afresh (new plan, search words, waiting list).
+
 ## 4e. Search Agent: better output (27 Oct)
 
 Built from the review in `md_files/SEARCH_AGENT_HOW_IT_WORKS.md` (the report the owner shared).

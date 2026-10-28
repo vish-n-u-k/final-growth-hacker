@@ -47,6 +47,9 @@ export interface LeadSettings {
   // The ideal-customer card: drafted by the AI from the brand (and example customers), editable.
   // Every search, check and score reads it; changing it starts the search afresh.
   icp?: Icp | null
+  // Off: the Lead Agent leaves the brand profile's audience, keywords and notes out of its prompts
+  // and goes only by these search settings (the product description stays, to judge need and write)
+  useBrand?: boolean
 }
 
 export type IcpKind = 'ecommerce' | 'saas' | 'local' | 'creator' | 'other'

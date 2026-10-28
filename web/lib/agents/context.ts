@@ -66,6 +66,20 @@ export function brandBlock(b: BrandContext): string {
   ].filter(Boolean).join('\n')
 }
 
+/**
+ * The brand for the Lead Agent's prompts. With `full` off (Search settings → "Use my brand profile"
+ * off) only what the product is: name, website, what it does and doesn't offer. Who it's for,
+ * keywords and notes are left out, so the search settings alone say who to look for.
+ */
+export function leadBrandBlock(b: BrandContext, full: boolean): string {
+  if (full) return brandBlock(b)
+  return [
+    `Brand: ${b.name} (${b.websiteUrl})`,
+    b.usp ? `What it does: ${b.usp}` : null,
+    b.limitations ? `What it does NOT offer: ${b.limitations.slice(0, 400)}` : null,
+  ].filter(Boolean).join('\n')
+}
+
 export const idOf = (s: string) => createHash('sha1').update(s).digest('hex').slice(0, 16)
 
 /** First JSON array/object in a model reply, or null. */

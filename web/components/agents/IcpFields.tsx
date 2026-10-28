@@ -64,6 +64,12 @@ export function IcpFields({ s, onChange, label = 'tu-full' }: {
         {busy ? <><Spinner />Filling in…</> : icp ? 'Fill in again with AI' : 'Fill in with AI'}
       </button>
     </div>
+    <label className={`tu-chk ${label} icp-brand`}>
+      <input type="checkbox" checked={s.useBrand !== false} onChange={e => onChange({ useBrand: e.target.checked })} />
+      <span>Also use my brand profile<small>{s.useBrand !== false
+        ? 'Your brand’s audience, keywords and notes help pick who to look for. Where they differ from this card, the card wins.'
+        : 'Off: only this card says who to look for. Your brand still tells the AI what you sell, to judge fit and write the emails.'}</small></span>
+    </label>
     <label className={label}>Who is your customer?
       <textarea rows={2} value={icp?.who ?? s.customer} onChange={e => (icp ? edit({ who: e.target.value }) : onChange({ customer: e.target.value }))}
         placeholder="e.g. Founders of small SaaS products who do their own marketing" />

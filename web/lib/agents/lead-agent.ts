@@ -27,7 +27,7 @@ import {
   addUsage, defaultLeadData, newMeter, readLeadData, updateLeadData,
   type Icp, type IcpKind, type Lead, type LeadAgentData, type LeadSettings, type LeadQuery, type LeadSource, type MaybeLead, type UsageMeter, type WaitingPost, type WaitingSite,
 } from './store'
-import { brandBlock, daysFrom, domainOf, firstName, idOf, loadBrandContext, parseJsonLoose, textToHtml, type BrandContext } from './context'
+import { brandBlock, leadBrandBlock, daysFrom, domainOf, firstName, idOf, loadBrandContext, parseJsonLoose, textToHtml, type BrandContext } from './context'
 
 const EU = new Set(['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'])
 const MIN_SCORE = 7
@@ -174,8 +174,10 @@ const ICP_KINDS: IcpKind[] = ['ecommerce', 'saas', 'local', 'creator', 'other']
 /** Who we look for, for every AI prompt: the ideal-customer card when there is one, else the plain line. */
 export function customerBlock(b: BrandContext, s: LeadSettings): string {
   const c = s.icp
-  if (!c?.who) return `Ideal customer: ${s.customer || b.targetAudience || 'not given'}`
+  const lead = 'Who to look for (from the search settings; where it differs from the brand\'s "Who it\'s for", follow this):'
+  if (!c?.who) return `${lead}\nIdeal customer: ${s.customer || (s.useBrand !== false ? b.targetAudience : '') || 'not given'}`
   return [
+    lead,
     `Ideal customer: ${c.who}`,
     c.marketing ? `How they market today: ${c.marketing}` : null,
     c.fit.length ? `Signs of a good fit: ${c.fit.join('; ')}` : null,
@@ -185,7 +187,8 @@ export function customerBlock(b: BrandContext, s: LeadSettings): string {
 }
 
 /** A short key for the card, so saved search words are redone when it changes. */
-export const icpKey = (s: LeadSettings) => (s.icp ? idOf(JSON.stringify([s.icp.kind, s.icp.who, s.icp.marketing, s.icp.fit, s.icp.notFit, s.icp.examples])).slice(0, 8) : '')
+// The brand switch is part of it too: turning the brand profile off changes every search
+export const icpKey = (s: LeadSettings) => (s.icp ? idOf(JSON.stringify([s.icp.kind, s.icp.who, s.icp.marketing, s.icp.fit, s.icp.notFit, s.icp.examples])).slice(0, 8) : '') + (s.useBrand === false ? ':own' : '')
 
 /**
  * Drafts the ideal-customer card from the brand and, when given, a few example customers' sites
@@ -249,7 +252,7 @@ async function searchQueries(b: BrandContext, s: LeadSettings, d: LeadAgentData)
     model: 'claude-haiku-4-5-20251001',
     maxTokens: 300,
     system: 'You write Google search phrases that find forum posts where people ask for a product like this one. Return only a JSON array of strings.',
-    prompt: `${brandBlock(b)}\n${customerBlock(b, s)}\n\nWrite 6 short phrases (3-7 words) a potential customer would write when asking for help, e.g. "looking for a tool to", "any app that", "how do you manage". Describe the problem in their words, never the brand name.`,
+    prompt: `${leadBrandBlock(b, s.useBrand !== false)}\n${customerBlock(b, s)}\n\nWrite 6 short phrases (3-7 words) a potential customer would write when asking for help, e.g. "looking for a tool to", "any app that", "how do you manage". Describe the problem in their words, never the brand name.`,
   })
   const list = (parseJsonLoose<string[]>(raw, 'array') ?? []).filter(q => typeof q === 'string' && q.length > 3).slice(0, 6)
   d.queries = { for: key, list }
@@ -354,7 +357,7 @@ async function companyFilters(b: BrandContext, s: LeadSettings, d: LeadAgentData
     model: 'claude-haiku-4-5-20251001',
     maxTokens: 300,
     system: 'You turn a description of target companies into search filters. Return only a raw JSON object.',
-    prompt: `${brandBlock(b)}
+    prompt: `${leadBrandBlock(b, s.useBrand !== false)}
 ${customerBlock(b, s)}
 Companies to find: ${what || 'companies that would buy this product'}
 
@@ -597,7 +600,7 @@ Skipped: ${examples.skipped.join(' | ') || 'none yet'}
     model: 'claude-haiku-4-5-20251001',
     maxTokens: 4000,
     system: 'You check whether businesses are the right customers for a product. Judge only from the facts given. Return only a raw JSON array.',
-    prompt: `${brandBlock(b)}
+    prompt: `${leadBrandBlock(b, s.useBrand !== false)}
 ${customerBlock(b, s)}
 Companies we look for: ${s.companyQuery.trim() || s.icp?.who || s.customer || 'not given'}
 ${owner}
@@ -641,7 +644,7 @@ export async function pickSources(b: BrandContext, s: LeadSettings): Promise<Sou
     model: 'claude-haiku-4-5-20251001',
     maxTokens: 500,
     system: 'You decide where a small business should look for customers. Return only a raw JSON object.',
-    prompt: `${brandBlock(b)}
+    prompt: `${leadBrandBlock(b, s.useBrand !== false)}
 ${customerBlock(b, s)}
 Country: ${s.country === 'ANY' ? 'anywhere (no one country)' : s.country}
 
@@ -702,7 +705,7 @@ async function scoreCandidates(b: BrandContext, s: LeadSettings, list: Candidate
     model: 'claude-haiku-4-5-20251001',
     maxTokens: 2500,
     system: 'You qualify sales leads. Be strict: most posts are not buyers. Return only a raw JSON array.',
-    prompt: `${brandBlock(b)}
+    prompt: `${leadBrandBlock(b, s.useBrand !== false)}
 ${customerBlock(b, s)}${s.sources.companies && s.companyQuery.trim() ? `
 Companies we look for: ${s.companyQuery.trim()}` : ''}
 
@@ -741,7 +744,7 @@ async function draftMessages(b: BrandContext, s: LeadSettings, leads: Lead[]): P
     model: 'claude-sonnet-4-6',
     maxTokens: 4000,
     system: 'You write short, personal outreach that gets replies. Plain words, no hype, no buzzwords, no emojis. Return only a raw JSON array.',
-    prompt: `${brandBlock(b)}
+    prompt: `${leadBrandBlock(b, s.useBrand !== false)}
 ${customerBlock(b, s)}
 
 For each item write:
