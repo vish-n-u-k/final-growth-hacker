@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useSmartBack } from '@/lib/useSmartBack'
 import { Spinner } from '@/components/ui/spinner'
+import LinkedInLeads from '@/components/LinkedInLeads'
 
 interface ScrapedLead {
   id: string
@@ -37,6 +38,7 @@ export default function LeadFinder({
   gmailConnected: boolean
 }) {
   const goBack = useSmartBack('/gmail-hub')
+  const [mode, setMode] = useState<'reviews' | 'linkedin'>('reviews')
   const [url, setUrl] = useState('')
   const [platform, setPlatform] = useState<'shopify' | 'trustpilot'>('shopify')
   const [status, setStatus] = useState<PageStatus>('idle')
@@ -163,7 +165,7 @@ export default function LeadFinder({
               <span className="gh-badge-new">BETA</span>
             </h1>
             <p className="gh-subtitle">
-              Scan competitor reviews · AI scores each merchant for product fit · generate targeted outreach
+              Scan competitor reviews or search LinkedIn-style B2B leads · AI scores fit · generate targeted outreach
             </p>
           </div>
           <div className="gh-header-right">
@@ -177,6 +179,18 @@ export default function LeadFinder({
           </div>
         </div>
 
+        <div className="lf-platform-tabs" style={{ marginBottom: 12 }}>
+          <button className={`lf-ptab${mode === 'reviews' ? ' lf-ptab-active' : ''}`} onClick={() => setMode('reviews')}>
+            Competitor reviews
+          </button>
+          <button className={`lf-ptab${mode === 'linkedin' ? ' lf-ptab-active' : ''}`} onClick={() => setMode('linkedin')}>
+            LinkedIn leads
+          </button>
+        </div>
+
+        {mode === 'linkedin' && <LinkedInLeads brandName={brandName} />}
+
+        {mode === 'reviews' && <>
         {/* ── Search form ────────────────────────────────────────────── */}
         <div className="lf-form">
           <div className="lf-platform-tabs">
@@ -440,6 +454,7 @@ export default function LeadFinder({
             </div>
           </div>
         )}
+        </>}
       </div>
     </div>
   )
