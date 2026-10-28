@@ -167,6 +167,10 @@ export async function searchLeads(input: LeadSearchInput): Promise<LeadSearchRes
     const items = (await res.json()) as unknown
     if (!Array.isArray(items)) return { ok: false, error: 'The lead search sent back something we could not read. Try again.' }
 
+    // For the developer: how many came back and what fields they carry (never the values)
+    const first = items.find((x) => x && typeof x === 'object') as Record<string, unknown> | undefined
+    console.log('[linkedin-leads] Apify sent', items.length, 'items; fields:', first ? Object.keys(first).join(', ') : 'none')
+
     const seen = new Set<string>()
     const leads: LinkedInLead[] = []
     items.forEach((raw, i) => {
@@ -178,6 +182,9 @@ export async function searchLeads(input: LeadSearchInput): Promise<LeadSearchRes
       seen.add(key)
       leads.push(lead)
     })
+    if (items.length > 0 && leads.length === 0) {
+      return { ok: false, error: 'The lead search found people, but we could not read them. Please let support know.' }
+    }
     return { ok: true, leads: leads.slice(0, count) }
   } catch (e) {
     console.error('[linkedin-leads] request failed:', e)
