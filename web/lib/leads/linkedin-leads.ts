@@ -36,12 +36,28 @@ export type LeadSearchResult =
   | { ok: true; leads: LinkedInLead[] }
   | { ok: false; error: string }
 
-// The actor's output field names aren't documented on its page, so each value is
-// read from the likely spellings. Anything missing comes back null.
-function pick(item: Record<string, unknown>, keys: string[]): string | null {
+// The actor's output field names aren't documented on its page, so values are looked up by key with
+// the case, spaces, dashes and underscores ignored ("First Name", "first_name" and "firstName" all match),
+// looking one level into nested objects too. Anything missing comes back null.
+const norm = (k: string) => k.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+function flatten(item: Record<string, unknown>): Map<string, unknown> {
+  const out = new Map<string, unknown>()
+  for (const [k, v] of Object.entries(item)) {
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      for (const [k2, v2] of Object.entries(v as Record<string, unknown>)) if (!out.has(norm(k2))) out.set(norm(k2), v2)
+    } else out.set(norm(k), v)
+  }
+  // Top-level keys win over nested ones with the same name
+  for (const [k, v] of Object.entries(item)) if (!(v && typeof v === 'object' && !Array.isArray(v))) out.set(norm(k), v)
+  return out
+}
+
+function pickFrom(flat: Map<string, unknown>, keys: string[]): string | null {
   for (const k of keys) {
-    const v = item[k]
+    const v = flat.get(norm(k))
     if (typeof v === 'string' && v.trim()) return v.trim()
+    if (typeof v === 'number') return String(v)
   }
   return null
 }
@@ -57,29 +73,31 @@ function domainOf(value: string | null): string | null {
 }
 
 export function normalizeLead(item: Record<string, unknown>, index: number): LinkedInLead | null {
-  const firstName = pick(item, ['first_name', 'firstName']) ?? ''
-  const lastName = pick(item, ['last_name', 'lastName']) ?? ''
-  const name = pick(item, ['full_name', 'fullName', 'name']) ?? `${firstName} ${lastName}`.trim()
-  const email = pick(item, ['email', 'business_email', 'work_email', 'personal_email'])
-  const linkedinUrl = pick(item, ['linkedin', 'linkedin_url', 'linkedinUrl', 'person_linkedin_url'])
+  const flat = flatten(item)
+  const pick = (keys: string[]) => pickFrom(flat, keys)
+  const firstName = pick(['first_name', 'firstName']) ?? ''
+  const lastName = pick(['last_name', 'lastName']) ?? ''
+  const name = pick(['full_name', 'fullName', 'name', 'contact_name', 'person_name']) ?? `${firstName} ${lastName}`.trim()
+  const email = pick(['email', 'business_email', 'work_email', 'professional_email', 'personal_email', 'email_address'])
+  const linkedinUrl = pick(['linkedin', 'linkedin_url', 'linkedinUrl', 'person_linkedin_url', 'profile_url', 'linkedin_profile'])
   if (!name && !email && !linkedinUrl) return null
 
-  const website = pick(item, ['company_domain', 'company_website', 'website', 'domain', 'company_url'])
-  const city = pick(item, ['city', 'contact_city'])
-  const region = pick(item, ['state', 'region', 'country', 'location', 'contact_location'])
+  const website = pick(['company_domain', 'company_website', 'website', 'domain', 'company_url', 'organization_website'])
+  const city = pick(['city', 'contact_city'])
+  const region = pick(['state', 'region', 'country', 'location', 'contact_location'])
 
   return {
-    id: pick(item, ['id', 'person_id']) ?? `lead-${index}`,
+    id: pick(['id', 'person_id']) ?? `lead-${index}`,
     name: name || email || 'Unknown',
     firstName,
     lastName,
-    title: pick(item, ['job_title', 'title', 'position', 'headline']),
+    title: pick(['job_title', 'title', 'position', 'headline', 'contact_job_title']),
     email,
-    emailStatus: pick(item, ['email_status', 'emailStatus']),
+    emailStatus: pick(['email_status', 'emailStatus']),
     linkedinUrl,
-    company: pick(item, ['company_name', 'company', 'organization', 'organization_name']),
+    company: pick(['company_name', 'company', 'organization', 'organization_name', 'companyName']),
     domain: domainOf(website) ?? (email ? email.split('@')[1] ?? null : null),
-    industry: pick(item, ['industry', 'company_industry']),
+    industry: pick(['industry', 'company_industry']),
     location: [city, region].filter(Boolean).join(', ') || null,
   }
 }
