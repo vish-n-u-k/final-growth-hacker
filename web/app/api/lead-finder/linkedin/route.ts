@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { brands } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { searchLeads, DEFAULT_LEADS_PER_SEARCH } from '@/lib/leads/linkedin-leads'
+import { scoreLeads } from '@/lib/leads/fit-score'
 
 export const maxDuration = 180
 
@@ -46,5 +47,6 @@ export async function POST(req: NextRequest) {
   const result = await searchLeads({ jobTitles, locations, industries, keywords, count })
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 })
 
-  return NextResponse.json({ leads: result.leads, total: result.leads.length })
+  const leads = await scoreLeads(brand.id, result.leads)
+  return NextResponse.json({ leads, total: leads.length })
 }
