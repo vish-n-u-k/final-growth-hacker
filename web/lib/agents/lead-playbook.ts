@@ -55,6 +55,15 @@ approved. Usually the closest matches of all. q is one domain, and only from the
 
 const PLATFORMS = ['Shopify', 'WooCommerce', 'Wix', 'Squarespace']
 const ACTIVE = 3
+// Where sellers without their own site live: when "who to look for" names one of these, one of the
+// plan's questions is always a search of its seller pages (set in code, not left to the AI)
+const MARKETS: [RegExp, string][] = [
+  [/\betsy\b/i, 'site:etsy.com/shop'],
+  [/\bebay\b/i, 'site:ebay.com/str'],
+  [/\binstagram\b/i, 'site:instagram.com'],
+  [/\btiktok\b/i, 'site:tiktok.com'],
+  [/\bfacebook\b/i, 'site:facebook.com'],
+]
 const FREE_MAIL = new Set(['gmail.com', 'googlemail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'live.com', 'msn.com', 'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com', 'gmx.com', 'yandex.com', 'zoho.com', 'rediffmail.com'])
 const APPROVED = new Set(['sent', 'queued', 'replied', 'opted_out', 'bounced'])
 
@@ -100,10 +109,28 @@ async function customerSites(brandId: string, d: LeadAgentData, plan: LeadPlan |
  * The questions for this search: the saved plan, with weak questions dropped and the gaps filled by
  * Claude from the playbook. A new plan is made when "who to look for" changes.
  */
+/**
+ * When the buyers sell on a marketplace or social network ("Etsy sellers", "Instagram shops"), one of
+ * the plan's questions searches those seller pages directly, e.g. site:etsy.com/shop soy candles. It
+ * takes the place of the newest other question; the trade word changes when one is used up.
+ */
+function addMarketQuery(plan: LeadPlan, s: LeadSettings, keywords: string[], taken: Set<string>) {
+  const who = `${s.companyQuery} ${s.icp?.who ?? ''} ${s.customer}`
+  const site = MARKETS.find(([re]) => re.test(who))?.[1]
+  if (!site || plan.queries.some(q => q.q.toLowerCase().includes(site))) return
+  const words = keywords.filter(k => !/^(etsy|ebay|instagram|tiktok|facebook|shop|store|online)$/i.test(k.trim()))
+  const word = words.find(w => !taken.has(`google:${site} ${w}`.toLowerCase())) ?? words[0]
+  if (!word) return
+  const q: LeadQuery = { id: `${Date.now().toString(36)}m`, kind: 'google', q: `${site} ${word}`, why: `Sellers with a page on ${site.replace('site:', '').split('/')[0]} selling ${word}`, page: 0, checked: 0, kept: 0, empty: 0 }
+  if (plan.queries.length >= ACTIVE) plan.queries.splice(plan.queries.length - 1, 1)
+  plan.queries = [q, ...plan.queries]
+}
+
 export async function planLeadQueries(b: BrandContext, s: LeadSettings, d: LeadAgentData,
   hints: { keywords: string[]; platforms: string[]; customer: string; examples: string[]; card: string }): Promise<LeadPlan> {
   // A new plan when who we look for changes (the line, or the ideal-customer card)
-  const want = `${s.companyQuery.trim() || s.customer}|${hints.card}`
+  // v2: seller pages (Etsy shops, Instagram…) became leads; plans made before are redone once
+  const want = `v2|${s.companyQuery.trim() || s.customer}|${hints.card}`
   const old = d.plan?.for === want ? d.plan : undefined
   const outcomes = queryOutcomes(d)
   const seeds = await customerSites(b.id, d, d.plan, hints.examples)
@@ -115,7 +142,7 @@ export async function planLeadQueries(b: BrandContext, s: LeadSettings, d: LeadA
     else queries.push(q)
   }
   const plan: LeadPlan = { for: want, at: old?.at ?? new Date().toISOString(), queries, retired: retired.slice(0, 15), seeds }
-  if (queries.length >= ACTIVE) return plan
+  if (queries.length >= ACTIVE) { addMarketQuery(plan, s, hints.keywords, new Set([...queries, ...retired].map(q => `${q.kind}:${q.q.toLowerCase()}`))); return plan }
 
   const line = (q: LeadQuery) => {
     const o = outcomes.get(q.id)
@@ -164,6 +191,7 @@ why: one plain sentence for the owner, e.g. "Shopify shops selling soy candles".
     }))
   plan.queries = [...queries, ...fresh]
   plan.at = new Date().toISOString()
+  addMarketQuery(plan, s, hints.keywords, taken)
   // Claude gave nothing usable and nothing is left: fall back to the old store search
   if (!plan.queries.length && hints.platforms.length) {
     plan.queries = [{ id: `${Date.now().toString(36)}s`, kind: 'stores', q: hints.keywords.join(', '), platforms: hints.platforms, why: 'Online stores whose title has your trade words', page: 0, checked: 0, kept: 0, empty: 0 }]
