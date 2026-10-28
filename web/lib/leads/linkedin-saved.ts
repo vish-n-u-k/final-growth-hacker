@@ -9,7 +9,6 @@ export const LINKEDIN_KEY = 'agent:linkedin'
 
 export interface SavedFilters {
   titles: string
-  excludeTitles?: string   // saved before this field existed: missing
   industries: string
   keywords: string
   technologies: string

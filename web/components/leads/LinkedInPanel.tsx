@@ -32,7 +32,7 @@ interface Lead {
   social?: SocialCheck
 }
 
-interface Suggested { jobTitles: string[]; excludeTitles: string[]; industries: string[]; keywords: string[]; countries: string[]; sizes: string[]; technologies: string[]; why: string }
+interface Suggested { jobTitles: string[]; industries: string[]; keywords: string[]; countries: string[]; sizes: string[]; technologies: string[]; why: string }
 
 type Phase = 'idle' | 'running' | 'done' | 'failed'
 type Detect = 'detecting' | 'done' | 'none'
@@ -61,13 +61,13 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
 }) {
   const f0 = saved?.filters
   const [titles, setTitles] = useState(f0?.titles ?? '')
-  const [excludeTitles, setExcludeTitles] = useState(f0?.excludeTitles ?? '')
   const [industries, setIndustries] = useState(f0?.industries ?? '')
   const [keywords, setKeywords] = useState(f0?.keywords ?? '')
   const [technologies, setTechnologies] = useState(f0?.technologies ?? '')
   const [countries, setCountries] = useState(f0?.countries ?? '')
   const [sizes, setSizes] = useState<string[]>(f0?.sizes ?? [])
   const [count, setCount] = useState(f0?.count ?? 25)
+  const [more, setMore] = useState(!!(f0?.keywords || f0?.technologies))   // the two rarely-used filters stay folded away until they matter
   const [why, setWhy] = useState(f0?.why ?? '')
   const [detect, setDetect] = useState<Detect>(f0 ? 'done' : 'detecting')
   const [detectNote, setDetectNote] = useState('')
@@ -89,8 +89,8 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
       if (!res.ok || !j.filters) throw new Error(j.error ?? 'We could not work out who to look for. Fill the search in by hand.')
       if (force || !touched.current) {
         const f = j.filters
-        setTitles(csv(f.jobTitles)); setExcludeTitles(csv(f.excludeTitles ?? [])); setIndustries(csv(f.industries)); setKeywords(csv(f.keywords))
-        setTechnologies(csv(f.technologies)); setCountries(csv(f.countries)); setSizes(f.sizes); setWhy(f.why); setEdited(false)
+        setTitles(csv(f.jobTitles)); setIndustries(csv(f.industries)); setKeywords(csv(f.keywords))
+        setTechnologies(csv(f.technologies)); setCountries(csv(f.countries)); setSizes(f.sizes); setWhy(f.why); setEdited(false); setMore(f.keywords.length > 0 || f.technologies.length > 0)
       }
       setDetect('done')
     } catch (e) {
@@ -111,7 +111,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
       const res = await fetch('/api/lead-finder/linkedin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ why, jobTitles: titles, excludeTitles, industries, keywords, technologies, countries, sizes, count }),
+        body: JSON.stringify({ why, jobTitles: titles, industries, keywords, technologies, countries, sizes, count }),
       })
       const j = await res.json().catch(() => ({})) as { leads?: Lead[]; error?: string; upgrade?: boolean }
       if (res.status === 401) throw new Error('You have been signed out. Reload the page and sign in again, then search.')
@@ -209,41 +209,61 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
     )
   }
 
+  const small = { fontSize: 13, color: 'var(--text-faint)' } as const
+  const link = { background: 'none', border: 0, padding: 0, font: 'inherit', fontSize: 13, color: 'var(--text-dim)', textDecoration: 'underline', cursor: 'pointer' } as const
+
   return <>
-    <section className="lfh-hero lfh-li">
-      <div className="lfh-grow lfh-col">
+    <section className="lfh-hero lfh-li" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 20, padding: 24 }}>
+      <div>
         <p className="lfh-bigline">People who could buy from {brandName}</p>
-        <div className="lfh-meta">
+        <div style={{ ...small, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
           {detect === 'detecting' && <><Spinner />Reading what we know about your website to fill this in…</>}
-          {detect === 'done' && <>{why || (edited ? 'Edited by you.' : 'Filled in from your website.')} <button type="button" className="th-link lfh-linklike" onClick={() => detectNow(true)}>Fill in again</button></>}
-          {detect === 'none' && ready && <>{detectNote} <button type="button" className="th-link lfh-linklike" onClick={() => detectNow(true)}>Try again</button></>}
+          {detect === 'done' && <><span>{why || (edited ? 'Edited by you.' : 'Filled in from your website.')}</span><button type="button" style={link} onClick={() => detectNow(true)}>Fill in again</button></>}
+          {detect === 'none' && ready && <><span>{detectNote}</span><button type="button" style={link} onClick={() => detectNow(true)}>Try again</button></>}
+          {!ready && <span className="lfh-warn">LinkedIn search needs GrowJin&apos;s Apify account, which isn&apos;t set up yet.</span>}
         </div>
-        <div className="lfh-li-grid">
-          {field('Job titles', titles, setTitles, 'Founder, Head of Marketing')}
-          {field('Skip these titles', excludeTitles, setExcludeTitles, 'CTO, Engineer')}
-          {field('Industries', industries, setIndustries, 'Retail, Apparel & Fashion')}
-          {field('Website runs on', technologies, setTechnologies, 'Shopify')}
-          {field('Company keywords', keywords, setKeywords, 'sportswear, handmade')}
-          {field('Country (optional)', countries, setCountries, 'United States, Toronto')}
-        </div>
-        <div className="lfh-li-sizes" role="group" aria-label="Company size">
-          <span className="lfh-lab">Company size</span>
-          {SIZES.map(s => (
-            <button key={s} type="button" className="lfh-chip" aria-pressed={sizes.includes(s)} onClick={() => toggleSize(s)} disabled={detect === 'detecting'}>{s}</button>
-          ))}
-        </div>
-        <div className="lfh-meta">Separate several with commas. Every person comes with a work email checked by the data provider. Only contact people you have a real business reason to write to.</div>
-        {!ready && <div className="lfh-meta lfh-warn">LinkedIn search needs GrowJin&apos;s Apify account, which isn&apos;t set up yet.</div>}
       </div>
-      <div className="lfh-actbox">
-        <button type="button" className="lfh-act" disabled={!canSearch || phase === 'running' || detect === 'detecting'} onClick={search}>
-          {phase === 'running' ? <><Spinner />Searching…</> : searchedAt ? 'Search again' : 'Search LinkedIn'}
-        </button>
-        <label className="lfh-meta">How many
-          <select className="lfh-input lfh-li-n" value={count} onChange={e => setCount(Number(e.target.value))} aria-label="How many people">
-            {[10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </label>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+        {field('Job titles', titles, setTitles, 'Founder, Owner, Head of Marketing')}
+        {field('Industries', industries, setIndustries, 'Retail, Computer Software')}
+        {field('Country (optional)', countries, setCountries, 'United States, Toronto')}
+      </div>
+
+      {more && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+          {field('Company keywords', keywords, setKeywords, 'sportswear, handmade')}
+          {field('Website runs on', technologies, setTechnologies, 'Shopify')}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }} role="group" aria-label="Company size">
+        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-dim)', marginRight: 4 }}>Company size</span>
+        {SIZES.map(s => (
+          <button key={s} type="button" className="lfh-chip" aria-pressed={sizes.includes(s)} onClick={() => toggleSize(s)} disabled={detect === 'detecting'}
+            style={{ cursor: 'pointer', fontSize: 13, padding: '6px 13px', ...(sizes.includes(s) ? { background: 'var(--text)', color: 'var(--bg)' } : {}) }}>{s}</button>
+        ))}
+        <span style={{ ...small, marginLeft: 4 }}>people</span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', borderTop: '1px solid var(--line)', paddingTop: 16 }}>
+        <div style={{ ...small, flex: '1 1 320px', display: 'grid', gap: 4 }}>
+          <span>Separate several values with commas. Every person comes with a work email checked by the data provider.</span>
+          <span>
+            Only contact people you have a real business reason to write to.{' '}
+            <button type="button" style={link} onClick={() => setMore(m => !m)}>{more ? 'Fewer filters' : 'More filters'}</button>
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <label style={{ ...small, display: 'flex', alignItems: 'center', gap: 8 }}>How many
+            <select className="lfh-input" style={{ width: 84, padding: '8px 10px' }} value={count} onChange={e => setCount(Number(e.target.value))} aria-label="How many people">
+              {[10, 25, 50].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+          <button type="button" className="lfh-act" disabled={!canSearch || phase === 'running' || detect === 'detecting'} onClick={search}>
+            {phase === 'running' ? <><Spinner />Searching…</> : searchedAt ? 'Search again' : 'Search LinkedIn'}
+          </button>
+        </div>
       </div>
     </section>
 

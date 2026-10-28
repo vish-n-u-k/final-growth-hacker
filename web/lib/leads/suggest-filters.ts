@@ -11,7 +11,6 @@ import { mapFilters } from './linkedin-leads'
 
 export interface SuggestedFilters {
   jobTitles: string[]
-  excludeTitles: string[]
   industries: string[]
   keywords: string[]
   countries: string[]
@@ -42,9 +41,8 @@ We are searching a database of people (name, job title, company, work email) to 
 
 If the notes about the ideal customer and the brand's own website description disagree, trust the brand's own website description.
 
-Return {"jobTitles":[...],"excludeTitles":[...],"industries":[...],"keywords":[...],"countries":[...],"sizes":[...],"technologies":[...],"why":"..."}
+Return {"jobTitles":[...],"industries":[...],"keywords":[...],"countries":[...],"sizes":[...],"technologies":[...],"why":"..."}
 - jobTitles: 3-5 job titles of the person who decides to buy, in the words people put on their profile ("Founder", "Owner", "Co-Founder", "Head of Marketing"). For a small business the owner or founder (always include "Owner" and "Founder" then); for a larger one the marketing or ecommerce lead.
-- excludeTitles: 3-8 titles that would match the titles above but are NOT the buyer for this brand, e.g. for a social media tool "CTO", "Chief Technology Officer", "Engineer", "Developer"; for a developer tool the opposite (sales and marketing titles). Never a title that is also in jobTitles.
 - industries: 1-4 industries of the BUYER's company (not the brand's own), each exactly one of: ${ACTOR_INDUSTRIES.join(' | ')}
 - keywords: 0-3 words the buyers' own companies use to describe themselves, only if industries alone are too loose. Never words that describe companies that SERVE these buyers (agencies, apps, software).
 - countries: the brand's main market, worked out from its language, currency and address (for example "United States" for a dollar-priced English site). 1-3 full English country names. [] only if the brand clearly sells worldwide in many languages.
@@ -60,11 +58,9 @@ Return {"jobTitles":[...],"excludeTitles":[...],"industries":[...],"keywords":[.
     sizes: list(j.sizes, 4), technologies: list(j.technologies, 3),
   })
   const titles = list(j.jobTitles, 5)
-  const excludes = list(j.excludeTitles, 8).filter(t => !titles.some(x => x.toLowerCase() === t.toLowerCase()))
   if (!titles.length && !m.industries.length && !m.keywords.length) return null
   return {
     jobTitles: titles,
-    excludeTitles: excludes,
     industries: m.industries,
     // An industry the actor does not know was moved to keywords by mapFilters
     keywords: m.keywords,

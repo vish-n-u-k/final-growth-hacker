@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
   try { body = await req.json() } catch { /* handled below */ }
 
   const jobTitles = list(body.jobTitles)
-  const excludeTitles = list(body.excludeTitles)
   const countries = list(body.countries)
   const industries = list(body.industries)
   const keywords = list(body.keywords)
@@ -48,7 +47,7 @@ export async function POST(req: NextRequest) {
   }
 
   const count = Number(body.count) || DEFAULT_LEADS_PER_SEARCH
-  const result = await searchLeads({ jobTitles, excludeTitles, countries, industries, keywords, technologies, sizes, count })
+  const result = await searchLeads({ jobTitles, countries, industries, keywords, technologies, sizes, count })
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 })
 
   const leads = await scoreLeads(brand.id, result.leads)
@@ -57,7 +56,7 @@ export async function POST(req: NextRequest) {
   const before = await readLinkedIn(brand.id)
   await saveLinkedIn(brand.id, {
     filters: {
-      titles: str(body.jobTitles), excludeTitles: str(body.excludeTitles), industries: str(body.industries), keywords: str(body.keywords),
+      titles: str(body.jobTitles), industries: str(body.industries), keywords: str(body.keywords),
       technologies: str(body.technologies), countries: str(body.countries),
       sizes: sizes.filter(x => /^[0-9+-]+$/.test(x)), count, why: typeof body.why === 'string' ? body.why.slice(0, 220) : before?.filters?.why ?? '',
     },

@@ -26,7 +26,7 @@ export async function GET() {
     // Saved, so the next visit does not read the website with the AI again
     await saveLinkedIn(brand.id, {
       filters: {
-        titles: filters.jobTitles.join(', '), excludeTitles: filters.excludeTitles.join(', '), industries: filters.industries.join(', '), keywords: filters.keywords.join(', '),
+        titles: filters.jobTitles.join(', '), industries: filters.industries.join(', '), keywords: filters.keywords.join(', '),
         technologies: filters.technologies.join(', '), countries: filters.countries.join(', '), sizes: filters.sizes, count: 25, why: filters.why,
       },
     }).catch(e => console.error('[linkedin-suggest] could not save the filters:', e))
