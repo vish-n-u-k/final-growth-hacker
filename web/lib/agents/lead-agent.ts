@@ -16,7 +16,8 @@ import { getValidGmailToken } from '@/lib/gmail/token'
 import { checkThreadReply } from '@/lib/gmail/reply-check'
 import { openSignal, clearSignals } from '@/lib/signals'
 import { fetchHtml } from '@/lib/lead-finder/reviews'
-import { searchDataReady, googleResults, mapsBusinesses, storesByPlatform, DfsBusyError } from './dataforseo'
+import { searchDataReady, googleResults, mapsBusinesses, storesByPlatform, similarSites, siteVisits, DfsBusyError } from './dataforseo'
+import { planLeadQueries, ownerExamples } from './lead-playbook'
 import { agentsDemo, demoLocalQuery, demoReply, demoSend, setDemoContext } from './demo'
 import { Progress } from './progress'
 import { hunterConfigured, findEmail } from './hunter'
@@ -24,7 +25,7 @@ import { contactEmail, inBatches, marketingFacts, marketingLine, storeFacts, sto
 import { costNote } from './services'
 import {
   addUsage, defaultLeadData, newMeter, readLeadData, updateLeadData,
-  type Icp, type IcpKind, type Lead, type LeadAgentData, type LeadSettings, type LeadSource, type MaybeLead, type UsageMeter, type WaitingPost, type WaitingSite,
+  type Icp, type IcpKind, type Lead, type LeadAgentData, type LeadSettings, type LeadQuery, type LeadSource, type MaybeLead, type UsageMeter, type WaitingPost, type WaitingSite,
 } from './store'
 import { brandBlock, daysFrom, domainOf, firstName, idOf, loadBrandContext, parseJsonLoose, textToHtml, type BrandContext } from './context'
 
@@ -46,6 +47,12 @@ const COMPANY_CHECK = Math.max(PER_SOURCE, 30)
 const PLATFORMS = ['Shopify', 'WooCommerce', 'Wix', 'Squarespace']
 // Not small-business buyers: PR and B2B firms, consultancies, big agencies
 const NOT_A_FIT = /\b(public relations|pr agency|pr firm|b2b|enterprise|consult(ing|ancy|ants?)|investor relations|fortune 500|global (agency|leader)|award[- ]winning|staffing|recruit(ing|ment))\b/i
+// Sites that aren't one business: marketplaces, social networks, site builders, review and job sites
+const NOT_A_SITE = /(^|\.)(amazon|etsy|ebay|walmart|aliexpress|alibaba|flipkart|pinterest|facebook|instagram|tiktok|youtube|linkedin|twitter|reddit|quora|medium|wikipedia|yelp|tripadvisor|google|apple|shopify|wordpress|wix|squarespace|blogspot|substack|trustpilot|indeed|glassdoor|forbes|nytimes)\.[a-z.]+$/
+// Estimated visits from Google a month above which a site isn't a small business
+const BIG_VISITS = 20_000
+// DataForSEO dollars a run may spend on the company questions (each question checks before asking)
+const DFS_CAP = Number(process.env.AGENTS_LEADS_DFS_CAP) || 0.25
 const DEMO_EMAIL_LEADS = 5   // demo mode: businesses to email per run, at least
 
 export const leadFallback = (b: BrandContext) => () => defaultLeadData(b, b.competitors.map(c => c.domain))
@@ -231,6 +238,7 @@ interface Candidate {
   email?: string                // already known from the source (no Hunter lookup needed)
   judge?: string                // companies: everything the AI checks (page text, store facts), not shown
   launch?: boolean              // companies: found as a Hacker News launch
+  queryId?: string              // companies: the DataForSEO question that found it (LeadQuery.id)
 }
 
 async function searchQueries(b: BrandContext, s: LeadSettings, d: LeadAgentData): Promise<string[]> {
@@ -415,26 +423,74 @@ async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData,
   const queued = o.queue.filter(x => fresh(x.domain))
   if (queued.length >= o.limit) { o.rest(queued.slice(o.limit)); return checkSites(queued.slice(0, o.limit)) }
 
-  // DataForSEO finds the websites: sites whose title or description has the trade words, running
-  // the store platforms Claude picked (or any site, when the buyers aren't online stores), a new page
-  // each day. Hunter only finds emails, later.
   // SaaS buyers: products their founders just launched on Hacker News come first (free)
   const launches = s.icp?.kind === 'saas' ? (await showHnSites(o.turn)).filter(x => fresh(x.domain) && !queued.some(q => q.domain === x.domain)) : []
   if (launches.length) console.log(`[lead-agent] Show HN launches: ${launches.length} new`)
   if (queued.length + launches.length >= o.limit) { o.searched(); const pool = [...queued, ...launches]; o.rest(pool.slice(o.limit)); return checkSites(pool.slice(0, o.limit)) }
   if (!searchDataReady()) { if (launches.length) { o.searched(); return checkSites([...queued, ...launches]) } warn('Companies: needs GrowJin’s DataForSEO account, which isn’t set up'); return [] }
-  if (!f.platforms.length && !f.keywords.length) return checkSites([...queued, ...launches])
+  // DataForSEO finds the websites, with the questions planned from the playbook (lead-playbook.ts):
+  // Google searches with operators, the technology index and sites like a customer. Each question
+  // asks for its next page. Hunter only finds emails, later.
+  const plan = await planLeadQueries(b, s, d, { keywords: f.keywords, platforms: f.platforms, customer: customerBlock(b, s), examples: s.icp?.examples ?? [], card: icpKey(s) })
+  d.plan = plan
+  if (!plan.queries.length) { if (launches.length) o.searched(); return checkSites([...queued, ...launches]) }
   o.searched()
-  const rows = await storesByPlatform(f.platforms, s.country, meter, { limit: 50, offset: (o.turn % 20) * 50, keywords: f.keywords })
-  const what = f.platforms.length ? `${f.platforms.join(' / ')} sites` : 'sites'
-  console.log(`[lead-agent] DataForSEO websites (${f.platforms.join(', ') || 'any platform'}, ${s.country}): ${rows.length} back${rows[0] ? `, e.g. ${rows.slice(0, 3).map(x => x.domain).join(', ')}` : ''}`)
-  if (!rows.length && !launches.length) warn(`Companies: DataForSEO found no ${what} ${s.country === 'ANY' ? 'anywhere' : `in ${s.country}`} for “${f.keywords.slice(0, 4).join('”, “')}” this time`)
   const seen = new Set([...queued, ...launches].map(x => x.domain))
-  const pool: Found[] = [...queued, ...launches, ...rows
-    .filter(x => fresh(x.domain) && !seen.has(x.domain))
-    .map(x => ({ domain: x.domain, name: x.title.split(/\s[|–-]\s/)[0].slice(0, 60) || x.domain, about: [x.title, x.description].filter(Boolean).join(' · '), socials: socialsIn(x.socials.join(' ')), email: x.emails.find(e => e.endsWith(x.domain)) ?? x.emails[0], from: f.platforms.length ? `${f.platforms.join(' / ')} store` : 'website' }))]
-  o.rest(pool.slice(o.limit))
-  return checkSites(pool.slice(0, o.limit))
+  const pool: Found[] = [...queued, ...launches]
+  for (const q of plan.queries) {
+    if (meter.dataforseo >= DFS_CAP) { console.log(`[lead-agent] DataForSEO cap of $${DFS_CAP} reached, “${q.q}” waits for the next search`); break }
+    const rows = await askQuery(q, s.country, meter).catch(e => { warn(`Companies, “${q.q}”: ${e instanceof Error ? e.message : 'failed'}`); return null })
+    if (!rows) continue
+    q.page += 1
+    const found = rows.filter(x => fresh(x.domain) && !seen.has(x.domain) && !NOT_A_SITE.test(x.domain))
+    found.forEach(x => seen.add(x.domain))
+    q.empty = found.length ? 0 : q.empty + 1
+    pool.push(...found)
+    console.log(`[lead-agent] ${q.kind} “${q.q}”: ${rows.length} back, ${found.length} new${found[0] ? `, e.g. ${found.slice(0, 3).map(x => x.domain).join(', ')}` : ''}`)
+  }
+  // How big each site is: estimated visits from Google, one call for all; big sites aren't small businesses
+  const unmeasured = pool.filter(x => x.visits === undefined).map(x => x.domain)
+  if (unmeasured.length) {
+    const v = await siteVisits(unmeasured, s.country, meter).catch(e => { console.error(`[lead-agent] site visits failed: ${e instanceof Error ? e.message : e}`); return null })
+    if (v) for (const x of pool) if (x.visits === undefined) x.visits = v.get(x.domain) ?? null
+  }
+  const small = mix(pool.filter(x => (x.visits ?? 0) <= BIG_VISITS))
+  console.log(`[lead-agent] companies: ${pool.length} new sites · ${pool.length - small.length} too big (over ${BIG_VISITS.toLocaleString('en')} visits a month)`)
+  if (!pool.length) warn(`Companies: DataForSEO found no new sites this time (${plan.queries.map(q => `“${q.q}”`).join(', ')}). The weak searches are replaced on the next run.`)
+  o.rest(small.slice(o.limit))
+  return checkSites(small.slice(0, o.limit))
+}
+
+/** Takes turns between the questions, so one that brought back many sites doesn't fill the whole check. */
+function mix(list: WaitingSite[]): WaitingSite[] {
+  const groups = new Map<string, WaitingSite[]>()
+  for (const x of list) groups.set(x.queryId ?? '', [...(groups.get(x.queryId ?? '') ?? []), x])
+  const out: WaitingSite[] = []
+  for (let i = 0; out.length < list.length; i++) for (const g of groups.values()) if (g[i]) out.push(g[i])
+  return out
+}
+
+/** Asks DataForSEO one question from the plan, for its next page. */
+async function askQuery(q: LeadQuery, country: string, meter: UsageMeter): Promise<WaitingSite[]> {
+  if (q.kind === 'google') {
+    // Google's live results have no "page 2": each search reads 20 deeper (up to 100), and sites
+    // already checked are dropped as known
+    const rows = await googleResults(q.q, country, meter, { depth: Math.min(100, 20 * (q.page + 1)) })
+    const byDomain = new Map<string, WaitingSite>()
+    for (const r of rows) {
+      const domain = domainOf(r.domain || r.url)
+      if (!domain || byDomain.has(domain)) continue
+      byDomain.set(domain, { domain, name: r.title.split(/\s[|–-]\s/)[0].slice(0, 60) || domain, about: [r.title, r.description].filter(Boolean).join(' · '), from: 'Google search', queryId: q.id })
+    }
+    return [...byDomain.values()]
+  }
+  if (q.kind === 'stores') {
+    const platforms = q.platforms ?? []
+    const rows = await storesByPlatform(platforms, country, meter, { limit: 50, offset: q.page * 50, keywords: q.q.split(',').map(w => w.trim()).filter(Boolean) })
+    return rows.map(x => ({ domain: x.domain, name: x.title.split(/\s[|–-]\s/)[0].slice(0, 60) || x.domain, about: [x.title, x.description].filter(Boolean).join(' · '), socials: socialsIn(x.socials.join(' ')), email: x.emails.find(e => e.endsWith(x.domain)) ?? x.emails[0], from: platforms.length ? `${platforms.join(' / ')} store` : 'website', queryId: q.id }))
+  }
+  const rows = await similarSites(q.q, country, meter, { limit: 30, offset: q.page * 30 })
+  return rows.map(x => ({ domain: x.domain, name: x.domain, from: `like ${q.q}`, queryId: q.id, ...(x.visits === null ? {} : { visits: Math.round(x.visits) }) }))
 }
 
 /** Reads each site for free (home page, store facts) and turns it into a candidate for the AI check. */
@@ -459,18 +515,20 @@ async function checkSites(list: WaitingSite[]): Promise<Candidate[]> {
       source: 'company' as const,
       url: `https://${c.domain}`,
       // A launch post's title can read like a sentence ("I made a benchmark…"): use the site's own name then
-      title: c.from.startsWith('Launched') && (c.name.split(/\s+/).length > 4 || /^(i|we|my|our)\b/i.test(c.name)) && siteName ? siteName : c.name,
+      // …and a site found by "sites like" comes with only its domain
+      title: (c.name === c.domain || (c.from.startsWith('Launched') && (c.name.split(/\s+/).length > 4 || /^(i|we|my|our)\b/i.test(c.name)))) && siteName ? siteName : c.name,
       launch: c.from.startsWith('Launched'),
       // What the user sees on the card: the store facts and social links first, then their own words
       snippet: [c.from.startsWith('Launched') ? c.from : null, store ? storeLine(store) : null, team?.hiring.length ? `Hiring: ${team.hiring.join(', ')}` : null, socials.length ? `Links to ${socials.join(', ')}` : 'No social links on their home page', text.slice(0, 200) || 'no description on their home page', `website ${c.domain}`].filter(Boolean).join(' · '),
       website: c.domain,
       email: c.email,
-      judge: judgeText(c.name, c.domain, text, page, socials, store, team, c.from),
+      judge: judgeText(c.name, c.domain, text, page, socials, store, team, c.from, c.visits),
+      queryId: c.queryId,
     }))
 }
 
 /** Everything the AI looks at for one company, in a fixed order. */
-function judgeText(name: string, domain: string, about: string, page: string, socials: string[], store: StoreFacts | null, team: MarketingFacts | null, from: string): string {
+function judgeText(name: string, domain: string, about: string, page: string, socials: string[], store: StoreFacts | null, team: MarketingFacts | null, from: string, visits?: number | null): string {
   return [
     `${name} (${domain})`,
     `Found: ${from}`,
@@ -479,6 +537,7 @@ function judgeText(name: string, domain: string, about: string, page: string, so
       ? `Online store: ${store.platform}, ${store.products}${store.more ? '+' : ''} products${store.types.length ? `; sells: ${store.types.join(', ')}` : ''}${store.examples.length ? `; e.g. ${store.examples.join(', ')}` : ''}${store.newestDays === null ? '' : `; newest product added ${store.newestDays} days ago`}`
       : 'No public product list (not a Shopify / WooCommerce store we could read)',
     `Social links on the site: ${socials.join(', ') || 'none'}`,
+    `Visits from Google a month (estimate): ${visits === undefined || visits === null ? 'unknown' : visits === 0 ? 'too few to measure' : `about ${visits.toLocaleString('en')}`}`,
     `Title and description: ${about.slice(0, 250) || 'none'}`,
     `Page text: ${page.slice(0, 600) || 'none'}`,
   ].join('\n')
@@ -490,8 +549,14 @@ function judgeText(name: string, domain: string, about: string, page: string, so
  * kept; the score orders them.
  */
 interface CompanyCheck extends Scored { trade?: boolean; small?: boolean; active?: boolean | null; need?: boolean; diy?: boolean | null; reach?: boolean | null }
-async function judgeCompanies(b: BrandContext, s: LeadSettings, list: Candidate[]): Promise<CompanyCheck[]> {
+async function judgeCompanies(b: BrandContext, s: LeadSettings, list: Candidate[], examples: { kept: string[]; skipped: string[] } = { kept: [], skipped: [] }): Promise<CompanyCheck[]> {
   if (!list.length) return []
+  // The owner's own choices so far: the clearest picture of a good lead there is
+  const owner = examples.kept.length || examples.skipped.length ? `
+The owner's choices so far (judge new businesses the same way):
+Approved: ${examples.kept.join(' | ') || 'none yet'}
+Skipped: ${examples.skipped.join(' | ') || 'none yet'}
+` : ''
   const raw = await callAI({
     feature: 'lead-agent',
     model: 'claude-haiku-4-5-20251001',
@@ -500,10 +565,10 @@ async function judgeCompanies(b: BrandContext, s: LeadSettings, list: Candidate[
     prompt: `${brandBlock(b)}
 ${customerBlock(b, s)}
 Companies we look for: ${s.companyQuery.trim() || s.icp?.who || s.customer || 'not given'}
-
+${owner}
 For each business answer:
 - trade: true only if what it actually sells or does (product list first, then its own words) matches "Companies we look for". A passing mention of a word is not enough; a law firm, estate agent, software company, marketplace or directory is false.
-- small: true for a one-person to small team business (a product list under about 500 items, no corporate wording). False for big brands, chains, agencies with many offices.
+- small: true for a one-person to small team business (a product list under about 500 items, under about 20,000 visits a month, no corporate wording). False for big brands, chains, agencies with many offices.
 - active: true if it looks alive (a product added in the last 6 months, or a current-looking site); false if clearly abandoned (newest product over a year ago, "closed", "coming soon" only); null if unknown.
 - need: true if it would plausibly want what ${b.name} offers now, judged against the ideal customer above. False if it shows any "NOT a fit" sign.
 - diy: who does their marketing. true if the founder or a tiny team seems to do it themselves (no marketing roles on careers or team pages, their own X account (the founder's or the company's) or a founder's LinkedIn, a quiet blog or social links but little posting); false if they have a marketing team or agency, are hiring marketers or content people, or work with influencers / creators; null if unknown.
@@ -859,7 +924,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       const idxOther = candidates.map((c, i) => (c.source !== 'company' ? i : -1)).filter(i => i >= 0)
       const [otherScores, companyChecks] = await pr.step('score', () => Promise.all([
         scoreCandidates(b, s, idxOther.map(i => candidates[i])).catch(() => [] as Scored[]),
-        judgeCompanies(b, s, idxCompany.map(i => candidates[i])).catch(() => [] as CompanyCheck[]),
+        judgeCompanies(b, s, idxCompany.map(i => candidates[i]), ownerExamples(d)).catch(() => [] as CompanyCheck[]),
       ]))
       const companyBack = companyChecks.map(x => ({ ...x, i: idxCompany[x.i] }))
       const scored: Scored[] = [
@@ -895,13 +960,19 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
           why: x.why, reason: f ? REASON[f] : `Scored ${x.score}/10`, score: x.score, at: now,
         })
       }
+      // How each DataForSEO question did, for the next plan: sites checked and kept
+      if (d.plan) {
+        const byId = new Map(d.plan.queries.map(q => [q.id, q]))
+        for (const x of companyBack) { const q = byId.get(candidates[x.i].queryId ?? ''); if (q) q.checked += 1 }
+        for (const g of good) { const q = byId.get(candidates[g.i].queryId ?? ''); if (q) q.kept += 1 }
+      }
       for (const g of good) {
         const c = candidates[g.i]
         const website = c.website || (g.website ? domainOf(g.website) : undefined)
         fresh.push({
           id: idOf(c.url), source: c.source, foundAt: now, title: c.title, url: c.url, snippet: c.snippet,
           name: c.name, company: g.company, website, phone: c.phone, rating: c.rating ?? null,
-          score: g.score, why: g.why, status: 'needs_contact', followupsSent: 0,
+          score: g.score, why: g.why, status: 'needs_contact', followupsSent: 0, ...(c.queryId ? { queryId: c.queryId } : {}),
           ...(c.email ? { email: c.email, emailVerified: false } : {}),
         })
       }
@@ -963,7 +1034,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
     // changed since they were found): moved to Skipped, where they can be brought back
     const tradeWords = d.companyFilters?.keywords ?? []
     const offTrade = new Set(find && s.sources.companies && tradeWords.length
-      ? d.leads.filter(l => l.source === 'company' && (l.status === 'ready' || l.status === 'needs_contact')
+      ? d.leads.filter(l => l.source === 'company' && !l.queryId && (l.status === 'ready' || l.status === 'needs_contact')
           // What the company says about itself, without the "matched …" words Hunter claimed
           && !tradeMatch(tradeWords, `${l.title} ${l.snippet.split(' · ').filter(part => !/^matched /.test(part)).join(' ')}`)).map(l => l.id)
       : [])
@@ -971,7 +1042,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
 
     // 5. Save (re-read so approvals made meanwhile are kept)
     const saved = await updateLeadData(brandId, fallback, x => {
-      for (const l of x.leads) if (offTrade.has(l.id) && (l.status === 'ready' || l.status === 'needs_contact')) l.status = 'skipped'
+      for (const l of x.leads) if (offTrade.has(l.id) && (l.status === 'ready' || l.status === 'needs_contact')) { l.status = 'skipped'; l.skippedBy = 'auto' }
       for (const [id, p] of patches) {
         const l = x.leads.find(y => y.id === id)
         if (l && (l.status === 'sent' || l.status === 'queued')) Object.assign(l, p)
@@ -981,6 +1052,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       x.sentLog = [...new Set([...x.sentLog, ...d.sentLog])].sort()
       if (d.queries) x.queries = d.queries
       if (d.companyFilters) x.companyFilters = d.companyFilters
+      if (d.plan) x.plan = d.plan
       x.demo = demo
       if (rejected.length) x.rejected = [...(x.rejected ?? []), ...rejected]
       // Newest "maybe" first; what's waiting for "Show 10 more"; where the next search starts

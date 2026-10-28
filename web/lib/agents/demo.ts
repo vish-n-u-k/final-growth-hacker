@@ -255,6 +255,15 @@ export function demoStores(platforms: string[]): { domain: string; title: string
   })
 }
 
+export function demoSimilarSites(domain: string): { domain: string; shared: number; visits: number | null }[] {
+  const r = rng(`similar:${domain}:${Math.floor(Date.now() / 86_400_000)}`)
+  return demoStores([domain]).slice(0, 8).map(x => ({ domain: x.domain, shared: Math.floor(r() * 40) + 3, visits: Math.floor(r() * 3000) }))
+}
+
+export function demoSiteVisits(domains: string[]): Map<string, number> {
+  return new Map(domains.map(d => [d, Math.floor(rng(`visits:${d}`)() * 4000)]))
+}
+
 export function demoFindEmail(domain: string, personName?: string): FoundEmail | null {
   const r = rng(`email:${domain}`)
   if (r() < 0.15) return null // some companies have no findable email
