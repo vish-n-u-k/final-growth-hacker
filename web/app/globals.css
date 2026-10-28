@@ -9477,3 +9477,5 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .lfh-li-site { font-size: 13px; color: var(--text-dim); text-decoration: underline; white-space: nowrap; }
 .lfh-li-more b { font-weight: 600; color: var(--text); }
 @media (max-width: 640px) { .lfh-li-site { flex-basis: 100%; padding-left: 48px; } }
+.lfh-li-bar-r { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lfh-li-mail { color: var(--text-dim); font-size: 12.5px; }

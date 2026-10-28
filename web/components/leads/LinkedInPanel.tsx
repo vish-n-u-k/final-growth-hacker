@@ -110,6 +110,13 @@ export default function LinkedInPanel({ ready, brandName, onAdd }: {
   const toggle = (id: string) => setPicked(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const toggleSize = (s: string) => { touched.current = true; setSizes(prev => (prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])) }
   const chosen = leads.filter(l => picked.has(l.id) && l.email)
+  const [copied, setCopied] = useState(false)
+  async function copyEmails() {
+    try {
+      await navigator.clipboard.writeText(chosen.map(l => `${l.name} <${l.email}>`).join('\n'))
+      setCopied(true); setTimeout(() => setCopied(false), 1800)
+    } catch { /* clipboard blocked: nothing to do */ }
+  }
 
   const field = (label: string, value: string, set: (v: string) => void, placeholder: string) => (
     <label className="lfh-field lfh-li-f">{label}
@@ -164,10 +171,15 @@ export default function LinkedInPanel({ ready, brandName, onAdd }: {
       <section className="lfh-li-res">
         <div className="lfh-li-bar">
           <span className="lfh-meta"><b>{leads.length}</b> people found · {chosen.length} picked</span>
-          <button type="button" className="btn btn-primary" disabled={chosen.length === 0}
-            onClick={() => onAdd(chosen.map(l => ({ email: l.email!, name: l.name })))}>
-            Add {chosen.length} to Your list
-          </button>
+          <span className="lfh-li-bar-r">
+            <button type="button" className="btn btn-ghost" disabled={chosen.length === 0} onClick={copyEmails}>
+              {copied ? 'Copied' : `Copy ${chosen.length} email${chosen.length === 1 ? '' : 's'}`}
+            </button>
+            <button type="button" className="btn btn-primary" disabled={chosen.length === 0}
+              onClick={() => onAdd(chosen.map(l => ({ email: l.email!, name: l.name })))}>
+              Add {chosen.length} to Your list
+            </button>
+          </span>
         </div>
         <div className="lfh-li-list">
           {leads.map(l => {
@@ -180,6 +192,7 @@ export default function LinkedInPanel({ ready, brandName, onAdd }: {
                   <span className="lfh-tile-t">
                     <span className="lfh-name">{l.name}</span>
                     <span className="lfh-sub">{[l.title, l.company].filter(Boolean).join(' · ') || 'No title listed'}</span>
+                    {l.email && <span className="lfh-sub lfh-li-mail">{l.email}</span>}
                   </span>
                 </button>
                 {l.website && <a className="lfh-li-site" href={l.website} target="_blank" rel="noopener noreferrer" title={`Open ${l.domain}`}>{l.domain} ↗</a>}
@@ -197,7 +210,6 @@ export default function LinkedInPanel({ ready, brandName, onAdd }: {
                     {l.fitReason && <p><b>Why:</b> {l.fitReason}</p>}
                     {l.companyDescription && <p>{l.companyDescription}</p>}
                     <div className="lfh-meta">
-                      {l.email && <span>{l.email}</span>}
                       {l.companySize && <span>{l.companySize} {l.companySize === 1 ? 'person' : 'people'}</span>}
                       {[l.industry, l.location].filter(Boolean).length > 0 && <span>{[l.industry, l.location].filter(Boolean).join(' · ')}</span>}
                       {l.linkedinUrl && <a href={l.linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn ↗</a>}
