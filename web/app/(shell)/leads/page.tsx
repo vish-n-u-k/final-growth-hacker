@@ -45,8 +45,9 @@ async function Leads(brandId: string) {
     <LeadFinderHub
       initial={data ?? leadFallback(b)()}
       scans={rivals}
+      brandName={b.name}
       competitors={b.competitors.map(c => c.domain).filter(Boolean).slice(0, 4)}
-      flags={{ dataforseo: searchDataReady(), trustpilot: dataForSeoConfigured(), hunter: hunterConfigured(), hunterOut, gmail: !!gmail, demo: agentsDemo(), demoForced: demoForced() }}
+      flags={{ linkedin: !!process.env.APIFY_API_TOKEN?.trim(), dataforseo: searchDataReady(), trustpilot: dataForSeoConfigured(), hunter: hunterConfigured(), hunterOut, gmail: !!gmail, demo: agentsDemo(), demoForced: demoForced() }}
     />
   )
 }

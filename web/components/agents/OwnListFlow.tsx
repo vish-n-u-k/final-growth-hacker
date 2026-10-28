@@ -13,7 +13,7 @@ type Call = (op: string, payload?: Record<string, unknown>, busyKey?: string) =>
 const STEPS = ['Who gets it', 'The email', 'Review & approve']
 const label = (p: Person) => (p.first ? `${p.first}${p.company ? ` · ${p.company}` : ''}` : p.company || p.email)
 
-export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDays, notify, onClose, tool = 'Lead Agent', repliesIn = 'the Email tab' }: {
+export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDays, notify, onClose, tool = 'Lead Agent', repliesIn = 'the Email tab', initialRaw = '', initialName = '' }: {
   call: Call
   busy: string | null
   gmail: boolean
@@ -23,10 +23,12 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
   onClose: () => void
   tool?: string        // the page it sits in, for the way back (Lead Finder reuses it)
   repliesIn?: string   // where replies show up on that page
+  initialRaw?: string  // people to start with, one "email, name" per line (Lead Finder's LinkedIn search)
+  initialName?: string // and what to call the list
 }) {
   const [step, setStep] = useState(1)
-  const [name, setName] = useState('')
-  const [raw, setRaw] = useState('')
+  const [name, setName] = useState(initialName)
+  const [raw, setRaw] = useState(initialRaw)
   const [reading, setReading] = useState(false)
   const [fileErr, setFileErr] = useState<string | null>(null)
   // How the list is given, like an Email Outreach campaign: one per line, any text (AI picks the

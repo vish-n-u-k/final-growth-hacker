@@ -7,6 +7,7 @@ import { useToast } from '@/components/email-outreach/shared'
 import { DemoSwitch, LiveProgress } from '@/components/tool-ui'
 import { fmtAgo, fmtDate, useAgentApi } from '@/components/agents/shared'
 import OwnListFlow from '@/components/agents/OwnListFlow'
+import LinkedInPanel from './LinkedInPanel'
 import { competitorLabel, firstName, initials, saveReview, step } from '@/components/lead-finder/ui'
 import type { Lead, LeadAgentData, LeadSettings } from '@/lib/agents/store'
 import type { Platform, SavedReview, SavedScan } from '@/lib/lead-finder/saved'
@@ -21,7 +22,7 @@ import { IcpFields } from '@/components/agents/IcpFields'
 // this page only joins the two (components/leads/model.ts).
 
 export interface RivalScan { scan: SavedScan; reviews: SavedReview[] }
-export interface LeadFinderFlags { dataforseo: boolean; trustpilot: boolean; hunter: boolean; hunterOut?: boolean; gmail: boolean; demo: boolean; demoForced: boolean }
+export interface LeadFinderFlags { linkedin?: boolean; dataforseo: boolean; trustpilot: boolean; hunter: boolean; hunterOut?: boolean; gmail: boolean; demo: boolean; demoForced: boolean }
 
 type Panel =
   | { kind: 'item'; key: string }
@@ -96,11 +97,12 @@ function Coin({ s }: { s: Source }) {
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
-export default function LeadFinderHub({ initial, scans: initialScans, competitors, flags }: {
+export default function LeadFinderHub({ initial, scans: initialScans, competitors, flags, brandName = 'your brand' }: {
   initial: LeadAgentData
   scans: RivalScan[]
   competitors: string[]
   flags: LeadFinderFlags
+  brandName?: string
 }) {
   const { data, busy, call, toast: said } = useAgentApi<LeadAgentData>('/api/agents/lead', initial)
   const [toast, notify] = useToast()
@@ -127,6 +129,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
   const [starFilter, setStarFilter] = useState<number | null>(null)
   const [panel, setPanel] = useState<Panel | null>(null)
   const [adding, setAdding] = useState(false)
+  const [seed, setSeed] = useState<{ name: string; raw: string } | null>(null)   // people sent from the LinkedIn search
   const [firstVisit, setFirstVisit] = useState(true)
 
   const sources = useMemo(() => buildSources(data, scans, competitors, extra), [data, scans, competitors, extra])
@@ -139,7 +142,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
   const running = busy === 'run' || busy === 'demo_skip'
 
   // A source that went away (a competitor removed) falls back to All
-  useEffect(() => { if (view !== 'all' && !src(view)) setView('all') }, [view, src])
+  useEffect(() => { if (view !== 'all' && view !== 'linkedin' && !src(view)) setView('all') }, [view, src])
 
   // Nothing found yet: the first visit picks where to look from the brand, then searches
   const auto = useRef(false)
@@ -276,7 +279,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
         <button key={x.id} type="button" className={`lfh-src${x.on ? '' : ' is-off'}${reading[x.id] || (running && x.type !== 'rival' && x.type !== 'own') ? ' is-busy' : ''}`}
           aria-pressed={view === x.id} style={{ ['--lfh-ring' as string]: `${ring}deg` }}
           title={x.type === 'rival' ? 'Competitor. The red part of the ring is their unhappy reviews.' : undefined}
-          onClick={() => { setView(x.id); setStarFilter(null); setAdding(false) }}>
+          onClick={() => { setView(x.id); setStarFilter(null); setAdding(false); setSeed(null) }}>
           <Coin s={x} />
           <span className="lfh-src-t"><b>{x.name}</b><small>{x.type === 'rival' && <span className="lfh-plat-dot">{x.platform === 'shopify' ? 'App Store' : 'Trustpilot'} ·</span>}{sub}</small></span>
         </button>
@@ -284,12 +287,16 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
     }
     return (
       <nav className="lfh-srcs" aria-label="Where leads come from">
-        <button type="button" className="lfh-src" aria-pressed={view === 'all'} onClick={() => { setView('all'); setStarFilter(null); setAdding(false) }}>
+        <button type="button" className="lfh-src" aria-pressed={view === 'all'} onClick={() => { setView('all'); setStarFilter(null); setAdding(false); setSeed(null) }}>
           <span className="lfh-coin"><span className="lfh-coin-face lfh-coin-face--all"><Ic d={P.search} /></span></span>
           <span className="lfh-src-t"><b>All</b><small>{all} to do</small></span>
         </button>
         <span className="lfh-sep" aria-hidden="true" />
         {sources.map(btn)}
+        <button type="button" className="lfh-src" aria-pressed={view === 'linkedin'} onClick={() => { setView('linkedin'); setStarFilter(null); setAdding(false); setSeed(null) }}>
+          <span className="lfh-coin"><span className="lfh-coin-face">in</span></span>
+          <span className="lfh-src-t"><b>LinkedIn</b><small>Search people</small></span>
+        </button>
         <button type="button" className="lfh-addsrc" aria-label="Add a competitor or a city" title="Add a competitor or a city" onClick={() => setPanel({ kind: 'add' })}><Ic d={P.plus} size={20} /></button>
       </nav>
     )
@@ -601,9 +608,13 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
       {sourceRow()}
       {adding ? (
         <div className="lfh-own">
-          <OwnListFlow call={call} busy={busy} gmail={gmail} dailyLimit={s.dailyLimit} followUpDays={s.followUpDays} notify={notify}
-            tool="Lead Finder" repliesIn="Replied" onClose={() => { setAdding(false); setView('own') }} />
+          <OwnListFlow key={seed?.raw ?? 'blank'} call={call} busy={busy} gmail={gmail} dailyLimit={s.dailyLimit} followUpDays={s.followUpDays} notify={notify}
+            tool="Lead Finder" repliesIn="Replied" initialRaw={seed?.raw} initialName={seed?.name}
+            onClose={() => { setAdding(false); setSeed(null); setView('own') }} />
         </div>
+      ) : view === 'linkedin' ? (
+        <LinkedInPanel ready={!!flags.linkedin} brandName={brandName}
+          onAdd={people => { setSeed({ name: 'LinkedIn search', raw: people.map(p => `${p.email}, ${p.name}`).join('\n') }); setAdding(true) }} />
       ) : <>
         {hero()}
         <LiveProgress agent="lead" active={running} fallback={PROGRESS} />
