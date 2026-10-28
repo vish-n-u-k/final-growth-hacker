@@ -65,7 +65,8 @@ export interface Icp {
 
 // own = added by the user from their own list (Email tab, "Add your own emails")
 // company = a website found with DataForSEO ("Companies like your customers")
-export type LeadSource = 'reddit' | 'forum' | 'review' | 'local' | 'company' | 'own'
+// profile = a seller's page on a marketplace or social network (Etsy shop, Instagram…), messaged by hand
+export type LeadSource = 'reddit' | 'forum' | 'review' | 'local' | 'company' | 'own' | 'profile'
 export type LeadStatus =
   | 'ready'          // draft waiting for the user's OK
   | 'needs_contact'  // good fit, no email found
@@ -109,7 +110,8 @@ export interface Lead {
 }
 
 /** A website found but not checked yet. */
-export interface WaitingSite { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string; queryId?: string; visits?: number | null }
+// profile: the platform ("Etsy") when `domain` is a seller page's link ("etsy.com/shop/candleco"), not a website
+export interface WaitingSite { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string; queryId?: string; visits?: number | null; profile?: string }
 
 /**
  * One question the Lead Agent asks DataForSEO for companies, picked with the playbook in

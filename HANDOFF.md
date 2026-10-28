@@ -287,6 +287,16 @@ Why: Frekto's leads stayed e-commerce after the owner asked for SaaS founders wh
 - On or off, `customerBlock` now says the search settings win where they differ from the brand's "Who it's for".
 - The switch is part of `icpKey`, so changing it starts the search afresh (new plan, search words, waiting list).
 
+## 4d-6. Lead Agent: seller pages (Etsy shops, Instagram…) as leads (28 Oct)
+
+- **Why:** many small sellers (Frekto's best buyers) have only an Etsy shop or an Instagram / Facebook / TikTok page. They were thrown away (`NOT_A_SITE`, and the planner added `-site:etsy.com`) because they have no website or email.
+- `web/lib/agents/profiles.ts`: `profileOf(url)` recognises one seller's page (Etsy `/shop/`, Instagram, Facebook page, TikTok `@`, eBay `/str/` `/usr/`, Amazon `/stores/`, YouTube `@`, Substack, Medium `@`, Pinterest) and gives `{ platform, handle, key }`; posts, listings and groups are null. `PLATFORM_GLYPH` for avatars.
+- New `LeadSource 'profile'` ("Seller page"). Google results from the playbook that are seller pages become `WaitingSite { domain: key, profile: platform }`; `checkSites` turns them into candidates without reading the page (those sites block it), scored by `scoreCandidates` from Google's title and text (keep at 6+, like companies). Not size-checked.
+- Drafted as a **DIRECT MESSAGE** (`reply`, under 70 words) in `draftMessages`. They live in the **Community** tab next to Reddit posts: "Write message →", steps Check the message / Send it ("Copy message", "Open their page", "I've sent it", op `posted`). Lead Finder: a "Seller pages" source button; the drawer says "Your message", "Open their {platform} page", "I sent it".
+- Playbook: no more `-site:etsy.com`; it now suggests `site:etsy.com/shop <product>`, `site:instagram.com <product> "shop"`, etc., and at least one such question when the buyers sell on a marketplace or on social media. `googleWithFallback` keeps a positive `site:` in its simpler wordings.
+- Sites on a builder's free address (`name.blogspot.com`, `name.myshopify.com`, `wixsite`, `squarespace`, `weebly`, `webflow.io`, `carrd.co`, `square.site`) now count as the business's own site (`BUILDER_SITE`) instead of being dropped.
+- Not tried against real Google results yet.
+
 ## 4e. Search Agent: better output (27 Oct)
 
 Built from the review in `md_files/SEARCH_AGENT_HOW_IT_WORKS.md` (the report the owner shared).

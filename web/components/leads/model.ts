@@ -41,6 +41,7 @@ export function agentSrc(l: Lead): string {
   if (l.source === 'reddit') return 'reddit'
   if (l.source === 'forum') return 'hn'
   if (l.source === 'own') return 'own'
+  if (l.source === 'profile') return 'pages'
   return 'other'
 }
 
@@ -59,7 +60,8 @@ export function reviewStage(r: SavedReview): Stage | null {
   return r.fit >= GOOD_FIT ? 'todo' : 'nofit'
 }
 
-export const isForum = (l: Lead) => l.source === 'reddit' || l.source === 'forum'
+// Posts and seller pages (Etsy shops, Instagram…): the user posts or sends the message by hand
+export const isForum = (l: Lead) => l.source === 'reddit' || l.source === 'forum' || l.source === 'profile'
 // Businesses by their name, people from your own list by theirs
 export const leadName = (l: Lead) => (isForum(l) ? l.title : l.source === 'own' ? l.name || l.company || l.title : l.company || l.name || l.title)
 
@@ -99,6 +101,7 @@ export function buildSources(data: LeadAgentData, scans: SavedScan[], competitor
   out.push(...[...rivals.values()].sort((a, b) => a.name.localeCompare(b.name)))
   out.push({ id: 'reddit', type: 'forum', name: 'Reddit', glyph: 'r/', hue: 16, on: s.sources.reddit })
   out.push({ id: 'hn', type: 'forum', name: 'Hacker News', glyph: 'Y', hue: 34, on: s.sources.reddit })
+  out.push({ id: 'pages', type: 'forum', name: 'Seller pages', glyph: '@', hue: 280, on: !!s.sources.companies })
   out.push({ id: 'own', type: 'own', name: 'Your list', glyph: '', hue: 145, on: true })
   if (data.leads.some(l => agentSrc(l) === 'other')) out.push({ id: 'other', type: 'other', name: 'Earlier finds', glyph: '·', hue: 220, on: true })
   return out

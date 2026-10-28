@@ -12,7 +12,8 @@ export const PLAYBOOK = `# Finding small businesses with DataForSEO
 
 You pick the questions the Lead Agent asks DataForSEO to find companies that would buy the product.
 Every question costs money, so pick ones that bring back small, real, active businesses of the right
-trade, not lists, marketplaces, blogs or big brands.
+trade, not lists, blogs or big brands. A seller's own page on a marketplace or social network
+(an Etsy shop, an Instagram account) counts as a business; marketplace search and listing pages don't.
 
 ## The three kinds of question
 
@@ -23,7 +24,12 @@ Google only shows live sites, and operators pin down what kind of site comes bac
 - Stores that also sell on Etsy: <product> "shop" "also on etsy"
 - Businesses that take bookings (salons, studios, coaches, clinics): <trade> "book now", or <trade> "book a consultation"
 - Small teams: <trade> "family run" or <trade> "small team" or <trade> "founded by"
-- Leave marketplaces out: add -site:etsy.com -site:amazon.com when the product is sold there a lot
+- Sellers without a website of their own: many small sellers only have an Etsy shop or an Instagram,
+  Facebook or TikTok page. Their pages are kept as leads (messaged by hand), so search them directly:
+  site:etsy.com/shop <product>, site:instagram.com <product> "shop" (or "DM to order"),
+  site:facebook.com <product> "small business", site:tiktok.com <product> "handmade".
+  When the ideal customers sell on a marketplace or mostly on social media, make at least one question
+  of this kind. Don't add -site:etsy.com or -site:instagram.com: those pages are wanted.
 - Never use "best", "top", "review", "vs", "ideas" or "how to": they bring lists and blogs, not businesses.
 - One product or trade per search, the narrower the better ("soy candles", not "home decor").
 - At most 8 words and 2 quoted phrases. Don't add the country: the search already runs in it.
