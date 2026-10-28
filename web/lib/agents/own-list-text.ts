@@ -12,7 +12,7 @@ const FREE = /^(gmail|googlemail|yahoo|ymail|rocketmail|outlook|hotmail|live|msn
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
 
 /** First name and company for an address: the name given in the file, else guessed from the email. */
-export function personFrom(email: string, name?: string): Person {
+export function personFrom(email: string, name?: string, company?: string): Person {
   const e = email.trim().toLowerCase()
   const [local, domain = ''] = e.split('@')
   let first = (name ?? '').trim().split(/\s+/)[0] ?? ''
@@ -21,8 +21,10 @@ export function personFrom(email: string, name?: string): Person {
     const part = local.split(/[._+-]/)[0]
     if (!GENERIC.test(part) && /^[a-z]{2,15}$/.test(part)) first = cap(part)
   }
-  const company = FREE.test(domain) ? '' : domain.split('.')[0].replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-  return { email: e, first: first ? cap(first) : '', company }
+  // A company name that came with the person (from a search or a file) beats the guess from the address
+  const given = (company ?? '').replace(/\s+/g, ' ').trim().slice(0, 60)
+  const guess = FREE.test(domain) ? '' : domain.split('.')[0].replace(/[-_]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  return { email: e, first: first ? cap(first) : '', company: given || guess }
 }
 
 /** {first name} and {company} filled in for one person. With no name, "Hi {first name}," becomes "Hi,". */
@@ -33,13 +35,15 @@ export function fillFor(text: string, p: Pick<Person, 'first' | 'company'>): str
     .replace(/\{company\}/gi, p.company || 'your business')
 }
 
-/** Emails (and a name after them, if any) out of pasted text, one person per line. */
-export function readPasted(text: string): { email: string; name?: string }[] {
-  const out: { email: string; name?: string }[] = []
+/** Emails (a name after them, and a company after a "|", if any) out of pasted text, one person per line. */
+export function readPasted(text: string): { email: string; name?: string; company?: string }[] {
+  const out: { email: string; name?: string; company?: string }[] = []
   for (const line of text.split(/\r?\n/)) {
-    for (const m of line.matchAll(/[\w.+'-]+@[\w-]+(\.[\w-]+)+/g)) {
-      const name = line.replace(m[0], ' ').replace(/[,;<>"()\t|]+/g, ' ').replace(/\S+@\S+/g, ' ').trim()
-      out.push({ email: m[0].toLowerCase(), name: name && !/\./.test(name.split(/\s+/)[0]) ? name.slice(0, 80) : undefined })
+    const [main, ...rest] = line.split('|')
+    const company = rest.join(' ').replace(/\s+/g, ' ').trim().slice(0, 60) || undefined
+    for (const m of main.matchAll(/[\w.+'-]+@[\w-]+(\.[\w-]+)+/g)) {
+      const name = main.replace(m[0], ' ').replace(/[,;<>"()\t]+/g, ' ').replace(/\S+@\S+/g, ' ').trim()
+      out.push({ email: m[0].toLowerCase(), name: name && !/\./.test(name.split(/\s+/)[0]) ? name.slice(0, 80) : undefined, company })
     }
   }
   return out

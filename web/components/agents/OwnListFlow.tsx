@@ -112,7 +112,7 @@ export default function OwnListFlow({ call, busy, gmail, dailyLimit, followUpDay
   async function approve() {
     const r = await call('list_add', {
       name, about, subject, body,
-      people: people.map(p => ({ email: p.email, name: p.first || undefined, text: edits[p.email] })),
+      people: people.map(p => ({ email: p.email, name: p.first || undefined, company: p.company || undefined, text: edits[p.email] })),
     }, 'list_add') as { ok?: boolean } | null
     if (r?.ok) onClose()
   }

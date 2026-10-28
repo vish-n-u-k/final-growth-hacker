@@ -57,7 +57,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
   ready: boolean                                        // APIFY_API_TOKEN is set on the server
   brandName: string
   saved?: SavedLinkedIn | null                          // the last search, kept on the server
-  onAdd: (people: { email: string; name: string }[]) => void
+  onAdd: (people: { email: string; name: string; company: string | null }[]) => void
 }) {
   const f0 = saved?.filters
   const [titles, setTitles] = useState(f0?.titles ?? '')
@@ -290,7 +290,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
               {copied ? 'Copied' : `Copy ${chosen.length} email${chosen.length === 1 ? '' : 's'}`}
             </button>
             <button type="button" className="btn btn-primary" disabled={chosen.length === 0}
-              onClick={() => onAdd(chosen.map(l => ({ email: l.email!, name: l.name })))}>
+              onClick={() => onAdd(chosen.map(l => ({ email: l.email!, name: l.name, company: l.company })))}>
               Add {chosen.length} to Your list
             </button>
           </span>

@@ -15,7 +15,7 @@ import { readLeadData, updateLeadData, type Lead, type LeadAgentData } from './s
 import { EMAIL, MAX_LIST, fillFor, personFrom, type Person, type Skipped } from './own-list-text'
 
 /** Who on the list can be emailed: drops repeats, people already in the Lead Agent, already emailed, or opted out. */
-export async function checkPeople(brandId: string, d: LeadAgentData, raw: { email: string; name?: string }[]): Promise<{ people: Person[]; skipped: Skipped[] }> {
+export async function checkPeople(brandId: string, d: LeadAgentData, raw: { email: string; name?: string; company?: string }[]): Promise<{ people: Person[]; skipped: Skipped[] }> {
   const people: Person[] = [], skipped: Skipped[] = []
   const seen = new Set<string>()
   const inAgent = new Set(d.leads.map(l => l.email?.toLowerCase()).filter(Boolean) as string[])
@@ -40,16 +40,32 @@ export async function checkPeople(brandId: string, d: LeadAgentData, raw: { emai
     else if (inAgent.has(email)) skipped.push({ email, why: 'already in the Lead Agent' })
     else if (emailed.has(email)) skipped.push({ email, why: 'already emailed' })
     else if (people.length >= MAX_LIST) skipped.push({ email, why: `over ${MAX_LIST} people` })
-    else people.push(personFrom(email, typeof r.name === 'string' ? r.name.slice(0, 80) : undefined))
+    else people.push(personFrom(email, typeof r.name === 'string' ? r.name.slice(0, 80) : undefined, typeof r.company === 'string' ? r.company : undefined))
   }
   return { people, skipped }
 }
 
 function templateFor(b: BrandContext, about: string) {
+  const point = about.replace(/\.$/, '').trim()
   return {
-    subject: 'Quick idea for {company}',
-    body: `Hi {first name},\n\n${about.replace(/\.$/, '')}.\n\nI think it could help {company}. Want me to send a few free examples made for you?\n\n${b.name}`,
+    subject: 'A quick idea for {company}',
+    body: `Hi {first name},\n\nI am writing to {company} because ${point.charAt(0).toLowerCase()}${point.slice(1)}.\n\nThat is what ${b.name} does, and I think it could save {company} real time.\n\nWould it be useful if I sent a few free examples made for {company}?\n\nBest,\n${b.name}`,
   }
+}
+
+// Models sometimes return the email as one block. Put the greeting, the points and the sign-off on their own lines.
+export function structured(body: string, brand: string): string {
+  let t = body.replace(/\r/g, '').trim()
+  if (/\n\s*\n/.test(t)) return t.replace(/\n{3,}/g, '\n\n')
+  t = t.replace(/^((?:Hi|Hello|Hey|Dear)\s*\{first name\},?)\s*/i, '$1\n\n')
+  const tail = t.match(new RegExp(`\\s*(?:(?:Best|Thanks|Regards|Cheers|Kind regards|Warmly),?\\s*)?${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'i'))
+  let sign = ''
+  if (tail) { t = t.slice(0, tail.index).trim(); sign = `\n\nBest,\n${brand}` }
+  const [greet, ...rest] = t.split('\n\n')
+  const sentences = (rest.join(' ').match(/[^.!?]+[.!?]+(?:\s|$)/g) ?? [rest.join(' ')]).map(x => x.trim()).filter(Boolean)
+  const paras: string[] = []
+  for (let i = 0; i < sentences.length; i += 2) paras.push(sentences.slice(i, i + 2).join(' '))
+  return [greet, ...paras].join('\n\n') + sign
 }
 
 /** One email for the whole list, written from one line, with {first name} and {company} in it. */
@@ -60,22 +76,29 @@ export async function draftListEmail(brandId: string, about: string): Promise<{ 
   try {
     const raw = await withAIContext({ brandId, moduleType: 'lead-agent', websiteUrl: b.websiteUrl }, () => callAI({
       feature: 'lead-agent',
-      maxTokens: 800,
-      system: 'You write short, personal outreach that gets replies. Plain words, no hype, no buzzwords, no emojis. Return only a raw JSON object.',
+      maxTokens: 900,
+      system: 'You write short, well-structured outreach emails that get replies: a clear opening, one concrete offer, one easy ask. Plain words, no hype, no buzzwords, no emojis. Return only a raw JSON object.',
       prompt: `${brandBlock(b)}
 
 The user is emailing people they already know or chose themselves. All we have for each person is their email address, so write ONE email that works for everyone on the list.
 What the email is about, in the user's words: "${line}"
 
-Write "subject" (3-6 words, lower-key, never clickbait) and "body" (under 90 words).
-- Start with exactly "Hi {first name}," and use {company} once where the company name fits. Write those placeholders exactly like that; they are filled in for each person.
-- Then the point, in one or two short sentences. Then ONE small ask. Sign off with "${b.name}".
-- No em dashes. No links, no opt-out line (added automatically).
+Write "subject" and "body", laid out like a well-made short business email, in these parts, each separated by a blank line (write the line breaks as \\n\\n in the JSON):
+1. "Hi {first name}," on its own line.
+2. Opening, 1-2 sentences: why you are writing to a business like {company}, naming a real problem its kind of business has that this brand solves. Never a compliment about their company, you know nothing about it except the name.
+3. The offer, 1-2 sentences: what ${b.name} does for them, with one concrete capability or result taken from the brand notes above. No vague claims.
+4. One small, easy ask as a question (for example "Would it be useful if I sent two examples made for {company}?").
+5. "Best," on one line, then "${b.name}" on the next line.
+Rules:
+- Use {company} two or three times in total (opening, ask, and the subject if it reads naturally). Write {first name} and {company} exactly like that, with the braces; they are filled in for each person.
+- "subject": 3-6 words, plain, lower-key, never clickbait, e.g. "Social posts for {company}".
+- Under 110 words in the body. Plain words, no buzzwords, no exclamation marks, no emojis, no em dashes. No links and no opt-out line (added automatically).
+- Fix the spelling of what the user typed; use their idea, not their wording.
 
 Return {"subject":"...","body":"..."}`,
     }))
     const x = parseJsonLoose<{ subject?: string; body?: string }>(raw, 'object')
-    if (x?.subject && x.body) return { subject: stripEmDashes(x.subject).slice(0, 200), body: stripEmDashes(x.body).slice(0, 4000) }
+    if (x?.subject && x.body) return { subject: stripEmDashes(x.subject).slice(0, 200), body: structured(stripEmDashes(x.body), b.name).slice(0, 4000) }
   } catch { /* fall back to the plain template below */ }
   return templateFor(b, line)
 }
@@ -86,7 +109,7 @@ Return {"subject":"...","body":"..."}`,
  */
 export async function addOwnList(brandId: string, input: {
   name: string; about?: string; subject: string; body: string
-  people: { email: string; name?: string; text?: string }[]
+  people: { email: string; name?: string; company?: string; text?: string }[]
 }): Promise<{ ok: boolean; message: string }> {
   const b = await loadBrandContext(brandId)
   if (!b) return { ok: false, message: 'Brand not found.' }

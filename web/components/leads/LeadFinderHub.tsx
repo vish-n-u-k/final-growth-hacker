@@ -624,7 +624,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
       {(liSeen || view === 'linkedin') && (
         <div hidden={view !== 'linkedin' || adding}>
           <LinkedInPanel ready={!!flags.linkedin} brandName={brandName} saved={linkedin}
-            onAdd={people => { setSeed({ name: 'LinkedIn search', raw: people.map(p => `${p.email}, ${p.name}`).join('\n') }); setAdding(true) }} />
+            onAdd={people => { setSeed({ name: 'LinkedIn search', raw: people.map(p => `${p.email}, ${p.name}${p.company ? ` | ${p.company}` : ''}`).join('\n') }); setAdding(true) }} />
         </div>
       )}
       {drawer()}
