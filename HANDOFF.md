@@ -239,6 +239,20 @@ One board for every lead source, built from the approved preview `design-preview
 - **"Show 10 more"** under each tab's To do list (op `more`, `runLeadAgent({ more: 'email' | 'community' })`): skips replies and sending, checks the next 10 from the waiting list, or searches the next page / phrase when fewer are waiting, then the usual checks, emails and drafts. It doesn't change "Last search".
 - **"Checked but not kept":** companies that failed a check, and posts or businesses scoring 4-6, go to `data.maybe` (newest first, up to 60) with a plain reason. Shown under the list; **Use anyway** (op `use`, `useMaybe`) makes it a lead (a forum post gets its reply drafted; a business gets an email from its pages or one Hunter lookup, then its email drafted).
 
+## 4d-3. Lead Agent: DataForSEO playbook for companies (28 Oct)
+
+- **Why:** the company search always asked one question ("Shopify sites with these words in their title"), sorted by crawl date, so leads were random.
+- **Playbook** (`web/lib/agents/lead-playbook.ts`, `PLAYBOOK`): tells Claude which DataForSEO questions find small, live businesses. Three kinds (`LeadQuery.kind`):
+  - `google`: a Google search with operators (`"powered by shopify" soy candles`, `inurl:collections …`, `<trade> "book now"`). Each search reads 20 results deeper (up to 100).
+  - `stores`: the old technology index search (trade words + platforms), next page of 50 each time.
+  - `lookalike`: `similarSites` (Labs `competitors_domain`) on a customer site: companies the owner approved, plus business email domains of PostHog paying users (`getPosthogProUsers`, re-read weekly).
+- **Plan and memory** (`data.plan`): 3 active questions. Each search records `page`, `checked`, `kept`, `empty`; approvals and skips per question come from `lead.queryId`. A question is dropped when nothing new came back twice, fewer than 1 in 10 checked was kept (after 12), the owner skipped most of its leads, or a Google search is used up. Claude (Sonnet) then writes different replacements, seeing what worked and what was dropped.
+- **Size check:** `siteVisits` (Labs `bulk_traffic_estimation`, one call per run) estimates visits from Google; over 20,000 a month is dropped, and the number goes to the AI check.
+- **AI check learns from the owner:** `judgeCompanies` gets up to 8 approved and 8 skipped companies (`ownerExamples`). Skips the agent made itself are marked `skippedBy: 'auto'` and don't count.
+- Marketplaces, social networks and big sites are dropped (`NOT_A_SITE`). Spend cap per run: `AGENTS_LEADS_DFS_CAP` (default $0.25). Usage shows "Similar sites" and "Site size (visits)".
+- The old "move off-trade To-do leads to Skipped" only applies to leads found before this (no `queryId`).
+- Not tried with the real API yet: `competitors_domain` and `bulk_traffic_estimation`. Google Jobs and Google Shopping were left out: DataForSEO only offers them as queued tasks, not live calls.
+
 ## 4e. Search Agent: better output (27 Oct)
 
 Built from the review in `md_files/SEARCH_AGENT_HOW_IT_WORKS.md` (the report the owner shared).

@@ -173,7 +173,7 @@ async function post(req: NextRequest) {
         if (body.op === 'skip' && (l.status === 'ready' || l.status === 'needs_contact' || l.status === 'queued')) l.status = 'skipped'
         if (body.op === 'posted' && l.status === 'ready' && l.reply) l.status = 'posted'
         if (body.op === 'handled' && l.status === 'replied') l.handledAt = new Date().toISOString()
-        if (body.op === 'restore' && l.status === 'skipped') l.status = l.reply || (l.email && l.draft) ? 'ready' : 'needs_contact'
+        if (body.op === 'restore' && l.status === 'skipped') { l.status = l.reply || (l.email && l.draft) ? 'ready' : 'needs_contact'; delete l.skippedBy }
         if (body.op === 'restore' && l.status === 'replied') delete l.handledAt
         if (body.op === 'save') {
           if (l.draft && typeof body.subject === 'string' && typeof body.body === 'string') l.draft = { subject: body.subject.slice(0, 200), body: body.body.slice(0, 4000) }
