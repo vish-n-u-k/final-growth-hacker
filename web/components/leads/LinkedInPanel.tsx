@@ -180,7 +180,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
                     <span className="lfh-name">{l.name}</span>
                     <span className="lfh-sub">{[l.title, l.company].filter(Boolean).join(' · ') || 'No title listed'}</span>
                     {l.email && <span className="lfh-sub lfh-li-mail">{l.email}</span>}
-                    {l.social && <span className="lfh-sub lfh-li-soc">{socialLine(l.social)}</span>}
+                    {l.social && <span className="lfh-sub lfh-li-soc" style={{ whiteSpace: 'normal' }}>{socialLine(l.social)}</span>}
                   </span>
                 </button>
                 {l.website && <a className="lfh-li-site" href={l.website} target="_blank" rel="noopener noreferrer" title={`Open ${l.domain}`}>{l.domain} ↗</a>}
@@ -213,7 +213,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
   const link = { background: 'none', border: 0, padding: 0, font: 'inherit', fontSize: 13, color: 'var(--text-dim)', textDecoration: 'underline', cursor: 'pointer' } as const
 
   return <>
-    <section className="lfh-hero lfh-li" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 20, padding: 24 }}>
+    <section className="lfh-hero lfh-li" style={{ flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch', gap: 20, padding: 24, minHeight: 0 }}>
       <div>
         <p className="lfh-bigline">People who could buy from {brandName}</p>
         <div style={{ ...small, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
@@ -274,7 +274,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
     )}
 
     {phase === 'done' && leads.length > 0 && (
-      <section className="lfh-li-res">
+      <section className="lfh-li-res" style={{ gridTemplateColumns: 'minmax(0, 1fr)', minWidth: 0 }}>
         <div className="lfh-li-bar">
           <span className="lfh-meta"><b>{leads.length}</b> people found · {chosen.length} picked{searchedAt && <> · searched {fmtAgo(searchedAt)}. Search again for new people; this list stays until then.</>}</span>
           <span className="lfh-li-bar-r">
@@ -293,15 +293,15 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
         </div>
         {socialError && <div className="ag-note ag-note-crit">{socialError}</div>}
         {toCheck > 0 && checkedCount === 0 && !socialBusy && <div className="lfh-meta">Not checked yet: <button type="button" className="th-link lfh-linklike" onClick={checkSocial}>check their social media</button> before you add them. It groups people by whether they have accounts and whether they still post.</div>}
-        {checkedCount === 0 ? <div className="lfh-li-list">{leads.map(row)}</div> : (
-          <div className="lfh-li-groups">
+        {checkedCount === 0 ? <div className="lfh-li-list" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>{leads.map(row)}</div> : (
+          <div className="lfh-li-groups" style={{ gridTemplateColumns: 'minmax(0, 1fr)', minWidth: 0 }}>
             {[...GROUP_ORDER, 'unchecked' as const].map(g => {
               const list = leads.filter(l => (l.social?.group ?? 'unchecked') === g)
               if (!list.length) return null
               const ids = list.filter(l => l.email).map(l => l.id)
               const allOn = ids.length > 0 && ids.every(id => picked.has(id))
               return (
-                <div key={g} className="lfh-li-group">
+                <div key={g} className="lfh-li-group" style={{ minWidth: 0 }}>
                   <div className="lfh-li-gh" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', margin: '4px 2px 10px' }}>
                     <div style={{ flex: '1 1 260px', minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -312,7 +312,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
                     </div>
                     {ids.length > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => pickGroup(ids, !allOn)}>{allOn ? 'Unpick these' : 'Pick these'}</button>}
                   </div>
-                  <div className="lfh-li-list">{list.map(row)}</div>
+                  <div className="lfh-li-list" style={{ gridTemplateColumns: 'minmax(0, 1fr)' }}>{list.map(row)}</div>
                 </div>
               )
             })}
