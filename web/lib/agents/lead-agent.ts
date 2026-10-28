@@ -271,8 +271,13 @@ async function findReddit(queries: string[], country: string, meter: UsageMeter,
     .catch(e => (plain(q) && plain(q) !== q ? googleResults(`site:reddit.com ${plain(q)}`, country, meter) : Promise.reject(e)))
   const settled = await Promise.allSettled(picks.map(search))
   const results = settled.flatMap(r => (r.status === 'fulfilled' ? [r.value] : []))
-  // Only an error when every search failed (one bad phrase shouldn't flag the whole run)
-  if (!results.length) { const r = settled.find(x => x.status === 'rejected') as PromiseRejectedResult | undefined; if (r) throw r.reason }
+  // Only an error when every search failed (one bad phrase shouldn't flag the whole run). Google not
+  // answering (DfsBusyError) isn't the user's to fix: logged, and the next search uses the next phrase
+  if (!results.length) {
+    const r = settled.find(x => x.status === 'rejected') as PromiseRejectedResult | undefined
+    if (r && r.reason instanceof DfsBusyError) { console.log(`[lead-agent] Reddit: Google didn’t answer “${picks.join('”, “')}”; the next search tries the next phrase`); return [] }
+    if (r) throw r.reason
+  }
   return results.flat()
     .filter(r => /reddit\.com\/r\/[^/]+\/comments\//.test(r.url))
     .map(r => ({

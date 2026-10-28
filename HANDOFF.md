@@ -277,6 +277,7 @@ Why: Frekto's leads stayed e-commerce after the owner asked for SaaS founders wh
 ## 4d-4. Lead Agent: failed company searches (28 Oct)
 
 - DataForSEO's Google returns "Internal SE Server Error" for some operator mixes the playbook plans (e.g. `inurl:product-category "family run" -site:etsy.com`). `googleWithFallback` in `lead-agent.ts` retries such a question without the `inurl:` / `intitle:` / `-site:` parts, then as plain words.
+- **The real cause:** that error comes back as task code **40101**, which `dataforseo.ts` didn't count as busy (only 5xxxx), so nothing retried. `busy()` now includes 40101 (one retry, then the simpler wordings), and **40102** "No Search Results" becomes an empty list (`DfsNoResults`). Reddit: when every phrase gets 40101, it's logged and the run moves on (next phrase next time), with no message on the page.
 - A failed question is logged and counts as an empty try (`q.empty`, so `weak()` replaces it after two). The page only shows "The last search had a problem" when **every** question of the run failed.
 
 ## 4e. Search Agent: better output (27 Oct)

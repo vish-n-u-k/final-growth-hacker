@@ -52,9 +52,14 @@ function charge(meter: UsageMeter | undefined, path: string, cost: number | unde
 interface DfsTask<T> { status_code?: number; status_message?: string; cost?: number; result?: T[] | null }
 interface DfsResponse<T> { status_code?: number; status_message?: string; tasks?: DfsTask<T>[] }
 
-/** DataForSEO's 5xxxx codes ("Internal SE Server Error" etc.): Google or DataForSEO had a hiccup; worth one retry. */
+/**
+ * DataForSEO's 5xxxx codes, and 40101 "Internal SE Server Error" (Google didn't give DataForSEO a
+ * page for that search, often for operator-heavy or very narrow searches): a hiccup, worth one retry.
+ */
 export class DfsBusyError extends Error {}
-const busy = (code: number | undefined) => typeof code === 'number' && code >= 50000
+const busy = (code: number | undefined) => typeof code === 'number' && (code >= 50000 || code === 40101)
+/** 40102 "No Search Results": Google had nothing for that search. Not an error for the caller. */
+export class DfsNoResults extends Error {}
 
 async function post<T>(path: string, task: Record<string, unknown>, meter?: UsageMeter, timeoutMs = 60_000): Promise<T> {
   try {
@@ -96,6 +101,7 @@ async function postOnce<T>(path: string, task: Record<string, unknown>, meter?: 
   if (!t || t.status_code !== 20000) {
     console.error(`[dataforseo] ${path} → task ${t?.status_code}: ${t?.status_message}`)
     if (busy(t?.status_code)) throw new DfsBusyError(`DataForSEO: ${t?.status_message ?? 'no result'}`)
+    if (t?.status_code === 40102) throw new DfsNoResults(`DataForSEO: ${t.status_message ?? 'no search results'}`)
     throw new Error(`DataForSEO: ${t?.status_message ?? 'no result'}`)
   }
   const result = t.result?.[0]
@@ -196,9 +202,13 @@ export async function googleResults(keyword: string, country: string, meter?: Us
   try {
     r = await post<{ items?: Item[] | null }>('/serp/google/organic/live/advanced', task, meter)
   } catch (e) {
+    if (e instanceof DfsNoResults && !opts.recent) return []
     if (!opts.recent) throw e
     delete task.search_param
-    r = await post<{ items?: Item[] | null }>('/serp/google/organic/live/advanced', task, meter)
+    r = await post<{ items?: Item[] | null }>('/serp/google/organic/live/advanced', task, meter).catch(e2 => {
+      if (e2 instanceof DfsNoResults) return { items: [] }
+      throw e2
+    })
   }
   return (r.items ?? [])
     .filter(i => i.type === 'organic' && i.url)
