@@ -37,3 +37,12 @@ export const GROUP_LABEL: Record<SocialGroup, string> = {
 }
 
 export const GROUP_ORDER: SocialGroup[] = ['inactive', 'none', 'active', 'unknown', 'site']
+
+// One line under each group's name, so the groups explain themselves
+export const GROUP_HINT: Record<SocialGroup, string> = {
+  inactive: `They have accounts but have not posted in the last ${INACTIVE_DAYS} days.`,
+  none: 'Their website does not link to any social accounts.',
+  active: `They posted in the last ${INACTIVE_DAYS} days.`,
+  unknown: 'They have accounts, but we can only read post dates on Instagram and Facebook.',
+  site: 'Their website now points to another company or did not load. Unticked for you.',
+}

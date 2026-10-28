@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Spinner } from '@/components/ui/spinner'
 import { fmtAgo } from '@/components/agents/shared'
 import type { SavedLinkedIn } from '@/lib/leads/linkedin-saved'
-import { GROUP_LABEL, GROUP_ORDER, PLATFORM_LABEL, type SocialCheck, type SocialGroup } from '@/lib/leads/social-types'
+import { GROUP_HINT, GROUP_LABEL, GROUP_ORDER, PLATFORM_LABEL, type SocialCheck, type SocialGroup } from '@/lib/leads/social-types'
 import { bars } from './model'
 
 // Lead Finder, LinkedIn source: find the people who could buy, by job title, industry, company size,
@@ -282,10 +282,15 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
               const allOn = ids.length > 0 && ids.every(id => picked.has(id))
               return (
                 <div key={g} className="lfh-li-group">
-                  <div className="lfh-li-gh">
-                    <b>{g === 'unchecked' ? 'Not checked yet' : GROUP_LABEL[g as SocialGroup]}</b>
-                    <span className="lfh-meta">{list.length}</span>
-                    {ids.length > 0 && <button type="button" className="th-link lfh-linklike" onClick={() => pickGroup(ids, !allOn)}>{allOn ? 'Unpick these' : 'Pick these'}</button>}
+                  <div className="lfh-li-gh" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', margin: '4px 2px 10px' }}>
+                    <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <b style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{g === 'unchecked' ? 'Not checked yet' : GROUP_LABEL[g as SocialGroup]}</b>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-dim)', background: 'var(--bg-soft)', borderRadius: 99, padding: '1px 9px' }}>{list.length}</span>
+                      </div>
+                      {g !== 'unchecked' && <div style={{ fontSize: 13, color: 'var(--text-faint)', marginTop: 2 }}>{GROUP_HINT[g as SocialGroup]}</div>}
+                    </div>
+                    {ids.length > 0 && <button type="button" className="btn btn-ghost btn-sm" onClick={() => pickGroup(ids, !allOn)}>{allOn ? 'Unpick these' : 'Pick these'}</button>}
                   </div>
                   <div className="lfh-li-list">{list.map(row)}</div>
                 </div>
