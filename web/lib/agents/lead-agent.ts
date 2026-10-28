@@ -437,9 +437,19 @@ async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData,
   o.searched()
   const seen = new Set([...queued, ...launches].map(x => x.domain))
   const pool: Found[] = [...queued, ...launches]
+  // A failed question is only reported on the page when every question failed (one hiccup isn't
+  // the user's problem); it counts as an empty try, so one that keeps failing is replaced
+  const failures: string[] = []
+  let asked = 0
   for (const q of plan.queries) {
     if (meter.dataforseo >= DFS_CAP) { console.log(`[lead-agent] DataForSEO cap of $${DFS_CAP} reached, “${q.q}” waits for the next search`); break }
-    const rows = await askQuery(q, s.country, meter).catch(e => { warn(`Companies, “${q.q}”: ${e instanceof Error ? e.message : 'failed'}`); return null })
+    asked += 1
+    const rows = await askQuery(q, s.country, meter).catch(e => {
+      console.error(`[lead-agent] ${q.kind} “${q.q}” failed: ${e instanceof Error ? e.message : e}`)
+      failures.push(e instanceof DfsBusyError ? `“${q.q}”: Google didn’t answer (a hiccup on DataForSEO’s side)` : `“${q.q}”: ${e instanceof Error ? e.message : 'failed'}`)
+      q.empty += 1
+      return null
+    })
     if (!rows) continue
     q.page += 1
     const found = rows.filter(x => fresh(x.domain) && !seen.has(x.domain) && !NOT_A_SITE.test(x.domain))
@@ -456,7 +466,8 @@ async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData,
   }
   const small = mix(pool.filter(x => (x.visits ?? 0) <= BIG_VISITS))
   console.log(`[lead-agent] companies: ${pool.length} new sites · ${pool.length - small.length} too big (over ${BIG_VISITS.toLocaleString('en')} visits a month)`)
-  if (!pool.length) warn(`Companies: DataForSEO found no new sites this time (${plan.queries.map(q => `“${q.q}”`).join(', ')}). The weak searches are replaced on the next run.`)
+  if (asked && failures.length === asked) warn(`Companies: every search failed this time (${failures.join('; ')}). It tries again on the next search.`)
+  else if (!pool.length) warn(`Companies: DataForSEO found no new sites this time (${plan.queries.map(q => `“${q.q}”`).join(', ')}). The weak searches are replaced on the next run.`)
   o.rest(small.slice(o.limit))
   return checkSites(small.slice(0, o.limit))
 }
@@ -470,12 +481,31 @@ function mix(list: WaitingSite[]): WaitingSite[] {
   return out
 }
 
+/**
+ * A Google search with operators, made simpler when DataForSEO's Google errors on it ("Internal SE
+ * Server Error" comes back for some operator mixes): first without the inurl: / intitle: / -site: parts,
+ * then as plain words.
+ */
+async function googleWithFallback(q: string, country: string, meter: UsageMeter, depth: number) {
+  const noOps = q.replace(/-?site:\S+/gi, ' ').replace(/\b(inurl|intitle|intext|allinurl|allintitle):\S+/gi, ' ').replace(/\s+/g, ' ').trim()
+  const plain = noOps.replace(/["“”]/g, ' ').replace(/\b(OR|AND)\b/g, ' ').split(/\s+/).filter(Boolean).slice(0, 6).join(' ')
+  const tries = [...new Set([q, noOps, plain])].filter(Boolean)
+  for (let i = 0; ; i++) {
+    try {
+      return await googleResults(tries[i], country, meter, { depth })
+    } catch (e) {
+      if (!(e instanceof DfsBusyError) || i === tries.length - 1) throw e
+      console.log(`[lead-agent] google “${tries[i]}” failed, trying “${tries[i + 1]}”`)
+    }
+  }
+}
+
 /** Asks DataForSEO one question from the plan, for its next page. */
 async function askQuery(q: LeadQuery, country: string, meter: UsageMeter): Promise<WaitingSite[]> {
   if (q.kind === 'google') {
     // Google's live results have no "page 2": each search reads 20 deeper (up to 100), and sites
     // already checked are dropped as known
-    const rows = await googleResults(q.q, country, meter, { depth: Math.min(100, 20 * (q.page + 1)) })
+    const rows = await googleWithFallback(q.q, country, meter, Math.min(100, 20 * (q.page + 1)))
     const byDomain = new Map<string, WaitingSite>()
     for (const r of rows) {
       const domain = domainOf(r.domain || r.url)

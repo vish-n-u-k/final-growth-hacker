@@ -274,6 +274,11 @@ Why: Frekto's leads stayed e-commerce after the owner asked for SaaS founders wh
 - The old "move off-trade To-do leads to Skipped" only applies to leads found before this (no `queryId`).
 - Not tried with the real API yet: `competitors_domain` and `bulk_traffic_estimation`. Google Jobs and Google Shopping were left out: DataForSEO only offers them as queued tasks, not live calls.
 
+## 4d-4. Lead Agent: failed company searches (28 Oct)
+
+- DataForSEO's Google returns "Internal SE Server Error" for some operator mixes the playbook plans (e.g. `inurl:product-category "family run" -site:etsy.com`). `googleWithFallback` in `lead-agent.ts` retries such a question without the `inurl:` / `intitle:` / `-site:` parts, then as plain words.
+- A failed question is logged and counts as an empty try (`q.empty`, so `weak()` replaces it after two). The page only shows "The last search had a problem" when **every** question of the run failed.
+
 ## 4e. Search Agent: better output (27 Oct)
 
 Built from the review in `md_files/SEARCH_AGENT_HOW_IT_WORKS.md` (the report the owner shared).
