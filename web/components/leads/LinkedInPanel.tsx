@@ -94,6 +94,7 @@ export default function LinkedInPanel({ ready, brandName, onAdd }: {
         body: JSON.stringify({ jobTitles: titles, industries, keywords, technologies, countries, sizes, count }),
       })
       const j = await res.json().catch(() => ({})) as { leads?: Lead[]; error?: string; upgrade?: boolean }
+      if (res.status === 401) throw new Error('You have been signed out. Reload the page and sign in again, then search.')
       if (!res.ok) throw new Error(j.upgrade ? 'LinkedIn search is part of GrowJin Pro.' : j.error ?? 'The search did not work. Try again.')
       const found = j.leads ?? []
       setLeads(found)
