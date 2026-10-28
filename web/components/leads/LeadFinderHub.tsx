@@ -646,7 +646,7 @@ function AgentItem({ item, source, settings, gmail, busy, act, notify, left, onS
   const av = forum
     ? <span className="lfh-av lfh-av--lg">{source?.glyph}</span>
     : <span className="lfh-av lfh-av--lg">{initials(item.name).slice(0, 1)}</span>
-  const subLine = forum ? <>{source?.name} · {fmtAgo(l.foundAt)}</> : l.source === 'own' ? 'Your list' : <>{l.website || l.company || 'Google Maps'}{l.url && <a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See it ↗</a>}</>
+  const subLine = forum ? <>{source?.name} · {fmtAgo(l.foundAt)}</> : l.source === 'own' ? 'Your list' : <>{l.website ? <a className="tu-site" href={`https://${l.website.replace(/^https?:\/\//, '')}`} target="_blank" rel="noopener noreferrer">{l.website.replace(/^https?:\/\//, '')}</a> : l.company || 'Google Maps'}{l.url && <a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See it ↗</a>}</>
   const head = <Head av={av} title={forum ? (subreddit(l.url) ? `r/${subreddit(l.url)}` : source?.name) : item.name} sub={subLine} onClose={onClose} />
   const why = l.why && <div className="lfh-why"><Ic d={P.spark} /><span>{l.why}</span></div>
 

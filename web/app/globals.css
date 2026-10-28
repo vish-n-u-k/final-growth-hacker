@@ -9458,3 +9458,7 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .icp-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 4px; }
 .icp-head > span { display: grid; gap: 2px; font-weight: 600; color: var(--text); font-size: 14px; }
 .icp-head small { color: var(--text-faint); font-weight: 400; font-size: 12.5px; }
+
+/* A lead's website in its grey sub line: a link that stays quiet until hovered */
+.tu-site { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.tu-site:hover { color: var(--text); text-decoration-color: currentColor; }

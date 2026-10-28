@@ -227,7 +227,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     return (
       <Card key={l.id} av={isForum(l) ? (l.source === 'reddit' ? 'r/' : 'Y') : initials(nameOf(l))} square={isForum(l)}
         name={nameOf(l)}
-        sub={<><Src label={srcLabel} tone={tone} /><span>{isForum(l) ? where(l) : [l.company !== nameOf(l) ? l.company : null, l.website].filter(Boolean).join(' · ')}</span><span>{l.source === 'own' ? 'added' : 'found'} <Day iso={l.foundAt} /></span></>}
+        sub={<><Src label={srcLabel} tone={tone} /><span>{isForum(l) ? where(l) : <>{l.company && l.company !== nameOf(l) ? `${l.company}${l.website ? ' · ' : ''}` : null}{l.website && <a className="tu-site" href={`https://${l.website.replace(/^https?:\/\//, '')}`} target="_blank" rel="noopener noreferrer">{l.website.replace(/^https?:\/\//, '')}</a>}</>}</span><span>{l.source === 'own' ? 'added' : 'found'} <Day iso={l.foundAt} /></span></>}
         badge={l.source === 'own' ? undefined : <span className="cl-fitb cl-fitb--good">Fit {l.score}/10</span>}
         why={why} quote={quote} state={state}
         onSkip={t === 'needs' && l.status !== 'replied' ? () => skip(l) : undefined}
