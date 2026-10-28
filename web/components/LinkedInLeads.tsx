@@ -14,6 +14,14 @@ interface LinkedInLead {
   domain: string | null
   industry: string | null
   location: string | null
+  fitScore: number | null
+  fitReason: string | null
+}
+
+function fitLabel(score: number) {
+  if (score >= 8) return { label: 'Strong fit', cls: 'lf-fit-high' }
+  if (score >= 6) return { label: 'Good fit', cls: 'lf-fit-mid' }
+  return { label: 'Possible fit', cls: 'lf-fit-low' }
 }
 
 type Status = 'idle' | 'loading' | 'done' | 'error'
@@ -53,7 +61,8 @@ export default function LinkedInLeads({ brandName }: { brandName: string }) {
       if (!res.ok) throw new Error(data.upgrade ? 'LinkedIn lead search is part of GrowJin Pro.' : data.error ?? 'Search failed')
       const found = data.leads ?? []
       setLeads(found)
-      setSelected(new Set(found.filter(l => l.email).map(l => l.id)))
+      // Pre-tick leads with an email that scored well (or weren't scored)
+      setSelected(new Set(found.filter(l => l.email && (l.fitScore === null || l.fitScore >= 6)).map(l => l.id)))
       setStatus('done')
     } catch (e: unknown) {
       setErrorMsg(e instanceof Error ? e.message : 'Something went wrong')
@@ -143,7 +152,7 @@ export default function LinkedInLeads({ brandName }: { brandName: string }) {
 
         <p className="lf-tip">
           Separate several values with commas. We return people matching your filters with a verified work email
-          and their LinkedIn profile, so you can add them to Outreach for {brandName}. Search for roles that buy
+          and their LinkedIn profile. AI scores each one for how likely they are to buy from {brandName}, and the best matches are ticked for Outreach. Search for roles that buy
           what you sell, and only contact people you have a legitimate business reason to reach.
         </p>
       </div>
@@ -198,11 +207,22 @@ export default function LinkedInLeads({ brandName }: { brandName: string }) {
                     </div>
                   </div>
                   <div className="lf-chips">
+                    {lead.fitScore !== null && (
+                      <span className={`lf-fit-badge ${fitLabel(lead.fitScore).cls}`}>
+                        {lead.fitScore}/10 · {fitLabel(lead.fitScore).label}
+                      </span>
+                    )}
                     {lead.email
                       ? <span className="lf-chip lf-chip-email">{lead.email}</span>
                       : <span className="lf-chip lf-chip-none">No email found</span>}
                   </div>
                 </div>
+                {lead.fitReason && (
+                  <div className="lf-fit-reason">
+                    <span className="lf-fit-reason-label">Why</span>
+                    <span>{lead.fitReason}</span>
+                  </div>
+                )}
                 {(lead.industry || lead.location) && (
                   <div className="lf-fit-reason">
                     <span>{[lead.industry, lead.location].filter(Boolean).join(' · ')}</span>
