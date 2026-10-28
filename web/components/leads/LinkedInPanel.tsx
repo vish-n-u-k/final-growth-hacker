@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Spinner } from '@/components/ui/spinner'
+import { fmtAgo } from '@/components/agents/shared'
+import type { SavedLinkedIn } from '@/lib/leads/linkedin-saved'
 import { bars } from './model'
 
 // Lead Finder, LinkedIn source: find the people who could buy, by job title, industry, company size,
@@ -38,27 +40,30 @@ const SIZES = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000']
 const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?'
 const csv = (l: string[]) => l.join(', ')
 
-export default function LinkedInPanel({ ready, brandName, onAdd }: {
+export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }: {
   ready: boolean                                        // APIFY_API_TOKEN is set on the server
   brandName: string
+  saved?: SavedLinkedIn | null                          // the last search, kept on the server
   onAdd: (people: { email: string; name: string }[]) => void
 }) {
-  const [titles, setTitles] = useState('')
-  const [industries, setIndustries] = useState('')
-  const [keywords, setKeywords] = useState('')
-  const [technologies, setTechnologies] = useState('')
-  const [countries, setCountries] = useState('')
-  const [sizes, setSizes] = useState<string[]>([])
-  const [count, setCount] = useState(25)
-  const [why, setWhy] = useState('')
-  const [detect, setDetect] = useState<Detect>('detecting')
+  const f0 = saved?.filters
+  const [titles, setTitles] = useState(f0?.titles ?? '')
+  const [industries, setIndustries] = useState(f0?.industries ?? '')
+  const [keywords, setKeywords] = useState(f0?.keywords ?? '')
+  const [technologies, setTechnologies] = useState(f0?.technologies ?? '')
+  const [countries, setCountries] = useState(f0?.countries ?? '')
+  const [sizes, setSizes] = useState<string[]>(f0?.sizes ?? [])
+  const [count, setCount] = useState(f0?.count ?? 25)
+  const [why, setWhy] = useState(f0?.why ?? '')
+  const [detect, setDetect] = useState<Detect>(f0 ? 'done' : 'detecting')
   const [detectNote, setDetectNote] = useState('')
   const touched = useRef(false)                         // the user typed before the detection finished
 
-  const [phase, setPhase] = useState<Phase>('idle')
+  const [phase, setPhase] = useState<Phase>(saved?.searchedAt ? 'done' : 'idle')
+  const [searchedAt, setSearchedAt] = useState<string | null>(saved?.searchedAt ?? null)
   const [error, setError] = useState('')
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [leads, setLeads] = useState<Lead[]>((saved?.leads as Lead[] | undefined) ?? [])
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(((saved?.leads as Lead[] | undefined) ?? []).filter(l => l.email && !l.emailShared && (l.fitScore === null || l.fitScore >= GOOD)).map(l => l.id)))
   const [open, setOpen] = useState<string | null>(null)
 
   const detectNow = useCallback(async (force: boolean) => {
@@ -79,7 +84,7 @@ export default function LinkedInPanel({ ready, brandName, onAdd }: {
     }
   }, [])
 
-  useEffect(() => { if (ready) detectNow(false); else setDetect('none') }, [ready, detectNow])
+  useEffect(() => { if (!ready) setDetect('none'); else if (!f0) detectNow(false) }, [ready, detectNow]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const edit = (set: (v: string) => void) => (v: string) => { touched.current = true; set(v) }
   const canSearch = ready && !!(titles.trim() || industries.trim() || keywords.trim() || technologies.trim())
@@ -100,6 +105,7 @@ export default function LinkedInPanel({ ready, brandName, onAdd }: {
       setLeads(found)
       // Tick people with their own email who look like buyers (or weren't scored)
       setPicked(new Set(found.filter(l => l.email && !l.emailShared && (l.fitScore === null || l.fitScore >= GOOD)).map(l => l.id)))
+      setSearchedAt(new Date().toISOString())
       setPhase('done')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'The search did not work. Try again.')
@@ -151,7 +157,7 @@ export default function LinkedInPanel({ ready, brandName, onAdd }: {
       </div>
       <div className="lfh-actbox">
         <button type="button" className="lfh-act" disabled={!canSearch || phase === 'running' || detect === 'detecting'} onClick={search}>
-          {phase === 'running' ? <><Spinner />Searching…</> : 'Search LinkedIn'}
+          {phase === 'running' ? <><Spinner />Searching…</> : searchedAt ? 'Search again' : 'Search LinkedIn'}
         </button>
         <label className="lfh-meta">How many
           <select className="lfh-input lfh-li-n" value={count} onChange={e => setCount(Number(e.target.value))} aria-label="How many people">
@@ -170,7 +176,7 @@ export default function LinkedInPanel({ ready, brandName, onAdd }: {
     {phase === 'done' && leads.length > 0 && (
       <section className="lfh-li-res">
         <div className="lfh-li-bar">
-          <span className="lfh-meta"><b>{leads.length}</b> people found · {chosen.length} picked</span>
+          <span className="lfh-meta"><b>{leads.length}</b> people found · {chosen.length} picked{searchedAt && <> · searched {fmtAgo(searchedAt)}. Search again for new people; this list stays until then.</>}</span>
           <span className="lfh-li-bar-r">
             <button type="button" className="btn btn-ghost" disabled={chosen.length === 0} onClick={copyEmails}>
               {copied ? 'Copied' : `Copy ${chosen.length} email${chosen.length === 1 ? '' : 's'}`}

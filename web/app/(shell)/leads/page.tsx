@@ -10,6 +10,7 @@ import { hunterConfigured } from '@/lib/agents/hunter'
 import { leadFallback } from '@/lib/agents/lead-agent'
 import { hunterOutThisMonth, readDemoSwitch, readLeadData } from '@/lib/agents/store'
 import { listScans, loadScanReviews } from '@/lib/lead-finder/saved'
+import { readLinkedIn } from '@/lib/leads/linkedin-saved'
 import LeadFinderHub, { type RivalScan } from '@/components/leads/LeadFinderHub'
 
 export const dynamic = 'force-dynamic'
@@ -29,13 +30,14 @@ async function Leads(brandId: string) {
   const b = await loadBrandContext(brandId)
   if (!b) redirect('/onboarding')
 
-  const [data, [gmail], scans, hunterOut] = await Promise.all([
+  const [data, [gmail], scans, hunterOut, linkedin] = await Promise.all([
     readLeadData(brandId).catch(() => null),
     db.select({ id: brandIntegrations.id }).from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brandId), eq(brandIntegrations.provider, 'gmail'), eq(brandIntegrations.status, 'connected')))
       .limit(1),
     listScans(brandId).catch(() => []),
     hunterOutThisMonth(brandId).catch(() => false),
+    readLinkedIn(brandId),
   ])
   // Every saved scan with its reviews (newest first), so people already emailed or skipped in an
   // earlier read of the same competitor stay that way
@@ -46,6 +48,7 @@ async function Leads(brandId: string) {
       initial={data ?? leadFallback(b)()}
       scans={rivals}
       brandName={b.name}
+      linkedin={linkedin}
       competitors={b.competitors.map(c => c.domain).filter(Boolean).slice(0, 4)}
       flags={{ linkedin: !!process.env.APIFY_API_TOKEN?.trim(), dataforseo: searchDataReady(), trustpilot: dataForSeoConfigured(), hunter: hunterConfigured(), hunterOut, gmail: !!gmail, demo: agentsDemo(), demoForced: demoForced() }}
     />

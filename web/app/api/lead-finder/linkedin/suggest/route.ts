@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { brands } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { suggestFilters } from '@/lib/leads/suggest-filters'
+import { saveLinkedIn } from '@/lib/leads/linkedin-saved'
 
 export const maxDuration = 60
 
@@ -22,6 +23,13 @@ export async function GET() {
   try {
     const filters = await suggestFilters(brand.id)
     if (!filters) return NextResponse.json({ error: 'We could not work out who to look for from your website yet. Fill the search in by hand.' }, { status: 422 })
+    // Saved, so the next visit does not read the website with the AI again
+    await saveLinkedIn(brand.id, {
+      filters: {
+        titles: filters.jobTitles.join(', '), industries: filters.industries.join(', '), keywords: filters.keywords.join(', '),
+        technologies: filters.technologies.join(', '), countries: filters.countries.join(', '), sizes: filters.sizes, count: 25, why: filters.why,
+      },
+    }).catch(e => console.error('[linkedin-suggest] could not save the filters:', e))
     return NextResponse.json({ filters })
   } catch (e) {
     console.error('[linkedin-suggest] failed:', e)

@@ -6,6 +6,7 @@ import { brands } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { searchLeads, DEFAULT_LEADS_PER_SEARCH } from '@/lib/leads/linkedin-leads'
 import { scoreLeads } from '@/lib/leads/fit-score'
+import { readLinkedIn, saveLinkedIn } from '@/lib/leads/linkedin-saved'
 
 export const maxDuration = 180
 
@@ -50,5 +51,17 @@ export async function POST(req: NextRequest) {
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 })
 
   const leads = await scoreLeads(brand.id, result.leads)
+  // Keep the form and the results, so the page shows them again without searching (and paying) again
+  const str = (v: unknown) => (Array.isArray(v) ? v.join(', ') : typeof v === 'string' ? v : '').slice(0, 300)
+  const before = await readLinkedIn(brand.id)
+  await saveLinkedIn(brand.id, {
+    filters: {
+      titles: str(body.jobTitles), industries: str(body.industries), keywords: str(body.keywords),
+      technologies: str(body.technologies), countries: str(body.countries),
+      sizes: sizes.filter(x => /^[0-9+-]+$/.test(x)), count, why: before?.filters?.why ?? '',
+    },
+    leads,
+    searchedAt: new Date().toISOString(),
+  }).catch(e => console.error('[linkedin-leads] could not save the search:', e))
   return NextResponse.json({ leads, total: leads.length })
 }

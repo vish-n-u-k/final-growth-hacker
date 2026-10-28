@@ -8,6 +8,7 @@ import { DemoSwitch, LiveProgress } from '@/components/tool-ui'
 import { fmtAgo, fmtDate, useAgentApi } from '@/components/agents/shared'
 import OwnListFlow from '@/components/agents/OwnListFlow'
 import LinkedInPanel from './LinkedInPanel'
+import type { SavedLinkedIn } from '@/lib/leads/linkedin-saved'
 import { competitorLabel, firstName, initials, saveReview, step } from '@/components/lead-finder/ui'
 import type { Lead, LeadAgentData, LeadSettings } from '@/lib/agents/store'
 import type { Platform, SavedReview, SavedScan } from '@/lib/lead-finder/saved'
@@ -97,12 +98,13 @@ function Coin({ s }: { s: Source }) {
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
-export default function LeadFinderHub({ initial, scans: initialScans, competitors, flags, brandName = 'your brand' }: {
+export default function LeadFinderHub({ initial, scans: initialScans, competitors, flags, brandName = 'your brand', linkedin = null }: {
   initial: LeadAgentData
   scans: RivalScan[]
   competitors: string[]
   flags: LeadFinderFlags
   brandName?: string
+  linkedin?: SavedLinkedIn | null   // the last LinkedIn search (form and results), saved on the server
 }) {
   const { data, busy, call, toast: said } = useAgentApi<LeadAgentData>('/api/agents/lead', initial)
   const [toast, notify] = useToast()
@@ -129,6 +131,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
   const [starFilter, setStarFilter] = useState<number | null>(null)
   const [panel, setPanel] = useState<Panel | null>(null)
   const [adding, setAdding] = useState(false)
+  const [liSeen, setLiSeen] = useState(false)   // the LinkedIn tab has been opened: it stays mounted, so its results aren't lost on switching tabs
   const [seed, setSeed] = useState<{ name: string; raw: string } | null>(null)   // people sent from the LinkedIn search
   const [firstVisit, setFirstVisit] = useState(true)
 
@@ -293,7 +296,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
         </button>
         <span className="lfh-sep" aria-hidden="true" />
         {sources.map(btn)}
-        <button type="button" className="lfh-src" aria-pressed={view === 'linkedin'} onClick={() => { setView('linkedin'); setStarFilter(null); setAdding(false); setSeed(null) }}>
+        <button type="button" className="lfh-src" aria-pressed={view === 'linkedin'} onClick={() => { setView('linkedin'); setLiSeen(true); setStarFilter(null); setAdding(false); setSeed(null) }}>
           <span className="lfh-coin"><span className="lfh-coin-face">in</span></span>
           <span className="lfh-src-t"><b>LinkedIn</b><small>Search people</small></span>
         </button>
@@ -612,15 +615,18 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
             tool="Lead Finder" repliesIn="Replied" initialRaw={seed?.raw} initialName={seed?.name}
             onClose={() => { setAdding(false); setSeed(null); setView('own') }} />
         </div>
-      ) : view === 'linkedin' ? (
-        <LinkedInPanel ready={!!flags.linkedin} brandName={brandName}
-          onAdd={people => { setSeed({ name: 'LinkedIn search', raw: people.map(p => `${p.email}, ${p.name}`).join('\n') }); setAdding(true) }} />
-      ) : <>
+      ) : view === 'linkedin' ? null : <>
         {hero()}
         <LiveProgress agent="lead" active={running} fallback={PROGRESS} />
         {board()}
         {legend()}
       </>}
+      {(liSeen || view === 'linkedin') && (
+        <div hidden={view !== 'linkedin' || adding}>
+          <LinkedInPanel ready={!!flags.linkedin} brandName={brandName} saved={linkedin}
+            onAdd={people => { setSeed({ name: 'LinkedIn search', raw: people.map(p => `${p.email}, ${p.name}`).join('\n') }); setAdding(true) }} />
+        </div>
+      )}
       {drawer()}
       {toast}
     </div>
