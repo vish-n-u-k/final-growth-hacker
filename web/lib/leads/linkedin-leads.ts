@@ -19,6 +19,8 @@ export interface LeadSearchInput {
   sizes: string[]
   technologies: string[]
   count: number
+  extra?: number    // more than `count` are fetched, so people left out later (already contacted) can be replaced
+  offset?: number   // skip this many matches: each search of the same filters moves on to new people
 }
 
 export interface LinkedInLead {
@@ -40,7 +42,7 @@ export interface LinkedInLead {
 }
 
 export type LeadSearchResult =
-  | { ok: true; leads: LinkedInLead[] }
+  | { ok: true; leads: LinkedInLead[]; fetched: number }   // fetched = how many the provider sent (before repeats were dropped)
   | { ok: false; error: string }
 
 // ── Matching what the user typed to the actor's allowed values ───────────────
@@ -193,9 +195,10 @@ export async function searchLeads(input: LeadSearchInput): Promise<LeadSearchRes
   if (!token) return { ok: false, error: 'LinkedIn lead search is not switched on yet.' }
 
   const count = Math.max(1, Math.min(MAX_LEADS_PER_SEARCH, Math.floor(input.count) || DEFAULT_LEADS_PER_SEARCH))
+  const want = count + Math.max(0, Math.min(40, Math.floor(input.extra ?? 0)))
   const f = mapFilters(input)
   const body: Record<string, unknown> = {
-    totalResults: count,
+    totalResults: want,
     emailStatusIncludes: ['verified'],
     // Every filter has to hold, not just one of them (the default is "any", which brings in strangers)
     roleMatchMode: 'all',
@@ -204,6 +207,7 @@ export async function searchLeads(input: LeadSearchInput): Promise<LeadSearchRes
     // A search always starts from the top; saved progress would skip leads already seen by this account
     dontSaveProgress: true,
   }
+  if ((input.offset ?? 0) > 0) body.customOffset = Math.floor(input.offset!)
   if (input.jobTitles.length) body.personTitleIncludes = input.jobTitles
   if (f.industries.length) body.companyIndustryIncludes = f.industries
   if (f.keywords.length) body.companyKeywordIncludes = f.keywords
@@ -214,8 +218,8 @@ export async function searchLeads(input: LeadSearchInput): Promise<LeadSearchRes
 
   try {
     // maxItems / maxTotalChargeUsd cap what Apify can bill for this call
-    const cap = (count * PRICE_PER_LEAD * 1.5 + 0.02).toFixed(3)
-    const url = `https://api.apify.com/v2/acts/${ACTOR}/run-sync-get-dataset-items?maxItems=${count}&maxTotalChargeUsd=${cap}&timeout=150`
+    const cap = (want * PRICE_PER_LEAD * 1.5 + 0.02).toFixed(3)
+    const url = `https://api.apify.com/v2/acts/${ACTOR}/run-sync-get-dataset-items?maxItems=${want}&maxTotalChargeUsd=${cap}&timeout=150`
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -258,7 +262,7 @@ export async function searchLeads(input: LeadSearchInput): Promise<LeadSearchRes
     if (items.length > 0 && leads.length === 0) {
       return { ok: false, error: 'The lead search found people, but we could not read them. Please let support know.' }
     }
-    return { ok: true, leads: leads.slice(0, count) }
+    return { ok: true, leads: leads.slice(0, want), fetched: items.length }
   } catch (e) {
     console.error('[linkedin-leads] request failed:', e)
     const timedOut = e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError')

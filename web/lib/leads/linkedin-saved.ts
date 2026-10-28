@@ -22,11 +22,13 @@ export interface SavedLinkedIn {
   filters: SavedFilters | null
   leads: ScoredLead[]
   searchedAt: string | null
+  cursor?: { key: string; offset: number } | null   // how far into this search's matches we have read, so searching again brings new people
+  hidden?: number                                     // people left out of the last search because they were already contacted
 }
 
 export async function readLinkedIn(brandId: string): Promise<SavedLinkedIn | null> {
   const d = await getSnapshot<SavedLinkedIn>(brandId, LINKEDIN_KEY).catch(() => null)
-  return d ? { filters: d.filters ?? null, leads: d.leads ?? [], searchedAt: d.searchedAt ?? null } : null
+  return d ? { filters: d.filters ?? null, leads: d.leads ?? [], searchedAt: d.searchedAt ?? null, cursor: d.cursor ?? null, hidden: d.hidden ?? 0 } : null
 }
 
 /** Merges the change into the saved document (re-read first, so a detection and a search don't undo each other). */

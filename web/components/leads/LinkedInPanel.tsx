@@ -75,6 +75,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
   const touched = useRef(false)                         // the user typed before the detection finished
 
   const [phase, setPhase] = useState<Phase>(saved?.searchedAt ? 'done' : 'idle')
+  const [hidden, setHidden] = useState(saved?.hidden ?? 0)   // people left out of the last search because they were already contacted
   const [searchedAt, setSearchedAt] = useState<string | null>(saved?.searchedAt ?? null)
   const [error, setError] = useState('')
   const [leads, setLeads] = useState<Lead[]>((saved?.leads as Lead[] | undefined) ?? [])
@@ -113,7 +114,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ why, jobTitles: titles, industries, keywords, technologies, countries, sizes, count }),
       })
-      const j = await res.json().catch(() => ({})) as { leads?: Lead[]; error?: string; upgrade?: boolean }
+      const j = await res.json().catch(() => ({})) as { leads?: Lead[]; error?: string; upgrade?: boolean; hidden?: number }
       if (res.status === 401) throw new Error('You have been signed out. Reload the page and sign in again, then search.')
       if (!res.ok) throw new Error(j.upgrade ? 'LinkedIn search is part of GrowJin Pro.' : j.error ?? 'The search did not work. Try again.')
       const found = j.leads ?? []
@@ -121,6 +122,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
       // Tick people with their own email who look like buyers (or weren't scored)
       setPicked(new Set(found.filter(l => l.email && !l.emailShared && (l.fitScore === null || l.fitScore >= GOOD)).map(l => l.id)))
       setSearchedAt(new Date().toISOString())
+      setHidden(j.hidden ?? 0)
       setPhase('done')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'The search did not work. Try again.')
@@ -270,13 +272,15 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
     {phase === 'running' && <div className="lfh-checking"><Spinner />Finding people and checking who fits. This can take a minute or two…</div>}
     {phase === 'failed' && <div className="ag-note ag-note-crit">{error}</div>}
     {phase === 'done' && leads.length === 0 && (
-      <div className="lfh-empty">Nobody matched with a checked email. Try fewer filters: drop the country or the company size, or use broader job titles.</div>
+      <div className="lfh-empty">{hidden > 0
+        ? `Everyone this search found (${hidden}) has already been contacted or is in your Lead Agent. Search again for the next people.`
+        : 'Nobody matched with a checked email. Try fewer filters: drop the country or the company size, or use broader job titles.'}</div>
     )}
 
     {phase === 'done' && leads.length > 0 && (
       <section className="lfh-li-res" style={{ gridTemplateColumns: 'minmax(0, 1fr)', minWidth: 0 }}>
         <div className="lfh-li-bar">
-          <span className="lfh-meta"><b>{leads.length}</b> people found · {chosen.length} picked{searchedAt && <> · searched {fmtAgo(searchedAt)}. Search again for new people; this list stays until then.</>}</span>
+          <span className="lfh-meta"><b>{leads.length}</b> people found · {chosen.length} picked{searchedAt && <> · searched {fmtAgo(searchedAt)}. Search again for new people; this list stays until then.</>}{hidden > 0 && <> · {hidden} already contacted, left out</>}</span>
           <span className="lfh-li-bar-r">
             <button type="button" className="btn btn-ghost" disabled={socialBusy || toCheck === 0} onClick={checkSocial}
               title="Reads each company's website for social accounts and checks when they last posted on Instagram and Facebook">
