@@ -58,6 +58,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
   const [why, setWhy] = useState(f0?.why ?? '')
   const [detect, setDetect] = useState<Detect>(f0 ? 'done' : 'detecting')
   const [detectNote, setDetectNote] = useState('')
+  const [edited, setEdited] = useState(false)           // the user changed the filled-in values, so the sentence above no longer describes them
   const touched = useRef(false)                         // the user typed before the detection finished
 
   const [phase, setPhase] = useState<Phase>(saved?.searchedAt ? 'done' : 'idle')
@@ -76,7 +77,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
       if (force || !touched.current) {
         const f = j.filters
         setTitles(csv(f.jobTitles)); setExcludeTitles(csv(f.excludeTitles ?? [])); setIndustries(csv(f.industries)); setKeywords(csv(f.keywords))
-        setTechnologies(csv(f.technologies)); setCountries(csv(f.countries)); setSizes(f.sizes); setWhy(f.why)
+        setTechnologies(csv(f.technologies)); setCountries(csv(f.countries)); setSizes(f.sizes); setWhy(f.why); setEdited(false)
       }
       setDetect('done')
     } catch (e) {
@@ -87,7 +88,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
 
   useEffect(() => { if (!ready) setDetect('none'); else if (!f0) detectNow(false) }, [ready, detectNow]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const edit = (set: (v: string) => void) => (v: string) => { touched.current = true; set(v) }
+  const edit = (set: (v: string) => void) => (v: string) => { touched.current = true; setEdited(true); setWhy(''); set(v) }
   const canSearch = ready && !!(titles.trim() || industries.trim() || keywords.trim() || technologies.trim())
 
   async function search() {
@@ -97,7 +98,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
       const res = await fetch('/api/lead-finder/linkedin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobTitles: titles, excludeTitles, industries, keywords, technologies, countries, sizes, count }),
+        body: JSON.stringify({ why, jobTitles: titles, excludeTitles, industries, keywords, technologies, countries, sizes, count }),
       })
       const j = await res.json().catch(() => ({})) as { leads?: Lead[]; error?: string; upgrade?: boolean }
       if (res.status === 401) throw new Error('You have been signed out. Reload the page and sign in again, then search.')
@@ -115,7 +116,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
   }
 
   const toggle = (id: string) => setPicked(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
-  const toggleSize = (s: string) => { touched.current = true; setSizes(prev => (prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])) }
+  const toggleSize = (s: string) => { touched.current = true; setEdited(true); setWhy(''); setSizes(prev => (prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])) }
   const chosen = leads.filter(l => picked.has(l.id) && l.email)
   const [copied, setCopied] = useState(false)
   async function copyEmails() {
@@ -137,7 +138,7 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
         <p className="lfh-bigline">People who could buy from {brandName}</p>
         <div className="lfh-meta">
           {detect === 'detecting' && <><Spinner />Reading what we know about your website to fill this in…</>}
-          {detect === 'done' && <>{why || 'Filled in from your website.'} <button type="button" className="th-link lfh-linklike" onClick={() => detectNow(true)}>Fill in again</button></>}
+          {detect === 'done' && <>{why || (edited ? 'Edited by you.' : 'Filled in from your website.')} <button type="button" className="th-link lfh-linklike" onClick={() => detectNow(true)}>Fill in again</button></>}
           {detect === 'none' && ready && <>{detectNote} <button type="button" className="th-link lfh-linklike" onClick={() => detectNow(true)}>Try again</button></>}
         </div>
         <div className="lfh-li-grid">

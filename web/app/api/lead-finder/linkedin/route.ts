@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     filters: {
       titles: str(body.jobTitles), excludeTitles: str(body.excludeTitles), industries: str(body.industries), keywords: str(body.keywords),
       technologies: str(body.technologies), countries: str(body.countries),
-      sizes: sizes.filter(x => /^[0-9+-]+$/.test(x)), count, why: before?.filters?.why ?? '',
+      sizes: sizes.filter(x => /^[0-9+-]+$/.test(x)), count, why: typeof body.why === 'string' ? body.why.slice(0, 220) : before?.filters?.why ?? '',
     },
     leads,
     searchedAt: new Date().toISOString(),
