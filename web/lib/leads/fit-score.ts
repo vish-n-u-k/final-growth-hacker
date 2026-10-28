@@ -3,10 +3,12 @@ import { brands, brainContext } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { callAI } from '@/lib/ai/client'
 import type { LinkedInLead } from './linkedin-leads'
+import type { SocialCheck } from './social-types'
 
 export interface ScoredLead extends LinkedInLead {
   fitScore: number | null
   fitReason: string | null
+  social?: SocialCheck          // filled in by the social check (api/lead-finder/linkedin/social)
 }
 
 interface ScoreRow { i: number; score: number; reason?: string }

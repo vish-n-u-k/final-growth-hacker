@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Spinner } from '@/components/ui/spinner'
 import { fmtAgo } from '@/components/agents/shared'
 import type { SavedLinkedIn } from '@/lib/leads/linkedin-saved'
+import { GROUP_LABEL, GROUP_ORDER, PLATFORM_LABEL, type SocialCheck, type SocialGroup } from '@/lib/leads/social-types'
 import { bars } from './model'
 
 // Lead Finder, LinkedIn source: find the people who could buy, by job title, industry, company size,
@@ -28,6 +29,7 @@ interface Lead {
   location: string | null
   fitScore: number | null
   fitReason: string | null
+  social?: SocialCheck
 }
 
 interface Suggested { jobTitles: string[]; excludeTitles: string[]; industries: string[]; keywords: string[]; countries: string[]; sizes: string[]; technologies: string[]; why: string }
@@ -39,6 +41,17 @@ const GOOD = 6
 const SIZES = ['1-10', '11-50', '51-200', '201-500', '501-1000', '1001-5000']
 const initials = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?'
 const csv = (l: string[]) => l.join(', ')
+const day = (iso: string) => new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+// One grey line under a lead once the social check has run
+function socialLine(c: SocialCheck): string {
+  if (c.site === 'moved') return `Website now points to ${c.movedTo ?? 'another site'}`
+  if (c.site === 'down') return 'Website did not load'
+  if (!c.accounts.length) return 'No social accounts on their website'
+  const names = c.accounts.map(a => PLATFORM_LABEL[a.platform]).join(' · ')
+  if (c.lastPostAt) return `${names} · last post ${day(c.lastPostAt)}${c.lastPostOn ? ` on ${PLATFORM_LABEL[c.lastPostOn]}` : ''}`
+  return `${names} · ${c.group === 'inactive' ? 'no posts found' : 'activity not checked'}`
+}
 
 export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }: {
   ready: boolean                                        // APIFY_API_TOKEN is set on the server
@@ -119,6 +132,30 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
   const toggleSize = (s: string) => { touched.current = true; setEdited(true); setWhy(''); setSizes(prev => (prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s])) }
   const chosen = leads.filter(l => picked.has(l.id) && l.email)
   const [copied, setCopied] = useState(false)
+  const [socialBusy, setSocialBusy] = useState(false)
+  const [socialError, setSocialError] = useState('')
+  const checkedCount = leads.filter(l => l.social).length
+  const toCheck = leads.filter(l => l.domain && !l.social).length
+
+  // Looks at each lead's website for social accounts and when they last posted (one run for all of them)
+  async function checkSocial() {
+    if (socialBusy) return
+    setSocialBusy(true); setSocialError('')
+    try {
+      const res = await fetch('/api/lead-finder/linkedin/social', { method: 'POST' })
+      if (res.status === 401) throw new Error('You have been signed out. Reload the page and sign in again.')
+      const j = await res.json().catch(() => ({})) as { leads?: Lead[]; error?: string }
+      if (!res.ok || !j.leads) throw new Error(j.error ?? 'The social check did not work. Try again.')
+      setLeads(j.leads)
+      // A website that moved or does not load is not worth writing to: untick it
+      setPicked(prev => { const n = new Set(prev); for (const l of j.leads!) if (l.social?.group === 'site') n.delete(l.id); return n })
+    } catch (e) {
+      setSocialError(e instanceof Error ? e.message : 'The social check did not work. Try again.')
+    } finally {
+      setSocialBusy(false)
+    }
+  }
+  const pickGroup = (ids: string[], on: boolean) => setPicked(prev => { const n = new Set(prev); for (const id of ids) { if (on) n.add(id); else n.delete(id) } return n })
   async function copyEmails() {
     try {
       await navigator.clipboard.writeText(chosen.map(l => `${l.name} <${l.email}>`).join('\n'))
@@ -131,6 +168,46 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
       <input value={value} onChange={e => edit(set)(e.target.value)} onKeyDown={e => e.key === 'Enter' && search()} placeholder={placeholder} disabled={detect === 'detecting'} />
     </label>
   )
+
+  const row = (l: Lead) => {
+    const isOpen = open === l.id
+    return (
+              <div key={l.id} className="lfh-tile lfh-li-row">
+                <input type="checkbox" checked={picked.has(l.id)} disabled={!l.email} onChange={() => toggle(l.id)} aria-label={`Pick ${l.name}`} />
+                <button type="button" className="lfh-li-main" onClick={() => setOpen(isOpen ? null : l.id)} aria-expanded={isOpen}>
+                  <span className="lfh-av lfh-av--round">{initials(l.name)}</span>
+                  <span className="lfh-tile-t">
+                    <span className="lfh-name">{l.name}</span>
+                    <span className="lfh-sub">{[l.title, l.company].filter(Boolean).join(' · ') || 'No title listed'}</span>
+                    {l.email && <span className="lfh-sub lfh-li-mail">{l.email}</span>}
+                    {l.social && <span className="lfh-sub lfh-li-soc">{socialLine(l.social)}</span>}
+                  </span>
+                </button>
+                {l.website && <a className="lfh-li-site" href={l.website} target="_blank" rel="noopener noreferrer" title={`Open ${l.domain}`}>{l.domain} ↗</a>}
+                <span className="lfh-right">
+                  {!l.email && <span className="lfh-meta">No email</span>}
+                  {l.email && l.emailShared && <span className="lfh-meta" title="A shared inbox, not the person's own address">Shared inbox</span>}
+                  {l.fitScore !== null && (
+                    <span className="lfh-fit" title={`Fit ${l.fitScore} of 10`} aria-label={`Fit ${l.fitScore} of 10`}>
+                      {[1, 2, 3, 4].map(i => <i key={i} className={i <= bars(l.fitScore!) ? 'on' : ''} />)}
+                    </span>
+                  )}
+                </span>
+                {isOpen && (
+                  <div className="lfh-li-more">
+                    {l.fitReason && <p><b>Why:</b> {l.fitReason}</p>}
+                    {l.companyDescription && <p>{l.companyDescription}</p>}
+                    <div className="lfh-meta">
+                      {l.companySize && <span>{l.companySize} {l.companySize === 1 ? 'person' : 'people'}</span>}
+                      {[l.industry, l.location].filter(Boolean).length > 0 && <span>{[l.industry, l.location].filter(Boolean).join(' · ')}</span>}
+                      {l.linkedinUrl && <a href={l.linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn ↗</a>}
+                      {l.social?.accounts.map(a => <a key={a.platform} href={a.url} target="_blank" rel="noopener noreferrer">{PLATFORM_LABEL[a.platform]} ↗</a>)}
+                    </div>
+                  </div>
+                )}
+              </div>
+    )
+  }
 
   return <>
     <section className="lfh-hero lfh-li">
@@ -181,6 +258,10 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
         <div className="lfh-li-bar">
           <span className="lfh-meta"><b>{leads.length}</b> people found · {chosen.length} picked{searchedAt && <> · searched {fmtAgo(searchedAt)}. Search again for new people; this list stays until then.</>}</span>
           <span className="lfh-li-bar-r">
+            <button type="button" className="btn btn-ghost" disabled={socialBusy || toCheck === 0} onClick={checkSocial}
+              title="Reads each company's website for social accounts and checks when they last posted on Instagram and Facebook">
+              {socialBusy ? <><Spinner />Checking…</> : toCheck === 0 && checkedCount > 0 ? 'Social media checked' : checkedCount > 0 ? `Check ${toCheck} more` : 'Check social media'}
+            </button>
             <button type="button" className="btn btn-ghost" disabled={chosen.length === 0} onClick={copyEmails}>
               {copied ? 'Copied' : `Copy ${chosen.length} email${chosen.length === 1 ? '' : 's'}`}
             </button>
@@ -190,45 +271,28 @@ export default function LinkedInPanel({ ready, brandName, saved = null, onAdd }:
             </button>
           </span>
         </div>
-        <div className="lfh-li-list">
-          {leads.map(l => {
-            const isOpen = open === l.id
-            return (
-              <div key={l.id} className="lfh-tile lfh-li-row">
-                <input type="checkbox" checked={picked.has(l.id)} disabled={!l.email} onChange={() => toggle(l.id)} aria-label={`Pick ${l.name}`} />
-                <button type="button" className="lfh-li-main" onClick={() => setOpen(isOpen ? null : l.id)} aria-expanded={isOpen}>
-                  <span className="lfh-av lfh-av--round">{initials(l.name)}</span>
-                  <span className="lfh-tile-t">
-                    <span className="lfh-name">{l.name}</span>
-                    <span className="lfh-sub">{[l.title, l.company].filter(Boolean).join(' · ') || 'No title listed'}</span>
-                    {l.email && <span className="lfh-sub lfh-li-mail">{l.email}</span>}
-                  </span>
-                </button>
-                {l.website && <a className="lfh-li-site" href={l.website} target="_blank" rel="noopener noreferrer" title={`Open ${l.domain}`}>{l.domain} ↗</a>}
-                <span className="lfh-right">
-                  {!l.email && <span className="lfh-meta">No email</span>}
-                  {l.email && l.emailShared && <span className="lfh-meta" title="A shared inbox, not the person's own address">Shared inbox</span>}
-                  {l.fitScore !== null && (
-                    <span className="lfh-fit" title={`Fit ${l.fitScore} of 10`} aria-label={`Fit ${l.fitScore} of 10`}>
-                      {[1, 2, 3, 4].map(i => <i key={i} className={i <= bars(l.fitScore!) ? 'on' : ''} />)}
-                    </span>
-                  )}
-                </span>
-                {isOpen && (
-                  <div className="lfh-li-more">
-                    {l.fitReason && <p><b>Why:</b> {l.fitReason}</p>}
-                    {l.companyDescription && <p>{l.companyDescription}</p>}
-                    <div className="lfh-meta">
-                      {l.companySize && <span>{l.companySize} {l.companySize === 1 ? 'person' : 'people'}</span>}
-                      {[l.industry, l.location].filter(Boolean).length > 0 && <span>{[l.industry, l.location].filter(Boolean).join(' · ')}</span>}
-                      {l.linkedinUrl && <a href={l.linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn ↗</a>}
-                    </div>
+        {socialError && <div className="ag-note ag-note-crit">{socialError}</div>}
+        {toCheck > 0 && checkedCount === 0 && !socialBusy && <div className="lfh-meta">Not checked yet: <button type="button" className="th-link lfh-linklike" onClick={checkSocial}>check their social media</button> before you add them. It groups people by whether they have accounts and whether they still post.</div>}
+        {checkedCount === 0 ? <div className="lfh-li-list">{leads.map(row)}</div> : (
+          <div className="lfh-li-groups">
+            {[...GROUP_ORDER, 'unchecked' as const].map(g => {
+              const list = leads.filter(l => (l.social?.group ?? 'unchecked') === g)
+              if (!list.length) return null
+              const ids = list.filter(l => l.email).map(l => l.id)
+              const allOn = ids.length > 0 && ids.every(id => picked.has(id))
+              return (
+                <div key={g} className="lfh-li-group">
+                  <div className="lfh-li-gh">
+                    <b>{g === 'unchecked' ? 'Not checked yet' : GROUP_LABEL[g as SocialGroup]}</b>
+                    <span className="lfh-meta">{list.length}</span>
+                    {ids.length > 0 && <button type="button" className="th-link lfh-linklike" onClick={() => pickGroup(ids, !allOn)}>{allOn ? 'Unpick these' : 'Pick these'}</button>}
                   </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+                  <div className="lfh-li-list">{list.map(row)}</div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </section>
     )}
   </>
