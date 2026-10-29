@@ -9518,3 +9518,72 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .lfx-li-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
 .lfx-li-grid label { display: grid; gap: 4px; font-size: 12.5px; color: var(--text-dim); }
 @media (max-width: 640px) { .lfx-li-grid { grid-template-columns: 1fr; } .tu-grid .lfx-li { margin-left: 0; } }
+
+/* Lead Finder page (components/leads/LeadFinderPage.tsx), from the approved preview lead-finder-unified.html:
+   a quiet top line, one "Start here" panel (the only green panel), then the Lead Agent's cards. */
+.lfp-crumbs { font-size: 13px; color: var(--text-faint); margin-bottom: 14px; }
+.lfp-title { margin: 0; font: 600 32px/1.15 var(--font-display); letter-spacing: -.01em; text-wrap: balance; }
+.lfp-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin: 8px 0 18px; font-size: 14px; color: var(--text-faint); }
+.lfp-link { border: 0; background: none; padding: 0; font: inherit; color: var(--text-dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; }
+.lfp-link:hover:not(:disabled) { color: var(--text); text-decoration-color: currentColor; }
+.lfp-link:disabled { opacity: .5; cursor: default; }
+.lfp-back { display: inline-block; margin-bottom: 18px; font-size: 14px; }
+.lfp .ag-note { margin-bottom: 12px; }
+.lfp .tu-tabs { margin-top: 6px; }
+.lfp-replied { display: flex; align-items: center; gap: 12px; width: 100%; margin: 0 0 12px; padding: 12px 16px; border: 0; border-radius: 12px; background: var(--crit-soft); color: var(--text); text-align: left; font: inherit; font-size: 14.5px; cursor: pointer; }
+.lfp-replied b { font-weight: 600; }
+.lfp-replied span span { color: var(--text-dim); }
+.lfp-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--crit); }
+.lfp-next { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 20px 22px; border-radius: 14px; background: var(--accent); }
+.lfp-next-text { flex: 1 1 260px; min-width: 0; }
+.lfp-next-text b { display: block; font-size: 17px; font-weight: 600; color: var(--text); }
+.lfp-next-text span { font-size: 14px; color: var(--text-dim); }
+.lfp-rest { margin-top: 24px; display: grid; gap: 12px; }
+.lfp-rest-h { margin: 0; font-size: 13px; color: var(--text-faint); }
+.lfp-more { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 20px; font-size: 14px; }
+.lfp-empty { padding: 34px 22px; border-radius: 14px; background: var(--bg-soft); text-align: center; }
+.lfp-empty b { display: block; font-size: 17px; margin-bottom: 4px; }
+.lfp-empty p { margin: 0 auto 16px; max-width: 52ch; color: var(--text-dim); }
+.lfp-open { display: grid; grid-template-columns: minmax(0, 290px) minmax(0, 1fr); gap: 32px; align-items: start; }
+.lfp-who h2 { margin: 0 0 2px; font: 600 22px/1.25 var(--font-display); }
+.lfp-role { font-size: 14px; color: var(--text-dim); }
+.lfp-role a { color: inherit; }
+.lfp-why { margin: 14px 0 0; font-size: 14.5px; }
+.lfp-quote { margin: 12px 0 0; padding: 10px 12px; border-left: 2px solid var(--line); color: var(--text-dim); font-size: 14px; }
+.lfp-quote--reply { margin: 0 0 16px; border-left-color: var(--crit); background: var(--crit-soft); color: var(--text); border-radius: 0 10px 10px 0; }
+.lfp-fit { margin-top: 12px; font-size: 13px; color: var(--text-faint); }
+.lfp-step-of { font-size: 13px; color: var(--text-faint); margin-bottom: 6px; }
+.lfp-step h3 { margin: 0 0 6px; font: 600 24px/1.25 var(--font-display); }
+.lfp-hint { margin: 0 0 18px; font-size: 14px; color: var(--text-dim); }
+.lfp-mail { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--card); }
+.lfp-mail label { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 14px; border-bottom: 1px solid var(--line); font-size: 14px; }
+.lfp-mail label span { width: 56px; flex: none; color: var(--text-faint); }
+.lfp-mail input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font: inherit; font-size: 14.5px; color: var(--text); }
+.lfp-mail textarea { display: block; width: 100%; min-height: 200px; padding: 14px; border: 0; background: none; resize: vertical; outline: none; font: inherit; font-size: 14.5px; line-height: 1.65; color: var(--text); }
+form.lfp-mail .lfp-acts { padding: 0 14px 14px; }
+.lfp-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; }
+.lfp-acts .lfp-main { margin-left: auto; }
+.lfp-acts--center { justify-content: center; }
+.lfp-note { margin: 10px 0 0; font-size: 13px; color: var(--text-faint); }
+.lfp-rows { margin-top: 12px; }
+.lfp-row { display: flex; align-items: center; gap: 14px; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+.lfp-row-main { flex: 1; min-width: 0; display: grid; }
+.lfp-row-main b { font-weight: 600; }
+.lfp-row-main b a { color: inherit; }
+.lfp-row-main span { font-size: 14px; color: var(--text-dim); }
+.lfp-row-src { font-size: 13px; color: var(--text-faint); white-space: nowrap; }
+.lfp-srcs { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 6px; }
+.lfp-srcs span { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; font-size: 13.5px; color: var(--text-dim); }
+.lfp-srcs small, .lfp-funnel small { color: var(--text-faint); font-weight: 400; }
+.lfp-into { margin: 4px 0 12px 18px; font-size: 13px; color: var(--text-faint); }
+.lfp-funnel { margin: 0; padding: 0; list-style: none; counter-reset: s; }
+.lfp-funnel > li { counter-increment: s; position: relative; padding: 16px 0 16px 46px; border-top: 1px solid var(--line); }
+.lfp-funnel > li::before { content: counter(s); position: absolute; left: 0; top: 16px; width: 28px; height: 28px; border-radius: 50%; background: var(--bg-soft); color: var(--text-dim); display: grid; place-items: center; font-weight: 600; font-size: 13.5px; }
+.lfp-funnel h4 { margin: 2px 0 4px; font-size: 15.5px; }
+.lfp-funnel p { margin: 0; max-width: 64ch; font-size: 14px; color: var(--text-dim); }
+.lfp-funnel ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 3px; font-size: 14px; color: var(--text-dim); }
+@media (max-width: 760px) {
+  .lfp-open { grid-template-columns: 1fr; gap: 22px; }
+  .lfp-acts .lfp-main { margin-left: 0; }
+  .lfp-row { flex-wrap: wrap; }
+}
