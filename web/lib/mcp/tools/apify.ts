@@ -18,7 +18,9 @@ interface ActorConf {
   listField?: string                // a URL list cut to `limit` (for actors with no max-results field)
   listOf?: 'strings' | 'urls'       // how that actor wants list items: plain strings or { url }
   defaults?: Input                  // set when the caller leaves them out
-  capUsd: number                    // most one run may charge (Apify's maxTotalChargeUsd)
+  priceUsd: number                  // the actor's listed price per result
+  capUsd: number                    // most one run may ever charge, whatever the limit
+  minMaxItems?: number              // some actors refuse a smaller max-results field / maxItems; the answer still has `limit` items
 }
 interface Alias extends ActorConf {
   fallback?: ActorConf & { input: (primary: Input, limit: number) => Input; note?: string }
@@ -26,26 +28,29 @@ interface Alias extends ActorConf {
 }
 
 // Field names come from each actor's input schema (GET /v2/actor-builds/{build} → inputSchema).
-// capUsd is the default cost cap per run, sized for limit 50 at the actor's listed price;
-// MCP_APIFY_CAP_<ALIAS> (e.g. MCP_APIFY_CAP_META_ADS=0.05) overrides it.
-const B2B: Alias = { id: B2B_ACTOR, maxField: 'totalResults', capUsd: 0.2 }
+// A run's cost cap (Apify's maxTotalChargeUsd) is the price of `limit` results plus a margin, never
+// above capUsd (sized for limit 50); MCP_APIFY_CAP_<ALIAS> (e.g. MCP_APIFY_CAP_META_ADS=0.05) overrides capUsd.
+// A cap above what's left of the account's monthly usage makes Apify refuse the run (402).
+const B2B: Alias = { id: B2B_ACTOR, maxField: 'totalResults', priceUsd: 0.002, capUsd: 0.2 }
 const ALIASES: Record<string, Alias> = {
   b2b_database: B2B,
   linkedin: { ...B2B, deprecated: 'The "linkedin" alias is now "b2b_database" and will be removed.' },
-  instagram: { id: ACTOR_IG, maxField: 'resultsLimit', capUsd: 0.65 },
-  facebook: { id: ACTOR_FB, maxField: 'resultsLimit', capUsd: 0.5 },
+  instagram: { id: ACTOR_IG, maxField: 'resultsLimit', priceUsd: 0.012, capUsd: 0.65 },
+  facebook: { id: ACTOR_FB, maxField: 'resultsLimit', priceUsd: 0.01, capUsd: 0.5 },
   // $0.008 a company
-  linkedin_company: { id: 'dev_fusion~Linkedin-Company-Scraper', listField: 'profileUrls', listOf: 'strings', capUsd: 0.45 },
+  linkedin_company: { id: 'dev_fusion~Linkedin-Company-Scraper', listField: 'profileUrls', listOf: 'strings', priceUsd: 0.008, capUsd: 0.45 },
   // $0.0075 a profile; reads Google results, never logs into LinkedIn
   linkedin_people: {
-    id: 'themineworks~linkedin-employees', maxField: 'maxResults', capUsd: 0.4,
+    id: 'themineworks~linkedin-employees', maxField: 'maxResults', priceUsd: 0.0075, capUsd: 0.4,
     defaults: { proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ['GOOGLE_SERP'] } },
   },
-  // $0.00075 an ad; the fallback is $0.0058 an ad and takes startUrls / resultsLimit / activeStatus
+  // $0.00075 an ad. It refuses a `count` under 10 ("Maximum charged results… at least 10"), so it's
+  // asked for 10 and the answer is cut to `limit`.
+  // The fallback is $0.0058 an ad and takes startUrls / resultsLimit / activeStatus.
   meta_ads: {
-    id: 'curious_coder~facebook-ads-library-scraper', maxField: 'count', listField: 'urls', listOf: 'urls', capUsd: 0.1,
+    id: 'curious_coder~facebook-ads-library-scraper', maxField: 'count', listField: 'urls', listOf: 'urls', priceUsd: 0.00075, capUsd: 0.1, minMaxItems: 10,
     fallback: {
-      id: 'apify~facebook-ads-scraper', maxField: 'resultsLimit', listField: 'startUrls', listOf: 'urls', capUsd: 0.3,
+      id: 'apify~facebook-ads-scraper', maxField: 'resultsLimit', listField: 'startUrls', listOf: 'urls', priceUsd: 0.0058, capUsd: 0.3,
       input: (p) => {
         const active = p['scrapePageAds.activeStatus']
         return { startUrls: p.urls ?? p.startUrls, ...(active === 'active' || active === 'inactive' ? { activeStatus: active } : {}) }
@@ -55,12 +60,16 @@ const ALIASES: Record<string, Alias> = {
   // $0.0018 a product (+ $0.0018 when it has a public email). The fallback is $0.011 a launch and
   // reads daily leaderboards only (startDate / endDate, or leaderboard URLs); getDetails adds makers, hunters and websites.
   producthunt: {
-    id: 'maximedupre~product-hunt-scraper', maxField: 'maxNbItemsToScrape', capUsd: 0.2, defaults: { target: 'daily' },
+    // Emails are what the leads need, so they're looked for unless the caller turns them off
+    id: 'maximedupre~product-hunt-scraper', maxField: 'maxNbItemsToScrape', priceUsd: 0.0036, capUsd: 0.2,
+    defaults: { target: 'daily', shouldCollectProductDetailsAndEmails: true },
     fallback: {
-      id: 'runtime~producthunt-scraper', maxField: 'maxResults', capUsd: 0.6,
+      id: 'runtime~producthunt-scraper', maxField: 'maxResults', priceUsd: 0.011, capUsd: 0.6,
       input: (p) => {
         const urls = Array.isArray(p.productHuntPageUrls)
-          ? p.productHuntPageUrls.map(u => (typeof u === 'string' ? u : (u as { url?: unknown })?.url)).filter((u): u is string => typeof u === 'string' && u.startsWith('http'))
+          ? p.productHuntPageUrls.map(u => (typeof u === 'string' ? u : (u as { url?: unknown })?.url)).filter((u): u is string => typeof u === 'string' && !!u.trim())
+            // A product slug becomes its page
+            .map(u => (/^https?:\/\//.test(u) ? u : `https://www.producthunt.com/products/${u.trim()}`))
           : []
         const day = typeof p.startDate === 'string' ? p.startDate : null
         return {
@@ -74,15 +83,20 @@ const ALIASES: Record<string, Alias> = {
   },
 }
 const OTHER_CAP_USD = 0.5   // actors called by ID; MCP_APIFY_CAP_DEFAULT overrides
+// Wait for the run this long: with the dataset read after it, the answer must beat the MCP client's 60 s timeout
+const WAIT_SECS = 45
 
-function capFor(alias: string | null, conf: ActorConf, isFallback = false): number {
+function capFor(alias: string | null, conf: ActorConf | null, limit: number, isFallback = false): number {
   const env = process.env[`MCP_APIFY_CAP_${(alias ?? 'DEFAULT').toUpperCase()}${isFallback ? '_FALLBACK' : ''}`]
   const n = Number(env)
-  return env && Number.isFinite(n) && n > 0 ? n : alias ? conf.capUsd : OTHER_CAP_USD
+  const ceiling = env && Number.isFinite(n) && n > 0 ? n : conf ? conf.capUsd : OTHER_CAP_USD
+  if (!conf) return ceiling
+  return Math.min(ceiling, Math.round((conf.priceUsd * limit * 1.5 + 0.02) * 1000) / 1000)
 }
 
 /** The caller's input with our defaults, the URL list in the actor's form and cut to `limit`, and the max-results field set. */
 function inputFor(conf: ActorConf, given: Input, limit: number): Input {
+  const max = Math.max(limit, conf.minMaxItems ?? 0)
   const input: Input = { ...conf.defaults, ...given }
   if (conf.listField && Array.isArray(input[conf.listField])) {
     input[conf.listField] = (input[conf.listField] as unknown[]).slice(0, limit).map(v => {
@@ -91,7 +105,7 @@ function inputFor(conf: ActorConf, given: Input, limit: number): Input {
       return conf.listOf === 'strings' ? url : { ...(typeof v === 'object' ? v : {}), url }
     })
   }
-  if (conf.maxField) input[conf.maxField] = limit
+  if (conf.maxField) input[conf.maxField] = max
   return input
 }
 
@@ -143,8 +157,9 @@ async function answer(run: Run, limit: number) {
     if (!run.defaultDatasetId) return { ...base, total: 0, items: [] }
     const items = await call<unknown[]>(`/datasets/${run.defaultDatasetId}/items?clean=1&limit=${limit}`)
     if (!items.ok) return { ...base, error: items.error }
-    const total = Number(items.headers.get('x-apify-pagination-total'))
-    return { ...base, total: Number.isFinite(total) ? total : items.data.length, items: items.data }
+    const header = items.headers.get('x-apify-pagination-total')
+    const total = header === null ? NaN : Number(header)
+    return { ...base, total: Number.isFinite(total) ? total : items.data.length, items: items.data.slice(0, limit) }
   }
   if (FAILED.includes(status)) {
     return { ...base, error: `Apify run ${status}${run.statusMessage ? `: ${run.statusMessage}` : ''}` }
@@ -153,9 +168,9 @@ async function answer(run: Run, limit: number) {
 }
 
 /** Starts one actor run (waiting up to 60 s) and records it for the brand. */
-async function start(brandId: string, actor: string, input: Input, limit: number, capUsd: number, rec: Partial<RunRecord> = {}) {
+async function start(brandId: string, actor: string, input: Input, limit: number, capUsd: number, rec: Partial<RunRecord> = {}, minMaxItems = 0) {
   // maxItems / maxTotalChargeUsd cap what the run can return and bill, whatever its input says
-  const q = `waitForFinish=60&maxItems=${limit}&maxTotalChargeUsd=${capUsd.toFixed(3)}`
+  const q = `waitForFinish=${WAIT_SECS}&maxItems=${Math.max(limit, minMaxItems)}&maxTotalChargeUsd=${capUsd.toFixed(3)}`
   const r = await call<{ data: Run }>(`/acts/${encodeURIComponent(actor)}/runs?${q}`, { method: 'POST', body: JSON.stringify(input) })
   if (!r.ok) return r
   const run = r.data.data
@@ -167,10 +182,10 @@ async function start(brandId: string, actor: string, input: Input, limit: number
 /** After the primary actor of `alias` failed: the same request on its fallback actor, or the primary's error. */
 async function tryFallback(brandId: string, name: string, alias: Alias, primary: { actor: string; input: Input; error: string }, limit: number) {
   const fb = alias.fallback!
-  const cap = capFor(name, fb, true)
+  const cap = capFor(name, fb, limit, true)
   const input = inputFor(fb, fb.input(primary.input, limit), limit)
   console.log(`[mcp-apify] ${name}: ${primary.actor} failed (${primary.error}); trying ${fb.id}`)
-  const r = await start(brandId, fb.id, input, limit, cap, { alias: name, fellBack: true })
+  const r = await start(brandId, fb.id, input, limit, cap, { alias: name, fellBack: true }, fb.minMaxItems)
   const failedFrom = { actor: primary.actor, error: primary.error }
   if (!r.ok) {
     // The fallback could not start either: the primary's error is the answer
@@ -186,7 +201,7 @@ export async function apify(brandId: string, args: { actor?: unknown; input?: un
   if (runId) {
     const mine = (await getSnapshot<RunsDoc>(brandId, RUNS_KEY))?.runs?.find(r => r.id === runId)
     if (!mine) return { error: `No Apify run ${runId} was started for this brand.` }
-    const r = await call<{ data: Run }>(`/actor-runs/${encodeURIComponent(runId)}?waitForFinish=50`)
+    const r = await call<{ data: Run }>(`/actor-runs/${encodeURIComponent(runId)}?waitForFinish=${WAIT_SECS}`)
     if (!r.ok) return { error: r.error }
     const limit = capLimit(args.limit ?? mine.limit)
     const alias = mine.alias ? ALIASES[mine.alias] : undefined
@@ -220,10 +235,10 @@ export async function apify(brandId: string, args: { actor?: unknown; input?: un
   const limit = capLimit(args.limit)
   const given = (args.input ?? {}) as Input
   const input = alias ? inputFor(alias, given, limit) : { ...given }
-  const cap = capFor(alias ? key : null, alias ?? { id: actor, capUsd: OTHER_CAP_USD })
+  const cap = capFor(alias ? key : null, alias ?? null, limit)
   const head = { ...(alias ? { alias: key } : {}), ...(alias?.deprecated ? { deprecated: alias.deprecated } : {}) }
 
-  const r = await start(brandId, actor, input, limit, cap, alias ? { alias: key, input: alias.fallback ? given : undefined } : {})
+  const r = await start(brandId, actor, input, limit, cap, alias ? { alias: key, input: alias.fallback ? given : undefined } : {}, alias?.minMaxItems)
   if (!r.ok) {
     if (alias?.fallback) return { ...head, ...(await tryFallback(brandId, key, alias, { actor, input: given, error: r.error }, limit)) }
     return { ...head, error: r.error }

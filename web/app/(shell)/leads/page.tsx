@@ -9,14 +9,14 @@ import { agentsDemo, demoForced, withDemo } from '@/lib/agents/demo'
 import { hunterConfigured } from '@/lib/agents/hunter'
 import { leadFallback, quietSocialOf } from '@/lib/agents/lead-agent'
 import { hunterOutThisMonth, readDemoSwitch, readLeadData } from '@/lib/agents/store'
-import LeadAgentPage from '@/components/agents/LeadAgentPage'
+import LeadFinderPage from '@/components/leads/LeadFinderPage'
 
 export const dynamic = 'force-dynamic'
 
 // Lead Finder: every source (websites, Google Maps, LinkedIn people, competitors' unhappy reviewers,
 // Reddit and Hacker News) goes through the Lead Agent's one funnel, so every lead is checked, filled in
-// and contacted the same way. Two tabs: "Contact directly" and "Join conversations". Same page as the
-// Lead Agent (components/agents/LeadAgentPage.tsx, variant "finder"), same data.
+// and contacted the same way. Two tabs: "Contact directly" and "Join conversations". Same data as the
+// Lead Agent; the page is components/leads/LeadFinderPage.tsx.
 // Shown with the brand's demo-mode switch applied (lib/agents/demo.ts).
 export default async function LeadsRoute() {
   const user = await getSessionUser()
@@ -40,8 +40,7 @@ async function Leads(brandId: string) {
   const initial = data ?? leadFallback(b)()
 
   return (
-    <LeadAgentPage
-      variant="finder"
+    <LeadFinderPage
       initial={initial}
       competitors={b.competitors.map(c => c.domain).filter(Boolean).slice(0, 4)}
       flags={{

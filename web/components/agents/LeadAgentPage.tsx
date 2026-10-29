@@ -25,7 +25,7 @@ export interface LeadAgentFlags { dataforseo: boolean; hunter: boolean; hunterOu
 // seller pages) and "Join conversations" (Reddit and Hacker News), and more sources in Settings.
 export type LeadPageVariant = 'agent' | 'finder'
 
-type TabKey = 'needs' | 'waiting' | 'done'
+export type TabKey = 'needs' | 'waiting' | 'done'
 type Lane = 'community' | 'email'
 type Section = 'replied' | 'approve' | 'post'
 
@@ -35,11 +35,11 @@ const SOURCE: Record<Lead['source'], [string, 'orange' | 'amber' | undefined]> =
   review: ['Competitor review', undefined], local: ['Google Maps', 'amber'], company: ['Company like your customers', undefined], reddit: ['Reddit', 'orange'], forum: ['Hacker News', 'orange'], own: ['Your list', undefined], profile: ['Seller page', undefined], linkedin: ['LinkedIn', undefined],
 }
 // Lead Finder: where it came from is a grey word, not a coloured pill
-const FINDER_SOURCE: Record<Lead['source'], string> = {
+export const FINDER_SOURCE: Record<Lead['source'], string> = {
   review: 'from a competitor review', local: 'from Google Maps', company: 'from Google', reddit: 'from Reddit', forum: 'from Hacker News', own: 'from your list', profile: 'from a seller page', linkedin: 'from LinkedIn',
 }
 const PROGRESS = ['Searching Google Maps', 'Finding companies like your customers', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Finding emails']
-const FINDER_PROGRESS = ['Finding companies like your customers', 'Searching LinkedIn', 'Reading competitor reviews', 'Checking who’s a good fit', 'Checking social accounts', 'Finding emails']
+export const FINDER_PROGRESS = ['Finding companies like your customers', 'Searching LinkedIn', 'Reading competitor reviews', 'Checking who’s a good fit', 'Checking social accounts', 'Finding emails']
 
 /** The sources that are on, each with who it looks for (the first-visit card and the line above the list). */
 function sourcesOn(s: LeadSettings): { name: string; who: string }[] {
@@ -77,29 +77,29 @@ function PickCard({ s, picking, onStart, onChange, onOwn }: { s: LeadSettings; p
 
 // Posts and seller pages: the user posts the reply or sends the message by hand (Community tab).
 // A business with no email anywhere but an Instagram or Facebook page gets a message there too.
-const isPost = (l: Lead) => l.source === 'reddit' || l.source === 'forum'
-const isPage = (l: Lead) => l.source === 'profile' || (!l.email && !!l.dm)
-const isForum = (l: Lead) => isPost(l) || isPage(l)
-const pageUrl = (l: Lead) => (l.source !== 'profile' && l.dm ? l.dm.url : l.url)
-const pageName = (l: Lead) => (l.source !== 'profile' && l.dm ? l.dm.platform : platformOf(l.url))
-const avOf = (l: Lead) => (l.source === 'reddit' ? 'r/' : l.source === 'forum' ? 'Y' : PLATFORM_GLYPH[platformOf(l.url)] ?? '@')
+export const isPost = (l: Lead) => l.source === 'reddit' || l.source === 'forum'
+export const isPage = (l: Lead) => l.source === 'profile' || (!l.email && !!l.dm)
+export const isForum = (l: Lead) => isPost(l) || isPage(l)
+export const pageUrl = (l: Lead) => (l.source !== 'profile' && l.dm ? l.dm.url : l.url)
+export const pageName = (l: Lead) => (l.source !== 'profile' && l.dm ? l.dm.platform : platformOf(l.url))
+export const avOf = (l: Lead) => (l.source === 'reddit' ? 'r/' : l.source === 'forum' ? 'Y' : PLATFORM_GLYPH[platformOf(l.url)] ?? '@')
 // Lead Finder keeps everyone you write to in one tab; only forum posts are "Join conversations"
 const laneOf = (l: Lead, finder = false): Lane => ((finder ? isPost(l) : isForum(l)) ? 'community' : 'email')
-const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
+export const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
 
-function tabOf(l: Lead): TabKey {
+export function tabOf(l: Lead): TabKey {
   if (l.status === 'replied') return l.handledAt ? 'done' : 'needs'
   if (l.status === 'ready' || l.status === 'needs_contact') return 'needs'
   if (l.status === 'queued' || l.status === 'sent' || l.status === 'posted') return 'waiting'
   return 'done'
 }
 const sectionOf = (l: Lead): Section => (l.status === 'replied' ? 'replied' : isForum(l) ? 'post' : 'approve')
-const nameOf = (l: Lead) => (isPost(l) || l.source === 'profile' ? l.title : l.name || l.company || l.title)
-const firstOf = (l: Lead) => (isPost(l) || l.source === 'profile' ? 'them' : (l.name || l.company || l.title).split(/\s+/)[0])
-const where = (l: Lead) => { try { return new URL(l.url).hostname.replace(/^www\./, '') } catch { return '' } }
+export const nameOf = (l: Lead) => (isPost(l) || l.source === 'profile' ? l.title : l.name || l.company || l.title)
+export const firstOf = (l: Lead) => (isPost(l) || l.source === 'profile' ? 'them' : (l.name || l.company || l.title).split(/\s+/)[0])
+export const where = (l: Lead) => { try { return new URL(l.url).hostname.replace(/^www\./, '') } catch { return '' } }
 
 /** What every source fills in the same way: the facts, where it was found and how the email was found. */
-function LeadFacts({ l }: { l: Lead }) {
+export function LeadFacts({ l }: { l: Lead }) {
   if (!l.facts?.length && !l.foundVia && !l.emailVia && !l.dm) return null
   return (
     <div className="lfx-facts">
@@ -172,7 +172,7 @@ function FinderSources({ s, setS, linkedin, competitors }: { s: LeadSettings; se
   </>
 }
 
-function Settings({ initial, saving, picking, hunter, onSave, onCancel, onPick, variant = 'agent', linkedin = false, competitors = [], quietDefault = false }: {
+export function Settings({ initial, saving, picking, hunter, onSave, onCancel, onPick, variant = 'agent', linkedin = false, competitors = [], quietDefault = false }: {
   initial: LeadSettings; saving: boolean; picking: boolean; hunter: boolean; onSave: (s: LeadSettings) => void; onCancel: () => void; onPick: () => void
   variant?: LeadPageVariant; linkedin?: boolean; competitors?: string[]; quietDefault?: boolean
 }) {
