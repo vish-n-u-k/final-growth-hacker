@@ -9,6 +9,7 @@ import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { changedItems, saveSuggestions } from '@/lib/tool-suggestions'
 import { agentsDemo } from './demo'
 import type { ReplyIntent } from '@/lib/gmail/reply-check'
+import type { SocialCheck } from '@/lib/leads/social-types'
 
 export const LEAD_KEY = 'agent:lead'
 export const SEARCH_KEY = 'agent:search'
@@ -32,10 +33,13 @@ export interface LeadSettings {
   enabled: boolean
   customer: string              // who the brand sells to, in plain words
   country: string               // ISO code (see LOCATION_CODES)
-  // reviews / competitors: no longer used. Competitor reviews are Competitor Leads' job (lib/lead-finder)
   // companies = "Companies like your customers": websites found with DataForSEO, emails with Hunter
-  sources: { reddit: boolean; reviews: boolean; local: boolean; companies: boolean }
-  competitors: string[]
+  // reviews = unhappy reviewers of the competitors in `rivals` (Lead Finder); linkedin = people found
+  // with the LinkedIn search (Apify) using the `linkedin` filters. Every source goes through the same checks
+  sources: { reddit: boolean; reviews: boolean; local: boolean; companies: boolean; linkedin?: boolean }
+  competitors: string[]         // old: no longer used (see rivals)
+  rivals?: Rival[]              // competitors whose unhappy reviewers become leads
+  linkedin?: LinkedInFilters | null
   localQuery: string            // e.g. "cafés in Pune"
   companyQuery: string          // who to look for among companies, e.g. "small fashion and beauty online stores"
   // GrowJin picked the sources from the brand (pickSources in lead-agent.ts); why = one line for the page
@@ -52,21 +56,31 @@ export interface LeadSettings {
   useBrand?: boolean
 }
 
+/** A competitor whose reviews are read: Trustpilot by its domain, or its Shopify App Store page. */
+export interface Rival { platform: 'trustpilot' | 'shopify'; url: string }
+/** Who the LinkedIn search looks for. Free text; mapped to the search's own values in lib/leads/linkedin-leads. */
+export interface LinkedInFilters { jobTitles: string[]; industries: string[]; keywords: string[]; countries: string[]; sizes: string[]; technologies: string[]; why?: string }
+
 export type IcpKind = 'ecommerce' | 'saas' | 'local' | 'creator' | 'other'
 export interface Icp {
   kind: IcpKind                 // what kind of business the buyers are: picks the sources
   who: string                   // who they are, in plain words
   marketing: string             // how they market today, e.g. "the founder posts on X and LinkedIn themselves"
+  trades?: string[]             // kinds of business to search for, one at a time ("yoga studio", "candle maker")
   fit: string[]                 // signs of a good fit
   notFit: string[]              // not a fit, e.g. "has a marketing team or agency", "hires creators"
   examples: string[]            // domains of ideal customers the user gave
   by: 'ai' | 'user'
+  // Not posting on social media lately counts in a lead's favour (true for a social media tool's buyers).
+  // Unset: read from the card's words (quietSocialOf in lead-agent.ts)
+  quietSocial?: boolean
 }
 
 // own = added by the user from their own list (Email tab, "Add your own emails")
 // company = a website found with DataForSEO ("Companies like your customers")
 // profile = a seller's page on a marketplace or social network (Etsy shop, Instagram…), messaged by hand
-export type LeadSource = 'reddit' | 'forum' | 'review' | 'local' | 'company' | 'own' | 'profile'
+// linkedin = a person found with the LinkedIn search (Apify); review = an unhappy reviewer of a competitor
+export type LeadSource = 'reddit' | 'forum' | 'review' | 'local' | 'company' | 'own' | 'profile' | 'linkedin'
 export type LeadStatus =
   | 'ready'          // draft waiting for the user's OK
   | 'needs_contact'  // good fit, no email found
@@ -107,11 +121,22 @@ export interface Lead {
   queryId?: string              // source 'company': the search that found it (LeadQuery.id)
   skippedBy?: 'auto'            // skipped by the agent (no longer what you look for), not by the user
   error?: string
+  // What every source fills in the same way (Lead Finder shows them on the lead):
+  role?: string                 // the person's job title (LinkedIn), e.g. "Co-founder"
+  linkedinUrl?: string
+  foundVia?: string             // where it was found, in plain words: "LinkedIn search", "2★ review of Later on Trustpilot"
+  facts?: { k: string; v: string }[]   // Sells / Size / Active / Marketing / Social, in that order
+  emailVia?: string             // how the email was found: "came with the LinkedIn record", "Hunter, from their name"…
+  social?: SocialCheck          // their social accounts and when they last posted (lib/leads/social-check)
+  dm?: { platform: string; url: string }   // no email anywhere: a message on this page instead
+  reviewOn?: 'trustpilot' | 'shopify'      // source 'review': where the review was
 }
 
 /** A website found but not checked yet. */
 // profile: the platform ("Etsy") when `domain` is a seller page's link ("etsy.com/shop/candleco"), not a website
-export interface WaitingSite { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string; queryId?: string; visits?: number | null; profile?: string }
+// person: found as a person (LinkedIn search): their company's website is read and checked like any other
+export interface WaitingSite { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string; queryId?: string; visits?: number | null; profile?: string; person?: WaitingPerson }
+export interface WaitingPerson { name: string; role?: string; email?: string; emailShared?: boolean; linkedinUrl?: string; size?: number | null; industry?: string; location?: string }
 
 /**
  * One question the Lead Agent asks DataForSEO for companies, picked with the playbook in
@@ -178,6 +203,10 @@ export interface LeadAgentData {
   // platforms: online-store platforms to search (DataForSEO technology index); [] when the buyers aren't online stores
   companyFilters?: { for: string; keywords: string[]; headcount: string[]; platforms?: string[] }
   plan?: LeadPlan               // the DataForSEO questions for companies, and how each has done
+  // LinkedIn search: how far into the matches for these filters we've read (a new filter starts at 0)
+  linkedinCursor?: { key: string; offset: number }
+  // Competitor reviews: when each rival was last read, and a Trustpilot read still running at DataForSEO
+  reviewReads?: Record<string, { at?: string; task?: string; taskAt?: string }>
   lastRunAt?: string
   lastRunSummary?: string
   lastError?: string | null

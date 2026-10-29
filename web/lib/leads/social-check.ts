@@ -73,15 +73,15 @@ async function scanSite(domain: string): Promise<SiteScan> {
 
 // ── 2. When they last posted (Instagram, Facebook) ───────────────────────────
 
-async function runActor(actor: string, body: Record<string, unknown>, capUsd: number): Promise<Record<string, unknown>[] | null> {
+async function runActor(actor: string, body: Record<string, unknown>, capUsd: number, timeoutSec = 110): Promise<Record<string, unknown>[] | null> {
   const token = process.env.APIFY_API_TOKEN?.trim()
   if (!token) return null
   try {
-    const res = await fetch(`https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?maxTotalChargeUsd=${capUsd.toFixed(3)}&timeout=110`, {
+    const res = await fetch(`https://api.apify.com/v2/acts/${actor}/run-sync-get-dataset-items?maxTotalChargeUsd=${capUsd.toFixed(3)}&timeout=${timeoutSec}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(130000),
+      signal: AbortSignal.timeout((timeoutSec + 20) * 1000),
     })
     if (!res.ok) { console.error('[social-check] Apify', actor, 'returned', res.status, (await res.text().catch(() => '')).slice(0, 200)); return null }
     const items = await res.json()
@@ -95,28 +95,36 @@ async function runActor(actor: string, body: Record<string, unknown>, capUsd: nu
 const handleOf = (url: string) => url.split('/').filter(Boolean).slice(2).join('/').toLowerCase()
 const newest = (dates: (string | null)[]) => dates.filter((d): d is string => !!d && !Number.isNaN(Date.parse(d))).sort().pop() ?? null
 
-/** handle → ISO date of the newest post, for the Instagram accounts given. Missing = could not read. */
-async function instagramLastPosts(urls: string[]): Promise<Map<string, string | null>> {
+const EMAIL_IN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
+
+/** handle → ISO date of the newest post (missing = could not read), and any email the profile shows. */
+async function instagramLastPosts(urls: string[], timeoutSec?: number): Promise<{ last: Map<string, string | null>; emails: Map<string, string> }> {
   const out = new Map<string, string | null>()
+  const emails = new Map<string, string>()
   const names = [...new Set(urls.map(handleOf).filter(Boolean))].slice(0, 40)
-  if (!names.length) return out
-  const items = await runActor(ACTOR_IG, { usernames: names }, names.length * 0.012 + 0.02)
+  if (!names.length) return { last: out, emails }
+  const items = await runActor(ACTOR_IG, { usernames: names }, names.length * 0.012 + 0.02, timeoutSec)
   for (const it of items ?? []) {
     const name = String(it.username ?? '').toLowerCase()
     if (!name) continue
     const posts = Array.isArray(it.latestPosts) ? (it.latestPosts as Record<string, unknown>[]) : []
     // Pinned posts can be years old, so the newest of all of them counts
     out.set(name, newest(posts.map(p => (typeof p.timestamp === 'string' ? p.timestamp : null))))
+    // A business account's contact email, else one written in the bio
+    const direct = [it.businessEmail, it.publicEmail, it.contactEmail, it.email].find(v => typeof v === 'string' && EMAIL_IN.test(v)) as string | undefined
+    const inBio = typeof it.biography === 'string' ? it.biography.match(EMAIL_IN)?.[0] : undefined
+    const email = (direct ?? inBio)?.trim().toLowerCase()
+    if (email) emails.set(name, email)
   }
-  return out
+  return { last: out, emails }
 }
 
 /** page path → ISO date of the newest post, for the Facebook pages given. */
-async function facebookLastPosts(urls: string[]): Promise<Map<string, string | null>> {
+async function facebookLastPosts(urls: string[], timeoutSec?: number): Promise<Map<string, string | null>> {
   const out = new Map<string, string | null>()
   const pages = [...new Set(urls)].slice(0, 40)
   if (!pages.length) return out
-  const items = await runActor(ACTOR_FB, { startUrls: pages.map(url => ({ url })), resultsLimit: 1 }, pages.length * 0.02 + 0.02)
+  const items = await runActor(ACTOR_FB, { startUrls: pages.map(url => ({ url })), resultsLimit: 1 }, pages.length * 0.02 + 0.02, timeoutSec)
   for (const it of items ?? []) {
     const key = handleOf(String(it.inputUrl ?? it.facebookUrl ?? ''))
     const when = typeof it.time === 'string' ? it.time : typeof it.timestamp === 'number' ? new Date(it.timestamp * 1000).toISOString() : null
@@ -135,8 +143,9 @@ export function classify(scan: SiteScan, lastPostAt: string | null, readable: bo
   return readable ? 'inactive' : 'unknown'
 }
 
-/** domain → what we found. Sites are read first; the social scrapers then run once for all domains together. */
-export async function checkDomains(domains: string[]): Promise<Map<string, SocialCheck>> {
+/** domain → what we found. Sites are read first; the social scrapers then run once for all domains together.
+ *  timeoutSec caps how long the scrapers may take (the Lead Agent's run has a deadline). */
+export async function checkDomains(domains: string[], opts: { timeoutSec?: number } = {}): Promise<Map<string, SocialCheck>> {
   const unique = [...new Set(domains.map(d => d.toLowerCase().trim()).filter(Boolean))]
   const scans = new Map<string, SiteScan>()
   for (let i = 0; i < unique.length; i += 6) {
@@ -146,7 +155,7 @@ export async function checkDomains(domains: string[]): Promise<Map<string, Socia
   const live = unique.filter(d => scans.get(d)!.site === 'ok')
   const igUrls = live.flatMap(d => scans.get(d)!.accounts.filter(a => a.platform === 'instagram').map(a => a.url))
   const fbUrls = live.flatMap(d => scans.get(d)!.accounts.filter(a => a.platform === 'facebook').map(a => a.url))
-  const [ig, fb] = await Promise.all([instagramLastPosts(igUrls), facebookLastPosts(fbUrls)])
+  const [{ last: ig, emails: igEmails }, fb] = await Promise.all([instagramLastPosts(igUrls, opts.timeoutSec), facebookLastPosts(fbUrls, opts.timeoutSec)])
 
   const result = new Map<string, SocialCheck>()
   for (const d of unique) {
@@ -166,6 +175,7 @@ export async function checkDomains(domains: string[]): Promise<Map<string, Socia
       accounts: scan.accounts,
       lastPostAt,
       lastPostOn: lastPostAt ? dated.find(x => x.at === lastPostAt)?.on ?? null : null,
+      bioEmail: scan.accounts.filter(a => a.platform === 'instagram').map(a => igEmails.get(handleOf(a.url))).find(Boolean) ?? null,
     })
   }
   return result

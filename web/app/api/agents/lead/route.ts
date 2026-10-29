@@ -3,8 +3,9 @@ import { agentAccess } from '@/lib/agents/access'
 import { demoForced, withDemo } from '@/lib/agents/demo'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
-import { addLeadEmail, approveLead, demoSkipDays, draftIcp, icpKey, leadFallback, pickSources, runLeadAgent, useMaybe } from '@/lib/agents/lead-agent'
-import { readLeadData, updateLeadData, type Icp, type IcpKind, type LeadAgentData, type LeadSettings } from '@/lib/agents/store'
+import { addLeadEmail, addLeadReply, approveLead, retireOldFinds, demoSkipDays, draftIcp, icpKey, leadFallback, pickSources, runLeadAgent, useMaybe } from '@/lib/agents/lead-agent'
+import { readLeadData, updateLeadData, type Icp, type IcpKind, type LeadAgentData, type LeadSettings, type LinkedInFilters, type Rival } from '@/lib/agents/store'
+import { suggestFilters } from '@/lib/leads/suggest-filters'
 import { addOwnList, checkPeople, draftListEmail } from '@/lib/agents/own-list'
 import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
 import { clearSignals } from '@/lib/signals'
@@ -40,15 +41,38 @@ function cleanIcp(cur: Icp | null | undefined, x: unknown): Icp | null | undefin
     kind: KINDS.includes(c.kind as IcpKind) ? c.kind as IcpKind : 'other',
     who,
     marketing: typeof c.marketing === 'string' ? c.marketing.trim().slice(0, 300) : '',
+    trades: lines(c.trades, 10).map(t => t.slice(0, 40)),
     fit: lines(c.fit, 6),
     notFit: lines(c.notFit, 8),
     examples: lines(c.examples, 5).map(d => d.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]).filter(d => d.includes('.')),
     by: c.by === 'ai' ? 'ai' : 'user',
+    ...(typeof c.quietSocial === 'boolean' ? { quietSocial: c.quietSocial } : {}),
   }
+}
+
+const words = (x: unknown) => (Array.isArray(x) ? x : typeof x === 'string' ? x.split(',') : []).map(v => String(v ?? '').trim().slice(0, 80)).filter(Boolean).slice(0, 10)
+function cleanLinkedIn(cur: LinkedInFilters | null | undefined, x: unknown): LinkedInFilters | null | undefined {
+  if (x === undefined) return cur
+  if (!x || typeof x !== 'object') return null
+  const f = x as Partial<LinkedInFilters>
+  return { jobTitles: words(f.jobTitles), industries: words(f.industries), keywords: words(f.keywords), countries: words(f.countries), sizes: words(f.sizes), technologies: words(f.technologies), ...(typeof f.why === 'string' ? { why: f.why.slice(0, 300) } : {}) }
+}
+/** Competitors to read reviews of: a Trustpilot domain, or a Shopify App Store link. */
+function cleanRivals(cur: Rival[] | undefined, x: unknown): Rival[] | undefined {
+  if (!Array.isArray(x)) return cur
+  const out: Rival[] = []
+  for (const r of x) {
+    const url = String((r as Rival)?.url ?? '').trim().slice(0, 300)
+    if (!url) continue
+    const platform = (r as Rival).platform === 'shopify' || /apps\.shopify\.com/i.test(url) ? 'shopify' : 'trustpilot'
+    if (!out.some(o => o.url === url)) out.push({ platform, url })
+  }
+  return out.slice(0, 5)
 }
 
 /** The card changed: what was found or saved for the old one is dropped, so the next search starts afresh. */
 function freshStart(d: LeadAgentData) {
+  retireOldFinds(d)
   d.waiting = undefined
   d.cursor = undefined
   d.companyFilters = undefined
@@ -68,7 +92,10 @@ function cleanSettings(cur: LeadSettings, s: Partial<LeadSettings>): LeadSetting
       reviews: typeof s.sources?.reviews === 'boolean' ? s.sources.reviews : cur.sources.reviews,
       local: typeof s.sources?.local === 'boolean' ? s.sources.local : cur.sources.local,
       companies: typeof s.sources?.companies === 'boolean' ? s.sources.companies : cur.sources.companies,
+      linkedin: typeof s.sources?.linkedin === 'boolean' ? s.sources.linkedin : cur.sources.linkedin ?? false,
     },
+    rivals: cleanRivals(cur.rivals, s.rivals),
+    linkedin: cleanLinkedIn(cur.linkedin, s.linkedin),
     competitors: Array.isArray(s.competitors)
       ? s.competitors.map(x => String(x).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]).filter(x => x.includes('.')).slice(0, 3)
       : cur.competitors,
@@ -83,6 +110,9 @@ function cleanSettings(cur: LeadSettings, s: Partial<LeadSettings>): LeadSetting
     useBrand: typeof s.useBrand === 'boolean' ? s.useBrand : cur.useBrand,
   }
 }
+
+// Answered by hand on a page: forum posts, seller pages, and leads with no email but a social page
+const isForumLead = (l: { source: string; email?: string; dm?: unknown }) => l.source === 'reddit' || l.source === 'forum' || l.source === 'profile' || (!l.email && !!l.dm)
 
 export async function POST(req: NextRequest) { return inDemo(() => post(req)) }
 async function post(req: NextRequest) {
@@ -148,8 +178,15 @@ async function post(req: NextRequest) {
       })
       return NextResponse.json({ data })
     }
+    // The LinkedIn search's filters, worked out from the brand and the ideal-customer card. Not saved:
+    // it fills the Settings form, and Save keeps it
+    case 'linkedin_suggest': {
+      const f = await suggestFilters(brandId).catch(() => null)
+      return f ? NextResponse.json({ filters: f }) : NextResponse.json({ error: 'Couldn’t work out who to look for right now. Fill it in by hand.' }, { status: 500 })
+    }
     case 'run': {
-      const result = await runLeadAgent(brandId, { manual: true, deadline: Date.now() + 270_000 })
+      // Only searches: replies, follow-ups and queued emails are left to the daily run
+      const result = await runLeadAgent(brandId, { manual: true, findOnly: true, deadline: Date.now() + 270_000 })
       return NextResponse.json({ result, data: await readLeadData(brandId) })
     }
     case 'more': {
@@ -204,6 +241,12 @@ async function post(req: NextRequest) {
       })
       return NextResponse.json({ ...r, ...(r.ok ? {} : { error: r.message }), data: await readLeadData(brandId) }, { status: r.ok ? 200 : 400 })
     }
+    // A forum reply or seller-page message, written when the lead is opened
+    case 'reply': {
+      if (!body.id) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+      const r = await addLeadReply(brandId, body.id)
+      return NextResponse.json({ ...(r.ok ? {} : { error: r.message }), data: await readLeadData(brandId) }, { status: r.ok ? 200 : 400 })
+    }
     case 'email': {
       const email = typeof body.email === 'string' ? body.email.trim().toLowerCase().slice(0, 200) : ''
       if (!body.id || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: 'Add a valid email address.' }, { status: 400 })
@@ -222,11 +265,11 @@ async function post(req: NextRequest) {
         if (body.op === 'skip' && (l.status === 'ready' || l.status === 'needs_contact' || l.status === 'queued')) l.status = 'skipped'
         if (body.op === 'posted' && l.status === 'ready' && l.reply) l.status = 'posted'
         if (body.op === 'handled' && l.status === 'replied') l.handledAt = new Date().toISOString()
-        if (body.op === 'restore' && l.status === 'skipped') { l.status = l.reply || (l.email && l.draft) ? 'ready' : 'needs_contact'; delete l.skippedBy }
+        if (body.op === 'restore' && l.status === 'skipped') { l.status = l.reply || isForumLead(l) || (l.email && l.draft) ? 'ready' : 'needs_contact'; delete l.skippedBy }
         if (body.op === 'restore' && l.status === 'replied') delete l.handledAt
         if (body.op === 'save') {
           if (l.draft && typeof body.subject === 'string' && typeof body.body === 'string') l.draft = { subject: body.subject.slice(0, 200), body: body.body.slice(0, 4000) }
-          if (typeof body.reply === 'string' && l.reply !== undefined) l.reply = body.reply.slice(0, 4000)
+          if (typeof body.reply === 'string' && (l.reply !== undefined || isForumLead(l))) l.reply = body.reply.slice(0, 4000)
         }
       })
       if (!data.leads.some(l => l.status === 'ready')) await clearSignals(brandId, 'lead-agent', ['approvals']).catch(() => {})
