@@ -8,8 +8,8 @@ import { INACTIVE_DAYS, type SocialAccount, type SocialCheck, type SocialGroup, 
 
 const UA = 'Mozilla/5.0 (compatible; GrowJinBot/1.0; +https://growjin.com)'
 const SITE_TIMEOUT = 9000
-const ACTOR_IG = 'apify~instagram-profile-scraper'
-const ACTOR_FB = 'apify~facebook-posts-scraper'
+export const ACTOR_IG = 'apify~instagram-profile-scraper'
+export const ACTOR_FB = 'apify~facebook-posts-scraper'
 
 // ── 1. The website ───────────────────────────────────────────────────────────
 

@@ -427,7 +427,7 @@ export async function updateSearchData(brandId: string, fallback: () => SearchAg
 export interface UsageMeter { dataforseo: number; hunter: number; apis: Record<string, number>; hunterOut?: boolean }
 export const newMeter = (): UsageMeter => ({ dataforseo: 0, hunter: 0, apis: {} })
 
-export type UsageTool = 'Lead Agent' | 'Search Agent' | 'Competitor Leads'
+export type UsageTool = 'Lead Agent' | 'Search Agent' | 'Competitor Leads' | 'Claude (MCP)'
 export interface UsageMonth {
   dataforseo: number
   hunter: number

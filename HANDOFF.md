@@ -324,6 +324,15 @@ Built from the review in `md_files/SEARCH_AGENT_HOW_IT_WORKS.md` (the report the
 - **Failed AI answers are no longer silent:** if some (not all) AI answers fail, `lastError` says how many, so the AI answers tab showing fewer questions has a reason on the page.
 - **Pitches:** "best of" list pitches go to the article's **author by name** (`authorOf`: JSON-LD, meta author, rel=author, microdata, byline class; "Staff"/"Team" skipped), looked up with Hunter's Email Finder. Pitches are 50-90 words: their page, the gap, an offer (a free account, a ready-to-paste two-line description), one question. The same rules apply to `taskToPitch`.
 
+## 4f. MCP data passthrough tools (29 Oct)
+
+Three thin tools on the MCP server (`app/api/mcp/route.ts`, defined in `lib/mcp/tool-registry.ts`), so Claude can call the data sources directly and work out lead-gen logic in conversation. No scoring, filtering or deduping: raw API JSON back, the API's own message on errors (`{ error, http_status, response }`).
+- **`dataforseo`** (`lib/mcp/tools/dataforseo.ts`): any v3 endpoint + payload (one task or up to 10), through `dfsRaw` in `lib/agents/dataforseo.ts`. `limit` becomes `depth` on `serp/…` and `limit` on Labs / Backlinks / Domain Analytics / Business Listings, capping any value in the payload.
+- **`hunter`** (`lib/mcp/tools/hunter.ts`): `domain-search` / `email-finder` / `email-verifier` with raw params, through `hunterFetch` in `lib/agents/hunter.ts`; `limit` sets domain-search's limit; a caller's `api_key` is ignored.
+- **`apify`** (`lib/mcp/tools/apify.ts`): aliases `linkedin` (pipelinelabs leads finder, `totalResults`), `instagram` (profile scraper, `resultsLimit`), `facebook` (posts scraper, `resultsLimit`) or any actor ID. Also sets Apify's `maxItems`. Waits up to 60 s (`waitForFinish`); otherwise `{ run_id, status: 'RUNNING' }`, then call again with `{ run_id }`. Run ids are kept per brand in `signal_snapshots` `mcp:apify-runs`, so a brand can only read its own runs.
+- `limit`: default 10, hard max 50 (`lib/mcp/tools/limit.ts`). DataForSEO dollars and Hunter credits show in Settings → Usage as "Claude (MCP)".
+- Checked only against mocked APIs (no keys in the sandbox). **Still to do:** call each once with `limit: 3` on a test brand.
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

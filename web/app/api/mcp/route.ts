@@ -19,6 +19,9 @@ import { getPosthogUsers } from '@/lib/mcp/tools/get_posthog_users'
 import { getPosthogPowerUsers } from '@/lib/mcp/tools/get_posthog_power_users'
 import { getPosthogChurnedUsers } from '@/lib/mcp/tools/get_posthog_churned_users'
 import { getPosthogProUsers } from '@/lib/mcp/tools/get_posthog_pro_users'
+import { dataforseo } from '@/lib/mcp/tools/dataforseo'
+import { hunter } from '@/lib/mcp/tools/hunter'
+import { apify } from '@/lib/mcp/tools/apify'
 import { getTodayTasks, buildTodayPrompt } from '@/lib/daily/today-tasks'
 import { resolveSignal } from '@/lib/signals'
 import { getBlogPost, markBlogPublished } from '@/lib/mcp/tools/blog_posts'
@@ -190,6 +193,15 @@ async function dispatch(
         args['plan_value'] ? String(args['plan_value']) : 'pro',
         args['limit'] ? parseInt(String(args['limit']), 10) : 100,
       )
+
+    case 'dataforseo':
+      return dataforseo(brandId, String(args['endpoint'] ?? ''), args['payload'], args['limit'])
+
+    case 'hunter':
+      return hunter(brandId, String(args['action'] ?? ''), args['params'], args['limit'])
+
+    case 'apify':
+      return apify(brandId, { actor: args['actor'], input: args['input'], limit: args['limit'], run_id: args['run_id'] })
 
     default:
       throw new Error(`Unknown tool: ${name}`)

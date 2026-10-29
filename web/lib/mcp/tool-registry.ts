@@ -414,4 +414,46 @@ export const TOOLS: MCPTool[] = [
       },
     },
   },
+  {
+    name: 'dataforseo',
+    description:
+      'Calls any DataForSEO v3 endpoint with GrowJin\'s account and returns DataForSEO\'s raw JSON response (no filtering). COSTS MONEY: every call is billed by DataForSEO (usually $0.002-$0.05 per task; the response\'s cost_usd says what it cost), so start with a small limit. Use only "live" endpoints if you want the results in the same call. Inputs: endpoint (the v3 path without /v3, e.g. "serp/google/organic/live/advanced", "serp/google/maps/live/advanced", "dataforseo_labs/google/competitors_domain/live", "dataforseo_labs/google/ranked_keywords/live", "domain_analytics/technologies/domain_technologies/live", "backlinks/backlinks/live"); payload (the task object as in the DataForSEO docs, e.g. { "keyword": "soy candles", "location_code": 2840, "language_code": "en" }, or an array of up to 10 tasks); limit (default 10, max 50; applied as "depth" on SERP endpoints and as "limit" on Labs, Backlinks, Domain Analytics and Business Listings endpoints, capping any value in the payload). Results are under response.tasks[].result. On failure returns error with DataForSEO\'s status message.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        endpoint: { type: 'string', description: 'DataForSEO v3 path, e.g. "serp/google/organic/live/advanced".' },
+        payload: { type: 'object', description: 'The task object for that endpoint (or an array of up to 10 tasks), exactly as the DataForSEO API docs describe.' },
+        limit: { type: 'number', description: 'Max results per task. Default 10, hard max 50.' },
+      },
+      required: ['endpoint', 'payload'],
+    },
+  },
+  {
+    name: 'hunter',
+    description:
+      'Calls Hunter.io with GrowJin\'s key and returns Hunter\'s raw JSON response. COSTS CREDITS (the account has few): domain-search costs 1 credit per email returned, email-finder 1 credit when it finds an email (a miss is free), email-verifier uses verification credits. Start with a small limit. Actions and params: "domain-search" { domain, optional: department (executive, it, finance, management, sales, legal, support, hr, marketing, communication, education, design, health, operations), seniority (junior, senior, executive), type (personal, generic), offset }: people and emails at a company, plus its email pattern and organization; "email-finder" { domain, first_name, last_name } (or full_name): one person\'s email with a confidence score; "email-verifier" { email }: whether the address is deliverable (status valid / invalid / accept_all / webmail / disposable / unknown). limit (default 10, max 50) sets domain-search\'s limit. On failure returns error with Hunter\'s message (HTTP 429 = credits used up).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: '"domain-search", "email-finder" or "email-verifier".' },
+        params: { type: 'object', description: 'Hunter query parameters for that action, e.g. { "domain": "example.com" } or { "domain": "example.com", "first_name": "Jane", "last_name": "Doe" } or { "email": "jane@example.com" }.' },
+        limit: { type: 'number', description: 'domain-search only: max emails to return. Default 10, hard max 50.' },
+      },
+      required: ['action', 'params'],
+    },
+  },
+  {
+    name: 'apify',
+    description:
+      'Runs an Apify actor with GrowJin\'s account and returns its raw dataset items. COSTS MONEY: actors bill per run or per result (the answer\'s cost_usd shows it), so start with a small limit. actor: one of our configured aliases or any Apify actor ID ("username~actor-name"). Aliases: "linkedin" (B2B people database with work emails, pipelinelabs leads finder; input e.g. { "personTitleIncludes": ["Founder"], "companyIndustryIncludes": ["Internet"], "personLocationCountryIncludes": ["United States"], "companySizeIncludes": ["1-10"] }), "instagram" (profile scraper; input e.g. { "usernames": ["natgeo"] }), "facebook" (page posts scraper; input e.g. { "startUrls": [{ "url": "https://www.facebook.com/somepage" }] }). input: the actor\'s own input object. limit (default 10, max 50) is set as the alias actor\'s max-results field and as Apify\'s maxItems run option. Waits up to about 60 seconds: if the run finished it returns { run_id, status: "SUCCEEDED", total, items }; if not it returns { run_id, status: "RUNNING" } — call this tool again with only { run_id } to get the results. On failure returns error with Apify\'s message.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        actor: { type: 'string', description: '"linkedin", "instagram", "facebook", or an Apify actor ID such as "apify~google-search-scraper". Not needed when passing run_id.' },
+        input: { type: 'object', description: 'The actor\'s input object, as in its Apify input schema.' },
+        limit: { type: 'number', description: 'Max results. Default 10, hard max 50.' },
+        run_id: { type: 'string', description: 'To fetch an earlier run that was still RUNNING: its run_id. Leave actor and input out.' },
+      },
+    },
+  },
 ]

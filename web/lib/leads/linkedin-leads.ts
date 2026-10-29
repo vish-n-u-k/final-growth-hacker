@@ -6,7 +6,7 @@
 
 import { ACTOR_COUNTRIES, ACTOR_INDUSTRIES, ACTOR_SIZES, ACTOR_TECHNOLOGIES } from './linkedin-options'
 
-const ACTOR = 'pipelinelabs~leads-finder-with-emails-apollo-lusha-zoominfo'
+export const ACTOR = 'pipelinelabs~leads-finder-with-emails-apollo-lusha-zoominfo'
 export const MAX_LEADS_PER_SEARCH = 50
 export const DEFAULT_LEADS_PER_SEARCH = 25
 const PRICE_PER_LEAD = 0.002   // USD on the free tier; the call is capped at about 1.5x this

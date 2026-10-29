@@ -72,15 +72,33 @@ async function post<T>(path: string, task: Record<string, unknown>, meter?: Usag
   }
 }
 
-async function postOnce<T>(path: string, task: Record<string, unknown>, meter?: UsageMeter, timeoutMs = 60_000): Promise<T> {
-  if (!dataForSeoConfigured()) throw new Error('DataForSEO is not set up (DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD).')
+function send(path: string, tasks: unknown[], timeoutMs: number) {
   const auth = Buffer.from(`${process.env.DATAFORSEO_LOGIN}:${process.env.DATAFORSEO_PASSWORD}`).toString('base64')
-  const res = await fetch(`${BASE}${path}`, {
+  return fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify([task]),
+    body: JSON.stringify(tasks),
     signal: AbortSignal.timeout(timeoutMs),
   })
+}
+
+/**
+ * Any endpoint, raw: posts the tasks and returns DataForSEO's whole answer, errors included
+ * (the MCP `dataforseo` tool). Adds each task's cost to the meter.
+ */
+export async function dfsRaw(path: string, tasks: Record<string, unknown>[], meter?: UsageMeter): Promise<{ status: number; json: unknown }> {
+  if (!dataForSeoConfigured()) throw new Error('DataForSEO is not set up (DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD).')
+  const res = await send(path, tasks, 120_000)
+  const text = await res.text()
+  let json: unknown = text
+  try { json = JSON.parse(text) } catch { /* keep the text */ }
+  for (const t of (json as DfsResponse<unknown>)?.tasks ?? []) charge(meter, path, t.cost)
+  return { status: res.status, json }
+}
+
+async function postOnce<T>(path: string, task: Record<string, unknown>, meter?: UsageMeter, timeoutMs = 60_000): Promise<T> {
+  if (!dataForSeoConfigured()) throw new Error('DataForSEO is not set up (DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD).')
+  const res = await send(path, [task], timeoutMs)
   if (!res.ok) {
     // Keep DataForSEO's own explanation: a bare "500" can't be acted on
     const body = await res.text().catch(() => '')
