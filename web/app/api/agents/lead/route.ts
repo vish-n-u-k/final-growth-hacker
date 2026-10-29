@@ -40,6 +40,7 @@ function cleanIcp(cur: Icp | null | undefined, x: unknown): Icp | null | undefin
     kind: KINDS.includes(c.kind as IcpKind) ? c.kind as IcpKind : 'other',
     who,
     marketing: typeof c.marketing === 'string' ? c.marketing.trim().slice(0, 300) : '',
+    trades: lines(c.trades, 10).map(t => t.slice(0, 40)),
     fit: lines(c.fit, 6),
     notFit: lines(c.notFit, 8),
     examples: lines(c.examples, 5).map(d => d.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]).filter(d => d.includes('.')),

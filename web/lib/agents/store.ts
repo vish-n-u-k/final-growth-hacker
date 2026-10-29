@@ -57,6 +57,7 @@ export interface Icp {
   kind: IcpKind                 // what kind of business the buyers are: picks the sources
   who: string                   // who they are, in plain words
   marketing: string             // how they market today, e.g. "the founder posts on X and LinkedIn themselves"
+  trades?: string[]             // kinds of business to search for, one at a time ("yoga studio", "candle maker")
   fit: string[]                 // signs of a good fit
   notFit: string[]              // not a fit, e.g. "has a marketing team or agency", "hires creators"
   examples: string[]            // domains of ideal customers the user gave

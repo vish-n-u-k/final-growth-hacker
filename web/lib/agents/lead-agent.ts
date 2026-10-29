@@ -186,6 +186,7 @@ export function customerBlock(b: BrandContext, s: LeadSettings): string {
     lead,
     `Ideal customer: ${c.who}`,
     c.marketing ? `How they market today: ${c.marketing}` : null,
+    c.trades?.length ? `Kinds of business we search for: ${c.trades.join(', ')}` : null,
     c.fit.length ? `Signs of a good fit: ${c.fit.join('; ')}` : null,
     c.notFit.length ? `NOT a fit (score 1-3, never keep): ${c.notFit.join('; ')}` : null,
     c.examples.length ? `Examples of ideal customers: ${c.examples.join(', ')}` : null,
@@ -195,7 +196,7 @@ export function customerBlock(b: BrandContext, s: LeadSettings): string {
 
 /** A short key for the card, so saved search words are redone when it changes. */
 // The brand switch is part of it too: turning the brand profile off changes every search
-export const icpKey = (s: LeadSettings) => (s.icp ? idOf(JSON.stringify([s.icp.kind, s.icp.who, s.icp.marketing, s.icp.fit, s.icp.notFit, s.icp.examples])).slice(0, 8) : '') + (s.useBrand === false ? ':own' : '')
+export const icpKey = (s: LeadSettings) => (s.icp ? idOf(JSON.stringify([s.icp.kind, s.icp.who, s.icp.marketing, s.icp.fit, s.icp.notFit, s.icp.examples, s.icp.trades ?? []])).slice(0, 8) : '') + (s.useBrand === false ? ':own' : '')
 
 /**
  * Drafts the ideal-customer card from the brand and, when given, a few example customers' sites
@@ -212,9 +213,10 @@ export async function draftIcp(b: BrandContext, s: LeadSettings, examples: strin
     prompt: `${brandBlock(b)}
 What the owner wrote about their customer: ${s.customer || 'nothing'}
 ${read.length ? `Examples of ideal customers the owner gave (find what they have in common):\n${read.join('\n')}\n` : ''}
-Return {"kind":"...","who":"...","marketing":"...","fit":[...],"notFit":[...],"companyQuery":"..."}
+Return {"kind":"...","who":"...","marketing":"...","trades":[...],"fit":[...],"notFit":[...],"companyQuery":"..."}
 - kind: what the buyers mostly are: "ecommerce" (online stores), "saas" (software / app founders), "local" (shops with a street address), "creator" (individual creators or freelancers), or "other"
 - who: one plain sentence, e.g. "Founders of small SaaS products (1-10 people) who do their own marketing"
+- trades: 5-8 concrete kinds of business these buyers are, each 1-3 words a business of that kind uses on its own website, so a Google search for it brings back such businesses (e.g. "yoga studio", "hair salon", "candle maker", "bakery", "life coach", "skincare brand"). Pick the ones most likely to buy, most likely first. Never this product's own category, and never businesses that sell what this product does (for a social media tool: no "social media agency", "marketing agency" or "content creator"). No vague words like "small business", "startup" or "brand" on their own.
 - marketing: how they market today, in one sentence, e.g. "The founder posts on X and LinkedIn themselves, with no marketing hire"
 - fit: 3-5 short signs someone is a good fit that can be seen on their website or posts (e.g. "launched in the last year", "founder links their own X account", "blog not updated in months")
 - notFit: 3-6 short signs someone is NOT a fit (e.g. "has a marketing team or agency", "hires influencers or creators", "big brand", "sells a tool or service like ours", and the buyer types this product is wrongly confused with)
@@ -228,6 +230,7 @@ Return {"kind":"...","who":"...","marketing":"...","fit":[...],"notFit":[...],"c
       kind: ICP_KINDS.includes(j.kind as IcpKind) ? j.kind as IcpKind : 'other',
       who: String(j.who).trim().slice(0, 300),
       marketing: typeof j.marketing === 'string' ? j.marketing.trim().slice(0, 300) : '',
+      trades: list(j.trades, 8).map(t => t.slice(0, 40)),
       fit: list(j.fit, 6), notFit: list(j.notFit, 8), examples: domains, by: 'ai',
     },
     companyQuery: typeof j.companyQuery === 'string' ? j.companyQuery.trim().slice(0, 200) : '',
@@ -369,7 +372,7 @@ ${customerBlock(b, s)}
 Companies to find: ${what || 'companies that would buy this product'}
 
 Return {"keywords":[...],"headcount":[...],"platforms":[...]}:
-- keywords: 8 single words or short phrases (1-2 words) these companies use to describe themselves on their own website, e.g. "skincare", "handmade jewelry", "coffee roaster", "social media agency". Their products or trade, not ${b.name}'s. Never "PR", "public relations", "B2B", "enterprise" or "consulting": those are big firms, not small businesses. Never a describing word on its own ("boutique", "creative", "premium", "luxury"): law and property firms call themselves boutique too. Name what they make or sell ("candles", "handmade jewelry", "etsy").
+- keywords: 8 single words or short phrases (1-2 words) these companies use to describe themselves on their own website, e.g. "skincare", "handmade jewelry", "coffee roaster", "yoga studio". Their products or trade, not ${b.name}'s. Never "PR", "public relations", "B2B", "enterprise" or "consulting": those are big firms, not small businesses. Never a describing word on its own ("boutique", "creative", "premium", "luxury"): law and property firms call themselves boutique too. Name what they make or sell ("candles", "handmade jewelry", "etsy").
 - headcount: company sizes to include, from ${HEADCOUNTS.join(', ')}. Small businesses: ["1-10","11-50"].
 - platforms: only if the ideal customers are online stores, the store platforms to search, from ${PLATFORMS.join(', ')} (e.g. ["Shopify","WooCommerce"]); else [].`,
   })
@@ -460,7 +463,9 @@ async function findCompanies(b: BrandContext, s: LeadSettings, d: LeadAgentData,
   // DataForSEO finds the websites, with the questions planned from the playbook (lead-playbook.ts):
   // Google searches with operators, the technology index and sites like a customer. Each question
   // asks for its next page. Hunter only finds emails, later.
-  const plan = await planLeadQueries(b, s, d, { keywords: f.keywords, platforms: f.platforms, customer: customerBlock(b, s), examples: s.icp?.examples ?? [], card: icpKey(s) })
+  // The card's kinds of business are the search words when it has them, searched one at a time
+  const trades = s.icp?.trades ?? []
+  const plan = await planLeadQueries(b, s, d, { keywords: trades.length ? trades : f.keywords, trades, platforms: f.platforms, customer: customerBlock(b, s), examples: s.icp?.examples ?? [], card: icpKey(s) })
   d.plan = plan
   if (!plan.queries.length) { if (launches.length) o.searched(); return checkSites([...queued, ...launches]) }
   o.searched()
@@ -656,7 +661,7 @@ Companies we look for: ${s.companyQuery.trim() || s.icp?.who || s.customer || 'n
 ${owner}
 For each business answer:
 - rival: true if it sells a product or service that does the same job as ${b.name} (${b.usp ? `${b.usp}; ` : ''}a competitor, a similar tool or app, or an agency selling the same service). A competitor is never a customer, however well it matches otherwise.
-- trade: true only if what it actually sells or does (product list first, then its own words) matches "Companies we look for". A passing mention of a word is not enough; a law firm, estate agent, software company, marketplace or directory is false.
+- trade: true only if what it actually sells or does (product list first, then its own words) matches "Companies we look for" or one of the kinds of business we search for. A passing mention of a word is not enough; a law firm, estate agent, software company, marketplace or directory is false.
 - small: true for a one-person to small team business (a product list under about 500 items, under about 20,000 visits a month, no corporate wording). False for big brands, chains, agencies with many offices.
 - active: true if it looks alive (a product added in the last 6 months, or a current-looking site); false if clearly abandoned (newest product over a year ago, "closed", "coming soon" only); null if unknown.
 - need: true if it would plausibly want what ${b.name} offers now, judged against the ideal customer above. False if it shows any "NOT a fit" sign.

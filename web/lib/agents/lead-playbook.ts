@@ -108,10 +108,13 @@ async function customerSites(brandId: string, d: LeadAgentData, plan: LeadPlan |
  * Claude from the playbook. A new plan is made when "who to look for" changes.
  */
 export async function planLeadQueries(b: BrandContext, s: LeadSettings, d: LeadAgentData,
-  hints: { keywords: string[]; platforms: string[]; customer: string; examples: string[]; card: string }): Promise<LeadPlan> {
+  hints: { keywords: string[]; trades?: string[]; platforms: string[]; customer: string; examples: string[]; card: string }): Promise<LeadPlan> {
+  // The card's kinds of business: every question searches one of them, the untried ones first
+  const trades = hints.trades ?? []
+  const tradeIn = (q: string) => trades.find(t => q.toLowerCase().includes(t.toLowerCase()))
   // A new plan when who we look for changes (the line, or the ideal-customer card)
-  // v3: platforms are picked from the buyers, not forced, and competitors are kept out; older plans are redone once
-  const want = `v3|${s.companyQuery.trim() || s.customer}|${hints.card}`
+  // v4: searches follow the card's kinds of business. v3: platforms are picked from the buyers, not forced, and competitors are kept out; older plans are redone once
+  const want = `v4|${s.companyQuery.trim() || s.customer}|${hints.card}`
   const old = d.plan?.for === want ? d.plan : undefined
   const outcomes = queryOutcomes(d)
   const seeds = await customerSites(b.id, d, d.plan, hints.examples)
@@ -125,6 +128,8 @@ export async function planLeadQueries(b: BrandContext, s: LeadSettings, d: LeadA
   const plan: LeadPlan = { for: want, at: old?.at ?? new Date().toISOString(), queries, retired: retired.slice(0, 15), seeds }
   if (queries.length >= ACTIVE) return plan
 
+  const tried = new Set([...queries, ...retired].map(q => tradeIn(q.q)).filter(Boolean))
+  const untried = trades.filter(t => !tried.has(t))
   const line = (q: LeadQuery) => {
     const o = outcomes.get(q.id)
     return `- ${q.kind}: ${q.q}${q.platforms?.length ? ` [${q.platforms.join(', ')}]` : ''} · searched ${q.page}×, ${q.checked} checked, ${q.kept} kept${o ? `, owner approved ${o.approved}, skipped ${o.skipped}` : ''}${q.retired ? ` · dropped: ${q.retired}` : ''}`
@@ -138,7 +143,9 @@ export async function planLeadQueries(b: BrandContext, s: LeadSettings, d: LeadA
     prompt: `${leadBrandBlock(b, s.useBrand !== false)}
 ${hints.customer}
 Companies we look for: ${s.companyQuery.trim() || s.customer || 'companies that would buy this product'}
-Trade words: ${hints.keywords.join(', ') || 'none yet'}
+${trades.length ? `Kinds of business to search: ${trades.join(', ')}
+Not searched yet: ${untried.join(', ') || 'all have been tried: try them again with a different operator'}
+Every google and stores question must contain exactly one of these, word for word (the untried ones first, a different one per question). Never search for anything else: no marketing, social media or software words, nothing about what ${b.name} does.` : `Trade words: ${hints.keywords.join(', ') || 'none yet'}`}
 Store platforms that fit: ${hints.platforms.join(', ') || 'none: the buyers are not online stores, so never use stores'}
 Customer sites: ${seeds.domains.join(', ') || 'none yet (don\'t use lookalike)'}
 
@@ -161,6 +168,8 @@ why: one plain sentence for the owner, e.g. "Shopify shops selling soy candles".
     }))
     .filter(x => x.q && (x.kind === 'google' || (x.kind === 'stores' && hints.platforms.length > 0) || (x.kind === 'lookalike' && seeds.domains.includes(domainOf(x.q)))))
     .filter(x => !taken.has(`${x.kind}:${x.q.toLowerCase()}`))
+    // With kinds of business on the card, a question that searches none of them is dropped
+    .filter(x => !trades.length || x.kind === 'lookalike' || !!tradeIn(x.q))
     .slice(0, need)
     .map((x, i): LeadQuery => ({
       id: `${Date.now().toString(36)}${i}`,
@@ -172,6 +181,14 @@ why: one plain sentence for the owner, e.g. "Shopify shops selling soy candles".
     }))
   plan.queries = [...queries, ...fresh]
   plan.at = new Date().toISOString()
+  // Still short: the next kinds of business not searched yet, with a plain operator for their kind
+  const kind = s.icp?.kind
+  for (const t of untried.filter(t => !plan.queries.some(q => tradeIn(q.q) === t))) {
+    if (plan.queries.length >= ACTIVE) break
+    const q = kind === 'ecommerce' ? `inurl:collections ${t}` : kind === 'local' ? `${t} "book now"` : `${t} "founded by"`
+    if (taken.has(`google:${q.toLowerCase()}`)) continue
+    plan.queries.push({ id: `${Date.now().toString(36)}t${plan.queries.length}`, kind: 'google', q, why: `Small ${t} businesses`, page: 0, checked: 0, kept: 0, empty: 0 })
+  }
   // Claude gave nothing usable and nothing is left: fall back to the old store search
   if (!plan.queries.length && hints.platforms.length) {
     plan.queries = [{ id: `${Date.now().toString(36)}s`, kind: 'stores', q: hints.keywords.join(', '), platforms: hints.platforms, why: 'Online stores whose title has your trade words', page: 0, checked: 0, kept: 0, empty: 0 }]
