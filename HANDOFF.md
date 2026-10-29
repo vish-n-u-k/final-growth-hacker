@@ -81,7 +81,7 @@ What each tool does today:
 ## 3. Branch and working rules
 
 - **Work and push on `dev`.** Push to **`main` only when the owner says so.**
-  - `main` was last brought up to `dev` on 26 Oct 2026, with Lead Finder (`/leads`). `main` and `dev` are the same.
+  - `main` was last brought up to `dev` on 29 Oct 2026 (Lead Finder page and one funnel, MCP `producthunt` alias). `main` and `dev` are the same.
 - Don't open pull requests unless asked.
 - Commit message footer used so far:
   ```
