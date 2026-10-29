@@ -3,7 +3,7 @@ import { agentAccess } from '@/lib/agents/access'
 import { demoForced, withDemo } from '@/lib/agents/demo'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
-import { addLeadEmail, addLeadReply, approveLead, demoSkipDays, draftIcp, icpKey, leadFallback, pickSources, runLeadAgent, useMaybe } from '@/lib/agents/lead-agent'
+import { addLeadEmail, addLeadReply, approveLead, retireOldFinds, demoSkipDays, draftIcp, icpKey, leadFallback, pickSources, runLeadAgent, useMaybe } from '@/lib/agents/lead-agent'
 import { readLeadData, updateLeadData, type Icp, type IcpKind, type LeadAgentData, type LeadSettings } from '@/lib/agents/store'
 import { addOwnList, checkPeople, draftListEmail } from '@/lib/agents/own-list'
 import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
@@ -50,6 +50,7 @@ function cleanIcp(cur: Icp | null | undefined, x: unknown): Icp | null | undefin
 
 /** The card changed: what was found or saved for the old one is dropped, so the next search starts afresh. */
 function freshStart(d: LeadAgentData) {
+  retireOldFinds(d)
   d.waiting = undefined
   d.cursor = undefined
   d.companyFilters = undefined
