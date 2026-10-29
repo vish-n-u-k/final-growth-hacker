@@ -296,6 +296,10 @@ Why: Frekto's leads stayed e-commerce after the owner asked for SaaS founders wh
 - Playbook: no more `-site:etsy.com`; it now suggests `site:etsy.com/shop <product>`, `site:instagram.com <product> "shop"`, etc., and at least one such question when the buyers sell on a marketplace or on social media. `googleWithFallback` keeps a positive `site:` in its simpler wordings.
 - Sites on a builder's free address (`name.blogspot.com`, `name.myshopify.com`, `wixsite`, `squarespace`, `weebly`, `webflow.io`, `carrd.co`, `square.site`) now count as the business's own site (`BUILDER_SITE`) instead of being dropped.
 - **Forced, not only suggested (28 Oct):** plans kept their old Shopify / WooCommerce questions, so Etsy was never searched. `addMarketQuery` in `lead-playbook.ts` now makes one of the 3 questions `site:etsy.com/shop <trade word>` whenever "who to look for" / the card's `who` / the customer line names Etsy (also eBay, Instagram, TikTok, Facebook: `MARKETS`). It takes the newest other question's place; a used-up one moves on to the next trade word. The plan key got a `v2|` so every plan is redone once.
+- **After the 28 Oct Frekto run** (one Etsy shop found, 59 junk companies, article titles as names):
+  - `MARKET_SHARE = 2`: two of the three plan questions are seller-page searches with different trade words; seller-page searches read 50 results deep (`step` in `askQuery`), others 20.
+  - Names: `siteNameOf` (og:site_name, else the shortest non-generic part of the home page title) replaces the Google result's title for every Google find ("The History of Handmade Jewelry" → "Dailot").
+  - Junk: the playbook no longer suggests `"powered by shopify"` and `weak()` retires any such question; Google results that are help / docs / forum pages (`HELP_PAGE`) or titled "How to… / Remove…" (`HELP_TITLE`) are skipped. Blog posts on a store are kept (the store is the lead).
 - Not tried against real Google results yet.
 
 ## 4e. Search Agent: better output (27 Oct)

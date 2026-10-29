@@ -19,7 +19,8 @@ trade, not lists, blogs or big brands. A seller's own page on a marketplace or s
 
 ### google: a Google search with operators (the best kind for most brands)
 Google only shows live sites, and operators pin down what kind of site comes back.
-- Shopify stores: "powered by shopify" <product>, or inurl:collections <product>
+- Shopify stores: inurl:collections <product>. Never search for "powered by shopify" or other footer text:
+  it brings help articles about removing it, not stores.
 - WooCommerce stores: inurl:product-category <product>
 - Stores that also sell on Etsy: <product> "shop" "also on etsy"
 - Businesses that take bookings (salons, studios, coaches, clinics): <trade> "book now", or <trade> "book a consultation"
@@ -82,6 +83,7 @@ export function queryOutcomes(d: LeadAgentData): Map<string, { approved: number;
 
 /** Why a question should be dropped, or null while it's still worth asking. */
 function weak(q: LeadQuery, o: { approved: number; skipped: number } | undefined): string | null {
+  if (/powered by shopify/i.test(q.q)) return 'brings help articles about Shopify, not stores'
   if (q.empty >= 2) return 'nothing new came back twice in a row'
   if (q.checked >= 12 && q.kept / q.checked < 0.1) return `few good fits (${q.kept} of ${q.checked})`
   if (o && o.skipped >= 3 && o.skipped > 2 * o.approved) return `the owner skipped most of its leads (${o.skipped} skipped, ${o.approved} approved)`
@@ -110,20 +112,30 @@ async function customerSites(brandId: string, d: LeadAgentData, plan: LeadPlan |
  * Claude from the playbook. A new plan is made when "who to look for" changes.
  */
 /**
- * When the buyers sell on a marketplace or social network ("Etsy sellers", "Instagram shops"), one of
- * the plan's questions searches those seller pages directly, e.g. site:etsy.com/shop soy candles. It
- * takes the place of the newest other question; the trade word changes when one is used up.
+ * When the buyers sell on a marketplace or social network ("Etsy sellers", "Instagram shops"), two of
+ * the plan's three questions search those seller pages directly, e.g. site:etsy.com/shop soy candles,
+ * each with a different trade word. They take the place of the newest other questions; a used-up one
+ * moves on to the next trade word.
  */
+const MARKET_SHARE = 2
 function addMarketQuery(plan: LeadPlan, s: LeadSettings, keywords: string[], taken: Set<string>) {
   const who = `${s.companyQuery} ${s.icp?.who ?? ''} ${s.customer}`
   const site = MARKETS.find(([re]) => re.test(who))?.[1]
-  if (!site || plan.queries.some(q => q.q.toLowerCase().includes(site))) return
+  if (!site) return
+  const isMarket = (q: LeadQuery) => q.q.toLowerCase().includes(site)
   const words = keywords.filter(k => !/^(etsy|ebay|instagram|tiktok|facebook|shop|store|online)$/i.test(k.trim()))
-  const word = words.find(w => !taken.has(`google:${site} ${w}`.toLowerCase())) ?? words[0]
-  if (!word) return
-  const q: LeadQuery = { id: `${Date.now().toString(36)}m`, kind: 'google', q: `${site} ${word}`, why: `Sellers with a page on ${site.replace('site:', '').split('/')[0]} selling ${word}`, page: 0, checked: 0, kept: 0, empty: 0 }
-  if (plan.queries.length >= ACTIVE) plan.queries.splice(plan.queries.length - 1, 1)
-  plan.queries = [q, ...plan.queries]
+  for (let n = plan.queries.filter(isMarket).length; n < MARKET_SHARE; n++) {
+    const inUse = new Set(plan.queries.map(q => q.q.toLowerCase()))
+    const word = words.find(w => !taken.has(`google:${site} ${w}`.toLowerCase()) && !inUse.has(`${site} ${w}`.toLowerCase()))
+    if (!word) return
+    const q: LeadQuery = { id: `${Date.now().toString(36)}m${n}`, kind: 'google', q: `${site} ${word}`, why: `Sellers with a page on ${site.replace('site:', '').split('/')[0]} selling ${word}`, page: 0, checked: 0, kept: 0, empty: 0 }
+    if (plan.queries.length >= ACTIVE) {
+      const last = plan.queries.map(isMarket).lastIndexOf(false)
+      if (last < 0) return
+      plan.queries.splice(last, 1)
+    }
+    plan.queries = [q, ...plan.queries]
+  }
 }
 
 export async function planLeadQueries(b: BrandContext, s: LeadSettings, d: LeadAgentData,

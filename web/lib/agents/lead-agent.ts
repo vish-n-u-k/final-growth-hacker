@@ -382,14 +382,28 @@ Return {"keywords":[...],"headcount":[...],"platforms":[...]}:
 }
 
 /** Title, description and social links from a site's home page, so the fit score has something to go on. */
-async function aboutSite(domain: string): Promise<{ text: string; socials: string[]; page: string; html: string }> {
+// Words in a home page's title that aren't the business's name ("Home | Dailot")
+const GENERIC_TITLE = /^(home|homepage|welcome|shop|store|online store|official site|official website|index|main)$/i
+
+/** The business's own name: og:site_name, else the part of its home page title that isn't "Home" or a slogan. */
+function siteNameOf(html: string, title: string): string {
+  const og = html.match(/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']{1,80})/i)?.[1]
+    ?? html.match(/<meta[^>]+content=["']([^"']{1,80})["'][^>]+property=["']og:site_name["']/i)?.[1]
+  const clean = (x: string) => x.replace(/&amp;/g, '&').replace(/&#0?39;|&apos;/g, "'").replace(/\s+/g, ' ').trim()
+  if (og && !GENERIC_TITLE.test(clean(og))) return clean(og).slice(0, 60)
+  const parts = clean(title).split(/\s[|–—-]\s|\s·\s|:\s/).map(x => x.trim()).filter(x => x && !GENERIC_TITLE.test(x))
+  // The shortest part is usually the name ("Dailot" in "Handmade beaded jewelry | Dailot")
+  return (parts.sort((a, b) => a.length - b.length)[0] ?? '').slice(0, 60)
+}
+
+async function aboutSite(domain: string): Promise<{ text: string; socials: string[]; page: string; html: string; name: string }> {
   const html = await fetchHtml(`https://${domain}`).catch(() => null)
-  if (!html) return { text: '', socials: [], page: '', html: '' }
+  if (!html) return { text: '', socials: [], page: '', html: '', name: '' }
   const title = html.match(/<title[^>]*>([^<]{1,160})/i)?.[1] ?? ''
   const desc = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']{1,300})/i)?.[1]
     ?? html.match(/<meta[^>]+content=["']([^"']{1,300})["'][^>]+name=["']description["']/i)?.[1] ?? ''
   const page = html.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g, ' ').slice(0, 8000)
-  return { text: [title, desc].map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · '), socials: socialsIn(html), page, html }
+  return { text: [title, desc].map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · '), socials: socialsIn(html), page, html, name: siteNameOf(html, title) }
 }
 
 // Words too common to show a trade ("etsy shop" is about Etsy, not "shop")
@@ -516,12 +530,18 @@ async function googleWithFallback(q: string, country: string, meter: UsageMeter,
   }
 }
 
+// Help articles, docs and forums about a platform, not a business selling things ("Remove Powered by Shopify")
+const HELP_PAGE = /\/(help|support|docs?|documentation|kb|knowledge-?base|community|forums?|threads?|questions|tutorials?|how-to|faq)(\/|$)|^https?:\/\/(help|support|docs|community|forum)\./i
+const HELP_TITLE = /^(how to|how do i|remove|hide|edit|change|fix|setting up|tutorial)\b/i
+
 /** Asks DataForSEO one question from the plan, for its next page. */
 async function askQuery(q: LeadQuery, country: string, meter: UsageMeter): Promise<WaitingSite[]> {
   if (q.kind === 'google') {
     // Google's live results have no "page 2": each search reads 20 deeper (up to 100), and sites
     // already checked are dropped as known
-    const rows = await googleWithFallback(q.q, country, meter, Math.min(100, 20 * (q.page + 1)))
+    // Seller-page searches (site:etsy.com/shop …) read 50 deep: most results are listings, few are shops
+    const step = /^site:(etsy|ebay|instagram|tiktok|facebook)\./i.test(q.q) ? 50 : 20
+    const rows = await googleWithFallback(q.q, country, meter, Math.min(100, step * (q.page + 1)))
     const byDomain = new Map<string, WaitingSite>()
     for (const r of rows) {
       // A seller's page on a marketplace or social network is kept by its own link, not the site's name
@@ -531,7 +551,7 @@ async function askQuery(q: LeadQuery, country: string, meter: UsageMeter): Promi
         continue
       }
       const domain = domainOf(r.domain || r.url)
-      if (!domain || byDomain.has(domain)) continue
+      if (!domain || byDomain.has(domain) || HELP_PAGE.test(r.url) || HELP_TITLE.test(r.title)) continue
       byDomain.set(domain, { domain, name: r.title.split(/\s[|–-]\s/)[0].slice(0, 60) || domain, about: [r.title, r.description].filter(Boolean).join(' · '), from: 'Google search', queryId: q.id })
     }
     return [...byDomain.values()]
@@ -569,7 +589,7 @@ async function checkSites(all: WaitingSite[]): Promise<Candidate[]> {
     return { page, store, team }
   })
   const checked = list.map((c, i) => ({ c, text: [c.about, read[i].page.text].filter(Boolean).join(' · '), socials: c.socials?.length ? c.socials : read[i].page.socials, page: read[i].page.page, store: read[i].store, team: read[i].team,
-    siteName: read[i].page.text.split(' · ')[0].split(/\s[|–—-]\s|:\s/)[0].trim().slice(0, 60) }))
+    siteName: read[i].page.name }))
   // Big PR / B2B / consulting firms aren't small-business buyers: don't spend AI on them
   const small = checked.filter(x => !NOT_A_FIT.test(`${x.c.name} ${x.text}`))
   console.log(`[lead-agent] companies: ${list.length} found · ${checked.length - small.length} big or B2B dropped · ${small.filter(x => x.store).length} with a readable product list · ${Math.min(small.length, COMPANY_CHECK)} to the AI check`)
@@ -580,7 +600,8 @@ async function checkSites(all: WaitingSite[]): Promise<Candidate[]> {
       url: `https://${c.domain}`,
       // A launch post's title can read like a sentence ("I made a benchmark…"): use the site's own name then
       // …and a site found by "sites like" comes with only its domain
-      title: (c.name === c.domain || (c.from.startsWith('Launched') && (c.name.split(/\s+/).length > 4 || /^(i|we|my|our)\b/i.test(c.name)))) && siteName ? siteName : c.name,
+      // …and a Google result's title is often a blog post or page on the site ("The History of Handmade Jewelry"), not its name
+      title: siteName && (c.name === c.domain || c.from === 'Google search' || (c.from.startsWith('Launched') && (c.name.split(/\s+/).length > 4 || /^(i|we|my|our)\b/i.test(c.name)))) ? siteName : c.name,
       launch: c.from.startsWith('Launched'),
       // What the user sees on the card: the store facts and social links first, then their own words
       snippet: [c.from.startsWith('Launched') ? c.from : null, store ? storeLine(store) : null, team?.hiring.length ? `Hiring: ${team.hiring.join(', ')}` : null, socials.length ? `Links to ${socials.join(', ')}` : 'No social links on their home page', text.slice(0, 200) || 'no description on their home page', `website ${c.domain}`].filter(Boolean).join(' · '),
