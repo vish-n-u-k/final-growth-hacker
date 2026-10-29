@@ -3,7 +3,7 @@ import { agentAccess } from '@/lib/agents/access'
 import { demoForced, withDemo } from '@/lib/agents/demo'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
-import { addLeadEmail, addLeadReply, approveLead, demoSkipDays, draftIcp, icpKey, leadFallback, pickSources, runLeadAgent, useMaybe } from '@/lib/agents/lead-agent'
+import { addLeadEmail, addLeadReply, approveLead, retireOldFinds, demoSkipDays, draftIcp, icpKey, leadFallback, pickSources, runLeadAgent, useMaybe } from '@/lib/agents/lead-agent'
 import { readLeadData, updateLeadData, type Icp, type IcpKind, type LeadAgentData, type LeadSettings, type LinkedInFilters, type Rival } from '@/lib/agents/store'
 import { suggestFilters } from '@/lib/leads/suggest-filters'
 import { addOwnList, checkPeople, draftListEmail } from '@/lib/agents/own-list'
@@ -41,6 +41,7 @@ function cleanIcp(cur: Icp | null | undefined, x: unknown): Icp | null | undefin
     kind: KINDS.includes(c.kind as IcpKind) ? c.kind as IcpKind : 'other',
     who,
     marketing: typeof c.marketing === 'string' ? c.marketing.trim().slice(0, 300) : '',
+    trades: lines(c.trades, 10).map(t => t.slice(0, 40)),
     fit: lines(c.fit, 6),
     notFit: lines(c.notFit, 8),
     examples: lines(c.examples, 5).map(d => d.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]).filter(d => d.includes('.')),
@@ -71,6 +72,7 @@ function cleanRivals(cur: Rival[] | undefined, x: unknown): Rival[] | undefined 
 
 /** The card changed: what was found or saved for the old one is dropped, so the next search starts afresh. */
 function freshStart(d: LeadAgentData) {
+  retireOldFinds(d)
   d.waiting = undefined
   d.cursor = undefined
   d.companyFilters = undefined

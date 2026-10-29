@@ -84,6 +84,9 @@ export function IcpFields({ s, onChange, label = 'tu-full', quietDefault = false
         {KINDS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
       </select>
     </label>
+    <label className={label}>Kinds of business to search <small>One per line, searched one at a time, e.g. yoga studio, candle maker</small>
+      <Lines key={`t${version}`} value={icp?.trades ?? []} onChange={trades => edit({ trades })} placeholder={'yoga studio\nhair salon\ncandle maker'} />
+    </label>
     <label className={label}>How they market today
       <input value={icp?.marketing ?? ''} onChange={e => edit({ marketing: e.target.value })} placeholder="e.g. The founder posts on X and LinkedIn themselves" />
     </label>
