@@ -20,12 +20,10 @@ export interface ToolGroup {
 export const TOOL_GROUPS: ToolGroup[] = [
   // Find people, then contact them: the two lead sources feed the same Gmail outreach
   { label: 'Get customers', items: [
+    // Lead Finder holds what the Lead Agent (/agents/leads) and Competitor Leads (/lead-finder) did;
+    // both old addresses open it
     { href: '/leads', label: 'Lead Finder', icon: 'people', pro: true, gmail: true,
-      desc: 'Finds people on Google Maps, in your competitors\' reviews and on Reddit, writes to them and follows up.' },
-    { href: '/agents/leads', label: 'Lead Agent', icon: 'bot', pro: true, gmail: true,
-      desc: 'Finds people who need what you sell every day, emails them and follows up.' },
-    { href: '/lead-finder', label: 'Competitor Leads', icon: 'target', pro: true, gmail: true,
-      desc: "Scan a competitor's reviews for unhappy customers to email." },
+      desc: 'Finds shops, Etsy and Instagram sellers, Reddit posts and your competitors\' unhappy customers every morning, writes to them and follows up.' },
     { href: '/gmail-hub', label: 'Email Outreach', icon: 'mail', lockedType: 'gmail-outreach', pro: true, gmail: true,
       desc: 'Spot leads in your Gmail, send campaigns and follow up.' },
   ]},

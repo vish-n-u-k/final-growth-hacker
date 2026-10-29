@@ -9492,3 +9492,13 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .lfh-field.icp-brand { flex-direction: row; }
 .icp-brand input[type=checkbox] { width: 16px; height: 16px; padding: 0; margin-top: 3px; flex: none; accent-color: var(--green); }
 .icp-brand small { display: block; margin-top: 2px; font-size: 12.5px; font-weight: 400; color: var(--text-faint); }
+
+/* Lead Finder: source-row group labels and the "Show 10 more" row (Lead Agent inside Lead Finder) */
+.lfh-grp { align-self: center; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); padding: 0 2px 0 4px; white-space: nowrap; }
+.lfh-more { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: -4px; }
+.lfh-grp-set { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+/* Narrow screens: the source row scrolls sideways, so each group stays on one line */
+@media (max-width: 900px) {
+  .lfh-grp-set { flex: none; flex-wrap: nowrap; }
+  .lfh-srcs > .lfh-src, .lfh-grp-set > .lfh-src { flex: none; }
+}

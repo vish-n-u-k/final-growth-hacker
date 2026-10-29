@@ -476,7 +476,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       help === 'reddit' ? 'Answer helpfully where people already ask. Say you make it, keep it short.' : k.detail,
       <div className="tu-stack">
         {k.url && <a className="btn cl-btn-outline tu-self" href={k.url} target="_blank" rel="noopener noreferrer">{help === 'reddit' ? 'Open the threads ↗' : 'Open the page ↗'}</a>}
-        {help === 'reddit' && <p className="cl-muted">The Lead Agent&apos;s Community tab finds posts like these every day and drafts a reply for each. <a className="th-link" href="/agents/leads">Open the Lead Agent →</a></p>}
+        {help === 'reddit' && <p className="cl-muted">Lead Finder&apos;s Reddit source finds posts like these every day and drafts a reply for each. <a className="th-link" href="/leads">Open Lead Finder →</a></p>}
       </div>,
       <>
         {skipBtn}

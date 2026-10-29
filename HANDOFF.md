@@ -182,6 +182,14 @@ One board for every lead source, built from the approved preview `design-preview
 - **Caught up with the Lead Agent:** the Hunter "credits used up" note (`hunterOut` flag from `hunterOutThisMonth`), "Finding companies like your customers" in the progress steps, and "Pick for me" in Settings (Google Maps search field only shows when Maps is on).
 - Not done yet: the competitor part has no demo mode (the switch only covers the Lead Agent part); replies to competitor emails aren't tracked on the board (they show in Email Outreach); there's no way to remove a competitor from the row.
 
+## 4b-2. Lead Agent and Competitor Leads merged into Lead Finder (29 Oct)
+
+Sketch the owner approved: https://claude.ai/artifact/XA8RCki5iyHUXtV6sH7Jco (the source row on top was kept, as on the real page).
+- **Sidebar / Tools:** only Lead Finder and Email Outreach under Get customers (`lib/tools.ts`). `/agents/leads` and `/lead-finder` now `redirect('/leads')`; `/lead-finder/review/[id]` still works (ReachOut's back links and its redirect go to `/leads`). Links in Email Outreach, the Search Agent, the agents overview and Today's tasks point to `/leads`. `LeadAgentPage.tsx` and `LeadFinder.tsx` are kept, unused, for now.
+- **Source row grouped** (`LeadFinderHub.tsx` `sourceRow`, `FOUND`): All · *Found for you* (Companies, Seller pages, Reddit, Hacker News, Google Maps) · *Search* (LinkedIn) · *Competitors* · Your list · +. Labels `lfh-grp`, each group in `lfh-grp-set` so its label stays with its buttons; on phones the row scrolls sideways as before.
+- **From the Lead Agent page:** under the board, "Show 10 more companies and seller pages" (op `more`, lane `email`), "Show 10 more posts" (lane `community`) and "Checked but not kept (N)", a drawer (`panel.kind 'maybe'`, `maybeIn(view)`) with **Use anyway** (op `use`). Shown on All, Companies, Seller pages, Reddit and Hacker News.
+- The hero's grey line now names what's searched every morning from the settings.
+
 ## 4c. Costs: Usage & costs tab and Hunter credits
 
 - **Settings → Usage & costs** (`web/components/settings/UsageSection.tsx`, data shaped in `web/lib/usage.ts`, `st-usage-*` CSS). Per account, this month: the total, split by tool, by DataForSEO API and by AI feature, plus up to 12 past months.

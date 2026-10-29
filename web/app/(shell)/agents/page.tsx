@@ -59,11 +59,11 @@ async function AgentsPage() {
     approvals.push({ tag: 'Blog draft', tone: '', title: `Draft for “${t.keyword}”`, detail: 'Search Agent · written to beat the current #1 result', href: '/agents/search', cta: 'Read' })
   }
   const emails = leads.filter(l => l.status === 'ready' && l.draft && l.email).length
-  if (emails) approvals.push({ tag: 'Emails', tone: 'ag-pill-good', title: `${emails} first email${emails === 1 ? '' : 's'} ready to send`, detail: 'Lead Agent · nothing is sent until you approve', href: '/agents/leads', cta: 'Review' })
+  if (emails) approvals.push({ tag: 'Emails', tone: 'ag-pill-good', title: `${emails} first email${emails === 1 ? '' : 's'} ready to send`, detail: 'Lead Agent · nothing is sent until you approve', href: '/leads', cta: 'Review' })
   const posts = leads.filter(l => l.status === 'ready' && l.reply).length
-  if (posts) approvals.push({ tag: 'Forum replies', tone: 'ag-pill-warn', title: `${posts} Reddit / forum repl${posts === 1 ? 'y' : 'ies'} to post`, detail: 'Lead Agent · you post them yourself', href: '/agents/leads', cta: 'Open' })
+  if (posts) approvals.push({ tag: 'Forum replies', tone: 'ag-pill-warn', title: `${posts} Reddit / forum repl${posts === 1 ? 'y' : 'ies'} to post`, detail: 'Lead Agent · you post them yourself', href: '/leads', cta: 'Open' })
   const fresh = leads.filter(l => l.status === 'replied').slice(0, 2)
-  for (const l of fresh) approvals.push({ tag: 'Reply', tone: 'ag-pill-crit', title: `${l.name || l.company || l.email} replied`, detail: l.replyNote ? `“${l.replyNote.slice(0, 140)}”` : 'Reply from Gmail', href: '/agents/leads', cta: 'Open' })
+  for (const l of fresh) approvals.push({ tag: 'Reply', tone: 'ag-pill-crit', title: `${l.name || l.company || l.email} replied`, detail: l.replyNote ? `“${l.replyNote.slice(0, 140)}”` : 'Reply from Gmail', href: '/leads', cta: 'Open' })
   for (const t of sd.tasks.filter(x => x.status === 'open').slice(0, 3)) {
     approvals.push({ tag: 'To do', tone: '', title: t.title, detail: `Search Agent · ${t.detail}`, href: '/agents/search', cta: 'Open' })
   }

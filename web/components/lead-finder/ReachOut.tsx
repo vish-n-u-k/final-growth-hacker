@@ -74,7 +74,7 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
 
   async function notAFit() {
     await saveReview(r.id, { status: 'skipped' })
-    router.push('/lead-finder')
+    router.push('/leads')
     router.refresh()
   }
 
@@ -146,7 +146,7 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
       </div>
     )
     actions = <>
-      <Link key="reviews" className="btn btn-ghost ro-back" href="/lead-finder">← Back to reviews</Link>
+      <Link key="reviews" className="btn btn-ghost ro-back" href="/leads">← Back to Lead Finder</Link>
       {next && <Link className="btn btn-primary" href={reviewHref(next.id)}>Next review: {firstName(next.name) || next.name} →</Link>}
     </>
   } else if (stepNo === 1) {
@@ -215,7 +215,7 @@ export default function ReachOut({ review: initial, scan, brandName, gmailConnec
         actions={<Link href="/gmail-hub" className="th-link">Email Outreach →</Link>}
       />
       <nav className="ro-crumbs" aria-label="Breadcrumb">
-        <Link className="th-link" href="/lead-finder">← Competitor Leads</Link>
+        <Link className="th-link" href="/leads">← Lead Finder</Link>
         {scan && <><span aria-hidden="true">/</span><span>{competitorLabel(scan.competitor)}</span></>}
         <span aria-hidden="true">/</span><b>{r.name}</b>
       </nav>

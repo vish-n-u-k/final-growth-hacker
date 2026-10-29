@@ -28,9 +28,11 @@ export interface LeadFinderFlags { linkedin?: boolean; dataforseo: boolean; trus
 
 type Panel =
   | { kind: 'item'; key: string }
-  | { kind: 'settings' } | { kind: 'add' } | { kind: 'aside' } | { kind: 'about' } | { kind: 'caught-up' }
+  | { kind: 'settings' } | { kind: 'add' } | { kind: 'aside' } | { kind: 'about' } | { kind: 'caught-up' } | { kind: 'maybe' }
 
 const PLATFORM: Record<Platform, string> = { trustpilot: 'Trustpilot', shopify: 'Shopify App Store' }
+// Found every morning, in this order on the source row
+const FOUND = ['companies', 'pages', 'reddit', 'hn', 'maps']
 const PROGRESS = ['Checking replies', 'Searching Google Maps', 'Finding companies like your customers', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies']
 // ANY = anywhere: companies and stores from every country (Google searches use the US as their place)
 const COUNTRIES: [string, string][] = [['ANY', 'Anywhere'], ['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
@@ -295,12 +297,24 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
           <span className="lfh-coin"><span className="lfh-coin-face lfh-coin-face--all"><Ic d={P.search} /></span></span>
           <span className="lfh-src-t"><b>All</b><small>{all} to do</small></span>
         </button>
+        {/* Grouped by how leads arrive: found every morning (the Lead Agent's sources), searched by
+            hand (LinkedIn), from competitors' reviews, and the user's own lists */}
         <span className="lfh-sep" aria-hidden="true" />
-        {sources.map(btn)}
+        <span className="lfh-grp-set"><span className="lfh-grp">Found for you</span>
+        {FOUND.map(id => sources.find(x => x.id === id)).filter((x): x is Source => !!x).map(btn)}</span>
+        <span className="lfh-sep" aria-hidden="true" />
+        <span className="lfh-grp-set"><span className="lfh-grp">Search</span>
         <button type="button" className="lfh-src" aria-pressed={view === 'linkedin'} onClick={() => { setView('linkedin'); setLiSeen(true); setStarFilter(null); setAdding(false); setSeed(null) }}>
           <span className="lfh-coin"><span className="lfh-coin-face">in</span></span>
           <span className="lfh-src-t"><b>LinkedIn</b><small>Search people</small></span>
-        </button>
+        </button></span>
+        {sources.some(x => x.type === 'rival') && <>
+          <span className="lfh-sep" aria-hidden="true" />
+          <span className="lfh-grp-set"><span className="lfh-grp">Competitors</span>
+          {sources.filter(x => x.type === 'rival').map(btn)}</span>
+        </>}
+        <span className="lfh-sep" aria-hidden="true" />
+        {sources.filter(x => !FOUND.includes(x.id) && x.type !== 'rival').map(btn)}
         <button type="button" className="lfh-addsrc" aria-label="Add a competitor or a city" title="Add a competitor or a city" onClick={() => setPanel({ kind: 'add' })}><Ic d={P.plus} size={20} /></button>
       </nav>
     )
@@ -327,7 +341,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
             <p className="lfh-bigline"><b>{total}</b> {total === 1 ? 'person' : 'people'} to reach</p>
             {total > 0 && <div className="lfh-mixbar">{counts.map(c => <i key={c.x.id} style={{ width: `${c.n / total * 100}%`, background: color(c.x) }} title={`${c.x.name}: ${c.n}`} />)}</div>}
             {total > 0 && <div className="lfh-mixkey">{counts.map(c => <span key={c.x.id}><i style={{ background: color(c.x) }} />{c.x.name} {c.n}</span>)}</div>}
-            <div className="lfh-meta"><Ic d={P.clock} size={14} />{s.enabled ? 'Searches Google Maps, Reddit and Hacker News every morning' : 'Searches only when you press the button'}</div>
+            <div className="lfh-meta"><Ic d={P.clock} size={14} />{s.enabled ? `Looks every morning: ${[s.sources.companies && 'companies and seller pages', s.sources.local && 'Google Maps', s.sources.reddit && 'Reddit and Hacker News'].filter(Boolean).join(', ') || 'nothing on yet'}` : 'Searches only when you press the button'}</div>
           </div>
         </section>
       )
@@ -440,6 +454,12 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
     )
   }
 
+  // The finds the Lead Agent's checks didn't keep, for the picked source (all of them on All)
+  function maybeIn(v: string) {
+    const kinds: Record<string, string[]> = { companies: ['company'], pages: ['profile'], reddit: ['reddit'], hn: ['forum'], maps: ['local'] }
+    return (data.maybe ?? []).filter(m => v === 'all' || (kinds[v] ?? []).includes(m.source))
+  }
+
   function board() {
     const lanes = [
       { k: 'todo' as const, t: 'To do', ic: P.eye },
@@ -473,6 +493,26 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
             </section>
           )
         })}
+      </div>
+    )
+  }
+
+  // From the Lead Agent: the next finds for one kind of lead, and the ones its checks didn't keep
+  function moreRow() {
+    const forum = view === 'reddit' || view === 'hn'
+    const email = view === 'companies' || view === 'pages'
+    if (!forum && !email && view !== 'all') return null
+    const maybe = maybeIn(view)
+    const more = busy === 'more'
+    return (
+      <div className="lfh-more">
+        {(email || view === 'all') && s.sources.companies && (
+          <button type="button" className="lfh-linkbtn" disabled={more || running} onClick={() => call('more', { lane: 'email' })}>{more ? 'Finding more…' : 'Show 10 more companies and seller pages'}</button>
+        )}
+        {(forum || view === 'all') && s.sources.reddit && (
+          <button type="button" className="lfh-linkbtn" disabled={more || running} onClick={() => call('more', { lane: 'community' })}>{more ? 'Finding more…' : 'Show 10 more posts'}</button>
+        )}
+        {maybe.length > 0 && <button type="button" className="lfh-linkbtn" onClick={() => setPanel({ kind: 'maybe' })}>Checked but not kept ({maybe.length})</button>}
       </div>
     )
   }
@@ -516,6 +556,20 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
           {other
             ? <button type="button" className="btn btn-primary lfh-grow-btn" onClick={() => { setView(other.id); setStarFilter(null); close() }}>Next: {other.name} · {todoOf(other.id)}</button>
             : <button type="button" className="btn btn-primary lfh-grow-btn" disabled={running} onClick={() => { close(); if (cur?.type === 'rival') readRival(cur); else searchAll() }}>Search again</button>}
+        </div>
+      </>
+    } else if (panel.kind === 'maybe') {
+      const list = maybeIn(view)
+      body = <>
+        <Head title="Checked but not kept" sub="Newest first. If one looks right to you, use it anyway." onClose={close} />
+        <div className="lfh-d-body">
+          {list.map(m => (
+            <div key={m.id} className="lfh-aside-row">
+              <span className="lfh-tile-t"><span className="lfh-name">{m.title}</span><span className="lfh-sub">{m.reason}{m.why ? ` · ${m.why}` : ''}</span></span>
+              <button type="button" className="btn btn-ghost btn-sm" disabled={busy === `use:${m.id}`} onClick={() => call('use', { id: m.id }, `use:${m.id}`)}>{busy === `use:${m.id}` ? <Spinner /> : 'Use anyway'}</button>
+            </div>
+          ))}
+          {!list.length && <div className="lfh-empty">Nothing here.</div>}
         </div>
       </>
     } else if (panel.kind === 'aside') {
@@ -620,6 +674,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
         {hero()}
         <LiveProgress agent="lead" active={running} fallback={PROGRESS} />
         {board()}
+        {moreRow()}
         {legend()}
       </>}
       {(liSeen || view === 'linkedin') && (

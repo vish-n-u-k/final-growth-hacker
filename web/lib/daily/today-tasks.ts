@@ -310,7 +310,7 @@ export async function getTodayTasks(
 // social post, blog) keep those card types so the existing inline panels open.
 // Signals raised by the AI Agents open that agent's page
 const AGENT_PAGES: Record<string, { label: string; url: string }> = {
-  'lead-agent': { label: 'Lead Agent', url: '/agents/leads' },
+  'lead-agent': { label: 'Lead Finder', url: '/leads' },
   'search-agent': { label: 'Search Agent', url: '/agents/search' },
 }
 

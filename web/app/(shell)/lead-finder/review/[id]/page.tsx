@@ -17,7 +17,7 @@ export default async function ReachOutPage({ params }: { params: Promise<{ id: s
 
   const { id } = await params
   const review = await loadReview(brand.id, decodeURIComponent(id))
-  if (!review) redirect('/lead-finder')
+  if (!review) redirect('/leads')
 
   const [scan, siblings, [integration]] = await Promise.all([
     loadScan(brand.id, review.scanId),
