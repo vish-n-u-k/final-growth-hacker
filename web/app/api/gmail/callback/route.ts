@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { brandIntegrations } from '@/lib/db/schema'
+import { sql } from 'drizzle-orm'
 import { storeAdminGmailTokens } from '@/lib/gmail/admin-token'
 import { invalidateToday } from '@/lib/daily/invalidate'
 
@@ -10,9 +11,13 @@ export async function GET(req: NextRequest) {
   const state       = req.nextUrl.searchParams.get('state')
   const errorParam  = req.nextUrl.searchParams.get('error')
 
+  // "<brandId>:settings" came from Settings → Integrations, so go back there
+  const [stateId, from] = (state ?? '').split(':')
+  const back = (q: string) => from === 'settings' ? `${origin}/settings?connect=gmail&gmail=${q}` : `${origin}/gmail-hub?${q === 'connected' ? 'connected=1' : `error=${q}`}`
+
   // User cancelled or Google returned an error
   if (errorParam || !code || !state) {
-    const errDest = state === 'admin' ? `${origin}/admin?gmail=cancelled` : `${origin}/gmail-hub?error=cancelled`
+    const errDest = state === 'admin' ? `${origin}/admin?gmail=cancelled` : back('cancelled')
     return NextResponse.redirect(errDest)
   }
 
@@ -32,7 +37,7 @@ export async function GET(req: NextRequest) {
 
   if (!tokenRes.ok) {
     console.error('Gmail token exchange failed:', await tokenRes.text())
-    return NextResponse.redirect(`${origin}/gmail-hub?error=token_failed`)
+    return NextResponse.redirect(back('token_failed'))
   }
 
   const tokens = await tokenRes.json() as {
@@ -65,7 +70,7 @@ export async function GET(req: NextRequest) {
 
   // ── User flow — upsert into brandIntegrations ─────────────────────────────
 
-  const brandId = state
+  const brandId = stateId
   const expiresAt = new Date(Date.now() + tokens.expires_in * 1000)
 
   await db
@@ -85,15 +90,16 @@ export async function GET(req: NextRequest) {
       target: [brandIntegrations.brandId, brandIntegrations.provider],
       set: {
         accessToken:    tokens.access_token,
-        refreshToken:   tokens.refresh_token ?? null,
+        // Google only sends a refresh token on the first consent; keep the old one otherwise
+        refreshToken:   tokens.refresh_token ?? sql`${brandIntegrations.refreshToken}`,
         tokenExpiresAt: expiresAt,
         scopes:         tokens.scope.split(' '),
-        metadata:       { gmail_address: gmailAddress },
+        metadata:       { gmail_address: gmailAddress },   // also clears expired_reason
         status:         'connected',
         lastUsedAt:     new Date(),
       },
     })
   await invalidateToday(brandId)
 
-  return NextResponse.redirect(`${origin}/gmail-hub?connected=1`)
+  return NextResponse.redirect(back('connected'))
 }

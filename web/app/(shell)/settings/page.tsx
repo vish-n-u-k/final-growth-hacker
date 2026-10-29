@@ -13,6 +13,8 @@ type Tab = typeof VALID_TABS[number]
 
 // Matches metadata keys that hold a secret even when a provider's own field
 // definitions don't cover them (e.g. an OAuth-flow token stored server-side).
+const OAUTH_LAPSES = new Set(['meta_oauth', 'instagram_oauth', 'linkedin_oauth', 'pinterest_oauth'])
+
 const SENSITIVE_METADATA_KEY = /token|secret|key|password|credential/i
 
 // Never send real credentials to the browser. Password-type fields (API keys, access
@@ -47,7 +49,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
   const params = await searchParams
   // ?connect=posthog opens that integration on the Integrations tab
   const initialConnect = INTEGRATION_REGISTRY.some((def) => def.provider === params.connect) ? params.connect : undefined
-  const initialGroup = ['developer', 'analytics', 'social'].includes(params.group) ? params.group : undefined
+  const initialGroup = ['email', 'developer', 'analytics', 'social'].includes(params.group) ? params.group : undefined
   const initialTab = initialConnect || initialGroup ? 'integrations' : VALID_TABS.includes(params.tab as Tab) ? (params.tab as Tab) : undefined
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
@@ -69,9 +71,13 @@ export default async function Settings({ searchParams }: { searchParams: Promise
     metadata: Record<string, string> | null
   }> = {}
 
+  // One-click social logins save a token that runs out (Meta and LinkedIn ~60 days, Pinterest
+  // ~30) and is never refreshed, so past its date it's shown as expired, not connected.
+  const now = new Date()
   for (const row of integrations) {
+    const lapsed = row.status === 'connected' && OAUTH_LAPSES.has(row.provider) && !!row.tokenExpiresAt && row.tokenExpiresAt < now
     connectedMap[row.provider] = {
-      status: row.status,
+      status: lapsed ? 'expired' : row.status,
       ...maskSecrets(row.provider, row.apiKey, row.accessToken, (row.metadata as Record<string, string>) ?? null),
     }
   }

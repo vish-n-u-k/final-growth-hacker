@@ -17,7 +17,7 @@ export interface IntegrationDefinition {
   name: string
   description: string
   type: 'oauth' | 'api_key'
-  group: 'developer' | 'analytics' | 'social'
+  group: 'email' | 'developer' | 'analytics' | 'social'
   fields: IntegrationField[]
   docsUrl?: string
   customUI?: boolean    // true = skip standard IntegrationCard rendering
@@ -25,6 +25,17 @@ export interface IntegrationDefinition {
 }
 
 export const INTEGRATION_REGISTRY: IntegrationDefinition[] = [
+
+  // ── Email ───────────────────────────────────────────────────────────────────
+  {
+    provider: 'gmail',
+    name: 'Gmail',
+    description: 'Send outreach from your own Gmail and catch replies. Used by Email Outreach, the Lead Agent and Competitor Leads.',
+    type: 'oauth',
+    group: 'email',
+    fields: [],
+    customUI: true,   // GmailCard in SettingsPage
+  },
 
   // ── Developer Tools ─────────────────────────────────────────────────────────
   {
@@ -763,6 +774,10 @@ export const INTEGRATION_MAP = Object.fromEntries(
 )
 
 export const INTEGRATION_GROUPS: Record<string, { label: string; description: string }> = {
+  email: {
+    label: 'Email',
+    description: 'The Gmail account your outreach is sent from.',
+  },
   developer: {
     label: 'Developer Tools',
     description: 'Code repositories and asset management for automated fixes.',

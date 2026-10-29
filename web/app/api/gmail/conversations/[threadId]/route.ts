@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { getValidGmailToken } from '@/lib/gmail/token'
+import { getValidGmailToken, noteGmailResponse } from '@/lib/gmail/token'
 import { isOwnThread } from '@/lib/gmail/conversations'
 import { extractText, stripQuoted, type GmailPart } from '@/lib/gmail/message-text'
 
@@ -48,6 +48,10 @@ export async function GET(
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (res.status === 404) return NextResponse.json({ error: 'This thread is no longer in Gmail' }, { status: 404 })
+  if (res.status === 401) {
+    await noteGmailResponse(brand.id, res)
+    return NextResponse.json({ error: 'Gmail needs reconnecting. Go to Settings → Integrations → Gmail.' }, { status: 400 })
+  }
   if (!res.ok) return NextResponse.json({ error: 'Could not load the thread from Gmail' }, { status: 502 })
 
   const thread = await res.json() as { messages?: GmailMessage[] }

@@ -3,6 +3,7 @@ import { brandIntegrations } from '@/lib/db/schema'
 import { and, eq, inArray } from 'drizzle-orm'
 import { getServiceToken } from '@/lib/analytics/google-providers'
 import { pickProperty } from '@/lib/modules/seo/gsc-indexing'
+import { checkGmail } from '@/lib/gmail/token'
 
 // Live check that each connected data source really works, so a dead key, a revoked service
 // account or a wrong property id shows up as "not working" instead of quietly feeding zeros
@@ -11,7 +12,7 @@ import { pickProperty } from '@/lib/modules/seo/gsc-indexing'
 export type HealthStatus = 'ok' | 'no-data' | 'error'
 export interface IntegrationHealth { provider: string; name: string; status: HealthStatus; detail: string }
 
-const NAMES: Record<string, string> = { posthog: 'PostHog', ga4_api: 'Google Analytics', gsc_api: 'Search Console', frekto: 'Frekto' }
+const NAMES: Record<string, string> = { posthog: 'PostHog', ga4_api: 'Google Analytics', gsc_api: 'Search Console', frekto: 'Frekto', gmail: 'Gmail' }
 export const CHECKED_PROVIDERS = Object.keys(NAMES)
 
 async function timed(url: string, init: RequestInit = {}): Promise<Response | null> {
@@ -84,12 +85,14 @@ async function checkFrekto(apiKey: string): Promise<[HealthStatus, string]> {
 
 export async function checkIntegrations(brandId: string, websiteUrl: string): Promise<IntegrationHealth[]> {
   const rows = await db.select().from(brandIntegrations)
-    .where(and(eq(brandIntegrations.brandId, brandId), eq(brandIntegrations.status, 'connected'), inArray(brandIntegrations.provider, CHECKED_PROVIDERS)))
+    .where(and(eq(brandIntegrations.brandId, brandId), inArray(brandIntegrations.status, ['connected', 'expired']), inArray(brandIntegrations.provider, CHECKED_PROVIDERS)))
   return Promise.all(rows.map(async (r): Promise<IntegrationHealth> => {
     const meta = (r.metadata as Record<string, string> | null) ?? {}
     let result: [HealthStatus, string]
     try {
-      result = r.provider === 'posthog' ? (r.apiKey ? await checkPosthog(r.apiKey, meta) : ['error', 'No API key saved.'])
+      result = r.provider === 'gmail' ? await checkGmail(brandId).then(g => [g.ok ? 'ok' : 'error', g.detail] as [HealthStatus, string])
+        : r.status !== 'connected' ? ['error', 'Not connected.']
+        : r.provider === 'posthog' ? (r.apiKey ? await checkPosthog(r.apiKey, meta) : ['error', 'No API key saved.'])
         : r.provider === 'ga4_api' ? await checkGa4(meta)
         : r.provider === 'gsc_api' ? await checkGsc(meta, websiteUrl)
         : r.apiKey ? await checkFrekto(r.apiKey) : ['error', 'No API key saved.']

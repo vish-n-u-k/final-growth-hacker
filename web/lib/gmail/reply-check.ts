@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { reminders } from '@/lib/db/schema'
 import { eq, and, isNull, like } from 'drizzle-orm'
-import { getValidGmailToken } from '@/lib/gmail/token'
+import { getValidGmailToken, markGmailExpired } from '@/lib/gmail/token'
 import { callAI } from '@/lib/ai/client'
 import { emailAddressOf, suppressEmail } from '@/lib/gmail/suppression'
 import { extractText, stripQuoted, type GmailPart } from '@/lib/gmail/message-text'
@@ -99,11 +99,14 @@ function metadataParams(): URLSearchParams {
   return params
 }
 
+class GmailUnauthorized extends Error {}
+
 async function fetchThread(accessToken: string, threadId: string): Promise<GmailMsg[] | null> {
   const res = await fetch(`${GMAIL}/threads/${threadId}?${metadataParams()}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   if (res.status === 404 || res.status === 400) return null
+  if (res.status === 401) throw new GmailUnauthorized()
   if (!res.ok) throw new Error(`Gmail ${res.status}`)
   const data = await res.json() as { messages?: GmailMsg[] }
   return data.messages ?? []
@@ -295,15 +298,22 @@ export async function checkBrandFollowups(
     : open.filter(r => !r.followupCheckedAt || Date.now() - r.followupCheckedAt.getTime() > RECHECK_AFTER_MS)
 
   const results: CheckResult[] = []
+  let unauthorized = false
   for (let i = 0; i < due.length; i += CONCURRENCY) {
     if (opts.deadline && Date.now() > opts.deadline) break
+    if (unauthorized) break
     const batch = await Promise.all(due.slice(i, i + CONCURRENCY).map(r =>
       checkFollowup(r, accessToken).catch(e => {
-        console.error('[reply-check]', r.id, e instanceof Error ? e.message : e)
+        if (e instanceof GmailUnauthorized) unauthorized = true
+        else console.error('[reply-check]', r.id, e instanceof Error ? e.message : e)
         return { reminderId: r.id, outcome: 'none' as const }
       }),
     ))
     results.push(...batch)
+  }
+  if (unauthorized) {
+    await markGmailExpired(brandId, 'Gmail API answered 401 while checking replies')
+    return { results, error: 'Gmail needs reconnecting. Go to Settings → Integrations → Gmail.' }
   }
   return { results }
 }

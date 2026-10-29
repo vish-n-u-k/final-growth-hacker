@@ -302,6 +302,14 @@ Why: Frekto's leads stayed e-commerce after the owner asked for SaaS founders wh
   - Junk: the playbook no longer suggests `"powered by shopify"` and `weak()` retires any such question; Google results that are help / docs / forum pages (`HELP_PAGE`) or titled "How to… / Remove…" (`HELP_TITLE`) are skipped. Blog posts on a store are kept (the store is the lead).
 - Not tried against real Google results yet.
 
+## 4d-7. Gmail in Settings, and spotting a dead Gmail login (29 Oct)
+
+- **Settings → Integrations → Email → Gmail** (`GmailCard` in `SettingsPage.tsx`): connect, reconnect, disconnect, plus a live "Working / Not working" line (`checkGmail` through `/api/integrations/health`). `/api/gmail/connect?from=settings` comes back to Settings (state `<brandId>:settings`). Email Outreach's ⋯ menu links there too.
+- **Why it showed "Connected" with a dead token:** nothing ever set `brand_integrations.status` off `'connected'`. Now `lib/gmail/token.ts` sets it to `'expired'` (reason in `metadata.expired_reason`) when Google refuses the refresh (`invalid_grant`), there's no refresh token, or a Gmail call answers 401 (send, reply check, opening a thread, the profile check). `getValidGmailToken` throws `GmailAuthError` for expired rows; reconnecting sets `'connected'` again. `/gmail-hub` asks Google on load and shows a "Reconnect Gmail" screen.
+- Reconnecting no longer wipes the saved refresh token when Google doesn't send a new one.
+- **One-click social logins** (Meta, Instagram, LinkedIn, Pinterest) are never refreshed; Settings now shows them "Expired" + Reconnect once `tokenExpiresAt` has passed.
+- **If Gmail keeps expiring after ~7 days:** the Google OAuth app is in "Testing" mode (Google Cloud → OAuth consent screen). Publish it to "In production".
+
 ## 4e. Search Agent: better output (27 Oct)
 
 Built from the review in `md_files/SEARCH_AGENT_HOW_IT_WORKS.md` (the report the owner shared).

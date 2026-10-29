@@ -32,7 +32,8 @@ export async function GET(req: Request) {
     scope:         SCOPES,
     access_type:   'offline',
     prompt:        'consent',   // force refresh_token to be returned every time
-    state:         brand.id,    // we get this back in the callback
+    // We get this back in the callback; ":settings" sends the user back to Settings after.
+    state:         new URL(req.url).searchParams.get('from') === 'settings' ? `${brand.id}:settings` : brand.id,
   })
 
   return NextResponse.redirect(

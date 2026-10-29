@@ -59,10 +59,12 @@ export default function GmailHub({
   brandName,
   initialConnected = false,
   gmailAddress,
+  needsReconnect = false,
 }: {
   brandName: string
   initialConnected?: boolean
   gmailAddress?: string | null
+  needsReconnect?: boolean       // a Gmail row exists but Google no longer accepts it
 }) {
   const [isConnected, setIsConnected]   = useState(initialConnected)
   const [disconnecting, setDisconnecting] = useState(false)
@@ -182,12 +184,19 @@ export default function GmailHub({
                 </div>
               </div>
 
+              {needsReconnect && (
+                <div className="ro-error gh-reconnect">
+                  <span>
+                    <b>Gmail stopped working{gmailAddress ? ` for ${gmailAddress}` : ''}.</b> Google stopped accepting GrowJin’s access, so nothing is sent until you reconnect.
+                  </span>
+                </div>
+              )}
               <a href="/api/gmail/connect" className="gh-connect-btn">
                 <IcMail />
-                Connect Gmail
+                {needsReconnect ? 'Reconnect Gmail' : 'Connect Gmail'}
               </a>
               <p className="gh-connect-note">
-                Encrypted at rest. You can disconnect and permanently delete all stored data from Settings at any time.
+                Encrypted at rest. Connect, reconnect or disconnect any time in <a href="/settings?connect=gmail">Settings → Integrations</a>.
               </p>
             </div>
 
@@ -255,6 +264,7 @@ export default function GmailHub({
           </button>
           <Popover anchor={menuBtn} open={menuOpen} onClose={() => setMenuOpen(false)} width={260} label="Gmail settings" className="eo-menu">
             <div className="eo-menu-who">Sending from <b>{gmailAddress ?? 'your Gmail'}</b></div>
+            <a className="eo-menu-item" href="/settings?connect=gmail">Gmail settings</a>
             <a className="eo-menu-item" href="/api/gmail/connect">Reconnect Gmail</a>
             <button type="button" className="eo-menu-item eo-danger" disabled={disconnecting} onClick={handleDisconnect}>
               {disconnecting ? <><Spinner />Disconnecting…</> : 'Disconnect Gmail'}

@@ -1,6 +1,6 @@
 import { db } from '@/lib/db'
 import { outreachEmails, reminders } from '@/lib/db/schema'
-import { getValidGmailToken } from '@/lib/gmail/token'
+import { getValidGmailToken, noteGmailResponse } from '@/lib/gmail/token'
 import { isSuppressed } from '@/lib/gmail/suppression'
 import { cleanEmailHtml, stripEmDashes } from '@/lib/email/clean'
 
@@ -91,6 +91,10 @@ export async function sendGmailMessage(
   if (!res.ok) {
     const err = await res.text()
     console.error('[gmail/send] Gmail API error:', err)
+    if (res.status === 401) {
+      await noteGmailResponse(brandId, res)
+      throw new GmailSendError('Gmail needs reconnecting. Go to Settings → Integrations → Gmail.', 'not_connected')
+    }
     // 403 = missing gmail.send scope — user needs to reconnect
     if (res.status === 403) {
       throw new GmailSendError('Gmail send permission not granted. Please reconnect Gmail.', 'missing_send_scope')

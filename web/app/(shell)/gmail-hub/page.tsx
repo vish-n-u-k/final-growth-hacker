@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import GmailHub from '@/components/GmailHub'
+import { checkGmail } from '@/lib/gmail/token'
 
 export default async function GmailHubPage() {
   const supabase = await createClient()
@@ -27,7 +28,11 @@ export default async function GmailHubPage() {
     )
     .limit(1)
 
-  const isConnected  = integration?.status === 'connected'
+  // Ask Google, not just our row: a revoked or expired login is marked expired by checkGmail.
+  // A network hiccup doesn't count as broken.
+  const check = integration?.status === 'connected' ? await checkGmail(brand.id).catch(() => null) : null
+  const expired = integration?.status === 'expired' || (!!check && !check.ok && /stopped accepting/.test(check.detail))
+  const isConnected  = integration?.status === 'connected' && !expired
   const gmailAddress = (integration?.metadata as { gmail_address?: string } | null)?.gmail_address ?? null
 
   return (
@@ -35,6 +40,7 @@ export default async function GmailHubPage() {
       brandName={brand.name}
       initialConnected={isConnected}
       gmailAddress={gmailAddress}
+      needsReconnect={expired}
     />
   )
 }

@@ -551,7 +551,7 @@ function IntegrationsSection({
   // OAuth providers (customUI=true) need to be tracked separately for the social group
   const oauthDefs = registry.filter((def) => oauthProviders.includes(def.provider))
 
-  const groupOrder = ['developer', 'analytics', 'social']
+  const groupOrder = ['email', 'developer', 'analytics', 'social']
 
   // Opened from a "Connect X" button: open X's group and card, then scroll to it and highlight it
   const focusDef = focus ? registry.find((def) => def.provider === focus) : undefined
@@ -590,9 +590,11 @@ function IntegrationsSection({
         const defs = grouped[groupKey]
         const groupMeta = INTEGRATION_GROUPS[groupKey]
         const isOpen = openGroup === groupKey
-        const connectedCount = (defs ?? []).filter((def) => connected[def.provider]?.status === 'connected').length
-        const notConnectedCount = (defs?.length ?? 0) - connectedCount
-        const brokenCount = (defs ?? []).filter((def) => connected[def.provider]?.status === 'connected' && brokenProviders.has(def.provider)).length
+        // Custom-UI cards (Gmail, one-click social) count too
+        const groupDefs = registry.filter((def) => (def.group ?? 'developer') === groupKey && (!def.customUI || def.provider === 'gmail' || oauthProviders.includes(def.provider)))
+        const connectedCount = groupDefs.filter((def) => connected[def.provider]?.status === 'connected').length
+        const brokenCount = groupDefs.filter((def) => connected[def.provider]?.status === 'expired' || (connected[def.provider]?.status === 'connected' && brokenProviders.has(def.provider))).length
+        const notConnectedCount = groupDefs.filter((def) => !connected[def.provider]).length
         return (
           <div key={groupKey} className="st-int-group">
             <button
@@ -623,6 +625,7 @@ function IntegrationsSection({
             </button>
             {isOpen && (
               <div className="st-int-group-body">
+                {groupKey === 'email' && <GmailCard connected={connected['gmail'] ?? null} />}
                 {groupKey === 'social' && oauthDefs.length > 0 && (
                   <div className="st-oauth-section">
                     <p className="st-oauth-section-label">One-click OAuth</p>
@@ -680,7 +683,7 @@ const PROVIDER_ICON_DOMAIN: Record<string, string> = {
 // Live "is this connection really working?" line for data sources (lib/integrations/health.ts).
 // One request per page load is shared by every card; "Test again" re-runs the checks.
 type Health = { provider: string; status: 'ok' | 'no-data' | 'error'; detail: string }
-const HEALTH_PROVIDERS = new Set(['posthog', 'ga4_api', 'gsc_api', 'frekto'])
+const HEALTH_PROVIDERS = new Set(['posthog', 'ga4_api', 'gsc_api', 'frekto', 'gmail'])
 let healthPromise: Promise<Health[]> | null = null
 function loadHealth(fresh = false): Promise<Health[]> {
   if (!healthPromise || fresh) {
@@ -728,6 +731,69 @@ function ProviderIcon({ provider }: { provider: string }) {
         </svg>
       )}
     </span>
+  )
+}
+
+// ── Gmail Card ────────────────────────────────────────────────────────────────
+// Connect, reconnect and disconnect the Gmail that outreach is sent from. "Connected" is checked
+// live with Google (HealthLine), so a revoked or expired login shows as "Not working".
+
+const GMAIL_RETURN: Record<string, string> = {
+  connected: 'Gmail connected.',
+  cancelled: 'Google sign-in was cancelled. Nothing changed.',
+  token_failed: 'Google sign-in failed. Try again.',
+}
+
+function GmailCard({ connected }: { connected: ConnectedIntegration | null }) {
+  const router = useRouter()
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [health, setHealth] = useState<Health['status'] | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('gmail')
+    if (q && GMAIL_RETURN[q]) setNotice(GMAIL_RETURN[q])
+  }, [])
+  const address = connected?.metadata?.gmail_address
+  const expired = connected?.status === 'expired' || health === 'error'
+
+  const handleDisconnect = async () => {
+    if (!confirm('Disconnect Gmail? Approved emails and follow-ups stop sending until you connect again.')) return
+    setDisconnecting(true)
+    await fetch('/api/gmail/disconnect', { method: 'POST' })
+    router.refresh()
+    setDisconnecting(false)
+  }
+
+  return (
+    <div id="int-gmail" className="st-oauth-card st-gmail-card">
+      <div className="st-oauth-card-left">
+        <div className="st-oauth-icon"><img src="https://www.google.com/s2/favicons?domain=mail.google.com&sz=32" alt="" width={18} height={18} /></div>
+        <div>
+          <div className="st-oauth-name">Gmail</div>
+          <div className="st-oauth-desc">
+            {connected ? <>Sending from <b>{address ?? 'your Gmail'}</b></> : 'Send outreach from your own Gmail and catch replies.'}
+          </div>
+          {notice && <div className="st-oauth-desc st-gmail-notice">{notice}</div>}
+          {connected?.status === 'connected' && <HealthLine provider="gmail" onStatus={setHealth} />}
+          {connected?.status === 'expired' && (
+            <div className="st-health st-health--error" role="status"><span>Not working. Google stopped accepting the connection. Reconnect to keep sending.</span></div>
+          )}
+        </div>
+      </div>
+      <div className="st-oauth-card-right">
+        {connected ? (
+          <>
+            {expired ? <span className="st-oauth-badge-expired">{connected.status === 'expired' ? 'Needs reconnecting' : 'Not working'}</span> : <span className="st-oauth-badge-connected">Connected</span>}
+            <a href="/api/gmail/connect?from=settings" className={expired ? 'st-btn-primary st-btn-link' : 'st-btn-ghost st-btn-link'}>Reconnect</a>
+            <button className="st-btn-danger" onClick={handleDisconnect} disabled={disconnecting} style={{ fontSize: 12, padding: '5px 12px' }}>
+              {disconnecting ? <><Spinner />Disconnecting…</> : 'Disconnect'}
+            </button>
+          </>
+        ) : (
+          <a href="/api/gmail/connect?from=settings" className="st-btn-primary st-btn-link">Connect Gmail</a>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -783,6 +849,7 @@ function OAuthCard({
   const [disconnecting, setDisconnecting] = useState(false)
   const router = useRouter()
   const isConnected = connected?.status === 'connected'
+  const isExpired = connected?.status === 'expired'
   const meta = OAUTH_PLATFORM_META[def.provider]
   if (!meta) return null
 
@@ -834,7 +901,15 @@ function OAuthCard({
         </div>
       </div>
       <div className="st-oauth-card-right">
-        {isConnected ? (
+        {isExpired ? (
+          <>
+            <span className="st-oauth-badge-expired">Expired</span>
+            <a href={`/api/connect/${def.provider}`} className="st-btn-ghost st-btn-link">Reconnect</a>
+            <button className="st-btn-danger" onClick={handleDisconnect} disabled={disconnecting} style={{ fontSize: 12, padding: '5px 12px' }}>
+              {disconnecting ? <><Spinner />Removing...</> : 'Disconnect'}
+            </button>
+          </>
+        ) : isConnected ? (
           <>
             <span className="st-oauth-badge-connected">Connected</span>
             <button className="st-btn-danger" onClick={handleDisconnect} disabled={disconnecting} style={{ fontSize: 12, padding: '5px 12px' }}>
