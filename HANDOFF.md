@@ -259,6 +259,49 @@ Why: Frekto's leads stayed e-commerce after the owner asked for SaaS founders wh
   - The owner's call: a company X account counts like the founder's own (both mean they post themselves); non-English sites are fine.
 - Not tested against real AI / DataForSEO yet.
 
+## 4d-4. Lead Agent: DataForSEO playbook for companies (28 Oct)
+
+- **Why:** the company search always asked one question ("Shopify sites with these words in their title"), sorted by crawl date, so leads were random.
+- **Playbook** (`web/lib/agents/lead-playbook.ts`, `PLAYBOOK`): tells Claude which DataForSEO questions find small, live businesses. Three kinds (`LeadQuery.kind`):
+  - `google`: a Google search with operators (`"powered by shopify" soy candles`, `inurl:collections …`, `<trade> "book now"`). Each search reads 20 results deeper (up to 100).
+  - `stores`: the old technology index search (trade words + platforms), next page of 50 each time.
+  - `lookalike`: `similarSites` (Labs `competitors_domain`) on a customer site: companies the owner approved, the example customers on the ideal-customer card, plus business email domains of PostHog paying users (`getPosthogProUsers`, re-read weekly).
+- **Plan and memory** (`data.plan`): 3 active questions. Each search records `page`, `checked`, `kept`, `empty`; approvals and skips per question come from `lead.queryId`. A question is dropped when nothing new came back twice, fewer than 1 in 10 checked was kept (after 12), the owner skipped most of its leads, or a Google search is used up. Claude (Sonnet) then writes different replacements, seeing what worked and what was dropped.
+- **Size check:** `siteVisits` (Labs `bulk_traffic_estimation`, one call per run) estimates visits from Google; over 20,000 a month is dropped, and the number goes to the AI check.
+- **AI check learns from the owner:** `judgeCompanies` gets up to 8 approved and 8 skipped companies (`ownerExamples`). Skips the agent made itself are marked `skippedBy: 'auto'` and don't count.
+- Marketplaces, social networks and big sites are dropped (`NOT_A_SITE`). Spend cap per run: `AGENTS_LEADS_DFS_CAP` (default $0.25). Usage shows "Similar sites" and "Site size (visits)".
+- A new plan is made when "who to look for" or the card changes (`icpKey`). `stores` questions are only allowed for e-commerce cards (when `companyFilters.platforms` isn't empty). Show HN launches (SaaS cards) still come first, then the plan's questions.
+- The old "move off-trade To-do leads to Skipped" only applies to leads found before this (no `queryId`).
+- Not tried with the real API yet: `competitors_domain` and `bulk_traffic_estimation`. Google Jobs and Google Shopping were left out: DataForSEO only offers them as queued tasks, not live calls.
+
+## 4d-4. Lead Agent: failed company searches (28 Oct)
+
+- DataForSEO's Google returns "Internal SE Server Error" for some operator mixes the playbook plans (e.g. `inurl:product-category "family run" -site:etsy.com`). `googleWithFallback` in `lead-agent.ts` retries such a question without the `inurl:` / `intitle:` / `-site:` parts, then as plain words.
+- **The real cause:** that error comes back as task code **40101**, which `dataforseo.ts` didn't count as busy (only 5xxxx), so nothing retried. `busy()` now includes 40101 (one retry, then the simpler wordings), and **40102** "No Search Results" becomes an empty list (`DfsNoResults`). Reddit: when every phrase gets 40101, it's logged and the run moves on (next phrase next time), with no message on the page.
+- A failed question is logged and counts as an empty try (`q.empty`, so `weak()` replaces it after two). The page only shows "The last search had a problem" when **every** question of the run failed.
+
+## 4d-5. Lead Agent: "Also use my brand profile" switch (28 Oct)
+
+- `settings.useBrand` (default on), a checkbox at the top of the ideal-customer card (`IcpFields.tsx`, `icp-brand` CSS), so it's in both the Lead Agent's and Lead Finder's Settings.
+- Off: every Lead Agent prompt (search phrases, company filters, playbook plan, checks, scoring, drafting, source pick) uses `leadBrandBlock(b, false)` in `context.ts`: only name, website, what it does and what it doesn't offer. The brand's "Who it's for", keywords and notes are left out. `draftIcp` ("Fill in with AI") still reads the full brand on purpose.
+- On or off, `customerBlock` now says the search settings win where they differ from the brand's "Who it's for".
+- The switch is part of `icpKey`, so changing it starts the search afresh (new plan, search words, waiting list).
+
+## 4d-6. Lead Agent: seller pages (Etsy shops, Instagram…) as leads (28 Oct)
+
+- **Why:** many small sellers (Frekto's best buyers) have only an Etsy shop or an Instagram / Facebook / TikTok page. They were thrown away (`NOT_A_SITE`, and the planner added `-site:etsy.com`) because they have no website or email.
+- `web/lib/agents/profiles.ts`: `profileOf(url)` recognises one seller's page (Etsy `/shop/`, Instagram, Facebook page, TikTok `@`, eBay `/str/` `/usr/`, Amazon `/stores/`, YouTube `@`, Substack, Medium `@`, Pinterest) and gives `{ platform, handle, key }`; posts, listings and groups are null. `PLATFORM_GLYPH` for avatars.
+- New `LeadSource 'profile'` ("Seller page"). Google results from the playbook that are seller pages become `WaitingSite { domain: key, profile: platform }`; `checkSites` turns them into candidates without reading the page (those sites block it), scored by `scoreCandidates` from Google's title and text (keep at 6+, like companies). Not size-checked.
+- Drafted as a **DIRECT MESSAGE** (`reply`, under 70 words) in `draftMessages`. They live in the **Community** tab next to Reddit posts: "Write message →", steps Check the message / Send it ("Copy message", "Open their page", "I've sent it", op `posted`). Lead Finder: a "Seller pages" source button; the drawer says "Your message", "Open their {platform} page", "I sent it".
+- Playbook: no more `-site:etsy.com`; it now suggests `site:etsy.com/shop <product>`, `site:instagram.com <product> "shop"`, etc., and at least one such question when the buyers sell on a marketplace or on social media. `googleWithFallback` keeps a positive `site:` in its simpler wordings.
+- Sites on a builder's free address (`name.blogspot.com`, `name.myshopify.com`, `wixsite`, `squarespace`, `weebly`, `webflow.io`, `carrd.co`, `square.site`) now count as the business's own site (`BUILDER_SITE`) instead of being dropped.
+- **Forced, not only suggested (28 Oct):** plans kept their old Shopify / WooCommerce questions, so Etsy was never searched. `addMarketQuery` in `lead-playbook.ts` now makes one of the 3 questions `site:etsy.com/shop <trade word>` whenever "who to look for" / the card's `who` / the customer line names Etsy (also eBay, Instagram, TikTok, Facebook: `MARKETS`). It takes the newest other question's place; a used-up one moves on to the next trade word. The plan key got a `v2|` so every plan is redone once.
+- **After the 28 Oct Frekto run** (one Etsy shop found, 59 junk companies, article titles as names):
+  - `MARKET_SHARE = 2`: two of the three plan questions are seller-page searches with different trade words; seller-page searches read 50 results deep (`step` in `askQuery`), others 20.
+  - Names: `siteNameOf` (og:site_name, else the shortest non-generic part of the home page title) replaces the Google result's title for every Google find ("The History of Handmade Jewelry" → "Dailot").
+  - Junk: the playbook no longer suggests `"powered by shopify"` and `weak()` retires any such question; Google results that are help / docs / forum pages (`HELP_PAGE`) or titled "How to… / Remove…" (`HELP_TITLE`) are skipped. Blog posts on a store are kept (the store is the lead).
+- Not tried against real Google results yet.
+
 ## 4e. Search Agent: better output (27 Oct)
 
 Built from the review in `md_files/SEARCH_AGENT_HOW_IT_WORKS.md` (the report the owner shared).

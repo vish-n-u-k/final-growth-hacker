@@ -9,6 +9,7 @@ import { ActionBar, Card, DemoSwitch, Pager, usePages, Finished, Flow, ListTools
 import { Day, fmtAgo, fmtDate, initials, useAgentApi } from './shared'
 import OwnListFlow from './OwnListFlow'
 import { IcpFields } from './IcpFields'
+import { PLATFORM_GLYPH, platformOf } from '@/lib/agents/profiles'
 
 // Lead Agent: finds people who need the product in two places, Reddit / Hacker News posts (a reply
 // to post yourself) and Google Maps businesses or companies like your customers (an email to approve), and follows up until they
@@ -27,7 +28,7 @@ type Section = 'replied' | 'approve' | 'post'
 // ANY = anywhere: companies and stores from every country (Google searches use the US as their place)
 const COUNTRIES: [string, string][] = [['ANY', 'Anywhere'], ['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
 const SOURCE: Record<Lead['source'], [string, 'orange' | 'amber' | undefined]> = {
-  review: ['Unhappy reviewer', undefined], local: ['Google Maps', 'amber'], company: ['Company like your customers', undefined], reddit: ['Reddit', 'orange'], forum: ['Hacker News', 'orange'], own: ['Your list', undefined],
+  review: ['Unhappy reviewer', undefined], local: ['Google Maps', 'amber'], company: ['Company like your customers', undefined], reddit: ['Reddit', 'orange'], forum: ['Hacker News', 'orange'], own: ['Your list', undefined], profile: ['Seller page', undefined],
 }
 const PROGRESS = ['Checking replies', 'Searching Google Maps', 'Finding companies like your customers', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies']
 
@@ -63,7 +64,10 @@ function PickCard({ s, picking, onStart, onChange, onOwn }: { s: LeadSettings; p
   )
 }
 
-const isForum = (l: Lead) => l.source === 'reddit' || l.source === 'forum'
+// Posts and seller pages: the user posts the reply or sends the message by hand (Community tab)
+const isForum = (l: Lead) => l.source === 'reddit' || l.source === 'forum' || l.source === 'profile'
+const isPage = (l: Lead) => l.source === 'profile'
+const avOf = (l: Lead) => (l.source === 'reddit' ? 'r/' : l.source === 'forum' ? 'Y' : PLATFORM_GLYPH[platformOf(l.url)] ?? '@')
 const laneOf = (l: Lead): Lane => (isForum(l) ? 'community' : 'email')
 const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
 
@@ -98,7 +102,7 @@ function Settings({ initial, saving, picking, hunter, onSave, onCancel, onPick }
           <button type="button" className="btn btn-ghost btn-sm" disabled={picking} onClick={onPick}>{picking ? <><Spinner />Picking…</> : 'Pick for me'}</button>
         </div>
         <label className="tu-chk tu-full"><input type="checkbox" checked={s.sources.companies} onChange={e => set('sources', { ...s.sources, companies: e.target.checked })} />
-          <span>Email: companies like your customers<small>Websites that match who you look for, found with DataForSEO; emails found with Hunter.{hunter ? '' : ' Needs GrowJin’s Hunter key for the emails, which isn’t set up yet.'}</small></span></label>
+          <span>Email: companies like your customers<small>Websites that match who you look for, found with DataForSEO; emails found with Hunter. Sellers with only an Etsy shop or social page go to Community, with a message you send yourself.{hunter ? '' : ' Needs GrowJin’s Hunter key for the emails, which isn’t set up yet.'}</small></span></label>
         {s.sources.companies && <label className="tu-full la-src-who">Who to look for
           <input value={s.companyQuery} onChange={e => set('companyQuery', e.target.value)} placeholder="e.g. small fashion and beauty online stores, 1-50 people" />
         </label>}
@@ -196,6 +200,13 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     setOpenId(l.id); setStepNo(1)
     setTo(l.email ?? ''); setSubject(l.draft?.subject ?? ''); setBody(l.draft?.body ?? ''); setReply(l.reply ?? '')
     window.scrollTo({ top: 0 })
+    // Emails are written when opened, not during the search
+    if (!isForum(l) && l.status === 'ready' && l.email && !l.draft) {
+      act('email', { id: l.id, email: l.email }).then(r => {
+        const fresh = r?.data?.leads.find(x => x.id === l.id)
+        if (fresh?.draft) { setSubject(fresh.draft.subject); setBody(fresh.draft.body) }
+      })
+    }
   }
   function skip(l: Lead) {
     act('skip', { id: l.id })
@@ -211,7 +222,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     const state =
       l.status === 'replied' ? <Tag tone={l.handledAt ? 'ok' : 'crit'}>{l.handledAt ? '✓ Answered' : `Replied${l.repliedAt ? ` ${fmtDate(l.repliedAt)}` : ''}`}</Tag>
       : l.status === 'needs_contact' ? <Tag tone="warn">Needs an email</Tag>
-      : l.status === 'ready' ? <Tag>{l.reply ? 'Reply drafted' : 'Email drafted'}</Tag>
+      : l.status === 'ready' ? <Tag>{l.reply ? (isPage(l) ? 'Message drafted' : 'Reply drafted') : l.draft ? 'Email drafted' : 'Email found'}</Tag>
       : l.status === 'queued' ? <Tag tone="warn">{l.source === 'own' ? 'Approved · waiting its turn' : 'Approved · goes out tomorrow'}</Tag>
       : l.status === 'sent' ? <Tag tone="ok">✓ Emailed {fmtDate(l.sentAt)}</Tag>
       : l.status === 'posted' ? <Tag tone="ok">✓ Posted</Tag>
@@ -222,12 +233,12 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
       ? (l.nextFollowUpAt ? `Follow-up ${l.followupsSent + 1} goes out ${fmtDate(l.nextFollowUpAt)} unless they reply.` : 'All follow-ups sent. Waiting for a reply.')
       : l.status === 'replied' && !l.handledAt ? 'They answered your email. Reply while they’re interested.'
       : l.why
-    const quote = l.status === 'replied' && l.replyNote ? `“${l.replyNote}”` : l.snippet ? (isForum(l) ? `“${l.snippet}”` : l.snippet) : undefined
-    const label = t !== 'needs' ? 'View' : l.status === 'replied' ? 'Reply →' : l.reply ? 'Write reply →' : 'Review email →'
+    const quote = l.status === 'replied' && l.replyNote ? `“${l.replyNote}”` : l.snippet ? (isForum(l) && !isPage(l) ? `“${l.snippet}”` : l.snippet) : undefined
+    const label = t !== 'needs' ? 'View' : l.status === 'replied' ? 'Reply →' : l.reply ? (isPage(l) ? 'Write message →' : 'Write reply →') : 'Review email →'
     return (
-      <Card key={l.id} av={isForum(l) ? (l.source === 'reddit' ? 'r/' : 'Y') : initials(nameOf(l))} square={isForum(l)}
+      <Card key={l.id} av={isForum(l) ? avOf(l) : initials(nameOf(l))} square={isForum(l)}
         name={nameOf(l)}
-        sub={<><Src label={srcLabel} tone={tone} /><span>{isForum(l) ? where(l) : [l.company !== nameOf(l) ? l.company : null, l.website].filter(Boolean).join(' · ')}</span><span>{l.source === 'own' ? 'added' : 'found'} <Day iso={l.foundAt} /></span></>}
+        sub={<><Src label={srcLabel} tone={tone} /><span>{isForum(l) ? where(l) : <>{l.company && l.company !== nameOf(l) ? `${l.company}${l.website ? ' · ' : ''}` : null}{l.website && <a className="tu-site" href={`https://${l.website.replace(/^https?:\/\//, '')}`} target="_blank" rel="noopener noreferrer">{l.website.replace(/^https?:\/\//, '')}</a>}</>}</span><span>{l.source === 'own' ? 'added' : 'found'} <Day iso={l.foundAt} /></span></>}
         badge={l.source === 'own' ? undefined : <span className="cl-fitb cl-fitb--good">Fit {l.score}/10</span>}
         why={why} quote={quote} state={state}
         onSkip={t === 'needs' && l.status !== 'replied' ? () => skip(l) : undefined}
@@ -238,7 +249,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
   // ── More, and the ones not kept ─────────────────────────────────────────────
 
   const [maybeAll, setMaybeAll] = useState(false)
-  const inThisLane = (src: Lead['source']) => (src === 'reddit' || src === 'forum') === (lane === 'community')
+  const inThisLane = (src: Lead['source']) => (src === 'reddit' || src === 'forum' || src === 'profile') === (lane === 'community')
   function extra() {
     const waiting = lane === 'email' ? data.waiting?.sites.length ?? 0 : data.waiting?.posts.length ?? 0
     const canMore = lane === 'email' ? s.sources.companies : s.sources.reddit
@@ -285,7 +296,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
             <button key={k} type="button" aria-pressed={tab === k} onClick={() => { setTab(k); setQ('') }}>{label} <span>{byTab(k).length}</span></button>
           ))}
         </div>
-        <span className="cl-muted">{lane === 'email' ? 'Businesses and companies we found, and your own lists. You approve every email.' : 'Posts on Reddit and Hacker News. You post every reply yourself.'}</span>
+        <span className="cl-muted">{lane === 'email' ? 'Businesses and companies we found, and your own lists. You approve every email.' : 'Posts on Reddit and Hacker News, and sellers with only an Etsy shop or social page. You post or send every message yourself.'}</span>
       </div>
       <ListTools q={q} setQ={setQ} shown={shown.length} total={all.length} onClear={() => setQ('')} />
     </>
@@ -299,7 +310,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
         : 'Nothing here yet.'}</div>{tab === 'needs' && extra()}</>
     }
     if (tab !== 'needs') return <>{tools}{pg.items.map(card)}<Pager p={pg} top={listTop} /></>
-    const approvable = shown.filter(l => l.status === 'ready' && !l.reply && l.email && l.draft).length
+    const approvable = shown.filter(l => l.status === 'ready' && !l.reply && l.email).length
     return <>{tools}
       {([['replied', 'Replied: answer while they’re interested', 'crit'], ['approve', 'Emails to approve', undefined], ['post', 'Replies to post', undefined]] as const).map(([k, label, tone]) => {
         // This page's cards of the section; the heading counts the whole section
@@ -330,14 +341,14 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
 
   function detail(l: Lead) {
     const [srcLabel, tone] = SOURCE[l.source]
-    const side = <Side av={isForum(l) ? (l.source === 'reddit' ? 'r/' : 'Y') : initials(nameOf(l))} square={isForum(l)} name={nameOf(l)}
+    const side = <Side av={isForum(l) ? avOf(l) : initials(nameOf(l))} square={isForum(l)} name={nameOf(l)}
       sub={<><Src label={srcLabel} tone={tone} />{l.url && <a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See it ↗</a>}</>}
       quote={l.snippet || undefined} why={l.why} />
     const back = { label: 'Lead Agent', onClick: () => setOpenId(null) }
     const next = leads.find(x => x.id !== l.id && tabOf(x) === 'needs' && laneOf(x) === laneOf(l))
     const nextBtn = next && <button key="next" type="button" className="btn btn-primary" onClick={() => openLead(next)}>Next: {firstOf(next) === 'them' ? nameOf(next).slice(0, 28) + (nameOf(next).length > 28 ? '…' : '') : firstOf(next)} →</button>
     const backBtn = <button key="back" type="button" className="btn btn-ghost ro-back" onClick={() => setOpenId(null)}>← Back to the list</button>
-    const steps = l.reply ? ['Check the reply', 'Post it'] : l.status === 'replied' ? ['Reply'] : ['Their email', 'Review & send']
+    const steps = l.reply ? (isPage(l) ? ['Check the message', 'Send it'] : ['Check the reply', 'Post it']) : l.status === 'replied' ? ['Reply'] : ['Their email', 'Review & send']
     const flow = (at: number, title: string, hint: React.ReactNode, content: React.ReactNode, actions: React.ReactNode) =>
       <Flow back={back} crumb={nameOf(l)} side={side} steps={steps} at={at} title={title} hint={hint} actions={actions} stepKey={`${l.id}:${at}:${l.status}`}>{content}</Flow>
 
@@ -376,24 +387,27 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     // A forum reply: check it, then copy it onto the post
     if (l.reply) {
       if (stepNo === 1) {
-        return flow(1, 'Check the reply', 'Helpful answer first, your product second. Make it sound like you.',
+        const page = isPage(l)
+        return flow(1, page ? 'Check the message' : 'Check the reply', page ? `A short, friendly note for their ${platformOf(l.url)} page. Make it sound like you.` : 'Helpful answer first, your product second. Make it sound like you.',
           <div className="ro-mail"><textarea className="ro-mail-body" aria-label="Reply" rows={9} value={reply} onChange={e => setReply(e.target.value)} /></div>,
           <>
             <button key="skip" type="button" className="btn btn-ghost ro-back" onClick={() => skip(l)}>Skip</button>
             <button key="ok" type="button" className="btn btn-primary" disabled={!reply.trim()} onClick={() => { if (reply !== l.reply) call('save', { id: l.id, reply }, `save:${l.id}`); setStepNo(2) }}>Looks good →</button>
           </>)
       }
-      return flow(2, `Post it on ${l.source === 'reddit' ? 'Reddit' : 'Hacker News'}`, `${l.source === 'reddit' ? 'Reddit' : 'Hacker News'} doesn’t allow posting for you. Copy the reply, open the post, paste it.`,
+      const page = isPage(l)
+      const site = page ? platformOf(l.url) : l.source === 'reddit' ? 'Reddit' : 'Hacker News'
+      return flow(2, page ? `Send it on ${site}` : `Post it on ${site}`, page ? `${site} doesn’t let apps message people for you. Copy the message, open their page, send it there.` : `${site} doesn’t allow posting for you. Copy the reply, open the post, paste it.`,
         <div className="tu-stack">
           <div className="tu-draft">{reply}</div>
           <div className="tu-row">
-            <button type="button" className="btn cl-btn-outline" onClick={async () => { try { await navigator.clipboard.writeText(reply); notify('Reply copied. Paste it on the post.') } catch { notify('Couldn’t copy. Select the text and copy it.') } }}>1 · Copy reply</button>
-            <a className="btn cl-btn-outline" href={l.url} target="_blank" rel="noopener noreferrer">2 · Open post ↗</a>
+            <button type="button" className="btn cl-btn-outline" onClick={async () => { try { await navigator.clipboard.writeText(reply); notify(page ? 'Message copied. Send it on their page.' : 'Reply copied. Paste it on the post.') } catch { notify('Couldn’t copy. Select the text and copy it.') } }}>{page ? '1 · Copy message' : '1 · Copy reply'}</button>
+            <a className="btn cl-btn-outline" href={l.url} target="_blank" rel="noopener noreferrer">{page ? '2 · Open their page ↗' : '2 · Open post ↗'}</a>
           </div>
         </div>,
         <>
           <button key="b2" type="button" className="btn btn-ghost ro-back" onClick={() => setStepNo(1)}>← Back</button>
-          <button key="posted" type="button" className="btn btn-primary" disabled={!!busy} onClick={() => act('posted', { id: l.id })}>3 · I’ve posted it</button>
+          <button key="posted" type="button" className="btn btn-primary" disabled={!!busy} onClick={() => act('posted', { id: l.id })}>{page ? '3 · I’ve sent it' : '3 · I’ve posted it'}</button>
         </>)
     }
 

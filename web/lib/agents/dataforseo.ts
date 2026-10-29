@@ -3,7 +3,7 @@
 // Every call adds its cost (USD, from the response) to the run's meter.
 
 import type { UsageMeter } from './store'
-import { agentsDemo, demoStores, demoAiAnswer, demoGoogleResults, demoKeywordIdeas, demoLinkingSites, demoMapsBusinesses, demoRankedKeywords, demoReferringDomains } from './demo'
+import { agentsDemo, demoSimilarSites, demoSiteVisits, demoStores, demoAiAnswer, demoGoogleResults, demoKeywordIdeas, demoLinkingSites, demoMapsBusinesses, demoRankedKeywords, demoReferringDomains } from './demo'
 
 const BASE = 'https://api.dataforseo.com/v3'
 
@@ -31,6 +31,8 @@ function apiLabel(path: string): string {
   if (path.includes('/serp/google/maps/')) return 'Google Maps businesses'
   if (path.includes('/serp/google/organic/')) return 'Google results'
   if (path.includes('/ranked_keywords/')) return 'Site rankings'
+  if (path.includes('/competitors_domain/')) return 'Similar sites'
+  if (path.includes('/bulk_traffic_estimation/')) return 'Site size (visits)'
   if (path.includes('/dataforseo_labs/')) return 'Keyword ideas'
   if (path.includes('/backlinks/')) return 'Backlinks'
   if (path.includes('/trustpilot/')) return 'Trustpilot reviews'
@@ -50,9 +52,14 @@ function charge(meter: UsageMeter | undefined, path: string, cost: number | unde
 interface DfsTask<T> { status_code?: number; status_message?: string; cost?: number; result?: T[] | null }
 interface DfsResponse<T> { status_code?: number; status_message?: string; tasks?: DfsTask<T>[] }
 
-/** DataForSEO's 5xxxx codes ("Internal SE Server Error" etc.): Google or DataForSEO had a hiccup; worth one retry. */
+/**
+ * DataForSEO's 5xxxx codes, and 40101 "Internal SE Server Error" (Google didn't give DataForSEO a
+ * page for that search, often for operator-heavy or very narrow searches): a hiccup, worth one retry.
+ */
 export class DfsBusyError extends Error {}
-const busy = (code: number | undefined) => typeof code === 'number' && code >= 50000
+const busy = (code: number | undefined) => typeof code === 'number' && (code >= 50000 || code === 40101)
+/** 40102 "No Search Results": Google had nothing for that search. Not an error for the caller. */
+export class DfsNoResults extends Error {}
 
 async function post<T>(path: string, task: Record<string, unknown>, meter?: UsageMeter, timeoutMs = 60_000): Promise<T> {
   try {
@@ -94,6 +101,7 @@ async function postOnce<T>(path: string, task: Record<string, unknown>, meter?: 
   if (!t || t.status_code !== 20000) {
     console.error(`[dataforseo] ${path} → task ${t?.status_code}: ${t?.status_message}`)
     if (busy(t?.status_code)) throw new DfsBusyError(`DataForSEO: ${t?.status_message ?? 'no result'}`)
+    if (t?.status_code === 40102) throw new DfsNoResults(`DataForSEO: ${t.status_message ?? 'no search results'}`)
     throw new Error(`DataForSEO: ${t?.status_message ?? 'no result'}`)
   }
   const result = t.result?.[0]
@@ -194,9 +202,13 @@ export async function googleResults(keyword: string, country: string, meter?: Us
   try {
     r = await post<{ items?: Item[] | null }>('/serp/google/organic/live/advanced', task, meter)
   } catch (e) {
+    if (e instanceof DfsNoResults && !opts.recent) return []
     if (!opts.recent) throw e
     delete task.search_param
-    r = await post<{ items?: Item[] | null }>('/serp/google/organic/live/advanced', task, meter)
+    r = await post<{ items?: Item[] | null }>('/serp/google/organic/live/advanced', task, meter).catch(e2 => {
+      if (e2 instanceof DfsNoResults) return { items: [] }
+      throw e2
+    })
   }
   return (r.items ?? [])
     .filter(i => i.type === 'organic' && i.url)
@@ -262,6 +274,53 @@ export async function storesByPlatform(platforms: string[], country: string, met
       socials: (i.social_graph_urls ?? []).filter(u => typeof u === 'string'),
       rank: i.domain_rank ?? null,
     }))
+}
+
+// ── Sites like a given site ───────────────────────────────────────────────────
+
+export interface SimilarSite { domain: string; shared: number; visits: number | null }
+
+/**
+ * Sites that show up on Google for the same searches as `domain` (Labs competitors_domain), most
+ * shared searches first. Used for "more like this customer": a candle shop's neighbours are mostly
+ * other candle shops. Big sites (Amazon, Etsy…) are left out by DataForSEO; `offset` pages on.
+ */
+export async function similarSites(domain: string, country: string, meter?: UsageMeter, opts: { limit?: number; offset?: number } = {}): Promise<SimilarSite[]> {
+  if (agentsDemo()) return demoSimilarSites(domain)
+  type Item = { domain?: string; intersections?: number | null; full_domain_metrics?: { organic?: { etv?: number | null } | null } | null }
+  const r = await post<{ items?: Item[] | null; total_count?: number | null }>('/dataforseo_labs/google/competitors_domain/live', {
+    target: domain.replace(/^www\./, ''),
+    location_code: locationOf(country),
+    language_code: 'en',
+    exclude_top_domains: true,
+    order_by: ['intersections,desc'],
+    limit: opts.limit ?? 30,
+    offset: opts.offset ?? 0,
+  }, meter)
+  console.log(`[dataforseo] sites like ${domain} · offset ${opts.offset ?? 0}: ${r.items?.length ?? 0} back of ${r.total_count ?? '?'}`)
+  return (r.items ?? [])
+    .filter(i => i.domain && i.domain !== domain)
+    .map(i => ({ domain: i.domain!.replace(/^www\./, '').toLowerCase(), shared: i.intersections ?? 0, visits: i.full_domain_metrics?.organic?.etv ?? null }))
+}
+
+/**
+ * Estimated monthly visits from Google for each site (Labs bulk_traffic_estimation, one call for up
+ * to 1,000 sites). A site missing from the answer is too small for DataForSEO to measure: 0.
+ */
+export async function siteVisits(domains: string[], country: string, meter?: UsageMeter): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  if (!domains.length) return out
+  if (agentsDemo()) return demoSiteVisits(domains)
+  type Item = { target?: string; metrics?: { organic?: { etv?: number | null } | null } | null }
+  const r = await post<{ items?: Item[] | null }>('/dataforseo_labs/google/bulk_traffic_estimation/live', {
+    targets: domains.slice(0, 1000),
+    location_code: locationOf(country),
+    language_code: 'en',
+    item_types: ['organic'],
+  }, meter)
+  for (const d of domains) out.set(d, 0)
+  for (const i of r.items ?? []) if (i.target) out.set(i.target.replace(/^www\./, '').toLowerCase(), Math.round(i.metrics?.organic?.etv ?? 0))
+  return out
 }
 
 // ── Google's AI Overview ───────────────────────────────────────────────────────

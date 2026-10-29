@@ -9483,3 +9483,12 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .lfh-li-groups { display: grid; gap: 18px; }
 .lfh-li-gh { display: flex; align-items: baseline; gap: 10px; margin: 6px 2px 8px; }
 .lfh-li-gh b { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); }
+
+/* A lead's website in its grey sub line: a link that stays quiet until hovered */
+.tu-site { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.tu-site:hover { color: var(--text); text-decoration-color: currentColor; }
+.icp-brand { display: flex !important; align-items: flex-start; gap: 10px; font-weight: 500; font-size: 14px; color: var(--text); }
+.lfh-field.icp-head { flex-direction: row; align-items: center; }
+.lfh-field.icp-brand { flex-direction: row; }
+.icp-brand input[type=checkbox] { width: 16px; height: 16px; padding: 0; margin-top: 3px; flex: none; accent-color: var(--green); }
+.icp-brand small { display: block; margin-top: 2px; font-size: 12.5px; font-weight: 400; color: var(--text-faint); }

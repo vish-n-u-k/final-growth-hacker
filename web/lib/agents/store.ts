@@ -47,6 +47,9 @@ export interface LeadSettings {
   // The ideal-customer card: drafted by the AI from the brand (and example customers), editable.
   // Every search, check and score reads it; changing it starts the search afresh.
   icp?: Icp | null
+  // Off: the Lead Agent leaves the brand profile's audience, keywords and notes out of its prompts
+  // and goes only by these search settings (the product description stays, to judge need and write)
+  useBrand?: boolean
 }
 
 export type IcpKind = 'ecommerce' | 'saas' | 'local' | 'creator' | 'other'
@@ -62,7 +65,8 @@ export interface Icp {
 
 // own = added by the user from their own list (Email tab, "Add your own emails")
 // company = a website found with DataForSEO ("Companies like your customers")
-export type LeadSource = 'reddit' | 'forum' | 'review' | 'local' | 'company' | 'own'
+// profile = a seller's page on a marketplace or social network (Etsy shop, Instagram…), messaged by hand
+export type LeadSource = 'reddit' | 'forum' | 'review' | 'local' | 'company' | 'own' | 'profile'
 export type LeadStatus =
   | 'ready'          // draft waiting for the user's OK
   | 'needs_contact'  // good fit, no email found
@@ -100,11 +104,34 @@ export interface Lead {
   repliedAt?: string
   handledAt?: string            // the user answered their reply (moves it to Done)
   listId?: string               // source 'own': the list it was added with (OwnList.id)
+  queryId?: string              // source 'company': the search that found it (LeadQuery.id)
+  skippedBy?: 'auto'            // skipped by the agent (no longer what you look for), not by the user
   error?: string
 }
 
 /** A website found but not checked yet. */
-export interface WaitingSite { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string }
+// profile: the platform ("Etsy") when `domain` is a seller page's link ("etsy.com/shop/candleco"), not a website
+export interface WaitingSite { domain: string; name: string; about?: string; socials?: string[]; email?: string; from: string; queryId?: string; visits?: number | null; profile?: string }
+
+/**
+ * One question the Lead Agent asks DataForSEO for companies, picked with the playbook in
+ * lead-playbook.ts, and how it has done so far (the next plan keeps the good ones, replaces the rest).
+ * google = a Google search with operators; stores = the technology index (trade words + platforms);
+ * lookalike = sites that rank for the same searches as one of your customers.
+ */
+export interface LeadQuery {
+  id: string
+  kind: 'google' | 'stores' | 'lookalike'
+  q: string                     // google: the search; stores: trade words, comma separated; lookalike: a domain
+  platforms?: string[]          // stores only
+  why: string
+  page: number                  // searches made with it (each asks for the next page)
+  checked: number               // sites it found that the AI checked
+  kept: number                  // of those, kept as leads
+  empty: number                 // searches in a row that brought nothing new
+  retired?: string              // why it was dropped (kept for the planner's history)
+}
+export interface LeadPlan { for: string; at: string; queries: LeadQuery[]; retired: LeadQuery[]; seeds?: { at: string; domains: string[] } }
 /** A forum post found but not scored yet. */
 export interface WaitingPost { source: LeadSource; url: string; title: string; snippet: string; name?: string }
 /** A find the checks didn't keep, with the reason, shown under the leads ("Use anyway"). */
@@ -150,6 +177,7 @@ export interface LeadAgentData {
   // companyQuery turned into DataForSEO search terms (written once per query)
   // platforms: online-store platforms to search (DataForSEO technology index); [] when the buyers aren't online stores
   companyFilters?: { for: string; keywords: string[]; headcount: string[]; platforms?: string[] }
+  plan?: LeadPlan               // the DataForSEO questions for companies, and how each has done
   lastRunAt?: string
   lastRunSummary?: string
   lastError?: string | null

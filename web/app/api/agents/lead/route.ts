@@ -80,6 +80,7 @@ function cleanSettings(cur: LeadSettings, s: Partial<LeadSettings>): LeadSetting
     skipEU: typeof s.skipEU === 'boolean' ? s.skipEU : cur.skipEU,
     mode: s.mode === 'auto' || s.mode === 'approve' ? s.mode : cur.mode,
     icp: cleanIcp(cur.icp, s.icp),
+    useBrand: typeof s.useBrand === 'boolean' ? s.useBrand : cur.useBrand,
   }
 }
 
@@ -169,7 +170,9 @@ async function post(req: NextRequest) {
     }
     case 'approve_all': {
       const d = (await readLeadData(brandId)) ?? fallback()
-      const ids = d.leads.filter(l => l.status === 'ready' && l.email && l.draft).map(l => l.id)
+      // Emails are written when a lead is opened: write the ones nobody opened before sending
+      const ids = d.leads.filter(l => l.status === 'ready' && !l.reply && l.email && l.source !== 'reddit' && l.source !== 'forum').map(l => l.id)
+      for (const l of d.leads.filter(x => ids.includes(x.id) && !x.draft)) await addLeadEmail(brandId, l.id, l.email!)
       let sent = 0, queued = 0
       const failed: string[] = []
       for (const id of ids) {
@@ -215,7 +218,7 @@ async function post(req: NextRequest) {
         if (body.op === 'skip' && (l.status === 'ready' || l.status === 'needs_contact' || l.status === 'queued')) l.status = 'skipped'
         if (body.op === 'posted' && l.status === 'ready' && l.reply) l.status = 'posted'
         if (body.op === 'handled' && l.status === 'replied') l.handledAt = new Date().toISOString()
-        if (body.op === 'restore' && l.status === 'skipped') l.status = l.reply || (l.email && l.draft) ? 'ready' : 'needs_contact'
+        if (body.op === 'restore' && l.status === 'skipped') { l.status = l.reply || (l.email && l.draft) ? 'ready' : 'needs_contact'; delete l.skippedBy }
         if (body.op === 'restore' && l.status === 'replied') delete l.handledAt
         if (body.op === 'save') {
           if (l.draft && typeof body.subject === 'string' && typeof body.body === 'string') l.draft = { subject: body.subject.slice(0, 200), body: body.body.slice(0, 4000) }

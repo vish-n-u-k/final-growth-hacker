@@ -14,6 +14,7 @@ import type { Lead, LeadAgentData, LeadSettings } from '@/lib/agents/store'
 import type { Platform, SavedReview, SavedScan } from '@/lib/lead-finder/saved'
 import { MAX_SCORED, buildItems, buildSources, byFit, isForum, mergeReviews, rivalId, type Item, type Source } from './model'
 import { IcpFields } from '@/components/agents/IcpFields'
+import { platformOf } from '@/lib/agents/profiles'
 
 // Lead Finder: every place leads come from on one board. The buttons at the top are the sources
 // (Google Maps, each competitor's unhappy reviewers, Reddit, Hacker News, your own lists); the panel
@@ -410,7 +411,7 @@ export default function LeadFinderHub({ initial, scans: initialScans, competitor
       av = isForum(l)
         ? <span className="lfh-av">{x?.glyph}</span>
         : <span className="lfh-av">{initials(i.name).slice(0, 1)}</span>
-      sub = isForum(l) ? <>{l.source === 'reddit' && subreddit(l.url) ? `r/${subreddit(l.url)}` : x?.name} · {fmtAgo(l.foundAt)}</>
+      sub = isForum(l) ? <>{l.source === 'reddit' && subreddit(l.url) ? `r/${subreddit(l.url)}` : l.source === 'profile' ? platformOf(l.url) : x?.name} · {fmtAgo(l.foundAt)}</>
         : l.source === 'own' ? <><Ic d={P.list} size={12} />Your list</>
         : <><Ic d={P.pin} size={12} />{l.website || l.company || 'Google Maps'}</>
       right = i.stage === 'todo' ? <>{!l.email && !isForum(l) && <span className="lfh-noemail" title="Email not found yet"><Ic d={P.noat} size={15} /></span>}{l.source !== 'own' && <Bars n={i.fit} />}</>
@@ -659,12 +660,19 @@ function AgentItem({ item, source, settings, gmail, busy, act, notify, left, onS
   const [reply, setReply] = useState(l.reply ?? '')
   // A draft written after the email was added comes in with fresh data
   useEffect(() => { if (l.draft && !subject && !body) { setSubject(l.draft.subject); setBody(l.draft.body) } }, [l.draft, subject, body])
+  // Emails are written when a lead is opened, not during the search
+  const asked = useRef(false)
+  useEffect(() => {
+    if (asked.current || forum || l.status !== 'ready' || !l.email || l.draft) return
+    asked.current = true
+    act('email', { id: l.id, email: l.email })
+  }, [act, forum, l.id, l.status, l.email, l.draft])
 
   const av = forum
     ? <span className="lfh-av lfh-av--lg">{source?.glyph}</span>
     : <span className="lfh-av lfh-av--lg">{initials(item.name).slice(0, 1)}</span>
-  const subLine = forum ? <>{source?.name} · {fmtAgo(l.foundAt)}</> : l.source === 'own' ? 'Your list' : <>{l.website || l.company || 'Google Maps'}{l.url && <a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See it ↗</a>}</>
-  const head = <Head av={av} title={forum ? (subreddit(l.url) ? `r/${subreddit(l.url)}` : source?.name) : item.name} sub={subLine} onClose={onClose} />
+  const subLine = forum ? <>{l.source === 'profile' ? `${platformOf(l.url)} page` : source?.name} · {fmtAgo(l.foundAt)}</> : l.source === 'own' ? 'Your list' : <>{l.website ? <a className="tu-site" href={`https://${l.website.replace(/^https?:\/\//, '')}`} target="_blank" rel="noopener noreferrer">{l.website.replace(/^https?:\/\//, '')}</a> : l.company || 'Google Maps'}{l.url && <a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See it ↗</a>}</>
+  const head = <Head av={av} title={forum && l.source !== 'profile' ? (subreddit(l.url) ? `r/${subreddit(l.url)}` : source?.name) : item.name} sub={subLine} onClose={onClose} />
   const why = l.why && <div className="lfh-why"><Ic d={P.spark} /><span>{l.why}</span></div>
 
   // Contacted: what happened and what's next
@@ -714,30 +722,34 @@ function AgentItem({ item, source, settings, gmail, busy, act, notify, left, onS
     </>
   }
 
-  // A forum post: check the reply, copy it, post it
+  // A forum post: check the reply, copy it, post it. A seller page: the same, as a message on their page
   if (forum) {
+    const page = l.source === 'profile'
+    const site = page ? platformOf(l.url) : ''
     return <>
       {head}
       <div className="lfh-d-body">
         <div className="lfh-msg lfh-msg--post"><div className="lfh-who">{l.title}</div>{l.snippet}</div>
         {why}
-        <div className="lfh-msg lfh-msg--us lfh-msg--edit"><div className="lfh-who"><Ic d={P.spark} size={12} />Your reply</div>
-          <textarea aria-label="Your reply" rows={7} value={reply} onChange={e => setReply(e.target.value)} />
+        <div className="lfh-msg lfh-msg--us lfh-msg--edit"><div className="lfh-who"><Ic d={P.spark} size={12} />{page ? 'Your message' : 'Your reply'}</div>
+          <textarea aria-label={page ? 'Your message' : 'Your reply'} rows={7} value={reply} onChange={e => setReply(e.target.value)} />
         </div>
-        <div className="lfh-how"><span>1 <b>Copy</b></span><span>2 <b>Open post</b></span><span>3 <b>Paste &amp; post</b></span></div>
+        {page
+          ? <div className="lfh-how"><span>1 <b>Copy</b></span><span>2 <b>Open their {site} page</b></span><span>3 <b>Send it there</b></span></div>
+          : <div className="lfh-how"><span>1 <b>Copy</b></span><span>2 <b>Open post</b></span><span>3 <b>Paste &amp; post</b></span></div>}
       </div>
       <div className="lfh-d-foot">
         <button type="button" className="btn btn-ghost" onClick={onSkip}>Skip</button>
         <button type="button" className="btn btn-ghost" aria-label="Copy reply" title="Copy reply" onClick={async () => {
-          try { await navigator.clipboard.writeText(reply); notify('Reply copied. Paste it on the post.') } catch { notify('Couldn’t copy. Select the text and copy it.') }
+          try { await navigator.clipboard.writeText(reply); notify(page ? 'Message copied. Send it on their page.' : 'Reply copied. Paste it on the post.') } catch { notify('Couldn’t copy. Select the text and copy it.') }
         }}><Ic d={P.copy} /></button>
-        <a className="btn btn-ghost" href={l.url} target="_blank" rel="noopener noreferrer" aria-label="Open post" title="Open post"><Ic d={P.out} /></a>
+        <a className="btn btn-ghost" href={l.url} target="_blank" rel="noopener noreferrer" aria-label={page ? 'Open their page' : 'Open post'} title={page ? 'Open their page' : 'Open post'}><Ic d={P.out} /></a>
         <button type="button" className="btn btn-primary lfh-grow-btn" disabled={!!busy || !reply.trim()} onClick={async () => {
           if (reply !== l.reply) await act('save', { id: l.id, reply }, `save:${l.id}`)
           await act('posted', { id: l.id })
-          notify('Marked as posted')
+          notify(page ? 'Marked as sent' : 'Marked as posted')
           onDone()
-        }}><Ic d={P.check} />I posted it</button>
+        }}><Ic d={P.check} />{page ? 'I sent it' : 'I posted it'}</button>
       </div>
     </>
   }
