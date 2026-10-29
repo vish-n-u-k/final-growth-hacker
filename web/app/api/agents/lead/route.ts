@@ -121,9 +121,13 @@ async function post(req: NextRequest) {
     }
     // The ideal-customer card, drafted from the brand and the example customers given. Not saved:
     // it fills the Settings form, and Save keeps it
+    // "Fill in again" drafts it the way the first one was: from the brand (and the example sites), not
+    // from the old card, whose "who" is also saved as the customer line
     case 'icp_draft': {
       const cur = (await readLeadData(brandId)) ?? fallback()
-      const r = await draftIcp(b, cur.settings, lines(body.examples, 5)).catch(() => null)
+      const s = cur.settings
+      const fresh = s.icp && s.customer.trim() === s.icp.who.trim() ? { ...s, customer: '' } : s
+      const r = await draftIcp(b, fresh, lines(body.examples, 5)).catch(() => null)
       return r ? NextResponse.json(r) : NextResponse.json({ error: 'Couldn’t describe your customer right now. Try again.' }, { status: 500 })
     }
     // GrowJin picks the sources from the brand (first visit, or "Pick for me" in Settings).
