@@ -24,10 +24,11 @@ function Lines({ value, onChange, placeholder }: { value: string[]; onChange: (v
   return <textarea rows={3} value={text} onChange={e => { setText(e.target.value); onChange(fromLines(e.target.value)) }} placeholder={placeholder} />
 }
 
-export function IcpFields({ s, onChange, label = 'tu-full' }: {
+export function IcpFields({ s, onChange, label = 'tu-full', quietDefault = false }: {
   s: LeadSettings
   onChange: (patch: Partial<LeadSettings>) => void
   label?: string                 // class for each field (the two Settings forms lay out differently)
+  quietDefault?: boolean         // what "not posting lately is a good sign" is when the card doesn't say (from the brand)
 }) {
   const icp = s.icp ?? null
   const [examples, setExamples] = useState((icp?.examples ?? []).join(', '))
@@ -69,6 +70,10 @@ export function IcpFields({ s, onChange, label = 'tu-full' }: {
       <span>Also use my brand profile<small>{s.useBrand !== false
         ? 'Your brand’s audience, keywords and notes help pick who to look for. Where they differ from this card, the card wins.'
         : 'Off: only this card says who to look for. Your brand still tells the AI what you sell, to judge fit and write the emails.'}</small></span>
+    </label>
+    <label className={`tu-chk ${label} icp-brand`}>
+      <input type="checkbox" checked={icp?.quietSocial ?? quietDefault} onChange={e => edit({ quietSocial: e.target.checked })} />
+      <span>Not posting on social lately is a good sign<small>Leads whose Instagram or Facebook has been quiet for 3 months, or who have none, move up the list. Checked only for leads that pass the other checks.</small></span>
     </label>
     <label className={label}>Who is your customer?
       <textarea rows={2} value={icp?.who ?? s.customer} onChange={e => (icp ? edit({ who: e.target.value }) : onChange({ customer: e.target.value }))}

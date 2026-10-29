@@ -144,8 +144,8 @@ export function Flow({ back, crumb, side, steps, at, title, hint, children, acti
   )
 }
 
-export function Side({ av, square, name, sub, quote, why, whyLabel = 'Why them' }: {
-  av: React.ReactNode; square?: boolean; name: string; sub?: React.ReactNode; quote?: React.ReactNode; why?: React.ReactNode; whyLabel?: string
+export function Side({ av, square, name, sub, quote, why, whyLabel = 'Why them', children }: {
+  av: React.ReactNode; square?: boolean; name: string; sub?: React.ReactNode; quote?: React.ReactNode; why?: React.ReactNode; whyLabel?: string; children?: React.ReactNode
 }) {
   return <>
     <div className="ro-person">
@@ -154,6 +154,7 @@ export function Side({ av, square, name, sub, quote, why, whyLabel = 'Why them' 
     </div>
     {quote && <blockquote className="ro-quote">{quote}</blockquote>}
     {why && <div className="ro-fit ro-fit--good"><div className="ro-fit-top"><b>{whyLabel}</b></div><p>{why}</p></div>}
+    {children}
   </>
 }
 

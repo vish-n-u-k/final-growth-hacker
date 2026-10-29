@@ -9502,3 +9502,19 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
   .lfh-grp-set { flex: none; flex-wrap: nowrap; }
   .lfh-srcs > .lfh-src, .lfh-grp-set > .lfh-src { flex: none; }
 }
+
+/* Lead Finder (components/agents/LeadAgentPage.tsx, variant "finder"): one funnel for every source.
+   Where a lead came from is a grey word; the opened lead shows the same facts whatever the source. */
+.lfx-from { color: var(--text-faint); }
+.lfx-facts { margin-top: 14px; display: grid; gap: 12px; font-size: 13.5px; }
+.lfx-facts ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
+.lfx-facts li { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 8px; color: var(--text-dim); }
+.lfx-facts li b { color: var(--text-faint); font-weight: 500; }
+.lfx-src { display: grid; gap: 5px; padding: 12px 14px; border-radius: 12px; background: var(--bg-soft); color: var(--text-dim); }
+.lfx-src b { color: var(--text); font-weight: 500; margin-right: 4px; }
+.lfx-src .th-link { justify-self: start; font-size: 13px; }
+.tu-grid .lfx-li { margin: -6px 0 0 26px; display: grid; gap: 8px; }
+.lfx-li-hd { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-faint); }
+.lfx-li-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+.lfx-li-grid label { display: grid; gap: 4px; font-size: 12.5px; color: var(--text-dim); }
+@media (max-width: 640px) { .lfx-li-grid { grid-template-columns: 1fr; } .tu-grid .lfx-li { margin-left: 0; } }

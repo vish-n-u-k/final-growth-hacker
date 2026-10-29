@@ -19,7 +19,11 @@ import { PLATFORM_GLYPH, platformOf } from '@/lib/agents/profiles'
 // answer, emails to approve, forum replies to post), Waiting (sent, follow-ups running) and Done.
 // A lead opens into two short steps, the same as Competitor Leads' reach-out page.
 
-export interface LeadAgentFlags { dataforseo: boolean; hunter: boolean; hunterOut?: boolean; gmail: boolean; demo: boolean; demoForced: boolean }
+export interface LeadAgentFlags { dataforseo: boolean; hunter: boolean; hunterOut?: boolean; gmail: boolean; demo: boolean; demoForced: boolean; linkedin?: boolean; quietSocial?: boolean }
+// The same page runs the Lead Agent (/agents/leads) and Lead Finder (/leads). Lead Finder has two tabs,
+// "Contact directly" (everyone you email or message: websites, Maps, LinkedIn, competitors' reviewers,
+// seller pages) and "Join conversations" (Reddit and Hacker News), and more sources in Settings.
+export type LeadPageVariant = 'agent' | 'finder'
 
 type TabKey = 'needs' | 'waiting' | 'done'
 type Lane = 'community' | 'email'
@@ -28,15 +32,22 @@ type Section = 'replied' | 'approve' | 'post'
 // ANY = anywhere: companies and stores from every country (Google searches use the US as their place)
 const COUNTRIES: [string, string][] = [['ANY', 'Anywhere'], ['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
 const SOURCE: Record<Lead['source'], [string, 'orange' | 'amber' | undefined]> = {
-  review: ['Unhappy reviewer', undefined], local: ['Google Maps', 'amber'], company: ['Company like your customers', undefined], reddit: ['Reddit', 'orange'], forum: ['Hacker News', 'orange'], own: ['Your list', undefined], profile: ['Seller page', undefined],
+  review: ['Competitor review', undefined], local: ['Google Maps', 'amber'], company: ['Company like your customers', undefined], reddit: ['Reddit', 'orange'], forum: ['Hacker News', 'orange'], own: ['Your list', undefined], profile: ['Seller page', undefined], linkedin: ['LinkedIn', undefined],
+}
+// Lead Finder: where it came from is a grey word, not a coloured pill
+const FINDER_SOURCE: Record<Lead['source'], string> = {
+  review: 'from a competitor review', local: 'from Google Maps', company: 'from Google', reddit: 'from Reddit', forum: 'from Hacker News', own: 'from your list', profile: 'from a seller page', linkedin: 'from LinkedIn',
 }
 const PROGRESS = ['Searching Google Maps', 'Finding companies like your customers', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Finding emails']
+const FINDER_PROGRESS = ['Finding companies like your customers', 'Searching LinkedIn', 'Reading competitor reviews', 'Checking who’s a good fit', 'Checking social accounts', 'Finding emails']
 
 /** The sources that are on, each with who it looks for (the first-visit card and the line above the list). */
 function sourcesOn(s: LeadSettings): { name: string; who: string }[] {
   return [
     s.sources.companies ? { name: 'Companies like your customers', who: s.companyQuery || 'Online businesses that match your customer' } : null,
     s.sources.local ? { name: 'Google Maps', who: s.localQuery || 'Add a search, e.g. cafés in Pune' } : null,
+    s.sources.linkedin ? { name: 'People on LinkedIn', who: [s.linkedin?.jobTitles.slice(0, 3).join(', '), s.linkedin?.industries.slice(0, 2).join(', ')].filter(Boolean).join(' · ') || 'Fill in who to look for in Settings' } : null,
+    s.sources.reviews && s.rivals?.length ? { name: 'Unhappy customers of your competitors', who: s.rivals.map(r => r.url.replace(/^https?:\/\/(www\.)?/, '')).slice(0, 3).join(', ') } : null,
     s.sources.reddit ? { name: 'Reddit and Hacker News', who: 'People asking for a tool like yours' } : null,
   ].filter((x): x is { name: string; who: string } => !!x)
 }
@@ -64,11 +75,16 @@ function PickCard({ s, picking, onStart, onChange, onOwn }: { s: LeadSettings; p
   )
 }
 
-// Posts and seller pages: the user posts the reply or sends the message by hand (Community tab)
-const isForum = (l: Lead) => l.source === 'reddit' || l.source === 'forum' || l.source === 'profile'
-const isPage = (l: Lead) => l.source === 'profile'
+// Posts and seller pages: the user posts the reply or sends the message by hand (Community tab).
+// A business with no email anywhere but an Instagram or Facebook page gets a message there too.
+const isPost = (l: Lead) => l.source === 'reddit' || l.source === 'forum'
+const isPage = (l: Lead) => l.source === 'profile' || (!l.email && !!l.dm)
+const isForum = (l: Lead) => isPost(l) || isPage(l)
+const pageUrl = (l: Lead) => (l.source !== 'profile' && l.dm ? l.dm.url : l.url)
+const pageName = (l: Lead) => (l.source !== 'profile' && l.dm ? l.dm.platform : platformOf(l.url))
 const avOf = (l: Lead) => (l.source === 'reddit' ? 'r/' : l.source === 'forum' ? 'Y' : PLATFORM_GLYPH[platformOf(l.url)] ?? '@')
-const laneOf = (l: Lead): Lane => (isForum(l) ? 'community' : 'email')
+// Lead Finder keeps everyone you write to in one tab; only forum posts are "Join conversations"
+const laneOf = (l: Lead, finder = false): Lane => ((finder ? isPost(l) : isForum(l)) ? 'community' : 'email')
 const validEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim())
 
 function tabOf(l: Lead): TabKey {
@@ -78,14 +94,91 @@ function tabOf(l: Lead): TabKey {
   return 'done'
 }
 const sectionOf = (l: Lead): Section => (l.status === 'replied' ? 'replied' : isForum(l) ? 'post' : 'approve')
-const nameOf = (l: Lead) => (isForum(l) ? l.title : l.name || l.company || l.title)
-const firstOf = (l: Lead) => (isForum(l) ? 'them' : (l.name || l.company || l.title).split(/\s+/)[0])
+const nameOf = (l: Lead) => (isPost(l) || l.source === 'profile' ? l.title : l.name || l.company || l.title)
+const firstOf = (l: Lead) => (isPost(l) || l.source === 'profile' ? 'them' : (l.name || l.company || l.title).split(/\s+/)[0])
 const where = (l: Lead) => { try { return new URL(l.url).hostname.replace(/^www\./, '') } catch { return '' } }
 
-function Settings({ initial, saving, picking, hunter, onSave, onCancel, onPick }: {
+/** What every source fills in the same way: the facts, where it was found and how the email was found. */
+function LeadFacts({ l }: { l: Lead }) {
+  if (!l.facts?.length && !l.foundVia && !l.emailVia && !l.dm) return null
+  return (
+    <div className="lfx-facts">
+      {l.facts?.length ? <ul>{l.facts.map(f => <li key={f.k}><b>{f.k}</b><span>{f.v}</span></li>)}</ul> : null}
+      <div className="lfx-src">
+        {l.foundVia && <span><b>Found through</b> {l.foundVia}</span>}
+        {l.email && l.emailVia && <span><b>Email</b> {l.emailVia}</span>}
+        {!l.email && l.dm && <span><b>Contact</b> no email anywhere, so a message on their {l.dm.platform}</span>}
+        {l.linkedinUrl && <a className="th-link" href={l.linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn profile ↗</a>}
+      </div>
+    </div>
+  )
+}
+
+const csv = (l?: string[]) => (l ?? []).join(', ')
+const fromCsv = (v: string) => v.split(',').map(x => x.trim()).filter(Boolean)
+const EMPTY_LI = { jobTitles: [], industries: [], keywords: [], countries: [], sizes: [], technologies: [] }
+
+/** Lead Finder's extra sources: people from LinkedIn, and competitors' unhappy reviewers. */
+function FinderSources({ s, setS, linkedin, competitors }: { s: LeadSettings; setS: (f: (x: LeadSettings) => LeadSettings) => void; linkedin: boolean; competitors: string[] }) {
+  const li = s.linkedin ?? EMPTY_LI
+  const [liText, setLiText] = useState(() => ({ jobTitles: csv(li.jobTitles), industries: csv(li.industries), keywords: csv(li.keywords), countries: csv(li.countries), sizes: csv(li.sizes), technologies: csv(li.technologies) }))
+  const [rivals, setRivals] = useState(() => (s.rivals?.length ? s.rivals.map(r => r.url) : competitors).join('\n'))
+  const [filling, setFilling] = useState(false)
+  const [err, setErr] = useState('')
+  const setLi = (k: keyof typeof liText, v: string) => {
+    setLiText(t => ({ ...t, [k]: v }))
+    setS(x => ({ ...x, linkedin: { ...(x.linkedin ?? EMPTY_LI), [k]: fromCsv(v) } }))
+  }
+  const setRivalText = (v: string) => {
+    setRivals(v)
+    setS(x => ({ ...x, rivals: v.split('\n').map(u => u.trim()).filter(Boolean).slice(0, 5).map(url => ({ platform: /apps\.shopify\.com/i.test(url) ? 'shopify' as const : 'trustpilot' as const, url })) }))
+  }
+  async function fill() {
+    setFilling(true); setErr('')
+    try {
+      const res = await fetch('/api/agents/lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'linkedin_suggest' }) })
+      const j = await res.json().catch(() => ({})) as { filters?: Record<keyof typeof liText, string[]> & { why?: string }; error?: string }
+      if (!j.filters) { setErr(j.error ?? 'Couldn’t fill it in right now.'); return }
+      const f = j.filters
+      setLiText({ jobTitles: csv(f.jobTitles), industries: csv(f.industries), keywords: csv(f.keywords), countries: csv(f.countries), sizes: csv(f.sizes), technologies: csv(f.technologies) })
+      setS(x => ({ ...x, linkedin: { jobTitles: f.jobTitles ?? [], industries: f.industries ?? [], keywords: f.keywords ?? [], countries: f.countries ?? [], sizes: f.sizes ?? [], technologies: f.technologies ?? [], why: f.why } }))
+    } catch { setErr('Network error. Try again.') } finally { setFilling(false) }
+  }
+  const on = !!s.sources.linkedin
+  return <>
+    <label className="tu-chk tu-full"><input type="checkbox" checked={on} onChange={e => {
+      setS(x => ({ ...x, sources: { ...x.sources, linkedin: e.target.checked } }))
+      // Turned on with nothing filled in: fill it in from the brand
+      if (e.target.checked && !Object.values(liText).some(Boolean)) fill()
+    }} />
+      <span>People on LinkedIn<small>Founders and marketing people by job title, industry and size. Their company is checked like any other, and most come with a checked email.{linkedin ? '' : ' Needs GrowJin’s Apify key, which isn’t set up yet.'}</small></span></label>
+    {on && <div className="tu-full lfx-li">
+      <div className="lfx-li-hd"><span>{err || s.linkedin?.why || 'Comma separated. Filled in from your brand; change anything.'}</span>
+        <button type="button" className="btn btn-ghost btn-sm" disabled={filling} onClick={fill}>{filling ? <><Spinner />Filling in…</> : 'Fill in from my brand'}</button></div>
+      <div className="lfx-li-grid">
+        <label>Job titles<input value={liText.jobTitles} onChange={e => setLi('jobTitles', e.target.value)} placeholder="Founder, Owner, Head of Marketing" /></label>
+        <label>Industries<input value={liText.industries} onChange={e => setLi('industries', e.target.value)} placeholder="Retail, Cosmetics" /></label>
+        <label>Company words<input value={liText.keywords} onChange={e => setLi('keywords', e.target.value)} placeholder="handmade, candles" /></label>
+        <label>Company size<input value={liText.sizes} onChange={e => setLi('sizes', e.target.value)} placeholder="1-10, 11-20" /></label>
+        <label>Countries or cities<input value={liText.countries} onChange={e => setLi('countries', e.target.value)} placeholder="United States, London" /></label>
+        <label>Their website runs on<input value={liText.technologies} onChange={e => setLi('technologies', e.target.value)} placeholder="Shopify" /></label>
+      </div>
+    </div>}
+    <label className="tu-chk tu-full"><input type="checkbox" checked={s.sources.reviews} onChange={e => setS(x => ({ ...x, sources: { ...x.sources, reviews: e.target.checked } }))} />
+      <span>Unhappy customers of your competitors<small>Reviews of 3 stars or less on Trustpilot or the Shopify App Store, read again every day.</small></span></label>
+    {s.sources.reviews && <label className="tu-full la-src-who">Competitors <small>One per line: their website (for Trustpilot) or their Shopify App Store link. Up to 5.</small>
+      <textarea rows={3} value={rivals} onChange={e => setRivalText(e.target.value)} placeholder={'later.com\nhttps://apps.shopify.com/some-app'} />
+    </label>}
+  </>
+}
+
+function Settings({ initial, saving, picking, hunter, onSave, onCancel, onPick, variant = 'agent', linkedin = false, competitors = [], quietDefault = false }: {
   initial: LeadSettings; saving: boolean; picking: boolean; hunter: boolean; onSave: (s: LeadSettings) => void; onCancel: () => void; onPick: () => void
+  variant?: LeadPageVariant; linkedin?: boolean; competitors?: string[]; quietDefault?: boolean
 }) {
-  const [s, setS] = useState<LeadSettings>(initial)
+  const finder = variant === 'finder'
+  const [s, setS] = useState<LeadSettings>(() => finder && initial.sources.reviews && !initial.rivals?.length && competitors.length
+    ? { ...initial, rivals: competitors.map(url => ({ platform: 'trustpilot' as const, url })) } : initial)
   const [days, setDays] = useState(initial.followUpDays.join(', '))
   const set = <K extends keyof LeadSettings>(k: K, v: LeadSettings[K]) => setS(x => ({ ...x, [k]: v }))
   return (
@@ -96,23 +189,24 @@ function Settings({ initial, saving, picking, hunter, onSave, onCancel, onPick }
       <h3>Search settings</h3>
       <p className="tu-hint">Filled in from your brand. Change anything.</p>
       <div className="tu-grid">
-        <IcpFields s={s} onChange={p => setS(x => ({ ...x, ...p }))} />
+        <IcpFields s={s} onChange={p => setS(x => ({ ...x, ...p }))} quietDefault={quietDefault} />
         <div className="tu-full la-src-hd">
           <span>Where to look{initial.picked?.why ? <small>{initial.picked.why}</small> : null}</span>
           <button type="button" className="btn btn-ghost btn-sm" disabled={picking} onClick={onPick}>{picking ? <><Spinner />Picking…</> : 'Pick for me'}</button>
         </div>
         <label className="tu-chk tu-full"><input type="checkbox" checked={s.sources.companies} onChange={e => set('sources', { ...s.sources, companies: e.target.checked })} />
-          <span>Email: companies like your customers<small>Websites that match who you look for, found with DataForSEO; emails found with Hunter. Sellers with only an Etsy shop or social page go to Community, with a message you send yourself.{hunter ? '' : ' Needs GrowJin’s Hunter key for the emails, which isn’t set up yet.'}</small></span></label>
+          <span>{finder ? 'Companies like your customers' : 'Email: companies like your customers'}<small>Websites that match who you look for, found with DataForSEO; emails found with Hunter. {finder ? 'Sellers with only an Etsy shop or social page get a message you send yourself.' : 'Sellers with only an Etsy shop or social page go to Community, with a message you send yourself.'}{hunter ? '' : ' Needs GrowJin’s Hunter key for the emails, which isn’t set up yet.'}</small></span></label>
         {s.sources.companies && <label className="tu-full la-src-who">Who to look for
           <input value={s.companyQuery} onChange={e => set('companyQuery', e.target.value)} placeholder="e.g. small fashion and beauty online stores, 1-50 people" />
         </label>}
         <label className="tu-chk tu-full"><input type="checkbox" checked={s.sources.local} onChange={e => set('sources', { ...s.sources, local: e.target.checked })} />
-          <span>Email: businesses on Google Maps<small>Local shops with no website, few reviews or a low rating. You approve each email.</small></span></label>
+          <span>{finder ? 'Businesses on Google Maps' : 'Email: businesses on Google Maps'}<small>Local shops with no website, few reviews or a low rating. You approve each email.</small></span></label>
         {s.sources.local && <label className="tu-full la-src-who">Google Maps search
           <input value={s.localQuery} onChange={e => set('localQuery', e.target.value)} placeholder="e.g. cafés in Pune" />
         </label>}
+        {finder && <FinderSources s={s} setS={setS} linkedin={linkedin} competitors={competitors} />}
         <label className="tu-chk tu-full"><input type="checkbox" checked={s.sources.reddit} onChange={e => set('sources', { ...s.sources, reddit: e.target.checked })} />
-          <span>Community: Reddit and Hacker News<small>Posts asking for a tool like yours. You post the reply yourself.</small></span></label>
+          <span>{finder ? 'Join conversations: Reddit and Hacker News' : 'Community: Reddit and Hacker News'}<small>Posts asking for a tool like yours. You post the reply yourself.</small></span></label>
         <label className="tu-chk tu-full"><input type="checkbox" checked={s.enabled} onChange={e => set('enabled', e.target.checked)} />
           <span>Search every morning automatically<small>New leads are waiting each day. Nothing is sent without you.</small></span></label>
       </div>
@@ -142,14 +236,16 @@ function Settings({ initial, saving, picking, hunter, onSave, onCancel, onPick }
   )
 }
 
-export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentData; flags: LeadAgentFlags }) {
+export default function LeadAgentPage({ initial, flags, variant = 'agent', competitors = [] }: { initial: LeadAgentData; flags: LeadAgentFlags; variant?: LeadPageVariant; competitors?: string[] }) {
+  const finder = variant === 'finder'
+  const title = finder ? 'Lead Finder' : 'Lead Agent'
   const { data, busy, call, toast: said } = useAgentApi<LeadAgentData>('/api/agents/lead', initial)
   const [toast, notify] = useToast()
   // What the server says back (errors, "Sent", the search summary) shows in the toast
   useEffect(() => { if (said) notify(said) }, [said, notify])
   const s = data.settings
   // Open on the job with something to do: email first (replies wait there), else community
-  const [lane, setLane] = useState<Lane>(() => initial.leads.some(l => tabOf(l) === 'needs' && laneOf(l) === 'email') || !initial.leads.some(l => tabOf(l) === 'needs') ? 'email' : 'community')
+  const [lane, setLane] = useState<Lane>(() => initial.leads.some(l => tabOf(l) === 'needs' && laneOf(l, finder) === 'email') || !initial.leads.some(l => tabOf(l) === 'needs') ? 'email' : 'community')
   const [demo, setDemo] = useState(flags.demo)
   // In demo mode nothing is really sent, so Gmail isn't needed
   const gmail = flags.gmail || demo
@@ -166,6 +262,8 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
   // "Add your own emails": the 3-step flow, and one of your lists opened
   const [adding, setAdding] = useState(false)
   const [listId, setListId] = useState<string | null>(null)
+  // A lead with only a social page: the user has their email after all, so it becomes an email
+  const [emailFor, setEmailFor] = useState<string | null>(null)
 
   const running = busy === 'run' || busy === 'demo_skip'
   // First visit: GrowJin picks where to look from the brand, then the user starts the search
@@ -181,7 +279,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     call(op, payload, key) as Promise<{ ok?: boolean; error?: string; message?: string; data?: LeadAgentData } | null>
 
   const leads = data.leads
-  const inLane = (ln: Lane, k: TabKey) => leads.filter(l => laneOf(l) === ln && tabOf(l) === k)
+  const inLane = (ln: Lane, k: TabKey) => leads.filter(l => laneOf(l, finder) === ln && tabOf(l) === k)
   const byTab = (k: TabKey) => inLane(lane, k)
   const hot = leads.some(l => tabOf(l) === 'needs' && l.status === 'replied')
 
@@ -243,9 +341,9 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     const quote = l.status === 'replied' && l.replyNote ? `“${l.replyNote}”` : l.snippet ? (isForum(l) && !isPage(l) ? `“${l.snippet}”` : l.snippet) : undefined
     const label = t !== 'needs' ? 'View' : l.status === 'replied' ? 'Reply →' : isForum(l) ? (isPage(l) ? 'Write message →' : 'Write reply →') : 'Review email →'
     return (
-      <Card key={l.id} av={isForum(l) ? avOf(l) : initials(nameOf(l))} square={isForum(l)}
+      <Card key={l.id} av={isPost(l) || l.source === 'profile' ? avOf(l) : initials(nameOf(l))} square={isPost(l) || l.source === 'profile'}
         name={nameOf(l)}
-        sub={<><Src label={srcLabel} tone={tone} /><span>{isForum(l) ? where(l) : <>{l.company && l.company !== nameOf(l) ? `${l.company}${l.website ? ' · ' : ''}` : null}{l.website && <a className="tu-site" href={`https://${l.website.replace(/^https?:\/\//, '')}`} target="_blank" rel="noopener noreferrer">{l.website.replace(/^https?:\/\//, '')}</a>}</>}</span><span>{l.source === 'own' ? 'added' : 'found'} <Day iso={l.foundAt} /></span></>}
+        sub={<>{finder ? <span className="lfx-from">{FINDER_SOURCE[l.source]}{isPage(l) ? ' · message' : ''}</span> : <Src label={srcLabel} tone={tone} />}{l.role && <span>{l.role}</span>}<span>{isPost(l) || l.source === 'profile' ? where(l) : <>{l.company && l.company !== nameOf(l) ? `${l.company}${l.website ? ' · ' : ''}` : null}{l.website && <a className="tu-site" href={`https://${l.website.replace(/^https?:\/\//, '')}`} target="_blank" rel="noopener noreferrer">{l.website.replace(/^https?:\/\//, '')}</a>}</>}</span><span>{l.source === 'own' ? 'added' : 'found'} <Day iso={l.foundAt} /></span></>}
         badge={l.source === 'own' ? undefined : <span className="cl-fitb cl-fitb--good">Fit {l.score}/10</span>}
         why={why} quote={quote} state={state}
         onSkip={t === 'needs' && l.status !== 'replied' ? () => skip(l) : undefined}
@@ -303,7 +401,9 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
             <button key={k} type="button" aria-pressed={tab === k} onClick={() => { setTab(k); setQ('') }}>{label} <span>{byTab(k).length}</span></button>
           ))}
         </div>
-        <span className="cl-muted">{lane === 'email' ? 'Businesses and companies we found, and your own lists. You approve every email.' : 'Posts on Reddit and Hacker News, and sellers with only an Etsy shop or social page. You post or send every message yourself.'}</span>
+        <span className="cl-muted">{finder
+          ? (lane === 'email' ? 'Businesses and people from every source, checked the same way. You approve every email; messages on their page you send yourself.' : 'Posts on Reddit and Hacker News asking for a tool like yours. You post every reply yourself.')
+          : lane === 'email' ? 'Businesses and companies we found, and your own lists. You approve every email.' : 'Posts on Reddit and Hacker News, and sellers with only an Etsy shop or social page. You post or send every message yourself.'}</span>
       </div>
       <ListTools q={q} setQ={setQ} shown={shown.length} total={all.length} onClear={() => setQ('')} />
     </>
@@ -319,12 +419,12 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     if (tab !== 'needs') return <>{tools}{pg.items.map(card)}<Pager p={pg} top={listTop} /></>
     const approvable = shown.filter(l => l.status === 'ready' && !isForum(l) && l.email).length
     return <>{tools}
-      {([['replied', 'Replied: answer while they’re interested', 'crit'], ['approve', 'Emails to approve', undefined], ['post', 'Replies to post', undefined]] as const).map(([k, label, tone]) => {
+      {([['replied', 'Replied: answer while they’re interested', 'crit'], ['approve', 'Emails to approve', undefined], ['post', 'Messages to send on their page', undefined]] as const).map(([k, label, tone]) => {
         // This page's cards of the section; the heading counts the whole section
         const items = pg.items.filter(l => sectionOf(l) === k)
         if (!items.length) return null
         // Community has only one kind, so no heading
-        if (k === 'post') return <div key={k}>{items.map(card)}</div>
+        if (k === 'post' && lane === 'community') return <div key={k}>{items.map(card)}</div>
         return (
           <div key={k}>
             <div className="tu-sec-row">
@@ -348,11 +448,14 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
 
   function detail(l: Lead) {
     const [srcLabel, tone] = SOURCE[l.source]
-    const side = <Side av={isForum(l) ? avOf(l) : initials(nameOf(l))} square={isForum(l)} name={nameOf(l)}
-      sub={<><Src label={srcLabel} tone={tone} />{l.url && <a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See it ↗</a>}</>}
-      quote={l.snippet || undefined} why={l.why} />
-    const back = { label: 'Lead Agent', onClick: () => setOpenId(null) }
-    const next = leads.find(x => x.id !== l.id && tabOf(x) === 'needs' && laneOf(x) === laneOf(l))
+    const people = isPost(l) || l.source === 'profile'
+    const side = <Side av={people ? avOf(l) : initials(nameOf(l))} square={people} name={nameOf(l)}
+      sub={<>{finder ? <span className="lfx-from">{FINDER_SOURCE[l.source]}</span> : <Src label={srcLabel} tone={tone} />}{l.url && <a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See it ↗</a>}</>}
+      quote={l.facts?.length && !isPost(l) ? undefined : l.snippet || undefined} why={l.why}>
+      <LeadFacts l={l} />
+    </Side>
+    const back = { label: title, onClick: () => setOpenId(null) }
+    const next = leads.find(x => x.id !== l.id && tabOf(x) === 'needs' && laneOf(x, finder) === laneOf(l, finder))
     const nextBtn = next && <button key="next" type="button" className="btn btn-primary" onClick={() => openLead(next)}>Next: {firstOf(next) === 'them' ? nameOf(next).slice(0, 28) + (nameOf(next).length > 28 ? '…' : '') : firstOf(next)} →</button>
     const backBtn = <button key="back" type="button" className="btn btn-ghost ro-back" onClick={() => setOpenId(null)}>← Back to the list</button>
     const steps = isForum(l) && l.status !== 'replied' ? (isPage(l) ? ['Check the message', 'Send it'] : ['Check the reply', 'Post it']) : l.status === 'replied' ? ['Reply'] : ['Their email', 'Review & send']
@@ -392,10 +495,10 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     }
 
     // A forum reply: check it, then copy it onto the post
-    if (isForum(l)) {
+    if (isForum(l) && emailFor !== l.id) {
       if (stepNo === 1) {
         const page = isPage(l)
-        return flow(1, page ? 'Check the message' : 'Check the reply', page ? `A short, friendly note for their ${platformOf(l.url)} page. Make it sound like you.` : 'Helpful answer first, your product second. Make it sound like you.',
+        return flow(1, page ? 'Check the message' : 'Check the reply', page ? <>A short, friendly note for their {pageName(l)} page. Make it sound like you.{l.source !== 'profile' && <> <button type="button" className="th-link tu-linkbtn" onClick={() => setEmailFor(l.id)}>Have their email? Write an email instead</button></>}</> : 'Helpful answer first, your product second. Make it sound like you.',
           busy === `reply:${l.id}` && !reply ? <div className="ro-working"><Spinner /><span>{page ? 'Writing your message…' : 'Writing your reply…'}</span><i /></div>
             : <div className="ro-mail"><textarea className="ro-mail-body" aria-label="Reply" rows={9} value={reply} onChange={e => setReply(e.target.value)} /></div>,
           <>
@@ -404,13 +507,13 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
           </>)
       }
       const page = isPage(l)
-      const site = page ? platformOf(l.url) : l.source === 'reddit' ? 'Reddit' : 'Hacker News'
+      const site = page ? pageName(l) : l.source === 'reddit' ? 'Reddit' : 'Hacker News'
       return flow(2, page ? `Send it on ${site}` : `Post it on ${site}`, page ? `${site} doesn’t let apps message people for you. Copy the message, open their page, send it there.` : `${site} doesn’t allow posting for you. Copy the reply, open the post, paste it.`,
         <div className="tu-stack">
           <div className="tu-draft">{reply}</div>
           <div className="tu-row">
             <button type="button" className="btn cl-btn-outline" onClick={async () => { try { await navigator.clipboard.writeText(reply); notify(page ? 'Message copied. Send it on their page.' : 'Reply copied. Paste it on the post.') } catch { notify('Couldn’t copy. Select the text and copy it.') } }}>{page ? '1 · Copy message' : '1 · Copy reply'}</button>
-            <a className="btn cl-btn-outline" href={l.url} target="_blank" rel="noopener noreferrer">{page ? '2 · Open their page ↗' : '2 · Open post ↗'}</a>
+            <a className="btn cl-btn-outline" href={pageUrl(l)} target="_blank" rel="noopener noreferrer">{page ? '2 · Open their page ↗' : '2 · Open post ↗'}</a>
           </div>
         </div>,
         <>
@@ -425,7 +528,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
       return flow(1, 'Where should it go?', l.email ? 'We looked up their email. Check it, or paste the right one.' : 'No public email was found. Paste it if you know it, and the email gets written for them.',
         writing ? <div className="ro-working"><Spinner /><span>Writing the email for {firstOf(l)}…</span><i /></div> : <>
           {l.email
-            ? <div className="ro-found"><span className="ro-found-ic" aria-hidden="true">✉</span><div><b>Found {firstOf(l)}’s email</b><span>{l.emailVerified ? 'verified' : `on ${l.website ?? 'their website'} · not verified, so double-check it`}</span></div></div>
+            ? <div className="ro-found"><span className="ro-found-ic" aria-hidden="true">✉</span><div><b>Found {firstOf(l)}’s email</b><span>{l.emailVia ? `${l.emailVia}${l.emailVerified ? '' : ' · not verified, so double-check it'}` : l.emailVerified ? 'verified' : `on ${l.website ?? 'their website'} · not verified, so double-check it`}</span></div></div>
             : <div className="ro-found ro-found--none"><span className="ro-found-ic" aria-hidden="true">?</span><div><b>No public email found</b><span>Try their {l.website ? <a className="th-link" href={`https://${l.website}`} target="_blank" rel="noopener noreferrer">website ↗</a> : 'website'}{l.phone ? ` or call ${l.phone}` : ''}.</span></div></div>}
           <form id={`to-${l.id}`} className="ro-field" onSubmit={async e => {
             e.preventDefault()
@@ -512,7 +615,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     return (
       <div className="own-view">
         <nav className="ro-crumbs" aria-label="Breadcrumb">
-          <button type="button" className="th-link tu-linkbtn" onClick={() => setListId(null)}>← Lead Agent</button>
+          <button type="button" className="th-link tu-linkbtn" onClick={() => setListId(null)}>← {title}</button>
           <span aria-hidden="true">/</span><b className="tu-ellip">{L?.name ?? 'Your list'}</b>
         </nav>
         <p className="cl-muted own-view-sum">{st.sent} of {st.ls.length} sent{st.replied ? ` · ${st.replied} replied` : ''} · {s.dailyLimit} a day · follow-ups after {s.followUpDays.join(' and ') || '—'} days stop when they reply</p>
@@ -528,8 +631,8 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
   return (
     <div className="tool-page">
       <ToolHeader
-        icon="bot"
-        title="Lead Agent"
+        icon={finder ? 'people' : 'bot'}
+        title={title}
         intro="leadAgent"
         chips={<>
           {demo ? <span className="th-chip th-chip--warn">Demo: nothing is sent</span>
@@ -554,6 +657,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
         {data.lastError && !running && <div className="ag-note ag-note-crit">The last search had a problem: {data.lastError}</div>}
 
         {panel && <Settings key={s.picked?.at ?? 'none'} initial={s} saving={busy === 'settings'} picking={busy === 'pick'} hunter={flags.hunter} onCancel={() => setPanel(false)}
+          variant={variant} linkedin={!!flags.linkedin} competitors={competitors} quietDefault={!!flags.quietSocial}
           onPick={() => call('pick')}
           onSave={async next => { const r = await call('settings', { settings: next }); if (r?.data) { setPanel(false); notify('Saved') } }} />}
         {firstVisit ? (!panel && <PickCard s={s} picking={busy === 'pick'} onStart={() => call('run')} onChange={() => setPanel(true)} onOwn={() => setAdding(true)} />) : <ActionBar
@@ -562,13 +666,13 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
           onChange={() => setPanel(p => !p)}
           secondary={<button type="button" className="btn btn-ghost" aria-expanded={panel} onClick={() => setPanel(p => !p)}>Search settings</button>}
           primary={<button type="button" className="btn btn-primary" disabled={running || !!busy} onClick={() => { setPanel(false); call('run') }}>{running ? <><Spinner />Working…</> : 'Find new leads'}</button>} />}
-        <LiveProgress agent="lead" active={running} fallback={PROGRESS} />
+        <LiveProgress agent="lead" active={running} fallback={finder ? FINDER_PROGRESS : PROGRESS} />
 
         {/* First visit: nothing to list until the first search */}
         {!firstVisit && <>
           <Tabs value={lane} onChange={k => { setLane(k); setTab('needs'); setQ('') }} tabs={[
-            { key: 'email', label: 'Email', count: inLane('email', 'needs').length, hot },
-            { key: 'community', label: 'Community', count: inLane('community', 'needs').length },
+            { key: 'email', label: finder ? 'Contact directly' : 'Email', count: inLane('email', 'needs').length, hot },
+            { key: 'community', label: finder ? 'Join conversations' : 'Community', count: inLane('community', 'needs').length },
           ]} />
           {lane === 'email' && ownBar()}
           {list()}

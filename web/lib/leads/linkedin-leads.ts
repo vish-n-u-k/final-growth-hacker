@@ -21,6 +21,8 @@ export interface LeadSearchInput {
   count: number
   extra?: number    // more than `count` are fetched, so people left out later (already contacted) can be replaced
   offset?: number   // skip this many matches: each search of the same filters moves on to new people
+  domains?: string[] // only people at these companies' websites (the Lead Agent's "someone at this company" lookup)
+  timeoutSec?: number // how long the search may take (default 150 s)
 }
 
 export interface LinkedInLead {
@@ -215,16 +217,18 @@ export async function searchLeads(input: LeadSearchInput): Promise<LeadSearchRes
   if (f.sizes.length) body.companySizeIncludes = f.sizes
   if (f.countries.length) body.personLocationCountryIncludes = f.countries
   if (f.cities.length) body.personLocationCityIncludes = f.cities
+  if (input.domains?.length) body.companyDomainIncludes = input.domains
 
   try {
     // maxItems / maxTotalChargeUsd cap what Apify can bill for this call
     const cap = (want * PRICE_PER_LEAD * 1.5 + 0.02).toFixed(3)
-    const url = `https://api.apify.com/v2/acts/${ACTOR}/run-sync-get-dataset-items?maxItems=${want}&maxTotalChargeUsd=${cap}&timeout=150`
+    const wait = Math.max(30, Math.min(150, Math.floor(input.timeoutSec ?? 150)))
+    const url = `https://api.apify.com/v2/acts/${ACTOR}/run-sync-get-dataset-items?maxItems=${want}&maxTotalChargeUsd=${cap}&timeout=${wait}`
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(170000),
+      signal: AbortSignal.timeout((wait + 20) * 1000),
     })
     if (!res.ok) {
       // Apify says why in the body ({ error: { type, message } }); log it for the developer, never show it

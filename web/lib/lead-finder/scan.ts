@@ -199,7 +199,7 @@ Return ONLY a raw JSON array with one entry per review:
 const slug = (name: string) => name.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim().replace(/\s+/g, '-').replace(/-+/g, '-')
 
 /** A Shopify merchant's store: name.myshopify.com, following its redirect to the real domain. */
-async function shopifyStoreDomain(store: string): Promise<string | null> {
+export async function shopifyStoreDomain(store: string): Promise<string | null> {
   const s = slug(store)
   if (!s) return null
   const res = await fetch(`https://${s}.myshopify.com`, { method: 'HEAD', headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(4000), redirect: 'manual' }).catch(() => null)
