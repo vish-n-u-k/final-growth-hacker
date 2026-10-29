@@ -12,8 +12,14 @@ export const PLAYBOOK = `# Finding small businesses with DataForSEO
 
 You pick the questions the Lead Agent asks DataForSEO to find companies that would buy the product.
 Every question costs money, so pick ones that bring back small, real, active businesses of the right
-trade, not lists, blogs or big brands. A seller's own page on a marketplace or social network
-(an Etsy shop, an Instagram account) counts as a business; marketplace search and listing pages don't.
+trade, not lists, blogs or big brands. A seller's or maker's own page on a marketplace or social
+network counts as a business; marketplace search and listing pages don't.
+
+## Search for the buyers, never for the product
+The businesses found must be people who would BUY this product, not people who sell something like
+it. Search for what the buyers themselves sell or do (their trade, their product, their customers),
+never for this product's category or the job it does. For an email tool you'd search "dog groomers"
+or "yoga studios", never "email marketing software": that only brings competitors.
 
 ## The three kinds of question
 
@@ -22,15 +28,14 @@ Google only shows live sites, and operators pin down what kind of site comes bac
 - Shopify stores: inurl:collections <product>. Never search for "powered by shopify" or other footer text:
   it brings help articles about removing it, not stores.
 - WooCommerce stores: inurl:product-category <product>
-- Stores that also sell on Etsy: <product> "shop" "also on etsy"
 - Businesses that take bookings (salons, studios, coaches, clinics): <trade> "book now", or <trade> "book a consultation"
 - Small teams: <trade> "family run" or <trade> "small team" or <trade> "founded by"
-- Sellers without a website of their own: many small sellers only have an Etsy shop or an Instagram,
-  Facebook or TikTok page. Their pages are kept as leads (messaged by hand), so search them directly:
-  site:etsy.com/shop <product>, site:instagram.com <product> "shop" (or "DM to order"),
-  site:facebook.com <product> "small business", site:tiktok.com <product> "handmade".
-  When the ideal customers sell on a marketplace or mostly on social media, make at least one question
-  of this kind. Don't add -site:etsy.com or -site:instagram.com: those pages are wanted.
+- Businesses without a website of their own: some buyers only have a page on a marketplace or social
+  network. Their pages are kept as leads (messaged by hand), so when THESE buyers typically live on
+  such a platform, search it directly with site:<that platform> <their trade>. Pick the platform from
+  who the buyers are (where would this kind of business have its page?), not from habit; skip this
+  kind of question when the buyers normally have their own website. Never exclude a platform the
+  buyers use with -site:.
 - Never use "best", "top", "review", "vs", "ideas" or "how to": they bring lists and blogs, not businesses.
 - One product or trade per search, the narrower the better ("soy candles", not "home decor").
 - At most 8 words and 2 quoted phrases. Don't add the country: the search already runs in it.
@@ -56,15 +61,6 @@ approved. Usually the closest matches of all. q is one domain, and only from the
 
 const PLATFORMS = ['Shopify', 'WooCommerce', 'Wix', 'Squarespace']
 const ACTIVE = 3
-// Where sellers without their own site live: when "who to look for" names one of these, one of the
-// plan's questions is always a search of its seller pages (set in code, not left to the AI)
-const MARKETS: [RegExp, string][] = [
-  [/\betsy\b/i, 'site:etsy.com/shop'],
-  [/\bebay\b/i, 'site:ebay.com/str'],
-  [/\binstagram\b/i, 'site:instagram.com'],
-  [/\btiktok\b/i, 'site:tiktok.com'],
-  [/\bfacebook\b/i, 'site:facebook.com'],
-]
 const FREE_MAIL = new Set(['gmail.com', 'googlemail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'live.com', 'msn.com', 'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com', 'gmx.com', 'yandex.com', 'zoho.com', 'rediffmail.com'])
 const APPROVED = new Set(['sent', 'queued', 'replied', 'opted_out', 'bounced'])
 
@@ -111,38 +107,11 @@ async function customerSites(brandId: string, d: LeadAgentData, plan: LeadPlan |
  * The questions for this search: the saved plan, with weak questions dropped and the gaps filled by
  * Claude from the playbook. A new plan is made when "who to look for" changes.
  */
-/**
- * When the buyers sell on a marketplace or social network ("Etsy sellers", "Instagram shops"), two of
- * the plan's three questions search those seller pages directly, e.g. site:etsy.com/shop soy candles,
- * each with a different trade word. They take the place of the newest other questions; a used-up one
- * moves on to the next trade word.
- */
-const MARKET_SHARE = 2
-function addMarketQuery(plan: LeadPlan, s: LeadSettings, keywords: string[], taken: Set<string>) {
-  const who = `${s.companyQuery} ${s.icp?.who ?? ''} ${s.customer}`
-  const site = MARKETS.find(([re]) => re.test(who))?.[1]
-  if (!site) return
-  const isMarket = (q: LeadQuery) => q.q.toLowerCase().includes(site)
-  const words = keywords.filter(k => !/^(etsy|ebay|instagram|tiktok|facebook|shop|store|online)$/i.test(k.trim()))
-  for (let n = plan.queries.filter(isMarket).length; n < MARKET_SHARE; n++) {
-    const inUse = new Set(plan.queries.map(q => q.q.toLowerCase()))
-    const word = words.find(w => !taken.has(`google:${site} ${w}`.toLowerCase()) && !inUse.has(`${site} ${w}`.toLowerCase()))
-    if (!word) return
-    const q: LeadQuery = { id: `${Date.now().toString(36)}m${n}`, kind: 'google', q: `${site} ${word}`, why: `Sellers with a page on ${site.replace('site:', '').split('/')[0]} selling ${word}`, page: 0, checked: 0, kept: 0, empty: 0 }
-    if (plan.queries.length >= ACTIVE) {
-      const last = plan.queries.map(isMarket).lastIndexOf(false)
-      if (last < 0) return
-      plan.queries.splice(last, 1)
-    }
-    plan.queries = [q, ...plan.queries]
-  }
-}
-
 export async function planLeadQueries(b: BrandContext, s: LeadSettings, d: LeadAgentData,
   hints: { keywords: string[]; platforms: string[]; customer: string; examples: string[]; card: string }): Promise<LeadPlan> {
   // A new plan when who we look for changes (the line, or the ideal-customer card)
-  // v2: seller pages (Etsy shops, Instagram…) became leads; plans made before are redone once
-  const want = `v2|${s.companyQuery.trim() || s.customer}|${hints.card}`
+  // v3: platforms are picked from the buyers, not forced, and competitors are kept out; older plans are redone once
+  const want = `v3|${s.companyQuery.trim() || s.customer}|${hints.card}`
   const old = d.plan?.for === want ? d.plan : undefined
   const outcomes = queryOutcomes(d)
   const seeds = await customerSites(b.id, d, d.plan, hints.examples)
@@ -154,7 +123,7 @@ export async function planLeadQueries(b: BrandContext, s: LeadSettings, d: LeadA
     else queries.push(q)
   }
   const plan: LeadPlan = { for: want, at: old?.at ?? new Date().toISOString(), queries, retired: retired.slice(0, 15), seeds }
-  if (queries.length >= ACTIVE) { addMarketQuery(plan, s, hints.keywords, new Set([...queries, ...retired].map(q => `${q.kind}:${q.q.toLowerCase()}`))); return plan }
+  if (queries.length >= ACTIVE) return plan
 
   const line = (q: LeadQuery) => {
     const o = outcomes.get(q.id)
@@ -203,7 +172,6 @@ why: one plain sentence for the owner, e.g. "Shopify shops selling soy candles".
     }))
   plan.queries = [...queries, ...fresh]
   plan.at = new Date().toISOString()
-  addMarketQuery(plan, s, hints.keywords, taken)
   // Claude gave nothing usable and nothing is left: fall back to the old store search
   if (!plan.queries.length && hints.platforms.length) {
     plan.queries = [{ id: `${Date.now().toString(36)}s`, kind: 'stores', q: hints.keywords.join(', '), platforms: hints.platforms, why: 'Online stores whose title has your trade words', page: 0, checked: 0, kept: 0, empty: 0 }]

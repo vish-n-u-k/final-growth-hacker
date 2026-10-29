@@ -33,7 +33,7 @@ type Panel =
 const PLATFORM: Record<Platform, string> = { trustpilot: 'Trustpilot', shopify: 'Shopify App Store' }
 // Found every morning, in this order on the source row
 const FOUND = ['companies', 'pages', 'reddit', 'hn', 'maps']
-const PROGRESS = ['Checking replies', 'Searching Google Maps', 'Finding companies like your customers', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies']
+const PROGRESS = ['Searching Google Maps', 'Finding companies like your customers', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Finding emails']
 // ANY = anywhere: companies and stores from every country (Google searches use the US as their place)
 const COUNTRIES: [string, string][] = [['ANY', 'Anywhere'], ['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
 const BATCH = 6
@@ -722,6 +722,13 @@ function AgentItem({ item, source, settings, gmail, busy, act, notify, left, onS
     asked.current = true
     act('email', { id: l.id, email: l.email })
   }, [act, forum, l.id, l.status, l.email, l.draft])
+  // Replies to posts and messages for seller pages are written when opened too
+  useEffect(() => { if (l.reply && !reply) setReply(l.reply) }, [l.reply, reply])
+  useEffect(() => {
+    if (asked.current || !forum || l.status !== 'ready' || l.reply) return
+    asked.current = true
+    act('reply', { id: l.id })
+  }, [act, forum, l.id, l.status, l.reply])
 
   const av = forum
     ? <span className="lfh-av lfh-av--lg">{source?.glyph}</span>
@@ -787,7 +794,8 @@ function AgentItem({ item, source, settings, gmail, busy, act, notify, left, onS
         <div className="lfh-msg lfh-msg--post"><div className="lfh-who">{l.title}</div>{l.snippet}</div>
         {why}
         <div className="lfh-msg lfh-msg--us lfh-msg--edit"><div className="lfh-who"><Ic d={P.spark} size={12} />{page ? 'Your message' : 'Your reply'}</div>
-          <textarea aria-label={page ? 'Your message' : 'Your reply'} rows={7} value={reply} onChange={e => setReply(e.target.value)} />
+          <textarea aria-label={page ? 'Your message' : 'Your reply'} rows={7} value={reply} onChange={e => setReply(e.target.value)}
+            placeholder={busy === `reply:${l.id}` ? (page ? 'Writing your message…' : 'Writing your reply…') : ''} />
         </div>
         {page
           ? <div className="lfh-how"><span>1 <b>Copy</b></span><span>2 <b>Open their {site} page</b></span><span>3 <b>Send it there</b></span></div>

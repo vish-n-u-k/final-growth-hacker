@@ -179,7 +179,9 @@ const ICP_KINDS: IcpKind[] = ['ecommerce', 'saas', 'local', 'creator', 'other']
 export function customerBlock(b: BrandContext, s: LeadSettings): string {
   const c = s.icp
   const lead = 'Who to look for (from the search settings; where it differs from the brand\'s "Who it\'s for", follow this):'
-  if (!c?.who) return `${lead}\nIdeal customer: ${s.customer || (s.useBrand !== false ? b.targetAudience : '') || 'not given'}`
+  // Searches for the buyers' trade still bring up products like the brand's own; those are rivals, not buyers
+  const rivals = `Never a fit (score 1, never keep): anyone who sells a product or service that does what ${b.name} does, or competes with it${b.competitors.length ? ` (like ${b.competitors.map(x => x.name).join(', ')})` : ''}. They are competitors, not buyers.`
+  if (!c?.who) return `${lead}\nIdeal customer: ${s.customer || (s.useBrand !== false ? b.targetAudience : '') || 'not given'}\n${rivals}`
   return [
     lead,
     `Ideal customer: ${c.who}`,
@@ -187,6 +189,7 @@ export function customerBlock(b: BrandContext, s: LeadSettings): string {
     c.fit.length ? `Signs of a good fit: ${c.fit.join('; ')}` : null,
     c.notFit.length ? `NOT a fit (score 1-3, never keep): ${c.notFit.join('; ')}` : null,
     c.examples.length ? `Examples of ideal customers: ${c.examples.join(', ')}` : null,
+    rivals,
   ].filter(Boolean).join('\n')
 }
 
@@ -214,7 +217,7 @@ Return {"kind":"...","who":"...","marketing":"...","fit":[...],"notFit":[...],"c
 - who: one plain sentence, e.g. "Founders of small SaaS products (1-10 people) who do their own marketing"
 - marketing: how they market today, in one sentence, e.g. "The founder posts on X and LinkedIn themselves, with no marketing hire"
 - fit: 3-5 short signs someone is a good fit that can be seen on their website or posts (e.g. "launched in the last year", "founder links their own X account", "blog not updated in months")
-- notFit: 3-6 short signs someone is NOT a fit (e.g. "has a marketing team or agency", "hires influencers or creators", "big brand", and the buyer types this product is wrongly confused with)
+- notFit: 3-6 short signs someone is NOT a fit (e.g. "has a marketing team or agency", "hires influencers or creators", "big brand", "sells a tool or service like ours", and the buyer types this product is wrongly confused with)
 - companyQuery: who to search for, in plain words, e.g. "small SaaS and app startups, 1-10 people"`,
   }))
   const j = parseJsonLoose<Partial<Icp> & { companyQuery?: string }>(raw, 'object')
@@ -539,8 +542,8 @@ async function askQuery(q: LeadQuery, country: string, meter: UsageMeter): Promi
   if (q.kind === 'google') {
     // Google's live results have no "page 2": each search reads 20 deeper (up to 100), and sites
     // already checked are dropped as known
-    // Seller-page searches (site:etsy.com/shop …) read 50 deep: most results are listings, few are shops
-    const step = /^site:(etsy|ebay|instagram|tiktok|facebook)\./i.test(q.q) ? 50 : 20
+    // Searches of one platform's pages (site:…) read 50 deep: most results are listings, few are sellers' own pages
+    const step = /^site:/i.test(q.q) ? 50 : 20
     const rows = await googleWithFallback(q.q, country, meter, Math.min(100, step * (q.page + 1)))
     const byDomain = new Map<string, WaitingSite>()
     for (const r of rows) {
@@ -633,7 +636,7 @@ function judgeText(name: string, domain: string, about: string, page: string, so
  * the right trade, small, still active, and a need for help with social posts. Only all-yes are
  * kept; the score orders them.
  */
-interface CompanyCheck extends Scored { trade?: boolean; small?: boolean; active?: boolean | null; need?: boolean; diy?: boolean | null; reach?: boolean | null }
+interface CompanyCheck extends Scored { rival?: boolean; trade?: boolean; small?: boolean; active?: boolean | null; need?: boolean; diy?: boolean | null; reach?: boolean | null }
 async function judgeCompanies(b: BrandContext, s: LeadSettings, list: Candidate[], examples: { kept: string[]; skipped: string[] } = { kept: [], skipped: [] }): Promise<CompanyCheck[]> {
   if (!list.length) return []
   // The owner's own choices so far: the clearest picture of a good lead there is
@@ -652,6 +655,7 @@ ${customerBlock(b, s)}
 Companies we look for: ${s.companyQuery.trim() || s.icp?.who || s.customer || 'not given'}
 ${owner}
 For each business answer:
+- rival: true if it sells a product or service that does the same job as ${b.name} (${b.usp ? `${b.usp}; ` : ''}a competitor, a similar tool or app, or an agency selling the same service). A competitor is never a customer, however well it matches otherwise.
 - trade: true only if what it actually sells or does (product list first, then its own words) matches "Companies we look for". A passing mention of a word is not enough; a law firm, estate agent, software company, marketplace or directory is false.
 - small: true for a one-person to small team business (a product list under about 500 items, under about 20,000 visits a month, no corporate wording). False for big brands, chains, agencies with many offices.
 - active: true if it looks alive (a product added in the last 6 months, or a current-looking site); false if clearly abandoned (newest product over a year ago, "closed", "coming soon" only); null if unknown.
@@ -664,13 +668,14 @@ ${list.map((c, i) => `[${i}]\n${c.judge ?? `${c.title}\n${c.snippet}`}`).join('\
 
 - reach: does ${b.name} help this business reach ITS OWN buyers? Think about who they sell to. For a social media tool: true when their buyers find products on social media (consumers, creators, small businesses, marketers, founders, everyday software users); false when they sell to developers, engineers, hardware makers, IT or enterprise buyers, or investors who don't pick products from social posts. Judge the same way for any other kind of product. null if unknown.
 
-Return [{"i":0,"trade":true,"small":true,"active":true,"need":true,"diy":true,"reach":true,"score":8,"why":"..."}]`,
+Return [{"i":0,"rival":false,"trade":true,"small":true,"active":true,"need":true,"diy":true,"reach":true,"score":8,"why":"..."}]`,
   })
   return (parseJsonLoose<CompanyCheck[]>(raw, 'array') ?? []).filter(x => typeof x.i === 'number' && x.i >= 0 && x.i < list.length)
 }
 
 /** Which check a company failed, for the run summary. */
-function failed(x: CompanyCheck): 'trade' | 'small' | 'active' | 'need' | 'diy' | 'reach' | null {
+function failed(x: CompanyCheck): 'rival' | 'trade' | 'small' | 'active' | 'need' | 'diy' | 'reach' | null {
+  if (x.rival === true) return 'rival'
   if (x.trade === false) return 'trade'
   if (x.small === false) return 'small'
   if (x.active === false) return 'active'
@@ -757,6 +762,7 @@ ${customerBlock(b, s)}${s.sources.companies && s.companyQuery.trim() ? `
 Companies we look for: ${s.companyQuery.trim()}` : ''}
 
 Score each item 1-10 for how likely this person or business would want ${b.name} now:
+- anyone selling or promoting a product or service like ${b.name} (a competitor, a similar tool, its maker or reseller) is 1, whatever the source
 - reddit / forum: 8-10 only if they are asking for a tool or help that ${b.name} gives; 1-4 for news, rants, promotions, or other products' launches
 - review: an unhappy customer of a competitor; high only if their complaint is something ${b.name} solves
 - local: a business that matches the ideal customer and shows a need (no website, low rating, few reviews)
@@ -834,6 +840,26 @@ export async function addLeadEmail(brandId: string, leadId: string, email: strin
   return { ok: true, message: 'Email written.' }
 }
 
+/** Writes the reply to a forum post, or the message for a seller page, when the user opens it. */
+export async function addLeadReply(brandId: string, leadId: string): Promise<{ ok: boolean; message: string }> {
+  const b = await loadBrandContext(brandId)
+  if (!b) return { ok: false, message: 'Brand not found.' }
+  const fallback = leadFallback(b)
+  const d = (await readLeadData(brandId)) ?? fallback()
+  const lead = d.leads.find(l => l.id === leadId)
+  if (!lead) return { ok: false, message: 'Lead not found.' }
+  if (lead.reply) return { ok: true, message: 'Already written.' }
+  if (lead.status !== 'ready' && lead.status !== 'needs_contact') return { ok: false, message: 'Already handled.' }
+  const x = await withAIContext({ brandId, moduleType: 'lead-agent', websiteUrl: b.websiteUrl }, async () =>
+    (await draftMessages(b, d.settings, [lead]).catch(() => new Map<string, { reply?: string }>())).get(lead.id))
+  if (!x?.reply) return { ok: false, message: 'Couldn’t write the reply. Try again.' }
+  await updateLeadData(brandId, fallback, y => {
+    const l = y.leads.find(z => z.id === leadId)
+    if (l && !l.reply) Object.assign(l, { reply: x.reply, status: 'ready' })
+  })
+  return { ok: true, message: 'Reply written.' }
+}
+
 /**
  * "Use anyway" on a find the checks didn't keep: it becomes a lead. A forum post gets its reply
  * drafted; a business gets an email from its own pages (free) or Hunter, then its email drafted.
@@ -852,15 +878,13 @@ export async function useMaybe(brandId: string, id: string): Promise<{ ok: boole
   }
   const forum = m.source === 'reddit' || m.source === 'forum' || m.source === 'profile'
   return withAIContext({ brandId, moduleType: 'lead-agent', websiteUrl: b.websiteUrl }, async () => {
-    if (forum) {
-      const x = (await draftMessages(b, d.settings, [lead]).catch(() => new Map())).get(lead.id)
-      if (x?.reply) { lead.reply = x.reply; lead.status = 'ready' }
-    }
+    // A post or seller page: its reply is written when the user opens it
+    if (forum) lead.status = 'ready'
     await updateLeadData(brandId, fallback, y => {
       y.maybe = (y.maybe ?? []).filter(z => z.id !== id)
       if (!y.leads.some(l => l.id === id)) y.leads = [lead, ...y.leads]
     })
-    if (forum) return { ok: true, message: lead.reply ? 'Added, with a reply to check.' : 'Added. Write the reply yourself.' }
+    if (forum) return { ok: true, message: 'Added. Open it to see the reply.' }
     // A business: its own pages first, then one Hunter lookup
     let email = lead.email ?? (lead.website ? await contactEmail(lead.website).catch(() => null) : null)
     if (!email && lead.website && hunterConfigured()) {
@@ -880,7 +904,7 @@ export interface RunResult { ok: boolean; summary: string; error?: string }
 
 // more: "Show 10 more" for one tab: no reply check or sending, just the next finds (waiting ones
 // first, then a new search) through the same checks, scoring and drafting
-export async function runLeadAgent(brandId: string, opts: { manual?: boolean; deadline?: number; more?: 'email' | 'community' } = {}): Promise<RunResult> {
+export async function runLeadAgent(brandId: string, opts: { manual?: boolean; findOnly?: boolean; deadline?: number; more?: 'email' | 'community' } = {}): Promise<RunResult> {
   const b = await loadBrandContext(brandId)
   if (!b) return { ok: false, summary: '', error: 'Brand not found.' }
   const fallback = leadFallback(b)
@@ -897,6 +921,8 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
   // approved (your own lists go out over several days), but doesn't look for new leads
   const find = d.settings.enabled || !!opts.manual || !!opts.more
   const more = opts.more
+  // "Find leads" and "Show 10 more" only search: replies, follow-ups and queued emails are the daily run's job
+  const mailOff = !!more || !!opts.findOnly
   // Which sources this run searches: all that are on, or just one tab's for "Show 10 more"
   const use = {
     reddit: d.settings.sources.reddit && more !== 'email',
@@ -919,7 +945,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
 
   const n = (x: number, one: string, many = `${one}s`) => `${x} ${x === 1 ? one : many}`
   const pr = new Progress(brandId, 'lead', more ? 'Finding more leads' : 'Lead Agent run', [
-    ...(more ? [] : [
+    ...(mailOff ? [] : [
       { key: 'replies', label: 'Checking replies', hint: 'Replies to emails you sent, and follow-ups that are due' },
       { key: 'queued', label: 'Sending queued emails', hint: 'Approved emails that waited for today\'s limit' },
     ]),
@@ -932,19 +958,19 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
     ...(find ? [
       { key: 'score', label: 'Scoring leads', hint: 'How well each one fits your product' },
       { key: 'emails', label: 'Finding emails', hint: 'Looked up with Hunter' },
-      { key: 'drafts', label: 'Drafting replies', hint: 'Forum replies for your OK. Emails are written when you open one' },
+      ...(s.mode === 'auto' && d.approvedCount >= 20 ? [{ key: 'drafts', label: 'Writing emails', hint: 'Auto mode: emails for the strongest leads, sent without asking' }] : []),
     ] : []),
   ])
 
   return withAIContext({ brandId, moduleType: 'lead-agent', websiteUrl: b.websiteUrl }, async () => {
-    // 1. Replies and follow-ups ("Show 10 more" skips this and the sending below)
-    if (!more) pr.set('replies', 'running')
+    // 1. Replies and follow-ups ("Find leads" and "Show 10 more" skip this and the sending below)
+    if (!mailOff) pr.set('replies', 'running')
     const sentBefore = d.leads.filter(l => l.status === 'sent').length
-    const { patches, replies, error: gmailError } = more ? { patches: new Map<string, Partial<Lead>>(), replies: [] as Lead[], error: undefined } : await processSentLeads(brandId, b, d, deadline)
+    const { patches, replies, error: gmailError } = mailOff ? { patches: new Map<string, Partial<Lead>>(), replies: [] as Lead[], error: undefined } : await processSentLeads(brandId, b, d, deadline)
     if (gmailError && d.leads.some(l => l.status === 'sent')) errors.push(`Gmail: ${gmailError}`)
     if (replies.length) notes.push(`${replies.length} new repl${replies.length === 1 ? 'y' : 'ies'}`)
     const followups = [...patches.values()].filter(x => x.followupsSent !== undefined && !x.status).length
-    if (!more) pr.set('replies', gmailError && sentBefore ? 'error' : 'done', sentBefore
+    if (!mailOff) pr.set('replies', gmailError && sentBefore ? 'error' : 'done', sentBefore
       ? { detail: `${n(replies.length, 'new reply', 'new replies')}${followups ? ` · ${n(followups, 'follow-up')}` : ''}`, note: `${n(sentBefore, 'sent email')} checked.` }
       : 'Nothing sent yet')
 
@@ -952,15 +978,15 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
     let sentNow = sentToday(d)
     const queued = d.leads.filter(x => x.status === 'queued').length
     const sentAtStart = sentNow
-    if (!more) pr.set('queued', queued ? 'running' : 'skipped', queued ? undefined : 'None waiting')
-    for (const l of more ? [] : d.leads.filter(x => x.status === 'queued')) {
+    if (!mailOff) pr.set('queued', queued ? 'running' : 'skipped', queued ? undefined : 'None waiting')
+    for (const l of mailOff ? [] : d.leads.filter(x => x.status === 'queued')) {
       if (sentNow >= s.dailyLimit || Date.now() > deadline) break
       const p = await sendFirstEmail(brandId, l, s.followUpDays)
       patches.set(l.id, p)
       if (p.status === 'sent') { sentNow += 1; d.sentLog.push(p.sentAt!) }
     }
 
-    if (queued && !more) pr.set('queued', 'done', { detail: `${sentNow - sentAtStart} sent`, note: queued > sentNow - sentAtStart ? `${queued - (sentNow - sentAtStart)} wait for tomorrow's limit.` : undefined })
+    if (queued && !mailOff) pr.set('queued', 'done', { detail: `${sentNow - sentAtStart} sent`, note: queued > sentNow - sentAtStart ? `${queued - (sentNow - sentAtStart)} wait for tomorrow's limit.` : undefined })
 
     // 3. Find new leads
     const known = new Set([...d.leads.map(l => l.id), ...(d.rejected ?? [])])
@@ -1022,7 +1048,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
         // A company that fails any check can't be kept, whatever its score
         ...companyBack.map(x => (failed(x) ? { ...x, score: Math.min(x.score, 3) } : x)),
       ]
-      const fails = { trade: 0, small: 0, active: 0, need: 0, diy: 0, reach: 0 }
+      const fails = { rival: 0, trade: 0, small: 0, active: 0, need: 0, diy: 0, reach: 0 }
       for (const x of companyBack) { const f = failed(x); if (f) fails[f] += 1 }
       const good = scored.filter(x => x.score >= (candidates[x.i].launch ? MIN_LAUNCH_SCORE : candidates[x.i].source === 'company' || candidates[x.i].source === 'profile' ? MIN_COMPANY_SCORE : MIN_SCORE)).sort((x, y) => y.score - x.score).slice(0, MAX_NEW_PER_RUN)
       // Demo mode: always keep a few made-up businesses with a website, so there are emails to approve
@@ -1039,7 +1065,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       const now = new Date().toISOString()
       // The ones that came close go on the "maybe" list (companies the checks dropped, posts and
       // businesses scoring 4-6), so the user can still use one
-      const REASON = { trade: 'Sells something else', small: 'Looks too big', active: 'Doesn’t look active', need: 'Not a clear fit', diy: 'Has a marketing team or creators', reach: 'Their buyers aren’t reached this way' }
+      const REASON = { rival: 'Sells something like yours (a competitor)', trade: 'Sells something else', small: 'Looks too big', active: 'Doesn’t look active', need: 'Not a clear fit', diy: 'Has a marketing team or creators', reach: 'Their buyers aren’t reached this way' }
       for (const x of scored) {
         if (keptIdx.has(x.i)) continue
         const c = candidates[x.i]
@@ -1087,12 +1113,12 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       else pr.set('emails', 'done', businesses.length
         ? { detail: `${businesses.filter(l => l.email).length} of ${businesses.length} found`, note: meter.hunterOut ? 'Hunter’s email credits are used up, so the rest have no email yet.' : euBlocked ? 'EU leads are not emailed (your setting).' : undefined }
         : { detail: 'Not needed', note: 'Only forum posts this time: you reply on the post.' })
-      // Drafts: forum replies now; an email is written when the user opens the lead ("Review email"),
-      // except in auto mode, where the strong ones are sent without opening
+      // Nothing is written during the search: replies, messages and emails are written when the user
+      // opens the lead, except in auto mode, where the strong emails are sent without opening
       const autoDraft = s.mode === 'auto' && d.approvedCount >= 20
-      const toDraft = fresh.filter(l => l.source === 'reddit' || l.source === 'forum' || l.source === 'profile' || (autoDraft && l.email && l.score >= 8))
-      for (const l of fresh) if (l.email && l.source !== 'reddit' && l.source !== 'forum') l.status = 'ready'
-      if (!toDraft.length) pr.set('drafts', 'skipped', 'Emails are written when you open one')
+      const toDraft = fresh.filter(l => autoDraft && l.email && l.score >= 8 && l.source !== 'reddit' && l.source !== 'forum' && l.source !== 'profile')
+      for (const l of fresh) if ((l.email && l.source !== 'reddit' && l.source !== 'forum') || l.source === 'reddit' || l.source === 'forum' || l.source === 'profile') l.status = 'ready'
+      if (autoDraft && !toDraft.length) pr.set('drafts', 'skipped', 'None strong enough to send on their own')
       const drafts = Date.now() < deadline && toDraft.length ? await pr.step('drafts', () => draftMessages(b, s, toDraft), r => `${n(r.size, 'draft')} ready`).catch(() => new Map()) : new Map()
       for (const l of fresh) {
         const x = drafts.get(l.id)
@@ -1104,7 +1130,7 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; de
       const checked = candidates.filter(c => c.source === 'company').length
       if (checked) {
         const fits = fresh.filter(l => l.source === 'company')
-        const why = [fails.trade && `${fails.trade} wrong trade`, fails.small && `${fails.small} too big`, fails.active && `${fails.active} not active`, fails.need && `${fails.need} no clear need`, fails.diy && `${fails.diy} with a marketing team`, fails.reach && `${fails.reach} whose buyers aren’t reached this way`].filter(Boolean).join(', ')
+        const why = [fails.rival && `${fails.rival} competitor${fails.rival === 1 ? '' : 's'}`, fails.trade && `${fails.trade} wrong trade`, fails.small && `${fails.small} too big`, fails.active && `${fails.active} not active`, fails.need && `${fails.need} no clear need`, fails.diy && `${fails.diy} with a marketing team`, fails.reach && `${fails.reach} whose buyers aren’t reached this way`].filter(Boolean).join(', ')
         notes.push(`Companies: ${checked} checked${why ? ` (${why})` : ''}, ${fits.length} good fit${fits.length === 1 ? '' : 's'}${fits.length ? `, ${fits.filter(l => l.email).length} with an email` : ''}`)
       }
     } else if (find && !errors.length) {
