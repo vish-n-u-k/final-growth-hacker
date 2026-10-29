@@ -30,7 +30,7 @@ const COUNTRIES: [string, string][] = [['ANY', 'Anywhere'], ['US', 'United State
 const SOURCE: Record<Lead['source'], [string, 'orange' | 'amber' | undefined]> = {
   review: ['Unhappy reviewer', undefined], local: ['Google Maps', 'amber'], company: ['Company like your customers', undefined], reddit: ['Reddit', 'orange'], forum: ['Hacker News', 'orange'], own: ['Your list', undefined], profile: ['Seller page', undefined],
 }
-const PROGRESS = ['Checking replies', 'Searching Google Maps', 'Finding companies like your customers', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Writing the emails and replies']
+const PROGRESS = ['Searching Google Maps', 'Finding companies like your customers', 'Searching Reddit and Hacker News', 'Checking who’s a good fit', 'Finding emails']
 
 /** The sources that are on, each with who it looks for (the first-visit card and the line above the list). */
 function sourcesOn(s: LeadSettings): { name: string; who: string }[] {
@@ -77,7 +77,7 @@ function tabOf(l: Lead): TabKey {
   if (l.status === 'queued' || l.status === 'sent' || l.status === 'posted') return 'waiting'
   return 'done'
 }
-const sectionOf = (l: Lead): Section => (l.status === 'replied' ? 'replied' : l.reply ? 'post' : 'approve')
+const sectionOf = (l: Lead): Section => (l.status === 'replied' ? 'replied' : isForum(l) ? 'post' : 'approve')
 const nameOf = (l: Lead) => (isForum(l) ? l.title : l.name || l.company || l.title)
 const firstOf = (l: Lead) => (isForum(l) ? 'them' : (l.name || l.company || l.title).split(/\s+/)[0])
 const where = (l: Lead) => { try { return new URL(l.url).hostname.replace(/^www\./, '') } catch { return '' } }
@@ -200,6 +200,13 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     setOpenId(l.id); setStepNo(1)
     setTo(l.email ?? ''); setSubject(l.draft?.subject ?? ''); setBody(l.draft?.body ?? ''); setReply(l.reply ?? '')
     window.scrollTo({ top: 0 })
+    // Replies and messages are written when opened, not during the search
+    if (isForum(l) && l.status === 'ready' && !l.reply) {
+      act('reply', { id: l.id }).then(r => {
+        const fresh = r?.data?.leads.find(x => x.id === l.id)
+        if (fresh?.reply) setReply(fresh.reply)
+      })
+    }
     // Emails are written when opened, not during the search
     if (!isForum(l) && l.status === 'ready' && l.email && !l.draft) {
       act('email', { id: l.id, email: l.email }).then(r => {
@@ -222,7 +229,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     const state =
       l.status === 'replied' ? <Tag tone={l.handledAt ? 'ok' : 'crit'}>{l.handledAt ? '✓ Answered' : `Replied${l.repliedAt ? ` ${fmtDate(l.repliedAt)}` : ''}`}</Tag>
       : l.status === 'needs_contact' ? <Tag tone="warn">Needs an email</Tag>
-      : l.status === 'ready' ? <Tag>{l.reply ? (isPage(l) ? 'Message drafted' : 'Reply drafted') : l.draft ? 'Email drafted' : 'Email found'}</Tag>
+      : l.status === 'ready' ? <Tag>{isForum(l) ? (isPage(l) ? (l.reply ? 'Message drafted' : 'Message to write') : (l.reply ? 'Reply drafted' : 'Post to answer')) : l.draft ? 'Email drafted' : 'Email found'}</Tag>
       : l.status === 'queued' ? <Tag tone="warn">{l.source === 'own' ? 'Approved · waiting its turn' : 'Approved · goes out tomorrow'}</Tag>
       : l.status === 'sent' ? <Tag tone="ok">✓ Emailed {fmtDate(l.sentAt)}</Tag>
       : l.status === 'posted' ? <Tag tone="ok">✓ Posted</Tag>
@@ -234,7 +241,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
       : l.status === 'replied' && !l.handledAt ? 'They answered your email. Reply while they’re interested.'
       : l.why
     const quote = l.status === 'replied' && l.replyNote ? `“${l.replyNote}”` : l.snippet ? (isForum(l) && !isPage(l) ? `“${l.snippet}”` : l.snippet) : undefined
-    const label = t !== 'needs' ? 'View' : l.status === 'replied' ? 'Reply →' : l.reply ? (isPage(l) ? 'Write message →' : 'Write reply →') : 'Review email →'
+    const label = t !== 'needs' ? 'View' : l.status === 'replied' ? 'Reply →' : isForum(l) ? (isPage(l) ? 'Write message →' : 'Write reply →') : 'Review email →'
     return (
       <Card key={l.id} av={isForum(l) ? avOf(l) : initials(nameOf(l))} square={isForum(l)}
         name={nameOf(l)}
@@ -310,7 +317,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
         : 'Nothing here yet.'}</div>{tab === 'needs' && extra()}</>
     }
     if (tab !== 'needs') return <>{tools}{pg.items.map(card)}<Pager p={pg} top={listTop} /></>
-    const approvable = shown.filter(l => l.status === 'ready' && !l.reply && l.email).length
+    const approvable = shown.filter(l => l.status === 'ready' && !isForum(l) && l.email).length
     return <>{tools}
       {([['replied', 'Replied: answer while they’re interested', 'crit'], ['approve', 'Emails to approve', undefined], ['post', 'Replies to post', undefined]] as const).map(([k, label, tone]) => {
         // This page's cards of the section; the heading counts the whole section
@@ -348,7 +355,7 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     const next = leads.find(x => x.id !== l.id && tabOf(x) === 'needs' && laneOf(x) === laneOf(l))
     const nextBtn = next && <button key="next" type="button" className="btn btn-primary" onClick={() => openLead(next)}>Next: {firstOf(next) === 'them' ? nameOf(next).slice(0, 28) + (nameOf(next).length > 28 ? '…' : '') : firstOf(next)} →</button>
     const backBtn = <button key="back" type="button" className="btn btn-ghost ro-back" onClick={() => setOpenId(null)}>← Back to the list</button>
-    const steps = l.reply ? (isPage(l) ? ['Check the message', 'Send it'] : ['Check the reply', 'Post it']) : l.status === 'replied' ? ['Reply'] : ['Their email', 'Review & send']
+    const steps = isForum(l) && l.status !== 'replied' ? (isPage(l) ? ['Check the message', 'Send it'] : ['Check the reply', 'Post it']) : l.status === 'replied' ? ['Reply'] : ['Their email', 'Review & send']
     const flow = (at: number, title: string, hint: React.ReactNode, content: React.ReactNode, actions: React.ReactNode) =>
       <Flow back={back} crumb={nameOf(l)} side={side} steps={steps} at={at} title={title} hint={hint} actions={actions} stepKey={`${l.id}:${at}:${l.status}`}>{content}</Flow>
 
@@ -385,11 +392,12 @@ export default function LeadAgentPage({ initial, flags }: { initial: LeadAgentDa
     }
 
     // A forum reply: check it, then copy it onto the post
-    if (l.reply) {
+    if (isForum(l)) {
       if (stepNo === 1) {
         const page = isPage(l)
         return flow(1, page ? 'Check the message' : 'Check the reply', page ? `A short, friendly note for their ${platformOf(l.url)} page. Make it sound like you.` : 'Helpful answer first, your product second. Make it sound like you.',
-          <div className="ro-mail"><textarea className="ro-mail-body" aria-label="Reply" rows={9} value={reply} onChange={e => setReply(e.target.value)} /></div>,
+          busy === `reply:${l.id}` && !reply ? <div className="ro-working"><Spinner /><span>{page ? 'Writing your message…' : 'Writing your reply…'}</span><i /></div>
+            : <div className="ro-mail"><textarea className="ro-mail-body" aria-label="Reply" rows={9} value={reply} onChange={e => setReply(e.target.value)} /></div>,
           <>
             <button key="skip" type="button" className="btn btn-ghost ro-back" onClick={() => skip(l)}>Skip</button>
             <button key="ok" type="button" className="btn btn-primary" disabled={!reply.trim()} onClick={() => { if (reply !== l.reply) call('save', { id: l.id, reply }, `save:${l.id}`); setStepNo(2) }}>Looks good →</button>
