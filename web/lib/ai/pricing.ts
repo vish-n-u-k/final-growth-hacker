@@ -3,6 +3,7 @@
 const RATES: { match: RegExp; input: number; output: number }[] = [
   { match: /haiku-4|haiku-5/, input: 1, output: 5 },
   { match: /haiku/, input: 0.8, output: 4 },
+  { match: /opus-5-5/, input: 4, output: 20 },
   { match: /opus-4-[5-9]|opus-[5-9]/, input: 5, output: 25 },
   { match: /opus/, input: 15, output: 75 },
   { match: /sonnet/, input: 3, output: 15 },

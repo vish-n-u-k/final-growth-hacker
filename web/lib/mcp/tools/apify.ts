@@ -21,6 +21,7 @@ interface ActorConf {
   priceUsd: number                  // the actor's listed price per result
   capUsd: number                    // most one run may ever charge, whatever the limit
   minMaxItems?: number              // some actors refuse a smaller max-results field / maxItems; the answer still has `limit` items
+  minCapUsd?: number                // some actors refuse to start with a lower cost cap (their minimalMaxTotalChargeUsd); a cap is only a ceiling
 }
 interface Alias extends ActorConf {
   fallback?: ActorConf & { input: (primary: Input, limit: number) => Input; note?: string }
@@ -41,7 +42,8 @@ const ALIASES: Record<string, Alias> = {
   linkedin_company: { id: 'dev_fusion~Linkedin-Company-Scraper', listField: 'profileUrls', listOf: 'strings', priceUsd: 0.008, capUsd: 0.45 },
   // $0.0075 a profile; reads Google results, never logs into LinkedIn
   linkedin_people: {
-    id: 'themineworks~linkedin-employees', maxField: 'maxResults', priceUsd: 0.0075, capUsd: 0.4,
+    // It refuses a run whose cost cap is under $0.50 (minimalMaxTotalChargeUsd); it still bills per profile
+    id: 'themineworks~linkedin-employees', maxField: 'maxResults', priceUsd: 0.0075, capUsd: 0.5, minCapUsd: 0.5,
     defaults: { proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ['GOOGLE_SERP'] } },
   },
   // $0.00075 an ad. It refuses a `count` under 10 ("Maximum charged results… at least 10"), so it's
@@ -91,7 +93,7 @@ function capFor(alias: string | null, conf: ActorConf | null, limit: number, isF
   const n = Number(env)
   const ceiling = env && Number.isFinite(n) && n > 0 ? n : conf ? conf.capUsd : OTHER_CAP_USD
   if (!conf) return ceiling
-  return Math.min(ceiling, Math.round((conf.priceUsd * limit * 1.5 + 0.02) * 1000) / 1000)
+  return Math.max(conf.minCapUsd ?? 0, Math.min(ceiling, Math.round((conf.priceUsd * limit * 1.5 + 0.02) * 1000) / 1000))
 }
 
 /** The caller's input with our defaults, the URL list in the actor's form and cut to `limit`, and the max-results field set. */

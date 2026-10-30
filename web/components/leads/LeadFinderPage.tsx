@@ -1,22 +1,26 @@
 'use client'
 
 // Lead Finder (/leads), built from the approved preview design-previews/tools-cleanup/lead-finder-unified.html.
-// Every source (websites, Google Maps, LinkedIn people, competitors' unhappy reviewers, seller pages, your
-// own lists) goes through the Lead Agent's one funnel (lib/agents/lead-agent.ts), so this page reads and
-// writes the Lead Agent's data (/api/agents/lead). Two tabs: "Contact directly" and "Join conversations".
+// Leads are found by Lead Finder's search (lib/leads/engine.ts, /api/leads/engine): Claude runs the Lead
+// Engine prompt with DataForSEO, Hunter and Apify, from the brief and filters in Settings, and the leads it
+// returns land in the Lead Agent's list, so this page reads and writes the Lead Agent's data
+// (/api/agents/lead). Two tabs: "Contact directly" and "Join conversations" (Reddit / Hacker News posts,
+// still found by the Lead Agent).
 // A quiet top line, one "Start here" panel, then the leads as the Lead Agent's cards. An opened lead shows
 // what we know on the left (the same facts for every source) and the email or message on the right;
 // finishing one opens the next.
 
-import { useEffect, useRef, useState } from 'react'
-import type { Lead, LeadAgentData } from '@/lib/agents/store'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { EngineInputs, Lead, LeadAgentData } from '@/lib/agents/store'
+import type { EngineStatus } from '@/lib/leads/engine'
 import { Spinner } from '@/components/ui/spinner'
 import { useToast } from '@/components/email-outreach/shared'
 import { Card, DemoSwitch, LiveProgress, Pager, Tabs, Tag, usePages } from '@/components/tool-ui'
+import { WaitPanel } from '@/components/ui/loading'
 import { Day, fmtAgo, fmtDate, initials, useAgentApi } from '@/components/agents/shared'
 import OwnListFlow from '@/components/agents/OwnListFlow'
 import {
-  FINDER_PROGRESS, FINDER_SOURCE, LeadFacts, Settings, avOf, firstOf, isForum, isPage, isPost, nameOf, pageName, pageUrl, tabOf, validEmail, where,
+  FINDER_SOURCE, LeadFacts, avOf, firstOf, isForum, isPage, isPost, nameOf, pageName, pageUrl, tabOf, validEmail, where,
   type LeadAgentFlags,
 } from '@/components/agents/LeadAgentPage'
 
@@ -27,7 +31,7 @@ const laneOf = (l: Lead): Lane => (isPost(l) ? 'talk' : 'direct')
 const people = (l: Lead) => isPost(l) || l.source === 'profile'
 
 export default function LeadFinderPage({ initial, flags, competitors = [] }: { initial: LeadAgentData; flags: LeadAgentFlags; competitors?: string[] }) {
-  const { data, busy, call, toast: said } = useAgentApi<LeadAgentData>('/api/agents/lead', initial)
+  const { data, setData, busy, call, toast: said } = useAgentApi<LeadAgentData>('/api/agents/lead', initial)
   const [toast, notify] = useToast()
   useEffect(() => { if (said) notify(said) }, [said, notify])
   const s = data.settings
@@ -46,14 +50,43 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
   // A lead with only a social page: the user has their email after all
   const [emailInstead, setEmailInstead] = useState(false)
 
-  const running = busy === 'run' || busy === 'more'
-  const firstVisit = !data.lastRunAt && !leads.length && !running
-  const picked = useRef(false)
+  // Lead Finder's search: its status, polled while it runs (each poll also keeps it moving on the server)
+  const [job, setJob] = useState<EngineStatus | null>(null)
+  const searching = job?.status === 'running'
+  const poll = useCallback(async () => {
+    try {
+      const r = await fetch('/api/leads/engine')
+      const j = await r.json() as { job?: EngineStatus | null; data?: LeadAgentData }
+      setJob(prev => {
+        // It just finished: show the new leads and what it says
+        if (prev?.status === 'running' && j.job && j.job.status !== 'running') {
+          if (j.data) setData(j.data)
+          notify(j.job.status === 'failed' ? `The search stopped: ${j.job.error ?? 'something went wrong'}` : j.job.added ? `${j.job.added} new lead${j.job.added === 1 ? '' : 's'} found.` : 'The search found no new leads this time.')
+        }
+        return j.job ?? null
+      })
+    } catch { /* try again on the next poll */ }
+  }, [setData, notify])
+  useEffect(() => { poll() }, [poll])
   useEffect(() => {
-    if (picked.current || !firstVisit || s.picked) return
-    picked.current = true
-    call('pick')
-  }, [call, firstVisit, s.picked])
+    if (!searching) return
+    const t = setInterval(poll, 4000)
+    return () => clearInterval(t)
+  }, [searching, poll])
+  async function startSearch() {
+    if (!s.engine) { setView('settings'); window.scrollTo({ top: 0 }); return }
+    const r = await fetch('/api/leads/engine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'start' }) })
+    const j = await r.json().catch(() => ({})) as { job?: EngineStatus; error?: string }
+    if (j.job) { setJob(j.job); setLane('direct'); setView('list') } else notify(j.error ?? 'Couldn’t start the search.')
+  }
+  async function stopSearch() {
+    const r = await fetch('/api/leads/engine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'stop' }) })
+    const j = await r.json().catch(() => ({})) as { job?: EngineStatus }
+    if (j.job) setJob(j.job)
+  }
+
+  const running = busy === 'run' || busy === 'more'
+  const firstVisit = !data.lastRunAt && !leads.length && !running && !searching
 
   const act = (op: string, payload: Record<string, unknown> = {}, key = `${op}:${payload.id ?? ''}`) =>
     call(op, payload, key) as Promise<{ ok?: boolean; error?: string; message?: string; data?: LeadAgentData } | null>
@@ -101,17 +134,18 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
       <nav className="lfp-crumbs" aria-label="Breadcrumb">Tools / Get customers</nav>
       <h1 className="lfp-title">Lead Finder</h1>
       <div className="lfp-line">
-        <span>{running ? (busy === 'more' ? 'Checking the next ones…' : 'Searching…') : data.lastRunAt ? `Last search ${fmtAgo(data.lastRunAt)}` : 'Not searched yet'}</span>
+        <span>{searching ? 'Searching…' : running ? 'Checking the next posts…' : data.lastRunAt ? `Last search ${fmtAgo(data.lastRunAt)}` : 'Not searched yet'}</span>
         <button type="button" className="lfp-link" onClick={() => { setView('how'); window.scrollTo({ top: 0 }) }}>How it finds people</button>
         <button type="button" className="lfp-link" onClick={() => { setView('settings'); window.scrollTo({ top: 0 }) }}>Settings</button>
-        {!firstVisit && <button type="button" className="lfp-link" disabled={running || !!busy} onClick={() => call('run')}>Find new leads</button>}
+        {!firstVisit && !searching && <button type="button" className="lfp-link" disabled={running || !!busy} onClick={startSearch}>Find new leads</button>}
         {demo && <span>Demo: nothing is sent</span>}
       </div>
       {/* Only what's wrong shows on the page; the rest lives in Settings */}
       {!gmail && <div className="ag-note ag-note-warn">Connect Gmail so approved emails go out from your address. <a href="/api/gmail/connect">Connect Gmail</a></div>}
       {flags.hunterOut && !demo && <div className="ag-note ag-note-warn">Hunter’s email credits are used up, so new leads come without an email until they renew. You can still add one by hand.</div>}
-      {data.lastError && !running && <div className="ag-note ag-note-crit">The last search had a problem: {data.lastError}</div>}
-      <LiveProgress agent="lead" active={running} fallback={FINDER_PROGRESS} />
+      {data.lastError && !running && !searching && <div className="ag-note ag-note-crit">The last search had a problem: {data.lastError}</div>}
+      {searching && job && <SearchProgress job={job} onStop={stopSearch} />}
+      <LiveProgress agent="lead" active={running} fallback={['Picking search phrases', 'Searching Reddit and Hacker News', 'Checking who’s a good fit']} />
     </>
   }
 
@@ -144,7 +178,7 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
           {people(l) ? <span>{where(l)}</span> : <span>{l.company && l.company !== nameOf(l) ? `${l.company}${site ? ' · ' : ''}` : null}{site && <a className="tu-site" href={`https://${site}`} target="_blank" rel="noopener noreferrer">{site}</a>}</span>}
           <span>found <Day iso={l.foundAt} /></span>
         </>}
-        badge={l.source === 'own' ? undefined : <span className="cl-fitb cl-fitb--good">Fit {l.score}/10</span>}
+        badge={l.source === 'own' ? undefined : <span className="cl-fitb cl-fitb--good">{l.fitLabel ?? `Fit ${l.score}/10`}</span>}
         why={why} quote={quote} state={state}
         onSkip={needs && l.status !== 'replied' ? () => skip(l) : undefined}
         action={<button type="button" className={`btn btn-sm ${needs ? 'btn-primary cl-reach' : 'cl-btn-outline'}`} onClick={() => openLead(l)}>{label}</button>} />
@@ -154,7 +188,9 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
   function list() {
     const noun = lane === 'direct' ? ['person', 'people'] : ['post', 'posts']
     const verb = (l: Lead) => (l.status === 'needs_contact' ? 'Add their email' : isForum(l) ? (isPage(l) ? 'Write the message' : 'Write the reply') : 'Review the email')
-    const more = lane === 'direct' ? s.sources.companies || !!s.sources.linkedin : s.sources.reddit
+    // "More" for people is a new search; for posts, the Lead Agent's next Reddit / Hacker News posts
+    const more = lane === 'talk' && s.sources.reddit
+    const findMore = () => (lane === 'direct' ? startSearch() : call('more', { lane: 'community' }, 'more'))
     return <>
       {header()}
       <Tabs value={lane} onChange={k => setLane(k)} tabs={[
@@ -171,18 +207,15 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
 
       {firstVisit ? (
         <section className="lfp-empty">
-          <b>{busy === 'pick' ? 'Reading your brand to pick where to look…' : 'Find your first leads'}</b>
-          {s.picked?.why && <p>{s.picked.why}</p>}
-          <div className="lfp-acts lfp-acts--center">
-            <button type="button" className="btn btn-ghost" onClick={() => setView('settings')}>Change where to look</button>
-            <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => call('run')}>{busy === 'pick' ? <><Spinner />Picking…</> : 'Find leads'}</button>
-          </div>
+          <b>{s.engine ? 'Find your first leads' : 'Tell Lead Finder who you’re looking for'}</b>
+          <p>{s.engine ? 'It searches Google, LinkedIn, Instagram and more for companies that fit your brief, checks each one is real, and finds the right person to contact. A search takes a few minutes.' : 'Describe your ideal customer in your own words, and set where, how big and who to contact. Then it searches for you.'}</p>
+          <button type="button" className="btn btn-primary" onClick={startSearch}>{s.engine ? 'Find leads' : 'Describe who you’re looking for'}</button>
         </section>
       ) : !first ? (
-        !running && <section className="lfp-empty">
+        !running && !searching && <section className="lfp-empty">
           <b>All caught up</b>
-          <p>{lane === 'direct' ? 'Everyone is emailed, messaged or skipped.' : 'Every post is answered or skipped.'} {s.enabled ? 'The next search runs tomorrow morning.' : ''}</p>
-          <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => (more ? call('more', { lane: lane === 'direct' ? 'email' : 'community' }, 'more') : call('run'))}>Find more now</button>
+          <p>{lane === 'direct' ? 'Everyone is emailed, messaged or skipped.' : 'Every post is answered or skipped.'}</p>
+          <button type="button" className="btn btn-primary" disabled={!!busy} onClick={findMore}>{lane === 'direct' ? 'Find more leads' : 'Find more posts'}</button>
         </section>
       ) : <>
         <section className="lfp-next">
@@ -201,7 +234,7 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
       </>}
 
       {!firstVisit && <div className="lfp-more">
-        {more && <button type="button" className="lfp-link" disabled={!!busy} onClick={() => call('more', { lane: lane === 'direct' ? 'email' : 'community' }, 'more')}>{busy === 'more' ? 'Checking the next 10…' : 'Show 10 more'}</button>}
+        {more && <button type="button" className="lfp-link" disabled={!!busy} onClick={findMore}>{busy === 'more' ? 'Checking the next 10…' : 'Show 10 more posts'}</button>}
         {maybe.length > 0 && <button type="button" className="lfp-link" onClick={() => { setView('maybe'); window.scrollTo({ top: 0 }) }}>Checked but not kept ({maybe.length})</button>}
         {done.length > 0 && <button type="button" className="lfp-link" onClick={() => { setView('done'); window.scrollTo({ top: 0 }) }}>{done.length} sent or skipped</button>}
         {lane === 'direct' && <button type="button" className="lfp-link" onClick={() => { setView('own'); window.scrollTo({ top: 0 }) }}>Add your own emails</button>}
@@ -346,9 +379,7 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
           if (typeof r?.demo === 'boolean') setDemo(r.demo)
         }} />
       </div>
-      <Settings key={s.picked?.at ?? 'none'} initial={s} saving={busy === 'settings'} picking={busy === 'pick'} hunter={flags.hunter}
-        variant="finder" linkedin={!!flags.linkedin} competitors={competitors} quietDefault={!!flags.quietSocial}
-        onCancel={back} onPick={() => call('pick')}
+      <SearchSettings initial={s} saving={busy === 'settings'} onCancel={back}
         onSave={async next => { const r = await call('settings', { settings: next }); if (r?.data) { back(); notify('Saved') } }} />
     </>
   }
@@ -380,36 +411,38 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
   }
 
   function howView() {
+    const r = data.engineRun
+    const p = r?.profile
+    const listOf = (label: string, items?: string[]) => items?.length ? <li><h4>{label}</h4><p>{items.join(' · ')}</p></li> : null
     return <>
       {backLink}
       <h1 className="lfp-title">How it finds people</h1>
-      <div className="lfp-line"><span>Every source goes through the same steps, so every lead looks and reads the same.</span></div>
-      <div className="lfp-srcs">
-        <span>Google search and websites <small>DataForSEO</small></span>
-        <span>People on LinkedIn <small>Apify</small></span>
-        <span>Etsy and Instagram shops <small>Google</small></span>
-        <span>Google Maps <small>DataForSEO</small></span>
-        <span>Competitor reviewers <small>Trustpilot, Shopify</small></span>
-        <span>Your own list <small>upload</small></span>
-      </div>
-      <div className="lfp-into">↓ all into one funnel</div>
+      <div className="lfp-line"><span>Claude searches with your brief and filters, using DataForSEO (Google, Maps, websites), Hunter (emails) and Apify (LinkedIn, Instagram, Facebook, Product Hunt, ads).</span></div>
       <ol className="lfp-funnel">
-        <li><h4>Find</h4><p>Each source adds a company or a person. Repeats, people already emailed and people who opted out are dropped.</p></li>
-        <li><h4>Fill in <small>free</small></h4><p>Read their website: what they sell, how many products, the newest product or post, who does their marketing, which social accounts they link. Size from DataForSEO visits, or LinkedIn headcount.</p></li>
-        <li><h4>Check</h4><p>One AI check against your customer card: right trade, small, active, needs it, does their own marketing, buyers reached this way, and the right person (owner, founder or marketing). It learns from what you approve and skip. The rest go to “Checked but not kept”.</p></li>
-        <li><h4>Social check <small>about 1–2¢ each, only for the ones kept</small></h4><p>When they last posted on Instagram and Facebook. Not posting for 3 months counts in their favour when your card says so.</p></li>
-        <li><h4>Find the person and their email</h4><p>Stops at the first that works:</p>
-          <ol>
-            <li>An email that came with the lead (LinkedIn record, business listing)</li>
-            <li>A person’s email on their own website</li>
-            <li>Hunter, from the person’s name or the owner their site names, else an owner or marketing person</li>
-            <li>LinkedIn search for an owner or marketing person at that company</li>
-            <li>A shared address on their site, like hello@</li>
-            <li>An email in their Instagram bio</li>
-            <li>No email: a message on their Instagram or Facebook page</li>
-          </ol></li>
-        <li><h4>Write, you approve</h4><p>An email, or a short message when there’s no email, written when you open the lead. Nothing goes out until you approve. Same daily limit and follow-ups for everyone.</p></li>
+        <li><h4>Your brief becomes a lead profile</h4><p>What you sell, what a lead must have, what makes a strong fit, what rules one out, which competitors to skip, which extra checks matter for you, and the pitch.</p></li>
+        <li><h4>Discover</h4><p>Narrow searches the way your customers’ customers search, across niches and countries, for two to three times as many companies as you asked for.</p></li>
+        <li><h4>Is it real?</h4><p>Dead sites, placeholders, test projects, competitors, name mix-ups and anything outside your filters are dropped.</p></li>
+        <li><h4>Checks that matter for you</h4><p>Only the ones your profile needs, such as social activity, app stores, hiring or ads, cheapest first.</p></li>
+        <li><h4>The right person</h4><p>Hunter first, then LinkedIn and company records. A shared inbox only when no person turns up, and every guessed email is marked.</p></li>
+        <li><h4>Rated and explained</h4><p>From Very Likely to Very Unlikely, with one line on why. Neutral or better goes to your list, the rest to “Checked but not kept”. Nothing is invented; every fact comes from a tool.</p></li>
       </ol>
+      <p className="lfp-note">A search spends at most about $1 per 10 leads on data, plus the AI, and stops at that cap with what it has found.</p>
+      {r && <>
+        <h2 className="lfp-sub">Your last search ({fmtAgo(r.at)})</h2>
+        {r.summary && <p className="lfp-hint">{r.summary}</p>}
+        {p && <ol className="lfp-funnel lfp-funnel--plain">
+          {p.sells && <li><h4>What you sell</h4><p>{p.sells}</p></li>}
+          {listOf('Must have', p.must_haves)}
+          {listOf('Strong fit', p.strong_fit)}
+          {listOf('Ruled out', p.disqualifiers)}
+          {listOf('Competitors skipped', p.excluded_competitors)}
+          {listOf('Extra checks', p.extra_checks)}
+          {p.pitch_angle && <li><h4>Pitch</h4><p>{p.pitch_angle}</p></li>}
+          {listOf('Assumptions', p.conflicts_or_assumptions)}
+        </ol>}
+        {r.toolIssues.length > 0 && <div className="ag-note ag-note-warn">Tools that had problems: {r.toolIssues.join(' · ')}</div>}
+        <p className="lfp-note">{r.added} new lead{r.added === 1 ? '' : 's'} · cost about ${r.costUsd.toFixed(2)}</p>
+      </>}
     </>
   }
 
@@ -427,5 +460,64 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
         : list()}
       {toast}
     </div>
+  )
+}
+
+/** The running search: what it's doing now, and a way to stop it early. */
+function SearchProgress({ job, onStop }: { job: EngineStatus; onStop: () => void }) {
+  const lines = job.log.slice(-5)
+  return <>
+    <WaitPanel
+      steps={lines.map((l, i) => ({ label: l.text, state: i === lines.length - 1 ? 'on' as const : 'done' as const }))}
+      expectedMs={6 * 60_000} startedAt={Date.parse(job.startedAt)} page="leadAgent"
+      note={`${job.toolCalls} lookups · about $${job.costUsd.toFixed(2)} so far. You can leave this page; the search keeps going while it’s open in a tab.`} />
+    {!job.wrapUp && <p className="lfp-note"><button type="button" className="lfp-link" onClick={onStop}>Stop and keep what’s found</button></p>}
+  </>
+}
+
+const EMPTY: EngineInputs = { brief: '', industry: '', location: '', companySize: '', contactRole: '', leadCount: 10 }
+
+/** Lead Finder's Settings: who to look for (brief + five filters), and sending. */
+function SearchSettings({ initial, saving, onSave, onCancel }: {
+  initial: LeadAgentData['settings']; saving: boolean; onSave: (s: Partial<LeadAgentData['settings']>) => void; onCancel: () => void
+}) {
+  const [e, setE] = useState<EngineInputs>(initial.engine ?? EMPTY)
+  const [reddit, setReddit] = useState(initial.sources.reddit)
+  const [enabled, setEnabled] = useState(initial.enabled)
+  const [limit, setLimit] = useState(initial.dailyLimit)
+  const [days, setDays] = useState(initial.followUpDays.join(', '))
+  const set = <K extends keyof EngineInputs>(k: K, v: EngineInputs[K]) => setE(x => ({ ...x, [k]: v }))
+  return (
+    <form className="tu-panel lfp-form" onSubmit={ev => {
+      ev.preventDefault()
+      onSave({ engine: e, sources: { ...initial.sources, reddit }, enabled, dailyLimit: limit, followUpDays: days.split(/[,\s]+/).map(Number).filter(n => n > 0) })
+    }}>
+      <h3>Who you’re looking for</h3>
+      <p className="tu-hint">Your brief is what “a good lead” means. The filters set the limits. Where they clash, the brief wins on what you want and the filters on where and how big.</p>
+      <label className="lfp-field">Your brief
+        <textarea id="lfp-brief" rows={6} value={e.brief} onChange={ev => set('brief', ev.target.value)}
+          placeholder="e.g. Small SaaS with a real product, not test apps. Ideally they already post on social media but it isn’t working well. If they have no social, the product has to look legit. Skip founders juggling many projects." />
+      </label>
+      <div className="lfp-grid">
+        <label className="lfp-field">Industry<input id="lfp-industry" value={e.industry} onChange={ev => set('industry', ev.target.value)} placeholder="e.g. small SaaS / app companies" /></label>
+        <label className="lfp-field">Location<input id="lfp-location" value={e.location} onChange={ev => set('location', ev.target.value)} placeholder="e.g. UK, Ireland, Netherlands" /></label>
+        <label className="lfp-field">Company size<input id="lfp-size" value={e.companySize} onChange={ev => set('companySize', ev.target.value)} placeholder="e.g. 1–10, early stage" /></label>
+        <label className="lfp-field">Who to contact<input id="lfp-role" value={e.contactRole} onChange={ev => set('contactRole', ev.target.value)} placeholder="e.g. Founder/CEO, Head of Marketing" /></label>
+        <label className="lfp-field">Leads per search<input id="lfp-count" type="number" min={1} max={50} value={e.leadCount} onChange={ev => set('leadCount', Math.max(1, Math.min(50, Number(ev.target.value) || 10)))} /></label>
+      </div>
+      <h3 className="lfp-form-h">Also</h3>
+      <label className="tu-chk"><input type="checkbox" checked={reddit} onChange={ev => setReddit(ev.target.checked)} />
+        <span>Find Reddit and Hacker News posts<small>Posts asking for a tool like yours, in “Join conversations”. You post the reply yourself.</small></span></label>
+      <label className="tu-chk"><input type="checkbox" checked={enabled} onChange={ev => setEnabled(ev.target.checked)} />
+        <span>Check replies and send follow-ups every morning<small>Follow-ups stop when someone replies. Nothing new is sent without you.</small></span></label>
+      <div className="lfp-grid">
+        <label className="lfp-field">Most new emails a day<input id="lfp-limit" type="number" min={1} max={30} value={limit} onChange={ev => setLimit(Math.max(1, Math.min(30, Number(ev.target.value) || 1)))} /></label>
+        <label className="lfp-field">Follow up after (days)<input id="lfp-days" value={days} onChange={ev => setDays(ev.target.value)} placeholder="3, 7" /></label>
+      </div>
+      <div className="tu-panel-acts">
+        <button className="btn btn-ghost" type="button" onClick={onCancel}>Cancel</button>
+        <button className="btn btn-primary" type="submit" disabled={saving || (!e.brief.trim() && !e.industry.trim())}>{saving ? <><Spinner />Saving…</> : 'Save'}</button>
+      </div>
+    </form>
   )
 }

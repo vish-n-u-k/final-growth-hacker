@@ -9587,3 +9587,17 @@ form.lfp-mail .lfp-acts { padding: 0 14px 14px; }
   .lfp-acts .lfp-main { margin-left: 0; }
   .lfp-row { flex-wrap: wrap; }
 }
+
+/* Lead Finder search settings and last-search profile (components/leads/LeadFinderPage.tsx) */
+.lfp-form { display: grid; gap: 14px; margin-top: 8px; }
+.lfp-form h3 { margin: 0; font-size: 16px; }
+.lfp-form .tu-hint { margin: -8px 0 0; }
+.lfp-form-h { margin-top: 8px !important; }
+.lfp-field { display: grid; gap: 6px; font-size: 13px; color: var(--text-dim); }
+.lfp-field input, .lfp-field textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font: inherit; font-size: 14.5px; }
+.lfp-field textarea { resize: vertical; line-height: 1.55; }
+.lfp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+.lfp-sub { margin: 28px 0 6px; font: 600 20px/1.3 var(--font-display); }
+.lfp-funnel--plain > li { padding-left: 0; }
+.lfp-funnel--plain > li::before { display: none; }
+@media (max-width: 640px) { .lfp-grid { grid-template-columns: 1fr; } }

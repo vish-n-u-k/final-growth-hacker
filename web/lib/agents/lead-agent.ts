@@ -1136,12 +1136,15 @@ export async function runLeadAgent(brandId: string, opts: { manual?: boolean; fi
   // "Find leads" and "Show 10 more" only search: replies, follow-ups and queued emails are the daily run's job
   const mailOff = !!more || !!opts.findOnly
   // Which sources this run searches: all that are on, or just one tab's for "Show 10 more"
+  // Lead Finder's search (lib/leads/engine.ts) finds the businesses once its brief is set: this run then
+  // only looks for Reddit / Hacker News posts
+  const engineOn = !!d.settings.engine
   const use = {
     reddit: d.settings.sources.reddit && more !== 'email',
-    local: d.settings.sources.local && !more,
-    companies: d.settings.sources.companies && more !== 'community',
-    linkedin: !!d.settings.sources.linkedin && linkedinFiltersSet(d.settings.linkedin) && more !== 'community',
-    reviews: d.settings.sources.reviews && !!d.settings.rivals?.length && !more,
+    local: d.settings.sources.local && !more && !engineOn,
+    companies: d.settings.sources.companies && more !== 'community' && !engineOn,
+    linkedin: !!d.settings.sources.linkedin && linkedinFiltersSet(d.settings.linkedin) && more !== 'community' && !engineOn,
+    reviews: d.settings.sources.reviews && !!d.settings.rivals?.length && !more && !engineOn,
   }
   // Searches done so far: each one starts where the last stopped
   const turn = { sites: d.cursor?.sites ?? 0, phrase: d.cursor?.phrase ?? 0 }

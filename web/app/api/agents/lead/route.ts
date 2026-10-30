@@ -4,7 +4,7 @@ import { demoForced, withDemo } from '@/lib/agents/demo'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
 import { addLeadEmail, addLeadReply, approveLead, retireOldFinds, demoSkipDays, draftIcp, icpKey, leadFallback, pickSources, runLeadAgent, useMaybe } from '@/lib/agents/lead-agent'
-import { readLeadData, updateLeadData, type Icp, type IcpKind, type LeadAgentData, type LeadSettings, type LinkedInFilters, type Rival } from '@/lib/agents/store'
+import { readLeadData, updateLeadData, type Icp, type IcpKind, type LeadAgentData, type EngineInputs, type LeadSettings, type LinkedInFilters, type Rival } from '@/lib/agents/store'
 import { suggestFilters } from '@/lib/leads/suggest-filters'
 import { addOwnList, checkPeople, draftListEmail } from '@/lib/agents/own-list'
 import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
@@ -57,6 +57,19 @@ function cleanLinkedIn(cur: LinkedInFilters | null | undefined, x: unknown): Lin
   const f = x as Partial<LinkedInFilters>
   return { jobTitles: words(f.jobTitles), industries: words(f.industries), keywords: words(f.keywords), countries: words(f.countries), sizes: words(f.sizes), technologies: words(f.technologies), ...(typeof f.why === 'string' ? { why: f.why.slice(0, 300) } : {}) }
 }
+/** Lead Finder's search: the brief and five filters. null clears them (back to the old search). */
+function cleanEngine(cur: EngineInputs | null | undefined, x: unknown): EngineInputs | null | undefined {
+  if (x === undefined) return cur
+  if (!x || typeof x !== 'object') return null
+  const e = x as Partial<EngineInputs>
+  const t = (v: unknown, n: number) => (typeof v === 'string' ? v.trim().slice(0, n) : '')
+  return {
+    brief: t(e.brief, 3000), industry: t(e.industry, 200), location: t(e.location, 200),
+    companySize: t(e.companySize, 100), contactRole: t(e.contactRole, 200),
+    leadCount: Math.max(1, Math.min(50, Math.round(Number(e.leadCount)) || 10)),
+  }
+}
+
 /** Competitors to read reviews of: a Trustpilot domain, or a Shopify App Store link. */
 function cleanRivals(cur: Rival[] | undefined, x: unknown): Rival[] | undefined {
   if (!Array.isArray(x)) return cur
@@ -96,6 +109,7 @@ function cleanSettings(cur: LeadSettings, s: Partial<LeadSettings>): LeadSetting
     },
     rivals: cleanRivals(cur.rivals, s.rivals),
     linkedin: cleanLinkedIn(cur.linkedin, s.linkedin),
+    engine: cleanEngine(cur.engine, s.engine),
     competitors: Array.isArray(s.competitors)
       ? s.competitors.map(x => String(x).trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]).filter(x => x.includes('.')).slice(0, 3)
       : cur.competitors,

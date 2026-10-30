@@ -40,6 +40,10 @@ export interface LeadSettings {
   competitors: string[]         // old: no longer used (see rivals)
   rivals?: Rival[]              // competitors whose unhappy reviewers become leads
   linkedin?: LinkedInFilters | null
+  // Lead Finder's search (lib/leads/engine.ts): the brief and filters Claude searches with. Set = Lead
+  // Finder finds leads this way, and the daily run no longer runs the old company / Maps / LinkedIn /
+  // review searches (it still checks replies, sends follow-ups and finds Reddit posts)
+  engine?: EngineInputs | null
   localQuery: string            // e.g. "cafés in Pune"
   companyQuery: string          // who to look for among companies, e.g. "small fashion and beauty online stores"
   // GrowJin picked the sources from the brand (pickSources in lead-agent.ts); why = one line for the page
@@ -55,6 +59,21 @@ export interface LeadSettings {
   // and goes only by these search settings (the product description stays, to judge need and write)
   useBrand?: boolean
 }
+
+/** The last Lead Finder search, kept on the lead data for the page. */
+export interface EngineRunInfo {
+  at: string
+  status: 'done' | 'failed' | 'stopped'
+  summary: string
+  profile?: { sells?: string; must_haves?: string[]; strong_fit?: string[]; disqualifiers?: string[]; excluded_competitors?: string[]; extra_checks?: string[]; pitch_angle?: string; conflicts_or_assumptions?: string[] }
+  toolIssues: string[]
+  added: number
+  costUsd: number
+  error?: string
+}
+
+/** What Lead Finder's search looks for: the user's brief plus five filters. */
+export interface EngineInputs { brief: string; industry: string; location: string; companySize: string; contactRole: string; leadCount: number }
 
 /** A competitor whose reviews are read: Trustpilot by its domain, or its Shopify App Store page. */
 export interface Rival { platform: 'trustpilot' | 'shopify'; url: string }
@@ -130,6 +149,8 @@ export interface Lead {
   social?: SocialCheck          // their social accounts and when they last posted (lib/leads/social-check)
   dm?: { platform: string; url: string }   // no email anywhere: a message on this page instead
   reviewOn?: 'trustpilot' | 'shopify'      // source 'review': where the review was
+  fitLabel?: string             // Lead Finder's search: its rating, "Very Likely" … "Very Unlikely" (score follows it)
+  notChecked?: string[]         // Lead Finder's search: what wasn't checked, for the user to look at
 }
 
 /** A website found but not checked yet. */
@@ -207,6 +228,8 @@ export interface LeadAgentData {
   linkedinCursor?: { key: string; offset: number }
   // Competitor reviews: when each rival was last read, and a Trustpilot read still running at DataForSEO
   reviewReads?: Record<string, { at?: string; task?: string; taskAt?: string }>
+  // Lead Finder's last search (lib/leads/engine.ts): what it understood and what it says
+  engineRun?: EngineRunInfo
   lastRunAt?: string
   lastRunSummary?: string
   lastError?: string | null
