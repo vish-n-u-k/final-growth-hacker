@@ -224,6 +224,12 @@ Users kept saying there's too much to read. An opened lead went from about 250 w
 - **Emails** (`draftMessages`, shared with the Lead Agent): under 60 words (was 90), "Hi <company> team," when no name; DMs under 50.
 - The long `app.frekto.ai/preview?t=…` link seen in a live email isn't written by this repo's code; check where it's added.
 
+## 4b-6. Lead Finder: Download leads (2 Nov)
+
+- A grey **Download leads** link in the top line (shown when there's at least one) saves `leads-YYYY-MM-DD.csv` in the outreach lead format the owner shared (26 columns, same order; `web/lib/leads/export-csv.ts`, built in the browser).
+- Which leads: not sent or skipped, no Reddit / HN posts; leads without an email are kept (`notes` says how to reach them).
+- Filled only from what a lead has: website, contact name / email / role, company, country (last part of the Where fact), LinkedIn company page, Instagram, `posting_activity` only `none` / `dormant` (60+ days, from the social check), last post date, priority (Very Likely A, Likely B, else C; score for older leads), notes (why, social, email not checked / guessed). Hook, assets, avoid and the rest stay empty: the search doesn't find them yet.
+
 ## 4c. Costs: Usage & costs tab and Hunter credits
 
 - **Settings → Usage & costs** (`web/components/settings/UsageSection.tsx`, data shaped in `web/lib/usage.ts`, `st-usage-*` CSS). Per account, this month: the total, split by tool, by DataForSEO API and by AI feature, plus up to 12 past months.
