@@ -81,7 +81,7 @@ What each tool does today:
 ## 3. Branch and working rules
 
 - **Work and push on `dev`.** Push to **`main` only when the owner says so.**
-  - `main` was last brought up to `dev` on 30 Oct 2026 (Lead Finder on the Lead Engine prompt). `dev` is ahead since 2 Nov (4b-5).
+  - `main` was last brought up to `dev` on 2 Nov 2026 (Download leads, 4b-6). `main` and `dev` are the same.
 - Don't open pull requests unless asked.
 - Commit message footer used so far:
   ```
