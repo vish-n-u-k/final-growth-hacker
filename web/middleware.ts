@@ -59,7 +59,7 @@ async function handle(request: NextRequest) {
     pathname.startsWith('/api/oauth/') ||
     pathname.startsWith('/.well-known/') ||
     pathname === '/oauth/authorize'
-  const isCronEndpoint = pathname.startsWith('/api/cron/') || pathname.startsWith('/zz-preview')
+  const isCronEndpoint = pathname.startsWith('/api/cron/')
   const isTrackedLink =
     pathname.startsWith('/api/r/') || // signed email links, e.g. "Do it in Claude"
     pathname === '/api/reminders/done' // signed "Mark done" link in the daily email

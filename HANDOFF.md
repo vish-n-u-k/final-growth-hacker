@@ -1,6 +1,6 @@
 # GrowJin: handoff for the next session
 
-Last updated 26 Oct 2026. Read this first. It covers what the app is, how the code is laid out, what was built recently, and what we are in the middle of.
+Last updated 2 Nov 2026. Read this first. It covers what the app is, how the code is laid out, what was built recently, and what we are in the middle of.
 
 ## 1. What the app is
 
@@ -81,7 +81,7 @@ What each tool does today:
 ## 3. Branch and working rules
 
 - **Work and push on `dev`.** Push to **`main` only when the owner says so.**
-  - `main` was last brought up to `dev` on 30 Oct 2026 (Lead Finder on the Lead Engine prompt). `main` and `dev` are the same.
+  - `main` was last brought up to `dev` on 30 Oct 2026 (Lead Finder on the Lead Engine prompt). `dev` is ahead since 2 Nov (4b-5).
 - Don't open pull requests unless asked.
 - Commit message footer used so far:
   ```
@@ -214,6 +214,15 @@ The owner's call: forget our pipeline for Lead Finder, use the "Growjin Lead Eng
 - **Old pipeline:** once `settings.engine` is set, `runLeadAgent` no longer searches companies / Maps / LinkedIn / reviews (it still checks replies, sends follow-ups and finds Reddit posts for "Join conversations"). The Lead Agent page is unchanged.
 - `linkedin_people` cap fixed: its actor refuses a run capped under $0.50 (`minimalMaxTotalChargeUsd`), so its cap is never below $0.50 (`minCapUsd`). Opus 5.5 priced at $4 / $20 in `lib/ai/pricing.ts`.
 - Tested with a mocked Claude and mocked tools (tool loop, caching, cap wrap-up, saving, dedupe). **Not run against the real API yet.** Tool spend shows in Usage as "Claude (MCP)"; AI as feature `lead-engine`.
+
+## 4b-5. Lead Finder: less text on a lead (2 Nov)
+
+Users kept saying there's too much to read. An opened lead went from about 250 words to about 80.
+- **Engine prompt** (section 8 notes): `why` ≤ 15 words, `what_it_does` ≤ 6, size ≤ 4, social activity ≤ 6, ≤ 3 signals, `not_checked` as short nouns, summary ≤ 3 sentences, and no tool names or run notes in lead fields (only in `sources` / `tool_issues`).
+- **Saving** (`saveAnswer`): `why` is its first sentence (≤ 140 chars); facts are Sells / Size / Where / Social (all socials on one line), then up to 3 extras; `emailVia` is one of four phrases (Checked email, Found not checked, Guessed from their email pattern, Shared inbox) without the tool details.
+- **Opened lead** (`LeadFinderPage.tsx`): name, site link, "Very Likely · from Google", one line on why, four short facts (`ShortFacts`), the rest (extras, not checked, found by, LinkedIn) behind a closed "More details". The email side has no heading or follow-up sentence; a grey tag by the address says Shared inbox / Guessed / Not checked; the text box grows with the email (`GrowText`). "1 of 6" by "← All leads". Cards and Start here show the one-line why. Older leads are cut the same way on the page (bracketed notes dropped).
+- **Emails** (`draftMessages`, shared with the Lead Agent): under 60 words (was 90), "Hi <company> team," when no name; DMs under 50.
+- The long `app.frekto.ai/preview?t=…` link seen in a live email isn't written by this repo's code; check where it's added.
 
 ## 4c. Costs: Usage & costs tab and Hunter credits
 
