@@ -19,6 +19,7 @@ import { Card, DemoSwitch, LiveProgress, Pager, Tabs, Tag, usePages } from '@/co
 import { WaitPanel } from '@/components/ui/loading'
 import { Day, fmtAgo, fmtDate, initials, useAgentApi } from '@/components/agents/shared'
 import OwnListFlow from '@/components/agents/OwnListFlow'
+import { leadsCsv, leadsToExport } from '@/lib/leads/export-csv'
 import {
   FINDER_SOURCE, avOf, firstOf, isForum, isPage, isPost, nameOf, pageName, pageUrl, tabOf, validEmail, where,
   type LeadAgentFlags,
@@ -157,6 +158,19 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
   // What's on the list: this tab's leads waiting for you, best first; replies sit above them
   const todoIn = (ln: Lane) => leads.filter(l => laneOf(l) === ln && tabOf(l) === 'needs' && l.status !== 'replied').sort((a, b) => b.score - a.score)
   const todo = todoIn(lane)
+  // "Download leads": every lead still to contact (not sent or skipped), in the lead list CSV format
+  const toExport = leadsToExport(leads)
+  function downloadLeads() {
+    const blob = new Blob(['\ufeff' + leadsCsv(toExport)], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
   const replies = leads.filter(l => laneOf(l) === lane && l.status === 'replied' && !l.handledAt)
   const done = leads.filter(l => laneOf(l) === lane && tabOf(l) !== 'needs')
   const maybe = (data.maybe ?? []).filter(m => (m.source === 'reddit' || m.source === 'forum' ? 'talk' : 'direct') === lane)
@@ -201,6 +215,7 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
         <button type="button" className="lfp-link" onClick={() => { setView('how'); window.scrollTo({ top: 0 }) }}>How it finds people</button>
         <button type="button" className="lfp-link" onClick={() => { setView('settings'); window.scrollTo({ top: 0 }) }}>Settings</button>
         {!firstVisit && !searching && <button type="button" className="lfp-link" disabled={running || !!busy} onClick={startSearch}>Find new leads</button>}
+        {toExport.length > 0 && <button type="button" className="lfp-link" onClick={downloadLeads}>Download leads</button>}
         {demo && <span>Demo: nothing is sent</span>}
       </div>
       {/* Only what's wrong shows on the page; the rest lives in Settings */}
