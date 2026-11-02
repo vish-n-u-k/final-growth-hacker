@@ -10,7 +10,7 @@
 // what we know on the left (the same facts for every source) and the email or message on the right;
 // finishing one opens the next.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { EngineInputs, Lead, LeadAgentData } from '@/lib/agents/store'
 import type { EngineStatus } from '@/lib/leads/engine'
 import { Spinner } from '@/components/ui/spinner'
@@ -20,7 +20,7 @@ import { WaitPanel } from '@/components/ui/loading'
 import { Day, fmtAgo, fmtDate, initials, useAgentApi } from '@/components/agents/shared'
 import OwnListFlow from '@/components/agents/OwnListFlow'
 import {
-  FINDER_SOURCE, LeadFacts, avOf, firstOf, isForum, isPage, isPost, nameOf, pageName, pageUrl, tabOf, validEmail, where,
+  FINDER_SOURCE, avOf, firstOf, isForum, isPage, isPost, nameOf, pageName, pageUrl, tabOf, validEmail, where,
   type LeadAgentFlags,
 } from '@/components/agents/LeadAgentPage'
 
@@ -29,6 +29,69 @@ type View = 'list' | 'lead' | 'settings' | 'how' | 'maybe' | 'done' | 'own'
 
 const laneOf = (l: Lead): Lane => (isPost(l) ? 'talk' : 'direct')
 const people = (l: Lead) => isPost(l) || l.source === 'profile'
+
+// Users complain about too much text: a lead shows one short line on why and four short facts.
+// Leads saved before the word limits get cut here too.
+const short = (t: string | undefined, n: number) => {
+  const x = (t ?? '').replace(/\s+/g, ' ').trim()
+  if (x.length <= n) return x
+  const cut = x.slice(0, n - 1)
+  const sp = cut.lastIndexOf(' ')
+  return `${(sp > n / 2 ? cut.slice(0, sp) : cut).replace(/[,;:.\s]+$/, '')}…`
+}
+/** The first sentence of why it's a fit, at most ~20 words. */
+const whyLine = (t?: string) => short((t ?? '').replace(/\s+/g, ' ').trim().match(/^.+?[.!?](?=\s|$)/)?.[0] ?? t, 140)
+const CORE = ['Sells', 'Size', 'Where', 'Social']
+const keyOf = (k: string) => (k === 'Location' ? 'Where' : k)
+/** How sure the email is, as a small tag by the address; nothing when it's checked. */
+function emailTag(l: Lead): string | null {
+  if (l.emailVerified) return null
+  const via = l.emailVia ?? ''
+  if (/shared inbox|generic/i.test(via)) return 'Shared inbox'
+  if (/guess/i.test(via)) return 'Guessed'
+  return 'Not checked'
+}
+
+/** Four short facts; the rest (extras, how it was found) behind "More details". */
+function ShortFacts({ l }: { l: Lead }) {
+  // Bracketed notes ("(Apify out of credit)") are the search's working notes, not facts
+  const all = (l.facts ?? []).map(f => ({ k: keyOf(f.k), v: f.v.replace(/\s*\([^)]*\)/g, '').trim() || f.v }))
+  const core: { k: string; v: string }[] = []
+  for (const k of CORE) {
+    const vs = all.filter(f => f.k === k).map(f => f.v)
+    if (vs.length) core.push({ k, v: short(vs.join(' · '), 60) })
+  }
+  const extra = all.filter(f => !CORE.includes(f.k))
+  const hasMore = extra.length > 0 || !!l.foundVia || !!l.linkedinUrl
+  if (!core.length && !hasMore) return null
+  return (
+    <div className="lfp-facts">
+      {core.length > 0 && <ul>{core.map(f => <li key={f.k}><b>{f.k}</b><span>{f.v}</span></li>)}</ul>}
+      {hasMore && <details className="lfp-more-d">
+        <summary>More details</summary>
+        <ul>
+          {extra.map((f, i) => <li key={`${f.k}${i}`}><b>{f.k}</b><span>{short(f.v, 120)}</span></li>)}
+          {l.foundVia && <li><b>Found by</b><span>{short(l.foundVia, 120)}</span></li>}
+        </ul>
+        {l.linkedinUrl && <a className="th-link" href={l.linkedinUrl} target="_blank" rel="noopener noreferrer">LinkedIn profile ↗</a>}
+      </details>}
+    </div>
+  )
+}
+
+/** A text box that grows with the text, so the email never scrolls inside itself. */
+function GrowText({ value, onChange, label }: { value: string; onChange: (v: string) => void; label: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const fit = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight + 2}px`
+  }, [])
+  useLayoutEffect(fit, [value, fit])
+  useEffect(() => { window.addEventListener('resize', fit); return () => window.removeEventListener('resize', fit) }, [fit])
+  return <textarea ref={ref} className="lfp-grow" aria-label={label} rows={6} value={value} onChange={e => onChange(e.target.value)} />
+}
 
 export default function LeadFinderPage({ initial, flags, competitors = [] }: { initial: LeadAgentData; flags: LeadAgentFlags; competitors?: string[] }) {
   const { data, setData, busy, call, toast: said } = useAgentApi<LeadAgentData>('/api/agents/lead', initial)
@@ -165,7 +228,7 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
       : <Tag>Skipped</Tag>
     const why = l.status === 'sent'
       ? (l.nextFollowUpAt ? `Follow-up ${l.followupsSent + 1} goes out ${fmtDate(l.nextFollowUpAt)} unless they reply.` : 'All follow-ups sent. Waiting for a reply.')
-      : l.why
+      : whyLine(l.why)
     const quote = l.status === 'replied' && l.replyNote ? `“${l.replyNote}”` : isPost(l) && l.snippet ? `“${l.snippet}”` : l.source === 'review' ? l.snippet : undefined
     const label = !needs ? 'View' : l.status === 'replied' ? 'Reply →' : isForum(l) ? (isPage(l) ? 'Write message →' : 'Write reply →') : 'Review email →'
     const site = l.website?.replace(/^https?:\/\//, '')
@@ -221,7 +284,7 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
         <section className="lfp-next">
           <div className="lfp-next-text">
             <b>{todo.length} {todo.length === 1 ? noun[0] : noun[1]} ready for your OK</b>
-            <span>Start with {nameOf(first)}{first.company && first.company !== nameOf(first) ? ` at ${first.company}` : ''}. {first.why}</span>
+            <span>Start with {nameOf(first)}{first.company && first.company !== nameOf(first) ? ` at ${first.company}` : ''}. {whyLine(first.why)}</span>
           </div>
           <button type="button" className="btn btn-primary" onClick={() => openLead(first)}>{verb(first)} →</button>
         </section>
@@ -250,14 +313,19 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
     const who = (
       <aside className="lfp-who">
         <h2>{nameOf(l)}</h2>
-        <div className="lfp-role">{[l.role, company].filter(Boolean).join(', ')}{(l.role || company) && site ? ' · ' : ''}{site && <a href={`https://${site}`} target="_blank" rel="noopener noreferrer">{site}</a>}{!site && people(l) && <a href={l.url} target="_blank" rel="noopener noreferrer">{where(l)}</a>}</div>
-        <p className="lfp-why">{l.why}</p>
-        {(isPost(l) || l.source === 'review') && l.snippet && <blockquote className="lfp-quote">{l.snippet}</blockquote>}
-        <LeadFacts l={l} />
-        <div className="lfp-fit">Fit {l.score}/10 · {FINDER_SOURCE[l.source]}</div>
+        <div className="lfp-role">{[l.role, company].filter(Boolean).join(', ')}{(l.role || company) && site ? ' · ' : ''}{site && <a href={`https://${site}`} target="_blank" rel="noopener noreferrer">{site} ↗</a>}{!site && people(l) && <a href={l.url} target="_blank" rel="noopener noreferrer">{where(l)} ↗</a>}</div>
+        <div className="lfp-fit">{l.source === 'own' ? 'Your list' : <><b>{l.fitLabel ?? `Fit ${l.score}/10`}</b> · {FINDER_SOURCE[l.source]}</>}</div>
+        {l.why && <p className="lfp-why">{whyLine(l.why)}</p>}
+        {(isPost(l) || l.source === 'review') && l.snippet && <blockquote className="lfp-quote">{short(l.snippet, 280)}</blockquote>}
+        <ShortFacts l={l} />
       </aside>
     )
-    const backBtn = <button type="button" className="lfp-link lfp-back" onClick={back}>← All leads</button>
+    const queue = todoIn(laneOf(l))
+    const at = queue.findIndex(x => x.id === l.id)
+    const backBtn = <div className="lfp-backrow">
+      <button type="button" className="lfp-link lfp-back" onClick={back}>← All leads</button>
+      {at >= 0 && queue.length > 1 && <span className="lfp-pos">{at + 1} of {queue.length}</span>}
+    </div>
     const page = (step: React.ReactNode) => <>{backBtn}<div className="lfp-open">{who}<section className="lfp-step">{step}</section></div></>
 
     // Already handled (from "sent or skipped"): what happened, and a way back
@@ -270,7 +338,6 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
         : l.status === 'bounced' ? 'The email bounced, so follow-ups stopped.'
         : 'You skipped this one.'
       return page(<>
-        <div className="lfp-step-of">Done</div>
         <h3>{l.status === 'skipped' ? 'Skipped' : l.status === 'sent' ? `Emailed ${firstOf(l)}` : 'Handled'}</h3>
         <p className="lfp-hint">{text}</p>
         {(l.status === 'skipped' || (l.status === 'replied' && l.handledAt)) && <div className="lfp-acts">
@@ -282,9 +349,8 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
     // They replied: answer in Gmail, then mark it
     if (l.status === 'replied') {
       return page(<>
-        <div className="lfp-step-of">They replied</div>
         <h3>Reply while it’s warm</h3>
-        <p className="lfp-hint">Answer from Gmail, in the same thread. Then mark it as answered here.</p>
+        <p className="lfp-hint">Answer in Gmail, then mark it here.</p>
         {l.replyNote && <blockquote className="lfp-quote lfp-quote--reply">“{l.replyNote}”</blockquote>}
         <div className="lfp-acts">
           {l.threadId && <a className="btn cl-btn-outline" href={`https://mail.google.com/mail/u/0/#all/${l.threadId}`} target="_blank" rel="noopener noreferrer">Open in Gmail ↗</a>}
@@ -298,13 +364,11 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
       const where = isPost(l) ? (l.source === 'reddit' ? 'Reddit' : 'Hacker News') : pageName(l)
       const writing = busy === `reply:${l.id}` && !reply
       return page(<>
-        <div className="lfp-step-of">{isPost(l) ? 'A reply for their post' : 'A direct message'}</div>
-        <h3>{isPost(l) ? 'Check the reply' : 'Check the message'}</h3>
-        <p className="lfp-hint">{isPost(l) ? `${where} doesn’t allow posting for you. Copy it, open the post and paste it.` : `Copy it, open their ${where} page and send it yourself. Then tell us you sent it.`}
+        <p className="lfp-hint">{isPost(l) ? `Copy it and post it on ${where} yourself.` : `Copy it and send it on their ${where} page yourself.`}
           {isPage(l) && l.source !== 'profile' && <> <button type="button" className="lfp-link" onClick={() => setEmailInstead(true)}>Have their email? Write an email instead</button></>}</p>
         {writing ? <div className="ro-working"><Spinner /><span>Writing it…</span><i /></div> : <div className="lfp-mail">
           {isPage(l) && <label><span>To</span><input readOnly value={`${where} · ${pageUrl(l).replace(/^https?:\/\/(www\.)?/, '')}`} /></label>}
-          <textarea aria-label="Message" rows={8} value={reply} onChange={e => setReply(e.target.value)} />
+          <GrowText label="Message" value={reply} onChange={setReply} />
         </div>}
         <div className="lfp-acts">
           <button type="button" className="btn btn-ghost" onClick={() => skip(l)}>Skip</button>
@@ -323,9 +387,8 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
     const writing = busy === `email:${l.id}`
     if (!l.email || l.status === 'needs_contact' || emailInstead && !l.draft) {
       return page(<>
-        <div className="lfp-step-of">An email for your OK</div>
         <h3>Where should it go?</h3>
-        <p className="lfp-hint">No public email was found. Paste it if you know it, and the email gets written for them.{l.website ? <> Try <a className="th-link" href={`https://${l.website}`} target="_blank" rel="noopener noreferrer">their website ↗</a>{l.phone ? ` or call ${l.phone}` : ''}.</> : ''}</p>
+        <p className="lfp-hint">No email found. Paste one and we’ll write the email.{l.website ? <> Try <a className="th-link" href={`https://${l.website}`} target="_blank" rel="noopener noreferrer">their website ↗</a>{l.phone ? ` or call ${l.phone}` : ''}.</> : ''}</p>
         <form className="lfp-mail" onSubmit={async e => {
           e.preventDefault()
           if (!validEmail(to)) return
@@ -345,15 +408,11 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
     // The email: check it, then send
     const sending = busy === `approve:${l.id}`
     return page(<>
-      <div className="lfp-step-of">An email for your OK</div>
-      <h3>Check the email</h3>
-      <p className="lfp-hint">Sent from your Gmail. Follow-ups after {s.followUpDays.join(' and ') || '—'} days stop when they reply.</p>
       {writing && !body ? <div className="ro-working"><Spinner /><span>Writing the email for {firstOf(l)}…</span><i /></div> : <div className="lfp-mail">
-        <label><span>To</span><input readOnly value={l.email} /></label>
+        <label><span>To</span><input readOnly value={l.email} />{emailTag(l) && <em className="lfp-etag">{emailTag(l)}</em>}</label>
         <label><span>Subject</span><input value={subject} onChange={e => setSubject(e.target.value)} /></label>
-        <textarea aria-label="Email" rows={10} value={body} onChange={e => setBody(e.target.value)} />
+        <GrowText label="Email" value={body} onChange={setBody} />
       </div>}
-      {l.emailVia && <p className="lfp-note">Email: {l.emailVia}{l.emailVerified ? '' : ' · not checked, so look it over'}.</p>}
       <div className="lfp-acts">
         <button type="button" className="btn btn-ghost" disabled={sending} onClick={() => skip(l)}>Skip</button>
         <button type="button" className="btn btn-primary lfp-main" disabled={sending || !gmail || !subject.trim() || !body.trim()} onClick={async () => {

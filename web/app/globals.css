@@ -9551,7 +9551,26 @@ html.light .ag-rp-row.is-error .ag-rp-row-detail { color: #b91c1c; }
 .lfp-why { margin: 14px 0 0; font-size: 14.5px; }
 .lfp-quote { margin: 12px 0 0; padding: 10px 12px; border-left: 2px solid var(--line); color: var(--text-dim); font-size: 14px; }
 .lfp-quote--reply { margin: 0 0 16px; border-left-color: var(--crit); background: var(--crit-soft); color: var(--text); border-radius: 0 10px 10px 0; }
-.lfp-fit { margin-top: 12px; font-size: 13px; color: var(--text-faint); }
+.lfp-fit { margin-top: 6px; font-size: 13px; color: var(--text-faint); }
+.lfp-fit b { font-weight: 500; color: var(--text-dim); }
+/* Short facts: four rows, the rest behind "More details" */
+.lfp-facts { margin-top: 16px; font-size: 14px; }
+.lfp-facts ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.lfp-facts li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; color: var(--text-dim); }
+.lfp-facts li b { color: var(--text-faint); font-weight: 400; }
+.lfp-more-d { margin-top: 12px; }
+.lfp-more-d summary { cursor: pointer; font-size: 13.5px; color: var(--text-faint); list-style: none; }
+.lfp-more-d summary::-webkit-details-marker { display: none; }
+.lfp-more-d summary::after { content: ' ▾'; }
+.lfp-more-d[open] summary::after { content: ' ▴'; }
+.lfp-more-d ul { margin-top: 10px; font-size: 13.5px; }
+.lfp-more-d li { grid-template-columns: 84px minmax(0, 1fr); }
+.lfp-more-d .th-link { display: inline-block; margin-top: 10px; font-size: 13.5px; }
+.lfp-backrow { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.lfp-backrow .lfp-back { margin-bottom: 0; }
+.lfp-pos { font-size: 13px; color: var(--text-faint); }
+.lfp-etag { flex: none; padding: 2px 8px; border-radius: 999px; background: var(--bg-soft); color: var(--text-dim); font-size: 12px; font-style: normal; white-space: nowrap; }
+.lfp-mail textarea.lfp-grow { min-height: 150px; resize: none; overflow: hidden; }
 .lfp-step-of { font-size: 13px; color: var(--text-faint); margin-bottom: 6px; }
 .lfp-step h3 { margin: 0 0 6px; font: 600 24px/1.25 var(--font-display); }
 .lfp-hint { margin: 0 0 18px; font-size: 14px; color: var(--text-dim); }

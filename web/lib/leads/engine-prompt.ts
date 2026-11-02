@@ -1,7 +1,8 @@
 // The Lead Finder search: Claude's instructions for finding leads with the dataforseo, hunter and apify
 // tools (lib/leads/engine.ts runs it). The owner's "Growjin Lead Engine" prompt, with three changes:
 // the profile goes in section 8 (it said 9), the app removes repeats (section 2), and the app stops a
-// run at its spending cap (section 7). Edit the logic here; the code only runs it and saves the answer.
+// run at its spending cap (section 7). Plus word limits on every lead field (section 8 notes), since users
+// complain about too much text. Edit the logic here; the code only runs it and saves the answer.
 
 export const ENGINE_PROMPT = `# Growjin Lead Engine
 
@@ -143,8 +144,8 @@ Use this scale (match it to the app's dropdown):
 \`Very Likely · Likely · Leaning Likely · Uncertain (High) · Neutral / Undecided · Uncertain (Low) · Leaning Unlikely · Unlikely · Very Unlikely\`
 
 - Base the rating on the profile, not on how much contact data you found.
-- Give each lead **one line on why**, in plain words, tied to the profile ("posts 4×/week, 0–10 likes; app on both stores").
-- Put the pitch angle in that line where it differs from the default.
+- Give each lead **one line on why: 15 words at most**, in plain words, tied to the profile ("Posts 4× a week, few likes. App on both stores.").
+- Put the pitch angle in that line where it differs from the default, still within 15 words.
 
 Stop when you have \`lead_count\` leads rated Neutral or better, or when the budget runs out. If you find fewer than requested, deliver what you have and say how many and why. Never pad the list with weak leads.
 
@@ -206,6 +207,15 @@ Your final message must be only this JSON object, with no other text before or a
 
 Notes:
 - **Sort** leads strongest first.
+- **The user reads every lead field on a small card. Users complain about too much text, so keep it short and plain:**
+  - \`why\`: one sentence, 15 words at most.
+  - \`what_it_does\`: 6 words at most ("Invoicing app for UK trades").
+  - \`location\`: "City, Country" or just the country. \`company_size\`: 4 words at most ("2 people, under 1 year").
+  - \`socials[].activity\`: 6 words at most ("2.1k followers, posts weekly", "Barely posts", "Not checked").
+  - \`signals\`: at most 3, each value 6 words at most.
+  - \`not_checked\`: short nouns only ("Instagram", "founder's name"), no explanations.
+  - **No tool names, endpoints, meta tags or run notes** in any of those fields ("dataforseo", "content_parsing", "twitter:site", "Apify out of credit"). Tool details go only in \`sources\` and \`tool_issues\`.
+  - The \`summary\`: 3 sentences at most.
 - **Keep \`dropped\`.** It shows the user the filter is working and helps them refine the brief.
 - **Fill \`not_checked\`** honestly, so the user knows what to look at themselves.
 

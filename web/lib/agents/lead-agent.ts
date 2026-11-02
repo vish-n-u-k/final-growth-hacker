@@ -1014,8 +1014,8 @@ async function draftMessages(b: BrandContext, s: LeadSettings, leads: Lead[]): P
 ${customerBlock(b, s)}
 
 For each item write:
-- EMAIL: "subject" (3-6 words, lower-key, mentions their situation, never clickbait) and "body" (under 90 words). Start with "Hi <first name>," if a person's name is known, else "Hi,". First line: the specific thing you noticed (their review, post or business detail). Then one sentence on how ${b.name} helps with exactly that. End with ONE small ask (e.g. "Want me to make 3 free examples for you?"). Sign off with "${b.name}". No em dashes. No links, no opt-out line (added automatically).
-- DIRECT MESSAGE: "reply" (under 70 words), a message to send them on that platform (an Etsy message, an Instagram or Facebook DM). Start with "Hi," or their shop name. One specific thing you noticed about their shop or page, one sentence on how ${b.name} helps, one small ask. Friendly, no links, no sales tone, sign off with "${b.name}".
+- EMAIL: "subject" (3-6 words, lower-key, mentions their situation, never clickbait) and "body" (under 60 words: people skim, short emails get replies). Start with "Hi <first name>," if a person's name is known, else "Hi <company> team,". First line: the specific thing you noticed (their review, post or business detail), one short sentence. Then one sentence on how ${b.name} helps with exactly that. End with ONE small ask (e.g. "Want me to make 3 free examples for you?"). Sign off with "${b.name}". No em dashes. No links, no opt-out line (added automatically).
+- DIRECT MESSAGE: "reply" (under 50 words), a message to send them on that platform (an Etsy message, an Instagram or Facebook DM). Start with "Hi," or their shop name. One specific thing you noticed about their shop or page, one sentence on how ${b.name} helps, one small ask. Friendly, no links, no sales tone, sign off with "${b.name}".
 - FORUM REPLY: "reply" (under 120 words). Answer their question helpfully first with practical advice that works without any product. Then mention ${b.name} honestly as one option and say you work on it. No links, no sales tone.
 
 ${lines}

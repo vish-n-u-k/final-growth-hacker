@@ -359,8 +359,19 @@ const validEmail = (e?: string) => !!e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.tr
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : v == null ? '' : String(v))
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
 
+/** Cut to n characters at a word, for the short text on a lead (users complain about too much text). */
+const short = (s: string, n: number) => {
+  const t = s.replace(/\s+/g, ' ').trim()
+  if (t.length <= n) return t
+  const cut = t.slice(0, n - 1)
+  return `${cut.slice(0, cut.lastIndexOf(' ') > n / 2 ? cut.lastIndexOf(' ') : cut.length).replace(/[,;:.\s]+$/, '')}…`
+}
+/** The first sentence only. */
+const sentence = (s: string) => s.replace(/\s+/g, ' ').trim().match(/^.+?[.!?](?=\s|$)/)?.[0] ?? s.trim()
+
+// How the email was found, in a few plain words (the tool details stay in the search's log)
 const EMAIL_VIA: Record<string, string> = {
-  verified: 'verified', found: 'found, not verified', guessed: 'guessed from the company’s email pattern, check it', generic: 'a shared inbox, no named person found',
+  verified: 'Checked email', found: 'Found, not checked', guessed: 'Guessed from their email pattern', generic: 'Shared inbox',
 }
 
 async function saveAnswer(brandId: string, job: EngineJob, a: EngineAnswer): Promise<number> {
@@ -391,7 +402,7 @@ async function saveAnswer(brandId: string, job: EngineJob, a: EngineAnswer): Pro
     const socials = (Array.isArray(l.socials) ? l.socials : []).filter(s => s && (s.url || s.activity))
     const signals = l.signals && typeof l.signals === 'object' ? Object.entries(l.signals).filter(([, v]) => str(v)) : []
     const url = site ? (/^https?:\/\//.test(site) ? site : `https://${domain}`) : str(l.linkedin) || `https://www.google.com/search?q=${encodeURIComponent(company)}`
-    const why = clip(str(l.why), 400)
+    const why = short(sentence(str(l.why)), 140)
     const snippet = [str(l.what_it_does), str(l.location), str(l.company_size)].filter(Boolean).join(' · ')
 
     if (score < KEEP_FROM) {
@@ -401,22 +412,25 @@ async function saveAnswer(brandId: string, job: EngineJob, a: EngineAnswer): Pro
     const status = str(l.email_status).toLowerCase()
     const hasEmail = validEmail(email) && status !== 'none'
     const page = socials.find(s => /instagram|facebook/i.test(str(s.platform)) && str(s.url))
+    // The four facts shown on the lead (Sells, Size, Where, Social), then extras the page keeps behind "More details"
+    const platform = (p: string) => p.replace(/^./, c => c.toUpperCase()).replace(/^Twitter$/i, 'X')
+    const social = socials.slice(0, 3).map(s => short([platform(str(s.platform)), str(s.activity)].filter(Boolean).join(': '), 44)).join(' · ')
     const facts = [
-      str(l.what_it_does) && { k: 'Sells', v: clip(str(l.what_it_does), 160) },
-      str(l.company_size) && { k: 'Size', v: str(l.company_size) },
-      str(l.location) && { k: 'Location', v: str(l.location) },
-      ...socials.slice(0, 4).map(s => ({ k: 'Social', v: clip([str(s.platform), str(s.activity)].filter(Boolean).join(': '), 160) })),
-      ...signals.slice(0, 5).map(([k, v]) => ({ k: clip(k.replace(/_/g, ' '), 24).replace(/^./, c => c.toUpperCase()), v: clip(str(v), 160) })),
-      Array.isArray(l.not_checked) && l.not_checked.length && { k: 'Not checked', v: clip(l.not_checked.map(str).filter(Boolean).join(', '), 200) },
+      str(l.what_it_does) && { k: 'Sells', v: short(str(l.what_it_does), 60) },
+      str(l.company_size) && { k: 'Size', v: short(str(l.company_size), 40) },
+      str(l.location) && { k: 'Where', v: short(str(l.location), 40) },
+      social && { k: 'Social', v: social },
+      ...signals.slice(0, 3).map(([k, v]) => ({ k: clip(k.replace(/_/g, ' '), 20).replace(/^./, c => c.toUpperCase()), v: short(str(v), 60) })),
+      Array.isArray(l.not_checked) && l.not_checked.length && { k: 'Not checked', v: short(l.not_checked.map(str).filter(Boolean).join(', '), 80) },
     ].filter((f): f is { k: string; v: string } => !!f)
     fresh.push({
       id, source: 'company', foundAt: now, title: company || domain, url, snippet,
       name: str(l.contact_name) || undefined, role: str(l.contact_title) || undefined, company: company || undefined,
       website: domain || undefined, score, fitLabel: rating, why, status: hasEmail || page ? 'ready' : 'needs_contact', followupsSent: 0,
-      ...(hasEmail ? { email, emailVerified: status === 'verified', emailVia: [EMAIL_VIA[status] ?? 'found', str(sources.contact) && `via ${str(sources.contact)}`].filter(Boolean).join(', ') } : {}),
+      ...(hasEmail ? { email, emailVerified: status === 'verified', emailVia: EMAIL_VIA[status] ?? EMAIL_VIA.found } : {}),
       ...(!hasEmail && page ? { dm: { platform: /instagram/i.test(str(page.platform)) ? 'Instagram' : 'Facebook', url: str(page.url) } } : {}),
       ...(str(l.linkedin) ? { linkedinUrl: str(l.linkedin) } : {}),
-      foundVia: clip(str(sources.discovered_via) || 'Lead Finder search', 200),
+      foundVia: short(str(sources.discovered_via) || 'Lead Finder search', 90),
       facts: facts.length ? facts : undefined,
       notChecked: Array.isArray(l.not_checked) ? l.not_checked.map(str).filter(Boolean).slice(0, 8) : undefined,
     })
