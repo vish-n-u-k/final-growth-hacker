@@ -1,0 +1,427 @@
+<title>Lead List Import</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: same app frame as the approved Lead Finder preview. One green button per screen, red = a reply, everything else grey. */
+  :root {
+    --bg: #ffffff; --soft: #f3f5f3; --line: #e3e7e3; --text: #16201a; --dim: #4f5c53; --faint: #86918a;
+    --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --red: #b42318; --red-soft: #fdeceb;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --red: #f87b70; --red-soft: #361a17; color-scheme: dark }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--body); }
+  button, input, textarea { font: inherit; color: inherit; }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+  .frame { display: flex; min-height: 100vh; }
+  .side { width: 232px; flex: none; background: var(--soft); border-right: 1px solid var(--line); padding: 18px 12px; font-size: 13.5px; }
+  .brand { display: flex; align-items: center; gap: 9px; padding: 4px 8px 20px; font: 600 16px var(--display); }
+  .grp { margin-bottom: 18px; }
+  .gl { padding: 0 10px 6px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .nav { display: block; padding: 7px 10px; border-radius: 8px; color: var(--dim); text-decoration: none; }
+  .nav.on { background: var(--green-soft); color: var(--green-ink); font-weight: 600; }
+  .main { flex: 1; min-width: 0; }
+  .page { max-width: 880px; padding-block: 20px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); margin: 0 auto; }
+  .mbar { display: none; }
+  @media (max-width: 760px) {
+    .side { display: none; }
+    .mbar { display: flex; align-items: center; gap: 9px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--soft); font: 600 15px var(--display); }
+    .page { padding-block: 14px 56px; }
+  }
+
+  .pnote { margin-bottom: 18px; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 10px; font-size: 13px; color: var(--faint); }
+  .crumbs { font-size: 13px; color: var(--faint); margin-bottom: 18px; }
+  h1 { margin: 0; font: 600 32px/1.15 var(--display); letter-spacing: -.01em; text-wrap: balance; }
+  .line { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 14px; color: var(--faint); }
+  .link { border: 0; background: none; padding: 0; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; font-size: inherit; }
+  .link:hover { color: var(--text); text-decoration-color: currentColor; }
+
+  .tabs { display: flex; gap: 4px; margin: 28px 0 22px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+  .tab { padding: 10px 14px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; font-size: 15px; color: var(--faint); cursor: pointer; white-space: nowrap; }
+  .tab[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--text); }
+  .tab .n { margin-left: 6px; font-size: 13px; color: var(--faint); font-weight: 500; }
+
+  .next { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px 22px; border-radius: 14px; background: var(--green-soft); }
+  .next-text { flex: 1 1 260px; min-width: 0; }
+  .next-text b { display: block; font-size: 17px; font-weight: 600; }
+  .next-text span { color: var(--dim); font-size: 14px; }
+  .btn { height: 42px; padding: 0 20px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn.go { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.go:hover { filter: brightness(1.06); }
+  .btn.quiet { border-color: transparent; background: none; color: var(--dim); padding: 0 12px; }
+  .btn.quiet:hover { color: var(--text); }
+
+  .rest { margin-top: 26px; }
+  .rest-h { margin: 0 0 6px; font-size: 13px; color: var(--faint); }
+  .row { display: flex; align-items: center; gap: 14px; padding: 14px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .row:hover .row-name { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .row-main { flex: 1; min-width: 0; }
+  .row-name { font-weight: 600; }
+  .row-name small { font-weight: 400; color: var(--faint); font-size: 13.5px; margin-left: 6px; }
+  .row-why { color: var(--dim); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row-src { color: var(--faint); font-size: 13px; white-space: nowrap; text-align: right; }
+  .row-src i { display: block; font-style: normal; }
+  .more { margin-top: 18px; font-size: 14px; color: var(--faint); display: flex; flex-wrap: wrap; gap: 6px 16px; }
+  .empty { padding: 36px 22px; border-radius: 14px; background: var(--soft); text-align: center; }
+  .empty b { display: block; font-size: 17px; margin-bottom: 4px; }
+  .empty p { margin: 0 auto 16px; color: var(--dim); max-width: 52ch; }
+
+  /* Add a lead list */
+  .back { margin-bottom: 20px; }
+  .lede { margin: 8px 0 0; color: var(--dim); max-width: 62ch; }
+  .drop { margin-top: 24px; padding: 30px 22px; border: 1.5px dashed var(--line); border-radius: 14px; text-align: center; background: var(--soft); }
+  .drop b { display: block; font-size: 16px; font-weight: 600; }
+  .drop p { margin: 4px auto 16px; color: var(--dim); font-size: 14px; max-width: 54ch; }
+  .drop .acts { justify-content: center; margin-top: 0; }
+  .sheet { margin-top: 22px; padding: 18px 22px; border: 1px solid var(--line); border-radius: 14px; }
+  .sheet + .sheet { margin-top: 14px; }
+  .sheet h3 { margin: 0 0 4px; font-size: 16px; }
+  .sheet > p { margin: 0 0 8px; color: var(--faint); font-size: 13.5px; }
+  .opt { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; font-size: 14.5px; border-top: 1px solid var(--line); cursor: pointer; }
+  .opt:first-of-type { border-top: 0; }
+  .opt input { margin-top: 4px; accent-color: var(--green); }
+  .opt small { display: block; color: var(--faint); font-size: 13px; }
+
+  /* Check result */
+  .count { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-top: 22px; font-size: 14.5px; color: var(--dim); }
+  .count b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .chk { margin-top: 18px; }
+  .chk .row { cursor: default; }
+  .prio { width: 26px; height: 26px; flex: none; border-radius: 8px; background: var(--soft); border: 1px solid var(--line); display: grid; place-items: center; font-size: 12.5px; font-weight: 600; color: var(--dim); }
+  .out .row-name { color: var(--faint); font-weight: 500; }
+  .stick { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 22px; padding: 16px 20px; border-radius: 14px; background: var(--green-soft); }
+  .stick span { flex: 1 1 240px; color: var(--dim); font-size: 14px; }
+
+  /* One lead opened */
+  .open { display: grid; grid-template-columns: minmax(0, 290px) minmax(0, 1fr); gap: 32px; align-items: start; }
+  .who h2 { margin: 0 0 2px; font: 600 22px/1.25 var(--display); }
+  .who .role { font-size: 14px; color: var(--dim); }
+  .who .why { margin: 16px 0 0; font-size: 14.5px; }
+  .facts { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; font-size: 14px; }
+  .facts li { display: grid; gap: 1px; color: var(--dim); }
+  .facts li b { color: var(--faint); font-weight: 500; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; }
+  .from { margin-top: 18px; padding: 12px 14px; border-radius: 12px; background: var(--soft); font-size: 13.5px; color: var(--dim); display: grid; gap: 4px; overflow-wrap: anywhere; }
+  .from b { color: var(--text); font-weight: 500; }
+  .step-of { font-size: 13px; color: var(--faint); margin-bottom: 6px; }
+  .step h3 { margin: 0 0 6px; font: 600 24px/1.25 var(--display); }
+  .step .hint { margin: 0 0 18px; color: var(--dim); font-size: 14px; }
+  .mail { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .mail label { display: flex; gap: 12px; align-items: center; padding: 0 14px; min-height: 44px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .mail label span { width: 56px; color: var(--faint); flex: none; }
+  .mail input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 14.5px; }
+  .mail textarea { display: block; width: 100%; min-height: 230px; padding: 14px; border: 0; background: none; resize: vertical; outline: none; font-size: 14.5px; line-height: 1.65; }
+  .used { margin-top: 10px; font-size: 13px; color: var(--faint); }
+  .posts-h { display: flex; align-items: center; gap: 10px; margin: 24px 0 10px; font-size: 14.5px; font-weight: 500; }
+  .posts-h label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+  .posts-h input { accent-color: var(--green); }
+  .posts-h small { margin-left: auto; color: var(--faint); font-weight: 400; font-size: 13px; }
+  .posts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .post { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--bg); }
+  .post .art { aspect-ratio: 1 / 1; max-width: 100%; display: grid; place-items: center; padding: 12px; text-align: center; background: var(--soft); border-bottom: 1px solid var(--line); }
+  .post .art b { font: 600 20px/1.15 var(--display); }
+  .post .art span { display: block; margin-top: 4px; font-size: 12px; color: var(--dim); }
+  .post .cap { padding: 8px 10px; font-size: 12.5px; color: var(--dim); }
+  .post .cap i { display: block; font-style: normal; color: var(--faint); font-size: 11.5px; margin-bottom: 2px; letter-spacing: .05em; text-transform: uppercase; }
+  .posts.off { opacity: .35; }
+  .acts { display: flex; align-items: center; gap: 8px; margin-top: 22px; flex-wrap: wrap; }
+  .acts .btn.go { margin-left: auto; }
+  .note { margin-top: 10px; font-size: 13px; color: var(--faint); }
+  @media (max-width: 760px) { .open { grid-template-columns: 1fr; gap: 22px; } .posts { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 420px) { .posts { grid-template-columns: 1fr; } }
+
+  /* The format */
+  .fmt h3 { margin: 26px 0 8px; font-size: 13px; color: var(--faint); font-weight: 500; letter-spacing: .08em; text-transform: uppercase; }
+  .cols { display: grid; gap: 0; border-top: 1px solid var(--line); }
+  .cols div { display: grid; grid-template-columns: minmax(0, 190px) minmax(0, 1fr); gap: 14px; padding: 9px 2px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .cols code { font: 500 13px ui-monospace, Menlo, monospace; color: var(--text); overflow-wrap: anywhere; }
+  .cols span { color: var(--dim); }
+  .prompt { margin-top: 10px; padding: 14px 16px; border-radius: 12px; background: var(--soft); font: 13px/1.6 ui-monospace, Menlo, monospace; color: var(--dim); white-space: pre-wrap; max-height: 240px; overflow: auto; }
+
+  #toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); padding: 10px 16px; border-radius: 10px; background: var(--text); color: var(--bg); font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; max-width: calc(100% - 32px); }
+  #toast.on { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+</style>
+
+<div class="frame">
+  <nav class="side" aria-label="Main">
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#12A664"/><path d="M6 17.5 L10.5 12 L14 15 L20 7.5" stroke="#fff" stroke-width="2.4" fill="none"/><circle cx="20" cy="7.5" r="2.4" fill="#FF6A50"/></svg>GrowJin</div>
+    <div class="grp"><a class="nav" href="#">Today</a></div>
+    <div class="grp"><div class="gl">Get customers</div><a class="nav on" href="#">Lead Finder</a><a class="nav" href="#">Lead Agent</a><a class="nav" href="#">Email Outreach</a></div>
+    <div class="grp"><div class="gl">Get seen</div><a class="nav" href="#">Search Agent</a><a class="nav" href="#">Social Studio</a></div>
+    <div class="grp"><div class="gl">Keep track</div><a class="nav" href="#">Reminders</a><a class="nav" href="#">Analytics</a></div>
+  </nav>
+  <main class="main">
+    <div class="mbar"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><rect x="1" y="1" width="24" height="24" rx="6" fill="#12A664"/><path d="M6 17.5 L10.5 12 L14 15 L20 7.5" stroke="#fff" stroke-width="2.4" fill="none"/></svg>GrowJin</div>
+    <div class="page">
+      <div class="pnote">Preview with made-up data, today = 2 Nov 2026. Start with <b>Add a lead list</b> in the grey line under the title. Nothing is sent.</div>
+      <div id="view"></div>
+    </div>
+  </main>
+</div>
+<div id="toast" role="status"></div>
+
+<script>
+const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+const $view = document.getElementById('view')
+let toastT
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2400) }
+
+// Leads the search already found (shape as today)
+const FOUND = [
+  { id: 'moss', person: 'Lena Ortiz', role: 'Founder', company: 'Moss & Wick Candles', why: 'Small candle shop, Instagram quiet since June.', src: 'from Google', prio: 'Likely', status: 'todo' },
+  { id: 'tally', person: 'Raj Mehta', role: 'Co-founder', company: 'Tallyform', why: 'Two-person form builder, founder posts on X himself.', src: 'from LinkedIn', prio: 'Likely', status: 'todo' },
+]
+
+// The example file: rows in the lead list format. Ready rows become leads.
+const ROWS = [
+  { id: 'imw', ok: true, prio: 'A', person: 'Rahul Verma', role: 'Marketing Manager', company: 'India Mining Week', to: 'rahul.verma@informa.com', site: 'indiaminingweek.com', country: 'India',
+    hookShort: 'Event on 15 Nov, in 13 days', why: 'India Mining Week runs 15-17 Nov at Yashobhoomi. Countdown posts so far are plain text.',
+    facts: [['Why now', 'Event, 15-17 Nov 2026 (13 days away)'], ['How we know them', 'Cold'], ['Their posting', 'About once a month, stock photos. Last post 20 Oct'], ['Good on their site', 'Stats, the event agenda, exhibitor logos'], ['Leave out', 'Don’t name ministers as confirmed speakers unless the site says so'], ['Note', 'Informa runs many shows, so one win can open more']],
+    source: 'indiaminingweek.com', subject: '13 days to India Mining Week',
+    body: 'Hi Rahul,\n\nWith India Mining Week opening on the 15th, the next two weeks are when people decide whether to come.\n\nI made three countdown posts from your site to show what that could look like: a "13 days to go" post, one with your show numbers, and one on the agenda. They are attached.\n\nFrekto can keep posts like these coming every day until the show, without your team designing each one.\n\nWould it help if I made the full countdown set?\n\nBest,\nVishnu',
+    used: 'the event and its date, their posting, what’s on their site, what to leave out',
+    posts: [['13 days to go', 'India Mining Week · 15-17 Nov', 'Countdown'], ['300+ exhibitors', 'One floor, the whole mining value chain', 'Show numbers'], ['Day 1 agenda', 'Keynotes, the tech floor, networking', 'Agenda']] },
+  { id: 'ripple', ok: true, prio: 'A', person: 'Ananya Rao', role: 'Head of Marketing', company: 'RippleHire', to: 'ananya@ripplehire.com', site: 'ripplehire.com', country: 'India',
+    hookShort: 'Won an HR Tech award in Sept', why: 'Won an HR Tech award on 12 Sept. Has case studies on the site that were never posted.',
+    facts: [['Why now', 'Award, HR Tech award 2026 (12 Sept)'], ['How we know them', 'Warm: met at SaaSBoomi'], ['Their posting', 'Weekly, mixed formats. Last post 28 Oct'], ['Good on their site', 'Case studies, awards, features']],
+    source: 'ripplehire.com/awards', subject: 'Your case studies, as posts',
+    body: 'Hi Ananya,\n\nGood to see RippleHire take the HR Tech award, and nice meeting you at SaaSBoomi.\n\nYou post every week already. One thing that stood out: the case studies on your site never made it to LinkedIn. I turned the award and two of them into posts, attached.\n\nWant me to do the rest of the case studies the same way?\n\nBest,\nVishnu',
+    used: 'the award, how you met, their posting, what’s on their site',
+    posts: [['Award winner', 'HR Tech award 2026', 'Award'], ['40% faster hiring', 'How a bank cut time-to-hire', 'Case study'], ['What’s new', 'Referral drives, now on mobile', 'Feature']] },
+  { id: 'brew', ok: true, prio: 'B', person: 'Meera Iyer', role: 'Founder', company: 'Brewlane Coffee', to: 'meera@brewlane.in', site: 'brewlane.in', country: 'India',
+    hookShort: 'Launched a cold brew on 20 Oct', why: 'New cold brew launched 20 Oct. Instagram has been quiet since August.',
+    facts: [['Why now', 'Launch, bottled cold brew (20 Oct)'], ['How we know them', 'Cold'], ['Their posting', 'Quiet, nothing on Instagram for 60+ days'], ['Good on their site', 'Products with prices, testimonials']],
+    source: 'brewlane.in/shop/cold-brew', subject: 'Posts for the new cold brew',
+    body: 'Hi Meera,\n\nI saw Brewlane’s new bottled cold brew on your shop. It looks like a good one to tell people about.\n\nI made three Instagram posts from your product page to show what Frekto does: the launch, the product with its price, and one with a customer quote. They are attached.\n\nFrekto can keep a steady flow like this going without it taking your time.\n\nWould it help if I made a week of them?\n\nBest,\nVishnu',
+    used: 'the launch, their posting, products and prices on their site',
+    posts: [['New: cold brew', 'Bottled, ready in the fridge', 'Launch'], ['₹180 · 250 ml', 'Brewed for 18 hours', 'Product'], ['“Best in Pune”', 'A customer, on Google', 'Proof']] },
+  { id: 'sia', ok: true, prio: 'B', person: 'Priya Shah', role: 'Founder', company: 'SIA Wealth', to: 'priya@siawealth.in', site: 'siawealth.in', country: 'India',
+    hookShort: 'No posts since June · in talks', why: 'Nothing posted since June. Already in talks with us.',
+    facts: [['Why now', 'No timely reason found'], ['How we know them', 'In talks'], ['Their posting', 'Quiet since 2 June, text only'], ['Good on their site', 'FAQs, features'], ['Leave out', 'No return promises, no stock tips'], ['Required wording', 'ARN number + AMFI disclaimer on every post']],
+    source: 'linkedin.com/company/sia-wealth', subject: 'Posts for SIA Wealth',
+    body: 'Hi Priya,\n\nFollowing on from our chat: I made three posts from the FAQs on your site so you can see how they’d look. Each one carries your ARN and the AMFI disclaimer, and none of them mentions returns.\n\nThey’re attached. If they feel right, we could start with one a week.\n\nWhat do you think?\n\nBest,\nVishnu',
+    used: 'being in talks, the required wording, what to leave out',
+    posts: [['SIP or lump sum?', 'A plain answer, from our FAQ', 'FAQ'], ['Myth vs fact', '“You need a lot to start”', 'Myth vs fact'], ['How we work', 'Fees, shown upfront', 'Explainer']] },
+  { id: 'kettle', ok: true, prio: 'C', person: 'Tom Hale', role: 'Founder', company: 'Kettle & Co Studio', to: 'tom@kettleco.uk', site: 'kettleco.uk', country: 'United Kingdom',
+    hookShort: 'Hiring a content person · referral', why: 'Hiring a content designer. Rahul Mehta suggested we talk.',
+    facts: [['Why now', 'Hiring, content designer (posted 24 Oct)'], ['How we know them', 'Referral from Rahul Mehta'], ['Their posting', 'Weekly, designed posts'], ['Good on their site', 'Case studies, team photos']],
+    source: 'kettleco.uk/careers', subject: 'Rahul suggested I get in touch',
+    body: 'Hi Tom,\n\nRahul Mehta suggested I reach out. I saw you’re hiring a content designer.\n\nWhile you hire, Frekto can cover the everyday posts, so the new person can spend their time on the bigger pieces. I made three from your case studies to show you, attached.\n\nWorth a quick look?\n\nBest,\nVishnu',
+    used: 'the referral, the job ad, what’s on their site',
+    posts: [['We’re hiring', 'Content designer, London', 'Hiring'], ['A rebrand in 6 weeks', 'Our work for a local bakery', 'Case study'], ['Meet the studio', 'Five people, one kettle', 'Team']] },
+  { ok: false, person: 'Jonas Weber', company: 'Nordlicht Design GmbH', reason: 'Based in Germany. EU companies are left out for now' },
+  { ok: false, person: 'Sam Patel', company: 'Leafy Labs', reason: 'Personal Gmail address, not a work email' },
+  { ok: false, person: 'Aditi Rao', company: 'Bloom Salon', reason: 'Already emailed on 12 Oct' },
+]
+
+const state = { view: 'list', tab: 'direct', imported: false, leads: [...FOUND], openId: null, mode: 'each', posts: true, list: 'November leads' }
+const todo = () => state.leads.filter(l => l.status === 'todo')
+const order = l => ({ A: 0, B: 1, C: 2 }[l.prio] ?? 3)
+
+function topLine() {
+  return `<div class="crumbs">Tools / Get customers</div>
+    <h1>Lead Finder</h1>
+    <div class="line"><span>Last search 2 h ago</span><button class="link" data-go="add">Add a lead list</button><button class="link" data-act="toast" data-msg="Settings isn't part of this preview">Settings</button><button class="link" data-act="toast" data-msg="Search isn't part of this preview">Find new leads</button></div>`
+}
+
+function renderList() {
+  const list = todo().sort((a, b) => order(a) - order(b))
+  const first = list[0]
+  const done = state.leads.length - list.length
+  const tabs = `<div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true">Contact directly<span class="n">${list.length}</span></button>
+      <button class="tab" role="tab" aria-selected="false" data-act="toast" data-msg="Join conversations isn't part of this preview">Join conversations<span class="n">4</span></button>
+    </div>`
+  if (!first) return topLine() + tabs + `<div class="empty"><b>All caught up</b><p>Every lead has been emailed or skipped. Follow-ups go out on their own and stop when someone replies.</p><button class="btn go" data-go="add">Add another lead list</button></div>`
+  const startWhy = first.hookShort ? `${first.hookShort}. From your list “${esc(state.list)}”.` : esc(first.why)
+  return topLine() + tabs + `
+    <div class="next">
+      <div class="next-text"><b>Start here: ${esc(first.person)} at ${esc(first.company)}</b><span>${startWhy}</span></div>
+      <button class="btn go" data-open="${first.id}">Review the email</button>
+    </div>
+    <div class="rest">
+      <p class="rest-h">Next up · ${state.imported ? 'your list first, best fits on top' : 'best fits on top'}</p>
+      ${list.slice(1).map(l => `
+        <div class="row" data-open="${l.id}" tabindex="0">
+          <div class="row-main"><div class="row-name">${esc(l.person)}<small>${esc(l.company)}</small></div><div class="row-why">${esc(l.hookShort || l.why)}</div></div>
+          <div class="row-src">${l.prio && l.prio.length === 1 ? `Priority ${l.prio}` : esc(l.prio)}<i>${esc(l.src)}</i></div>
+        </div>`).join('')}
+    </div>
+    <div class="more">${done ? `<button class="link" data-act="toast" data-msg="The sent and skipped list isn't part of this preview">${done} sent or skipped</button>` : ''}<button class="link" data-go="format">What a lead list should look like</button></div>`
+}
+
+function renderAdd() {
+  return `<button class="link back" data-go="list">← Lead Finder</button>
+    <h1>Add a lead list</h1>
+    <p class="lede">Upload a list of people you found yourself or with another tool. Each person becomes a lead here, with an email written for them.</p>
+    <div class="drop">
+      <b>Drop a CSV or Excel file here</b>
+      <p>Any file with an email column works. In <button class="link" data-go="format">our lead list format</button>, each email uses that person’s details: the reason to write now, how you know them, their posts.</p>
+      <div class="acts">
+        <label class="btn" for="file" style="display:inline-flex;align-items:center">Choose a file</label>
+        <input id="file" type="file" accept=".csv,.xlsx" hidden>
+        <button class="btn go" data-act="example">Use the example file</button>
+      </div>
+    </div>
+    <div class="sheet">
+      <h3>The emails</h3>
+      <label class="opt"><input type="radio" name="mode" id="mode-each" value="each" ${state.mode === 'each' ? 'checked' : ''}><span>A personal email for each person<small>Written when you open the lead, from that row. Best with the lead list format.</small></span></label>
+      <label class="opt"><input type="radio" name="mode" id="mode-one" value="one" ${state.mode === 'one' ? 'checked' : ''}><span>One email for everyone<small>Fills in first name and company. Faster to approve, less personal. This is how it works today.</small></span></label>
+    </div>
+    <div class="sheet">
+      <h3>Sample posts</h3>
+      <label class="opt"><input type="checkbox" id="posts" ${state.posts ? 'checked' : ''}><span>Make 3 sample posts for each person and attach them<small>Made from their website. Shown only for brands that make posts, like Frekto. Picked from the row: an event gets a countdown, a launch gets a “what’s new” post, and so on.</small></span></label>
+    </div>`
+}
+
+function renderCheck() {
+  const ok = ROWS.filter(r => r.ok), out = ROWS.filter(r => !r.ok)
+  return `<button class="link back" data-go="add">← Choose another file</button>
+    <h1>${ok.length} people ready to add</h1>
+    <div class="count"><span><b>${ROWS.length}</b> rows read</span><span><b>${ok.length}</b> ready</span><span><b>${out.length}</b> left out</span><span>Format: lead list (26 columns)</span></div>
+    <div class="stick"><span>Emails are written when you open each lead. Nothing is sent until you approve it.</span><button class="btn go" data-act="addAll">Add ${ok.length} leads</button></div>
+    <div class="chk">
+      <p class="rest-h" style="margin-top:18px">Ready · best first</p>
+      ${ok.map(r => `<div class="row"><div class="prio" title="Priority">${r.prio}</div><div class="row-main"><div class="row-name">${esc(r.person)}<small>${esc(r.company)}</small></div><div class="row-why">${esc(r.hookShort)}</div></div><div class="row-src">${esc(r.country)}</div></div>`).join('')}
+    </div>
+    <div class="chk out">
+      <p class="rest-h" style="margin-top:18px">Left out</p>
+      ${out.map(r => `<div class="row"><div class="row-main"><div class="row-name">${esc(r.person)}<small>${esc(r.company)}</small></div><div class="row-why">${esc(r.reason)}</div></div></div>`).join('')}
+    </div>
+    <div class="sheet"><label class="opt" style="padding:0"><span style="flex:1">Name this list<small>Shown on each lead so you know where it came from</small></span></label><input id="listname" value="${esc(state.list)}" style="margin-top:8px;width:100%;height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)"></div>`
+}
+
+function renderLead() {
+  const l = state.leads.find(x => x.id === state.openId)
+  if (!l || !l.subject) {
+    return `<button class="link back" data-go="list">← All leads</button><div class="empty"><b>${esc(l?.person ?? '')}</b><p>Leads from the search open as they do today. In this preview, open one from your list.</p><button class="btn go" data-go="list">Back to the list</button></div>`
+  }
+  const left = todo().length
+  return `<button class="link back" data-go="list">← All leads · ${left} to do</button>
+    <div class="open">
+      <aside class="who">
+        <h2>${esc(l.person)}</h2>
+        <div class="role">${esc(l.role)}, ${esc(l.company)}</div>
+        <p class="why">${esc(l.why)}</p>
+        <ul class="facts">${l.facts.map(([k, v]) => `<li><b>${esc(k)}</b>${esc(v)}</li>`).join('')}</ul>
+        <div class="from"><b>From your list “${esc(state.list)}”</b><span>Priority ${l.prio} · ${esc(l.country)}</span><span>Source: ${esc(l.source)}</span></div>
+      </aside>
+      <section class="step">
+        <div class="step-of">Step 1 of 2</div>
+        <h3>Check the email</h3>
+        <p class="hint">Written for ${esc(l.person.split(' ')[0])} from their row. Change anything you like.</p>
+        <div class="mail">
+          <label><span>To</span><input id="to-${l.id}" value="${esc(l.to)}"></label>
+          <label><span>Subject</span><input id="subj-${l.id}" value="${esc(l.subject)}"></label>
+          <textarea id="body-${l.id}" aria-label="Email">${esc(l.body)}</textarea>
+        </div>
+        <div class="used">Used: ${esc(l.used)}.</div>
+        ${state.posts ? `
+        <div class="posts-h"><label><input type="checkbox" id="att-${l.id}" ${l.attach !== false ? 'checked' : ''} data-act="attach">Attach 3 sample posts</label><small>Made with Frekto</small></div>
+        <div class="posts ${l.attach === false ? 'off' : ''}">${l.posts.map(([t, s, k]) => `<div class="post"><div class="art"><div><b>${esc(t)}</b><span>${esc(s)}</span></div></div><div class="cap"><i>${esc(k)}</i>${esc(l.company)}</div></div>`).join('')}</div>` : ''}
+        <div class="acts">
+          <button class="btn quiet" data-act="skip">Skip</button>
+          <button class="btn quiet" data-act="toast" data-msg="Writing it again…">Write again</button>
+          <button class="btn go" data-act="send">Approve and send</button>
+        </div>
+        <div class="note">Sends from your Gmail within today’s limit. Follow-ups go out on their own and stop when they reply.</div>
+      </section>
+    </div>`
+}
+
+const COLS = [
+  ['website', 'Their main website. Required'], ['contact_name', 'Full name of the person. Required'], ['contact_email', 'Their work email. Required'],
+  ['company_name, contact_role, country', 'Who they are'], ['segment', 'Kind of business: saas, event, ecommerce…'],
+  ['relationship, referred_by', 'cold, warm, in_talks or referral (and who referred them)'],
+  ['hook_type, hook_detail, hook_date, hook_source_url', 'The reason to write now: event, launch, funding, hiring, award…'],
+  ['posting_activity, last_post_date, post_style_now', 'How they post on social today'],
+  ['best_assets, preferred_content', 'What’s on their site that makes good posts, and what their audience wants'],
+  ['pain_point, avoid, compliance_notes, language', 'What to say, what to leave out, wording they must use'],
+  ['priority, notes', 'A, B or C, and anything else, with links'],
+]
+const HEADER = 'website,contact_name,contact_email,company_name,contact_role,country,segment,relationship,referred_by,hook_type,hook_detail,hook_date,hook_source_url,linkedin_company_url,instagram_url,posting_activity,last_post_date,post_style_now,best_assets,preferred_content,pain_point,avoid,compliance_notes,language,priority,notes'
+const PROMPT = `Today is {today}. Find {N} businesses that fit this profile: {who}.
+For each, research their website, LinkedIn company page and recent news, and return one CSV with exactly these columns, in this order:
+${HEADER}
+
+Allowed values:
+segment: saas, event, fintech, agency, ecommerce, professional_services, education, healthcare, real_estate, other
+relationship: cold, warm, in_talks, referral
+hook_type: event, launch, funding, hiring, award, milestone, news, content_gap, none
+posting_activity: active, occasional, dormant, none
+post_style_now: text_only, stock_photos, designed, video, mixed
+priority: A, B, C
+
+Rules: dates as YYYY-MM-DD. One contact per company. Work emails only. Never guess; leave a field empty when unsure. Put cells that contain commas in double quotes. Skip EU and Canadian companies. Output only the CSV.`
+
+function renderFormat() {
+  return `<button class="link back" data-go="${state.imported ? 'list' : 'add'}">← Back</button>
+    <h1>The lead list format</h1>
+    <p class="lede">One CSV, one row per company. Only the first three columns are needed. The more you fill in, the more personal each email gets. Leave a cell empty when you’re not sure.</p>
+    <div class="fmt">
+      <h3>Columns</h3>
+      <div class="cols">${COLS.map(([c, w]) => `<div><code>${esc(c)}</code><span>${esc(w)}</span></div>`).join('')}</div>
+      <div class="acts"><button class="btn" data-act="copy" data-what="header">Copy the header row</button></div>
+      <h3>Let an AI build the list</h3>
+      <p class="lede" style="margin-top:0">Paste this into ChatGPT, Claude or a research tool, fill in the parts in braces, then upload what it gives you.</p>
+      <div class="prompt">${esc(PROMPT)}</div>
+      <div class="acts"><button class="btn" data-act="copy" data-what="prompt">Copy the prompt</button></div>
+    </div>`
+}
+
+function render() {
+  const v = { list: renderList, add: renderAdd, check: renderCheck, lead: renderLead, format: renderFormat }[state.view]
+  $view.innerHTML = v()
+  window.scrollTo(0, 0)
+}
+
+function openNext() {
+  const next = todo().sort((a, b) => order(a) - order(b))[0]
+  if (next && next.subject) { state.openId = next.id; state.view = 'lead' } else state.view = 'list'
+  render()
+}
+
+$view.addEventListener('click', async e => {
+  const t = e.target.closest('[data-go],[data-open],[data-act]')
+  if (!t) return
+  if (t.dataset.go) { state.view = t.dataset.go; render(); return }
+  if (t.dataset.open) { state.openId = t.dataset.open; state.view = 'lead'; render(); return }
+  const a = t.dataset.act
+  if (a === 'toast') toast(t.dataset.msg)
+  if (a === 'example') { state.view = 'check'; render() }
+  if (a === 'addAll') {
+    const name = document.getElementById('listname')?.value.trim(); if (name) state.list = name
+    if (!state.imported) state.leads = [...ROWS.filter(r => r.ok).map(r => ({ ...r, src: 'from your list', status: 'todo' })), ...state.leads]
+    state.imported = true; state.view = 'list'; render()
+    toast(`${ROWS.filter(r => r.ok).length} leads added`)
+  }
+  if (a === 'attach') { const l = state.leads.find(x => x.id === state.openId); l.attach = t.checked; t.closest('.step').querySelector('.posts').classList.toggle('off', !t.checked) }
+  if (a === 'send' || a === 'skip') {
+    const l = state.leads.find(x => x.id === state.openId)
+    l.status = a === 'send' ? 'sent' : 'skipped'
+    toast(a === 'send' ? `Sent to ${l.person.split(' ')[0]}` : `Skipped ${l.person.split(' ')[0]}`)
+    openNext()
+  }
+  if (a === 'copy') {
+    const text = t.dataset.what === 'header' ? HEADER : PROMPT
+    try { await navigator.clipboard.writeText(text); toast('Copied') }
+    catch { toast('Copy didn’t work here. Select the text instead.') }
+  }
+})
+$view.addEventListener('change', e => {
+  if (e.target.name === 'mode') { state.mode = e.target.value; if (state.mode === 'one') toast('This preview shows the personal option') }
+  if (e.target.id === 'posts') state.posts = e.target.checked
+  if (e.target.id === 'file') { toast('In the preview, use the example file'); e.target.value = '' }
+})
+$view.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.dataset.open) e.target.click() })
+render()
+</script>
