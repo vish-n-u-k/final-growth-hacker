@@ -88,13 +88,12 @@ Use this structure for every GitHub release.
 - **No emoji, no exclamation marks, no hype words** ("revolutionary", "game-changing", "supercharge").
 - If a release has **nothing customers would notice**, write only: `No customer-facing changes in this release.`
 
-## 5. Screenshots and screen recordings
+## 5. Screenshots
 
 A picture shows a change faster than any sentence. Releases with screenshots are also much easier to reuse in announcements, emails and help pages.
 
 **What to include**
 - **Every highlight:** at least one screenshot of the feature.
-- **The main New highlight:** if possible, also a short **screen recording** (5–20 seconds, MP4 or GIF) of someone using it, from first click to result.
 - **Before and after:** two screenshots with the **same size, crop and data**, labelled `Before:` and `After:` in their alt text, in that order.
 - **Items in the New / Improved / Fixed lists:** a screenshot is welcome but optional.
 
@@ -104,15 +103,14 @@ A picture shows a change faster than any sentence. Releases with screenshots are
 - **Make it sharp:** at least 1600 px wide for desktop screens (take it on a high-resolution screen or zoom the browser to 125–150%). Phone screens: a real phone screenshot, portrait.
 - **Keep the look the same in every release:** the same theme (light or dark), the same browser window size, the same demo account.
 - **Show it working, not empty:** a filled list, a finished result, not a loading spinner or a blank state.
-- **Recordings:** move the mouse slowly, no typing mistakes, cut the dead time at the start and end, no sound needed.
 
 **How to add them**
-- Drag the image or video into the GitHub release editor (or the PR description). GitHub uploads it and inserts the link.
+- Drag the image into the GitHub release editor (or the PR description). GitHub uploads it and inserts the link.
 - **Write alt text** that says what the picture shows in plain words: `![Lead list with the Download leads link at the top](…)`.
 - Put each screenshot **directly under the item it belongs to**, never all at the bottom.
 - **Private repositories:** open each image link in a logged-out browser window. If it doesn't open, host the image somewhere public and use that link instead, so the notes can be shared outside GitHub.
 
-**If you're the AI writing the notes and have no screenshots:** list exactly which screenshots or recordings are needed (what screen, what state, what data) and ask the person to add them before publishing. Never invent image links.
+**If you're the AI writing the notes and have no screenshots:** list exactly which screenshots are needed (what screen, what state, what data) and ask the person to add them before publishing. Never invent image links.
 
 ## 6. Pull request descriptions
 
