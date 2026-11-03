@@ -19,6 +19,7 @@ import { LoadingState, Spinner } from '@/components/ui/spinner'
 import LastRefreshed from '@/components/LastRefreshed'
 import DailyEmailToggle from '@/components/DailyEmailToggle'
 import ToolHeader from '@/components/ToolHeader'
+import NewVisitorsSection from './NewVisitorsSection'
 
 /* ── Types ────────────────────────────────────────────── */
 export interface ModuleHealth {
@@ -904,6 +905,8 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
 
         {/* ── Website view ── */}
         {view === 'website' && (<>
+
+        <NewVisitorsSection brandId={brand.id} period={RANGE_TO_PERIOD[range] ?? '7d'} periodDesc={PERIOD_DESC[range] ?? 'last 7 days'} nonce={trafficNonce} />
 
         {/* ── GSC Section ── */}
         <section style={{ marginBottom: 36 }}>
