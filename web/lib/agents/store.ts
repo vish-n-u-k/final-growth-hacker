@@ -345,6 +345,7 @@ export interface SearchAgentData {
   tasks: AgentTask[]
   adsTips: AdsTip[]
   links?: LinkOpportunity[]     // link opportunities (lib/agents/link-opportunities.ts)
+  rivalCheck?: Record<string, boolean>  // suggested site → does it sell a product like the brand's (AI, checked once)
   demo?: boolean                // made with demo data (lib/agents/demo.ts)
   lastResearchAt?: string
   lastWriteAt?: string

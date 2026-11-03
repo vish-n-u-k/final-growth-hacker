@@ -49,29 +49,75 @@ const LISTY = /\b(best|top|\d+|alternatives?|vs\.?|versus|compared|comparison|re
 const listyCitation = (dom: string, title: string) => isReddit(dom) || !title.trim() || LISTY.test(title)
 
 /**
+ * Which of these sites belong to a company selling something like the brand (blog.hootsuite.com,
+ * socialbee.com for Frekto), when the saved competitor list doesn't name them. One fast AI call for
+ * the domains not decided before; answers are kept in `rivalCheck`, so each is asked once.
+ */
+async function rivalSites(b: BrandContext, d: SearchAgentData, domains: string[]): Promise<{ rivals: Set<string>; learned: Record<string, boolean> }> {
+  const known = d.rivalCheck ?? {}
+  const ask = [...new Set(domains)].filter(dom => !(dom in known) && !isReddit(dom)).slice(0, 30)
+  const learned: Record<string, boolean> = {}
+  if (ask.length && !agentsDemo()) {
+    const raw = await withAIContext({ brandId: b.id, moduleType: 'search-agent', websiteUrl: b.websiteUrl }, () => callAI({
+      feature: 'search-agent',
+      model: 'claude-haiku-4-5-20251001',
+      maxTokens: 600,
+      system: 'You know software companies and websites. Return only a raw JSON array.',
+      prompt: `${brandBlock(b)}
+
+Which of these websites belong to a company that sells a product competing with ${b.name} (the same kind of product, for the same buyers)? A company's blog or help site counts as that company. Publishers, magazines, social networks, directories, review sites and tools of a different kind are NOT competitors.
+
+${ask.join('\n')}
+
+Return the competitor domains exactly as written, e.g. ["example.com"], or [].`,
+    })).catch(() => null)
+    const arr = raw === null ? null : parseJsonLoose<string[]>(raw, 'array')
+    if (Array.isArray(arr)) {
+      const yes = new Set(arr.map(x => String(x).trim().toLowerCase()))
+      for (const dom of ask) learned[dom] = yes.has(dom)
+    }
+  }
+  const all = { ...known, ...learned }
+  return { rivals: new Set(domains.filter(dom => all[dom])), learned }
+}
+
+/**
  * Suggestions saved before the checks above existed: open "Get mentioned on" to-dos and unsent
  * pitches for platforms or rivals' sites are removed (with their Today cards). Writes only when
- * something has to go.
+ * something has to go or a site was newly checked.
  */
 export async function tidySearchData(brandId: string, b: BrandContext, d: SearchAgentData): Promise<SearchAgentData> {
   const named = namedRivals((d.answers?.items ?? []).filter(a => !a.error), b.name)
+  const openListing = d.tasks.filter(t => t.kind === 'listing' && t.status === 'open')
+  const unsent = (l: LinkOpportunity) => l.status === 'new' || l.status === 'ready'
+  const { rivals, learned } = await rivalSites(b, d, [...openListing.map(listingDomain), ...(d.links ?? []).filter(unsent).map(l => l.domain)])
   const badTask = (t: AgentTask) => {
     if (t.kind !== 'listing' || t.status !== 'open') return false
     const dom = listingDomain(t)
     const example = t.detail.match(/Example: "(.*)"\.?$/)?.[1]
-    return !citableSite(dom, b, named) || (example !== undefined && !listyCitation(dom, example))
+    return !citableSite(dom, b, named) || rivals.has(dom) || (example !== undefined && !listyCitation(dom, example))
   }
-  const badLink = (l: LinkOpportunity) => (l.status === 'new' || l.status === 'ready') && (!pitchable(l.domain, b.competitors) || isNamedRival(l.domain, named))
+  const badLink = (l: LinkOpportunity) => unsent(l) && (!pitchable(l.domain, b.competitors) || isNamedRival(l.domain, named) || rivals.has(l.domain))
   const tasks = d.tasks.filter(badTask).map(t => t.key)
-  if (!tasks.length && !(d.links ?? []).some(badLink)) return d
+  if (!tasks.length && !(d.links ?? []).some(badLink) && !Object.keys(learned).length) return d
   const out = await updateSearchData(brandId, searchFallback(b), x => {
     x.tasks = x.tasks.filter(t => !badTask(t))
     x.links = (x.links ?? []).filter(l => !badLink(l))
+    x.rivalCheck = { ...(x.rivalCheck ?? {}), ...learned }
   })
   if (tasks.length) await clearSignals(brandId, 'search-agent', tasks).catch(() => {})
   if (!(out.links ?? []).some(l => l.status === 'ready')) await clearSignals(brandId, 'search-agent', ['links']).catch(() => {})
   return out
 }
+
+/** tidySearchData for a brand by id (Today and other pages that don't have its context loaded). */
+export async function tidySearchFor(brandId: string): Promise<void> {
+  const d = await readSearchData(brandId)
+  if (!d) return
+  const b = await loadBrandContext(brandId)
+  if (b) await tidySearchData(brandId, b, d)
+}
+
 // Each question is asked to 3 AI engines, the costliest part of research. Answers vary from one ask
 // to the next, so fewer questions are asked more times: AGENTS_AI_QUESTIONS (default 5) questions,
 // each AGENTS_AI_REPEATS times (default 2) per engine. Same cost as 10 questions asked once.
@@ -542,7 +588,10 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
     const review = s.seedsBy === 'auto' ? await reviewSeeds(b, s.seeds, ideas).catch(() => null) : null
     const swapped = review?.dropped.length ? `Starting keywords for next time: dropped ${review.dropped.map(x => `“${x}”`).join(', ')}.` : undefined
     p.set('topics', 'done', picks.length ? { detail: `${picks.length} new`, items: picks.map(t => t.keyword), note: swapped } : { detail: 'None new', note: swapped ?? 'Topics from earlier are still waiting to be written.' })
-    const fresh = buildTasks(b, answers, changes, desc, d.answers?.items ?? null)
+    const built = buildTasks(b, answers, changes, desc, d.answers?.items ?? null)
+    // A cited site that turns out to be a competitor's (its blog won't list you) is no to-do
+    const check = await rivalSites(b, d, built.filter(t => t.kind === 'listing').map(listingDomain)).catch(() => ({ rivals: new Set<string>(), learned: {} as Record<string, boolean> }))
+    const fresh = built.filter(t => t.kind !== 'listing' || !check.rivals.has(listingDomain(t)))
     const listings = fresh.filter(t => t.kind === 'listing').map(t => t.key.replace(/^listing:/, ''))
     p.set('tasks', 'done', { items: listings, detail: fresh.length ? n(fresh.length, 'task') : 'Nothing new', note: [
       listings.length ? `${n(listings.length, 'site')} to get listed on` : null,
@@ -586,6 +635,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       if (desc) x.description = desc
       // Keep what the user already closed; drop open tasks the data no longer supports
       const prev = new Map(x.tasks.map(t => [t.key, t]))
+      x.rivalCheck = { ...(x.rivalCheck ?? {}), ...check.learned }
       x.tasks = fresh.map(t => prev.get(t.key)?.status && prev.get(t.key)!.status !== 'open' ? { ...t, status: prev.get(t.key)!.status } : t)
       x.adsTips = tips
       x.lastResearchAt = new Date().toISOString()
