@@ -81,7 +81,7 @@ What each tool does today:
 ## 3. Branch and working rules
 
 - **Work and push on `dev`.** Push to **`main` only when the owner says so.**
-  - `main` was last brought up to `dev` on 3 Nov 2026 (New visitors on the Analytics Website tab).
+  - `main` was last brought up to `dev` on 3 Nov 2026 (Analytics Website tab: website data only, visits grouped by source).
 - **Release notes:** add what users will notice to `CHANGELOG.md` (newest first: New / Improved / Fixed). Frekto (GitHub: this repo) turns GitHub releases and merged pull requests into update posts. Direct pushes to `main` don't show up there.
 - Don't open pull requests unless asked.
 - Commit message footer used so far:
@@ -231,12 +231,12 @@ Users kept saying there's too much to read. An opened lead went from about 250 w
 - Which leads: not sent or skipped, no Reddit / HN posts; leads without an email are kept (`notes` says how to reach them).
 - Filled only from what a lead has: website, contact name / email / role, company, country (last part of the Where fact), LinkedIn company page, Instagram, `posting_activity` only `none` / `dormant` (60+ days, from the social check), last post date, priority (Very Likely A, Likely B, else C; score for older leads), notes (why, social, email not checked / guessed). Hook, assets, avoid and the rest stay empty: the search doesn't find them yet.
 
-## 4b-7. Analytics: New visitors on the Website tab (3 Nov)
+## 4b-7. Analytics Website tab: website data only, visits grouped by source (3 Nov)
 
-- The Website tab only read GA4 and Search Console, so it was empty without GA4. It now starts with **New visitors · PostHog** (`app/(shell)/analytics/NewVisitorsSection.tsx`, API `/api/analytics/new-visitors?brandId&period=1d|7d|30d`).
-- New = PostHog created the person in the range; one HogQL query takes each one's first pageview (landing page, referring domain, UTM source / campaign, ad click ids, browser, OS, device, country), page count and whether the person has an email (= signed up). Channel via `classifyChannel` (`lib/posthog/channel.ts`). The host is put before the path only when visits land on more than one host (website + app).
-- Shows: new visitors / signed up / top channel, Where they landed, How they found you, Sites and campaigns, Browsers / Devices / Countries, and the latest 50 new visitors (10 shown, Show all). Follows the range picker and Refresh. Grey bars only.
-- Not run against a real PostHog project yet (checked with mocked data at desktop and phone width).
+- The owner wants the Website tab to show **only website data (GA4 + Search Console)**, no PostHog (that's the App tab). The PostHog "New visitors" section added earlier on 3 Nov was removed (component and `/api/analytics/new-visitors` deleted).
+- `/api/analytics/ga4-traffic` has a 9th report, `sessionSource` + `sessionMedium` (sessions, newUsers, 250 rows), grouped by `classifyChannel` (`lib/posthog/channel.ts`) into `sourceGroups`: AI tools, Social media, Search engines, Email, Search / Social media ads, Other websites, Direct / typed in, Your own app or site, each with its top 4 sources. GA4's own channel groups file ChatGPT and the like under Referral, which is why this exists.
+- "How they found you" shows those groups (visits · new · %, top sites in grey; the AI tools bar is green); it falls back to GA4's channels when `sourceGroups` is missing. Entry pages and Browsers show new users too (`newUsers` added to those reports).
+- Checked with mocked GA4 data at desktop and phone width; not run against a real GA4 property yet.
 
 ## 4c. Costs: Usage & costs tab and Hunter credits
 

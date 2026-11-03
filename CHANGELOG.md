@@ -3,7 +3,7 @@
 ## 3 Nov 2026
 
 ### New
-- **Analytics: see your new visitors.** The Website tab now shows people who visited for the first time: which page they landed on, how they found you (search, social, AI assistants, a site or campaign), their browser, device and country, and who signed up. Works with PostHog, even without Google Analytics.
+- **Analytics: see who came from AI tools and social media.** The Website tab now groups your visitors by where they came from (AI tools like ChatGPT and Perplexity, social media, search engines, other websites, email, direct) and names the top sites in each. Entry pages and browsers also show how many visitors were new.
 
 ### Improved
 - **Search Agent: better sites to pitch.** It no longer suggests social networks like Instagram, your competitors' own blogs, app stores, help pages or affiliate links. "Get mentioned on" now only points to pages that list or compare tools, so there's something to be added to.

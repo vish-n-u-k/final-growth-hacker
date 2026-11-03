@@ -19,7 +19,6 @@ import { LoadingState, Spinner } from '@/components/ui/spinner'
 import LastRefreshed from '@/components/LastRefreshed'
 import DailyEmailToggle from '@/components/DailyEmailToggle'
 import ToolHeader from '@/components/ToolHeader'
-import NewVisitorsSection from './NewVisitorsSection'
 
 /* ── Types ────────────────────────────────────────────── */
 export interface ModuleHealth {
@@ -98,10 +97,11 @@ interface TrafficData {
   trend: { date: string; activeUsers: number; newUsers: number }[]
   newVsRet: { type: string; activeUsers: number }[]
   channels: { channel: string; sourceMedium: string; sessions: number; pct: number }[]
-  landingPages: { page: string; sessions: number; pct: number }[]
+  landingPages: { page: string; sessions: number; newUsers?: number; pct: number }[]
   devices: { device: string; sessions: number; pct: number }[]
   countries: { country: string; sessions: number; pct: number }[]
-  browsers: { browser: string; sessions: number; pct: number }[]
+  browsers: { browser: string; sessions: number; newUsers?: number; pct: number }[]
+  sourceGroups?: { group: string; sessions: number; newUsers: number; pct: number; top: { source: string; sessions: number }[] }[]
 }
 
 const RANGE_TO_PERIOD: Record<string, string> = { '24h': '1d', '7d': '7d', '30d': '30d' }
@@ -906,8 +906,6 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
         {/* ── Website view ── */}
         {view === 'website' && (<>
 
-        <NewVisitorsSection brandId={brand.id} period={RANGE_TO_PERIOD[range] ?? '7d'} periodDesc={PERIOD_DESC[range] ?? 'last 7 days'} nonce={trafficNonce} />
-
         {/* ── GSC Section ── */}
         <section style={{ marginBottom: 36 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -1122,6 +1120,28 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                 <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
                   <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>How they found you</h3>
                   <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>{PERIOD_DESC[range]}</p>
+                  {(trafficData.sourceGroups ?? []).length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+                    {trafficData.sourceGroups!.slice(0, 8).map(g => (
+                      <div key={g.group}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, color: 'var(--text)' }}>{g.group}</span>
+                          <span style={{ fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>
+                            {fmt(g.sessions)} visits{g.newUsers > 0 && <span style={{ color: 'var(--text-faint)' }}> · {fmt(g.newUsers)} new</span>} · <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{g.pct}%</strong>
+                          </span>
+                        </div>
+                        <div style={{ height: 4, borderRadius: 99, background: 'var(--line)' }}>
+                          <div style={{ height: 4, borderRadius: 99, width: `${g.pct}%`, background: g.group === 'AI tools' ? 'var(--green)' : 'var(--text-faint)', transition: 'width .4s ease' }} />
+                        </div>
+                        {g.top.length > 0 && (
+                          <div style={{ fontSize: 11, color: 'var(--text-faint)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {g.top.map(t => `${t.source} ${fmt(t.sessions)}`).join(' · ')}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
                     {(trafficData.channels ?? []).slice(0, 6).map((c, i) => (
                       <div key={i}>
@@ -1138,6 +1158,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                       </div>
                     ))}
                   </div>
+                  )}
                 </div>
               </div>
 
@@ -1145,7 +1166,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               {(trafficData.landingPages ?? []).length > 0 && (
                 <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px', marginBottom: 14 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Entry pages</h3>
-                  <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Pages that bring visitors in · {PERIOD_DESC[range]}</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Where visitors land first, and how many were new · {PERIOD_DESC[range]}</p>
                   {trafficData.landingPages.slice(0, 8).map((p, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < Math.min(trafficData.landingPages.length, 8) - 1 ? '1px solid var(--line)' : 'none' }}>
                       <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 16, fontFamily: 'monospace' }}>{p.page || '/'}</span>
@@ -1154,6 +1175,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                           <div style={{ width: `${p.pct}%`, height: '100%', background: 'var(--green)', transition: 'width .4s ease' }} />
                         </div>
                         <span style={{ fontSize: 12, color: 'var(--text-dim)', minWidth: 60, textAlign: 'right' }}>{fmt(p.sessions)} sessions</span>
+                        {p.newUsers != null && <span style={{ fontSize: 12, color: 'var(--text-faint)', minWidth: 52, textAlign: 'right' }}>{fmt(p.newUsers)} new</span>}
                         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', minWidth: 30, textAlign: 'right' }}>{p.pct}%</span>
                       </div>
                     </div>
@@ -1218,6 +1240,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                             <div style={{ width: 56, height: 4, borderRadius: 99, background: 'var(--line)', flexShrink: 0, overflow: 'hidden' }}>
                               <div style={{ height: 4, borderRadius: 99, width: `${b.pct}%`, background: '#fb923c', transition: 'width .4s ease' }} />
                             </div>
+                            {b.newUsers != null && <span style={{ fontSize: 11, color: 'var(--text-faint)', flexShrink: 0, whiteSpace: 'nowrap' }}>{fmt(b.newUsers)} new</span>}
                             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-dim)', flexShrink: 0, minWidth: 28, textAlign: 'right' }}>{b.pct}%</span>
                           </div>
                         ))}
