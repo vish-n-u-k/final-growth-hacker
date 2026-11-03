@@ -81,7 +81,8 @@ What each tool does today:
 ## 3. Branch and working rules
 
 - **Work and push on `dev`.** Push to **`main` only when the owner says so.**
-  - `main` was last brought up to `dev` on 2 Nov 2026 (Download leads, 4b-6). `main` and `dev` are the same.
+  - `main` was last brought up to `dev` on 3 Nov 2026 (Backlinks message fix, `CHANGELOG.md`).
+- **Release notes:** add what users will notice to `CHANGELOG.md` (newest first: New / Improved / Fixed). Frekto (GitHub: this repo) turns GitHub releases and merged pull requests into update posts. Direct pushes to `main` don't show up there.
 - Don't open pull requests unless asked.
 - Commit message footer used so far:
   ```
@@ -433,7 +434,6 @@ Three thin tools on the MCP server (`app/api/mcp/route.ts`, defined in `lib/mcp/
 ## 6. Known open items
 
 - **Not tested against real services:** none of the recent work has been tried with real Gmail, DataForSEO, Hunter or Claude. Test on a test account before relying on it.
-- **Stale backlinks message:** `web/lib/agents/link-opportunities.ts` (~line 242) still says backlinks need DataForSEO's subscription. That's no longer true; reword it.
 - **"Credits used up" is per brand:** all brands share one Hunter key, but each brand's note only shows once its own run hits the limit.
 - **DataForSEO ideas, not built** (agreed with the owner, nothing started): a spending cap per brand; queued instead of live calls for the daily run (about a third of the price); caching keyword data for 30 days; replacing SerpAPI, Serper and DuckDuckGo scraping in the SEO, Outreach Targets and Community Finder modules; real competitors and a keyword gap from DataForSEO Labs; Google reviews as a Competitor Leads source; Search Agent rank drops and wrong AI descriptions as Today tasks; LLM Mentions to bring back the "how often AI names you" chart.
 - **Unused code:** `/api/gmail/set-followup` and some old `gh-*` CSS are no longer used (the old full-mailbox `inbox`, `thread` and `summarize-thread` routes were deleted). The new Inbox reuses the `gh-thread-*` / `gh-msg-*` styles.
