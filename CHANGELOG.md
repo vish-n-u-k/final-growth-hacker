@@ -2,6 +2,9 @@
 
 ## 3 Nov 2026
 
+### New
+- **Analytics: see your new visitors.** The Website tab now shows people who visited for the first time: which page they landed on, how they found you (search, social, AI assistants, a site or campaign), their browser, device and country, and who signed up. Works with PostHog, even without Google Analytics.
+
 ### Fixed
 - **Search Agent:** when finding competitor links fails, the message now asks you to check that Backlinks is switched on in DataForSEO. It no longer says you need a subscription.
 

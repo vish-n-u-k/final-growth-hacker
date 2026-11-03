@@ -231,6 +231,13 @@ Users kept saying there's too much to read. An opened lead went from about 250 w
 - Which leads: not sent or skipped, no Reddit / HN posts; leads without an email are kept (`notes` says how to reach them).
 - Filled only from what a lead has: website, contact name / email / role, company, country (last part of the Where fact), LinkedIn company page, Instagram, `posting_activity` only `none` / `dormant` (60+ days, from the social check), last post date, priority (Very Likely A, Likely B, else C; score for older leads), notes (why, social, email not checked / guessed). Hook, assets, avoid and the rest stay empty: the search doesn't find them yet.
 
+## 4b-7. Analytics: New visitors on the Website tab (3 Nov)
+
+- The Website tab only read GA4 and Search Console, so it was empty without GA4. It now starts with **New visitors · PostHog** (`app/(shell)/analytics/NewVisitorsSection.tsx`, API `/api/analytics/new-visitors?brandId&period=1d|7d|30d`).
+- New = PostHog created the person in the range; one HogQL query takes each one's first pageview (landing page, referring domain, UTM source / campaign, ad click ids, browser, OS, device, country), page count and whether the person has an email (= signed up). Channel via `classifyChannel` (`lib/posthog/channel.ts`). The host is put before the path only when visits land on more than one host (website + app).
+- Shows: new visitors / signed up / top channel, Where they landed, How they found you, Sites and campaigns, Browsers / Devices / Countries, and the latest 50 new visitors (10 shown, Show all). Follows the range picker and Refresh. Grey bars only.
+- Not run against a real PostHog project yet (checked with mocked data at desktop and phone width).
+
 ## 4c. Costs: Usage & costs tab and Hunter credits
 
 - **Settings → Usage & costs** (`web/components/settings/UsageSection.tsx`, data shaped in `web/lib/usage.ts`, `st-usage-*` CSS). Per account, this month: the total, split by tool, by DataForSEO API and by AI feature, plus up to 12 past months.
