@@ -34,10 +34,10 @@ Everything else goes in the short **New / Improved / Fixed** lists below the hig
 ## 3. Never put these in a release or PR description
 
 1. **Changes users can't see:** refactors, tests, dependency updates, CI, typos. Leave them out, or put them only under "Internal" at the very end.
-2. **Anything not released to all users yet:** features behind a flag, in beta or in early access. Merged isn't the same as available.
+2. **Anything customers can't use yet:** features still behind a flag for the team only. Merged isn't the same as available. Betas and early access are fine to mention, clearly labelled "Beta" or "Early access", with who can try them.
 3. **Technical wording:** file names, function names, PR titles like `fix: null check`, internal codenames, vendor or tool names.
 4. **Security details:** don't describe the problem. If needed, write only "Security improvements".
-5. **Embarrassing bugs or outages:** don't write lines that mainly show how broken something was ("Fixed: all emails were being sent twice"). Say what works now.
+5. **Hiding bugs that affected customers:** if customers were affected, say so briefly and calmly: what happened, that it's fixed, and whether they need to do anything ("Some emails were sent twice on 2 Nov. Fixed; no action needed."). Small internal bugs nobody noticed don't need a line.
 6. **Real customer data:** names, emails, companies, numbers from real accounts, in text or screenshots.
 7. **Promises and dates:** "coming next week", "soon", roadmap items.
 8. **Anything that may be rolled back:** if unsure, leave it for the next release.
@@ -83,17 +83,17 @@ Use this structure for every GitHub release.
 
 **Rules for the template**
 - **Title:** the benefit, not the version number. Put the version in the GitHub release name or tag (e.g. `v1.4.0`).
-- **Highlights:** 1–3 per release, each with a screenshot (section 5).
+- **Highlights:** 1–3 per release, ideally each with a screenshot (section 5).
 - **Lists:** one short line per item, under about 60 characters. Start with the feature's name when that helps ("Lead Finder: …").
-- **No emoji, no exclamation marks, no hype words** ("revolutionary", "game-changing", "supercharge").
+- **Write in the brand's own voice.** Plain beats hype: skip words like "revolutionary" or "game-changing".
 - If a release has **nothing customers would notice**, write only: `No customer-facing changes in this release.`
 
 ## 5. Screenshots
 
-A picture shows a change faster than any sentence. Releases with screenshots are also much easier to reuse in announcements, emails and help pages.
+A picture shows a change faster than any sentence. Releases with screenshots are also much easier to reuse in announcements, emails and help pages. Screenshots are **recommended, not required**: a release with nothing to show (a backend change, a speed-up) goes out without one.
 
 **What to include**
-- **Every highlight:** at least one screenshot of the feature.
+- **Highlights:** a screenshot whenever there's something on screen to show.
 - **Before and after:** two screenshots with the **same size, crop and data**, labelled `Before:` and `After:` in their alt text, in that order.
 - **Items in the New / Improved / Fixed lists:** a screenshot is welcome but optional.
 
@@ -108,9 +108,8 @@ A picture shows a change faster than any sentence. Releases with screenshots are
 - Drag the image into the GitHub release editor (or the PR description). GitHub uploads it and inserts the link.
 - **Write alt text** that says what the picture shows in plain words: `![Lead list with the Download leads link at the top](…)`.
 - Put each screenshot **directly under the item it belongs to**, never all at the bottom.
-- **Private repositories:** open each image link in a logged-out browser window. If it doesn't open, host the image somewhere public and use that link instead, so the notes can be shared outside GitHub.
 
-**If you're the AI writing the notes and have no screenshots:** list exactly which screenshots are needed (what screen, what state, what data) and ask the person to add them before publishing. Never invent image links.
+**If you're the AI writing the notes and have no screenshots:** suggest which ones would help (what screen, what state, what data) so the person can add them if they have time. Don't hold the release back for them, and never invent image links.
 
 ## 6. Pull request descriptions
 
@@ -179,9 +178,10 @@ Every lead now shows one line on why it fits and four short facts.
 
 - [ ] The title says a benefit, in about 70 characters or fewer.
 - [ ] Every line is plain words a customer understands, with no code, tool or internal names.
-- [ ] Every highlight has a screenshot with alt text, placed right under it.
+- [ ] Highlights with something to show have a screenshot with alt text, placed right under it.
 - [ ] Screenshots use demo data, are cropped and sharp, and show the feature working.
 - [ ] Before/after pairs match in size and crop, and are labelled.
-- [ ] Nothing unreleased, no security details, no promises, no customer data.
+- [ ] Nothing customers can't use yet (betas labelled), no security details, no promises, no customer data.
+- [ ] Bugs that affected customers are mentioned briefly, with any action they need to take.
 - [ ] List lines are short (about 60 characters or fewer).
 - [ ] Internal changes are only under "Internal", or left out.
