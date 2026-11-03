@@ -81,7 +81,8 @@ What each tool does today:
 ## 3. Branch and working rules
 
 - **Work and push on `dev`.** Push to **`main` only when the owner says so.**
-  - `main` was last brought up to `dev` on 2 Nov 2026 (Download leads, 4b-6). `main` and `dev` are the same.
+  - `main` was last brought up to `dev` on 3 Nov 2026 (Backlinks message fix, `CHANGELOG.md`).
+- **Release notes:** add what users will notice to `CHANGELOG.md` (newest first: New / Improved / Fixed). Frekto (GitHub: this repo) turns GitHub releases and merged pull requests into update posts. Direct pushes to `main` don't show up there.
 - Don't open pull requests unless asked.
 - Commit message footer used so far:
   ```
