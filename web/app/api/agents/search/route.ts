@@ -3,7 +3,7 @@ import { agentAccess } from '@/lib/agents/access'
 import { demoForced, withDemo } from '@/lib/agents/demo'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
-import { runSearchResearch, runSearchWrite, searchFallback, setTopicStatus, refreshToTopic, ideaToTopic } from '@/lib/agents/search-agent'
+import { runSearchResearch, runSearchWrite, searchFallback, setTopicStatus, refreshToTopic, ideaToTopic, tidySearchData } from '@/lib/agents/search-agent'
 import { readSearchData, updateSearchData, type AgentTask, type SearchSettings, type Topic } from '@/lib/agents/store'
 import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
 import { runLinkOpportunities, sendLinkPitch, updateLink } from '@/lib/agents/link-opportunities'
@@ -26,7 +26,8 @@ async function get() {
   if (a.error) return a.error
   const b = await loadBrandContext(a.brandId)
   if (!b) return NextResponse.json({ error: 'No brand' }, { status: 404 })
-  return NextResponse.json({ data: (await readSearchData(a.brandId)) ?? searchFallback(b)() })
+  const d = await readSearchData(a.brandId)
+  return NextResponse.json({ data: d ? await tidySearchData(a.brandId, b, d).catch(() => d) : searchFallback(b)() })
 }
 
 const lines = (v: unknown, max: number, len: number) =>

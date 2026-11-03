@@ -277,6 +277,7 @@ export interface AiAnswer {
   mentioned: boolean
   position: number | null       // 1 = named first among the brands we track
   brands: string[]              // tracked brands named, in order
+  others?: string[]             // other products the answer recommends as options (untracked rivals)
   citations: { domain: string; url: string; title: string }[]
   // The same question is asked more than once (answers vary): how often the brand was named
   samples?: number
@@ -299,7 +300,8 @@ export interface AdsTip { kind: 'try-ads' | 'wasted'; title: string; detail: str
 
 // A site that should link to (or list) the brand: it links to competitors, or lists them in a
 // "best X" / "X alternatives" article, but leaves the brand out. Found weekly, pitched from Gmail.
-export type LinkSource = 'gap' | 'list'
+// 'cited': a site AI answers keep citing, turned into a pitch from a "Get mentioned on" to-do
+export type LinkSource = 'gap' | 'list' | 'cited'
 export type LinkStatus =
   | 'new'        // found, no email yet (contact page only)
   | 'ready'      // pitch drafted and an email found: waiting for the user

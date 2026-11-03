@@ -23,6 +23,11 @@ type Item = { kind: 'topic'; key: string; t: Topic } | { kind: 'link'; key: stri
 
 const COUNTRIES: [string, string][] = [['US', 'United States'], ['IN', 'India'], ['GB', 'United Kingdom'], ['CA', 'Canada'], ['AU', 'Australia'], ['DE', 'Germany'], ['FR', 'France'], ['AE', 'UAE'], ['SG', 'Singapore']]
 const ENGINE: Record<string, string> = { chat_gpt: 'ChatGPT', perplexity: 'Perplexity', gemini: 'Gemini', google_ai: 'Google AI Overview' }
+// Topics saved before difficulty 0 meant unknown say "easy (0)"
+const topicWhy = (t: Topic) => t.why.replace(/\beasy \(0\)/, 'difficulty unknown')
+// Pitches made from a "Get mentioned on" to-do were saved as 'list' before 'cited' existed
+const linkSourceLabel = (l: LinkOpportunity) =>
+  l.source === 'cited' || l.why.startsWith('AI answers keep citing') ? 'Cited by AI' : l.source === 'list' ? 'List article' : 'Links to rivals'
 const TASK: Record<AgentTask['kind'], [string, string]> = { write: ['✍', 'Write'], listing: ['🔗', 'Get listed'], refresh: ['↻', 'Refresh'], fix: ['!', 'Fix'], ads: ['$', 'Ads'] }
 const PROGRESS = ['Finding what people search', 'Checking where you rank', 'Asking ChatGPT and Perplexity about you', 'Finding sites that list competitors']
 // Article sites are pitched and Reddit is joined, not "listed"
@@ -169,8 +174,8 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       const st = t.status
       return (
         <Card key={i.key} av={t.kind === 'improve' ? '↻' : '✍'} square name={t.keyword}
-          sub={<>{t.kind === 'improve' && <Src label="Improve your page" />}<span>{t.volume.toLocaleString('en-US')} searches a month</span>{t.difficulty !== null && <span>· {t.difficulty < 30 ? 'easy to win' : t.difficulty < 60 ? 'some competition' : 'hard to win'}</span>}</>}
-          why={t.why} quote={t.brief?.top ? `Today’s #1 result: ${t.brief.top}` : undefined}
+          sub={<>{t.kind === 'improve' && <Src label="Improve your page" />}<span>{t.volume.toLocaleString('en-US')} searches a month</span>{!!t.difficulty && <span>· {t.difficulty < 30 ? 'easy to win' : t.difficulty < 60 ? 'some competition' : 'hard to win'}</span>}</>}
+          why={topicWhy(t)} quote={t.brief?.top ? `Today’s #1 result: ${t.brief.top}` : undefined}
           state={st === 'drafted' ? <Tag tone="ok">Draft ready</Tag> : st === 'approved' ? <Tag tone="ok">Approved · put it on your site</Tag> : st === 'writing' ? <Tag><Spinner size={10} />Writing</Tag> : st === 'published' ? <Tag tone="ok">✓ Published</Tag> : st === 'skipped' ? <Tag>Skipped</Tag> : <Tag>Written next</Tag>}
           onSkip={isTodo && st !== 'writing' ? () => skip(i) : undefined}
           action={!isTodo ? view : st === 'picked'
@@ -183,7 +188,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       const st = l.status
       return (
         <Card key={i.key} av="🔗" square name={l.domain}
-          sub={<><Src label={l.source === 'list' ? 'List article' : 'Links to rivals'} tone={l.source === 'list' ? 'green' : undefined} />{l.authority !== null && <span>Authority {l.authority}</span>}{l.names.length > 0 && <span>· names {l.names.slice(0, 3).join(', ')}</span>}</>}
+          sub={<><Src label={linkSourceLabel(l)} tone={linkSourceLabel(l) === 'List article' ? 'green' : undefined} />{l.authority !== null && <span>Authority {l.authority}</span>}{l.names.length > 0 && <span>· names {l.names.slice(0, 3).join(', ')}</span>}</>}
           why={st === 'replied' ? 'They answered your pitch.' : st === 'sent' ? (l.nextFollowUpAt && !l.followupSent ? `One follow-up goes out ${fmtDate(l.nextFollowUpAt)} unless they reply.` : 'Waiting for a reply.') : l.why}
           quote={st === 'replied' && l.replyNote ? `“${l.replyNote}”` : l.title ? `“${l.title}”` : undefined}
           state={st === 'replied' ? <Tag tone="crit">Replied</Tag> : st === 'ready' ? <Tag>Pitch drafted</Tag> : st === 'new' ? <Tag tone="warn">Needs an email</Tag> : st === 'sent' ? <Tag tone="ok">✓ Pitched {fmtDate(l.sentAt)}</Tag> : st === 'won' ? <Tag tone="ok">✓ Got the link</Tag> : st === 'bounced' ? <Tag tone="crit">Bounced</Tag> : st === 'opted_out' ? <Tag>Said no</Tag> : <Tag>Skipped</Tag>}
@@ -256,7 +261,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       const t = i.t
       const draft = t.blogId ? draftById.get(t.blogId) : undefined
       const improve = t.kind === 'improve'
-      const side = <Side av={improve ? '↻' : '✍'} square name={t.keyword} sub={<span>{improve && t.pageUrl ? <>Your page <a className="th-link" href={t.pageUrl} target="_blank" rel="noopener noreferrer">{t.pageUrl.replace(/^https?:\/\/(www\.)?/, '')} ↗</a> · </> : null}{t.volume.toLocaleString('en-US')} searches a month</span>} quote={t.brief?.top ? `Today’s #1: ${t.brief.top}` : undefined} why={t.why} whyLabel="Why this one" />
+      const side = <Side av={improve ? '↻' : '✍'} square name={t.keyword} sub={<span>{improve && t.pageUrl ? <>Your page <a className="th-link" href={t.pageUrl} target="_blank" rel="noopener noreferrer">{t.pageUrl.replace(/^https?:\/\/(www\.)?/, '')} ↗</a> · </> : null}{t.volume.toLocaleString('en-US')} searches a month</span>} quote={t.brief?.top ? `Today’s #1: ${t.brief.top}` : undefined} why={topicWhy(t)} whyLabel="Why this one" />
       const flow = (at: number, title: string, hint: React.ReactNode, content: React.ReactNode, actions: React.ReactNode) =>
         <Flow back={back} crumb={t.keyword} side={side} steps={['Read the draft', 'Publish']} at={at} title={title} hint={hint} actions={actions} stepKey={`${i.key}:${at}:${t.status}`}>{content}</Flow>
       if (t.status === 'published' || t.status === 'skipped') {
@@ -317,7 +322,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
     if (i.kind === 'link') {
       const l = i.l
       const side = <Side av="🔗" square name={l.domain}
-        sub={<><Src label={l.source === 'list' ? 'List article' : 'Links to rivals'} tone={l.source === 'list' ? 'green' : undefined} /><a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See the page ↗</a></>}
+        sub={<><Src label={linkSourceLabel(l)} tone={linkSourceLabel(l) === 'List article' ? 'green' : undefined} /><a className="th-link" href={l.url} target="_blank" rel="noopener noreferrer">See the page ↗</a></>}
         quote={l.title || undefined} why={l.why} whyLabel="Why this site" />
       const flow = (at: number, title: string, hint: React.ReactNode, content: React.ReactNode, actions: React.ReactNode, steps = ['Their email', 'Send pitch']) =>
         <Flow back={back} crumb={l.domain} side={side} steps={steps} at={at} title={title} hint={hint} actions={actions} stepKey={`${i.key}:${at}:${l.status}`}>{content}</Flow>
@@ -506,7 +511,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
                 <tr key={r.keyword}>
                   <td><b>{r.keyword}</b></td>
                   <td className="tu-num">{r.volume.toLocaleString('en-US')}</td>
-                  <td className="tu-num">{r.difficulty ?? '—'}</td>
+                  <td className="tu-num">{r.difficulty || '—'}</td>
                   <td className="tu-faint">{VERDICT[r.verdict]}</td>
                   <td>{r.verdict === 'picked' ? null
                     : <button type="button" className="btn btn-ghost btn-sm" disabled={!!busy}

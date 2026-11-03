@@ -5,7 +5,13 @@
 ### New
 - **Analytics: see your new visitors.** The Website tab now shows people who visited for the first time: which page they landed on, how they found you (search, social, AI assistants, a site or campaign), their browser, device and country, and who signed up. Works with PostHog, even without Google Analytics.
 
+### Improved
+- **Search Agent: better sites to pitch.** It no longer suggests social networks like Instagram, your competitors' own blogs, app stores, help pages or affiliate links. "Get mentioned on" now only points to pages that list or compare tools, so there's something to be added to.
+- **Search Agent knows your competitors.** It now uses the competitors your Competitor Analysis compares you with, even ones GrowJin suggested.
+
 ### Fixed
+- **Search Agent:** keywords with no difficulty score now say "difficulty unknown" instead of "easy (0)".
+- **Search Agent:** sites pitched because AI answers cite them are labelled "Cited by AI", not "List article".
 - **Search Agent:** when finding competitor links fails, the message now asks you to check that Backlinks is switched on in DataForSEO. It no longer says you need a subscription.
 
 ## 2 Nov 2026

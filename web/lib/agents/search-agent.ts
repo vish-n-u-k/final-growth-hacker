@@ -25,13 +25,53 @@ import { agentsDemo, demoWastedSpend, setDemoContext } from './demo'
 import { Progress } from './progress'
 import {
   addUsage, defaultSearchData, newMeter, readSearchData, updateSearchData,
-  type AdsTip, type AgentTask, type IdeaRow, type IdeaVerdict, type AiAnswer, type RankChange, type SearchAgentData, type Topic,
+  type AdsTip, type AgentTask, type IdeaRow, type IdeaVerdict, type AiAnswer, type RankChange, type SearchAgentData, type Topic, type LinkOpportunity,
 } from './store'
-import { brandBlock, domainOf, idOf, loadBrandContext, parseJsonLoose, type BrandContext } from './context'
-import { runLinkFollowUps, runLinkOpportunities } from './link-opportunities'
+import { listingDomain } from './task-kinds'
+import { brandBlock, domainOf, idOf, isNamedRival, loadBrandContext, namedRivals, parseJsonLoose, type BrandContext } from './context'
+import { pitchable, runLinkFollowUps, runLinkOpportunities } from './link-opportunities'
 import { costNote } from './services'
 
 export const searchFallback = (b: BrandContext) => () => defaultSearchData(b)
+
+/**
+ * A cited site worth a "Get mentioned on" to-do: someone there can be asked to add the brand. Not
+ * the brand, not a rival's own site or blog (blog.hootsuite.com won't list Frekto), not a platform
+ * (instagram.com). Reddit stays: its to-do is joining the threads, not pitching an editor.
+ */
+function citableSite(dom: string, b: BrandContext, named: Set<string>): boolean {
+  return dom !== b.domain && !dom.endsWith(`.${b.domain}`) && (isReddit(dom) || (pitchable(dom, b.competitors) && !isNamedRival(dom, named)))
+}
+const isReddit = (dom: string) => /(^|\.)reddit\.com$/.test(dom)
+// A page the brand can be added to lists or compares options ("9 best AI tools…", "X vs Y");
+// a how-to such as "How to Use Canva AI for Presentations" has no list to join
+const LISTY = /\b(best|top|\d+|alternatives?|vs\.?|versus|compared|comparison|reviews?|tools|apps|software|platforms)\b/i
+const listyCitation = (dom: string, title: string) => isReddit(dom) || !title.trim() || LISTY.test(title)
+
+/**
+ * Suggestions saved before the checks above existed: open "Get mentioned on" to-dos and unsent
+ * pitches for platforms or rivals' sites are removed (with their Today cards). Writes only when
+ * something has to go.
+ */
+export async function tidySearchData(brandId: string, b: BrandContext, d: SearchAgentData): Promise<SearchAgentData> {
+  const named = namedRivals((d.answers?.items ?? []).filter(a => !a.error), b.name)
+  const badTask = (t: AgentTask) => {
+    if (t.kind !== 'listing' || t.status !== 'open') return false
+    const dom = listingDomain(t)
+    const example = t.detail.match(/Example: "(.*)"\.?$/)?.[1]
+    return !citableSite(dom, b, named) || (example !== undefined && !listyCitation(dom, example))
+  }
+  const badLink = (l: LinkOpportunity) => (l.status === 'new' || l.status === 'ready') && (!pitchable(l.domain, b.competitors) || isNamedRival(l.domain, named))
+  const tasks = d.tasks.filter(badTask).map(t => t.key)
+  if (!tasks.length && !(d.links ?? []).some(badLink)) return d
+  const out = await updateSearchData(brandId, searchFallback(b), x => {
+    x.tasks = x.tasks.filter(t => !badTask(t))
+    x.links = (x.links ?? []).filter(l => !badLink(l))
+  })
+  if (tasks.length) await clearSignals(brandId, 'search-agent', tasks).catch(() => {})
+  if (!(out.links ?? []).some(l => l.status === 'ready')) await clearSignals(brandId, 'search-agent', ['links']).catch(() => {})
+  return out
+}
 // Each question is asked to 3 AI engines, the costliest part of research. Answers vary from one ask
 // to the next, so fewer questions are asked more times: AGENTS_AI_QUESTIONS (default 5) questions,
 // each AGENTS_AI_REPEATS times (default 2) per engine. Same cost as 10 questions asked once.
@@ -103,7 +143,7 @@ type Raw = { question: string; engine: string; text: string; citations: { url: s
  * variants ("Frekto AI", "frekto.ai") and doesn't take ordinary words for short brand names.
  * Returns null on failure (the text search is used instead).
  */
-async function namedBrands(b: BrandContext, raws: Raw[]): Promise<string[][] | null> {
+async function namedBrands(b: BrandContext, raws: Raw[]): Promise<{ brands: string[]; others: string[] }[] | null> {
   const tracked = [b.name, ...b.competitors.map(c => c.name)]
   const list = raws.map((r, i) => `[${i}]\n${r.text.slice(0, 1500)}`).join('\n\n')
   const raw = await callAI({
@@ -115,18 +155,22 @@ async function namedBrands(b: BrandContext, raws: Raw[]): Promise<string[][] | n
 (${b.name}'s website is ${b.domain}; ${b.competitors.map(c => `${c.name} is ${c.domain}`).join('; ') || 'no competitors set'}.)
 
 For each answer below, list which of the tracked brands it names, in the order they first appear. Count a brand when it's named in any form (a spelling variant, with or without "AI" or ".com", its website). Don't count an ordinary word that happens to match a short brand name.
+Also list, as "others", up to 10 other products or tools the answer recommends as options of the same kind (their plain names, e.g. "Hootsuite"), not the tracked ones, and not platforms or publishers it merely cites (e.g. Instagram, Zapier's blog).
 
 ${list}
 
-Return [{"i":0,"brands":["..."]}] using the tracked names exactly as written above.`,
+Return [{"i":0,"brands":["..."],"others":["..."]}] using the tracked names exactly as written above.`,
   }).catch(() => null)
-  const arr = raw === null ? null : parseJsonLoose<{ i: number; brands?: string[] }[]>(raw, 'array')
+  const arr = raw === null ? null : parseJsonLoose<{ i: number; brands?: string[]; others?: unknown }[]>(raw, 'array')
   if (!Array.isArray(arr)) return null
-  const out: string[][] = raws.map(() => [])
+  const out = raws.map(() => ({ brands: [] as string[], others: [] as string[] }))
   const known = new Map(tracked.map(t => [t.toLowerCase(), t]))
   for (const x of arr) {
     if (typeof x?.i !== 'number' || !out[x.i]) continue
-    out[x.i] = [...new Set((x.brands ?? []).map(n => known.get(String(n).toLowerCase())).filter((n): n is string => !!n))]
+    out[x.i] = {
+      brands: [...new Set((x.brands ?? []).map(n => known.get(String(n).toLowerCase())).filter((n): n is string => !!n))],
+      others: Array.isArray(x.others) ? [...new Set(x.others.map(n => String(n).trim().slice(0, 40)).filter(n => n && !known.has(n.toLowerCase())))].slice(0, 10) : [],
+    }
   }
   return out
 }
@@ -154,10 +198,10 @@ async function askEngines(b: BrandContext, questions: string[], seeds: string[],
   const one = (r: Raw): AiAnswer => {
     if (r.error || !r.text) return { question: r.question, engine: r.engine, mentioned: false, position: null, brands: [], citations: [], error: r.error ?? 'empty answer' }
     const base = analyseAnswer(r.question, r.engine as AiEngine, r.text, r.citations, b)
-    const list = named?.[ok.indexOf(r)]
-    if (!list) return base
-    const pos = list.indexOf(b.name)
-    return { ...base, brands: list, mentioned: pos >= 0, position: pos >= 0 ? pos + 1 : null }
+    const found = named?.[ok.indexOf(r)]
+    if (!found) return base
+    const pos = found.brands.indexOf(b.name)
+    return { ...base, brands: found.brands, others: found.others, mentioned: pos >= 0, position: pos >= 0 ? pos + 1 : null }
   }
   // Merge the repeats of each question and engine
   const groups = new Map<string, AiAnswer[]>()
@@ -176,6 +220,7 @@ async function askEngines(b: BrandContext, questions: string[], seeds: string[],
       mentioned: hits * 2 >= good.length && hits > 0,
       position: positions.length ? Math.min(...positions) : null,
       brands: [...new Set(good.flatMap(a => a.brands))],
+      others: [...new Set(good.flatMap(a => a.others ?? []))].slice(0, 15),
       citations: good.flatMap(a => a.citations).filter(c => !seen.has(c.url) && seen.add(c.url)).slice(0, 15),
       samples: good.length, hits,
     }
@@ -202,7 +247,8 @@ async function checkDescription(b: BrandContext, meter: ReturnType<typeof newMet
 
 // ── Topics ────────────────────────────────────────────────────────────────────
 
-const difficultyLabel = (d: number | null) => d === null ? 'difficulty unknown' : d <= 29 ? `easy (${d})` : d <= 49 ? `medium (${d})` : `hard (${d})`
+// DataForSEO gives 0 when it has no score: that is unknown, not easy
+const difficultyLabel = (d: number | null) => !d ? 'difficulty unknown' : d <= 29 ? `easy (${d})` : d <= 49 ? `medium (${d})` : `hard (${d})`
 
 // Above this, an idea is a broad head term ("online advertising platform"): a small site can't win
 // it and Labs' difficulty for it is unreliable. Searches the site already ranks for are exempt.
@@ -379,11 +425,12 @@ function buildTasks(b: BrandContext, answers: AiAnswer[], changes: RankChange[],
     })
   }
   // Sites AI keeps citing in answers that leave the brand out
-  const own = new Set([b.domain, ...b.competitors.map(c => c.domain)])
+  const named = namedRivals(ok, b.name)
+  const citable = (dom: string) => citableSite(dom, b, named)
   const counts = new Map<string, { n: number; url: string; title: string }>()
   for (const a of ok.filter(x => !x.mentioned)) {
     for (const c of a.citations) {
-      if (!c.domain || own.has(c.domain) || /(^|\.)google\.|vertexaisearch/.test(c.domain)) continue
+      if (!c.domain || !citable(c.domain) || !listyCitation(c.domain, c.title ?? '') || /(^|\.)google\.|vertexaisearch/.test(c.domain)) continue
       const cur = counts.get(c.domain) ?? { n: 0, url: c.url, title: c.title }
       cur.n += 1
       counts.set(c.domain, cur)
@@ -553,7 +600,9 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       for (const t of open.slice(0, 3)) {
         await openSignal(brandId, { source: 'search-agent', signalKey: t.key, title: t.title, detail: t.detail, action: 'Open the Search Agent for details.', priority: t.kind === 'refresh' || t.kind === 'fix' ? 3 : 2 })
       }
-      const stale = saved.tasks.filter(t => t.status !== 'open').map(t => t.key)
+      // Closed tasks, and tasks this research dropped, lose their Today card
+      const kept = new Set(saved.tasks.map(t => t.key))
+      const stale = [...saved.tasks.filter(t => t.status !== 'open').map(t => t.key), ...d.tasks.map(t => t.key).filter(k => !kept.has(k))]
       await clearSignals(brandId, 'search-agent', stale)
     } catch { /* Today cards are optional */ }
 
@@ -722,6 +771,9 @@ export async function runSearchAgentScheduled(brandId: string): Promise<{ ok: bo
   if (!d?.settings.enabled) return { ok: true, summary: 'Agent is off.' }
   // Every day: replies to link pitches and their one follow-up (nothing to do most days)
   await runLinkFollowUps(brandId).catch(() => {})
+  // Old suggestions that fail today's checks go (and their Today cards with them)
+  const b = await loadBrandContext(brandId)
+  if (b) await tidySearchData(brandId, b, d).catch(() => {})
   const last = d.lastResearchAt ? Date.parse(d.lastResearchAt) : 0
   if (Date.now() - last > WEEK) return runSearchResearch(brandId)
   // Link opportunities weekly, on a day after the research (one heavy step per day)

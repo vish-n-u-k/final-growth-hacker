@@ -24,14 +24,21 @@ import {
   addUsage, defaultSearchData, newMeter, readSearchData, updateSearchData,
   type LinkOpportunity, type SearchAgentData,
 } from './store'
-import { brandBlock, daysFrom, domainOf, firstName, idOf, loadBrandContext, parseJsonLoose, textToHtml, type BrandContext } from './context'
+import { brandBlock, daysFrom, domainOf, firstName, idOf, isNamedRival, isRivalSite, namedRivals, loadBrandContext, parseJsonLoose, PLATFORM, textToHtml, type BrandContext } from './context'
 
 const MAX_NEW = 10
 const MAX_LOOKUPS = 8
 const FOLLOW_UP_DAYS = 5
 const OPT_OUT = 'If this isn\'t a fit, just reply "no" and I won\'t email again.'
-// Platforms nobody "pitches": social networks, search engines, hosting and link shorteners
-const PLATFORM = /(^|\.)(google|youtube|facebook|instagram|linkedin|twitter|x|tiktok|pinterest|reddit|wikipedia|medium|github|apple|microsoft|amazon|quora|wordpress|blogspot|yahoo|bing|t|bit)\.[a-z.]+$/
+// Hosts with nobody to pitch: app stores and marketplaces, help desks, podcast hosts, free
+// builder previews (an app's listing or help page links to it because it is that app's page)
+const NOT_PITCHABLE = /(^|\.)(zendesk\.com|crisp\.help|intercom\.help|helpscoutdocs\.com|freshdesk\.com|gitbook\.io|notion\.site|hostingersite\.com|podbean\.com|anchor\.fm|chromewebstore\.google\.com|softonic\.com|uptodown\.com|apkpure\.com)$|^(help|support|docs|status|apps|app|marketplace|store|play)\./
+// Links that are referral, affiliate or redirect links, or an app-market listing, rather than an editor's choice
+const PAID_LINK = /[/?&](ref|refer|referral|via|aff|affiliate|partner|fpr|coupon)[=/]|\/(go|out|recommends|visit|r)\/[\w-]+(\/[\w-]*)?(\?.*)?$|\/(app-market|app-store|marketplace)\//i
+/** A site that can sensibly be pitched: not a platform, an app store, a help desk or a rival's own page. */
+export function pitchable(domain: string, rivals: { domain: string }[]): boolean {
+  return !PLATFORM.test(domain) && !NOT_PITCHABLE.test(domain) && !isRivalSite(domain, rivals)
+}
 // A Google result that is a list or comparison of options
 const LIST_TITLE = /\b(best|top|alternatives?|vs\.?|compared|comparison|reviews?)\b/i
 
@@ -89,7 +96,7 @@ async function findGap(b: BrandContext, skip: (domain: string) => boolean, meter
   const ownSet = new Set(own)
   lists.forEach((sites: LinkingSite[], i) => {
     for (const site of sites) {
-      if (ownSet.has(site.domain) || skip(site.domain) || (site.spam ?? 0) > 40) continue
+      if (ownSet.has(site.domain) || skip(site.domain) || (site.spam ?? 0) > 40 || PAID_LINK.test(site.url)) continue
       const cur = out.get(site.domain) ?? { domain: site.domain, source: 'gap' as const, url: site.url, title: site.title, rank: site.rank, names: new Set<string>() }
       cur.names.add(rivals[i].name)
       out.set(site.domain, cur)
@@ -254,7 +261,9 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
 
     // Never suggest the brand, its competitors, big platforms or sites already on the list
     const skip = new Set<string>([b.domain, ...b.competitors.map(c => c.domain), ...(d.links ?? []).map(l => l.domain)])
-    const isSkipped = (dom: string) => skip.has(dom) || PLATFORM.test(dom)
+    // Products AI answers name next to the brand count as rivals too (their own blogs won't list it)
+    const named = namedRivals((d.answers?.items ?? []).filter(a => !a.error), b.name)
+    const isSkipped = (dom: string) => skip.has(dom) || !pitchable(dom, b.competitors) || isNamedRival(dom, named)
     const found = new Map<string, Candidate>()
 
     const sites = (source: Candidate['source']) => [...found.values()].filter(c => c.source === source)
@@ -318,7 +327,9 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
     const result = await updateSearchData(brandId, fallback, x => {
       for (const l of x.links ?? []) { const p = patches.get(l.id); if (p && l.status === 'sent') Object.assign(l, p) }
       const have = new Set((x.links ?? []).map(l => l.domain))
+      // Unsent suggestions from before these checks existed (instagram.com, a rival's blog) go
       x.links = [...fresh.filter(l => !have.has(l.domain)), ...(x.links ?? [])]
+        .filter(l => !(l.status === 'new' || l.status === 'ready') || (pitchable(l.domain, b.competitors) && !isNamedRival(l.domain, named)))
       x.lastLinksAt = new Date().toISOString()
       x.linksError = errors.length ? errors.join(' · ') : null
       x.demo = demo

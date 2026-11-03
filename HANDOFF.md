@@ -382,6 +382,17 @@ Built from the review in `md_files/SEARCH_AGENT_HOW_IT_WORKS.md` (the report the
 - **Failed AI answers are no longer silent:** if some (not all) AI answers fail, `lastError` says how many, so the AI answers tab showing fewer questions has a reason on the page.
 - **Pitches:** "best of" list pitches go to the article's **author by name** (`authorOf`: JSON-LD, meta author, rel=author, microdata, byline class; "Staff"/"Team" skipped), looked up with Hunter's Email Finder. Pitches are 50-90 words: their page, the gap, an offer (a free account, a ready-to-paste two-line description), one question. The same rules apply to `taskToPitch`.
 
+## 4e-2. Search Agent: link suggestions checked against real data (3 Nov)
+
+The owner's screenshot showed instagram.com as a "List article" to pitch, "Get mentioned on blog.hootsuite.com" and "easy (0)". Checked with live DataForSEO and fixed:
+- **Competitors were empty for the agents.** Competitor Analysis only writes competitors the user typed to the `competitors` table; a suggested set (Frekto's Predis.ai, Later, Buffer) lives in the module's `competitor_urls`. `loadBrandContext` now also reads `competitor_urls` of the competitor-analysis and GEO modules (names from `achievable_competitors`, else the domain).
+- **Rivals' sites:** `isRivalSite` (`context.ts`) matches subdomains (`blog.hootsuite.com`) and hosted pages named after a rival (`predis.crisp.help`). `namedRivals` / `isNamedRival`: products AI answers recommend as options in 2+ answers count as rivals too. The `namedBrands` call now also returns `others` (untracked products each answer recommends, `AiAnswer.others`), so this works from the next research.
+- **"Get mentioned on" to-dos** (`buildTasks`, `citableSite`): no platforms (`PLATFORM`, now in `context.ts`, also Spotify, Yandex, link shorteners), no rivals, and the cited page must list or compare options (`LISTY`: best, top, a number, vs, alternatives, tools…; Reddit exempt). Today cards for to-dos a research drops are cleared.
+- **Links to rivals** (`findGap`): app stores, help desks, builder previews, podcast hosts (`NOT_PITCHABLE`) and referral / affiliate / app-market links (`PAID_LINK`) are dropped before ranking. On Predis.ai's top 30 backlinks this removes 17 of 30 (Play Store, Spotify, Yandex, bit.ly, Zendesk, their own crisp.help…).
+- **Old data:** `tidySearchData` (on the Search Agent GET and the daily run) removes open "Get mentioned on" to-dos and unsent pitches that fail these checks, with their Today cards.
+- Pitches made from a to-do have `source: 'cited'` ("Cited by AI"), no longer "List article"; older ones are recognised by their why line.
+- Difficulty 0 shows as "difficulty unknown" (label, card, table, and saved "easy (0)" texts).
+
 ## 4f. MCP data passthrough tools (29 Oct)
 
 Three thin tools on the MCP server (`app/api/mcp/route.ts`, defined in `lib/mcp/tool-registry.ts`), so Claude can call the data sources directly and work out lead-gen logic in conversation. No scoring, filtering or deduping: raw API JSON back, the API's own message on errors (`{ error, http_status, response }`).
