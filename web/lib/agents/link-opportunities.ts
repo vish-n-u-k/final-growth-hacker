@@ -268,7 +268,7 @@ export async function runLinkOpportunities(brandId: string): Promise<Result> {
         return g.length ? { detail: n(g.length, 'site'), items: sample(g) } : 'None found'
       }).catch(e => {
         const msg = e instanceof Error ? e.message : 'failed'
-        errors.push(`Competitor links: ${msg}${/access|subscri|40[0-9]{3}/i.test(msg) ? ' (this needs DataForSEO\'s Backlinks subscription; list articles still work)' : ''}`)
+        errors.push(`Competitor links: ${msg}${/access|subscri|40[0-9]{3}/i.test(msg) ? ' (check that Backlinks is switched on in your DataForSEO account; list articles still work)' : ''}`)
       })
     }
     await p.step('lists', () => findLists(b, d, isSkipped, meter, found, errors), () => {

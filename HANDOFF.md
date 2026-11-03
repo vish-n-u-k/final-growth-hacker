@@ -433,7 +433,6 @@ Three thin tools on the MCP server (`app/api/mcp/route.ts`, defined in `lib/mcp/
 ## 6. Known open items
 
 - **Not tested against real services:** none of the recent work has been tried with real Gmail, DataForSEO, Hunter or Claude. Test on a test account before relying on it.
-- **Stale backlinks message:** `web/lib/agents/link-opportunities.ts` (~line 242) still says backlinks need DataForSEO's subscription. That's no longer true; reword it.
 - **"Credits used up" is per brand:** all brands share one Hunter key, but each brand's note only shows once its own run hits the limit.
 - **DataForSEO ideas, not built** (agreed with the owner, nothing started): a spending cap per brand; queued instead of live calls for the daily run (about a third of the price); caching keyword data for 30 days; replacing SerpAPI, Serper and DuckDuckGo scraping in the SEO, Outreach Targets and Community Finder modules; real competitors and a keyword gap from DataForSEO Labs; Google reviews as a Competitor Leads source; Search Agent rank drops and wrong AI descriptions as Today tasks; LLM Mentions to bring back the "how often AI names you" chart.
 - **Unused code:** `/api/gmail/set-followup` and some old `gh-*` CSS are no longer used (the old full-mailbox `inbox`, `thread` and `summarize-thread` routes were deleted). The new Inbox reuses the `gh-thread-*` / `gh-msg-*` styles.
