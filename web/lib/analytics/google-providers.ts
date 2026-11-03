@@ -78,7 +78,7 @@ export async function fetchGsc(clientEmail: string, privateKey: string, siteUrl:
 
   const [summary, queries, pages, trend] = await Promise.all([
     gscQuery(token, siteUrl, { startDate, endDate, rowLimit: 1 }),
-    gscQuery(token, siteUrl, { startDate, endDate, dimensions: ['query'], rowLimit: 10, orderBy: [{ fieldName: 'clicks', sortOrder: 'DESCENDING' }] }),
+    gscQuery(token, siteUrl, { startDate, endDate, dimensions: ['query'], rowLimit: 50, orderBy: [{ fieldName: 'clicks', sortOrder: 'DESCENDING' }] }),
     gscQuery(token, siteUrl, { startDate, endDate, dimensions: ['page'],  rowLimit: 5,  orderBy: [{ fieldName: 'clicks', sortOrder: 'DESCENDING' }] }),
     gscQuery(token, siteUrl, { startDate: trendDate, endDate, dimensions: ['date'], rowLimit: 30, orderBy: [{ fieldName: 'date', sortOrder: 'ASCENDING' }] }),
   ])
@@ -90,7 +90,11 @@ export async function fetchGsc(clientEmail: string, privateKey: string, siteUrl:
     impressions: agg ? Math.round(agg.impressions)         : null,
     avgCtr:      agg ? Math.round(agg.ctr * 100)           : null,
     avgPosition: agg ? Math.round(agg.position * 10) / 10 : null,
-    topQueries: (queries?.rows ?? []).slice(0, 5).map(r => ({
+    // Searches with operators (site:, inurl:, intitle:…) come from SEO and lead tools, ours included, not people
+    topQueries: (queries?.rows ?? [])
+      .filter(r => !/(^|\s)-?(site|inurl|intitle|intext|allinurl|allintitle|related|cache):/i.test(r.keys[0] ?? ''))
+      .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions)
+      .slice(0, 5).map(r => ({
       query:       r.keys[0] ?? '',
       clicks:      Math.round(r.clicks),
       impressions: Math.round(r.impressions),

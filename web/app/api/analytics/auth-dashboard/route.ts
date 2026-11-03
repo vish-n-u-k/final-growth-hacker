@@ -94,7 +94,7 @@ export async function GET(request: NextRequest) {
   // Return cached snapshot if available, not forced, and contains new fields
   const snap = brand.analyticsSnapshot as Record<string, unknown> | null
   // Reused for an hour at most; connecting or changing an integration clears analyticsSnapshotAt
-  const snapIsFresh = snap && snap['_v'] === 12 && 'proUsers' in snap
+  const snapIsFresh = snap && snap['_v'] === 13 && 'proUsers' in snap
     && !!brand.analyticsSnapshotAt && Date.now() - brand.analyticsSnapshotAt.getTime() < 60 * 60 * 1000
   if (!force && snapIsFresh && brand.analyticsSnapshotAt) {
     return NextResponse.json({
@@ -359,12 +359,14 @@ export async function GET(request: NextRequest) {
 
   // ── GSC ───────────────────────────────────────────────────────────────────
 
-  let gscData: Awaited<ReturnType<typeof fetchGsc>> | { connected: false } = { connected: false }
+  let gscData: (Awaited<ReturnType<typeof fetchGsc>> & { clicks7d: number | null; impressions7d: number | null; avgCtr7d: number | null; avgPosition7d: number | null }) | { connected: false } = { connected: false }
 
   if (gscInt) {
     const meta = (gscInt.metadata as Record<string, string> | null) ?? {}
     if (meta.client_email && meta.private_key) {
-      gscData = await fetchGsc(meta.client_email, meta.private_key, brand.websiteUrl, 7)
+      const g = await fetchGsc(meta.client_email, meta.private_key, brand.websiteUrl, 7)
+      // The page, the summary and the keywords page read the 7-day names
+      gscData = { ...g, clicks7d: g.clicks, impressions7d: g.impressions, avgCtr7d: g.avgCtr, avgPosition7d: g.avgPosition }
     }
   }
 
@@ -380,7 +382,7 @@ export async function GET(request: NextRequest) {
   }
 
   const snapshot = {
-    _v: 12,
+    _v: 13,
     ...posthogData,
     gsc: gscData,
     ga4: ga4Data,

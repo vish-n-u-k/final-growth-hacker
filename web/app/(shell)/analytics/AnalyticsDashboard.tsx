@@ -37,6 +37,10 @@ interface GscData {
   impressions7d: number | null
   avgCtr7d: number | null
   avgPosition7d: number | null
+  clicks?: number | null
+  impressions?: number | null
+  avgCtr?: number | null
+  avgPosition?: number | null
   topQueries: { query: string; clicks: number; impressions: number; position: number }[]
   topPages: { page: string; clicks: number; impressions: number }[]
   clickTrend: { date: string; clicks: number }[]
@@ -921,10 +925,10 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
             {/* KPI row */}
             <div className="an-g4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 14 }}>
               {[
-                { label: 'Organic clicks', value: gsc?.clicks7d,      suffix: '',  sub: '7 days' },
-                { label: 'Impressions',    value: gsc?.impressions7d,  suffix: '',  sub: '7 days' },
-                { label: 'Avg CTR',        value: gsc?.avgCtr7d,       suffix: '%', sub: '7 days' },
-                { label: 'Avg position',   value: gsc?.avgPosition7d,  suffix: '',  sub: '7 days' },
+                { label: 'Organic clicks', value: gsc?.clicks7d ?? gsc?.clicks, suffix: '',  sub: '7 days' },
+                { label: 'Impressions',    value: gsc?.impressions7d ?? gsc?.impressions, suffix: '',  sub: '7 days' },
+                { label: 'Avg CTR',        value: gsc?.avgCtr7d ?? gsc?.avgCtr, suffix: '%', sub: '7 days' },
+                { label: 'Avg position',   value: gsc?.avgPosition7d ?? gsc?.avgPosition, suffix: '',  sub: '7 days' },
               ].map(k => (
                 <div key={k.label} style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
                   <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-faint)', marginBottom: 8 }}>{k.label}</div>
@@ -936,7 +940,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               ))}
             </div>
 
-            <div className="an-g2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div className="an-g2" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 14 }}>
               {/* Click trend chart */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Click trend</h3>
@@ -962,7 +966,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
               {/* Top queries */}
               <div style={{ background: 'var(--card)', border: '1px solid var(--line)', borderRadius: 14, padding: '18px 20px' }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Top queries</h3>
-                <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Driving the most organic clicks</p>
+                <p style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 14 }}>Most clicks, then most times seen · last 7 days</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, filter: !gsc?.connected ? 'blur(4px)' : 'none' }}>
                   {(gsc?.connected && gsc.topQueries.length ? gsc.topQueries : [
                     { query: 'example query one', clicks: 120, impressions: 1400, position: 3.2 },
@@ -973,6 +977,7 @@ export default function AnalyticsDashboard({ brand, modules, dailyEmailEnabled: 
                       <span style={{ fontSize: 12, color: 'var(--text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginRight: 12 }}>{q.query}</span>
                       <div style={{ display: 'flex', gap: 16, flexShrink: 0 }}>
                         <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{fmt(q.clicks)} clicks</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-faint)' }}>{fmt(q.impressions)} seen</span>
                         <span style={{ fontSize: 11, color: 'var(--text-faint)', minWidth: 30, textAlign: 'right' }}>#{q.position}</span>
                       </div>
                     </div>

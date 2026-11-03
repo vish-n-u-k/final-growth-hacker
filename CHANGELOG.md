@@ -10,6 +10,7 @@
 - **Search Agent knows your competitors.** It now uses the competitors your Competitor Analysis compares you with, even ones GrowJin suggested.
 
 ### Fixed
+- **Analytics: Search Console numbers.** Organic clicks, impressions, average CTR and average position showed "—" even with Search Console connected. They now show. Top queries leave out searches made by SEO tools, show how often each query was seen, and no longer squeeze the click trend chart.
 - **Search Agent:** keywords with no difficulty score now say "difficulty unknown" instead of "easy (0)".
 - **Search Agent:** sites pitched because AI answers cite them are labelled "Cited by AI", not "List article".
 - **Search Agent:** when finding competitor links fails, the message now asks you to check that Backlinks is switched on in DataForSEO. It no longer says you need a subscription.

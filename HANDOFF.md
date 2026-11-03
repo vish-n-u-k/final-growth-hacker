@@ -237,6 +237,7 @@ Users kept saying there's too much to read. An opened lead went from about 250 w
 - `/api/analytics/ga4-traffic` has a 9th report, `sessionSource` + `sessionMedium` (sessions, newUsers, 250 rows), grouped by `classifyChannel` (`lib/posthog/channel.ts`) into `sourceGroups`: AI tools, Social media, Search engines, Email, Search / Social media ads, Other websites, Direct / typed in, Your own app or site, each with its top 4 sources. GA4's own channel groups file ChatGPT and the like under Referral, which is why this exists.
 - "How they found you" shows those groups (visits · new · %, top sites in grey; the AI tools bar is green); it falls back to GA4's channels when `sourceGroups` is missing. Entry pages and Browsers show new users too (`newUsers` added to those reports).
 - Checked with mocked GA4 data at desktop and phone width; not run against a real GA4 property yet.
+- **Search Console fix (3 Nov):** the page reads `clicks7d` / `impressions7d` / `avgCtr7d` / `avgPosition7d`, but `fetchGsc` (`lib/analytics/google-providers.ts`) returns `clicks` / `impressions` / `avgCtr` / `avgPosition`, so the four numbers were always "—". `auth-dashboard` now adds the 7-day names (snapshot `_v` 13, so cached snapshots refetch; the Keywords page reads them from the snapshot too). Top queries drop operator searches (`site:`, `inurl:`… our own DataForSEO lookups show up in GSC), sort by clicks then impressions, and show impressions; the GSC grid uses `minmax(0, 1fr)` so a long query can't squeeze the trend card.
 
 ## 4c. Costs: Usage & costs tab and Hunter credits
 
