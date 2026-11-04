@@ -25,6 +25,10 @@ export const COUNTRY_NAMES: Record<string, string> = {
   DE: 'Germany', FR: 'France', AE: 'United Arab Emirates', SG: 'Singapore',
 }
 const locationOf = (country: string) => LOCATION_CODES[country] ?? LOCATION_CODES.US
+// The language people search in there. Search data (keyword ideas, rankings, AI Overviews) asks in
+// it; the Lead Agent's Google searches stay English, as its queries are written in English.
+const LANGUAGE_CODES: Record<string, string> = { DE: 'de', FR: 'fr' }
+export const languageOf = (country: string) => LANGUAGE_CODES[country] ?? 'en'
 
 // The name each API gets in Settings → Usage
 function apiLabel(path: string): string {
@@ -157,7 +161,7 @@ const toIdeas = (items: IdeaItem[]): KeywordIdea[] => items
 export async function keywordIdeas(seeds: string[], country: string, meter?: UsageMeter, limit = 200): Promise<KeywordIdea[]> {
   if (!seeds.length) return []
   if (agentsDemo()) return demoKeywordIdeas(seeds).slice(0, limit)
-  const base = { location_code: locationOf(country), language_code: 'en' }
+  const base = { location_code: locationOf(country), language_code: languageOf(country) }
   let ideas: KeywordIdea[]
   try {
     const r = await post<{ items?: IdeaItem[] | null }>('/dataforseo_labs/google/keyword_ideas/live', {
@@ -181,27 +185,28 @@ export async function keywordIdeas(seeds: string[], country: string, meter?: Usa
 
 // ── Where the site ranks ──────────────────────────────────────────────────────
 
-export interface RankedKeyword { keyword: string; volume: number; rank: number; url: string }
+export interface RankedKeyword { keyword: string; volume: number; rank: number; url: string; impressions?: number }
 
 export async function rankedKeywords(domain: string, country: string, meter?: UsageMeter, limit = 200): Promise<RankedKeyword[]> {
   if (agentsDemo()) return demoRankedKeywords(domain).slice(0, limit)
   type Item = {
     keyword_data?: { keyword?: string; keyword_info?: { search_volume?: number | null } }
-    ranked_serp_element?: { serp_item?: { rank_absolute?: number; url?: string } }
+    ranked_serp_element?: { serp_item?: { rank_group?: number; rank_absolute?: number; url?: string } }
   }
   const r = await post<{ items?: Item[] | null }>('/dataforseo_labs/google/ranked_keywords/live', {
     target: domain.replace(/^www\./, ''),
     location_code: locationOf(country),
-    language_code: 'en',
+    language_code: languageOf(country),
     limit,
     order_by: ['keyword_data.keyword_info.search_volume,desc'],
   }, meter)
   return (r.items ?? [])
-    .filter(i => i.keyword_data?.keyword && i.ranked_serp_element?.serp_item?.rank_absolute)
+    .filter(i => i.keyword_data?.keyword && (i.ranked_serp_element?.serp_item?.rank_group || i.ranked_serp_element?.serp_item?.rank_absolute))
     .map(i => ({
       keyword: i.keyword_data!.keyword!,
       volume: i.keyword_data?.keyword_info?.search_volume ?? 0,
-      rank: i.ranked_serp_element!.serp_item!.rank_absolute!,
+      // rank_group = place among the normal results; rank_absolute also counts ads, boxes and videos
+      rank: (i.ranked_serp_element!.serp_item!.rank_group || i.ranked_serp_element!.serp_item!.rank_absolute)!,
       url: i.ranked_serp_element?.serp_item?.url ?? '',
     }))
 }
@@ -353,7 +358,7 @@ export async function googleAiOverview(keyword: string, country: string, meter?:
   type El = { text?: string | null; markdown?: string | null; references?: Ref[] | null }
   type Item = { type?: string; markdown?: string | null; items?: El[] | null; references?: Ref[] | null }
   const r = await post<{ items?: Item[] | null }>('/serp/google/organic/live/advanced', {
-    keyword, location_code: locationOf(country), language_code: 'en', depth: 10, load_async_ai_overview: true,
+    keyword, location_code: locationOf(country), language_code: languageOf(country), depth: 10, load_async_ai_overview: true,
   }, meter)
   const o = (r.items ?? []).find(i => i.type === 'ai_overview')
   if (!o) return null

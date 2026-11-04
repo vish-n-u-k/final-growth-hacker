@@ -395,6 +395,18 @@ The owner's screenshot showed instagram.com as a "List article" to pitch, "Get m
 - Pitches made from a to-do have `source: 'cited'` ("Cited by AI"), no longer "List article"; older ones are recognised by their why line.
 - Difficulty 0 shows as "difficulty unknown" (label, card, table, and saved "easy (0)" texts).
 
+## 4e-3. Search Agent: data you can trust (4 Nov)
+
+From a review of whether the Search Agent's numbers are valid.
+- **Rankings from Search Console when it's connected** (`gscRanks` in `search-agent.ts`, `fetchGscQueryPages` in `lib/modules/seo/keyword-fetchers.ts`): one row per search over the last 28 days (ending 3 days ago), the page shown most, the impression-weighted average position, searches with fewer than 5 impressions dropped. Volume is DataForSEO's when the idea list has it. Otherwise (or when Search Console fails or has no data, noted in `lastError`) DataForSEO Labs as before. `ranks.source` is `'gsc'` or `'labs'`.
+- **Rank changes:** only like with like (`gsc` with `gsc`). A search missing from DataForSEO's capped list is no longer "dropped outside the top 100". Search Console moves need 20+ impressions on both sides. Refresh to-dos need a 5-place drop on DataForSEO's estimate, 3 on Search Console, and say which source.
+- DataForSEO ranks use `rank_group` (place among normal results), not `rank_absolute` (counts ads and boxes).
+- Keyword ideas, rankings and AI Overviews ask in German / French for DE / FR (`languageOf` in `dataforseo.ts`). The Lead Agent's Google searches stay English.
+- **AI answers:** buyer questions take turns (`rotate`, `questionRound`), so all 10 get asked. "Named in X%" and the overview counts leave out Google AI Overviews. A "Write a page answering…" to-do now also counts the untracked products in `AiAnswer.others`, so it no longer needs a listed competitor. A gap holds when it was there the last time that question was asked (`questionLog`).
+- "How AI describes you" asks ChatGPT and Perplexity and only flags a problem they share. The judge is told the brand profile may itself be out of date.
+- The page says the AI numbers come from the assistants' APIs (gpt-4.1-mini, Sonar, Gemini 2.5 Flash), so they're a direction, not an exact score. It also shows how many answers the average rests on and where the rankings come from.
+- Not tried against real Search Console / DataForSEO yet.
+
 ## 4f. MCP data passthrough tools (29 Oct)
 
 Three thin tools on the MCP server (`app/api/mcp/route.ts`, defined in `lib/mcp/tool-registry.ts`), so Claude can call the data sources directly and work out lead-gen logic in conversation. No scoring, filtering or deduping: raw API JSON back, the API's own message on errors (`{ error, http_status, response }`).

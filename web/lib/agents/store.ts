@@ -264,7 +264,9 @@ export interface Topic {
   inputs?: { example?: string; number?: string; opinion?: string }
 }
 
-export interface RankRow { keyword: string; volume: number; rank: number; url: string }
+// rank: place among Google's normal results. From Search Console, the average over 28 days, and
+// impressions = how often the site was shown for it then; from DataForSEO, an estimate.
+export interface RankRow { keyword: string; volume: number; rank: number; url: string; impressions?: number }
 
 // A keyword idea from the last research, with why it was or wasn't picked (Keywords tab)
 export type IdeaVerdict = 'picked' | 'fit' | 'broad' | 'hard' | 'off' | 'unknown' | 'small' | 'branded' | 'unchecked'
@@ -336,11 +338,16 @@ export interface LinkOpportunity {
 export interface SearchAgentData {
   settings: SearchSettings
   topics: Topic[]
-  ranks: { at: string; rows: RankRow[] } | null
+  // source: 'gsc' = Google Search Console (real), 'labs' (or missing) = DataForSEO's estimate
+  ranks: { at: string; rows: RankRow[]; source?: 'gsc' | 'labs' } | null
   ideas?: { at: string; rows: IdeaRow[] } | null   // keyword ideas from the last research
   rankChanges: RankChange[]
   answers: { at: string; items: AiAnswer[] } | null
   mentionHistory: { at: string; mentioned: number; asked: number }[]
+  // Each buyer question's last result (questions rotate, so a gap "holds" when it was there the last
+  // time that question was asked): gap = a rival was named and the brand never was
+  questionLog?: Record<string, { at: string; gap: boolean }>
+  questionRound?: number        // researches so far, for taking the buyer questions in turns
   description: { text: string; issue: string | null; at: string } | null
   tasks: AgentTask[]
   adsTips: AdsTip[]

@@ -40,7 +40,7 @@ async function AgentsPage() {
   const leads = ld.leads
   const sent = leads.filter(l => l.sentAt).length
   const replies = leads.filter(l => l.status === 'replied').length
-  const answers = (sd.answers?.items ?? []).filter(a => !a.error)
+  const answers = (sd.answers?.items ?? []).filter(a => !a.error && a.engine !== 'google_ai')
   const lead: AgentSummary = {
     enabled: ld.settings.enabled, setUp: !!leadSaved, lastRunAt: ld.lastRunAt ?? null,
     stats: [[String(leads.length), 'leads found'], [String(sent), 'emails sent'], [String(replies), 'replies']],
