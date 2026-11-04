@@ -33,6 +33,7 @@ export const languageOf = (country: string) => LANGUAGE_CODES[country] ?? 'en'
 // The name each API gets in Settings → Usage
 function apiLabel(path: string): string {
   if (path.includes('/serp/google/maps/')) return 'Google Maps businesses'
+  if (path.includes('/business_listings/')) return 'Google Business Profiles'
   if (path.includes('/serp/google/organic/')) return 'Google results'
   if (path.includes('/ranked_keywords/')) return 'Site rankings'
   if (path.includes('/competitors_domain/')) return 'Similar sites'
@@ -400,6 +401,44 @@ export async function mapsBusinesses(query: string, country: string, meter?: Usa
       address: i.address ?? null,
       mapsUrl: i.cid ? `https://maps.google.com/?cid=${i.cid}` : (i.check_url ?? null),
     }))
+}
+
+// ── Google Business Profiles (DataForSEO's Business Listings database, built from Google Maps) ──
+
+export interface BusinessListing { title: string; domain: string | null; address: string | null; category: string | null; rating: number | null; reviews: number | null; claimed: boolean | null; mapsUrl: string | null }
+
+/**
+ * Google Business Profiles whose website is this domain, else (with a name) whose name matches.
+ * No location needed: it searches the whole database. About $0.01 a call.
+ */
+export async function businessListings(domain: string, name: string, meter?: UsageMeter): Promise<BusinessListing[]> {
+  type Item = {
+    title?: string; domain?: string | null; address?: string | null; category?: string | null; cid?: string | null
+    check_url?: string | null; is_claimed?: boolean | null
+    rating?: { value?: number | null; votes_count?: number | null } | null
+  }
+  const ask = async (filters: unknown[]) => {
+    try {
+      const r = await post<{ items?: Item[] | null }>('/business_data/business_listings/search/live', { filters, limit: 10 }, meter)
+      return r.items ?? []
+    } catch (e) {
+      if (e instanceof DfsNoResults) return []
+      throw e
+    }
+  }
+  const host = domain.replace(/^www\./, '').toLowerCase()
+  let items = await ask([['domain', 'like', `%${host}%`]])
+  if (items.length === 0 && name.trim().length > 2) items = await ask([['title', 'like', `%${name.trim()}%`]])
+  return items.filter(i => i.title).map(i => ({
+    title: i.title!,
+    domain: i.domain ?? null,
+    address: i.address ?? null,
+    category: i.category ?? null,
+    rating: i.rating?.value ?? null,
+    reviews: i.rating?.votes_count ?? null,
+    claimed: typeof i.is_claimed === 'boolean' ? i.is_claimed : null,
+    mapsUrl: i.cid ? `https://maps.google.com/?cid=${i.cid}` : (i.check_url ?? null),
+  }))
 }
 
 // ── Backlinks (DataForSEO's Backlinks API, a separate subscription) ──────────

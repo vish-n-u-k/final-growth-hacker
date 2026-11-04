@@ -433,6 +433,13 @@ Three thin tools on the MCP server (`app/api/mcp/route.ts`, defined in `lib/mcp/
 - `limit`: default 10, hard max 50 (`lib/mcp/tools/limit.ts`). DataForSEO dollars and Hunter credits show in Settings → Usage as "Claude (MCP)".
 - Checked against mocked APIs, and (29 Oct) live through the deployed tool with the inputs the new code builds: `meta_ads` primary + fallback and `b2b_database` worked. **Blocked:** `linkedin_company` (approve its permissions in Apify Console), `linkedin_people` (Apify 402: the account had $0.21 of monthly usage left; the new limit-sized caps should get small runs through, else upgrade the plan), `producthunt` (the old deployed tool waited 60 s and the MCP client timed out; the new 45 s wait fixes that). Re-test those after deploying. `dataforseo` / `hunter` still untested live.
 
+## 4g. Foundation: Google Business Profile check (4 Nov)
+
+- New check `google-business-profile` (weight 3) in Foundation under "Online Presence" (was "Social Media Presence") → "Google Business Profile".
+- **Based on the brand:** checks can now carry `relevantFor` (website types). This one is `['local', 'agency']`. `defForBrand(def, websiteType)` in `lib/modules/types.ts` drops checks that don't apply; used when seeding (onboarding, analyze route, admin add-missing-modules) and on the Growth Path / admin views. If a brand's type changes, the next analysis removes checks that no longer apply.
+- **How it checks** (`lib/modules/foundation/google-profile.ts`, no AI): DataForSEO Business Listings (`businessListings` in `dataforseo.ts`, by website domain, then by exact name; ~$0.01, shows in Usage as Foundation · "Google Business Profiles"), else a link on the site to the profile, a review link or an embedded Google map (`googleProfileLink` in the fetcher). Fails when not found or the listing isn't claimed; passes with a note to get more reviews under 5. "Check again" on the item uses the same lookup.
+- Not tried against the real Business Listings API yet (filter field names `domain` / `title`).
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

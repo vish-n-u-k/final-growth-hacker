@@ -343,10 +343,10 @@ Rules:
       ],
     },
 
-    // ── 5. SOCIAL MEDIA PRESENCE ─────────────────────────────────────────────
+    // ── 5. ONLINE PRESENCE (social profiles, Google Business Profile) ────────
     {
       slug: 'social-presence',
-      label: 'Social Media Presence',
+      label: 'Online Presence',
       order: 5,
       subCategories: [
         {
@@ -365,6 +365,30 @@ Rules:
                 'Use your exact business name as the handle on every platform for brand consistency',
                 'Add icon links to each profile in your website footer — link to the profile page, not just the home page of the platform',
                 'Make sure the linked profiles are active — an empty or abandoned profile is worse than no link',
+              ],
+            },
+          ],
+        },
+        {
+          slug: 'local-listing',
+          label: 'Google Business Profile',
+          order: 2,
+          items: [
+            {
+              slug: 'google-business-profile',
+              label: 'Google Business Profile',
+              prompt: 'Check whether the business has a Google Business Profile (the listing that shows on Google Maps and in local search). Use the Google listing found for its website or name, and any link to the profile or an embedded Google map on the site. Pass if a profile exists; report its name, rating and number of reviews.',
+              order: 1,
+              weight: 3,
+              // Only for businesses customers visit or that serve an area
+              relevantFor: ['local', 'agency'],
+              fixGuide: [
+                'Go to business.google.com → sign in with the Google account you use for the business → "Add your business"',
+                'Use your exact business name, pick the closest main category, and add your address (or the area you serve if customers don\'t visit you)',
+                'Verify the profile — Google offers a video, phone, text or postcard check; you can\'t edit the listing fully until it\'s verified',
+                'Fill in opening hours, phone, website, a short description and at least 5 photos of your place, team or work',
+                'Ask your last 5–10 happy customers for a review with your review link (Profile → "Ask for reviews")',
+                'Link the profile from your website footer or contact page, so Google and visitors can connect the two',
               ],
             },
           ],

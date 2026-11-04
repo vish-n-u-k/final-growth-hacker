@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/lib/db'
 import { brands, modules, moduleCategories, moduleItems, brandIntegrations, modulePageAudit, analysisRequests, itemLinks } from '@/lib/db/schema'
 import { eq, inArray, and, desc } from 'drizzle-orm'
+import { defForBrand } from '@/lib/modules/types'
 import { MODULE_MAP, MODULE_REGISTRY, placementOf } from '@/lib/modules/registry'
 
 function isAdmin(email: string | undefined): boolean {
@@ -96,7 +97,8 @@ export async function GET(
 
   const allModulesData = []
   for (const mod of allModulesRaw) {
-    const def = MODULE_MAP[mod.type]
+    // Checks that don't apply to this brand's website type are left out (defForBrand)
+    const def = MODULE_MAP[mod.type] ? defForBrand(MODULE_MAP[mod.type], brand.websiteType) : undefined
     if (!def || placementOf(def) === 'tool' || placementOf(def) === 'hidden') continue
 
     const items = itemsByModule.get(mod.id) ?? []
