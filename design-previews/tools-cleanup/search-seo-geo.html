@@ -170,7 +170,7 @@
   .acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .wait { display: flex; align-items: center; gap: 10px; margin: 4px 0 12px; font-size: 13px; color: var(--faint); }
   .wait i { flex: 1; max-width: 360px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
-  .wait i em { display: block; height: 100%; background: var(--ink); }
+  .wait i { background: var(--test-s); } .wait i em { display: block; height: 100%; background: var(--test); }
   .eng { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; padding: 11px 4px; border-bottom: 1px solid var(--line); font-size: 14px; }
   .eng b { font-weight: 500; }
   .eng span { color: var(--dim); }
@@ -192,10 +192,81 @@
   .set select { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
   .foot { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 16px; font-size: 14px; color: var(--faint); }
   .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); max-width: calc(100vw - 32px); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; display: flex; gap: 14px; align-items: center; z-index: 5; }
+
+  /* ── Colour code: one colour per meaning ── */
+  :root { --good: #15803d; --good-s: #e7f4ec; --test: #2563eb; --test-s: #e9f0fe; --warn: #b91c1c; --warn-s: #fdeaea; --bad: #b91c1c; --bad-s: #fdeaea; --amber: #a16207; --amber-s: #fdf5d8; --orange: #c2410c; --orange-s: #fdeee4; --wait: #6b7280; --wait-s: #f0f2f1; --new: #7c3aed; --new-s: #f1ebfe; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --good: #4ade80; --good-s: #12301d; --test: #7aa7ff; --test-s: #15233f; --warn: #f87171; --warn-s: #3a1717; --bad: #f87171; --bad-s: #3a1717; --amber: #facc15; --amber-s: #352d0f; --orange: #fb923c; --orange-s: #3a2214; --wait: #9ca3af; --wait-s: #1e2522; --new: #b794ff; --new-s: #271d3d; } }
+  :root[data-theme="dark"] { --good: #4ade80; --good-s: #12301d; --test: #7aa7ff; --test-s: #15233f; --warn: #f87171; --warn-s: #3a1717; --bad: #f87171; --bad-s: #3a1717; --amber: #facc15; --amber-s: #352d0f; --orange: #fb923c; --orange-s: #3a2214; --wait: #9ca3af; --wait-s: #1e2522; --new: #b794ff; --new-s: #271d3d; }
+  .c-good { --c: var(--good); --cs: var(--good-s); } .c-test { --c: var(--test); --cs: var(--test-s); } .c-warn { --c: var(--warn); --cs: var(--warn-s); }
+  .c-bad { --c: var(--bad); --cs: var(--bad-s); } .c-amber { --c: var(--amber); --cs: var(--amber-s); } .c-orange { --c: var(--orange); --cs: var(--orange-s); }
+  .c-wait { --c: var(--wait); --cs: var(--wait-s); } .c-new { --c: var(--new); --cs: var(--new-s); }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 16px; font-size: 13px; color: var(--dim); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); display: inline-block; }
+  .zbar { display: flex; gap: 3px; height: 28px; border-radius: 8px; overflow: hidden; }
+  .zbar span { display: grid; place-items: center; background: var(--c); color: #fff; font-weight: 600; font-size: 13px; min-width: 28px; }
+  .zones { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+  .zone { padding: 12px; border-radius: 12px; background: var(--cs); border-top: 3px solid var(--c); min-width: 0; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+  .z-good { --c: var(--good); --cs: var(--good-s); } .z-amber { --c: var(--amber); --cs: var(--amber-s); } .z-orange { --c: var(--orange); --cs: var(--orange-s); } .z-bad { --c: var(--bad); --cs: var(--bad-s); } .z-wait { --c: var(--wait); --cs: var(--wait-s); }
+  .z-h { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; width: 100%; margin-bottom: 2px; }
+  .z-h b { color: var(--c); font-weight: 600; }
+  .z-h span { font-size: 12px; color: var(--faint); }
+  .z-empty { font-size: 13px; color: var(--faint); }
+  .chip { display: inline-flex; gap: 6px; align-items: baseline; max-width: 100%; padding: 4px 9px; border: 0; border-radius: 999px; background: var(--bg); font-size: 13px; text-align: left; cursor: pointer; }
+  .chip:hover { box-shadow: 0 0 0 1.5px var(--c); }
+  .chip em { font-style: normal; font-weight: 600; color: var(--c); font-variant-numeric: tabular-nums; }
+  @media (max-width: 700px) { .zones { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .g-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-bottom: 10px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 999px; background: var(--cs); color: var(--c); font-weight: 600; font-size: 14px; }
+  .pill b { display: inline-grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--c); color: #fff; font-size: 12.5px; }
+  .g-note { font-size: 13px; color: var(--faint); }
+  .g-foot { margin-top: 10px; font-size: 14px; }
+  .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .cards.one { grid-template-columns: 1fr; }
+  @media (max-width: 620px) { .cards { grid-template-columns: 1fr; } }
+  .pcard { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-left: 4px solid var(--c); border-radius: 12px; background: var(--bg); text-align: left; cursor: pointer; }
+  .pcard:hover { background: var(--cs); }
+  .s-good { --c: var(--good); --cs: var(--good-s); } .s-test { --c: var(--test); --cs: var(--test-s); } .s-warn { --c: var(--warn); --cs: var(--warn-s); } .s-wait { --c: var(--wait); --cs: var(--wait-s); } .s-new { --c: var(--new); --cs: var(--new-s); }
+  .pc-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .pc-top b { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+  .pc-kw { font-size: 13.5px; color: var(--dim); }
+  .pc-spark svg { display: block; width: 100%; max-width: 200px; height: 22px; }
+  .pc-foot { margin-top: 4px; font-size: 13.5px; }
+  .rk { flex: none; padding: 2px 8px; border-radius: 6px; background: var(--cs); color: var(--c); font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .c-act { color: var(--warn); font-weight: 600; }
+  .c-ok { color: var(--good); font-weight: 600; }
+  .c-mute { color: var(--faint); }
+  .btn.sm { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; font-size: 13px; }
+  .tb { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--dim); }
+  .tb i { flex: 1; height: 6px; border-radius: 3px; background: var(--test-s); overflow: hidden; }
+  .tb i em { display: block; height: 100%; background: var(--test); }
+  .tb b { color: var(--test); }
+  .eng-row { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 4px; }
+  .eg { display: inline-flex; align-items: center; gap: 4px; }
+  .eg small { font-size: 12px; color: var(--faint); margin-right: 2px; }
+  .eg i { width: 11px; height: 11px; border-radius: 50%; }
+  .eg i.y { background: var(--good); }
+  .eg i.n { border: 2px solid var(--bad); opacity: .55; }
+  .eg em { font-style: normal; color: var(--faint); font-size: 12px; }
+  .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .tile { padding: 14px; border-radius: 12px; background: var(--cs); border-top: 3px solid var(--c); min-width: 0; }
+  .t-good { --c: var(--good); --cs: var(--good-s); } .t-amber { --c: var(--amber); --cs: var(--amber-s); } .t-bad { --c: var(--bad); --cs: var(--bad-s); } .t-wait { --c: var(--wait); --cs: var(--wait-s); }
+  .tile b { display: block; font: 600 24px var(--display); color: var(--c); overflow-wrap: anywhere; }
+  .tile span { font-size: 12.5px; color: var(--dim); }
+  .tile i { display: block; height: 6px; margin-top: 8px; border-radius: 3px; background: var(--bg); overflow: hidden; }
+  .tile i em { display: block; height: 100%; background: var(--c); }
+  @media (max-width: 700px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .ck { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--cs); font-size: 14px; }
+  .ck.ok { --c: var(--good); --cs: var(--good-s); } .ck.no { --c: var(--warn); --cs: var(--warn-s); }
+  .ck i { display: grid; place-items: center; width: 22px; height: 22px; flex: none; border-radius: 50%; background: var(--c); color: #fff; font-style: normal; font-size: 12px; font-weight: 700; }
+  .ck span { flex: 1; min-width: 0; }
+  @media (max-width: 620px) { .checks { grid-template-columns: 1fr; } }
+  .call.s-warn, .call.s-test, .call.s-good, .call.s-wait { background: var(--cs); border-left: 4px solid var(--c); }
   .toast button { border: 0; background: none; color: var(--bg); text-decoration: underline; cursor: pointer; padding: 0; }
 </style>
 
-<div class="picker"><div class="picker-in"><b>Preview: Search &amp; AI, version 2.</b> Two tabs. <b>SEO</b> reads your homepage and main pages, finds the keyword each one targets, shows where you rank and what to change in the title, H1 or headings. <b>GEO</b> checks whether ChatGPT, Perplexity, Gemini and Google’s AI Overview name you for the questions buyers ask. Every change you make becomes a test with a date you’ll know by. “Recheck all keywords” runs a fresh check any time. Example data for Frekto. Click anything.</div></div>
+<div class="picker"><div class="picker-in"><b>Preview: Search &amp; AI, version 3.</b> Colour-coded: green working, blue testing, red needs a change, grey waiting, purple to add. The Google bar shows where your keywords rank, from page 1 to not found. Example data for Frekto. Click anything.</div></div>
 
 <div class="frame">
   <nav class="side" aria-label="App">
@@ -339,7 +410,7 @@ function rankChart(p) {
   const ranks = p.ranks, n = ranks.length
   const x = i => L + i / (n - 1) * (W - L - R)
   const y = r => yR(r, T, H - T - B)
-  let g = ''
+  let g = [[1, 10, 'good'], [10, 30, 'amber'], [30, 100, 'orange']].map(([a, b, c]) => `<rect x="${L}" width="${W - L - R}" y="${y(a)}" height="${y(b) - y(a)}" fill="var(--${c}-s)"/>`).join('')
   for (const v of [1, 10, 30, 100]) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="12" fill="var(--faint)">#${v}</text>`
   S.checks.forEach((c, i) => { if (i % 2 === 0 || i === n - 1) g += `<text x="${x(i)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}" font-size="12" fill="var(--faint)">${c}</text>` })
   // The change being tested: a dashed line on the week it went live
@@ -389,98 +460,120 @@ function header() {
     </div>` : ''}`
 }
 
-function testRow(o) {
-  const pct = progress(o.at), kb = knowBy(o.at)
-  const done = pct >= 1
-  return `<button class="test" data-${o.kind}="${o.idx}">
-    <span class="t-name">${esc(o.title)}</span>
-    <span class="t-sub">${esc(o.sub)}</span>
-    <span class="t-when"><b>${done ? 'Answer ready' : 'Know by ' + fmtD(kb)}</b>${done ? '' : TODAY < earlyBy(o.at) ? 'first sign ' + fmtD(earlyBy(o.at)) : o.early}</span>
-    <span class="t-track"><span>${o.at}</span><i><em style="width:${pct * 100}%"></em></i><span>${fmtD(kb)}</span></span>
-  </button>`
+// ── Colour code ──────────────────────────────────────────────────────────────
+// Where a keyword ranks (zone) and what to do about it (status) each have one colour.
+const ZONES = [
+  { k: 'p1', label: 'Page 1', sub: '#1–10', c: 'good', has: r => r && r <= 10 },
+  { k: 'close', label: 'Close', sub: '#11–30', c: 'amber', has: r => r && r > 10 && r <= 30 },
+  { k: 'far', label: 'Far back', sub: '#31–100', c: 'orange', has: r => r && r > 30 },
+  { k: 'none', label: 'Not found', sub: 'not in top 100', c: 'wait', has: r => !r },
+]
+const zoneOf = r => ZONES.find(z => z.has(r))
+const rankBadge = r => `<span class="rk c-${zoneOf(r).c}">${r ? '#' + r : '—'}</span>`
+const STATUS = {
+  change: { label: 'Needs a change', c: 'warn' }, refresh: { label: 'Needs a change', c: 'warn' }, missing: { label: 'Not named', c: 'warn' },
+  test: { label: 'Testing', c: 'test' }, working: { label: 'Working', c: 'good' }, named: { label: 'Named', c: 'good' },
+  wait: { label: 'Waiting', c: 'wait' }, none: { label: 'Waiting', c: 'wait' },
 }
+const legend = items => `<div class="legend">${items.map(([c, l]) => `<span><i class="dot c-${c}"></i>${l}</span>`).join('')}</div>`
+const groupHead = (c, title, n, note) => `<div class="g-h"><span class="pill c-${c}">${title}<b>${n}</b></span>${note ? `<span class="g-note">${note}</span>` : ''}</div>`
+const testBar = at => `<div class="tb"><i><em style="width:${progress(at) * 100}%"></em></i><span>Know by <b>${fmtD(knowBy(at))}</b></span></div>`
 
 function seoView() {
   const pages = PAGES.filter(p => p.kw)
-  const c = { p1: pages.filter(p => now(p) && now(p) <= 10).length, near: pages.filter(p => now(p) > 10 && now(p) <= 30).length, far: pages.filter(p => now(p) > 30).length, none: pages.filter(p => !now(p)).length }
-  const tests = PAGES.map((p, i) => ({ p, i })).filter(o => o.p.test).map(o => {
-    const before = o.p.test.before, cur = now(o.p)
-    const moved = cur && before ? before - cur : 0
-    return { kind: 'page', idx: o.i, at: o.p.test.at, title: `${o.p.test.what} on ${o.p.path === '/' ? 'your homepage' : o.p.path}`, sub: `“${o.p.kw}” · was #${before}, now #${cur}`, early: moved >= 5 ? `early sign: up ${moved}` : moved > 0 ? `up ${moved} so far` : 'no move yet' }
-  })
-  const todo = PAGES.map((p, i) => ({ p, i })).filter(o => o.p.v === 'refresh' || o.p.v === 'change')
-  const first = todo[0]
+  const zoned = ZONES.map(z => ({ z, list: PAGES.map((p, i) => ({ p, i })).filter(o => o.p.kw && z.has(now(o.p))) }))
+  const groups = [
+    { c: 'warn', title: 'Needs a change', v: ['refresh', 'change'], note: 'We wrote the new wording' },
+    { c: 'test', title: 'Testing', v: ['test'], note: `${SEO_WEEKS} weeks per change` },
+    { c: 'good', title: 'Working', v: ['working'] },
+    { c: 'wait', title: 'Waiting', v: ['wait', 'none'], note: 'Too early to judge' },
+  ]
+  let firstDone = false
+  const card = (p, i) => {
+    const st = STATUS[p.v]
+    let foot = ''
+    if (p.v === 'test') foot = testBar(p.test.at)
+    else if (p.v === 'refresh' || p.v === 'change') { foot = `<span class="c-act">${p.v === 'refresh' ? 'Update the page' : 'Change the keyword'} →</span>`; if (!firstDone) { foot = `<span class="btn go sm">Fix this first →</span>`; firstDone = true } }
+    else if (p.v === 'working') foot = `<span class="c-ok">Keep it</span>`
+    else foot = `<span class="c-mute">${p.kw ? 'Judge from ' + '25 Nov' : 'No keyword (fine)'}</span>`
+    return `<button class="pcard s-${st.c}" data-page="${i}">
+      <span class="pc-top"><b>${esc(p.path === '/' ? 'Homepage' : p.path)}</b>${p.kw ? rankBadge(now(p)) : ''}</span>
+      <span class="pc-kw">${p.kw ? esc(p.kw) : 'About page'}</span>
+      ${p.ranks ? `<span class="pc-spark">${spark(p.ranks)}</span>` : ''}
+      <span class="pc-foot">${foot}</span>
+    </button>`
+  }
   return `<div class="view">
-    <div class="sec"><div class="sec-h"><h2>Where you stand on Google</h2><span>Each dot is a page and the search it targets · tap one</span></div>
-      <div class="map"><div class="map-scroll">${standMap()}</div>
-        <div class="counts"><div><b>${c.p1}</b><span>on page 1</span></div><div><b>${c.near}</b><span>#11 to #30</span></div><div><b>${c.far}</b><span>#31 to #100</span></div><div><b>${c.none}</b><span>not found</span></div></div>
-      </div>
-    </div>
+    ${legend([['good', 'Working'], ['test', 'Testing'], ['warn', 'Needs a change'], ['wait', 'Waiting'], ['new', 'To add']])}
 
-    ${first ? `<div class="next"><div class="next-text"><span class="eyebrow">Start here</span><b>${first.p.v === 'refresh' ? `Update ${first.p.path}: it’s slipping` : `Change the keyword on ${first.p.path}`}</b><span class="s">“${esc(first.p.kw)}” · ${now(first.p) ? 'was #' + Math.min(...first.p.ranks.filter(Boolean)) + ', now #' + now(first.p) : 'never found'}. We wrote the new title and headings.</span></div><button class="btn go" data-page="${first.i}">See what to change</button></div>` : ''}
+    <section class="sec"><div class="sec-h"><h2>Where you stand on Google</h2></div>
+      <div class="zbar" role="img" aria-label="Your keywords by Google position">${zoned.filter(o => o.list.length).map(o => `<span class="c-${o.z.c}" style="flex:${o.list.length}">${o.list.length}</span>`).join('')}</div>
+      <div class="zones">${zoned.map(o => `<div class="zone z-${o.z.c}">
+        <div class="z-h"><b>${o.z.label}</b><span>${o.z.sub}</span></div>
+        ${o.list.length ? o.list.map(x => `<button class="chip" data-page="${x.i}">${esc(x.p.kw)}<em>${now(x.p) ? '#' + now(x.p) : ''}</em></button>`).join('') : '<span class="z-empty">None</span>'}
+      </div>`).join('')}</div>
+    </section>
 
-    <div class="sec"><div class="sec-h"><h2>Changes you’re testing</h2><button class="link" data-go="changed">I changed something</button></div>
-      <p class="lead">Each change gets ${SEO_WEEKS} weeks. Google re-reads the page in 1 to 2 weeks; the position settles after that.</p>
-      ${tests.map(testRow).join('')}
-    </div>
+    ${groups.map(g => {
+      const list = PAGES.map((p, i) => ({ p, i })).filter(o => g.v.includes(o.p.v))
+      if (!list.length) return ''
+      return `<section class="sec">${groupHead(g.c, g.title, list.length, g.note)}<div class="cards">${list.map(o => card(o.p, o.i)).join('')}</div>
+        ${g.c === 'test' ? `<div class="g-foot"><button class="link" data-go="changed">I changed something</button></div>` : ''}</section>`
+    }).join('')}
 
-    <div class="sec"><div class="sec-h"><h2>Your pages</h2><span>${PAGES.length} pages read · keyword found from each page’s title, H1 and headings</span></div>
-      <div class="tbl-wrap"><table>
-        <thead><tr><th>Page</th><th>Targets</th><th>9 weeks</th><th class="num">Now</th><th class="num">Searches</th><th>What to do</th></tr></thead>
-        <tbody>${PAGES.map((p, i) => `<tr class="click" data-page="${i}" tabindex="0">
-          <td class="pg">${esc(p.path)}<small>${esc(p.h1)}</small></td>
-          <td>${p.kw ? esc(p.kw) : '<span class="muted">No search targeted</span>'}</td>
-          <td>${p.ranks ? spark(p.ranks) : ''}</td>
-          <td class="num">${p.kw ? (now(p) ? '#' + now(p) : '<span class="muted">—</span>') : ''}</td>
-          <td class="num">${p.vol ? fmt(p.vol) : ''}</td>
-          <td><span class="v${ACT.has(p.v) ? ' act' : ''}">${p.v === 'test' ? 'Testing · know by ' + fmtD(knowBy(p.test.at)) : LABEL[p.v]}${ACT.has(p.v) ? ' ›' : ''}</span></td>
-        </tr>`).join('')}</tbody>
-      </table></div>
-    </div>
-
-    <div class="sec"><div class="sec-h"><h2>Keywords to add</h2><span>Searches your buyers make that no page targets yet</span></div>
-      ${ADD.map((a, i) => `<div class="row static"><span class="r-main"><span class="r-name">${esc(a.k)}</span><span class="r-why">${fmt(a.vol)} searches a month · difficulty ${a.kd} · ${esc(a.where)}. ${esc(a.why)}</span></span><button class="link" data-add="${i}">Plan it</button></div>`).join('')}
-    </div>
+    <section class="sec">${groupHead('new', 'Keywords to add', ADD.length, 'No page targets these yet')}
+      <div class="cards">${ADD.map((a, i) => `<button class="pcard s-new" data-add="${i}">
+        <span class="pc-top"><b>${esc(a.k)}</b><span class="rk c-new">+</span></span>
+        <span class="pc-kw">${fmt(a.vol)} searches · difficulty ${a.kd}</span>
+        <span class="pc-foot"><span class="c-mute">${esc(a.where)}</span></span>
+      </button>`).join('')}</div>
+    </section>
   </div>`
 }
 
 function geoView() {
   const asked = QS.reduce((t, q) => t + q.of.reduce((a, b) => a + b, 0), 0)
   const named = QS.reduce((t, q) => t + q.hits.reduce((a, b) => a + b, 0), 0)
-  const first = QS.map((q, i) => ({ q, i })).find(o => o.q.v === 'missing' && o.q.hits.every(h => h === 0)) || QS.map((q, i) => ({ q, i })).find(o => o.q.v === 'missing')
-  const tests = QS.map((q, i) => ({ q, i })).filter(o => o.q.test).map(o => {
-    const h = o.q.hits.reduce((a, b) => a + b, 0), of = o.q.of.reduce((a, b) => a + b, 0)
-    return { kind: 'q', idx: o.i, at: o.q.test.at, title: `${o.q.test.what}`, sub: `“${o.q.q}” · was named in ${o.q.test.before}, now ${h} of ${of}`, early: `early sign: up` }
-  })
+  const pct = Math.round(named / asked * 100)
+  const groups = [
+    { c: 'warn', title: 'Not named', v: ['missing'], note: 'Rivals are named instead' },
+    { c: 'test', title: 'Testing', v: ['test'], note: `${GEO_WEEKS} weeks per change` },
+    { c: 'good', title: 'Named', v: ['named'] },
+  ]
+  let firstDone = false
+  const card = (q, i) => {
+    const st = STATUS[q.v]
+    const h = q.hits.reduce((a, b) => a + b, 0), of = q.of.reduce((a, b) => a + b, 0)
+    let foot = q.v === 'test' ? testBar(q.test.at) : q.v === 'named' ? '<span class="c-ok">Keep it up</span>' : `<span class="c-act">${esc(q.todo[0][0])} →</span>`
+    if (q.v === 'missing' && !firstDone) { foot = `<span class="btn go sm">Fix this first →</span>`; firstDone = true }
+    return `<button class="pcard s-${st.c}" data-q="${i}">
+      <span class="pc-top"><b>${esc(q.q)}</b><span class="rk c-${h * 2 >= of ? 'good' : 'warn'}">${h}/${of}</span></span>
+      <span class="eng-row">${ENG.map((e, j) => `<span class="eg"><small>${e === 'Google AI' ? 'Google' : e}</small>${q.of[j] ? Array.from({ length: q.of[j] }, (_, k) => `<i class="${k < q.hits[j] ? 'y' : 'n'}"></i>`).join('') : '<em>—</em>'}</span>`).join('')}</span>
+      <span class="pc-foot">${foot}</span>
+    </button>`
+  }
   return `<div class="view">
-    <div class="sec"><div class="sec-h"><h2>Where you stand in AI answers</h2><span>This week · each question asked twice to each assistant</span></div>
-      <div class="map">
-        <div class="counts" style="border-top:0;margin-top:0"><div><b>${Math.round(named / asked * 100)}%</b><span>of answers name you</span></div><div><b>${QS.filter(q => q.hits.reduce((a, b) => a + b, 0) * 2 >= q.of.reduce((a, b) => a + b, 0)).length} of ${QS.length}</b><span>questions where you’re usually named</span></div><div><b>Canva</b><span>named most instead</span></div><div><b>zapier.com</b><span>cited most</span></div></div>
+    ${legend([['good', 'Named'], ['test', 'Testing'], ['warn', 'Not named']])}
+
+    <section class="sec"><div class="sec-h"><h2>Where you stand in AI answers</h2></div>
+      <div class="tiles">
+        <div class="tile t-${pct >= 50 ? 'good' : pct >= 25 ? 'amber' : 'bad'}"><b>${pct}%</b><span>of AI answers name you</span><i><em style="width:${pct}%"></em></i></div>
+        <div class="tile t-good"><b>${QS.filter(q => q.v === 'named').length} of ${QS.length}</b><span>questions you’re named for</span></div>
+        <div class="tile t-wait"><b>Canva</b><span>named most instead of you</span></div>
+        <div class="tile t-wait"><b>zapier.com</b><span>site AI cites most</span></div>
       </div>
-    </div>
+    </section>
 
-    ${first ? `<div class="next"><div class="next-text"><span class="eyebrow">Start here</span><b>You’re not named for “${esc(first.q.q)}”</b><span class="s">${esc(first.q.others)} are, in all ${first.q.of.reduce((a, b) => a + b, 0)} answers. The fix: ${esc(first.q.todo[0][0].toLowerCase())}.</span></div><button class="btn go" data-q="${first.i}">See what to do</button></div>` : ''}
+    ${groups.map(g => {
+      const list = QS.map((q, i) => ({ q, i })).filter(o => g.v.includes(o.q.v))
+      if (!list.length) return ''
+      return `<section class="sec">${groupHead(g.c, g.title, list.length, g.note)}<div class="cards one">${list.map(o => card(o.q, o.i)).join('')}</div>
+        ${g.c === 'test' ? `<div class="g-foot"><button class="link" data-go="changed">I changed something</button></div>` : ''}</section>`
+    }).join('')}
 
-    <div class="sec"><div class="sec-h"><h2>Changes you’re testing</h2><button class="link" data-go="changed">I changed something</button></div>
-      <p class="lead">AI that searches the web (Perplexity, ChatGPT search, Google AI Overview) picks up a change 1 to 3 weeks after Google has the page. We give each change ${GEO_WEEKS} weeks.</p>
-      ${tests.map(testRow).join('')}
-    </div>
-
-    <div class="sec"><div class="sec-h"><h2>Questions buyers ask AI</h2><span>● named · ○ not named · one dot per answer</span></div>
-      <div class="grid"><table>
-        <thead><tr><th>Question</th>${ENG.map(e => `<th>${e}</th>`).join('')}<th>Result</th></tr></thead>
-        <tbody>${QS.map((q, i) => `<tr class="click" data-q="${i}" tabindex="0">
-          <td class="q">${esc(q.q)}<small>Your SEO keyword: ${esc(q.from)}</small></td>
-          ${ENG.map((e, j) => `<td>${q.of[j] ? `<span class="dots" aria-label="${q.hits[j]} of ${q.of[j]}">${Array.from({ length: q.of[j] }, (_, k) => `<i class="${k < q.hits[j] ? 'y' : ''}"></i>`).join('')}</span>` : '<span class="muted">none shown</span>'}</td>`).join('')}
-          <td><span class="v${ACT.has(q.v) ? ' act' : ''}">${q.v === 'test' ? 'Testing · know by ' + fmtD(knowBy(q.test.at)) : LABEL[q.v]}${ACT.has(q.v) ? ' ›' : ''}</span></td>
-        </tr>`).join('')}</tbody>
-      </table></div>
-      <div class="foot"><span>Questions are picked from your SEO keywords and your brand.</span><button class="link" data-go="addq">Add a question</button></div>
-    </div>
-
-    <div class="sec"><div class="sec-h"><h2>Is your site ready for AI?</h2><span>From your AI readiness check</span></div>
-      ${GEO_SITE.map(s => `<div class="row static"><span class="r-ok" aria-label="${s.ok ? 'done' : 'to do'}">${s.ok ? '✓' : '○'}</span><span class="r-main"><span class="r-name">${esc(s.name)}</span><span class="r-why">${esc(s.why)}</span></span>${s.ok ? '' : '<button class="link" data-fix>Fix it</button>'}</div>`).join('')}
-    </div>
+    <section class="sec">${groupHead(GEO_SITE.every(s => s.ok) ? 'good' : 'warn', 'Site ready for AI', `${GEO_SITE.filter(s => s.ok).length}/${GEO_SITE.length}`)}
+      <div class="checks">${GEO_SITE.map(s => `<div class="ck ${s.ok ? 'ok' : 'no'}"><i>${s.ok ? '✓' : '!'}</i><span>${esc(s.name)}</span>${s.ok ? '' : '<button class="link" data-fix>Fix</button>'}</div>`).join('')}</div>
+    </section>
   </div>`
 }
 
@@ -498,18 +591,18 @@ function pageOpen(i) {
   let call = ''
   if (p.v === 'test') {
     const kb = knowBy(p.test.at), pct = progress(p.test.at), moved = p.test.before - now(p)
-    call = `<div class="call"><h3>Testing: ${esc(p.test.what.toLowerCase())} since ${p.test.at}</h3>
+    call = `<div class="call s-test"><h3>Testing: ${esc(p.test.what.toLowerCase())} since ${p.test.at}</h3>
       <div class="wait"><span>${p.test.at}</span><i><em style="width:${pct * 100}%"></em></i><span>know by ${fmtD(kb)}</span></div>
       <p>Was #${p.test.before}, now #${now(p)}${moved > 0 ? ` (up ${moved})` : ''}. ${TODAY < earlyBy(p.test.at) ? `Google needs 1 to 2 weeks to re-read the page, so the first sign comes around ${fmtD(earlyBy(p.test.at))}.` : moved >= 5 ? 'An early good sign.' : 'No clear move yet.'} On ${fmtD(kb)} we’ll tell you one of three things:</p>
       <ul><li><b>Working</b>: up 5 or more places. Keep it.</li><li><b>Give it 2 more weeks</b>: moving, but slowly.</li><li><b>Change it</b>: no move. We’ll suggest a different wording.</li></ul>
       <div class="acts"><button class="link" data-act="undo:${i}">I changed it back</button></div></div>`
   } else if (p.v === 'working') {
-    call = `<div class="call"><h3>Working. Keep it.</h3><p>${esc(p.done.what)} ${p.done.at}: ${esc(p.done.result)}. A short FAQ at the end can help it reach the top 3.</p></div>`
+    call = `<div class="call s-good"><h3>Working. Keep it.</h3><p>${esc(p.done.what)} ${p.done.at}: ${esc(p.done.result)}. A short FAQ at the end can help it reach the top 3.</p></div>`
   } else if (p.v === 'wait') {
-    call = `<div class="call"><h3>Give it time</h3><p>${esc(p.why)}</p></div>`
+    call = `<div class="call s-wait"><h3>Give it time</h3><p>${esc(p.why)}</p></div>`
   } else {
     const isChange = p.v === 'change'
-    call = `<div class="call"><h3>${isChange ? 'Change the keyword this page targets' : 'Update the page, keep the keyword'}</h3><p>${esc(p.why)}</p>
+    call = `<div class="call s-warn"><h3>${isChange ? 'Change the keyword this page targets' : 'Update the page, keep the keyword'}</h3><p>${esc(p.why)}</p>
       ${isChange ? `<p style="margin-top:-4px"><b style="color:var(--text)">${esc(p.newKw.k)}</b> · ${fmt(p.newKw.vol)} searches a month · difficulty ${p.newKw.kd}</p>` : ''}
       <div class="sugg">${p.sugg.map(([t, v]) => `<div><span>${t}</span><b>${esc(v)}${t !== 'H2' && p[t.toLowerCase()] ? `<em>now: ${esc(p[t.toLowerCase()])}</em>` : t === 'H2' ? '<em>new section</em>' : ''}</b><button class="link" data-copy="${esc(v)}">Copy</button></div>`).join('')}</div>
       <p>Make the change on your site, then press the button. We start the clock and tell you by ${fmtD(addW(TODAY, SEO_WEEKS))} whether it worked.</p>
@@ -518,6 +611,7 @@ function pageOpen(i) {
   return `<div class="open view">
     <button class="link back" data-back>‹ Back</button>
     <h2>${esc(p.path === '/' ? 'Homepage' : p.path)}</h2>
+    <div class="g-h" style="margin:6px 0"><span class="pill c-${STATUS[p.v].c}">${STATUS[p.v].label}</span>${rankBadge(now(p))}</div>
     <p class="sub">Targets “${esc(p.kw)}” · ${fmt(p.vol)} searches a month · difficulty ${p.kd}</p>
     ${says}
     <div class="chart"><div class="chart-h"><span>Google position at each weekly check</span><span>Best #${best} · now ${now(p) ? '#' + now(p) : 'not found'}</span></div>${rankChart(p)}</div>
@@ -530,20 +624,21 @@ function qOpen(i) {
   let call = ''
   if (q.v === 'test') {
     const kb = knowBy(q.test.at)
-    call = `<div class="call"><h3>Testing: ${esc(q.test.what.toLowerCase())} since ${q.test.at}</h3><div class="wait"><span>${q.test.at}</span><i><em style="width:${progress(q.test.at) * 100}%"></em></i><span>know by ${fmtD(kb)}</span></div>
+    call = `<div class="call s-test"><h3>Testing: ${esc(q.test.what.toLowerCase())} since ${q.test.at}</h3><div class="wait"><span>${q.test.at}</span><i><em style="width:${progress(q.test.at) * 100}%"></em></i><span>know by ${fmtD(kb)}</span></div>
       <p>Was named in ${q.test.before}, now ${h} of ${of}. Perplexity and ChatGPT picked it up first. On ${fmtD(kb)} we tell you whether it worked. Answers vary week to week, so we judge from the last 3 checks, not one.</p></div>`
   } else if (q.v === 'named') {
-    call = `<div class="call"><h3>You’re named. Keep it up.</h3><p>Named in ${h} of ${of} answers. Your Etsy post is what Perplexity cites. Keep that page up to date.</p></div>`
+    call = `<div class="call s-good"><h3>You’re named. Keep it up.</h3><p>Named in ${h} of ${of} answers. Your Etsy post is what Perplexity cites. Keep that page up to date.</p></div>`
   } else {
-    call = `<div class="call"><h3>What to do, most useful first</h3><ol>${q.todo.map(([t, w]) => `<li><b style="color:var(--text)">${esc(t)}.</b> ${esc(w)}</li>`).join('')}</ol>
+    call = `<div class="call s-warn"><h3>What to do, most useful first</h3><ol>${q.todo.map(([t, w]) => `<li><b style="color:var(--text)">${esc(t)}.</b> ${esc(w)}</li>`).join('')}</ol>
       <p>When one is done, press the button. We start the clock and tell you by ${fmtD(addW(TODAY, GEO_WEEKS))} whether AI names you.</p>
       <div class="acts"><button class="btn go" data-act="qdo:${i}">${esc(q.todo[0][2] || 'I’ve done this')}</button><button class="btn" data-act="qmade:${i}">I’ve done one of these</button><button class="btn quiet" data-back>Not now</button></div></div>`
   }
   return `<div class="open view">
     <button class="link back" data-back>‹ Back</button>
     <h2>“${esc(q.q)}”</h2>
+    <div class="g-h" style="margin:6px 0"><span class="pill c-${STATUS[q.v].c}">${STATUS[q.v].label}</span></div>
     <p class="sub">Named in ${h} of ${of} answers this week · your SEO keyword: ${esc(q.from)}</p>
-    <div style="margin-top:16px;border-top:1px solid var(--line)">${ENG.map((e, j) => `<div class="eng"><b>${e}</b><span>${q.of[j] ? (q.hits[j] ? `Named you in ${q.hits[j]} of ${q.of[j]}` : `Didn’t name you (${q.of[j]} of ${q.of[j]})`) + ` · named instead: ${esc(q.others)}` : 'Google showed no AI Overview for this'}</span></div>`).join('')}
+    <div style="margin-top:16px;border-top:1px solid var(--line)">${ENG.map((e, j) => `<div class="eng"><b><i class="dot c-${!q.of[j] ? 'wait' : q.hits[j] ? 'good' : 'bad'}" style="margin-right:8px"></i>${e}</b><span>${q.of[j] ? (q.hits[j] ? `Named you in ${q.hits[j]} of ${q.of[j]}` : `Didn’t name you (${q.of[j]} of ${q.of[j]})`) + ` · named instead: ${esc(q.others)}` : 'Google showed no AI Overview for this'}</span></div>`).join('')}
       <div class="eng"><b>Sites AI cited</b><span>${esc(q.cites)}</span></div></div>
     <div class="chart"><div class="chart-h"><span>Answers that named you, out of 7, each week</span><span>All four assistants</span></div>${geoChart(q)}</div>
     ${call}</div>`
