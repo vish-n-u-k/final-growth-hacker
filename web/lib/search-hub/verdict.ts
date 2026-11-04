@@ -1,6 +1,5 @@
-// Search & AI page (/search-ai): every tracked keyword is judged from its weekly history, and the
-// page's to-dos, numbers and lists are shaped here from the Search Agent's saved data. Pure functions
-// (no I/O), so the server page and the browser use the same code.
+// Search & AI page (/search-ai): every tracked keyword is judged from its weekly history. Pure functions
+// (no I/O), so the server page and the browser use the same code. The page itself is shaped in model.ts.
 //
 // Verdicts, checked in this order (thresholds below):
 // - Refresh page: it reached the top 20, then sat 3+ places (5 on DataForSEO's estimate) below its
@@ -12,7 +11,7 @@
 // - Anything else (#11-#30, steady): Keep.
 // "Keep it" on a suggested change or drop holds the keyword for 4 weeks.
 
-import type { AgentTask, AiAnswer, IdeaRow, RankRow, RankSnapshot, SearchAgentData, Topic, TrackedKeyword } from '@/lib/agents/store'
+import type { AiAnswer, IdeaRow, RankRow, RankSnapshot, SearchAgentData, TrackedKeyword } from '@/lib/agents/store'
 
 export type Verdict = 'keep' | 'wait' | 'change' | 'refresh' | 'drop'
 export const VERDICT_LABEL: Record<Verdict, string> = { keep: 'Keep', wait: 'Give it time', change: 'Change', refresh: 'Refresh page', drop: 'Drop' }
@@ -36,6 +35,8 @@ export function ensureTracked(d: SearchAgentData, now = new Date()): boolean {
   const list = d.tracked ?? (d.tracked = [])
   const known = new Set(list.map(t => t.keyword))
   const want = [
+    // The searches the brand's own pages target come first (Search & AI page)
+    ...(d.pages ?? []).map(p => p.keyword ?? ''),
     ...d.settings.seeds,
     ...d.topics.filter(t => t.status === 'drafted' || t.status === 'approved' || t.status === 'published' || t.status === 'writing').map(t => t.keyword),
   ].map(kwKey).filter(Boolean)
@@ -65,6 +66,15 @@ export function recordSnapshot(d: SearchAgentData, rows: RankRow[], source: 'gsc
       ...(overview.has(t.keyword) ? { ai: overview.get(t.keyword) } : {}),
     }
   }
+  // Buyer questions: answers that named the brand (Google AI Overviews answer keywords, not questions)
+  const qs: Record<string, { hits: number; samples: number }> = {}
+  for (const a of answers.filter(x => x.engine !== 'google_ai' && !x.error)) {
+    const cur = qs[a.question] ?? { hits: 0, samples: 0 }
+    cur.hits += a.hits ?? (a.mentioned ? 1 : 0)
+    cur.samples += a.samples ?? 1
+    qs[a.question] = cur
+  }
+  if (Object.keys(qs).length) snap.questions = qs
   d.rankHistory = [...(d.rankHistory ?? []), snap].slice(-HISTORY_KEEP)
 }
 
@@ -95,7 +105,7 @@ export interface KeywordView {
 
 const STOP = new Set(['for', 'the', 'and', 'with', 'from', 'your', 'best', 'free', 'how', 'what', 'tool', 'tools', 'app', 'apps', 'online', 'small', 'business'])
 const words = (k: string) => kwKey(k).split(' ').filter(w => w.length > 2 && !STOP.has(w))
-const fmtDay = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+const fmtDay = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 const place = (r: number | null) => (r === null ? 'not found' : `#${r}`)
 
 /** A closer, easier search the same page can win: shares a real word, lower difficulty, some searches.
@@ -202,130 +212,4 @@ export function judgeKeyword(t: TrackedKeyword, d: SearchAgentData, now = new Da
       swap ? ['Swap it for a closer search the same page can win.'] : ['We found no easier search yet. Drop it, or keep it a few more weeks.'], swap)
   }
   return out('keep', `#${cur}, close to page 1.`, ['Keep it.', 'A rewrite that answers more of the search could move it onto page 1.'])
-}
-
-// ── The whole page ───────────────────────────────────────────────────────────
-
-export type TodoKind = 'refresh' | 'change' | 'drop' | 'fix' | 'write' | 'draft' | 'listing' | 'ads' | 'site'
-export interface HubTodo {
-  key: string
-  kind: TodoKind
-  title: string
-  why: string
-  keyword?: string        // keyword to-dos: opens the keyword
-  taskKey?: string        // Search Agent to-dos
-  href?: string           // where the work is done
-  detail?: string
-}
-export interface SiteIssue { key: string; label: string; detail: string; module: 'SEO' | 'AI readiness'; href: string }
-export interface QuestionView {
-  question: string
-  engines: { engine: string; hits: number; samples: number }[]
-  instead: string[]
-  cited: { domain: string; n: number }[]
-}
-export interface PostView { keyword: string; title: string; status: Topic['status']; kind: 'new' | 'improve'; rank: number | null; verdict: Verdict | null; clicks: number | null; blogId?: string }
-export interface HubModel {
-  keywords: KeywordView[]
-  dropped: TrackedKeyword[]
-  todos: HubTodo[]
-  questions: QuestionView[]
-  overviews: { keyword: string; named: boolean }[]
-  posts: PostView[]
-  ideas: IdeaRow[]
-  stats: {
-    clicks: number | null; clicksTrend: number[]
-    page1: number; page1Trend: number[]; tracked: number; top20: number
-    aiPct: number | null; aiTrend: number[]; aiAnswers: number
-  }
-  source: 'gsc' | 'labs'
-  checkedAt: string | null
-}
-
-const ENGINE_ORDER = ['chat_gpt', 'perplexity', 'gemini']
-export const ENGINE_NAME: Record<string, string> = { chat_gpt: 'ChatGPT', perplexity: 'Perplexity', gemini: 'Gemini', google_ai: 'Google AI Overview' }
-
-function questionsOf(answers: AiAnswer[], brand: string): QuestionView[] {
-  const byQ = new Map<string, AiAnswer[]>()
-  for (const a of answers.filter(x => x.engine !== 'google_ai' && !x.error)) byQ.set(a.question, [...(byQ.get(a.question) ?? []), a])
-  return [...byQ.entries()].map(([question, list]) => {
-    const cites = new Map<string, number>()
-    for (const a of list) for (const c of a.citations) if (c.domain) cites.set(c.domain, (cites.get(c.domain) ?? 0) + 1)
-    return {
-      question,
-      engines: ENGINE_ORDER.map(e => {
-        const a = list.find(x => x.engine === e)
-        return { engine: e, hits: a ? (a.hits ?? (a.mentioned ? 1 : 0)) : 0, samples: a ? (a.samples ?? 1) : 0 }
-      }),
-      instead: [...new Set(list.flatMap(a => [...a.brands, ...(a.others ?? [])]))].filter(n => n.toLowerCase() !== brand.toLowerCase()).slice(0, 5),
-      cited: [...cites.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([domain, n]) => ({ domain, n })),
-    }
-  }).sort((a, b) => a.engines.reduce((t, e) => t + e.hits, 0) - b.engines.reduce((t, e) => t + e.hits, 0))
-}
-
-const TASK_KIND: Record<AgentTask['kind'], TodoKind> = { refresh: 'refresh', fix: 'fix', write: 'write', listing: 'listing', ads: 'ads' }
-const ORDER: TodoKind[] = ['refresh', 'fix', 'change', 'drop', 'draft', 'write', 'listing', 'site', 'ads']
-
-export function buildHub(d: SearchAgentData, brand: string, site: SiteIssue[] = [], now = new Date()): HubModel {
-  const tracked = d.tracked ?? []
-  const keywords = tracked.filter(t => t.status === 'active').map(t => judgeKeyword(t, d, now))
-    .sort((a, b) => Number(ACTION_VERDICTS.has(b.verdict)) - Number(ACTION_VERDICTS.has(a.verdict)) || (a.now ?? 999) - (b.now ?? 999))
-  const todos: HubTodo[] = []
-  for (const k of keywords.filter(x => ACTION_VERDICTS.has(x.verdict))) {
-    todos.push({
-      key: `kw:${k.keyword}`, kind: k.verdict as TodoKind, keyword: k.keyword,
-      title: k.verdict === 'refresh' ? `Rewrite the page for “${k.keyword}”` : k.verdict === 'change' ? `Change “${k.keyword}”` : `Stop tracking “${k.keyword}”`,
-      why: k.reason,
-    })
-  }
-  // The Search Agent's own to-dos (a refresh for a page already covered by a keyword above is left out)
-  const kwPages = new Set(keywords.filter(k => k.verdict === 'refresh' && k.url).map(k => k.url))
-  for (const t of d.tasks.filter(x => x.status === 'open')) {
-    if (t.kind === 'refresh' && t.url && kwPages.has(t.url)) continue
-    todos.push({ key: `task:${t.key}`, kind: TASK_KIND[t.kind], taskKey: t.key, title: t.title, why: t.detail, href: '/agents/search' })
-  }
-  for (const t of d.topics.filter(x => x.status === 'drafted')) {
-    todos.push({ key: `draft:${t.keyword}`, kind: 'draft', title: `Read the draft for “${t.keyword}”`, why: t.kind === 'improve' ? 'A rewrite of your page is ready to read.' : 'A new post is ready to read and publish.', href: '/agents/search', keyword: kwKey(t.keyword) })
-  }
-  for (const s of site.slice(0, 3)) todos.push({ key: `site:${s.key}`, kind: 'site', title: s.label, why: s.detail, href: s.href, detail: s.module })
-  todos.sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind))
-
-  const history = d.rankHistory ?? []
-  const lastSource = history[history.length - 1]?.source ?? d.ranks?.source ?? 'labs'
-  const same = history.filter(s => s.source === lastSource)
-  const active = new Set(keywords.map(k => k.keyword))
-  const page1At = (s: RankSnapshot) => Object.entries(s.rows).filter(([k, p]) => active.has(k) && p.rank !== null && p.rank <= 10).length
-  const counted = d.mentionHistory.slice(-4)
-  const asked = counted.reduce((t, h) => t + h.asked, 0)
-  const answers = d.answers?.items ?? []
-
-  const rankNow = new Map(keywords.map(k => [k.keyword, k]))
-  const posts: PostView[] = d.topics.filter(t => t.status !== 'skipped').map(t => {
-    const k = rankNow.get(kwKey(t.keyword))
-    const r = k?.now ?? (d.ranks?.rows ?? []).find(x => kwKey(x.keyword) === kwKey(t.keyword))?.rank ?? null
-    return { keyword: t.keyword, title: t.keyword, status: t.status, kind: t.kind ?? 'new', rank: r, verdict: k?.verdict ?? null, clicks: k?.clicks ?? null, blogId: t.blogId }
-  })
-
-  return {
-    keywords,
-    dropped: tracked.filter(t => t.status === 'dropped').sort((a, b) => (b.droppedAt ?? '').localeCompare(a.droppedAt ?? '')),
-    todos,
-    questions: questionsOf(answers, brand),
-    overviews: answers.filter(a => a.engine === 'google_ai' && !a.error).map(a => ({ keyword: a.question, named: a.mentioned })),
-    posts,
-    ideas: (d.ideas?.rows ?? []).filter(i => (i.verdict === 'fit' || i.verdict === 'picked') && !active.has(kwKey(i.keyword))).slice(0, 8),
-    stats: {
-      clicks: lastSource === 'gsc' ? (same[same.length - 1]?.clicks ?? null) : null,
-      clicksTrend: same.map(s => s.clicks ?? 0),
-      page1: keywords.filter(k => k.now !== null && k.now <= 10).length,
-      page1Trend: same.map(page1At),
-      tracked: keywords.length,
-      top20: keywords.filter(k => k.now !== null && k.now > 10 && k.now <= 20).length,
-      aiPct: asked ? Math.round((100 * counted.reduce((t, h) => t + h.mentioned, 0)) / asked) : null,
-      aiTrend: d.mentionHistory.slice(-12).map(h => (h.asked ? Math.round((100 * h.mentioned) / h.asked) : 0)),
-      aiAnswers: asked,
-    },
-    source: lastSource,
-    checkedAt: d.lastResearchAt ?? null,
-  }
 }

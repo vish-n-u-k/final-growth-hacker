@@ -13,10 +13,11 @@ import SearchHubPage from '@/components/search-hub/SearchHubPage'
 
 export const dynamic = 'force-dynamic'
 
-// Search & AI: one page for Google rankings (SEO), AI answers (AEO / GEO), the keywords the brand tracks
-// (each judged weekly: keep, give it time, change, refresh the page, drop), blog posts and site checks.
-// Reads and writes the Search Agent's data (/api/agents/search); the logic is lib/search-hub/verdict.ts.
-// Built from the approved preview design-previews/tools-cleanup/search-hub.html.
+// Search & AI: two tabs. SEO = the brand's homepage and main pages, the search each targets, where it
+// ranks and what to change; GEO = whether AI assistants name the brand for buyer questions. Every change
+// is a test with a know-by date. Reads and writes the Search Agent's data (/api/agents/search); the
+// logic is lib/search-hub/model.ts (+ verdict.ts, pages.ts).
+// Built from the approved preview design-previews/tools-cleanup/search-seo-geo.html.
 export default async function SearchAiRoute() {
   const user = await getSessionUser()
   if (!user) redirect('/login')
@@ -31,7 +32,7 @@ async function SearchAi(brandId: string) {
   const saved = await readSearchData(brandId).catch(() => null)
   const [data, site, [gsc]] = await Promise.all([
     saved ? tidySearchData(brandId, b, saved).catch(() => saved) : Promise.resolve(searchFallback(b)()),
-    readSiteChecks(brandId).catch(() => ({ seo: null, geo: null, issues: [] })),
+    readSiteChecks(brandId).catch(() => ({ seo: null, geo: null, aiChecks: [] })),
     db.select({ id: brandIntegrations.id }).from(brandIntegrations)
       .where(and(eq(brandIntegrations.brandId, brandId), eq(brandIntegrations.provider, 'gsc_api'), eq(brandIntegrations.status, 'connected')))
       .limit(1),
@@ -40,6 +41,8 @@ async function SearchAi(brandId: string) {
     <SearchHubPage
       initial={data}
       brandName={b.name}
+      domain={b.domain}
+      now={Date.now()}
       site={site}
       countries={Object.keys(LOCATION_CODES)}
       flags={{ gsc: !!gsc, dataforseo: searchDataReady(), demo: agentsDemo(), demoForced: demoForced() }}

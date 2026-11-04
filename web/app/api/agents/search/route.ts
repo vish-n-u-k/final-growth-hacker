@@ -10,6 +10,8 @@ import { runLinkOpportunities, sendLinkPitch, updateLink } from '@/lib/agents/li
 import { taskToPitch, writeDescription } from '@/lib/agents/task-help'
 import { clearSignals } from '@/lib/signals'
 import { ensureTracked, HOLD_DAYS, kwKey } from '@/lib/search-hub/verdict'
+import { newId, suggestWording } from '@/lib/search-hub/pages'
+import { buildSeoGeo } from '@/lib/search-hub/model'
 
 export const dynamic = 'force-dynamic'
 // Every request runs with the brand's demo-mode switch (lib/agents/demo.ts)
@@ -45,6 +47,7 @@ async function post(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as {
     op?: string; on?: boolean; settings?: Partial<SearchSettings>; keyword?: string; status?: string; key?: string
     id?: string; email?: string; subject?: string; body?: string; to?: string
+    area?: string; path?: string; question?: string; what?: string
     inputs?: { example?: unknown; number?: unknown; opinion?: unknown }
   }
   // What only the business knows, typed before writing (each optional, kept short)
@@ -191,6 +194,58 @@ async function post(req: NextRequest) {
         }
       })
       return NextResponse.json({ data, keyword })
+    }
+    // ── Search & AI page: changes being tested, and new wording for a page ──
+    case 'change_add': {
+      // "I've made this change": starts the 6-week clock. A page that switches to a new search keeps it.
+      const area: 'seo' | 'geo' = body.area === 'geo' ? 'geo' : 'seo'
+      const what = String(body.what ?? '').trim().slice(0, 80) || 'Your change'
+      const at = new Date().toISOString()
+      let error: string | null = null
+      const data = await updateSearchData(brandId, fallback, d => {
+        const model = buildSeoGeo(d, b)
+        if (area === 'seo') {
+          const page = (d.pages ?? []).find(x => x.path === body.path)
+          const to = kwKey(String(body.to ?? body.keyword ?? page?.keyword ?? '')).slice(0, 80)
+          if (!page || !to) { error = 'Pick a page and the search it should win.'; return }
+          if (to !== page.keyword) { page.keyword = to; page.keywordBy = 'user' }
+          page.sugg = undefined
+          ensureTracked(d)
+          if (!d.tracked!.some(t => t.keyword === to)) d.tracked!.push({ keyword: to, addedAt: at, by: 'user', status: 'active' })
+          const rank = d.ranks?.rows.find(r => kwKey(r.keyword) === to)?.rank ?? model.pages.find(x => x.path === page.path)?.kw?.now ?? null
+          for (const c of d.changes ?? []) if (c.status === 'testing' && c.area === 'seo' && c.path === page.path) c.status = 'stopped'
+          d.changes = [...(d.changes ?? []), { id: newId(), area, path: page.path, keyword: to, what, at, by: 'user' as const, before: rank, status: 'testing' as const }].slice(-40)
+        } else {
+          const q = model.questions.find(x => x.question === body.question)
+          if (!q) { error = 'That question isn’t in this week’s answers.'; return }
+          for (const c of d.changes ?? []) if (c.status === 'testing' && c.area === 'geo' && c.question === q.question) c.status = 'stopped'
+          d.changes = [...(d.changes ?? []), { id: newId(), area, question: q.question, what, at, by: 'user' as const, before: q.samples ? Math.round((100 * q.hits) / q.samples) : 0, status: 'testing' as const }].slice(-40)
+        }
+      })
+      if (error) return NextResponse.json({ error, data })
+      return NextResponse.json({ data, message: `Testing from today. You’ll know by ${new Date(Date.now() + 42 * 86_400_000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}.` })
+    }
+    case 'change_stop': {
+      const data = await updateSearchData(brandId, fallback, d => {
+        const c = (d.changes ?? []).find(x => x.id === body.id)
+        if (c) c.status = 'stopped'
+      })
+      return NextResponse.json({ data, message: 'Test stopped.' })
+    }
+    case 'page_suggest': {
+      // New title / H1 / H2s / description for a page that needs a change, written once per keyword and verdict
+      const d0 = await readSearchData(brandId)
+      const page = d0?.pages?.find(x => x.path === body.path)
+      const view = d0 ? buildSeoGeo(d0, b).pages.find(x => x.path === body.path) : null
+      if (!page || !view || !view.keyword || (view.status !== 'change' && view.status !== 'refresh')) return NextResponse.json({ error: 'Nothing to rewrite on this page.' }, { status: 400 })
+      const target = view.swap?.keyword ?? view.keyword
+      const items = await suggestWording(b, page, target, view.status === 'refresh' ? 'refresh' : 'change', view.why).catch(e => (e instanceof Error ? e.message : 'failed'))
+      if (typeof items === 'string') return NextResponse.json({ error: items })
+      const data = await updateSearchData(brandId, fallback, d => {
+        const p = d.pages?.find(x => x.path === body.path)
+        if (p) p.sugg = { for: `${view.status}:${target}`, at: new Date().toISOString(), items }
+      })
+      return NextResponse.json({ data })
     }
     default:
       return NextResponse.json({ error: 'Unknown op' }, { status: 400 })

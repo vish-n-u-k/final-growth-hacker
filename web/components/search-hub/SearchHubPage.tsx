@@ -1,528 +1,540 @@
 'use client'
 
-// Search & AI (/search-ai), built from the approved preview design-previews/tools-cleanup/search-hub.html.
-// One page for Google rankings (SEO), AI answers (AEO / GEO), the tracked keywords, blog posts and site
-// checks. Every tracked keyword gets a verdict each week (lib/search-hub/verdict.ts): keep, give it
-// time, change (with a closer, easier search to swap in), refresh the page, or drop. Nothing changes
-// without the user's OK. Same data and API as the Search Agent (/api/agents/search).
-// Calm rules: a quiet top line, one level of tabs, one green button per screen (Start here, or the main
-// action of an opened item), grey everywhere else. Finishing an item opens the next.
+// Search & AI (/search-ai), built from the approved preview design-previews/tools-cleanup/search-seo-geo.html
+// (https://claude.ai/artifact/M8TBxFdsG4Vj5Lqxgdrhqx). Two tabs:
+// - SEO: your homepage and main pages, the search each one targets, where it ranks on Google, and what
+//   to change in its title / H1 / headings. Grouped by status, colour-coded.
+// - GEO: buyer questions asked to ChatGPT, Perplexity, Gemini and Google's AI Overview: are you named,
+//   who is instead, what to do.
+// Every change (found at a check, or "I've made this change") is a test with a know-by date.
+// "Recheck all keywords" runs the full check now (op 'research'); it also runs every week by itself.
+// Data: the Search Agent's (/api/agents/search); shaped by lib/search-hub/model.ts.
+// Colours (owner's call for this page): green working / named, blue testing, red needs a change /
+// not named, grey waiting, purple keywords to add. Rank zones: green page 1, yellow close, orange far, grey not found.
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { SearchAgentData } from '@/lib/agents/store'
-import {
-  ACTION_VERDICTS, DROP_AFTER_WEEKS, ENGINE_NAME, JUDGE_AFTER_WEEKS, VERDICT_LABEL, buildHub, ensureTracked, kwKey,
-  type HubTodo, type KeywordView, type Point,
-} from '@/lib/search-hub/verdict'
+import { buildSeoGeo, ENGINE_NAME, zoneOf, TEST_WEEKS, FIRST_SIGN_WEEKS, type PageView, type QuestionView, type TestView, type SeoStatus, type GeoStatus, type Zone } from '@/lib/search-hub/model'
 import type { SiteChecks } from '@/lib/search-hub/site'
-import { useAgentApi, fmtAgo } from '@/components/agents/shared'
-import { useToast } from '@/components/email-outreach/shared'
+import { useAgentApi, Toast } from '@/components/agents/shared'
 import { DemoSwitch, LiveProgress } from '@/components/tool-ui'
 
-type Tab = 'todo' | 'keywords' | 'ai' | 'posts'
-type View = { v: 'list' } | { v: 'kw'; k: string } | { v: 'todo'; key: string } | { v: 'how' } | { v: 'settings' } | { v: 'dropped' }
+type Tab = 'seo' | 'geo'
+type View = { v: 'list' } | { v: 'page'; path: string } | { v: 'q'; q: string } | { v: 'how' } | { v: 'changed' } | { v: 'settings' }
 export interface SearchHubFlags { gsc: boolean; dataforseo: boolean; demo: boolean; demoForced: boolean }
 
 const fmt = (n: number) => n.toLocaleString('en-US')
-const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
-const KIND_LABEL: Record<HubTodo['kind'], string> = {
-  refresh: 'Refresh', change: 'Change', drop: 'Drop', fix: 'Fix', write: 'Write', draft: 'Read', listing: 'Get cited', ads: 'Ads', site: 'Site',
+const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+const pathName = (p: string) => (p === '/' ? 'Homepage' : p)
+const rankText = (r: number | null) => (r === null ? 'not found' : `#${r}`)
+
+// Colour per status and per rank zone (sa-c-* classes set --c / --cs)
+const SEO_STATUS: Record<SeoStatus, { label: string; c: string }> = {
+  change: { label: 'Needs a change', c: 'warn' }, refresh: { label: 'Needs a change', c: 'warn' },
+  test: { label: 'Testing', c: 'test' }, working: { label: 'Working', c: 'good' }, wait: { label: 'Waiting', c: 'wait' }, none: { label: 'Waiting', c: 'wait' },
 }
-const CTA: Record<HubTodo['kind'], string> = {
-  refresh: 'Review the rewrite', change: 'Review the change', drop: 'Review', fix: 'See the fix', write: 'See the question',
-  draft: 'Read the draft', listing: 'See the site', ads: 'See the tip', site: 'Open the check',
+const GEO_STATUS: Record<GeoStatus, { label: string; c: string }> = { missing: { label: 'Not named', c: 'warn' }, test: { label: 'Testing', c: 'test' }, named: { label: 'Named', c: 'good' } }
+const ZONES: { z: Zone; label: string; sub: string; c: string }[] = [
+  { z: 'p1', label: 'Page 1', sub: '#1–10', c: 'good' },
+  { z: 'close', label: 'Close', sub: '#11–30', c: 'amber' },
+  { z: 'far', label: 'Far back', sub: '#31–100', c: 'orange' },
+  { z: 'none', label: 'Not found', sub: 'not in top 100', c: 'wait' },
+]
+const zoneC = (r: number | null) => ZONES.find(z => z.z === zoneOf(r))!.c
+
+function Legend({ items }: { items: [string, string][] }) {
+  return <div className="sa-legend">{items.map(([c, l]) => <span key={l}><i className={`sa-dot sa-c-${c}`} />{l}</span>)}</div>
+}
+function Pill({ c, label, n }: { c: string; label: string; n?: number | string }) {
+  return <span className={`sa-pill sa-c-${c}`}>{label}{n !== undefined && <b>{n}</b>}</span>
+}
+function Rank({ r }: { r: number | null }) {
+  return <span className={`sa-rk sa-c-${zoneC(r)}`}>{r === null ? '—' : `#${r}`}</span>
+}
+function TestBar({ t }: { t: TestView }) {
+  return <span className="sa-tb"><i><em style={{ width: `${t.progress * 100}%` }} /></i><span>Know by <b>{day(t.knowBy)}</b></span></span>
 }
 
-// ── Small charts ─────────────────────────────────────────────────────────────
+// Google position: #1 at the top; square-root scale keeps #1-#10 apart and still reaches #100
+const yR = (r: number, top: number, h: number) => top + Math.sqrt((Math.min(r, 100) - 1) / 99) * h
 
-// Google position: #1 at the top. A square-root scale keeps #1-#10 apart while still reaching #100.
-const yRank = (r: number, top: number, h: number) => top + Math.sqrt((Math.min(r, 100) - 1) / 99) * h
-
-function RankSpark({ points }: { points: Point[] }) {
-  const w = 90, h = 24
-  if (!points.some(p => p.rank !== null)) return <svg className="sh-spark" viewBox={`0 0 ${w} ${h}`} aria-hidden="true"><line x1="2" x2={w - 2} y1={h - 3} y2={h - 3} stroke="var(--line)" strokeDasharray="3 3" /></svg>
-  const x = (i: number) => (points.length === 1 ? w - 4 : 2 + (i / (points.length - 1)) * (w - 6))
+function Spark({ ranks }: { ranks: (number | null)[] }) {
+  const w = 120, h = 22
+  if (!ranks.some(r => r !== null)) return <svg className="sa-spark" viewBox={`0 0 ${w} ${h}`} aria-hidden="true"><line x1="2" x2={w - 2} y1={h - 3} y2={h - 3} stroke="var(--line)" strokeDasharray="3 3" /></svg>
+  const x = (i: number) => (ranks.length === 1 ? w - 4 : 2 + (i / (ranks.length - 1)) * (w - 6))
   let d = '', pen = false
-  points.forEach((p, i) => { if (p.rank === null) { pen = false; return } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)} ${yRank(p.rank, 2, h - 4).toFixed(1)}`; pen = true })
+  ranks.forEach((r, i) => { if (r === null) { pen = false; return } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)} ${yR(r, 2, h - 4).toFixed(1)}`; pen = true })
+  const li = ranks.map(r => r !== null).lastIndexOf(true)
+  return <svg className="sa-spark" viewBox={`0 0 ${w} ${h}`} aria-hidden="true"><path d={d} fill="none" stroke="var(--text-dim)" strokeWidth="1.5" /><circle cx={x(li)} cy={yR(ranks[li]!, 2, h - 4)} r="2.4" fill="var(--text-dim)" /></svg>
+}
+
+function Axis({ ats, x, H }: { ats: string[]; x: (i: number) => number; H: number }) {
+  const every = Math.max(1, Math.ceil(ats.length / 6))
+  return <>{ats.map((a, i) => (i % every === 0 || i === ats.length - 1) && (
+    <text key={a + i} x={x(i)} y={H - 6} textAnchor={ats.length > 1 && i === 0 ? 'start' : ats.length > 1 && i === ats.length - 1 ? 'end' : 'middle'} fontSize="12" fill="var(--text-faint)">{day(a)}</text>
+  ))}</>
+}
+function Marker({ ats, x, T, H, B, t }: { ats: string[]; x: (i: number) => number; T: number; H: number; B: number; t: TestView | null }) {
+  if (!t || !ats.length) return null
+  let i = ats.findIndex(a => Date.parse(a) >= Date.parse(t.at))
+  if (i < 0) i = ats.length - 1
+  return <g><line x1={x(i)} x2={x(i)} y1={T - 12} y2={H - B} stroke="var(--sa-test)" strokeDasharray="4 4" /><text x={x(i) - 6} y={T - 2} textAnchor="end" fontSize="12" fill="var(--sa-test)">{t.what} · {day(t.at)}</text></g>
+}
+
+function RankChart({ points, test }: { points: { at: string; rank: number | null }[]; test: TestView | null }) {
+  const W = 900, H = 210, L = 40, R = 16, T = 24, B = 26, n = points.length
+  const x = (i: number) => (n === 1 ? (L + W - R) / 2 : L + (i / (n - 1)) * (W - L - R))
+  const y = (r: number) => yR(r, T, H - T - B)
+  let d = '', pen = false
+  points.forEach((p, i) => { if (p.rank === null) { pen = false; return } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.rank).toFixed(1)}`; pen = true })
   const li = points.map(p => p.rank !== null).lastIndexOf(true)
   return (
-    <svg className="sh-spark" viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-      <path d={d} fill="none" stroke="var(--text-dim)" strokeWidth="1.5" strokeLinejoin="round" />
-      <circle cx={x(li)} cy={yRank(points[li].rank!, 2, h - 4)} r="2.4" fill="var(--text-dim)" />
+    <svg className="sa-chart-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Google position at each check">
+      {([[1, 10, 'good'], [10, 30, 'amber'], [30, 100, 'orange']] as const).map(([a, b, c]) => <rect key={c} x={L} width={W - L - R} y={y(a)} height={y(b) - y(a)} fill={`var(--sa-${c}-s)`} />)}
+      {[1, 10, 30, 100].map(v => <g key={v}><line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="var(--line)" /><text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize="12" fill="var(--text-faint)">#{v}</text></g>)}
+      <Axis ats={points.map(p => p.at)} x={x} H={H} />
+      <Marker ats={points.map(p => p.at)} x={x} T={T} H={H} B={B} t={test} />
+      <path d={d} fill="none" stroke="var(--text)" strokeWidth="2" strokeLinejoin="round" />
+      {points.map((p, i) => p.rank !== null && <circle key={p.at} cx={x(i)} cy={y(p.rank)} r={i === li ? 3.6 : 2.2} fill="var(--text)" />)}
+      {li >= 0
+        ? <text x={x(li) - 8} y={y(points[li].rank!) + 18} textAnchor="end" fontSize="13" fontWeight="600" fill="var(--text)">#{points[li].rank}</text>
+        : <text x={(W + L) / 2} y={H / 2} textAnchor="middle" fontSize="13" fill="var(--text-faint)">Not in the top 100 yet</text>}
     </svg>
   )
 }
 
-function AreaSpark({ vals }: { vals: number[] }) {
-  const w = 160, h = 26
-  if (vals.length < 2) return <svg className="sh-area" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true"><line x1="2" x2={w - 2} y1={h - 2} y2={h - 2} stroke="var(--line)" /></svg>
-  const max = Math.max(...vals), min = Math.min(...vals)
-  const pts = vals.map((v, i) => [2 + (i / (vals.length - 1)) * (w - 4), h - 3 - ((v - min) / (max - min || 1)) * (h - 6)])
+function PctChart({ points, test }: { points: { at: string; pct: number | null }[]; test: TestView | null }) {
+  const W = 900, H = 170, L = 40, R = 16, T = 24, B = 26, n = points.length
+  const x = (i: number) => (n === 1 ? (L + W - R) / 2 : L + (i / (n - 1)) * (W - L - R))
+  const y = (v: number) => T + (1 - v / 100) * (H - T - B)
+  const pts = points.map((p, i) => [x(i), y(p.pct ?? 0)])
   const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join('')
   return (
-    <svg className="sh-area" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true">
-      <path d={`${line}L${pts[pts.length - 1][0]} ${h}L2 ${h}Z`} fill="var(--line)" opacity=".6" />
-      <path d={line} fill="none" stroke="var(--text-dim)" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
+    <svg className="sa-chart-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Share of answers that named you at each check">
+      {[0, 50, 100].map(v => <g key={v}><line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="var(--line)" /><text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize="12" fill="var(--text-faint)">{v}%</text></g>)}
+      <Axis ats={points.map(p => p.at)} x={x} H={H} />
+      <Marker ats={points.map(p => p.at)} x={x} T={T} H={H} B={B} t={test} />
+      {n > 1 && <path d={`${line}L${pts[n - 1][0]} ${y(0)}L${pts[0][0]} ${y(0)}Z`} fill="var(--sa-good-s)" />}
+      <path d={line} fill="none" stroke="var(--sa-good)" strokeWidth="2" />
+      {pts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r={i === n - 1 ? 3.6 : 2.2} fill="var(--sa-good)" />)}
     </svg>
   )
 }
 
-function RankChart({ points }: { points: Point[] }) {
-  const W = 960, H = 220, L = 40, R = 16, T = 14, B = 26
-  const x = (i: number) => (points.length === 1 ? (L + W - R) / 2 : L + (i / (points.length - 1)) * (W - L - R))
-  const y = (r: number) => yRank(r, T, H - T - B)
-  let d = ''
-  let pen = false
-  points.forEach((p, i) => { if (p.rank === null) { pen = false; return } d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.rank).toFixed(1)}`; pen = true })
-  const lastIdx = points.map(p => p.rank !== null).lastIndexOf(true)
-  const every = Math.max(1, Math.ceil(points.length / 6))
-  return (
-    <svg className="sh-chart-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Google position at each weekly check">
-      {[1, 10, 30, 100].map(v => (
-        <g key={v}>
-          <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="var(--line)" />
-          <text x={L - 8} y={y(v) + 4} textAnchor="end" fontSize="12" fill="var(--text-faint)">#{v}</text>
-        </g>
-      ))}
-      {points.map((p, i) => (i % every === 0 || i === points.length - 1) && (
-        <text key={p.at} x={x(i)} y={H - 6} textAnchor={points.length > 1 && i === points.length - 1 ? 'end' : points.length > 1 && i === 0 ? 'start' : 'middle'} fontSize="12" fill="var(--text-faint)">{day(p.at)}</text>
-      ))}
-      <path d={d} fill="none" stroke="var(--text-dim)" strokeWidth="2" strokeLinejoin="round" />
-      {points.map((p, i) => p.rank !== null && <circle key={`c${p.at}`} cx={x(i)} cy={y(p.rank)} r={i === lastIdx ? 3.5 : 2} fill="var(--text-dim)" />)}
-      {lastIdx >= 0
-        ? <text x={x(lastIdx) - 8} y={y(points[lastIdx].rank!) - 8} textAnchor="end" fontSize="13" fontWeight="600" fill="var(--text)">#{points[lastIdx].rank}</text>
-        : <text x={(W + L) / 2} y={H / 2} textAnchor="middle" fontSize="13" fill="var(--text-faint)">Not found yet</text>}
-    </svg>
-  )
+/** Words of the keyword, highlighted in the page's title and headings. */
+function Hl({ text, keyword }: { text: string; keyword: string | null }) {
+  const w = (keyword ?? '').split(' ').filter(x => x.length > 3).map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  if (!w.length || !text) return <>{text || '—'}</>
+  const re = new RegExp(`\\b(${w.join('|')})\\b`, 'gi')
+  const parts = text.split(re)
+  return <>{parts.map((p, i) => (i % 2 ? <mark key={i}>{p}</mark> : p))}</>
 }
 
 // ── The page ─────────────────────────────────────────────────────────────────
 
-export default function SearchHubPage({ initial, brandName, site, countries, flags }: {
-  initial: SearchAgentData; brandName: string; site: SiteChecks; countries: string[]; flags: SearchHubFlags
+export default function SearchHubPage({ initial, brandName, domain, site, countries, flags, now: serverNow }: {
+  initial: SearchAgentData; brandName: string; domain: string; site: SiteChecks; countries: string[]; flags: SearchHubFlags
+  now: number                   // the server's time, so the first render matches (progress bars, dates)
 }) {
-  const { data, busy, call } = useAgentApi<SearchAgentData>('/api/agents/search', initial)
-  const [toast, notify] = useToast()
-  const [tab, setTab] = useState<Tab>('todo')
+  const { data, busy, call, toast, say: notify } = useAgentApi<SearchAgentData>('/api/agents/search', initial)
+  const [tab, setTab] = useState<Tab>('seo')
   const [view, setView] = useState<View>({ v: 'list' })
   const [demo, setDemo] = useState(flags.demo)
-  const [newKw, setNewKw] = useState('')
-  const [writing, setWriting] = useState<string | null>(null)
+  const [form, setForm] = useState({ area: 'seo' as Tab, path: '', what: 'New title', to: '', question: '', geoWhat: '' })
 
-  // Starting keywords and written topics count as tracked even before the next check saves them
-  const hub = useMemo(() => {
-    const d = structuredClone(data)
-    ensureTracked(d)
-    return buildHub(d, brandName, site.issues)
-  }, [data, brandName, site.issues])
-  const kwBy = useMemo(() => new Map(hub.keywords.map(k => [k.keyword, k])), [hub.keywords])
-  const running = busy === 'research'
-  const first = !data.lastResearchAt
+  useEffect(() => { try { const t = localStorage.getItem('search-ai-tab'); if (t === 'seo' || t === 'geo') setTab(t) } catch { /* fine */ } }, [])
+  const pickTab = (t: Tab) => { setTab(t); setView({ v: 'list' }); try { localStorage.setItem('search-ai-tab', t) } catch { /* fine */ } }
   const go = (v: View) => { setView(v); window.scrollTo({ top: 0 }) }
 
-  // Finishing an item opens the next one in the to-do list
-  function next(doneKey: string, msg: string, undo?: () => void) {
-    const left = hub.todos.filter(t => t.key !== doneKey)
-    const fromTodo = tab === 'todo'
-    if (fromTodo && left.length) {
-      const n = left[0]
-      go(n.keyword && n.kind !== 'draft' ? { v: 'kw', k: n.keyword } : { v: 'todo', key: n.key })
-    } else go({ v: 'list' })
-    notify(left.length || !fromTodo ? msg : `${msg} All caught up.`, undo)
+  // Same "now" on the server and in the browser; it moves on after each action
+  const [now, setNow] = useState(serverNow)
+  useEffect(() => { if (data !== initial) setNow(Date.now()) }, [data, initial])
+  const m = useMemo(() => buildSeoGeo(data, { name: brandName, domain }, new Date(now)), [data, brandName, domain, now])
+  const ago = (iso: string) => {
+    const mins = Math.round((now - Date.parse(iso)) / 60_000)
+    return mins < 2 ? 'just now' : mins < 60 ? `${mins} min ago` : mins < 1440 ? `${Math.round(mins / 60)} h ago` : day(iso)
   }
+  const knowFromToday = day(new Date(now + TEST_WEEKS * 7 * 86_400_000).toISOString())
+  const running = busy === 'research'
+  const first = !data.lastResearchAt && !(data.pages ?? []).length
 
-  async function kwAct(op: 'kw_swap' | 'kw_drop' | 'kw_keep', k: KeywordView) {
-    const payload = op === 'kw_swap' ? { keyword: k.keyword, to: k.swap!.keyword } : { keyword: k.keyword }
-    const j = await call(op, payload, `${op}:${k.keyword}`)
-    if (!j || j.error) return
-    const undo = op === 'kw_keep' ? undefined
-      : op === 'kw_drop' ? () => { call('kw_restore', { keyword: k.keyword }) }
-      : async () => { await call('kw_drop', { keyword: k.swap!.keyword }); await call('kw_restore', { keyword: k.keyword }) }
-    next(`kw:${k.keyword}`, j.message ?? 'Done.', undo)
-  }
-
-  async function rewrite(k: KeywordView) {
-    setWriting(k.keyword)
-    const j = await call('kw_rewrite', { keyword: k.keyword }, `rewrite:${k.keyword}`) as ({ keyword?: string } & Record<string, unknown>) | null
-    if (j?.keyword) await call('write', { keyword: j.keyword }, 'write')
-    setWriting(null)
-    next(`kw:${k.keyword}`, 'Rewrite drafted. Read it under Blog posts.')
-  }
-
-  async function taskAct(t: HubTodo, status: 'done' | 'dismissed') {
-    if (!t.taskKey) return
-    const j = await call('task', { key: t.taskKey, status }, `task:${t.taskKey}`)
-    if (!j || j.error) return
-    next(t.key, status === 'done' ? 'Marked done.' : 'Skipped.', () => { call('task', { key: t.taskKey, status: 'open' }) })
-  }
-
-  async function research() {
+  async function recheck() {
     go({ v: 'list' })
-    await call('research', {}, 'research')
+    const j = await call('research', {}, 'research')
+    const found = (j?.data as SearchAgentData | undefined)?.changes?.filter(c => c.by === 'auto' && Date.now() - Date.parse(c.at) < 10 * 60_000) ?? []
+    if (found.length) notify(`Found ${found.length} change${found.length === 1 ? '' : 's'} on your site (${found.map(c => `${c.what.toLowerCase()} on ${c.path}`).join(', ')}). Testing from today.`)
   }
-
-  async function addKeyword(k: string) {
-    const kw = kwKey(k)
-    if (!kw) return
-    const j = await call('kw_add', { keyword: kw }, `kw_add:${kw}`)
-    if (j && !j.error) setNewKw('')
+  async function startTest(payload: Record<string, unknown>) {
+    const j = await call('change_add', payload, 'change_add')
+    if (j && !j.error) { go({ v: 'list' }) }
   }
-
   async function switchDemo(on: boolean) {
     const j = await call('demo', { on }, 'demo')
     if (j && !j.error) { setDemo(on); window.location.reload() }
   }
+  async function draftRewrite(p: PageView) {
+    if (!p.keyword) return
+    const j = await call('kw_rewrite', { keyword: p.keyword }, 'rewrite') as ({ keyword?: string } & Record<string, unknown>) | null
+    if (j?.keyword) { const w = await call('write', { keyword: j.keyword }, 'write'); if (w && !w.error) notify('Rewrite drafted. Read it in the Search Agent under Posts.') }
+  }
+  function copy(text: string) {
+    navigator.clipboard?.writeText(text).then(() => notify('Copied.'), () => notify('Select the text to copy it.'))
+  }
 
   // ── Header ──────────────────────────────────────────────────────────────────
 
-  const aiReady = [site.seo?.score, site.geo?.score].filter((x): x is number => typeof x === 'number')
   function header() {
-    const s = hub.stats
     return <>
       <nav className="lfp-crumbs" aria-label="Breadcrumb">Tools / Get seen</nav>
       <h1 className="lfp-title">Search &amp; AI</h1>
-      <div className="lfp-line">
-        <span>{running ? 'Checking…' : hub.checkedAt ? `Checked ${fmtAgo(hub.checkedAt)}` : 'Not checked yet'}{data.settings.enabled && hub.checkedAt ? ` · next check ${day(new Date(Date.parse(hub.checkedAt) + 7 * 86_400_000).toISOString())}` : ''}</span>
-        <button type="button" className="lfp-link" onClick={() => go({ v: 'how' })}>How we judge keywords</button>
-        <button type="button" className="lfp-link" onClick={() => go({ v: 'settings' })}>Settings</button>
-        {!first && <button type="button" className="lfp-link" disabled={!!busy} onClick={research}>Check now</button>}
-        {demo && <span>Demo: made-up data</span>}
+      <div className="sa-top">
+        <div className="lfp-line">
+          <span>{running ? 'Rechecking…' : m.checkedAt ? <>Checked <b>{ago(m.checkedAt)}</b></> : 'Not checked yet'}{data.settings.enabled ? ' · checks itself every week' : ' · weekly check is off'}</span>
+          <button type="button" className="lfp-link" onClick={() => go({ v: 'how' })}>How this works</button>
+          <button type="button" className="lfp-link" onClick={() => go({ v: 'settings' })}>Settings</button>
+          {demo && <span>Demo: made-up data</span>}
+        </div>
+        {!first && <button type="button" className="btn btn-ghost" disabled={!!busy} onClick={recheck}>{running ? 'Rechecking…' : 'Recheck all keywords'}</button>}
       </div>
-      {!flags.dataforseo && !demo && <div className="ag-note ag-note-warn">DataForSEO isn’t set up, so checks can’t run yet.</div>}
+      {!flags.dataforseo && !demo && <div className="ag-note ag-note-warn">DataForSEO isn’t set up, so rankings and AI answers can’t be checked yet.</div>}
       {data.lastError && !running && <div className="ag-note ag-note-warn">The last check had a problem: {data.lastError}</div>}
       <LiveProgress agent="search" active={running || busy === 'write'} expectedMs={running ? 180_000 : 90_000}
-        fallback={busy === 'write' ? ['Checking top results', 'Reading your page', 'Rewriting it', 'Saving the draft'] : ['Reading your brand', 'Checking Google rankings', 'Asking AI assistants', 'Judging your keywords']} />
-      {view.v === 'list' && <>
-        <div className="sh-stats">
-          <div className="sh-stat">
-            <span className="sh-stat-l">Clicks from Google</span>
-            {s.clicks !== null
-              ? <><b className="sh-stat-v">{fmt(s.clicks)}<small>in 28 days</small></b><AreaSpark vals={s.clicksTrend} /><span className="sh-stat-s">Search Console</span></>
-              : <><b className="sh-stat-v sh-muted">—</b><AreaSpark vals={[]} /><span className="sh-stat-s">{flags.gsc ? 'After the next check' : <a href="/dashboard/keywords">Connect Search Console</a>}</span></>}
-          </div>
-          <div className="sh-stat">
-            <span className="sh-stat-l">Keywords on page 1</span>
-            <b className="sh-stat-v">{s.page1}<small>of {s.tracked}</small></b>
-            <AreaSpark vals={s.page1Trend} />
-            <span className="sh-stat-s">{s.top20 ? `${s.top20} more in the top 20` : hub.source === 'gsc' ? 'From Search Console' : 'DataForSEO’s estimate'}</span>
-          </div>
-          <div className="sh-stat">
-            <span className="sh-stat-l">Named by AI</span>
-            {s.aiPct !== null
-              ? <><b className="sh-stat-v">{s.aiPct}%<small>of answers</small></b><AreaSpark vals={s.aiTrend} /><span className="sh-stat-s">4-week average, {s.aiAnswers} answers</span></>
-              : <><b className="sh-stat-v sh-muted">—</b><AreaSpark vals={[]} /><span className="sh-stat-s">After the first check</span></>}
-          </div>
-          <div className="sh-stat">
-            <span className="sh-stat-l">Site readiness</span>
-            {aiReady.length
-              ? <><b className="sh-stat-v">{Math.round(aiReady.reduce((a, b) => a + b, 0) / aiReady.length)}<small>/ 100</small></b><AreaSpark vals={[]} />
-                <span className="sh-stat-s">{site.seo && <a href={site.seo.href}>SEO {site.seo.score}</a>}{site.seo && site.geo && ' · '}{site.geo && <a href={site.geo.href}>AI readiness {site.geo.score}</a>}</span></>
-              : <><b className="sh-stat-v sh-muted">—</b><AreaSpark vals={[]} /><span className="sh-stat-s"><a href="/dashboard">Run the SEO and AI checks</a></span></>}
-          </div>
-        </div>
-        <div className="sh-tabs" role="tablist">
-          {([['todo', 'To do', hub.todos.length], ['keywords', 'Keywords', hub.keywords.length], ['ai', 'AI answers', hub.questions.length], ['posts', 'Blog posts', hub.posts.length]] as [Tab, string, number][]).map(([k, l, c]) => (
-            <button key={k} type="button" role="tab" aria-selected={tab === k} className="sh-tab" onClick={() => setTab(k)}>{l}<small>{c}</small></button>
-          ))}
-        </div>
-      </>}
+        fallback={busy === 'write' ? ['Checking top results', 'Reading your page', 'Rewriting it', 'Saving the draft'] : ['Reading your pages', 'Checking Google positions', 'Asking AI assistants', 'Comparing with the last check']} />
+      {view.v === 'list' && !first && <div className="sa-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === 'seo'} className="sa-tab" onClick={() => pickTab('seo')}>SEO<small>Google</small></button>
+        <button type="button" role="tab" aria-selected={tab === 'geo'} className="sa-tab" onClick={() => pickTab('geo')}>GEO<small>AI answers</small></button>
+      </div>}
     </>
   }
 
-  // ── Tabs ────────────────────────────────────────────────────────────────────
+  // ── SEO tab ─────────────────────────────────────────────────────────────────
 
-  function openTodo(t: HubTodo) {
-    if (t.keyword && t.kind !== 'draft') go({ v: 'kw', k: t.keyword })
-    else go({ v: 'todo', key: t.key })
-  }
-
-  function todoTab() {
-    if (first) return (
-      <section className="lfp-next sh-next">
-        <div className="lfp-next-text">
-          <b>Run the first check</b>
-          <span>We check where you rank on Google, ask ChatGPT, Perplexity and Gemini about your field, and start tracking your keywords. About 3 minutes.</span>
-        </div>
-        <button type="button" className="btn btn-primary" disabled={!!busy} onClick={research}>Run the first check</button>
-      </section>
-    )
-    if (!hub.todos.length) return (
-      <div className="sh-done">
-        <b>All caught up</b>
-        <p>{data.settings.enabled ? 'We check every week and judge each keyword again.' : 'Turn on the weekly check in Settings so each keyword is judged again every week.'}</p>
-        <button type="button" className="btn btn-primary" onClick={() => setTab('keywords')}>See your keywords</button>
-      </div>
-    )
-    const [top, ...rest] = hub.todos
+  function seoTab() {
+    const withKw = m.pages.filter(p => p.keyword)
+    const groups: { c: string; title: string; st: SeoStatus[]; note?: string }[] = [
+      { c: 'warn', title: 'Needs a change', st: ['change', 'refresh'], note: 'We write the new wording' },
+      { c: 'test', title: 'Testing', st: ['test'], note: `${TEST_WEEKS} weeks per change` },
+      { c: 'good', title: 'Working', st: ['working'] },
+      { c: 'wait', title: 'Waiting', st: ['wait', 'none'], note: 'Too early to judge' },
+    ]
+    let firstFix = true
+    const card = (p: PageView) => {
+      const st = SEO_STATUS[p.status]
+      let foot: React.ReactNode
+      if (p.status === 'test' && p.test) foot = <TestBar t={p.test} />
+      else if (p.status === 'change' || p.status === 'refresh') {
+        foot = firstFix ? <span className="btn btn-primary sa-sm">Fix this first →</span> : <span className="sa-act">{p.status === 'refresh' ? 'Update the page' : p.swap ? 'Change the keyword' : 'Reword the page'} →</span>
+        firstFix = false
+      } else if (p.status === 'working') foot = <span className="sa-ok">Keep it</span>
+      else foot = <span className="sa-mute">{p.keyword ? 'Too early to judge' : 'No search targeted (fine)'}</span>
+      return (
+        <button key={p.path} type="button" className={`sa-card sa-c-${st.c}`} onClick={() => go({ v: 'page', path: p.path })}>
+          <span className="sa-card-top"><b>{pathName(p.path)}</b>{p.keyword && <Rank r={p.kw?.now ?? null} />}</span>
+          <span className="sa-card-kw">{p.keyword ?? (p.h1 || p.title)}</span>
+          {p.kw && p.kw.points.length > 0 && <Spark ranks={p.kw.points.map(x => x.rank)} />}
+          <span className="sa-card-foot">{foot}</span>
+        </button>
+      )
+    }
+    if (!m.pages.length) return <p className="sa-empty">We couldn’t read your pages yet. Recheck, or check your website address in your brand settings.</p>
+    const counts = ZONES.map(z => ({ z, list: withKw.filter(p => zoneOf(p.kw?.now ?? null) === z.z) }))
     return <>
-      <section className="lfp-next sh-next">
-        <div className="lfp-next-text">
-          <b>{top.title}</b>
-          <span>{top.why}</span>
-        </div>
-        <button type="button" className="btn btn-primary" onClick={() => openTodo(top)}>{CTA[top.kind]}</button>
-      </section>
-      {rest.length > 0 && <div className="sh-rest">
-        <p className="sh-rest-h"><span>Then</span><span>{rest.length} more</span></p>
-        {rest.map(t => (
-          <button key={t.key} type="button" className="sh-row" onClick={() => openTodo(t)}>
-            <span className="sh-kind">{KIND_LABEL[t.kind]}</span>
-            <span className="sh-row-main"><b>{t.title}</b><span>{t.why}</span></span>
-            <span className="sh-row-go">Open ›</span>
-          </button>
-        ))}
-      </div>}
-      <p className="sh-foot">Picked from your rankings, AI answers and site checks.</p>
-    </>
-  }
+      <Legend items={[['good', 'Working'], ['test', 'Testing'], ['warn', 'Needs a change'], ['wait', 'Waiting'], ['new', 'To add']]} />
 
-  function keywordsTab() {
-    const count = (f: (k: KeywordView) => boolean) => hub.keywords.filter(f).length
-    return <>
-      <p className="sh-legend">
-        <span><b>{count(k => k.verdict === 'keep')}</b> keep</span>
-        <span><b>{count(k => k.verdict === 'wait')}</b> give it time</span>
-        <span><b>{count(k => ACTION_VERDICTS.has(k.verdict))}</b> need a change</span>
-        <button type="button" className="lfp-link" onClick={() => go({ v: 'how' })}>How we judge</button>
-      </p>
-      {hub.keywords.length ? <div className="sh-tbl-wrap"><table className="sh-tbl">
-        <thead><tr><th>Keyword</th><th>Weekly</th><th className="num">Now</th><th className="num">Searches</th>{hub.source === 'gsc' && <th className="num">Clicks</th>}<th className="num">AI Overview</th><th>Verdict</th></tr></thead>
-        <tbody>{hub.keywords.map(k => (
-          <tr key={k.keyword} tabIndex={0} onClick={() => go({ v: 'kw', k: k.keyword })} onKeyDown={e => { if (e.key === 'Enter') go({ v: 'kw', k: k.keyword }) }}>
-            <td className="sh-kw">{k.keyword}</td>
-            <td><RankSpark points={k.points} /></td>
-            <td className="num">{k.now !== null ? `#${k.now}` : <span className="sh-muted">—</span>}</td>
-            <td className="num">{k.volume !== null ? fmt(k.volume) : <span className="sh-muted">—</span>}</td>
-            {hub.source === 'gsc' && <td className="num">{k.clicks ?? 0}</td>}
-            <td className="num">{k.ai ? `${k.ai.named} of ${k.ai.asked}` : <span className="sh-muted">—</span>}</td>
-            <td><span className={`sh-verdict${ACTION_VERDICTS.has(k.verdict) ? ' is-act' : ''}`}>{VERDICT_LABEL[k.verdict]}{ACTION_VERDICTS.has(k.verdict) ? ' ›' : ''}</span></td>
-          </tr>
-        ))}</tbody>
-      </table></div> : <p className="sh-empty">No keywords yet. The first check adds your starting keywords, or add one below.</p>}
-      <form className="sh-add" onSubmit={e => { e.preventDefault(); addKeyword(newKw) }}>
-        <label htmlFor="sh-add-kw">Track a keyword</label>
-        <input id="sh-add-kw" value={newKw} onChange={e => setNewKw(e.target.value)} placeholder="e.g. instagram posts for etsy shops" maxLength={80} />
-        <button type="submit" className="btn btn-ghost" disabled={!newKw.trim() || !!busy}>Track it</button>
-      </form>
-      {hub.ideas.length > 0 && <div className="sh-rest">
-        <p className="sh-rest-h"><span>Ideas to track</span><span>Good fits from the last check</span></p>
-        {hub.ideas.map(i => (
-          <div key={i.keyword} className="sh-row is-static">
-            <span className="sh-row-main"><b>{i.keyword}</b><span>{fmt(i.volume)} searches a month · {i.difficulty ? `difficulty ${i.difficulty}` : 'difficulty unknown'}</span></span>
-            <button type="button" className="lfp-link" disabled={!!busy} onClick={() => addKeyword(i.keyword)}>Track it</button>
-          </div>
-        ))}
-      </div>}
-      <p className="sh-foot">
-        <span>Each keyword gets {JUDGE_AFTER_WEEKS} weeks before we judge it.</span>
-        {hub.dropped.length > 0 && <button type="button" className="lfp-link" onClick={() => go({ v: 'dropped' })}>Stopped tracking ({hub.dropped.length})</button>}
-      </p>
-    </>
-  }
-
-  function aiTab() {
-    if (!hub.questions.length && !hub.overviews.length) return <p className="sh-empty">No AI answers yet. They come with the first check.</p>
-    return <>
-      <p className="sh-intro">Each week we ask buyer questions to ChatGPT, Perplexity and Gemini through their APIs, twice each, and read Google’s AI Overview for your keywords. A bar shows how often you were named. Answers vary, so watch the trend more than one week.</p>
-      {hub.questions.map(q => {
-        const hits = q.engines.reduce((t, e) => t + e.hits, 0), of = q.engines.reduce((t, e) => t + e.samples, 0)
-        return (
-          <div key={q.question} className="sh-q">
-            <div className="sh-q-top"><b>{q.question}</b><span>Named in {hits} of {of}</span></div>
-            <div className="sh-engines">{q.engines.map(e => (
-              <div key={e.engine} className="sh-eng">
-                <span>{ENGINE_NAME[e.engine]} · {e.samples ? `${e.hits}/${e.samples}` : 'no answer'}</span>
-                <i><em style={{ width: `${e.samples ? (e.hits / e.samples) * 100 : 0}%` }} /></i>
-              </div>
-            ))}</div>
-            {(q.instead.length > 0 || q.cited.length > 0) && <p className="sh-q-who">
-              {q.instead.length > 0 && <>Named instead: {q.instead.join(', ')}</>}
-              {q.instead.length > 0 && q.cited.length > 0 && ' · '}
-              {q.cited.length > 0 && <>Cited: {q.cited.map(c => (c.n > 1 ? `${c.domain} (${c.n}×)` : c.domain)).join(', ')}</>}
-            </p>}
-          </div>
-        )
-      })}
-      {hub.overviews.length > 0 && <div className="sh-rest">
-        <p className="sh-rest-h"><span>Google AI Overviews</span><span>For your keywords</span></p>
-        {hub.overviews.map(o => (
-          <div key={o.keyword} className="sh-row is-static"><span className="sh-row-main"><b>{o.keyword}</b><span>{o.named ? `${brandName} is named` : `${brandName} isn’t named`}</span></span></div>
-        ))}
-      </div>}
-      {data.description && <p className="sh-foot">How AI describes {brandName}: {data.description.issue ? data.description.issue : 'right'}</p>}
-    </>
-  }
-
-  function postsTab() {
-    const live = hub.posts.filter(p => p.status === 'published' || p.status === 'approved')
-    const ready = hub.posts.filter(p => p.status === 'drafted' || p.status === 'writing')
-    const ideas = hub.posts.filter(p => p.status === 'picked')
-    if (!hub.posts.length) return <p className="sh-empty">No posts yet. Suggestions come with the first check.</p>
-    const row = (p: (typeof hub.posts)[number], right: React.ReactNode, sub: string) => (
-      <div key={p.keyword} className="sh-row is-static">
-        <span className="sh-row-main"><b>{p.keyword}</b><span>{sub}</span></span>
-        {right}
-      </div>
-    )
-    return <>
-      {live.length > 0 && <div className="sh-rest">
-        <p className="sh-rest-h"><span>Published</span><span>Judged by the keyword each one targets</span></p>
-        {live.map(p => row(p,
-          p.verdict ? <button type="button" className="lfp-link" onClick={() => go({ v: 'kw', k: kwKey(p.keyword) })}>{VERDICT_LABEL[p.verdict]} ›</button> : <span className="sh-row-go">Not tracked</span>,
-          [p.kind === 'improve' ? 'Rewrite of your page' : 'New post', p.rank !== null ? `#${p.rank} on Google` : 'not found on Google yet', p.clicks ? `${p.clicks} clicks` : null].filter(Boolean).join(' · ')))}
-      </div>}
-      {ready.length > 0 && <div className="sh-rest">
-        <p className="sh-rest-h"><span>Ready to read</span><span>Publish them from the Search Agent</span></p>
-        {ready.map(p => row(p, <a className="lfp-link" href="/agents/search">{p.status === 'writing' ? 'Writing…' : 'Read ›'}</a>, p.kind === 'improve' ? 'A rewrite of your page' : 'A new post'))}
-      </div>}
-      {ideas.length > 0 && <div className="sh-rest">
-        <p className="sh-rest-h"><span>Suggested next</span><span>Searches you can realistically win</span></p>
-        {ideas.map(p => {
-          const t = data.topics.find(x => x.keyword === p.keyword)
-          return row(p, <button type="button" className="lfp-link" disabled={!!busy} onClick={async () => { setWriting(p.keyword); await call('write', { keyword: p.keyword }, 'write'); setWriting(null) }}>{writing === p.keyword ? 'Writing…' : 'Write it ›'}</button>,
-            [t?.volume ? `${fmt(t.volume)} searches a month` : null, t?.difficulty ? `difficulty ${t.difficulty}` : null, t?.why].filter(Boolean).join(' · '))
-        })}
-      </div>}
-    </>
-  }
-
-  // ── Opened items ────────────────────────────────────────────────────────────
-
-  const back = <button type="button" className="lfp-link sh-back" onClick={() => go({ v: 'list' })}>‹ Back</button>
-
-  function keywordView(k: KeywordView) {
-    const b = (op: string) => busy === `${op}:${k.keyword}`
-    return <div className="sh-open">
-      {back}
-      <h2 className="sh-h2">“{k.keyword}”</h2>
-      <p className="sh-sub">
-        {k.swappedFrom ? `Swapped in for “${k.swappedFrom}”. ` : ''}Tracked for {k.weeks} week{k.weeks === 1 ? '' : 's'}{k.by === 'user' ? ' (added by you)' : ''}
-        {k.url ? <> · page <a href={k.url} target="_blank" rel="noopener noreferrer">{k.url.replace(/^https?:\/\/[^/]+/, '') || '/'}</a></> : ''}
-      </p>
-      <div className="sh-facts">
-        <div><span>Now</span><b>{k.now !== null ? `#${k.now}` : '—'}</b></div>
-        <div><span>Searches a month</span><b>{k.volume !== null ? fmt(k.volume) : '—'}</b></div>
-        <div><span>Difficulty</span><b>{k.difficulty ?? '—'}</b></div>
-        <div><span>{k.clicks !== null ? 'Clicks, 28 days' : 'AI Overview named you'}</span><b>{k.clicks !== null ? k.clicks : k.ai ? `${k.ai.named} of ${k.ai.asked}` : '—'}</b></div>
-      </div>
-      <div className="sh-chart">
-        <div className="sh-chart-h"><span>Google position at each weekly check</span><span>{hub.source === 'gsc' ? 'Search Console' : 'DataForSEO’s estimate'}</span></div>
-        {k.points.length ? <RankChart points={k.points} /> : <p className="sh-empty">The first point comes with the next check.</p>}
-      </div>
-      <div className="sh-call">
-        <h3>{k.verdict === 'change' ? 'Our suggestion: change it' : k.verdict === 'refresh' ? 'Our suggestion: rewrite the page' : k.verdict === 'drop' ? 'Our suggestion: stop tracking it' : VERDICT_LABEL[k.verdict]}</h3>
-        <p>{k.reason}</p>
-        {k.verdict === 'change' && k.swap && <div className="sh-swap">
-          <div><b>{k.keyword}</b><span>{k.volume !== null ? `${fmt(k.volume)} searches` : 'searches unknown'} · {k.difficulty !== null ? `difficulty ${k.difficulty}` : 'difficulty unknown'} · {k.now !== null ? `#${k.now}` : 'not found'}</span></div>
-          <span className="sh-arrow" aria-hidden="true">→</span>
-          <div><b>{k.swap.keyword}</b><span>{fmt(k.swap.volume)} searches · {k.swap.difficulty !== null ? `difficulty ${k.swap.difficulty}` : 'difficulty unknown'}{k.swap.rank !== null ? ` · you already show at #${k.swap.rank}` : ''}</span></div>
+      <section className="sa-sec">
+        <h2 className="sa-h">Where you stand on Google</h2>
+        {withKw.length > 0 && <div className="sa-zbar" role="img" aria-label="Your pages by Google position">
+          {counts.filter(o => o.list.length).map(o => <span key={o.z.z} className={`sa-c-${o.z.c}`} style={{ flex: o.list.length }}>{o.list.length}</span>)}
         </div>}
-        {k.plan.length > 0 && k.verdict !== 'change' && <ul>{k.plan.map(p => <li key={p}>{p}</li>)}</ul>}
-        {k.verdict === 'change' && !k.swap && <ul>{k.plan.map(p => <li key={p}>{p}</li>)}</ul>}
-        <div className="sh-acts">
-          {k.verdict === 'change' && k.swap && <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => kwAct('kw_swap', k)}>{b('kw_swap') ? 'Swapping…' : 'Swap the keyword'}</button>}
-          {k.verdict === 'change' && !k.swap && <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => kwAct('kw_drop', k)}>Stop tracking</button>}
-          {k.verdict === 'drop' && <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => kwAct('kw_drop', k)}>{b('kw_drop') ? 'Stopping…' : 'Stop tracking'}</button>}
-          {k.verdict === 'refresh' && <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => rewrite(k)}>{writing === k.keyword ? 'Writing the rewrite…' : 'Draft the rewrite'}</button>}
-          {(k.verdict === 'change' || k.verdict === 'drop') && <button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => kwAct('kw_keep', k)}>Keep it 4 more weeks</button>}
-          {k.verdict === 'refresh' && <button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => go({ v: 'list' })}>Not now</button>}
-          {!ACTION_VERDICTS.has(k.verdict) && <button type="button" className="lfp-link" disabled={!!busy} onClick={() => kwAct('kw_drop', k)}>Stop tracking it</button>}
+        <div className="sa-zones">{counts.map(o => (
+          <div key={o.z.z} className={`sa-zone sa-c-${o.z.c}`}>
+            <div className="sa-zone-h"><b>{o.z.label}</b><span>{o.z.sub}</span></div>
+            {o.list.length ? o.list.map(p => (
+              <button key={p.path} type="button" className="sa-chip" onClick={() => go({ v: 'page', path: p.path })}>{p.keyword}{p.kw?.now ? <em>#{p.kw.now}</em> : null}</button>
+            )) : <span className="sa-zone-empty">None</span>}
+          </div>
+        ))}</div>
+        <p className="sa-src">{m.source === 'gsc' ? 'Positions from Google Search Console.' : <>Positions are DataForSEO’s estimate. <a href="/dashboard/keywords">Connect Search Console</a> for real ones.</>}</p>
+      </section>
+
+      {groups.map(g => {
+        const list = m.pages.filter(p => g.st.includes(p.status))
+        if (!list.length) return null
+        return <section key={g.title} className="sa-sec">
+          <div className="sa-gh"><Pill c={g.c} label={g.title} n={list.length} />{g.note && <span>{g.note}</span>}</div>
+          <div className="sa-cards">{list.map(card)}</div>
+          {g.c === 'test' && <button type="button" className="lfp-link sa-gfoot" onClick={() => { setForm(f => ({ ...f, area: 'seo' })); go({ v: 'changed' }) }}>I changed something</button>}
+        </section>
+      })}
+      {!m.pages.some(p => p.status === 'test') && <p className="sa-src"><button type="button" className="lfp-link" onClick={() => { setForm(f => ({ ...f, area: 'seo' })); go({ v: 'changed' }) }}>I changed something</button> · title and H1 changes are also spotted by themselves at each check.</p>}
+
+      {m.adds.length > 0 && <section className="sa-sec">
+        <div className="sa-gh"><Pill c="new" label="Keywords to add" n={m.adds.length} /><span>No page targets these yet</span></div>
+        <div className="sa-cards">{m.adds.map(a => (
+          <div key={a.keyword} className="sa-card sa-c-new is-static">
+            <span className="sa-card-top"><b>{a.keyword}</b><span className="sa-rk sa-c-new">+</span></span>
+            <span className="sa-card-kw">{fmt(a.volume)} searches a month · {a.difficulty ? `difficulty ${a.difficulty}` : 'difficulty unknown'}</span>
+            <span className="sa-card-foot"><span className="sa-mute">{a.where}</span>
+              <button type="button" className="lfp-link" disabled={!!busy} onClick={async () => { const j = await call('idea', { keyword: a.keyword }, 'idea'); if (j && !j.error) notify(`“${a.keyword}” added to your posts to write in the Search Agent.`) }}>Plan it</button></span>
+          </div>
+        ))}</div>
+      </section>}
+    </>
+  }
+
+  // ── GEO tab ─────────────────────────────────────────────────────────────────
+
+  function geoTab() {
+    if (!m.questions.length) return <p className="sa-empty">No AI answers yet. They come with the next check.</p>
+    const tileC = m.geo.pct === null ? 'wait' : m.geo.pct >= 50 ? 'good' : m.geo.pct >= 25 ? 'amber' : 'warn'
+    let firstFix = true
+    const card = (q: QuestionView) => {
+      const st = GEO_STATUS[q.status]
+      let foot: React.ReactNode
+      if (q.status === 'test' && q.test) foot = <TestBar t={q.test} />
+      else if (q.status === 'named') foot = <span className="sa-ok">Keep it up</span>
+      else { foot = firstFix ? <span className="btn btn-primary sa-sm">Fix this first →</span> : <span className="sa-act">{q.todo[0]?.title} →</span>; firstFix = false }
+      return (
+        <button key={q.question} type="button" className={`sa-card sa-c-${st.c}`} onClick={() => go({ v: 'q', q: q.question })}>
+          <span className="sa-card-top"><b>{q.question}</b><span className={`sa-rk sa-c-${q.samples && q.hits * 2 >= q.samples ? 'good' : 'warn'}`}>{q.hits}/{q.samples}</span></span>
+          <span className="sa-engs">{q.engines.map(e => (
+            <span key={e.engine} className="sa-eg"><small>{ENGINE_NAME[e.engine]}</small>
+              {e.samples ? Array.from({ length: e.samples }, (_, k) => <i key={k} className={k < e.hits ? 'y' : 'n'} />) : <em>—</em>}</span>
+          ))}</span>
+          <span className="sa-card-foot">{foot}</span>
+        </button>
+      )
+    }
+    const groups: { c: string; title: string; st: GeoStatus; note?: string }[] = [
+      { c: 'warn', title: 'Not named', st: 'missing', note: 'Others are named instead' },
+      { c: 'test', title: 'Testing', st: 'test', note: `${TEST_WEEKS} weeks per change` },
+      { c: 'good', title: 'Named', st: 'named' },
+    ]
+    const todo = site.aiChecks.filter(c => !c.ok).length
+    return <>
+      <Legend items={[['good', 'Named'], ['test', 'Testing'], ['warn', 'Not named']]} />
+      <section className="sa-sec">
+        <h2 className="sa-h">Where you stand in AI answers</h2>
+        <div className="sa-tiles">
+          <div className={`sa-tile sa-c-${tileC}`}><b>{m.geo.pct === null ? '—' : `${m.geo.pct}%`}</b><span>of AI answers name you</span>{m.geo.pct !== null && <i><em style={{ width: `${m.geo.pct}%` }} /></i>}</div>
+          <div className="sa-tile sa-c-good"><b>{m.geo.named} of {m.geo.total}</b><span>questions you’re named for</span></div>
+          <div className="sa-tile sa-c-wait"><b>{m.geo.rival ?? '—'}</b><span>named most instead of you</span></div>
+          <div className="sa-tile sa-c-wait"><b>{m.geo.cited ?? '—'}</b><span>site AI cites most</span></div>
         </div>
-      </div>
+      </section>
+      {groups.map(g => {
+        const list = m.questions.filter(q => q.status === g.st)
+        if (!list.length) return null
+        return <section key={g.title} className="sa-sec">
+          <div className="sa-gh"><Pill c={g.c} label={g.title} n={list.length} />{g.note && <span>{g.note}</span>}</div>
+          <div className="sa-cards one">{list.map(card)}</div>
+          {g.c === 'test' && <button type="button" className="lfp-link sa-gfoot" onClick={() => { setForm(f => ({ ...f, area: 'geo' })); go({ v: 'changed' }) }}>I changed something</button>}
+        </section>
+      })}
+      {site.aiChecks.length > 0 && <section className="sa-sec">
+        <div className="sa-gh"><Pill c={todo ? 'warn' : 'good'} label="Site ready for AI" n={`${site.aiChecks.length - todo}/${site.aiChecks.length}`} /></div>
+        <div className="sa-checks">{site.aiChecks.map(c => (
+          <div key={c.key} className={`sa-ck sa-c-${c.ok ? 'good' : 'warn'}`} title={c.detail}>
+            <i>{c.ok ? '✓' : '!'}</i><span>{c.label}</span>{!c.ok && site.geo && <a className="lfp-link" href={site.geo.href}>Fix</a>}
+          </div>
+        ))}</div>
+      </section>}
+      <p className="sa-src">Questions are asked twice a week to ChatGPT, Perplexity and Gemini through their APIs, so the numbers show a direction, not an exact score. <a href="/agents/search">Edit the questions</a></p>
+    </>
+  }
+
+  // ── Opened page ─────────────────────────────────────────────────────────────
+
+  const back = <button type="button" className="lfp-link sa-back" onClick={() => go({ v: 'list' })}>‹ Back</button>
+
+  function testBox(t: TestView, kind: Tab) {
+    const unit = (v: number | null) => (kind === 'seo' ? rankText(v) : v === null ? '—' : `${v}%`)
+    return <div className="sa-call sa-c-test">
+      <h3>Testing: {t.what.toLowerCase()} since {day(t.at)}{t.by === 'auto' ? ' (spotted at a check)' : ''}</h3>
+      <div className="sa-wait"><span>{day(t.at)}</span><i><em style={{ width: `${t.progress * 100}%` }} /></i><span>know by {day(t.knowBy)}</span></div>
+      <p>Was {unit(t.before)}, now {unit(t.now)}. {now < Date.parse(t.firstSign)
+        ? `${kind === 'seo' ? 'Google needs 1 to 2 weeks to re-read the page' : 'AI that searches the web needs 1 to 3 weeks to pick it up'}, so the first sign comes around ${day(t.firstSign)}.`
+        : t.moved !== null && t.moved > 0 ? 'Moving the right way.' : 'No clear move yet.'}
+        {t.extended ? ' It’s moving slowly, so we gave it 2 more weeks.' : ''} On {day(t.knowBy)} you’ll get one of three answers:</p>
+      <ul>
+        <li><b>Working</b>: {kind === 'seo' ? 'up 5 or more places, or on page 1' : 'named in half the answers or more'}. Keep it.</li>
+        <li><b>2 more weeks</b>: moving, but slowly (once).</li>
+        <li><b>Needs a change</b>: no move. We suggest something else.</li>
+      </ul>
+      <div className="sa-acts"><button type="button" className="lfp-link" disabled={!!busy} onClick={() => call('change_stop', { id: t.id })}>Stop this test</button></div>
     </div>
   }
 
-  function todoView(t: HubTodo) {
-    const external = t.href && t.href !== '/agents/search'
-    return <div className="sh-open">
-      {back}
-      <span className="sh-eyebrow">{t.kind === 'site' ? t.detail : KIND_LABEL[t.kind]}</span>
-      <h2 className="sh-h2">{t.title}</h2>
-      <p className="sh-sub">{t.why}</p>
-      <div className="sh-call">
-        <h3>What to do</h3>
-        <p>{t.kind === 'site' ? 'Open the check to see the fix. Some can be fixed for you.'
-          : t.kind === 'draft' ? 'Read it, change what you like, and publish it from the Search Agent. We track its keyword from then on.'
-          : t.kind === 'write' ? 'The Search Agent drafts the page from your product and the pages AI cites. You add one real example.'
-          : t.kind === 'listing' ? 'The Search Agent finds who to write to and drafts a short pitch you send from your Gmail.'
-          : t.kind === 'fix' ? 'The Search Agent writes new wording for your homepage and about page.'
-          : 'Open it in the Search Agent for the details.'}</p>
-        <div className="sh-acts">
-          <a className="btn btn-primary" href={t.href ?? '/agents/search'}>{external ? 'Open the check' : 'Open in Search Agent'}</a>
-          {t.taskKey && <button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => taskAct(t, 'done')}>Mark done</button>}
-          {t.taskKey && <button type="button" className="lfp-link" disabled={!!busy} onClick={() => taskAct(t, 'dismissed')}>Skip</button>}
+  function pageView(p: PageView) {
+    const st = SEO_STATUS[p.status]
+    const target = p.swap?.keyword ?? p.keyword
+    let box: React.ReactNode
+    if (p.status === 'test' && p.test) box = testBox(p.test, 'seo')
+    else if (p.status === 'working') box = <div className="sa-call sa-c-good"><h3>Working. Keep it.</h3><p>{p.why}</p></div>
+    else if (p.status === 'wait' || p.status === 'none') box = <div className="sa-call sa-c-wait"><h3>{p.keyword ? 'Give it time' : 'No search targeted'}</h3><p>{p.why}</p></div>
+    else {
+      const isChange = p.status === 'change'
+      box = <div className="sa-call sa-c-warn">
+        <h3>{isChange ? (p.swap ? 'Change the search this page targets' : 'Reword the page') : 'Update the page, keep the search'}</h3>
+        <p>{p.why}</p>
+        {isChange && p.swap && <p className="sa-new">New search: <b>{p.swap.keyword}</b> · {fmt(p.swap.volume)} searches a month · {p.swap.difficulty ? `difficulty ${p.swap.difficulty}` : 'difficulty unknown'}{p.swap.rank ? ` · you already show at #${p.swap.rank}` : ''}</p>}
+        {p.sugg ? <div className="sa-sugg">{p.sugg.items.map((s, i) => (
+          <div key={i}><span>{s.tag}</span><b>{s.text}{s.tag !== 'H2' && <em>now: {s.tag === 'Title' ? p.title : s.tag === 'H1' ? p.h1 : p.meta}</em>}{s.tag === 'H2' && <em>new section</em>}</b>
+            <button type="button" className="lfp-link" onClick={() => copy(s.text)}>Copy</button></div>
+        ))}</div> : <p><button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => call('page_suggest', { path: p.path }, 'suggest')}>{busy === 'suggest' ? 'Writing…' : 'Write the new wording'}</button></p>}
+        <p>Make the change on your site, then press the button. We start the clock and tell you by {knowFromToday} whether it worked.</p>
+        <div className="sa-acts">
+          <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => startTest({ area: 'seo', path: p.path, to: target, what: isChange ? 'New title and H1' : 'Updated page' })}>I’ve made this change</button>
+          {!isChange && <button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => draftRewrite(p)}>{busy === 'write' || busy === 'rewrite' ? 'Writing…' : 'Draft the full rewrite'}</button>}
+          <button type="button" className="lfp-link" onClick={() => go({ v: 'list' })}>Not now</button>
         </div>
       </div>
+    }
+    const points = p.kw?.points ?? []
+    return <div className="sa-open">
+      {back}
+      <h2 className="sa-h2">{pathName(p.path)}</h2>
+      <div className="sa-gh"><Pill c={st.c} label={st.label} />{p.keyword && <Rank r={p.kw?.now ?? null} />}</div>
+      {p.keyword && <p className="sa-sub">Targets “{p.keyword}”{p.kw?.volume ? ` · ${fmt(p.kw.volume)} searches a month` : ''}{p.kw?.difficulty ? ` · difficulty ${p.kw.difficulty}` : ''} · <a href={p.url} target="_blank" rel="noopener noreferrer">open the page ↗</a></p>}
+      <div className="sa-says">
+        <div><span>Title</span><b><Hl text={p.title} keyword={p.keyword} /></b></div>
+        <div><span>H1</span><b><Hl text={p.h1} keyword={p.keyword} /></b></div>
+        <div><span>H2s</span><b>{p.h2s.length ? p.h2s.map((h, i) => <span key={i}>{i > 0 && ' · '}<Hl text={h} keyword={p.keyword} /></span>) : '—'}</b></div>
+        <div><span>Meta</span><b><Hl text={p.meta} keyword={p.keyword} /></b></div>
+      </div>
+      {p.keyword && <div className="sa-chart">
+        <div className="sa-chart-h"><span>Google position at each check</span><span>{p.kw?.best ? `Best #${p.kw.best} · ` : ''}now {rankText(p.kw?.now ?? null)}</span></div>
+        {points.length ? <RankChart points={points} test={p.test} /> : <p className="sa-empty">The first point comes with the next check.</p>}
+      </div>}
+      {box}
     </div>
   }
+
+  // ── Opened question ─────────────────────────────────────────────────────────
+
+  function questionView(q: QuestionView) {
+    const st = GEO_STATUS[q.status]
+    let box: React.ReactNode
+    if (q.status === 'test' && q.test) box = testBox(q.test, 'geo')
+    else if (q.status === 'named') box = <div className="sa-call sa-c-good"><h3>You’re named. Keep it up.</h3><p>Named in {q.hits} of {q.samples} answers. Keep the pages AI cites for this up to date.</p></div>
+    else box = <div className="sa-call sa-c-warn">
+      <h3>What to do, most useful first</h3>
+      <ol>{q.todo.map(t => <li key={t.title}><b>{t.title}.</b> {t.why} <button type="button" className="lfp-link" disabled={!!busy} onClick={() => startTest({ area: 'geo', question: q.question, what: t.title })}>I’ve done this</button></li>)}</ol>
+      <p>When one is done, press “I’ve done this” next to it. We start the clock and tell you by {knowFromToday} whether AI names you.</p>
+      <div className="sa-acts">
+        {q.todo[0]?.href
+          ? <a className="btn btn-primary" href={q.todo[0].href}>{q.todo[0].title}</a>
+          : <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => startTest({ area: 'geo', question: q.question, what: q.todo[0]?.title ?? 'Your change' })}>I’ve done this</button>}
+        <button type="button" className="lfp-link" onClick={() => go({ v: 'list' })}>Not now</button>
+      </div>
+    </div>
+    return <div className="sa-open">
+      {back}
+      <h2 className="sa-h2">“{q.question}”</h2>
+      <div className="sa-gh"><Pill c={st.c} label={st.label} /></div>
+      <p className="sa-sub">Named in {q.hits} of {q.samples} answers this check{q.keyword ? ` · closest page search: ${q.keyword}` : ''}</p>
+      <div className="sa-engrows">
+        {q.engines.map(e => (
+          <div key={e.engine}><b><i className={`sa-dot sa-c-${!e.samples ? 'wait' : e.hits ? 'good' : 'warn'}`} />{e.engine === 'google_ai' ? 'Google AI Overview' : ENGINE_NAME[e.engine]}</b>
+            <span>{!e.samples ? (e.engine === 'google_ai' ? 'Google showed no AI Overview for this' : 'No answer this check') : e.hits ? `Named you in ${e.hits} of ${e.samples}` : `Didn’t name you (${e.samples} of ${e.samples})`}</span></div>
+        ))}
+        {q.instead.length > 0 && <div><b>Named instead</b><span>{q.instead.join(', ')}</span></div>}
+        {q.cited.length > 0 && <div><b>Sites AI cited</b><span>{q.cited.map(c => (c.n > 1 ? `${c.domain} (${c.n}×)` : c.domain)).join(', ')}</span></div>}
+      </div>
+      {q.trend.length > 0 && <div className="sa-chart">
+        <div className="sa-chart-h"><span>Share of answers that named you, at each check</span><span>ChatGPT, Perplexity, Gemini</span></div>
+        <PctChart points={q.trend} test={q.test} />
+      </div>}
+      {box}
+    </div>
+  }
+
+  // ── Side views ──────────────────────────────────────────────────────────────
 
   function howView() {
-    const rows: [string, string][] = [
-      ['Give it time', `Tracked under ${JUDGE_AFTER_WEEKS} weeks, or fewer than 3 checks. New pages take a while on Google, so we don’t judge early.`],
-      ['Keep', 'On page 1, bringing clicks while in the top 30, or up 5+ places over the last 4 checks.'],
-      ['Refresh page', 'It reached the top 20, then sat 3+ places below its best (5+ on DataForSEO’s estimate) on two checks in a row. The keyword is fine; the page is out of date, so we draft a rewrite.'],
-      ['Change', `After ${JUDGE_AFTER_WEEKS} weeks still outside the top 30 and not climbing, usually because big sites own page 1. We suggest a closer search with lower difficulty that the same page can win.`],
-      ['Drop', `Never found after ${DROP_AFTER_WEEKS} weeks, or our fit check says the people searching it aren’t your buyers.`],
-    ]
-    return <div className="sh-open">
-      {back}
-      <h2 className="sh-h2">How we judge keywords</h2>
-      <p className="sh-sub">Every week we check each tracked keyword’s Google position ({flags.gsc ? 'from Search Console' : 'DataForSEO’s estimate until Search Console is connected'}), its clicks and whether Google’s AI Overview names you. Each keyword then gets one of five verdicts. Anything that needs a change becomes a to-do, and nothing changes without your OK. “Keep it 4 more weeks” holds a suggestion back.</p>
-      <div className="sh-explain">{rows.map(([a, b]) => <div key={a}><b>{a}</b><p>{b}</p></div>)}</div>
-      <p className="sh-foot">Your starting keywords and the topics you write are tracked by themselves. Add your own on the Keywords tab.</p>
+    return <div className="sa-open">{back}
+      <h2 className="sa-h2">How this works</h2>
+      <p className="sa-sub">Every week, and whenever you press “Recheck all keywords”, we do four things:</p>
+      <div className="sa-explain">
+        <div><b>1. Read your pages</b><p>Your homepage and up to 9 main pages (from your menu and sitemap): title, H1, headings and description. From those we work out which search each page targets. A title or H1 that changed since the last check becomes a test by itself.</p></div>
+        <div><b>2. Check Google</b><p>Where each page ranks for its search ({flags.gsc ? 'from Search Console' : 'DataForSEO’s estimate until Search Console is connected'}), how many people search it and how hard it is.</p></div>
+        <div><b>3. Ask AI</b><p>Buyer questions, twice each to ChatGPT, Perplexity and Gemini, plus Google’s AI Overview for your pages’ searches. Who gets named and which sites get cited.</p></div>
+        <div><b>4. Judge</b><p>Each page gets one status: working, testing, waiting, or needs a change (with new wording written for you). Each question: named, testing, or not named (with what to do).</p></div>
+      </div>
+      <h3 className="sa-h3">When will I know if my change worked?</h3>
+      <div className="sa-explain">
+        <div><b>New title or H1</b><p>Google re-reads the page in 1 to 2 weeks (first sign at {FIRST_SIGN_WEEKS} weeks). <b>Answer at {TEST_WEEKS} weeks</b>: up 5+ places or on page 1 is working; moving slowly gets 2 more weeks; no move means try something else.</p></div>
+        <div><b>New page or post</b><p>Takes longer: first sign at 3 to 4 weeks, a clear answer at 8 to 12.</p></div>
+        <div><b>GEO change</b><p>AI that searches the web picks it up 1 to 3 weeks after Google has the page. <b>Answer at {TEST_WEEKS} weeks</b>, from the last 3 checks, because answers vary.</p></div>
+        <div><b>AI’s built-in knowledge</b><p>Only changes when the AI is retrained, every few months. We don’t promise a date for this.</p></div>
+      </div>
+      <p className="sa-src">Rechecking more than once a week won’t make Google faster. It’s useful right after you change something, so we see it.</p>
+    </div>
+  }
+
+  function changedView() {
+    const pages = m.pages.filter(p => p.keyword)
+    const page = pages.find(p => p.path === form.path) ?? pages[0]
+    return <div className="sa-open">{back}
+      <h2 className="sa-h2">I changed something</h2>
+      <p className="sa-sub">Title and H1 changes are also spotted by themselves at the next check. Tell us now to start the clock today, or for changes we can’t see (a new section, an FAQ, a listing on another site).</p>
+      <form className="sa-form" onSubmit={e => {
+        e.preventDefault()
+        if (form.area === 'seo') startTest({ area: 'seo', path: page?.path, to: form.to.trim() || page?.keyword, what: form.what })
+        else startTest({ area: 'geo', question: form.question || m.questions[0]?.question, what: form.geoWhat.trim() || 'Your change' })
+      }}>
+        <label htmlFor="sa-f-area">For<select id="sa-f-area" value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value as Tab }))}><option value="seo">Google (SEO)</option><option value="geo">AI answers (GEO)</option></select></label>
+        {form.area === 'seo' ? <>
+          <label htmlFor="sa-f-page">Page<select id="sa-f-page" value={page?.path ?? ''} onChange={e => setForm(f => ({ ...f, path: e.target.value, to: '' }))}>{pages.map(p => <option key={p.path} value={p.path}>{p.path}</option>)}</select></label>
+          <label htmlFor="sa-f-what">What changed<select id="sa-f-what" value={form.what} onChange={e => setForm(f => ({ ...f, what: e.target.value }))}>
+            {['New title', 'New H1', 'New title and H1', 'New headings (H2)', 'New description', 'New section or FAQ', 'Rewrote the page'].map(o => <option key={o}>{o}</option>)}</select></label>
+          <label htmlFor="sa-f-to">The search it should win<input id="sa-f-to" value={form.to || page?.keyword || ''} onChange={e => setForm(f => ({ ...f, to: e.target.value }))} maxLength={80} /></label>
+        </> : <>
+          <label htmlFor="sa-f-q">Question<select id="sa-f-q" value={form.question || m.questions[0]?.question || ''} onChange={e => setForm(f => ({ ...f, question: e.target.value }))}>{m.questions.map(q => <option key={q.question} value={q.question}>{q.question}</option>)}</select></label>
+          <label htmlFor="sa-f-gw">What you did<input id="sa-f-gw" value={form.geoWhat} placeholder="e.g. Added an FAQ to the homepage" onChange={e => setForm(f => ({ ...f, geoWhat: e.target.value }))} maxLength={80} /></label>
+        </>}
+        <div className="sa-acts"><button type="submit" className="btn btn-primary" disabled={!!busy || (form.area === 'seo' ? !page : !m.questions.length)}>Start the test</button>
+          <button type="button" className="lfp-link" onClick={() => go({ v: 'list' })}>Cancel</button></div>
+      </form>
     </div>
   }
 
   function settingsView() {
-    return <div className="sh-open">
-      {back}
-      <h2 className="sh-h2">Settings</h2>
-      <div className="sh-set">
-        <label htmlFor="sh-on"><span><b>Check every week</b><span>Rankings, AI answers and your keywords’ verdicts</span></span>
-          <input id="sh-on" type="checkbox" checked={data.settings.enabled} disabled={!!busy} onChange={e => call('settings', { settings: { enabled: e.target.checked } })} /></label>
-        <label htmlFor="sh-country"><span><b>Country</b><span>For Google positions and searches a month</span></span>
-          <select id="sh-country" value={data.settings.country} disabled={!!busy} onChange={e => call('settings', { settings: { country: e.target.value } })}>
-            {countries.map(c => <option key={c} value={c}>{c}</option>)}
-          </select></label>
-        <div className="sh-set-row"><span><b>Google Search Console</b><span>{flags.gsc ? 'Connected: rankings and clicks are real' : 'Not connected: rankings are DataForSEO’s estimate'}</span></span>
-          <a className="lfp-link" href="/dashboard/keywords">{flags.gsc ? 'Change' : 'Connect'}</a></div>
-        <div className="sh-set-row"><span><b>Starting keywords and buyer questions</b><span>{data.settings.seeds.length} keywords · {data.settings.questions.length} questions</span></span>
-          <a className="lfp-link" href="/agents/search">Edit in Search Agent</a></div>
-        <div className="sh-set-row"><span><b>Demo mode</b><span>Made-up data, nothing is sent</span></span>
-          <DemoSwitch on={demo} forced={flags.demoForced} busy={busy === 'demo'} onChange={switchDemo} /></div>
-      </div>
-    </div>
-  }
-
-  function droppedView() {
-    return <div className="sh-open">
-      {back}
-      <h2 className="sh-h2">Stopped tracking</h2>
-      <p className="sh-sub">Keywords you dropped or swapped out. Bring one back any time.</p>
-      <div className="sh-rest">
-        {hub.dropped.map(t => (
-          <div key={t.keyword} className="sh-row is-static">
-            <span className="sh-row-main"><b>{t.keyword}</b><span>{t.swappedTo ? `Swapped for “${t.swappedTo}”` : 'Dropped'}{t.droppedAt ? ` on ${day(t.droppedAt)}` : ''}</span></span>
-            <button type="button" className="lfp-link" disabled={!!busy} onClick={() => call('kw_restore', { keyword: t.keyword })}>Track again</button>
-          </div>
-        ))}
+    return <div className="sa-open">{back}
+      <h2 className="sa-h2">Settings</h2>
+      <div className="sa-set">
+        <label htmlFor="sa-on"><span><b>Check every week</b><span>Your pages, Google positions and AI answers</span></span>
+          <input id="sa-on" type="checkbox" checked={data.settings.enabled} disabled={!!busy} onChange={e => call('settings', { settings: { enabled: e.target.checked } })} /></label>
+        <label htmlFor="sa-country"><span><b>Country</b><span>For Google positions and searches a month</span></span>
+          <select id="sa-country" value={data.settings.country} disabled={!!busy} onChange={e => call('settings', { settings: { country: e.target.value } })}>{countries.map(c => <option key={c} value={c}>{c}</option>)}</select></label>
+        <div className="sa-set-row"><span><b>Pages we read</b><span>{(data.pages ?? []).length ? `${(data.pages ?? []).length} pages: your homepage and main pages from your menu and sitemap` : 'Read at the next check'}</span></span></div>
+        <div className="sa-set-row"><span><b>Google Search Console</b><span>{flags.gsc ? 'Connected: real positions and clicks' : 'Not connected: positions are DataForSEO’s estimate'}</span></span><a className="lfp-link" href="/dashboard/keywords">{flags.gsc ? 'Change' : 'Connect'}</a></div>
+        <div className="sa-set-row"><span><b>Buyer questions for AI</b><span>{data.settings.questions.length} questions</span></span><a className="lfp-link" href="/agents/search">Edit in Search Agent</a></div>
+        <div className="sa-set-row"><span><b>Demo mode</b><span>Made-up data, nothing is sent</span></span><DemoSwitch on={demo} forced={flags.demoForced} busy={busy === 'demo'} onChange={switchDemo} /></div>
       </div>
     </div>
   }
 
   let body: React.ReactNode
-  if (view.v === 'kw') { const k = kwBy.get(view.k); body = k ? keywordView(k) : back }
-  else if (view.v === 'todo') { const t = hub.todos.find(x => x.key === view.key); body = t ? todoView(t) : back }
+  if (first && view.v === 'list') body = (
+    <section className="lfp-next sa-first">
+      <div className="lfp-next-text"><b>Run the first check</b>
+        <span>We read your homepage and main pages, find the search each one targets, check where you rank on Google, and ask ChatGPT, Perplexity and Gemini about your field. About 3 minutes.</span></div>
+      <button type="button" className="btn btn-primary" disabled={!!busy} onClick={recheck}>{running ? 'Checking…' : 'Run the first check'}</button>
+    </section>
+  )
+  else if (view.v === 'page') { const p = m.pages.find(x => x.path === view.path); body = p ? pageView(p) : back }
+  else if (view.v === 'q') { const q = m.questions.find(x => x.question === view.q); body = q ? questionView(q) : back }
   else if (view.v === 'how') body = howView()
+  else if (view.v === 'changed') body = changedView()
   else if (view.v === 'settings') body = settingsView()
-  else if (view.v === 'dropped') body = droppedView()
-  else body = tab === 'todo' ? todoTab() : tab === 'keywords' ? keywordsTab() : tab === 'ai' ? aiTab() : postsTab()
+  else body = tab === 'seo' ? seoTab() : geoTab()
 
   return (
-    <div className="tool-page lfp sh">
+    <div className="tool-page lfp sa">
       {header()}
       {body}
-      {toast}
+      <Toast text={toast} />
     </div>
   )
 }

@@ -26,13 +26,14 @@ import { agentsDemo, demoWastedSpend, setDemoContext } from './demo'
 import { Progress } from './progress'
 import {
   addUsage, defaultSearchData, newMeter, readSearchData, updateSearchData,
-  type AdsTip, type AgentTask, type IdeaRow, type IdeaVerdict, type AiAnswer, type RankChange, type SearchAgentData, type Topic, type LinkOpportunity,
+  type AdsTip, type AgentTask, type IdeaRow, type IdeaVerdict, type AiAnswer, type RankChange, type SearchAgentData, type Topic, type LinkOpportunity, type SitePage, type SiteChange,
 } from './store'
 import { listingDomain } from './task-kinds'
 import { brandBlock, domainOf, idOf, isNamedRival, loadBrandContext, namedRivals, parseJsonLoose, type BrandContext } from './context'
 import { pitchable, runLinkFollowUps, runLinkOpportunities } from './link-opportunities'
 import { costNote } from './services'
 import { ensureTracked, kwKey, recordSnapshot } from '@/lib/search-hub/verdict'
+import { refreshSitePages } from '@/lib/search-hub/pages'
 
 export const searchFallback = (b: BrandContext) => () => defaultSearchData(b)
 
@@ -642,6 +643,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
   const n = (x: number, one: string, many = `${one}s`) => `${x.toLocaleString('en-US')} ${x === 1 ? one : many}`
   const p = new Progress(brandId, 'search', 'Search Agent research', [
     { key: 'setup', label: 'Reading your brand', hint: 'Your keywords, competitors and buyer questions' },
+    { key: 'pages', label: 'Reading your pages', hint: 'Titles, H1s and headings of your homepage and main pages' },
     { key: 'keywords', label: 'Finding keywords', hint: 'Ideas with monthly searches and difficulty' },
     { key: 'ranks', label: 'Checking Google rankings', hint: `Where ${b.domain} shows up on Google` },
     { key: 'ai', label: 'Asking AI assistants', hint: 'Who ChatGPT, Perplexity, Gemini and Google’s AI Overviews recommend' },
@@ -657,6 +659,16 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
     setDemoContext({ brand: b.name, domain: b.domain, competitors: b.competitors, seeds: d.settings.seeds, round: d.mentionHistory.length })
     const s = d.settings
     const demo = agentsDemo()
+    // Search & AI page: read the homepage and main pages (free), the search each one targets, and any
+    // title / H1 changed since the last check (each becomes a test)
+    let site: { pages: SitePage[]; changes: SiteChange[] } | null = null
+    await p.step('pages', async () => (site = await refreshSitePages(b, d)), r => ({
+      detail: `${n(r.pages.length, 'page')}`,
+      items: r.pages.filter(x => x.keyword).map(x => `${x.path} · ${x.keyword}`).slice(0, 5),
+      note: r.changes.length ? `Changed since the last check: ${r.changes.map(c => `${c.what.toLowerCase()} on ${c.path}`).join(', ')}. Testing from today.` : undefined,
+    })).catch(e => { errors.push(`Your pages: ${e instanceof Error ? e.message : e}`); return null })
+    const siteNow = site as { pages: SitePage[]; changes: SiteChange[] } | null
+    const pageKws = (siteNow?.pages ?? d.pages ?? []).map(x => x.keyword).filter((k): k is string => !!k)
     const ads = demo ? null : await readGoogleAdsCreds(brandId).catch(() => null)
     const gsc = demo ? null : await readGscCreds(brandId).catch(() => null)
     // Where the site ranks: Search Console when connected (real positions), else DataForSEO's estimate
@@ -684,7 +696,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
         : `${b.domain} shows up for about ${n(r.length, 'search', 'searches')} (DataForSEO’s estimate${gsc ? '' : '; connect Search Console for real positions'}).` }))
         .catch(e => { errors.push(`Rankings: ${e instanceof Error ? e.message : e}`); return null }),
       // Google's AI Overview for the starting keywords, then the other keywords the Search & AI page tracks
-      p.step('ai', () => askEngines(b, asked, [...new Set([...s.seeds.map(kwKey), ...(d.tracked ?? []).filter(t => t.status === 'active').map(t => t.keyword)])], s.country, meter), r => {
+      p.step('ai', () => askEngines(b, asked, [...new Set([...pageKws, ...s.seeds.map(kwKey), ...(d.tracked ?? []).filter(t => t.status === 'active').map(t => t.keyword)])], s.country, meter), r => {
         const ok = r.filter(a => !a.error && a.engine !== 'google_ai')
         const samples = ok.reduce((t, a) => t + (a.samples ?? 1), 0), hits = ok.reduce((t, a) => t + (a.hits ?? (a.mentioned ? 1 : 0)), 0)
         return { detail: `Named in ${hits} of ${samples}`, note: `${n(asked.length, 'buyer question')} asked ${aiRepeats()}× to ChatGPT, Perplexity and Gemini (through their APIs), plus Google’s AI Overviews.` }
@@ -750,6 +762,10 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       if (ranked) { x.ranks = { at: new Date().toISOString(), rows: rows.slice(0, 200), source }; x.rankChanges = changes }
       // Search & AI page: new starting keywords and written topics join the tracked list, then this
       // week's numbers for every tracked keyword go into its history
+      if (siteNow) {
+        x.pages = siteNow.pages
+        x.changes = [...(x.changes ?? []), ...siteNow.changes].slice(-40)
+      }
       ensureTracked(x)
       if (ranked) recordSnapshot(x, rows, source, answers)
       if (okAnswers.length) {

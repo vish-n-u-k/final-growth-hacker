@@ -1,15 +1,15 @@
-// Search & AI page: the SEO and AI readiness (GEO) module scores, and their most important open items
-// as to-dos. Read from the Growth Path modules; nothing is analysed here.
+// Search & AI page: the SEO and AI readiness (GEO) module scores, and the AI readiness checklist
+// ("Site ready for AI"). Read from the Growth Path modules; nothing is analysed here.
 
 import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { moduleItems, modules } from '@/lib/db/schema'
-import type { SiteIssue } from './verdict'
 
+export interface SiteCheck { key: string; label: string; ok: boolean; detail: string }
 export interface SiteChecks {
   seo: { score: number; href: string } | null
   geo: { score: number; href: string } | null
-  issues: SiteIssue[]
+  aiChecks: SiteCheck[]     // the AI readiness module's important items: done or to fix
 }
 
 export async function readSiteChecks(brandId: string): Promise<SiteChecks> {
@@ -20,23 +20,21 @@ export async function readSiteChecks(brandId: string): Promise<SiteChecks> {
     const m = done.find(x => x.type === type)
     return m ? { score: m.score ?? 0, href: `/dashboard/${m.id}` } : null
   }
-  if (!done.length) return { seo: null, geo: null, issues: [] }
+  const geo = done.find(m => m.type === 'geo')
+  if (!geo) return { seo: one('seo'), geo: null, aiChecks: [] }
   const items = await db.select({
-    moduleId: moduleItems.moduleId, slug: moduleItems.slug, label: moduleItems.label, weight: moduleItems.weight,
-    detail: moduleItems.aiDetail, action: moduleItems.aiAction, verified: moduleItems.aiVerified, checked: moduleItems.userChecked, skipped: moduleItems.userSkipped,
-  }).from(moduleItems).where(inArray(moduleItems.moduleId, done.map(m => m.id)))
-  const typeOf = new Map(done.map(m => [m.id, m.type]))
-  // Open, important items: AI readiness first (it's what moves AI answers), then by weight
-  const issues = items
-    .filter(i => !i.verified && !i.checked && !i.skipped && i.weight >= 2)
-    .sort((a, b) => Number(typeOf.get(b.moduleId) === 'geo') - Number(typeOf.get(a.moduleId) === 'geo') || b.weight - a.weight)
-    .slice(0, 3)
-    .map(i => ({
-      key: `${typeOf.get(i.moduleId)}:${i.slug}`,
-      label: i.label,
-      detail: (i.action || i.detail || 'Open the check for the fix.').replace(/\s+/g, ' ').slice(0, 220),
-      module: typeOf.get(i.moduleId) === 'geo' ? 'AI readiness' as const : 'SEO' as const,
-      href: `/dashboard/${i.moduleId}`,
-    }))
-  return { seo: one('seo'), geo: one('geo'), issues }
+    slug: moduleItems.slug, label: moduleItems.label, weight: moduleItems.weight, detail: moduleItems.aiDetail, action: moduleItems.aiAction,
+    verified: moduleItems.aiVerified, checked: moduleItems.userChecked, skipped: moduleItems.userSkipped,
+  }).from(moduleItems).where(eq(moduleItems.moduleId, geo.id))
+  // The important ones: to fix first, then done
+  const aiChecks = items
+    .filter(i => i.weight >= 2 && !i.skipped)
+    .map(i => {
+      const ok = !!(i.verified || i.checked)
+      return { key: i.slug, label: i.label, ok, detail: ((ok ? i.detail : i.action || i.detail) ?? '').replace(/\s+/g, ' ').slice(0, 200), weight: i.weight }
+    })
+    .sort((a, b) => Number(a.ok) - Number(b.ok) || b.weight - a.weight)
+    .slice(0, 8)
+    .map(({ weight: _w, ...c }) => c)
+  return { seo: one('seo'), geo: one('geo'), aiChecks }
 }

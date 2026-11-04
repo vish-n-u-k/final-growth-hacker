@@ -289,6 +289,38 @@ export interface RankSnapshot {
   source: 'gsc' | 'labs'
   clicks?: number               // Search Console only: clicks on every search, last 28 days
   rows: Record<string, KeywordPoint>
+  // Buyer questions asked to ChatGPT, Perplexity and Gemini this check: answers that named the brand
+  questions?: Record<string, { hits: number; samples: number }>
+}
+
+// Search & AI page: the brand's homepage and main pages, read at every check (lib/search-hub/pages.ts)
+export interface SitePage {
+  path: string
+  url: string
+  title: string
+  h1: string
+  h2s: string[]
+  meta: string
+  keyword: string | null        // the search the page targets (AI, from its title / H1 / headings), null = none
+  keywordBy?: 'auto' | 'user'   // 'user' = set by "I've made this change"; not re-guessed
+  keyFor?: string               // the title|h1|h2s the keyword was worked out from
+  readAt: string
+  // New wording suggested for the page (written on open), for this keyword and verdict
+  sugg?: { for: string; at: string; items: { tag: 'Title' | 'H1' | 'H2' | 'Meta'; text: string }[] }
+}
+
+// A change the brand made (found at a check, or told us): judged after 6 weeks
+export interface SiteChange {
+  id: string
+  area: 'seo' | 'geo'
+  path?: string                 // seo: the page
+  keyword?: string              // seo: the search it should move
+  question?: string             // geo: the buyer question
+  what: string                  // "New H1", "New title", "FAQ added"…
+  at: string
+  by: 'auto' | 'user'
+  before: number | null         // seo: Google position then (null = not found); geo: % of answers that named the brand
+  status: 'testing' | 'stopped'
 }
 
 // A keyword idea from the last research, with why it was or wasn't picked (Keywords tab)
@@ -367,6 +399,8 @@ export interface SearchAgentData {
   rankChanges: RankChange[]
   tracked?: TrackedKeyword[]      // keywords the Search & AI page follows week by week
   rankHistory?: RankSnapshot[]    // one per research, oldest first (last 16 kept)
+  pages?: SitePage[]              // homepage + main pages (Search & AI page)
+  changes?: SiteChange[]          // changes being tested (newest last, last 40 kept)
   answers: { at: string; items: AiAnswer[] } | null
   mentionHistory: { at: string; mentioned: number; asked: number }[]
   // Each buyer question's last result (questions rotate, so a gap "holds" when it was there the last

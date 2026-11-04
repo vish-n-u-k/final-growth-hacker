@@ -3,7 +3,7 @@
 ## 4 Nov 2026
 
 ### New
-- **Search & AI: one page for Google and AI search.** Your Google rankings, how often ChatGPT, Perplexity, Gemini and Google's AI Overview name you, your keywords, blog posts and site checks, all in one place. Every keyword is judged each week from how it does: keep it, give it time, rewrite its page, swap it for an easier search, or drop it. Nothing changes without your OK, and one "Start here" shows what to do next.
+- **Search & AI: see where you stand on Google and in AI answers, and know when a change works.** Two tabs, colour-coded. **SEO** reads your homepage and main pages, finds the search each one targets, shows where it ranks, and writes a new title, H1 or headings when one needs a change. **GEO** shows whether ChatGPT, Perplexity, Gemini and Google's AI Overview name you for the questions your buyers ask, who they name instead, and what to do. Every change you make becomes a test with a "know by" date (6 weeks), and title or H1 changes are spotted by themselves. Checks run every week, or any time with "Recheck all keywords".
 
 ## 3 Nov 2026
 
