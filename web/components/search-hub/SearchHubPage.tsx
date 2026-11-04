@@ -130,6 +130,22 @@ function Hl({ text, keyword }: { text: string; keyword: string | null }) {
   return <>{parts.map((p, i) => (i % 2 ? <mark key={i}>{p}</mark> : p))}</>
 }
 
+/** "Started 4 Nov · Change date": an inline date picker that saves a new start date. */
+function DateEdit({ label, at, max, busy, onSave }: { label: string; at: string; max: number; busy: boolean; onSave: (date: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [val, setVal] = useState(at.slice(0, 10))
+  const maxDay = new Date(max).toISOString().slice(0, 10)
+  const minDay = new Date(max - 365 * 86_400_000).toISOString().slice(0, 10)
+  if (!open) return <span className="sa-date">{label} {day(at)} · <button type="button" className="lfp-link" onClick={() => { setVal(at.slice(0, 10)); setOpen(true) }}>Change date</button></span>
+  return (
+    <span className="sa-date">
+      <label className="sa-date-in">{label}<input type="date" value={val} min={minDay} max={maxDay} onChange={e => setVal(e.target.value)} /></label>
+      <button type="button" className="btn btn-ghost sa-sm" disabled={busy || !val} onClick={() => { onSave(val); setOpen(false) }}>Save</button>
+      <button type="button" className="lfp-link" onClick={() => setOpen(false)}>Cancel</button>
+    </span>
+  )
+}
+
 // ── The page ─────────────────────────────────────────────────────────────────
 
 export default function SearchHubPage({ initial, brandName, domain, site, countries, flags, now: serverNow }: {
@@ -141,6 +157,7 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
   const [view, setView] = useState<View>({ v: 'list' })
   const [demo, setDemo] = useState(flags.demo)
   const [form, setForm] = useState({ area: 'seo' as Tab, path: '', what: 'New title', to: '', question: '', geoWhat: '', date: '' })
+  const [picked, setPicked] = useState<Record<string, string>>({})   // page path → the easier search chosen
 
   useEffect(() => { try { const t = localStorage.getItem('search-ai-tab'); if (t === 'seo' || t === 'geo') setTab(t) } catch { /* fine */ } }, [])
   const pickTab = (t: Tab) => { setTab(t); setView({ v: 'list' }); try { localStorage.setItem('search-ai-tab', t) } catch { /* fine */ } }
@@ -232,6 +249,7 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
           <span className="sa-card-top"><b>{pathName(p.path)}</b>{(p.keyword || p.stand.rank !== null) && <Rank r={p.stand.rank} />}</span>
           <span className="sa-card-kw">{p.keyword ? <>Aims at “{p.keyword}”</> : (p.h1 || p.title)}</span>
           {p.stand.rank !== null && p.stand.keyword !== p.keyword && <span className="sa-card-kw sa-shows">Google shows it for “{p.stand.keyword}”</span>}
+          {p.hard && p.status !== 'working' && <span className="sa-card-kw sa-hard">Too competitive{p.difficulty ? `: difficulty ${p.difficulty}` : ''}</span>}
           {p.kw && p.kw.points.length > 0 && <Spark ranks={p.kw.points.map(x => x.rank)} />}
           <span className="sa-card-foot">{foot}</span>
         </button>
@@ -351,7 +369,7 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
   function testBox(t: TestView, kind: Tab) {
     const unit = (v: number | null) => (kind === 'seo' ? rankText(v) : v === null ? '—' : `${v}%`)
     return <div className="sa-call sa-c-test">
-      <h3>Testing: {t.what.toLowerCase()} since {day(t.at)}{t.by === 'auto' ? ' (spotted at a check)' : ''}</h3>
+      <h3>Testing: {t.what.charAt(0).toLowerCase() + t.what.slice(1)} since {day(t.at)}{t.by === 'auto' ? ' (spotted at a check)' : ''}</h3>
       <div className="sa-wait"><span>{day(t.at)}</span><i><em style={{ width: `${t.progress * 100}%` }} /></i><span>know by {day(t.knowBy)}</span></div>
       <p>Was {unit(t.before)}, now {unit(t.now)}. {now < Date.parse(t.firstSign)
         ? `${kind === 'seo' ? 'Google needs 1 to 2 weeks to re-read the page' : 'AI that searches the web needs 1 to 3 weeks to pick it up'}, so the first sign comes around ${day(t.firstSign)}.`
@@ -362,13 +380,17 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
         <li><b>2 more weeks</b>: moving, but slowly (once).</li>
         <li><b>Needs a change</b>: no move. We suggest something else.</li>
       </ul>
-      <div className="sa-acts"><button type="button" className="lfp-link" disabled={!!busy} onClick={() => call('change_stop', { id: t.id })}>Stop this test</button></div>
+      <div className="sa-acts">
+        <DateEdit label="Started" at={t.at} max={now} busy={!!busy} onSave={d => call('change_date', { id: t.id, at: d }, 'date')} />
+        <button type="button" className="lfp-link" disabled={!!busy} onClick={() => call('change_stop', { id: t.id })}>Stop this test</button>
+      </div>
     </div>
   }
 
   function pageView(p: PageView) {
     const st = SEO_STATUS[p.status]
-    const target = p.swap?.keyword ?? p.keyword
+    const options = p.alts.length ? p.alts : []
+    const target = (picked[p.path] && options.some(a => a.keyword === picked[p.path]) ? picked[p.path] : null) ?? p.swap?.keyword ?? p.keyword
     let box: React.ReactNode
     if (p.status === 'test' && p.test) box = testBox(p.test, 'seo')
     else if (p.status === 'working') box = <div className="sa-call sa-c-good"><h3>Working. Keep it.</h3><p>{p.why}</p></div>
@@ -378,11 +400,19 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
       box = <div className="sa-call sa-c-warn">
         <h3>{isChange ? (p.swap ? 'Change the search this page targets' : 'Reword the page') : 'Update the page, keep the search'}</h3>
         <p>{p.why}</p>
-        {isChange && p.swap && <p className="sa-new">Aim it at: <b>{p.swap.keyword}</b>{p.swap.rank ? ` · Google already shows you at #${p.swap.rank}` : ''}{p.swap.volume ? ` · ${fmt(p.swap.volume)} searches a month` : ''}{p.swap.difficulty ? ` · difficulty ${p.swap.difficulty}` : ''}</p>}
-        {p.sugg ? <div className="sa-sugg">{p.sugg.items.map((s, i) => (
+        {isChange && options.length > 1 ? <div className="sa-alts" role="radiogroup" aria-label="Easier searches you can win">
+          <p className="sa-alts-h">Easier searches you can win (difficulty {m.reach} or less for a site like yours). Pick one:</p>
+          {options.map(a => (
+            <label key={a.keyword} className={`sa-alt${target === a.keyword ? ' is-on' : ''}`}>
+              <input type="radio" name={`alt-${p.path}`} checked={target === a.keyword} onChange={() => setPicked(x => ({ ...x, [p.path]: a.keyword }))} />
+              <b>{a.keyword}</b><span>{fmt(a.volume)} searches a month · {a.difficulty !== null ? `difficulty ${a.difficulty}` : 'difficulty unknown'}{a.rank ? ` · you’re #${a.rank}` : ''}</span>
+            </label>
+          ))}
+        </div> : isChange && p.swap && <p className="sa-new">Aim it at: <b>{p.swap.keyword}</b>{p.swap.rank ? ` · Google already shows you at #${p.swap.rank}` : ''}{p.swap.volume ? ` · ${fmt(p.swap.volume)} searches a month` : ''}{p.swap.difficulty ? ` · difficulty ${p.swap.difficulty}` : ''}</p>}
+        {p.sugg && p.sugg.for.endsWith(`:${target}`) ? <div className="sa-sugg">{p.sugg.items.map((s, i) => (
           <div key={i}><span>{s.tag}</span><b>{s.text}{s.tag !== 'H2' && <em>now: {s.tag === 'Title' ? p.title : s.tag === 'H1' ? p.h1 : p.meta}</em>}{s.tag === 'H2' && <em>new section</em>}</b>
             <button type="button" className="lfp-link" onClick={() => copy(s.text)}>Copy</button></div>
-        ))}</div> : <p><button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => call('page_suggest', { path: p.path }, 'suggest')}>{busy === 'suggest' ? 'Writing…' : 'Write the new wording'}</button></p>}
+        ))}</div> : <p><button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => call('page_suggest', { path: p.path, to: target }, 'suggest')}>{busy === 'suggest' ? 'Writing…' : `Write the new wording${target && target !== p.keyword ? ` for “${target}”` : ''}`}</button></p>}
         <p>Make the change on your site, then press the button. We start the clock and tell you by {knowFromToday} whether it worked.</p>
         <div className="sa-acts">
           <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => startTest({ area: 'seo', path: p.path, to: target, what: isChange ? 'New title and H1' : 'Updated page' })}>I’ve made this change</button>
@@ -397,7 +427,8 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
       {back}
       <h2 className="sa-h2">{pathName(p.path)}</h2>
       <div className="sa-gh"><Pill c={st.c} label={st.label} />{p.keyword && <Rank r={p.kw?.now ?? null} />}</div>
-      <p className="sa-sub">{p.keyword ? <>Aims at “{p.keyword}”{p.volume !== null ? ` · ${p.volume < 10 ? 'too few searches to measure' : `${fmt(p.volume)} searches a month`}` : ''}{p.difficulty ? ` · difficulty ${p.difficulty}` : ''} · </> : null}<a href={p.url} target="_blank" rel="noopener noreferrer">open the page ↗</a></p>
+      <p className="sa-sub">{p.keyword ? <>Aims at “{p.keyword}”{p.volume !== null ? ` · ${p.volume < 10 ? 'too few searches to measure' : `${fmt(p.volume)} searches a month`}` : ''}{p.difficulty ? ` · difficulty ${p.difficulty}${p.hard ? ' (too competitive for now)' : ''}` : ''} · </> : null}<a href={p.url} target="_blank" rel="noopener noreferrer">open the page ↗</a></p>
+      {p.keyword && p.since && !p.test && <div className="sa-since"><DateEdit label="Aiming at this since" at={p.since} max={now} busy={!!busy} onSave={d => call('kw_since', { keyword: p.keyword, at: d }, 'date')} /></div>}
       <div className="sa-real">
         <h3 className="sa-real-h">Searches Google shows this page for</h3>
         {p.real.length ? <ul>{p.real.map(r => (
@@ -468,7 +499,9 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
         <div><b>1. Read your pages</b><p>Your homepage and up to 9 main pages (from your menu and sitemap): title, H1, headings and description. From those we work out which search each page targets. A title or H1 that changed since the last check becomes a test by itself.</p></div>
         <div><b>2. Check Google</b><p>Where each page ranks for its search ({flags.gsc ? 'from Search Console' : 'DataForSEO’s estimate until Search Console is connected'}), how many people search it and how hard it is.</p></div>
         <div><b>3. Ask AI</b><p>Buyer questions, twice each to ChatGPT, Perplexity and Gemini, plus Google’s AI Overview for your pages’ searches. Who gets named and which sites get cited.</p></div>
-        <div><b>4. Judge</b><p>From the first check, each page gets a status from what Google really shows it for and how many people search its target: working, needs a change (with new wording written for you), or waiting when it’s simply too new. Changes you make are tested for 6 weeks. Each question: named, testing, or not named (with what to do).</p></div>
+        <div><b>4. Judge</b><p>From the first check, each page gets a status from what Google really shows it for, how many people search its target and how hard that search is: working, needs a change (with new wording written for you), or waiting when it’s simply too new. Changes you make are tested for 6 weeks. Each question: named, testing, or not named (with what to do).</p></div>
+        <div><b>Too competitive?</b><p>DataForSEO rates each search 0–100 for how hard it is to reach page 1. A site like yours usually wins up to about {m.reach} (higher once you already rank on page 1 for bigger searches). A search well above that, or a very broad one, is held by much stronger sites, so we look up more specific versions of it you can win and offer them to pick from.</p></div>
+        <div><b>Dates</b><p>Set a different start date on any test, or on when a page started aiming at its search, if you made the change earlier. Results are worked out from that day.</p></div>
       </div>
       <h3 className="sa-h3">When will I know if my change worked?</h3>
       <div className="sa-explain">

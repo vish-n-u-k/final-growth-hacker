@@ -60,6 +60,10 @@ export interface PageView {
   stand: { keyword: string; rank: number | null }
   volume: number | null         // searches a month for the target (0 = too few to measure)
   difficulty: number | null
+  hard: boolean                 // the target is too hard for this site (see siteReach)
+  // Easier, more specific versions of the target this site can win (DataForSEO), most searched first
+  alts: { keyword: string; volume: number; difficulty: number | null; rank: number | null }[]
+  since: string | null          // when the page started aiming at its search (editable)
 }
 export interface QuestionView {
   question: string
@@ -82,12 +86,37 @@ export interface SeoGeoModel {
   geo: { pct: number | null; named: number; total: number; rival: string | null; cited: string | null }
   checkedAt: string | null
   source: 'gsc' | 'labs'
+  reach: number                 // the hardest search (difficulty) this site can realistically win
 }
 
 export const ENGINES = ['chat_gpt', 'perplexity', 'gemini', 'google_ai']
 export const ENGINE_NAME: Record<string, string> = { chat_gpt: 'ChatGPT', perplexity: 'Perplexity', gemini: 'Gemini', google_ai: 'Google' }
 
 const iso = (t: number) => new Date(t).toISOString()
+
+/** A search for the brand, typos included: "frektok", "fraktok" and "freekto" are people looking for Frekto. */
+export function brandMatcher(brand: { name: string; domain: string }): (k: string) => boolean {
+  const brandWords = [...new Set(words(brand.name).concat(words(brand.domain.split('.')[0])))].filter(w => w.length >= 4)
+  return (k: string) => {
+    const ws = kwKey(k).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter(Boolean)
+    return ws.some(w => brandWords.some(b => isBrandWord(w, b))) || brandWords.some(b => kwKey(k).replace(/[^a-z0-9]/g, '').includes(b))
+  }
+}
+
+/**
+ * How hard a search this site can realistically win (DataForSEO difficulty, 0-100). Small sites
+ * win up to about 30; a site already on page 1 for a bigger buyer search (not its own name) can
+ * aim higher: 40 with 300+ searches a month, 50 with 1,000+.
+ */
+export const BASE_REACH = 30
+export function siteReach(d: SearchAgentData, brand: { name: string; domain: string }): number {
+  const branded = brandMatcher(brand)
+  const best = Math.max(0, ...(d.ranks?.rows ?? []).filter(r => r.rank <= 10 && !branded(r.keyword)).map(r => r.volume || 0))
+  return best >= 1000 ? 50 : best >= 300 ? 40 : BASE_REACH
+}
+/** Too hard for this site: difficulty well above its reach, or a very broad search. */
+export const tooHard = (difficulty: number | null | undefined, volume: number | null | undefined, reach: number) =>
+  (difficulty ?? 0) > reach + 10 || (volume ?? 0) >= 5000
 
 /** Edit distance between two short words (for brand typos). */
 function editDistance(a: string, b: string): number {
@@ -175,12 +204,8 @@ export function buildSeoGeo(d: SearchAgentData, brand: { name: string; domain: s
   }
   // Most seen first (Search Console impressions, else searches a month), then best position
   for (const list of realBy.values()) list.sort((a, b) => (b.impressions ?? b.volume ?? 0) - (a.impressions ?? a.volume ?? 0) || a.rank - b.rank)
-  const brandWords = [...new Set(words(brand.name).concat(words(brand.domain.split('.')[0])))].filter(w => w.length >= 4)
-  // A search for the brand, typos included: "frektok", "fraktok" and "freekto" are people looking for Frekto
-  const branded = (k: string) => {
-    const ws = kwKey(k).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter(Boolean)
-    return ws.some(w => brandWords.some(b => isBrandWord(w, b))) || brandWords.some(b => kwKey(k).replace(/[^a-z0-9]/g, '').includes(b))
-  }
+  const branded = brandMatcher(brand)
+  const reach = siteReach(d, brand)
   const fmtDay = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
   const pages: PageView[] = (d.pages ?? []).map(p => {
@@ -188,7 +213,7 @@ export function buildSeoGeo(d: SearchAgentData, brand: { name: string; domain: s
     const base = { path: p.path, url: p.url, title: p.title, h1: p.h1, h2s: p.h2s, meta: p.meta, keyword: p.keyword, sugg: null as SitePage['sugg'] | null, swap: null as Swap | null, real }
     if (!p.keyword) {
       const top = real[0]
-      return { ...base, kw: null, status: 'none' as const, test: null, volume: null, difficulty: null,
+      return { ...base, kw: null, status: 'none' as const, test: null, volume: null, difficulty: null, hard: false, alts: [], since: null,
         stand: { keyword: top?.keyword ?? '', rank: top?.rank ?? null },
         why: top ? `This page doesn’t aim at one search. Google shows it for “${top.keyword}” (#${top.rank}).` : 'This page doesn’t aim at a search, and that’s fine for it.' }
     }
@@ -209,13 +234,21 @@ export function buildSeoGeo(d: SearchAgentData, brand: { name: string; domain: s
     let why = kw.reason
     let test: TestView | null = null
     let swap: Swap | null = null
+    const rankOf = new Map((d.ranks?.rows ?? []).map(r => [kwKey(r.keyword), r.rank]))
+    const alts = p.altsFor === p.keyword ? (p.alts ?? []).map(a => ({ ...a, rank: rankOf.get(a.keyword) ?? null })) : []
+    const hard = !brandPage && tooHard(difficulty, volume, reach)
     const vol = volume === null ? '' : volume < 10 ? ` Almost nobody searches “${p.keyword}”.` : ` “${p.keyword}” gets about ${volume.toLocaleString('en-US')} searches a month.`
     if (c) {
       const r = testView(c, found, c.before, m => (m >= 5 || (found !== null && found <= 10) ? 'done' : m >= 1 ? 'more' : 'no'), nowMs)
       test = r.view
-      if (r.verdict === 'running') { status = 'test'; why = `Testing ${c.what.toLowerCase()} since ${fmtDay(c.at)}.` }
+      if (r.verdict === 'running') { status = 'test'; why = `Testing ${c.what.charAt(0).toLowerCase() + c.what.slice(1)} since ${fmtDay(c.at)}.` }
       else if (r.verdict === 'working') { status = 'working'; why = `${c.what} worked: ${c.before === null ? 'not found' : `#${c.before}`} → ${found === null ? 'not found' : `#${found}`}.` }
       else { status = 'change'; why = `${c.what} didn’t move it (${c.before === null ? 'not found' : `#${c.before}`} → ${found === null ? 'not found' : `#${found}`}) after ${TEST_WEEKS} weeks. Try different wording, or a closer search.` }
+    } else if (hard && (found === null || found > 20)) {
+      // Too common for this site: big sites hold page 1, so aim at a more specific version it can win
+      status = 'change'
+      why = `“${p.keyword}” is too hard to win right now (${difficulty !== null ? `difficulty ${difficulty}` : 'a very broad search'}${volume ? `, ${volume.toLocaleString('en-US')} searches a month` : ''}). Page 1 is held by sites much stronger than yours; a site like yours usually wins searches up to about difficulty ${reach}.${found !== null ? ` You’re at #${found}.` : ''} ${alts.length ? 'Aim at a more specific version of it:' : 'We found no easier version yet; pick a narrower search that says who it’s for.'}`
+      swap = alts[0] ? { keyword: alts[0].keyword, volume: alts[0].volume, difficulty: alts[0].difficulty, rank: alts[0].rank } : null
     } else if (found === null) {
       // Judged on the first check: what Google really shows the page for, and whether anyone searches the target
       if (brandPage && top && top.rank <= 10) {
@@ -240,14 +273,16 @@ export function buildSeoGeo(d: SearchAgentData, brand: { name: string; domain: s
       status = kw.verdict === 'keep' ? 'working' : kw.verdict === 'wait' ? 'wait' : kw.verdict === 'refresh' ? 'refresh' : 'change'
     }
     if (status === 'change' && !swap) swap = kw.swap ?? findSwap(p.keyword, difficulty, d.ideas?.rows ?? [], d.ranks?.rows ?? [], activeTracked)
-    const sugg = p.sugg && p.sugg.for === `${status}:${swap?.keyword ?? p.keyword}` ? p.sugg : null
-    return { ...base, kw, status, why, test, swap, sugg, stand, volume, difficulty }
+    // New wording written for this status, aimed at the target or one of the offered searches
+    const okTargets = new Set([p.keyword, swap?.keyword, ...alts.map(x => x.keyword)].filter(Boolean))
+    const sugg = p.sugg && p.sugg.for.startsWith(`${status}:`) && okTargets.has(p.sugg.for.slice(status.length + 1)) ? p.sugg : null
+    return { ...base, kw, status, why, test, swap, sugg, stand, volume, difficulty, hard, alts, since: t.addedAt }
   })
 
   // Keywords to add: good-fit ideas no page targets yet; next to a page that shares a word, else a new post
   const targeted = new Set([...pages.map(p => p.keyword), ...pages.map(p => p.swap?.keyword)].filter((k): k is string => !!k))
   const adds: AddView[] = (d.ideas?.rows ?? [])
-    .filter(i => (i.verdict === 'fit' || i.verdict === 'picked') && !targeted.has(kwKey(i.keyword)))
+    .filter(i => (i.verdict === 'fit' || i.verdict === 'picked') && !targeted.has(kwKey(i.keyword)) && !tooHard(i.difficulty || null, i.volume, reach))
     .slice(0, 6)
     .map(i => {
       const w = new Set(words(i.keyword))
@@ -313,5 +348,6 @@ export function buildSeoGeo(d: SearchAgentData, brand: { name: string; domain: s
     },
     checkedAt: d.lastResearchAt ?? null,
     source: history[history.length - 1]?.source ?? d.ranks?.source ?? 'labs',
+    reach,
   }
 }

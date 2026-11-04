@@ -39,6 +39,7 @@ function apiLabel(path: string): string {
   if (path.includes('/competitors_domain/')) return 'Similar sites'
   if (path.includes('/bulk_traffic_estimation/')) return 'Site size (visits)'
   if (path.includes('/keyword_overview/')) return 'Keyword volumes'
+  if (path.includes('/keyword_suggestions/')) return 'Easier keywords'
   if (path.includes('/dataforseo_labs/')) return 'Keyword ideas'
   if (path.includes('/backlinks/')) return 'Backlinks'
   if (path.includes('/trustpilot/')) return 'Trustpilot reviews'
@@ -206,6 +207,22 @@ export async function keywordVolumes(keywords: string[], country: string, meter?
     if (i.keyword) out.set(i.keyword.toLowerCase(), { volume: i.keyword_info?.search_volume ?? 0, difficulty: i.keyword_properties?.keyword_difficulty || null })
   }
   return out
+}
+
+/**
+ * Longer, more specific searches that contain this one (Labs keyword_suggestions), with searches a
+ * month and difficulty: where a small site finds a version of a crowded search it can win.
+ */
+export async function keywordSuggestions(keyword: string, country: string, meter?: UsageMeter, limit = 50): Promise<KeywordIdea[]> {
+  if (agentsDemo()) {
+    return demoKeywordIdeas([keyword]).filter(i => i.keyword !== keyword.toLowerCase()).map(i => ({ ...i, difficulty: Math.max(5, (i.difficulty ?? 30) - 25) }))
+  }
+  const r = await post<{ items?: IdeaItem[] | null }>('/dataforseo_labs/google/keyword_suggestions/live', {
+    location_code: locationOf(country), language_code: languageOf(country), keyword: keyword.toLowerCase(), limit,
+  }, meter)
+  return (r.items ?? [])
+    .filter(i => i.keyword && (i.keyword_info?.search_volume ?? 0) >= 10)
+    .map(i => ({ keyword: i.keyword!, volume: i.keyword_info?.search_volume ?? 0, cpc: i.keyword_info?.cpc ?? null, difficulty: i.keyword_properties?.keyword_difficulty || null, intent: i.search_intent_info?.main_intent ?? null }))
 }
 
 // ── Where the site ranks ──────────────────────────────────────────────────────

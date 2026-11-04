@@ -9772,3 +9772,15 @@ html.light .sa { --sa-good: #15803d; --sa-good-s: #e7f4ec; --sa-test: #2563eb; -
 .sa-real li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 14px; color: var(--text); }
 .sa-real li small { font-size: 12.5px; color: var(--text-faint); }
 .sa-real .sa-empty { margin: 0; font-size: 14px; }
+.sa-hard { color: var(--sa-warn); }
+.sa-since { margin-top: 8px; font-size: 13.5px; color: var(--text-faint); }
+.sa-date { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13.5px; color: var(--text-faint); }
+.sa-date-in { display: inline-flex; align-items: center; gap: 8px; }
+.sa-date input { height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); font: inherit; }
+.sa-alts { display: grid; gap: 6px; margin: 4px 0 12px; }
+.sa-alts-h { margin: 0 0 2px; font-size: 13.5px; color: var(--text-dim); }
+.sa-alt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); cursor: pointer; font-size: 14px; }
+.sa-alt.is-on { border-color: var(--sa-good); box-shadow: 0 0 0 1px var(--sa-good); }
+.sa-alt input { accent-color: var(--sa-good); }
+.sa-alt b { font-weight: 600; color: var(--text); }
+.sa-alt span { font-size: 13px; color: var(--text-faint); }

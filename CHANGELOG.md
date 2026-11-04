@@ -1,5 +1,11 @@
 # What's new in GrowJin
 
+## 5 Nov 2026
+
+### Improved
+- **Search & AI: no more chasing searches you can't win.** If a page aims at a search that big sites own (too competitive for a site your size, or too broad), it's flagged and you get easier, more specific versions of it you can realistically win, with searches a month and difficulty. Pick one, and the new title and headings are written for it.
+- **Search & AI: change the dates.** Made a change or picked a keyword a week ago? Change the start date on any test, or on when a page started aiming at its search, and the results are worked out from that day.
+
 ## 4 Nov 2026
 
 ### New

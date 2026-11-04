@@ -241,6 +241,37 @@ async function post(req: NextRequest) {
       const knowBy = atMs + 42 * 86_400_000
       return NextResponse.json({ data, message: `Testing since ${fmt(atMs)}. ${knowBy <= Date.now() ? 'Six weeks have passed, so the answer shows on the page now.' : `You’ll know by ${fmt(knowBy)}.`}` })
     }
+    case 'change_date': case 'kw_since': {
+      // Fix a start date: a running test's (change_date, id) or when a page started aiming at its
+      // search (kw_since, keyword). "Before" comes from the last check on or before the new day.
+      const atStr = typeof body.at === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.at) ? body.at : ''
+      const atMs = atStr ? Date.parse(`${atStr}T12:00:00Z`) : NaN
+      if (Number.isNaN(atMs) || atMs > Date.now() + 86_400_000 || atMs < Date.now() - 366 * 86_400_000) return NextResponse.json({ error: 'Pick a date within the last year, not in the future.' }, { status: 400 })
+      const at = new Date(Math.min(atMs, Date.now())).toISOString()
+      let error: string | null = null
+      const data = await updateSearchData(brandId, fallback, d => {
+        const snap = [...(d.rankHistory ?? [])].reverse().find(s => Date.parse(s.at) <= atMs + 86_400_000)
+        if (body.op === 'change_date') {
+          const c = (d.changes ?? []).find(x => x.id === body.id)
+          if (!c) { error = 'That test isn’t there any more.'; return }
+          c.at = at
+          if (c.area === 'seo' && c.keyword && snap && c.keyword in snap.rows) c.before = snap.rows[c.keyword].rank
+          if (c.area === 'geo' && c.question && snap?.questions?.[c.question]?.samples) {
+            const q = snap.questions[c.question]
+            c.before = Math.round((100 * q.hits) / q.samples)
+          }
+        } else {
+          const k = kwKey(String(body.keyword ?? ''))
+          ensureTracked(d)
+          const t = d.tracked!.find(x => x.keyword === k)
+          if (!t) { error = 'That search isn’t tracked.'; return }
+          t.addedAt = at
+        }
+      })
+      if (error) return NextResponse.json({ error, data })
+      const fmt = new Date(at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+      return NextResponse.json({ data, message: `Date set to ${fmt}. Results are worked out from then.` })
+    }
     case 'change_stop': {
       const data = await updateSearchData(brandId, fallback, d => {
         const c = (d.changes ?? []).find(x => x.id === body.id)
@@ -254,7 +285,9 @@ async function post(req: NextRequest) {
       const page = d0?.pages?.find(x => x.path === body.path)
       const view = d0 ? buildSeoGeo(d0, b).pages.find(x => x.path === body.path) : null
       if (!page || !view || !view.keyword || (view.status !== 'change' && view.status !== 'refresh')) return NextResponse.json({ error: 'Nothing to rewrite on this page.' }, { status: 400 })
-      const target = view.swap?.keyword ?? view.keyword
+      // The search the user picked from the easier options, else the suggested one
+      const picked = kwKey(String(body.to ?? ''))
+      const target = picked && (picked === view.keyword || view.alts.some(a => a.keyword === picked) || view.swap?.keyword === picked) ? picked : view.swap?.keyword ?? view.keyword
       const items = await suggestWording(b, page, target, view.status === 'refresh' ? 'refresh' : 'change', view.why).catch(e => (e instanceof Error ? e.message : 'failed'))
       if (typeof items === 'string') return NextResponse.json({ error: items })
       const data = await updateSearchData(brandId, fallback, d => {

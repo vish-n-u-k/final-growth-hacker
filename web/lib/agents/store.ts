@@ -307,6 +307,9 @@ export interface SitePage {
   volume?: number               // searches a month for `keyword` (0 = too few to measure)
   difficulty?: number | null
   volFor?: string               // the keyword volume / difficulty were looked up for
+  // Easier versions of a search that's too hard for the site (Labs keyword_suggestions), for `altsFor`
+  alts?: { keyword: string; volume: number; difficulty: number | null }[]
+  altsFor?: string
   readAt: string
   // New wording suggested for the page (written on open), for this keyword and verdict
   sugg?: { for: string; at: string; items: { tag: 'Title' | 'H1' | 'H2' | 'Meta'; text: string }[] }

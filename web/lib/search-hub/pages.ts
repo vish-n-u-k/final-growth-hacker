@@ -7,7 +7,8 @@ import { fetchHtml } from '@/lib/lead-finder/reviews'
 import { callAI } from '@/lib/ai/client'
 import { parseJsonLoose, type BrandContext } from '@/lib/agents/context'
 import type { SearchAgentData, SiteChange, SitePage, UsageMeter } from '@/lib/agents/store'
-import { keywordVolumes } from '@/lib/agents/dataforseo'
+import { keywordSuggestions, keywordVolumes } from '@/lib/agents/dataforseo'
+import { brandMatcher, siteReach, tooHard } from './model'
 import { kwKey } from './verdict'
 
 export const MAX_PAGES = 10
@@ -114,7 +115,7 @@ export async function refreshSitePages(b: BrandContext, d: SearchAgentData, mete
     if (!html) return
     const read = readPage(u, html)
     const old = before.get(read.path)
-    pages.push({ ...read, keyword: old?.keyword ?? null, keywordBy: old?.keywordBy, keyFor: old?.keyFor, sugg: old?.sugg, volume: old?.volume, difficulty: old?.difficulty, volFor: old?.volFor, readAt: at })
+    pages.push({ ...read, keyword: old?.keyword ?? null, keywordBy: old?.keywordBy, keyFor: old?.keyFor, sugg: old?.sugg, volume: old?.volume, difficulty: old?.difficulty, volFor: old?.volFor, alts: old?.alts, altsFor: old?.altsFor, readAt: at })
   })
   await pageKeywords(b, pages)
   // Searches a month for each page's search (one DataForSEO call, only for new or changed searches)
@@ -129,6 +130,28 @@ export async function refreshSitePages(b: BrandContext, d: SearchAgentData, mete
       p.volFor = p.keyword
     }
   }
+  // A search too hard for this site (big sites own page 1): find easier, more specific versions of it
+  // that the same page can win (up to 4 pages per check, once per search)
+  const reach = siteReach(d, { name: b.name, domain: b.domain })
+  const branded = brandMatcher({ name: b.name, domain: b.domain })
+  const hard = pages.filter(p => p.keyword && p.volFor === p.keyword && p.altsFor !== p.keyword && !branded(p.keyword) && tooHard(p.difficulty, p.volume, reach)).slice(0, 4)
+  await Promise.all(hard.map(async p => {
+    const found = await keywordSuggestions(p.keyword!, d.settings.country, meter).catch(() => [])
+    const fromIdeas = (d.ideas?.rows ?? []).filter(i => i.verdict === 'fit' || i.verdict === 'picked')
+      .map(i => ({ keyword: i.keyword, volume: i.volume, difficulty: i.difficulty || null }))
+    const mine = new Set(kwKey(p.keyword!).split(' ').filter(w => w.length > 3))
+    const pool = [...found.map(i => ({ keyword: i.keyword, volume: i.volume, difficulty: i.difficulty })),
+      ...fromIdeas.filter(i => kwKey(i.keyword).split(' ').filter(w => mine.has(w)).length >= 2)]
+    const seen = new Set<string>()
+    p.alts = pool
+      .map(a => ({ ...a, keyword: kwKey(a.keyword) }))
+      .filter(a => a.keyword !== p.keyword && !seen.has(a.keyword) && !!seen.add(a.keyword) && !branded(a.keyword)
+        && a.difficulty !== null && a.difficulty <= reach && a.volume >= 20)
+      // Most searches first among the ones the site can win
+      .sort((a, b) => b.volume - a.volume)
+      .slice(0, 5)
+    p.altsFor = p.keyword!
+  }))
 
   // A changed title or H1 is a test of that page's search
   const changes: SiteChange[] = []
