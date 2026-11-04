@@ -1,0 +1,674 @@
+<title>Search &amp; AI: SEO and GEO</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: app frame (sidebar + one quiet column), same calm rules as Today and Lead Finder.
+     Two tabs, SEO and GEO. One green button per screen = the next step. Grey everywhere else. */
+  :root {
+    --bg: #ffffff; --soft: #f3f5f3; --line: #e3e7e3; --text: #16201a; --dim: #4f5c53; --faint: #86918a;
+    --green: #15803d; --green-ink: #0f5a2b; --green-soft: #e6f3ea; --pick: #eef0ee; --ink: #5f6b63; --mark: #fff3c4;
+    --display: 'Fraunces', Georgia, serif; --body: 'Outfit', system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --pick: #1c241f; --ink: #b3bdb5; --mark: #3a3418; color-scheme: dark } }
+  :root[data-theme="dark"] {
+    --bg: #0f1411; --soft: #171e19; --line: #26302a; --text: #e9eee9; --dim: #b3bdb5; --faint: #7f8a82;
+    --green: #22a35a; --green-ink: #7fd8a2; --green-soft: #15291c; --pick: #1c241f; --ink: #b3bdb5; --mark: #3a3418; color-scheme: dark }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font: 400 15px/1.5 var(--body); }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  @media (prefers-reduced-motion: no-preference) { .view { animation: in .18s ease-out; } @keyframes in { from { opacity: .4; transform: translateY(3px); } } }
+
+  .picker { background: var(--pick); border-bottom: 1px solid var(--line); padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .picker-in { max-width: 1100px; margin: 0 auto; font-size: 14px; color: var(--dim); }
+  .picker-in b { color: var(--text); font-weight: 600; }
+
+  .frame { display: flex; min-height: 100vh; }
+  .side { width: 232px; flex: none; background: var(--soft); border-right: 1px solid var(--line); padding: 18px 12px; font-size: 13.5px; }
+  .brand { padding: 4px 8px 20px; font: 600 16px var(--display); }
+  .grp { margin-bottom: 18px; }
+  .gl { padding: 0 10px 6px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .nav { display: block; padding: 7px 10px; border-radius: 8px; color: var(--dim); }
+  .nav.on { background: var(--green-soft); color: var(--green-ink); font-weight: 600; }
+  .main { flex: 1; min-width: 0; }
+  .page { max-width: 860px; padding-block: 28px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); margin: 0 auto; }
+  @media (max-width: 760px) { .side { display: none; } .page { padding-block: 20px 56px; } }
+
+  .crumbs { font-size: 13px; color: var(--faint); margin-bottom: 18px; }
+  h1 { margin: 0; font: 600 32px/1.15 var(--display); letter-spacing: -.01em; text-wrap: balance; }
+  .topline { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 8px; }
+  .line { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 14px; color: var(--faint); }
+  .line b { color: var(--dim); font-weight: 500; }
+  .link { border: 0; background: none; padding: 0; color: var(--dim); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; font-size: inherit; }
+  .link:hover { color: var(--text); text-decoration-color: currentColor; }
+  .btn { height: 40px; padding: 0 18px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn:hover { border-color: var(--ink); }
+  .btn:disabled { opacity: .55; cursor: default; }
+  .btn.go { background: var(--green); border-color: var(--green); color: #fff; }
+  .btn.go:hover { filter: brightness(1.06); }
+  .btn.quiet { border-color: transparent; background: none; color: var(--dim); padding: 0 10px; }
+
+  /* Recheck progress */
+  .run { margin-top: 18px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; }
+  .run b { display: block; margin-bottom: 8px; }
+  .run ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; color: var(--faint); }
+  .run li.on { color: var(--text); }
+  .run li.done { color: var(--dim); }
+  .run li::before { content: '○'; display: inline-block; width: 20px; }
+  .run li.on::before { content: '◐'; }
+  .run li.done::before { content: '✓'; }
+  .bar { height: 4px; margin-top: 12px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--ink); transition: width .4s; }
+
+  .tabs { display: flex; gap: 26px; margin-top: 22px; border-bottom: 1px solid var(--line); }
+  .tab { padding: 10px 0; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; color: var(--faint); font-weight: 500; font-size: 16px; cursor: pointer; }
+  .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); }
+  .tab small { font-size: 13px; color: var(--faint); margin-left: 6px; font-weight: 400; }
+
+  .sec { margin-top: 30px; }
+  .sec-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0 0 8px; }
+  .sec-h h2 { margin: 0; font: 600 19px var(--display); }
+  .sec-h span { font-size: 13.5px; color: var(--faint); }
+  .lead { margin: 0 0 6px; color: var(--dim); font-size: 14.5px; max-width: 66ch; }
+
+  /* Where you stand: every keyword on one Google scale */
+  .map { margin-top: 6px; padding: 16px 16px 10px; border: 1px solid var(--line); border-radius: 14px; }
+  .map svg { display: block; width: 100%; height: auto; }
+  .map-scroll { overflow-x: auto; }
+  @media (max-width: 640px) { .map-scroll svg { min-width: 620px; } }
+  .map svg .dot { cursor: pointer; }
+  .map svg .dot:hover circle { stroke: var(--text); stroke-width: 2; }
+  .counts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 10px; border-top: 1px solid var(--line); }
+  .counts div { padding: 10px 4px 2px; }
+  .counts b { display: block; font: 600 22px var(--display); font-variant-numeric: tabular-nums; }
+  .counts span { font-size: 12.5px; color: var(--faint); }
+  @media (max-width: 560px) { .counts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  .next { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 24px; padding: 20px 22px; border-radius: 14px; background: var(--green-soft); }
+  .next-text { flex: 1 1 280px; min-width: 0; }
+  .eyebrow { display: block; margin-bottom: 4px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+  .next-text b { display: block; font-size: 17px; font-weight: 600; }
+  .next-text .s { color: var(--dim); font-size: 14px; }
+
+  /* Tests: a change and the date you'll know */
+  .test { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; align-items: center; width: 100%; padding: 14px 4px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }
+  .test:first-of-type { border-top: 1px solid var(--line); }
+  .test:hover .t-name { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .t-name { font-weight: 500; }
+  .t-sub { grid-column: 1; font-size: 14px; color: var(--dim); }
+  .t-when { grid-row: 1 / span 2; grid-column: 2; text-align: right; font-size: 13.5px; color: var(--faint); white-space: nowrap; }
+  .t-when b { display: block; color: var(--text); font-weight: 600; font-size: 14px; }
+  .t-track { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 12px; color: var(--faint); }
+  .t-track i { flex: 1; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+  .t-track i em { display: block; height: 100%; background: var(--ink); }
+  @media (max-width: 560px) { .test { grid-template-columns: 1fr; } .t-when { grid-row: auto; grid-column: 1; text-align: left; } .t-when b { display: inline; margin-right: 6px; } }
+
+  .tbl-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 640px; }
+  th { text-align: left; font-weight: 500; font-size: 12.5px; color: var(--faint); padding: 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 11px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; font-variant-numeric: tabular-nums; }
+  tr.click { cursor: pointer; }
+  tr.click:hover td { background: var(--soft); }
+  td.num, th.num { text-align: right; }
+  .pg { font-weight: 500; white-space: nowrap; }
+  .pg small { display: block; font-weight: 400; font-size: 12.5px; color: var(--faint); max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+  td svg { display: block; width: 84px; height: 24px; }
+  .v { font-size: 13px; color: var(--dim); white-space: nowrap; }
+  .v.act { color: var(--text); font-weight: 600; }
+  .muted { color: var(--faint); }
+
+  .row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 13px 4px; border: 0; border-bottom: 1px solid var(--line); background: none; text-align: left; cursor: pointer; }
+  .row.static { cursor: default; }
+  .row:not(.static):hover .r-name { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .r-main { flex: 1; min-width: 0; }
+  .r-name { display: block; font-weight: 500; }
+  .r-why { display: block; color: var(--dim); font-size: 14px; }
+  .r-go { color: var(--faint); font-size: 13.5px; white-space: nowrap; }
+  .r-ok { width: 18px; flex: none; color: var(--faint); text-align: center; }
+
+  /* GEO grid: question × assistant */
+  .grid { overflow-x: auto; }
+  .grid table { min-width: 600px; }
+  .dots { display: inline-flex; gap: 4px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--ink); }
+  .dots i.y { background: var(--ink); }
+  .q { font-weight: 500; max-width: 300px; }
+  .q small { display: block; font-weight: 400; font-size: 12.5px; color: var(--faint); }
+
+  /* Opened item */
+  .back { margin-top: 22px; }
+  .open h2 { margin: 10px 0 4px; font: 600 26px/1.25 var(--display); text-wrap: balance; overflow-wrap: anywhere; }
+  .sub { margin: 0; color: var(--dim); max-width: 64ch; }
+  .says { margin-top: 18px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .says div { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+  .says div:last-child { border-bottom: 0; }
+  .says span { color: var(--faint); font-size: 13px; padding-top: 1px; }
+  .says mark { background: var(--mark); color: inherit; padding: 0 2px; border-radius: 3px; }
+  .says .new { font-size: 12px; color: var(--faint); margin-left: 6px; }
+  .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+  .fact span { display: block; font-size: 12.5px; color: var(--faint); }
+  .fact b { font: 600 20px var(--display); font-variant-numeric: tabular-nums; }
+  @media (max-width: 560px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } .says div { grid-template-columns: 1fr; gap: 0; } }
+  .chart { margin-top: 18px; padding: 14px 16px 8px; border: 1px solid var(--line); border-radius: 14px; }
+  .chart-h { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--faint); }
+  .chart svg { display: block; width: 100%; height: auto; margin-top: 4px; }
+  .call { margin-top: 18px; padding: 18px 20px; border-radius: 14px; background: var(--soft); }
+  .call h3 { margin: 0 0 6px; font-size: 16px; }
+  .call p { margin: 0 0 10px; color: var(--dim); max-width: 66ch; }
+  .call ol, .call ul { margin: 0 0 12px; padding-left: 20px; color: var(--dim); }
+  .call li { margin: 4px 0; }
+  .sugg { display: grid; gap: 8px; margin: 6px 0 14px; }
+  .sugg div { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+  .sugg span { font-size: 12.5px; color: var(--faint); }
+  .sugg b { font-weight: 500; overflow-wrap: anywhere; }
+  .sugg em { color: var(--faint); font-size: 13px; display: block; font-weight: 400; font-style: normal; }
+  @media (max-width: 560px) { .sugg div { grid-template-columns: 1fr; gap: 2px; } }
+  .acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .wait { display: flex; align-items: center; gap: 10px; margin: 4px 0 12px; font-size: 13px; color: var(--faint); }
+  .wait i { flex: 1; max-width: 360px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .wait i em { display: block; height: 100%; background: var(--ink); }
+  .eng { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; padding: 11px 4px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .eng b { font-weight: 500; }
+  .eng span { color: var(--dim); }
+  @media (max-width: 560px) { .eng { grid-template-columns: 1fr; gap: 2px; } }
+
+  .form { display: grid; gap: 12px; margin-top: 18px; max-width: 520px; }
+  .form label { display: grid; gap: 4px; font-size: 13.5px; color: var(--faint); }
+  .form input, .form select { height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+  .explain { margin-top: 16px; border-top: 1px solid var(--line); }
+  .ex { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 14px; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+  .ex b { font-weight: 600; }
+  .ex p { margin: 0; color: var(--dim); font-size: 14px; }
+  @media (max-width: 560px) { .ex { grid-template-columns: 1fr; gap: 2px; } }
+  .set { margin-top: 18px; border-top: 1px solid var(--line); }
+  .set label, .set .si { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 14px 4px; border-bottom: 1px solid var(--line); }
+  .set .t b { display: block; font-weight: 500; }
+  .set .t span { font-size: 13.5px; color: var(--faint); }
+  .set input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--ink); flex: none; }
+  .set select { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
+  .foot { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 16px; font-size: 14px; color: var(--faint); }
+  .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); max-width: calc(100vw - 32px); background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; display: flex; gap: 14px; align-items: center; z-index: 5; }
+  .toast button { border: 0; background: none; color: var(--bg); text-decoration: underline; cursor: pointer; padding: 0; }
+</style>
+
+<div class="picker"><div class="picker-in"><b>Preview: Search &amp; AI, version 2.</b> Two tabs. <b>SEO</b> reads your homepage and main pages, finds the keyword each one targets, shows where you rank and what to change in the title, H1 or headings. <b>GEO</b> checks whether ChatGPT, Perplexity, Gemini and Google’s AI Overview name you for the questions buyers ask. Every change you make becomes a test with a date you’ll know by. “Recheck all keywords” runs a fresh check any time. Example data for Frekto. Click anything.</div></div>
+
+<div class="frame">
+  <nav class="side" aria-label="App">
+    <div class="brand">GrowJin</div>
+    <div class="grp"><span class="nav">Today</span><span class="nav">Your roadmap</span></div>
+    <div class="grp"><div class="gl">Get customers</div><span class="nav">Lead Finder</span><span class="nav">Lead Agent</span><span class="nav">Email Outreach</span></div>
+    <div class="grp"><div class="gl">Get seen</div><span class="nav on">Search &amp; AI</span><span class="nav">Social Studio</span><span class="nav">Meta Ads</span></div>
+    <div class="grp"><div class="gl">Keep track</div><span class="nav">Reminders</span><span class="nav">Analytics</span></div>
+  </nav>
+  <main class="main"><div class="page" id="app"></div></main>
+</div>
+
+<script>
+// ── Example data (Frekto) ────────────────────────────────────────────────────
+const TODAY = new Date('2026-11-04')
+const CHECKS = ['7 Sep','14 Sep','21 Sep','28 Sep','5 Oct','12 Oct','19 Oct','26 Oct','2 Nov']
+const DAY = 864e5
+const d = s => new Date(s + ' 2026')
+const fmtD = dt => dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+const addW = (dt, w) => new Date(dt.getTime() + w * 7 * DAY)
+
+// The pages GrowJin reads (homepage + main pages). kw = the search the page targets, found from its title / H1 / headings.
+// ranks: Google position at each weekly check (null = not in the top 100). change: a test running on this page.
+const PAGES = [
+  { path: '/', name: 'Homepage', title: 'Frekto: AI Instagram post maker for small business', h1: 'Turn product photos into scroll-stopping posts', h1Was: 'Your AI content studio', h2s: ['Made for Etsy and Shopify sellers', 'Posts, captions and a calendar in one place'], meta: 'Frekto turns your product photos into on-brand Instagram posts in seconds. Free to try.',
+    kw: 'instagram post maker for small business', vol: 480, kd: 24, ranks: [41,40,42,39,38,37,36,35,34], v: 'test',
+    test: { what: 'New H1 and title', at: '4 Nov', target: 'instagram post maker for small business', before: 34 } },
+  { path: '/features/product-photos', name: 'Product photos', title: 'Product photo to Instagram post in one click | Frekto', h1: 'Product photo to Instagram post in one click', h2s: ['Upload a photo, get five posts', 'Your colours, your fonts'], meta: 'Turn any product photo into an Instagram post with your branding.',
+    kw: 'product photo to instagram post', vol: 210, kd: 12, ranks: [null,null,null,null,null,64,52,40,33], v: 'test',
+    test: { what: 'New title and H1', at: '14 Oct', target: 'product photo to instagram post', before: 64 } },
+  { path: '/blog/etsy-posts-10-minutes', name: 'Blog: Etsy posts', title: 'Social media posts for your Etsy shop in 10 minutes a day', h1: 'How Etsy sellers can post every day in 10 minutes', h2s: ['What to post', 'A weekly plan', 'FAQ'], meta: 'A simple daily routine for Etsy sellers to post on Instagram and Pinterest.',
+    kw: 'social media posts for etsy shop', vol: 320, kd: 18, ranks: [null,null,42,31,22,15,11,9,8], v: 'working',
+    done: { what: 'Published', at: '14 Sep', result: '#42 → #8 in 7 weeks' } },
+  { path: '/blog/shopify-to-instagram', name: 'Blog: Shopify guide', title: 'Shopify to Instagram: the auto-posting guide', h1: 'Shopify to Instagram: the auto-posting guide', h2s: ['Connect your store', 'Pick which products post'], meta: 'How to auto-post Shopify products to Instagram.',
+    kw: 'shopify instagram auto post', vol: 590, kd: 29, ranks: [7,7,6,7,8,9,12,14,15], v: 'refresh',
+    why: 'Was #6, now #15 and still falling. Two newer guides passed it, and it still shows Shopify’s old Instagram setup from before September.',
+    sugg: [['Title', 'Shopify to Instagram auto post: the 2026 guide'], ['H2', 'Set it up with Shopify’s new Instagram app (Sept 2026)'], ['H2', 'FAQ: why aren’t my products posting?']] },
+  { path: '/blog/ai-instagram-tools', name: 'Blog: AI tools list', title: '10 AI Instagram tools compared', h1: '10 AI Instagram tools compared', h2s: ['Our picks', 'Pricing'], meta: 'We tested 10 AI tools for Instagram.',
+    kw: 'ai instagram post generator', vol: 2400, kd: 62, ranks: [null,null,null,88,74,61,58,55,57], v: 'change',
+    why: 'Nine weeks, stuck between #55 and #61. Page 1 is Canva, Adobe and three big tools (difficulty 62). A closer search the same page can win:',
+    newKw: { k: 'best ai tool for instagram posts small business', vol: 320, kd: 29 },
+    sugg: [['Title', '7 best AI tools for Instagram posts (for small businesses)'], ['H1', 'The best AI tools for Instagram posts if you run a small business'], ['Meta', 'We tested 7 AI tools on real small-shop posts. Here’s which one fits a one-person business.']] },
+  { path: '/pricing', name: 'Pricing', title: 'Pricing | Content calendar template & AI posts', h1: 'Simple pricing', h2s: ['Free', 'Pro'], meta: 'Frekto pricing.',
+    kw: 'content calendar template', vol: 9900, kd: 71, ranks: [null,null,null,null,null,null,null,null,null], v: 'change',
+    why: 'Nine weeks, never in the top 100. People searching this want a free spreadsheet, not a pricing page. A pricing page should be found by people searching your name.',
+    newKw: { k: 'frekto pricing', vol: 30, kd: 2 },
+    sugg: [['Title', 'Frekto pricing: AI Instagram posts from $9 a month'], ['Meta', 'Start free. Pro is $9 a month for unlimited posts, captions and scheduling.']] },
+  { path: '/features/captions', name: 'Captions', title: 'AI caption generator | Frekto', h1: 'AI captions that sound like you', h2s: ['Learns your voice', 'Hashtags included'], meta: 'Write Instagram captions in your own voice.',
+    kw: 'ai caption generator', vol: 6600, kd: 55, ranks: [null,null,null,null,null,null,96,91,90], v: 'wait',
+    why: 'Only 3 weeks of data and slow (#96 → #90). If it isn’t in the top 50 by 25 Nov we’ll suggest a closer search.' },
+  { path: '/about', name: 'About', title: 'About Frekto', h1: 'We help small shops look great online', h2s: ['Our story'], meta: 'The team behind Frekto.',
+    kw: null, v: 'none' },
+]
+const ADD = [
+  { k: 'etsy instagram post ideas', vol: 260, kd: 11, where: 'New blog post', why: 'Your Etsy post is your best page. Same buyers, a search nobody owns yet.' },
+  { k: 'canva alternative for product posts', vol: 390, kd: 33, where: 'New page /vs/canva', why: 'AI also names Canva for this question and never you (see GEO).' },
+  { k: 'instagram post scheduler shopify', vol: 480, kd: 27, where: 'H2 on /blog/shopify-to-instagram', why: 'Close to your Shopify guide, which already ranks.' },
+]
+
+// GEO: buyer questions, asked twice a week to each assistant (Google AI Overview once)
+const ENG = ['ChatGPT', 'Perplexity', 'Gemini', 'Google AI']
+const QS = [
+  { q: 'How can an Etsy seller make social media posts quickly?', from: 'social media posts for etsy shop', hits: [2,2,1,1], of: [2,2,2,1], others: 'Canva, Predis', cites: 'reddit.com, etsy.com', v: 'named',
+    trend: [1,2,2,3,4,4,5,6,6] },
+  { q: 'What’s the best AI tool to make Instagram posts for a small shop?', from: 'instagram post maker for small business', hits: [0,1,0,0], of: [2,2,2,1], others: 'Canva, Predis, Ocoya', cites: 'zapier.com (3×), reddit.com', v: 'missing',
+    trend: [0,0,0,1,0,1,1,1,1],
+    todo: [['Get on the list AI cites most', 'Zapier’s “Best AI tools for Instagram” is cited in 3 of these answers and leaves you out. We found the author and wrote a 70-word pitch.', 'See the pitch'],
+           ['Say it plainly on your homepage', 'Add one line AI can quote: “Frekto is an AI Instagram post maker for small shops.” Your homepage title now does this (testing since 4 Nov).', null],
+           ['Answer it on your own site', 'A short FAQ entry “What’s the best AI tool for Instagram posts for a small shop?” on your homepage, with FAQ markup.', 'Draft the FAQ']] },
+  { q: 'What are good Canva alternatives for product posts?', from: 'canva alternative for product posts', hits: [0,0,0,0], of: [2,2,2,1], others: 'Adobe Express, Predis, Kittl', cites: 'zapier.com, g2.com', v: 'missing',
+    trend: [0,0,0,0,0,0,0,0,0],
+    todo: [['Write a comparison page', '“Canva vs Frekto for product posts”. Comparison pages are what these answers cite most. Also wins the SEO keyword “canva alternative for product posts”.', 'Draft the page'],
+           ['Get listed on G2', 'G2 is cited in 2 of these answers. A free listing plus 3 reviews from customers.', 'See how']] },
+  { q: 'Is there a tool that turns product photos into social posts?', from: 'product photo to instagram post', hits: [1,1,0,0], of: [2,2,2,0], others: 'Predis, Pebblely', cites: 'producthunt.com', v: 'test',
+    trend: [0,0,0,0,0,0,1,2,2],
+    test: { what: 'FAQ added to homepage', at: '21 Oct', before: '0 of 7' } },
+  { q: 'How do I auto-post Shopify products to Instagram?', from: 'shopify instagram auto post', hits: [0,1,0,0], of: [2,2,2,1], others: 'Shopify, Later, Ocoya', cites: 'shopify.com, later.com', v: 'missing',
+    trend: [2,2,2,1,1,1,1,1,1],
+    todo: [['Update your Shopify guide', 'AI cites newer guides that show Shopify’s new Instagram app. Your guide is out of date (also slipping on Google, see SEO).', 'Open on SEO']] },
+]
+const GEO_SITE = [
+  { ok: true, name: 'AI search bots can read your site', why: 'robots.txt lets ChatGPT, Perplexity and Google in.' },
+  { ok: false, name: 'Add an llms.txt file', why: 'A short file that tells AI what Frekto is and which pages matter. We wrote one. About 5 minutes.' },
+  { ok: true, name: 'FAQ markup on your homepage', why: 'Added 21 Oct.' },
+  { ok: false, name: 'No Wikidata entry', why: 'AI uses it to know you’re a real company. Free to add.' },
+]
+
+// ── State ────────────────────────────────────────────────────────────────────
+const S = { tab: 'seo', view: 'list', open: null, checked: '2 Nov', checks: CHECKS.slice(), running: false, step: 0, testsAdded: [] }
+let toastTimer = null
+try { const t = localStorage.getItem('ssg-tab'); if (t === 'seo' || t === 'geo') S.tab = t } catch {}
+const save = () => { try { localStorage.setItem('ssg-tab', S.tab) } catch {} }
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+const fmt = n => n.toLocaleString('en-US')
+const now = p => p.ranks ? p.ranks[p.ranks.length - 1] : null
+const LABEL = { test: 'Testing', working: 'Working', refresh: 'Update the page', change: 'Change the keyword', wait: 'Give it time', none: 'No keyword', named: 'You’re named', missing: 'Not named' }
+const ACT = new Set(['refresh', 'change', 'missing'])
+const SEO_WEEKS = 6, GEO_WEEKS = 6
+
+function knowBy(at) { return addW(d(at), SEO_WEEKS) }
+function progress(at) { const a = d(at).getTime(), b = knowBy(at).getTime(); return Math.max(0.04, Math.min(1, (TODAY.getTime() - a) / (b - a))) }
+function earlyBy(at) { return addW(d(at), 2) }
+
+// Rank: #1 at top; square-root scale keeps #1-#10 apart and still reaches #100
+const yR = (r, top, h) => top + Math.sqrt((Math.min(r, 100) - 1) / 99) * h
+
+function spark(ranks) {
+  const w = 84, h = 24
+  const pts = ranks.map((r, i) => r == null ? null : [2 + i / (ranks.length - 1) * (w - 6), yR(r, 2, h - 4)])
+  let p = '', pen = false; pts.forEach(q => { if (!q) { pen = false; return } p += (pen ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1); pen = true })
+  const last = pts.filter(Boolean).pop()
+  if (!last) return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><line x1="2" x2="${w - 2}" y1="${h - 3}" y2="${h - 3}" stroke="var(--line)" stroke-dasharray="3 3"/></svg>`
+  return `<svg viewBox="0 0 ${w} ${h}" aria-hidden="true"><path d="${p}" fill="none" stroke="var(--ink)" stroke-width="1.5"/><circle cx="${last[0]}" cy="${last[1]}" r="2.4" fill="var(--ink)"/></svg>`
+}
+
+// Where you stand: each page's keyword placed on Google's #1-#100 scale
+function standMap() {
+  const W = 800, H = 196, L = 20, R = 20, mid = 84
+  const pages = PAGES.filter(p => p.kw)
+  const x = r => L + Math.sqrt((Math.min(r, 101) - 1) / 100) * (W - L - R)
+  let g = `<line x1="${L}" x2="${W - R}" y1="${mid}" y2="${mid}" stroke="var(--line)" stroke-width="2"/>`
+  for (const [r, lab] of [[1, '#1'], [10, '#10'], [30, '#30'], [100, '#100']]) g += `<line x1="${x(r)}" x2="${x(r)}" y1="${mid - 6}" y2="${mid + 6}" stroke="var(--faint)"/><text x="${x(r)}" y="${mid + 22}" text-anchor="middle" font-size="12" fill="var(--faint)">${lab}</text>`
+  g += `<text x="${(x(1) + x(10)) / 2}" y="${H - 6}" text-anchor="middle" font-size="12" fill="var(--dim)">Page 1</text><text x="${x(101)}" y="${H - 6}" text-anchor="end" font-size="12" fill="var(--dim)">Not found</text>`
+  const placed = pages.map((p, i) => ({ p, i, r: now(p) ?? 101 })).sort((a, b) => a.r - b.r)
+  const rows = [mid - 18, mid + 48, mid - 36, mid + 66], ends = rows.map(() => -1e9)
+  placed.forEach(o => {
+    const cx = x(o.r)
+    const label = o.p.kw.length > 26 ? o.p.kw.slice(0, 25) + '…' : o.p.kw
+    const w = label.length * 6.1
+    const lx = Math.min(Math.max(cx, L + w / 2), W - R - w / 2)
+    let r = rows.findIndex((_, k) => ends[k] < lx - w / 2 - 8); if (r < 0) r = 0
+    ends[r] = lx + w / 2
+    const ty = rows[r], above = ty < mid
+    g += `<g class="dot" data-page="${PAGES.indexOf(o.p)}" tabindex="0" role="button" aria-label="${esc(o.p.kw)}, ${o.r > 100 ? 'not found' : '#' + o.r}"><line x1="${cx}" x2="${lx}" y1="${above ? mid - 8 : mid + 8}" y2="${above ? ty + 4 : ty - 12}" stroke="var(--line)"/><circle cx="${cx}" cy="${mid}" r="7" fill="${o.p.v === 'working' ? 'var(--ink)' : 'var(--bg)'}" stroke="var(--ink)" stroke-width="1.6"/><text x="${lx}" y="${ty}" text-anchor="middle" font-size="11.5" fill="var(--text)">${esc(label)}</text></g>`
+  })
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Where each page's keyword ranks on Google">${g}</svg>`
+}
+
+function rankChart(p) {
+  const W = 900, H = 210, L = 40, R = 16, T = 22, B = 26
+  const ranks = p.ranks, n = ranks.length
+  const x = i => L + i / (n - 1) * (W - L - R)
+  const y = r => yR(r, T, H - T - B)
+  let g = ''
+  for (const v of [1, 10, 30, 100]) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="12" fill="var(--faint)">#${v}</text>`
+  S.checks.forEach((c, i) => { if (i % 2 === 0 || i === n - 1) g += `<text x="${x(i)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}" font-size="12" fill="var(--faint)">${c}</text>` })
+  // The change being tested: a dashed line on the week it went live
+  const ch = p.test || p.done
+  if (ch) {
+    const at = d(ch.at).getTime()
+    let i = S.checks.findIndex(c => d(c).getTime() >= at); if (i < 0) i = n - 1
+    g += `<line x1="${x(i)}" x2="${x(i)}" y1="${T - 12}" y2="${H - B}" stroke="var(--ink)" stroke-dasharray="4 4"/><text x="${x(i) - 6}" y="${T - 2}" text-anchor="end" font-size="12" fill="var(--dim)">${esc(ch.what)} · ${ch.at}</text>`
+  }
+  let path = '', pen = false, dots = ''
+  ranks.forEach((r, i) => { if (r == null) { pen = false; return } path += (pen ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(r).toFixed(1); pen = true; dots += `<circle cx="${x(i)}" cy="${y(r)}" r="${i === n - 1 ? 3.6 : 2.2}" fill="var(--ink)"/>` })
+  const li = ranks.map(r => r != null).lastIndexOf(true)
+  const lab = li >= 0 ? `<text x="${x(li) - 8}" y="${y(ranks[li]) + 18}" text-anchor="end" font-size="13" font-weight="600" fill="var(--text)">#${ranks[li]}</text>` : `<text x="${(W + L) / 2}" y="${H / 2}" text-anchor="middle" font-size="13" fill="var(--faint)">Not in the top 100 yet</text>`
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Google position at each weekly check">${g}<path d="${path}" fill="none" stroke="var(--ink)" stroke-width="2"/>${dots}${lab}</svg>`
+}
+
+function geoChart(q) {
+  const W = 900, H = 170, L = 40, R = 16, T = 22, B = 26, max = 7
+  const n = q.trend.length
+  const x = i => L + i / (n - 1) * (W - L - R)
+  const y = v => T + (1 - v / max) * (H - T - B)
+  let g = ''
+  for (const v of [0, 3, 7]) g += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="12" fill="var(--faint)">${v}</text>`
+  S.checks.forEach((c, i) => { if (i % 2 === 0 || i === n - 1) g += `<text x="${x(i)}" y="${H - 6}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}" font-size="12" fill="var(--faint)">${c}</text>` })
+  if (q.test) {
+    let i = S.checks.findIndex(c => d(c).getTime() >= d(q.test.at).getTime()); if (i < 0) i = n - 1
+    g += `<line x1="${x(i)}" x2="${x(i)}" y1="${T - 12}" y2="${H - B}" stroke="var(--ink)" stroke-dasharray="4 4"/><text x="${x(i) - 6}" y="${T - 2}" text-anchor="end" font-size="12" fill="var(--dim)">${esc(q.test.what)} · ${q.test.at}</text>`
+  }
+  const line = q.trend.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join('')
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Answers that named you, out of 7, each week">${g}<path d="${line}L${x(n - 1)} ${y(0)}L${x(0)} ${y(0)}Z" fill="var(--line)" opacity=".6"/><path d="${line}" fill="none" stroke="var(--ink)" stroke-width="2"/><circle cx="${x(n - 1)}" cy="${y(q.trend[n - 1])}" r="3.6" fill="var(--ink)"/></svg>`
+}
+
+// ── Views ────────────────────────────────────────────────────────────────────
+function header() {
+  const runSteps = ['Reading your 8 pages (titles, H1s, headings)', 'Checking Google positions for 7 keywords', 'Asking ChatGPT, Perplexity, Gemini and Google AI 5 questions', 'Comparing with the last check']
+  return `
+    <div class="crumbs">Get seen › Search &amp; AI</div>
+    <h1>Search &amp; AI</h1>
+    <div class="topline">
+      <div class="line"><span>Checked <b>${S.checked}</b> · checks itself every Monday</span><button class="link" data-go="how">How this works</button><button class="link" data-go="settings">Settings</button></div>
+      <button class="btn" data-recheck ${S.running ? 'disabled' : ''}>${S.running ? 'Rechecking…' : 'Recheck all keywords'}</button>
+    </div>
+    ${S.running ? `<div class="run" role="status"><b>Rechecking everything</b><ol>${runSteps.map((s, i) => `<li class="${i < S.step ? 'done' : i === S.step ? 'on' : ''}">${s}</li>`).join('')}</ol><div class="bar"><i style="width:${S.step / runSteps.length * 100}%"></i></div></div>` : ''}
+    ${S.view === 'list' ? `<div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="${S.tab === 'seo'}" data-tab="seo">SEO<small>Google</small></button>
+      <button class="tab" role="tab" aria-selected="${S.tab === 'geo'}" data-tab="geo">GEO<small>AI answers</small></button>
+    </div>` : ''}`
+}
+
+function testRow(o) {
+  const pct = progress(o.at), kb = knowBy(o.at)
+  const done = pct >= 1
+  return `<button class="test" data-${o.kind}="${o.idx}">
+    <span class="t-name">${esc(o.title)}</span>
+    <span class="t-sub">${esc(o.sub)}</span>
+    <span class="t-when"><b>${done ? 'Answer ready' : 'Know by ' + fmtD(kb)}</b>${done ? '' : TODAY < earlyBy(o.at) ? 'first sign ' + fmtD(earlyBy(o.at)) : o.early}</span>
+    <span class="t-track"><span>${o.at}</span><i><em style="width:${pct * 100}%"></em></i><span>${fmtD(kb)}</span></span>
+  </button>`
+}
+
+function seoView() {
+  const pages = PAGES.filter(p => p.kw)
+  const c = { p1: pages.filter(p => now(p) && now(p) <= 10).length, near: pages.filter(p => now(p) > 10 && now(p) <= 30).length, far: pages.filter(p => now(p) > 30).length, none: pages.filter(p => !now(p)).length }
+  const tests = PAGES.map((p, i) => ({ p, i })).filter(o => o.p.test).map(o => {
+    const before = o.p.test.before, cur = now(o.p)
+    const moved = cur && before ? before - cur : 0
+    return { kind: 'page', idx: o.i, at: o.p.test.at, title: `${o.p.test.what} on ${o.p.path === '/' ? 'your homepage' : o.p.path}`, sub: `“${o.p.kw}” · was #${before}, now #${cur}`, early: moved >= 5 ? `early sign: up ${moved}` : moved > 0 ? `up ${moved} so far` : 'no move yet' }
+  })
+  const todo = PAGES.map((p, i) => ({ p, i })).filter(o => o.p.v === 'refresh' || o.p.v === 'change')
+  const first = todo[0]
+  return `<div class="view">
+    <div class="sec"><div class="sec-h"><h2>Where you stand on Google</h2><span>Each dot is a page and the search it targets · tap one</span></div>
+      <div class="map"><div class="map-scroll">${standMap()}</div>
+        <div class="counts"><div><b>${c.p1}</b><span>on page 1</span></div><div><b>${c.near}</b><span>#11 to #30</span></div><div><b>${c.far}</b><span>#31 to #100</span></div><div><b>${c.none}</b><span>not found</span></div></div>
+      </div>
+    </div>
+
+    ${first ? `<div class="next"><div class="next-text"><span class="eyebrow">Start here</span><b>${first.p.v === 'refresh' ? `Update ${first.p.path}: it’s slipping` : `Change the keyword on ${first.p.path}`}</b><span class="s">“${esc(first.p.kw)}” · ${now(first.p) ? 'was #' + Math.min(...first.p.ranks.filter(Boolean)) + ', now #' + now(first.p) : 'never found'}. We wrote the new title and headings.</span></div><button class="btn go" data-page="${first.i}">See what to change</button></div>` : ''}
+
+    <div class="sec"><div class="sec-h"><h2>Changes you’re testing</h2><button class="link" data-go="changed">I changed something</button></div>
+      <p class="lead">Each change gets ${SEO_WEEKS} weeks. Google re-reads the page in 1 to 2 weeks; the position settles after that.</p>
+      ${tests.map(testRow).join('')}
+    </div>
+
+    <div class="sec"><div class="sec-h"><h2>Your pages</h2><span>${PAGES.length} pages read · keyword found from each page’s title, H1 and headings</span></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Page</th><th>Targets</th><th>9 weeks</th><th class="num">Now</th><th class="num">Searches</th><th>What to do</th></tr></thead>
+        <tbody>${PAGES.map((p, i) => `<tr class="click" data-page="${i}" tabindex="0">
+          <td class="pg">${esc(p.path)}<small>${esc(p.h1)}</small></td>
+          <td>${p.kw ? esc(p.kw) : '<span class="muted">No search targeted</span>'}</td>
+          <td>${p.ranks ? spark(p.ranks) : ''}</td>
+          <td class="num">${p.kw ? (now(p) ? '#' + now(p) : '<span class="muted">—</span>') : ''}</td>
+          <td class="num">${p.vol ? fmt(p.vol) : ''}</td>
+          <td><span class="v${ACT.has(p.v) ? ' act' : ''}">${p.v === 'test' ? 'Testing · know by ' + fmtD(knowBy(p.test.at)) : LABEL[p.v]}${ACT.has(p.v) ? ' ›' : ''}</span></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>
+
+    <div class="sec"><div class="sec-h"><h2>Keywords to add</h2><span>Searches your buyers make that no page targets yet</span></div>
+      ${ADD.map((a, i) => `<div class="row static"><span class="r-main"><span class="r-name">${esc(a.k)}</span><span class="r-why">${fmt(a.vol)} searches a month · difficulty ${a.kd} · ${esc(a.where)}. ${esc(a.why)}</span></span><button class="link" data-add="${i}">Plan it</button></div>`).join('')}
+    </div>
+  </div>`
+}
+
+function geoView() {
+  const asked = QS.reduce((t, q) => t + q.of.reduce((a, b) => a + b, 0), 0)
+  const named = QS.reduce((t, q) => t + q.hits.reduce((a, b) => a + b, 0), 0)
+  const first = QS.map((q, i) => ({ q, i })).find(o => o.q.v === 'missing' && o.q.hits.every(h => h === 0)) || QS.map((q, i) => ({ q, i })).find(o => o.q.v === 'missing')
+  const tests = QS.map((q, i) => ({ q, i })).filter(o => o.q.test).map(o => {
+    const h = o.q.hits.reduce((a, b) => a + b, 0), of = o.q.of.reduce((a, b) => a + b, 0)
+    return { kind: 'q', idx: o.i, at: o.q.test.at, title: `${o.q.test.what}`, sub: `“${o.q.q}” · was named in ${o.q.test.before}, now ${h} of ${of}`, early: `early sign: up` }
+  })
+  return `<div class="view">
+    <div class="sec"><div class="sec-h"><h2>Where you stand in AI answers</h2><span>This week · each question asked twice to each assistant</span></div>
+      <div class="map">
+        <div class="counts" style="border-top:0;margin-top:0"><div><b>${Math.round(named / asked * 100)}%</b><span>of answers name you</span></div><div><b>${QS.filter(q => q.hits.reduce((a, b) => a + b, 0) * 2 >= q.of.reduce((a, b) => a + b, 0)).length} of ${QS.length}</b><span>questions where you’re usually named</span></div><div><b>Canva</b><span>named most instead</span></div><div><b>zapier.com</b><span>cited most</span></div></div>
+      </div>
+    </div>
+
+    ${first ? `<div class="next"><div class="next-text"><span class="eyebrow">Start here</span><b>You’re not named for “${esc(first.q.q)}”</b><span class="s">${esc(first.q.others)} are, in all ${first.q.of.reduce((a, b) => a + b, 0)} answers. The fix: ${esc(first.q.todo[0][0].toLowerCase())}.</span></div><button class="btn go" data-q="${first.i}">See what to do</button></div>` : ''}
+
+    <div class="sec"><div class="sec-h"><h2>Changes you’re testing</h2><button class="link" data-go="changed">I changed something</button></div>
+      <p class="lead">AI that searches the web (Perplexity, ChatGPT search, Google AI Overview) picks up a change 1 to 3 weeks after Google has the page. We give each change ${GEO_WEEKS} weeks.</p>
+      ${tests.map(testRow).join('')}
+    </div>
+
+    <div class="sec"><div class="sec-h"><h2>Questions buyers ask AI</h2><span>● named · ○ not named · one dot per answer</span></div>
+      <div class="grid"><table>
+        <thead><tr><th>Question</th>${ENG.map(e => `<th>${e}</th>`).join('')}<th>Result</th></tr></thead>
+        <tbody>${QS.map((q, i) => `<tr class="click" data-q="${i}" tabindex="0">
+          <td class="q">${esc(q.q)}<small>Your SEO keyword: ${esc(q.from)}</small></td>
+          ${ENG.map((e, j) => `<td>${q.of[j] ? `<span class="dots" aria-label="${q.hits[j]} of ${q.of[j]}">${Array.from({ length: q.of[j] }, (_, k) => `<i class="${k < q.hits[j] ? 'y' : ''}"></i>`).join('')}</span>` : '<span class="muted">none shown</span>'}</td>`).join('')}
+          <td><span class="v${ACT.has(q.v) ? ' act' : ''}">${q.v === 'test' ? 'Testing · know by ' + fmtD(knowBy(q.test.at)) : LABEL[q.v]}${ACT.has(q.v) ? ' ›' : ''}</span></td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+      <div class="foot"><span>Questions are picked from your SEO keywords and your brand.</span><button class="link" data-go="addq">Add a question</button></div>
+    </div>
+
+    <div class="sec"><div class="sec-h"><h2>Is your site ready for AI?</h2><span>From your AI readiness check</span></div>
+      ${GEO_SITE.map(s => `<div class="row static"><span class="r-ok" aria-label="${s.ok ? 'done' : 'to do'}">${s.ok ? '✓' : '○'}</span><span class="r-main"><span class="r-name">${esc(s.name)}</span><span class="r-why">${esc(s.why)}</span></span>${s.ok ? '' : '<button class="link" data-fix>Fix it</button>'}</div>`).join('')}
+    </div>
+  </div>`
+}
+
+function pageOpen(i) {
+  const p = PAGES[i]
+  const hl = t => p.kw ? esc(t).replace(new RegExp('\\b(' + p.kw.split(' ').filter(w => w.length > 3).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b', 'gi'), '<mark>$1</mark>') : esc(t)
+  const says = `<div class="says">
+    <div><span>Title</span><b style="font-weight:400">${hl(p.title)}</b></div>
+    <div><span>H1</span><b style="font-weight:400">${hl(p.h1)}${p.h1Was ? `<span class="new">was “${esc(p.h1Was)}” until 4 Nov</span>` : ''}</b></div>
+    <div><span>H2s</span><b style="font-weight:400">${p.h2s.map(hl).join(' · ')}</b></div>
+    <div><span>Meta</span><b style="font-weight:400">${hl(p.meta)}</b></div>
+  </div>`
+  if (!p.kw) return `<div class="open view"><button class="link back" data-back>‹ Back</button><h2>${esc(p.path)}</h2><p class="sub">This page doesn’t target a search, and that’s fine for an About page. People find it from your other pages.</p>${says}</div>`
+  const best = Math.min(...p.ranks.filter(Boolean))
+  let call = ''
+  if (p.v === 'test') {
+    const kb = knowBy(p.test.at), pct = progress(p.test.at), moved = p.test.before - now(p)
+    call = `<div class="call"><h3>Testing: ${esc(p.test.what.toLowerCase())} since ${p.test.at}</h3>
+      <div class="wait"><span>${p.test.at}</span><i><em style="width:${pct * 100}%"></em></i><span>know by ${fmtD(kb)}</span></div>
+      <p>Was #${p.test.before}, now #${now(p)}${moved > 0 ? ` (up ${moved})` : ''}. ${TODAY < earlyBy(p.test.at) ? `Google needs 1 to 2 weeks to re-read the page, so the first sign comes around ${fmtD(earlyBy(p.test.at))}.` : moved >= 5 ? 'An early good sign.' : 'No clear move yet.'} On ${fmtD(kb)} we’ll tell you one of three things:</p>
+      <ul><li><b>Working</b>: up 5 or more places. Keep it.</li><li><b>Give it 2 more weeks</b>: moving, but slowly.</li><li><b>Change it</b>: no move. We’ll suggest a different wording.</li></ul>
+      <div class="acts"><button class="link" data-act="undo:${i}">I changed it back</button></div></div>`
+  } else if (p.v === 'working') {
+    call = `<div class="call"><h3>Working. Keep it.</h3><p>${esc(p.done.what)} ${p.done.at}: ${esc(p.done.result)}. A short FAQ at the end can help it reach the top 3.</p></div>`
+  } else if (p.v === 'wait') {
+    call = `<div class="call"><h3>Give it time</h3><p>${esc(p.why)}</p></div>`
+  } else {
+    const isChange = p.v === 'change'
+    call = `<div class="call"><h3>${isChange ? 'Change the keyword this page targets' : 'Update the page, keep the keyword'}</h3><p>${esc(p.why)}</p>
+      ${isChange ? `<p style="margin-top:-4px"><b style="color:var(--text)">${esc(p.newKw.k)}</b> · ${fmt(p.newKw.vol)} searches a month · difficulty ${p.newKw.kd}</p>` : ''}
+      <div class="sugg">${p.sugg.map(([t, v]) => `<div><span>${t}</span><b>${esc(v)}${t !== 'H2' && p[t.toLowerCase()] ? `<em>now: ${esc(p[t.toLowerCase()])}</em>` : t === 'H2' ? '<em>new section</em>' : ''}</b><button class="link" data-copy="${esc(v)}">Copy</button></div>`).join('')}</div>
+      <p>Make the change on your site, then press the button. We start the clock and tell you by ${fmtD(addW(TODAY, SEO_WEEKS))} whether it worked.</p>
+      <div class="acts"><button class="btn go" data-act="made:${i}">I’ve made this change</button>${isChange ? '' : `<button class="btn" data-act="draft:${i}">Draft the full rewrite</button>`}<button class="btn quiet" data-back>Not now</button></div></div>`
+  }
+  return `<div class="open view">
+    <button class="link back" data-back>‹ Back</button>
+    <h2>${esc(p.path === '/' ? 'Homepage' : p.path)}</h2>
+    <p class="sub">Targets “${esc(p.kw)}” · ${fmt(p.vol)} searches a month · difficulty ${p.kd}</p>
+    ${says}
+    <div class="chart"><div class="chart-h"><span>Google position at each weekly check</span><span>Best #${best} · now ${now(p) ? '#' + now(p) : 'not found'}</span></div>${rankChart(p)}</div>
+    ${call}</div>`
+}
+
+function qOpen(i) {
+  const q = QS[i]
+  const h = q.hits.reduce((a, b) => a + b, 0), of = q.of.reduce((a, b) => a + b, 0)
+  let call = ''
+  if (q.v === 'test') {
+    const kb = knowBy(q.test.at)
+    call = `<div class="call"><h3>Testing: ${esc(q.test.what.toLowerCase())} since ${q.test.at}</h3><div class="wait"><span>${q.test.at}</span><i><em style="width:${progress(q.test.at) * 100}%"></em></i><span>know by ${fmtD(kb)}</span></div>
+      <p>Was named in ${q.test.before}, now ${h} of ${of}. Perplexity and ChatGPT picked it up first. On ${fmtD(kb)} we tell you whether it worked. Answers vary week to week, so we judge from the last 3 checks, not one.</p></div>`
+  } else if (q.v === 'named') {
+    call = `<div class="call"><h3>You’re named. Keep it up.</h3><p>Named in ${h} of ${of} answers. Your Etsy post is what Perplexity cites. Keep that page up to date.</p></div>`
+  } else {
+    call = `<div class="call"><h3>What to do, most useful first</h3><ol>${q.todo.map(([t, w]) => `<li><b style="color:var(--text)">${esc(t)}.</b> ${esc(w)}</li>`).join('')}</ol>
+      <p>When one is done, press the button. We start the clock and tell you by ${fmtD(addW(TODAY, GEO_WEEKS))} whether AI names you.</p>
+      <div class="acts"><button class="btn go" data-act="qdo:${i}">${esc(q.todo[0][2] || 'I’ve done this')}</button><button class="btn" data-act="qmade:${i}">I’ve done one of these</button><button class="btn quiet" data-back>Not now</button></div></div>`
+  }
+  return `<div class="open view">
+    <button class="link back" data-back>‹ Back</button>
+    <h2>“${esc(q.q)}”</h2>
+    <p class="sub">Named in ${h} of ${of} answers this week · your SEO keyword: ${esc(q.from)}</p>
+    <div style="margin-top:16px;border-top:1px solid var(--line)">${ENG.map((e, j) => `<div class="eng"><b>${e}</b><span>${q.of[j] ? (q.hits[j] ? `Named you in ${q.hits[j]} of ${q.of[j]}` : `Didn’t name you (${q.of[j]} of ${q.of[j]})`) + ` · named instead: ${esc(q.others)}` : 'Google showed no AI Overview for this'}</span></div>`).join('')}
+      <div class="eng"><b>Sites AI cited</b><span>${esc(q.cites)}</span></div></div>
+    <div class="chart"><div class="chart-h"><span>Answers that named you, out of 7, each week</span><span>All four assistants</span></div>${geoChart(q)}</div>
+    ${call}</div>`
+}
+
+function howView() {
+  return `<div class="open view"><button class="link back" data-back>‹ Back</button><h2>How this works</h2>
+    <p class="sub">Every Monday, and whenever you press “Recheck all keywords”, we do four things:</p>
+    <div class="explain">
+      <div class="ex"><b>1. Read your pages</b><p>Your homepage and main pages: title, H1, headings and description. From those we work out which search each page targets. If a title or H1 changed since last time, we start a test for it by ourselves.</p></div>
+      <div class="ex"><b>2. Check Google</b><p>Where each page ranks for its search (Search Console when connected, otherwise DataForSEO), how many people search it and how hard it is.</p></div>
+      <div class="ex"><b>3. Ask AI</b><p>Buyer questions, twice each to ChatGPT, Perplexity and Gemini, plus Google’s AI Overview. Who gets named and which sites get cited.</p></div>
+      <div class="ex"><b>4. Judge</b><p>Each page and question gets one verdict: working, testing, give it time, update the page, or change the keyword.</p></div>
+    </div>
+    <h3 style="margin:28px 0 6px;font:600 19px var(--display)">When will I know if my change worked?</h3>
+    <div class="explain">
+      <div class="ex"><b>New title or H1</b><p>Google re-reads the page in 1 to 2 weeks (first sign). The position settles over the next weeks. <b>Answer at 6 weeks</b>: up 5+ places is working; moving slowly gets 2 more weeks; no move means change it.</p></div>
+      <div class="ex"><b>New page or blog post</b><p>First sign at 3 to 4 weeks, <b>answer at 8 to 12 weeks</b>. New pages take longer than changes to old ones.</p></div>
+      <div class="ex"><b>GEO change</b><p>AI that searches the web picks it up 1 to 3 weeks after Google has the page. <b>Answer at 6 weeks</b>, judged on the last 3 checks because answers vary.</p></div>
+      <div class="ex"><b>AI’s built-in knowledge</b><p>Only changes when the AI is retrained, every few months. We don’t promise a date for this.</p></div>
+    </div>
+    <p class="foot">Rechecking more than once a week won’t make Google faster. It’s useful right after you change something, to confirm we saw it.</p></div>`
+}
+
+function changedView() {
+  return `<div class="open view"><button class="link back" data-back>‹ Back</button><h2>I changed something</h2>
+    <p class="sub">We also spot title and H1 changes by ourselves at the next check. Tell us now to start the clock today, or for changes we can’t see (a new section, a listing on another site).</p>
+    <form class="form" id="cf">
+      <label for="cf-where">Where<select id="cf-where">${PAGES.map(p => `<option>${esc(p.path)}</option>`).join('')}<option>Another site (listing, article)</option></select></label>
+      <label for="cf-what">What changed<select id="cf-what"><option>Title</option><option>H1</option><option>Headings (H2)</option><option>Description</option><option>New section or FAQ</option><option>New page</option></select></label>
+      <label for="cf-for">For which search or question<input id="cf-for" value="instagram post maker for small business"></label>
+      <div class="acts"><button class="btn go" type="submit">Start the test</button><button class="btn quiet" type="button" data-back>Cancel</button></div>
+    </form></div>`
+}
+
+function settingsView() {
+  return `<div class="open view"><button class="link back" data-back>‹ Back</button><h2>Settings</h2>
+    <div class="set">
+      <label><span class="t"><b>Check every Monday</b><span>Pages, Google positions and AI answers</span></span><input type="checkbox" id="st-on" checked></label>
+      <div class="si"><span class="t"><b>Pages we read</b><span>Homepage + 7 main pages, picked from your menu and sitemap</span></span><button class="link">Change</button></div>
+      <div class="si"><span class="t"><b>Country</b><span>For Google positions and searches a month</span></span><select id="st-c"><option>United States</option><option>United Kingdom</option><option>India</option></select></div>
+      <div class="si"><span class="t"><b>Google Search Console</b><span>Connected · real positions and clicks</span></span><button class="link">Change</button></div>
+      <div class="si"><span class="t"><b>Buyer questions for AI</b><span>5 questions, picked from your keywords</span></span><button class="link">Edit</button></div>
+    </div></div>`
+}
+
+function render() {
+  const app = document.getElementById('app')
+  let body
+  if (S.view === 'page') body = pageOpen(S.open)
+  else if (S.view === 'q') body = qOpen(S.open)
+  else if (S.view === 'how') body = howView()
+  else if (S.view === 'changed') body = changedView()
+  else if (S.view === 'settings') body = settingsView()
+  else body = S.tab === 'seo' ? seoView() : geoView()
+  app.innerHTML = header() + body
+}
+
+function toast(msg) {
+  document.querySelector('.toast')?.remove()
+  const el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); el.textContent = msg
+  document.body.appendChild(el)
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.remove(), 4500)
+}
+
+// Recheck all keywords: a fresh check of every page, keyword and question
+function recheck() {
+  if (S.running) return
+  S.running = true; S.step = 0; S.view = 'list'; render()
+  const tick = () => {
+    S.step++
+    if (S.step < 4) { render(); setTimeout(tick, 900); return }
+    // New data point for every keyword and question
+    S.checks.push('4 Nov'); S.checked = 'just now'
+    const moves = { 'instagram post maker for small business': 31, 'product photo to instagram post': 29, 'social media posts for etsy shop': 8, 'shopify instagram auto post': 16, 'ai instagram post generator': 56, 'content calendar template': null, 'ai caption generator': 84 }
+    PAGES.forEach(p => { if (p.ranks) p.ranks.push(p.kw in moves ? moves[p.kw] : now(p)) })
+    QS.forEach(q => q.trend.push(q.trend[q.trend.length - 1]))
+    // A change spotted on the site: the captions page has a new H1
+    const cap = PAGES.find(p => p.path === '/features/captions')
+    cap.h1 = 'Free AI caption generator for Instagram'; cap.v = 'test'; cap.test = { what: 'New H1', at: '4 Nov', target: cap.kw, before: 90 }
+    S.running = false; render()
+    toast('Rechecked 8 pages, 7 keywords and 5 questions. Found 1 change on your site: a new H1 on /features/captions. Testing it from today.')
+  }
+  setTimeout(tick, 900)
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-tab],[data-page],[data-q],[data-back],[data-go],[data-act],[data-recheck],[data-copy],[data-add],[data-fix]')
+  if (!b) return
+  const ds = b.dataset
+  if ('recheck' in ds) return recheck()
+  if (ds.tab) { S.tab = ds.tab; S.view = 'list'; save() }
+  else if (ds.page != null && !ds.act) { S.view = 'page'; S.open = +ds.page; window.scrollTo({ top: 0 }) }
+  else if (ds.q != null) { S.view = 'q'; S.open = +ds.q; window.scrollTo({ top: 0 }) }
+  else if ('back' in ds) S.view = 'list'
+  else if (ds.go === 'how' || ds.go === 'settings' || ds.go === 'changed') { S.view = ds.go; window.scrollTo({ top: 0 }) }
+  else if (ds.go) { toast('In the real page this opens a short form.'); return }
+  else if (ds.copy) { navigator.clipboard?.writeText(ds.copy).then(() => toast('Copied.'), () => toast('Select the text to copy it.')); return }
+  else if (ds.add) { toast(`“${ADD[+ds.add].k}” planned. It joins your pages once the page goes live.`); return }
+  else if ('fix' in ds) { toast('Opens the fix from your AI readiness check.'); return }
+  else if (ds.act) {
+    const [k, n] = ds.act.split(':'), i = +n
+    if (k === 'made') {
+      const p = PAGES[i]
+      p.test = { what: p.v === 'change' ? 'New title and H1' : 'Updated page', at: '4 Nov', target: p.newKw ? p.newKw.k : p.kw, before: now(p) ?? 100 }
+      if (p.newKw) { p.kw = p.newKw.k; p.vol = p.newKw.vol; p.kd = p.newKw.kd }
+      p.v = 'test'; S.view = 'list'
+      toast(`Testing from today. You’ll know by ${fmtD(addW(TODAY, SEO_WEEKS))}.`)
+    } else if (k === 'draft') { toast('Writing the full rewrite. About a minute.'); return }
+    else if (k === 'undo') { toast('Noted. The test stops and we judge the old wording again.'); return }
+    else if (k === 'qdo') { toast('Opens it: the pitch, the draft or the steps.'); return }
+    else if (k === 'qmade') {
+      const q = QS[i]; q.v = 'test'; q.test = { what: 'Your change', at: '4 Nov', before: `${q.hits.reduce((a, b) => a + b, 0)} of ${q.of.reduce((a, b) => a + b, 0)}` }; S.view = 'list'
+      toast(`Testing from today. You’ll know by ${fmtD(addW(TODAY, GEO_WEEKS))}.`)
+    }
+  }
+  render()
+})
+document.addEventListener('submit', e => {
+  if (e.target.id !== 'cf') return
+  e.preventDefault()
+  S.view = 'list'; render()
+  toast(`Test started. First sign around ${fmtD(addW(TODAY, 2))}, answer by ${fmtD(addW(TODAY, SEO_WEEKS))}.`)
+})
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('tr[data-page],tr[data-q],g[data-page]')) e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })) })
+
+render()
+</script>
