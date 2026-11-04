@@ -185,7 +185,7 @@ export async function keywordIdeas(seeds: string[], country: string, meter?: Usa
 
 // ── Where the site ranks ──────────────────────────────────────────────────────
 
-export interface RankedKeyword { keyword: string; volume: number; rank: number; url: string; impressions?: number }
+export interface RankedKeyword { keyword: string; volume: number; rank: number; url: string; impressions?: number; clicks?: number }
 
 export async function rankedKeywords(domain: string, country: string, meter?: UsageMeter, limit = 200): Promise<RankedKeyword[]> {
   if (agentsDemo()) return demoRankedKeywords(domain).slice(0, limit)

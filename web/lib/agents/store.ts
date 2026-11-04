@@ -266,7 +266,30 @@ export interface Topic {
 
 // rank: place among Google's normal results. From Search Console, the average over 28 days, and
 // impressions = how often the site was shown for it then; from DataForSEO, an estimate.
-export interface RankRow { keyword: string; volume: number; rank: number; url: string; impressions?: number }
+export interface RankRow { keyword: string; volume: number; rank: number; url: string; impressions?: number; clicks?: number }
+
+// Search & AI page (/search-ai): the keywords the brand is trying to win, judged every week from how
+// they do (lib/search-hub/verdict.ts). Starting keywords and blog topics are added by themselves.
+export interface TrackedKeyword {
+  keyword: string               // lower case
+  addedAt: string
+  by: 'auto' | 'user'
+  status: 'active' | 'dropped'
+  droppedAt?: string
+  swappedFrom?: string          // the keyword it replaced
+  swappedTo?: string            // dropped by a swap: the keyword that replaced it
+  heldUntil?: string            // "Keep it" on a suggested change: no new suggestion before this date
+}
+
+// One research's result for each tracked keyword. rank null = not found (outside Search Console's
+// data, or outside DataForSEO's list). ai: whether Google's AI Overview named the brand (when asked).
+export interface KeywordPoint { rank: number | null; url?: string; clicks?: number; impressions?: number; ai?: boolean }
+export interface RankSnapshot {
+  at: string
+  source: 'gsc' | 'labs'
+  clicks?: number               // Search Console only: clicks on every search, last 28 days
+  rows: Record<string, KeywordPoint>
+}
 
 // A keyword idea from the last research, with why it was or wasn't picked (Keywords tab)
 export type IdeaVerdict = 'picked' | 'fit' | 'broad' | 'hard' | 'off' | 'unknown' | 'small' | 'branded' | 'unchecked'
@@ -342,6 +365,8 @@ export interface SearchAgentData {
   ranks: { at: string; rows: RankRow[]; source?: 'gsc' | 'labs' } | null
   ideas?: { at: string; rows: IdeaRow[] } | null   // keyword ideas from the last research
   rankChanges: RankChange[]
+  tracked?: TrackedKeyword[]      // keywords the Search & AI page follows week by week
+  rankHistory?: RankSnapshot[]    // one per research, oldest first (last 16 kept)
   answers: { at: string; items: AiAnswer[] } | null
   mentionHistory: { at: string; mentioned: number; asked: number }[]
   // Each buyer question's last result (questions rotate, so a gap "holds" when it was there the last

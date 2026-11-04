@@ -1,5 +1,10 @@
 # What's new in GrowJin
 
+## 4 Nov 2026
+
+### New
+- **Search & AI: one page for Google and AI search.** Your Google rankings, how often ChatGPT, Perplexity, Gemini and Google's AI Overview name you, your keywords, blog posts and site checks, all in one place. Every keyword is judged each week from how it does: keep it, give it time, rewrite its page, swap it for an easier search, or drop it. Nothing changes without your OK, and one "Start here" shows what to do next.
+
 ## 3 Nov 2026
 
 ### New

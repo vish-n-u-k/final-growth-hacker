@@ -1,6 +1,6 @@
 # GrowJin: handoff for the next session
 
-Last updated 2 Nov 2026. Read this first. It covers what the app is, how the code is laid out, what was built recently, and what we are in the middle of.
+Last updated 4 Nov 2026. Read this first. It covers what the app is, how the code is laid out, what was built recently, and what we are in the middle of.
 
 ## 1. What the app is
 
@@ -16,6 +16,7 @@ The app has three parts, which match the left sidebar (`web/components/AppSideba
      - **Competitor Leads** (`/lead-finder`)
      - **Email Outreach** (`/gmail-hub`)
    - **Get seen**:
+     - **Search & AI** (`/search-ai`): rankings, AI answers, keywords judged weekly (see 4e-4)
      - **Search Agent** (`/agents/search`)
      - Social Studio
      - Meta Ads
@@ -406,6 +407,16 @@ From a review of whether the Search Agent's numbers are valid.
 - "How AI describes you" asks ChatGPT and Perplexity and only flags a problem they share. The judge is told the brand profile may itself be out of date.
 - The page says the AI numbers come from the assistants' APIs (gpt-4.1-mini, Sonar, Gemini 2.5 Flash), so they're a direction, not an exact score. It also shows how many answers the average rests on and where the rankings come from.
 - Not tried against real Search Console / DataForSEO yet.
+
+## 4e-4. Search & AI page (`/search-ai`, 4 Nov)
+
+One page for SEO, AI answers (AEO / GEO), keywords, blog posts and site checks, built from the approved preview `design-previews/tools-cleanup/search-hub.html` (https://claude.ai/artifact/1sbnP1vU7WvfU3qSMRcfbs). The owner asked for it because keywords were being added with no way to tell whether they should be changed.
+- **Files:** `app/(shell)/search-ai/` (page + layout, parked like `/agents` in `lib/features.ts`), `components/search-hub/SearchHubPage.tsx`, `lib/search-hub/verdict.ts` (pure: verdicts, swap suggestion, page model), `lib/search-hub/site.ts` (SEO + GEO module scores and up to 3 open important items), `sh-*` CSS at the end of `globals.css`. Sidebar: first under Get seen, icon `target` (`lib/tools.ts`). The Search Agent page is unchanged and shares the data.
+- **Data** (in `agent:search`): `tracked` (`TrackedKeyword`: keyword, addedAt, by, status active/dropped, swappedFrom/To, heldUntil) and `rankHistory` (`RankSnapshot` per research: source, total Search Console clicks, per tracked keyword rank / url / clicks / impressions / whether Google's AI Overview named the brand; last 16 kept). `ensureTracked` adds starting keywords and topics being written or published (max 25 active, dropped ones never come back by themselves). `runSearchResearch` calls `ensureTracked` + `recordSnapshot` when saving; Google AI Overviews are now read for up to 8 keywords (starting keywords, then tracked). Search Console rows now carry clicks.
+- **Verdicts** (`judgeKeyword`, rules at the top of `verdict.ts`; only checks from the latest rank source are compared): Refresh page (reached top 20, then 3+ places below its best, 5+ on DataForSEO, on two checks in a row) → Keep (page 1, clicks in the top 30, or up 5+ over 4 checks) → Give it time (under 6 weeks or under 3 checks) → Drop (fit check says not your buyers, or never found after 8 weeks) → Change (6+ weeks, outside top 30, not climbing; `findSwap` offers a search sharing a real word, difficulty 10+ lower, 20+ searches, ones the site already shows up for first) → else Keep. "Keep it 4 more weeks" sets `heldUntil`.
+- **Ops** on `/api/agents/search`: `kw_add`, `kw_swap` (`to`), `kw_drop`, `kw_keep`, `kw_restore`, `kw_rewrite` (makes the keyword's page an `improve` topic; the page then calls `write`).
+- **Page:** quiet top line (Checked · How we judge keywords · Settings · Check now), four numbers (Google clicks 28 days, keywords on page 1, named by AI 4-week average, site readiness = SEO / GEO module scores), tabs To do / Keywords / AI answers / Blog posts. To do = keyword verdicts + the Search Agent's open to-dos (a refresh already covered by a keyword is left out) + drafts to read + site checks; one Start here, finishing one opens the next. Opened keyword: facts, weekly position chart, the suggestion and its buttons. Search Agent to-dos open in the Search Agent (Mark done / Skip here). Settings: weekly check, country, Search Console, starting keywords (edited in the Search Agent), Demo mode.
+- History starts with the first research after this deploy, so every keyword shows "Give it time" for the first weeks. Checked with made-up data at desktop and phone width; not run against real data yet.
 
 ## 4f. MCP data passthrough tools (29 Oct)
 

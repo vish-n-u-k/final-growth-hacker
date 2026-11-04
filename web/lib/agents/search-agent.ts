@@ -32,6 +32,7 @@ import { listingDomain } from './task-kinds'
 import { brandBlock, domainOf, idOf, isNamedRival, loadBrandContext, namedRivals, parseJsonLoose, type BrandContext } from './context'
 import { pitchable, runLinkFollowUps, runLinkOpportunities } from './link-opportunities'
 import { costNote } from './services'
+import { ensureTracked, kwKey, recordSnapshot } from '@/lib/search-hub/verdict'
 
 export const searchFallback = (b: BrandContext) => () => defaultSearchData(b)
 
@@ -239,7 +240,7 @@ async function askEngines(b: BrandContext, questions: string[], seeds: string[],
   const jobs = questions.flatMap(q => AI_ENGINES.flatMap(engine => Array.from({ length: aiRepeats() }, () => ({ q, engine: engine as string }))))
   const [settled, overviews] = await Promise.all([
     Promise.allSettled(jobs.map(j => aiAnswer(j.engine as AiEngine, j.q, meter))),
-    Promise.allSettled(seeds.slice(0, 5).map(k => googleAiOverview(k, country, meter))),
+    Promise.allSettled(seeds.slice(0, 8).map(k => googleAiOverview(k, country, meter))),
   ])
   const raws: Raw[] = [
     ...settled.map((r, i) => r.status === 'fulfilled'
@@ -491,12 +492,13 @@ const GSC_MIN_IMPRESSIONS = 5
 async function gscRanks(b: BrandContext, c: GscCreds): Promise<RankedKeyword[] | null> {
   const rows = await fetchGscQueryPages(c.email, c.key, b.websiteUrl, 28)
   if (!rows) return null
-  const by = new Map<string, { impressions: number; posSum: number; pages: Map<string, number> }>()
+  const by = new Map<string, { impressions: number; clicks: number; posSum: number; pages: Map<string, number> }>()
   for (const r of rows) {
     const k = r.query.toLowerCase().trim()
     if (!k) continue
-    const cur = by.get(k) ?? { impressions: 0, posSum: 0, pages: new Map<string, number>() }
+    const cur = by.get(k) ?? { impressions: 0, clicks: 0, posSum: 0, pages: new Map<string, number>() }
     cur.impressions += r.impressions
+    cur.clicks += r.clicks ?? 0
     cur.posSum += r.position * r.impressions
     cur.pages.set(r.page, (cur.pages.get(r.page) ?? 0) + r.impressions)
     by.set(k, cur)
@@ -508,6 +510,7 @@ async function gscRanks(b: BrandContext, c: GscCreds): Promise<RankedKeyword[] |
       rank: Math.max(1, Math.round(x.posSum / x.impressions)),
       url: [...x.pages.entries()].sort((p, q) => q[1] - p[1])[0][0],
       impressions: Math.round(x.impressions),
+      clicks: Math.round(x.clicks),
       volume: Math.round((x.impressions * 30) / 28),
     }))
     .sort((x, y) => y.impressions - x.impressions)
@@ -680,7 +683,8 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
         ? `${b.domain} showed up for ${n(r.length, 'search', 'searches')} in the last 28 days (Google Search Console).`
         : `${b.domain} shows up for about ${n(r.length, 'search', 'searches')} (DataForSEO’s estimate${gsc ? '' : '; connect Search Console for real positions'}).` }))
         .catch(e => { errors.push(`Rankings: ${e instanceof Error ? e.message : e}`); return null }),
-      p.step('ai', () => askEngines(b, asked, s.seeds, s.country, meter), r => {
+      // Google's AI Overview for the starting keywords, then the other keywords the Search & AI page tracks
+      p.step('ai', () => askEngines(b, asked, [...new Set([...s.seeds.map(kwKey), ...(d.tracked ?? []).filter(t => t.status === 'active').map(t => t.keyword)])], s.country, meter), r => {
         const ok = r.filter(a => !a.error && a.engine !== 'google_ai')
         const samples = ok.reduce((t, a) => t + (a.samples ?? 1), 0), hits = ok.reduce((t, a) => t + (a.hits ?? (a.mentioned ? 1 : 0)), 0)
         return { detail: `Named in ${hits} of ${samples}`, note: `${n(asked.length, 'buyer question')} asked ${aiRepeats()}× to ChatGPT, Perplexity and Gemini (through their APIs), plus Google’s AI Overviews.` }
@@ -744,6 +748,10 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
       // Keep the last ideas when this run got none (a DataForSEO error)
       if (ideas.length) x.ideas = { at: new Date().toISOString(), rows: ideaRows(b, x.topics, ideas, checked, fits) }
       if (ranked) { x.ranks = { at: new Date().toISOString(), rows: rows.slice(0, 200), source }; x.rankChanges = changes }
+      // Search & AI page: new starting keywords and written topics join the tracked list, then this
+      // week's numbers for every tracked keyword go into its history
+      ensureTracked(x)
+      if (ranked) recordSnapshot(x, rows, source, answers)
       if (okAnswers.length) {
         x.answers = { at: new Date().toISOString(), items: answers }
         if (counted.length) x.mentionHistory.push({ at: new Date().toISOString(), mentioned: counted.reduce((t, a) => t + (a.hits ?? (a.mentioned ? 1 : 0)), 0), asked: counted.reduce((t, a) => t + (a.samples ?? 1), 0) })
