@@ -1,0 +1,452 @@
+<title>Four App Styles</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Figtree:wght@400;500;600&family=Instrument+Serif&family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a sticky style switcher on top, then one of four full app mockups (Focus, Assistant, Bento, Notebook), each with its own scoped tokens. */
+:root{
+  --sw-bg:#ffffff; --sw-ink:#17181c; --sw-dim:#6a6e78; --sw-line:#e4e5e9; --sw-on:#17181c; --sw-on-ink:#fff;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--sw-bg:#141518;--sw-ink:#ececef;--sw-dim:#9a9ea8;--sw-line:#2a2c31;--sw-on:#ececef;--sw-on-ink:#141518;color-scheme:dark}}
+:root[data-theme="dark"]{--sw-bg:#141518;--sw-ink:#ececef;--sw-dim:#9a9ea8;--sw-line:#2a2c31;--sw-on:#ececef;--sw-on-ink:#141518;color-scheme:dark}
+html,body{background:var(--sw-bg);color:var(--sw-ink)}
+*{box-sizing:border-box}
+button{font:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--sw-bg)}
+.sw{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--sw-bg);border-bottom:1px solid var(--sw-line);
+  padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  font-family:"Schibsted Grotesk",system-ui,sans-serif}
+.sw-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;max-width:1180px;margin:0 auto}
+.sw-lab{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--sw-dim);margin-right:4px}
+.sw button{border:1px solid var(--sw-line);background:transparent;color:var(--sw-ink);border-radius:999px;padding:6px 14px;font-size:13px}
+.sw button[aria-pressed="true"]{background:var(--sw-on);color:var(--sw-on-ink);border-color:var(--sw-on)}
+.sw-desc{max-width:1180px;margin:6px auto 0;font-size:13px;color:var(--sw-dim)}
+.stage{min-height:calc(100vh - 90px)}
+.stage > div{min-height:calc(100vh - 80px)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);opacity:0;
+  background:var(--sw-on);color:var(--sw-on-ink);padding:10px 16px;border-radius:10px;font:500 13px "Schibsted Grotesk",system-ui,sans-serif;
+  transition:.25s;pointer-events:none;z-index:20;max-width:calc(100% - 32px)}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.ic{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+/* ============ 1. FOCUS: one thing at a time ============ */
+.s-focus{--bg:#f4f5f7;--panel:#ffffff;--ink:#121418;--dim:#5b6170;--faint:#959bab;--line:#e2e4ea;--acc:#2f55d4;--acc-ink:#fff;--hot:#c2410c;--hot-bg:#fff3ec;
+  font-family:"Schibsted Grotesk",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .s-focus{--bg:#0e1013;--panel:#171a1f;--ink:#eceef2;--dim:#a2a8b6;--faint:#6b7180;--line:#262a31;--acc:#6f8cff;--acc-ink:#0e1013;--hot:#ff8a4c;--hot-bg:#2a1a10}}
+:root[data-theme="dark"] .s-focus{--bg:#0e1013;--panel:#171a1f;--ink:#eceef2;--dim:#a2a8b6;--faint:#6b7180;--line:#262a31;--acc:#6f8cff;--acc-ink:#0e1013;--hot:#ff8a4c;--hot-bg:#2a1a10}
+.f-top{display:flex;align-items:center;gap:20px;max-width:880px;margin:0 auto;padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));flex-wrap:wrap}
+.f-brand{font-weight:700;font-size:15px}
+.f-nav{display:flex;gap:4px;overflow-x:auto;max-width:100%;scrollbar-width:none}
+.f-nav button{display:flex;align-items:center;gap:7px;border:0;background:transparent;color:var(--dim);padding:8px 12px;border-radius:9px;font-size:14px;white-space:nowrap}
+.f-nav button[aria-current="true"]{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.06),0 0 0 1px var(--line)}
+.f-nav .n{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+.f-main{max-width:880px;margin:0 auto;padding-block:16px 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.f-main h1{font-size:clamp(26px,4vw,34px);font-weight:600;letter-spacing:-.02em;margin:6px 0 24px;text-wrap:balance}
+.f-eye{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin:0}
+.f-card{background:var(--panel);border-radius:18px;padding:28px;box-shadow:0 1px 2px rgba(0,0,0,.04),0 10px 30px -12px rgba(20,30,60,.18);border:1px solid var(--line)}
+.f-card.hot{border-color:var(--hot);background:linear-gradient(var(--hot-bg),var(--panel) 70%)}
+.f-tag{font-size:12px;color:var(--faint);display:flex;align-items:center;gap:6px}
+.f-card.hot .f-tag{color:var(--hot)}
+.f-card h2{font-size:22px;font-weight:600;margin:10px 0 8px;letter-spacing:-.01em}
+.f-card p{color:var(--dim);margin:0 0 22px;font-size:15px;line-height:1.55;max-width:60ch}
+.f-acts{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.f-pri{background:var(--acc);color:var(--acc-ink);border:0;padding:12px 20px;border-radius:11px;font-weight:600;font-size:15px}
+.f-sec{background:transparent;border:1px solid var(--line);color:var(--ink);padding:11px 16px;border-radius:11px;font-size:14px}
+.f-ghost{background:transparent;border:0;color:var(--faint);font-size:14px;padding:8px}
+.f-kbd{margin-left:auto;font-size:12px;color:var(--faint)}
+.f-then{margin-top:34px}
+.f-then h3,.f-stats h3{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);font-weight:500;margin:0 0 8px}
+.f-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);padding:14px 4px;color:var(--ink)}
+.f-row:hover{background:var(--panel)}
+.f-row .t{font-weight:500;font-size:15px}
+.f-row .s{color:var(--dim);font-size:13px;margin-top:2px}
+.f-row .dot{width:7px;height:7px;border-radius:50%;background:var(--line);flex:none}
+.f-row.hot .dot{background:var(--hot)}
+.f-row.done .t{text-decoration:line-through;color:var(--faint)}
+.f-row > div{min-width:0;flex:1}
+.f-row .go{color:var(--faint);font-size:13px;white-space:nowrap}
+.f-stats{margin-top:34px;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.f-stat{background:var(--panel);padding:16px 18px}
+.f-stat .v{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums}
+.f-stat .k{font-size:13px;color:var(--dim)}
+.f-stat .d{font-size:12px;color:var(--faint)}
+.f-alldone{text-align:center;padding:48px 20px}
+@media (max-width:560px){.f-stats{grid-template-columns:1fr}.f-card{padding:22px}.f-kbd{display:none}}
+
+/* ============ 2. ASSISTANT: a morning briefing you can talk to ============ */
+.s-assist{--bg:#f7f8f6;--panel:#ffffff;--ink:#1a1d1b;--dim:#5f6762;--faint:#97a09a;--line:#e3e7e3;--acc:#0f6b5c;--acc-ink:#fff;--soft:#e8f1ee;--hot:#b4372a;--hot-bg:#fbeeec;
+  font-family:"Figtree",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .s-assist{--bg:#101211;--panel:#181b1a;--ink:#e9ecea;--dim:#a3aba6;--faint:#6c746f;--line:#272b29;--acc:#4cc2a8;--acc-ink:#0b1210;--soft:#15241f;--hot:#ff8b7d;--hot-bg:#2b1714}}
+:root[data-theme="dark"] .s-assist{--bg:#101211;--panel:#181b1a;--ink:#e9ecea;--dim:#a3aba6;--faint:#6c746f;--line:#272b29;--acc:#4cc2a8;--acc-ink:#0b1210;--soft:#15241f;--hot:#ff8b7d;--hot-bg:#2b1714}
+.a-wrap{max-width:720px;margin:0 auto;padding-block:20px 140px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.a-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:28px;flex-wrap:wrap}
+.a-brand{font-weight:600;display:flex;align-items:center;gap:10px}
+.a-mark{width:28px;height:28px;border-radius:9px;background:var(--acc);color:var(--acc-ink);display:grid;place-items:center;font-family:"Instrument Serif",serif;font-size:19px}
+.a-chips{display:flex;gap:6px;overflow-x:auto;max-width:100%;scrollbar-width:none}
+.a-chips button{border:1px solid var(--line);background:var(--panel);color:var(--dim);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.a-chips button[aria-current="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.a-hello{font-family:"Instrument Serif",Georgia,serif;font-size:clamp(34px,6vw,48px);line-height:1.05;margin:0 0 6px;font-weight:400;letter-spacing:-.01em;text-wrap:balance}
+.a-sub{color:var(--dim);margin:0 0 28px;font-size:16px}
+.a-msg{display:flex;gap:12px;margin:0 0 22px;align-items:flex-start}
+.a-msg .a-mark{flex:none;margin-top:2px}
+.a-body{flex:1;min-width:0;font-size:16px;line-height:1.55}
+.a-body > p{margin:4px 0 12px}
+.a-next{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px}
+.a-next.hot{background:var(--hot-bg);border-color:transparent}
+.a-next .lab{font-size:12px;color:var(--faint);text-transform:uppercase;letter-spacing:.08em}
+.a-next.hot .lab{color:var(--hot)}
+.a-next h3{margin:6px 0 4px;font-size:18px;font-weight:600}
+.a-next p{margin:0 0 14px;color:var(--dim);font-size:15px}
+.a-btns{display:flex;gap:8px;flex-wrap:wrap}
+.a-pri{background:var(--acc);color:var(--acc-ink);border:0;padding:10px 16px;border-radius:10px;font-weight:600}
+.a-sec{background:transparent;color:var(--ink);border:1px solid var(--line);padding:9px 14px;border-radius:10px}
+.a-list{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.a-list li{display:flex;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line)}
+.a-list li > div{flex:1;min-width:0}
+.a-list .t{font-weight:500}
+.a-list .s{color:var(--dim);font-size:14px}
+.a-list li.done .t{text-decoration:line-through;color:var(--faint)}
+.a-list button{background:var(--soft);color:var(--acc);border:0;border-radius:8px;padding:7px 11px;font-size:13px;font-weight:600;white-space:nowrap}
+.a-you{justify-content:flex-end}
+.a-you .a-bub{background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:16px 16px 4px 16px;max-width:80%}
+.a-compose{position:fixed;left:0;right:0;bottom:0;background:linear-gradient(transparent,var(--bg) 30%);padding-block:24px calc(16px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.a-compose form{max-width:720px;margin:0 auto}
+.a-sugg{display:flex;gap:6px;margin-bottom:8px;overflow-x:auto;scrollbar-width:none}
+.a-sugg button{border:1px solid var(--line);background:var(--panel);color:var(--dim);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.a-field{display:flex;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:6px 6px 6px 14px;box-shadow:0 8px 24px -12px rgba(0,0,0,.2)}
+.a-field input{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);font:inherit;font-size:15px;outline:none}
+.a-field button{background:var(--ink);color:var(--bg);border:0;border-radius:10px;padding:9px 14px;font-weight:600}
+
+/* ============ 3. BENTO: everything at a glance ============ */
+.s-bento{--bg:#ecebe6;--panel:#fbfaf7;--ink:#1c1b19;--dim:#64615a;--faint:#9b978d;--line:#dcd9d0;--acc:#1c1b19;--acc-ink:#fbfaf7;--hot:#c23b22;
+  --t-today:#fbfaf7;--t-customers:#dfe8d6;--t-seen:#dbe3ef;--t-website:#efe2cf;--t-track:#e6dfee;
+  font-family:"Bricolage Grotesque",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .s-bento{--bg:#121211;--panel:#1c1c1a;--ink:#f0eee8;--dim:#aaa69c;--faint:#77736a;--line:#2d2c29;--acc:#f0eee8;--acc-ink:#121211;--hot:#ff7a5e;
+  --t-today:#1c1c1a;--t-customers:#1d2619;--t-seen:#18202b;--t-website:#2a2218;--t-track:#221c2b}}
+:root[data-theme="dark"] .s-bento{--bg:#121211;--panel:#1c1c1a;--ink:#f0eee8;--dim:#aaa69c;--faint:#77736a;--line:#2d2c29;--acc:#f0eee8;--acc-ink:#121211;--hot:#ff7a5e;
+  --t-today:#1c1c1a;--t-customers:#1d2619;--t-seen:#18202b;--t-website:#2a2218;--t-track:#221c2b}
+.b-wrap{max-width:1180px;margin:0 auto;padding-block:24px 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.b-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.b-head h1{font-size:clamp(28px,4.5vw,44px);font-weight:700;letter-spacing:-.03em;margin:0;line-height:1}
+.b-head p{margin:0;color:var(--dim)}
+.b-grid{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:minmax(170px,auto);gap:12px}
+.b-tile{border-radius:22px;padding:22px;background:var(--panel);border:0;text-align:left;color:var(--ink);display:flex;flex-direction:column;gap:8px;transition:transform .15s}
+button.b-tile:hover{transform:translateY(-2px)}
+.b-tile .nm{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px}
+.b-tile .big{font-size:44px;font-weight:700;letter-spacing:-.03em;line-height:1;margin-top:auto;font-variant-numeric:tabular-nums}
+.b-tile .k{color:var(--dim);font-size:14px}
+.b-tile .nx{font-size:14px;border-top:1px solid color-mix(in srgb,var(--ink) 12%,transparent);padding-top:10px;margin-top:6px;display:flex;justify-content:space-between;gap:8px}
+.b-tile .nx span:last-child{white-space:nowrap;color:var(--dim)}
+.b-today{grid-column:span 2;grid-row:span 2;background:var(--t-today);border:1px solid var(--line)}
+.b-today h2{font-size:26px;letter-spacing:-.02em;margin:4px 0 0;font-weight:700}
+.b-first{background:var(--ink);color:var(--panel);border-radius:16px;padding:18px;margin-top:8px}
+.b-first .lab{font-size:12px;text-transform:uppercase;letter-spacing:.08em;opacity:.65}
+.b-first.hot .lab{color:var(--hot);opacity:1}
+.b-first h3{margin:6px 0 4px;font-size:19px}
+.b-first p{margin:0 0 14px;opacity:.75;font-size:14px;font-family:"Figtree",system-ui,sans-serif}
+.b-first button{background:var(--panel);color:var(--ink);border:0;border-radius:10px;padding:10px 16px;font-weight:600}
+.b-mini{list-style:none;padding:0;margin:6px 0 0}
+.b-mini li{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+.b-mini li span:last-child{color:var(--faint);white-space:nowrap}
+.b-mini li.done span:first-child{text-decoration:line-through;color:var(--faint)}
+.b-ring{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:14px}
+.b-back{border:0;background:var(--panel);color:var(--ink);border-radius:999px;padding:8px 14px;margin-bottom:18px}
+.b-area{display:grid;grid-template-columns:1.4fr 1fr;gap:12px}
+.b-area .b-tile{min-height:0}
+.b-list{display:flex;flex-direction:column;gap:8px}
+.b-item{display:flex;justify-content:space-between;align-items:center;gap:12px;background:var(--panel);border-radius:16px;padding:14px 16px;border:0;color:var(--ink);text-align:left;width:100%}
+.b-item > div{min-width:0}
+.b-item .s{color:var(--dim);font-size:13px;font-family:"Figtree",system-ui,sans-serif}
+.b-item.done .t{text-decoration:line-through;color:var(--faint)}
+.b-item .go{white-space:nowrap;font-size:13px;color:var(--dim)}
+.b-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+.b-stats .b-tile{min-height:120px}
+.b-stats .big{font-size:34px}
+@media (max-width:900px){.b-grid{grid-template-columns:repeat(2,1fr)}.b-area{grid-template-columns:1fr}}
+@media (max-width:560px){.b-grid{grid-template-columns:1fr}.b-today{grid-column:auto;grid-row:auto}.b-stats{grid-template-columns:1fr}}
+
+/* ============ 4. NOTEBOOK: a daily page you tick off ============ */
+.s-note{--bg:#ffffff;--side:#f6f6f4;--ink:#1d1d1f;--dim:#5f5f66;--faint:#a0a0a8;--line:#e8e8ea;--mark:#fde68a;--acc:#1d1d1f;--acc-ink:#fff;--hot:#b42318;
+  font-family:"Newsreader",Georgia,serif;background:var(--bg);color:var(--ink)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .s-note{--bg:#18181a;--side:#1f1f22;--ink:#ececee;--dim:#a8a8b0;--faint:#6e6e76;--line:#2c2c30;--mark:#5a4a12;--acc:#ececee;--acc-ink:#18181a;--hot:#ff8a80}}
+:root[data-theme="dark"] .s-note{--bg:#18181a;--side:#1f1f22;--ink:#ececee;--dim:#a8a8b0;--faint:#6e6e76;--line:#2c2c30;--mark:#5a4a12;--acc:#ececee;--acc-ink:#18181a;--hot:#ff8a80}
+.n-app{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:calc(100vh - 90px)}
+.n-side{background:var(--side);border-right:1px solid var(--line);padding:28px 18px;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:13px;position:sticky;top:90px;align-self:start;height:calc(100vh - 90px)}
+.n-side .br{font-family:"Newsreader",serif;font-size:18px;font-weight:600;margin-bottom:22px}
+.n-side a{display:flex;justify-content:space-between;color:var(--dim);text-decoration:none;padding:7px 8px;border-radius:6px}
+.n-side a:hover{background:var(--line);color:var(--ink)}
+.n-side .c{color:var(--faint)}
+.n-side .hint{margin-top:26px;color:var(--faint);font-size:12px;line-height:1.6}
+.n-doc{max-width:720px;padding-block:44px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));margin:0 auto;width:100%}
+.n-date{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12px;color:var(--faint);letter-spacing:.06em;text-transform:uppercase;margin:0}
+.n-doc h1{font-size:clamp(34px,5vw,46px);font-weight:500;letter-spacing:-.015em;margin:8px 0 14px;line-height:1.05}
+.n-lede{font-size:19px;line-height:1.6;color:var(--dim);margin:0 0 36px}
+.n-lede b{color:var(--ink);font-weight:600}
+.n-sec{margin-bottom:40px;scroll-margin-top:110px}
+.n-sec h2{font-size:24px;font-weight:600;margin:0 0 2px;display:flex;align-items:center;gap:10px}
+.n-sec .sub{color:var(--faint);margin:0 0 12px;font-style:italic}
+.n-item{display:flex;gap:12px;align-items:flex-start;padding:9px 0;font-size:18px;line-height:1.45}
+.n-item input{appearance:none;width:18px;height:18px;border:1.5px solid var(--faint);border-radius:4px;margin-top:5px;flex:none;cursor:pointer;display:grid;place-items:center}
+.n-item input:checked{background:var(--ink);border-color:var(--ink)}
+.n-item input:checked::after{content:"";width:9px;height:5px;border:2px solid var(--bg);border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+.n-item > div{flex:1;min-width:0}
+.n-item .s{display:block;color:var(--dim);font-size:15px}
+.n-item.done .t{text-decoration:line-through;color:var(--faint)}
+.n-item.done .s{color:var(--faint)}
+.n-item mark{background:linear-gradient(transparent 55%,var(--mark) 55%);color:inherit;padding:0 2px}
+.n-item .hot{color:var(--hot);font-family:"IBM Plex Mono",monospace;font-size:12px;margin-left:6px}
+.n-do{margin-top:8px;background:var(--acc);color:var(--acc-ink);border:0;border-radius:6px;padding:7px 12px;font-family:"IBM Plex Mono",monospace;font-size:12px}
+.n-nums{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:13px;color:var(--dim);display:flex;gap:22px;flex-wrap:wrap;border-top:1px dashed var(--line);margin-top:10px;padding-top:10px}
+.n-nums b{color:var(--ink);font-weight:500}
+@media (max-width:760px){.n-app{grid-template-columns:1fr}.n-side{display:none}}
+</style>
+
+<div class="sw" role="region" aria-label="Pick a style">
+  <div class="sw-row">
+    <span class="sw-lab">Style</span>
+    <button data-s="focus">1 · Focus</button>
+    <button data-s="assist">2 · Assistant</button>
+    <button data-s="bento">3 · Bento</button>
+    <button data-s="note">4 · Notebook</button>
+  </div>
+  <p class="sw-desc" id="sw-desc"></p>
+</div>
+<div class="stage" id="stage"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const ICONS={
+ today:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+ customers:'<circle cx="9" cy="7.5" r="3.5"/><path d="M2 20v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1M16 3.3a3.5 3.5 0 0 1 0 8.4M22 20v-1a5 5 0 0 0-3.5-4.8"/>',
+ seen:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+ website:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 6.5h.01M11 6.5h.01"/>',
+ track:'<path d="M4 20V11M10 20V5M16 20v-6M2 20h20"/>'
+};
+const ic=n=>`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
+
+const BIZ='Juniper Clay';
+const AREAS=[
+ {id:'today',name:'Today',head:'Five things today. Start with Maya.',
+  tasks:[
+   {t:'Reply to Maya at Fern & Fig',s:'She asked for wholesale prices yesterday. Replying today keeps her interested.',btn:'Write reply',hot:1,from:'customers'},
+   {t:'Approve 4 emails to gift shops',s:'Found overnight in Portland and Seattle. Each email mentions their shop.',btn:'Review emails',from:'customers'},
+   {t:'Publish “How to care for stoneware”',s:'Searched 1,900 times a month. The draft is ready.',btn:'Read draft',from:'seen'},
+   {t:'Speed up product pages on phones',s:'They take 6.2 s to load. Most shoppers leave after 3.',btn:'See the fix',from:'website'},
+   {t:'Check 2 follow-ups going out at 10:00',s:'To Kiln Room and Hollow Oak, who haven’t replied yet.',btn:'Check them',from:'track'}],
+  stats:[['Done today','0 of 5',''],['Visitors yesterday','182','+9%'],['New leads','12','this week']]},
+ {id:'customers',name:'Get customers',head:'Shops that might stock your work.',
+  tasks:[
+   {t:'Reply to Maya at Fern & Fig',s:'Gift shop, Portland. Asked for wholesale prices.',btn:'Write reply',hot:1},
+   {t:'Hollow Oak Home',s:'Homeware shop, Seattle. Sells candles and linen, no ceramics yet.',btn:'Review email'},
+   {t:'Salt & Stem',s:'Florist, Portland. Uses vases from a big supplier.',btn:'Review email'},
+   {t:'Kiln Room Café',s:'Café, Tacoma. Posts about local makers every week.',btn:'Review email'},
+   {t:'Wren Market',s:'Gift shop, Olympia. 4.8 stars, opened last year.',btn:'Review email'}],
+  stats:[['New leads','12','this week'],['Emails waiting','4','for your OK'],['Replies','2','+1 today']]},
+ {id:'seen',name:'Get seen',head:'Ways more people find you.',
+  tasks:[
+   {t:'Publish “How to care for stoneware”',s:'1,900 searches a month and the top results are thin.',btn:'Read draft'},
+   {t:'Ask Handmade Weekly to add you',s:'Their “50 mugs under $40” list links to 3 shops like yours.',btn:'Read pitch'},
+   {t:'Answer a Reddit post',s:'r/Pottery: “Where do you buy handmade mugs as gifts?”',btn:'Read reply'},
+   {t:'List your shop in two gift directories',s:'Free listings that AI answers often quote.',btn:'Start'}],
+  stats:[['Visits from search','310','+18% this week'],['On page one','7','searches'],['Named by AI','1 in 5','answers']]},
+ {id:'website',name:'Website',head:'Fixes that help visitors buy.',
+  tasks:[
+   {t:'Speed up product pages on phones',s:'6.2 s to load. Smaller photos fix most of it.',btn:'See the fix'},
+   {t:'Write descriptions for 6 products',s:'They only show a price. Drafts are ready to paste.',btn:'See drafts'},
+   {t:'Show reviews on product pages',s:'You have 41 reviews, but only the home page shows them.',btn:'How to add'},
+   {t:'Move the checkout button up on phones',s:'It sits below the fold on most phones.',btn:'See where'}],
+  stats:[['Site score','72','of 100'],['To fix','4','open'],['Fixed','3','this month']]},
+ {id:'track',name:'Keep track',head:'Emails, replies, reminders and your numbers.',
+  tasks:[
+   {t:'Maya at Fern & Fig replied',s:'“Could you send wholesale prices for the speckled mugs?”',btn:'Open',hot:1},
+   {t:'Check 2 follow-ups going out at 10:00',s:'Kiln Room and Hollow Oak haven’t replied to the first email.',btn:'Check them'},
+   {t:'Order glaze from your supplier by Friday',s:'Reminder you set last week.',btn:'Mark done'},
+   {t:'Weekly report is ready',s:'Visitors up 12%, 23 sales, 5 replies to emails.',btn:'Read'}],
+  stats:[['Emails sent','38','this week'],['Replies','5','13%'],['Sales','23','+4']]}
+];
+const A=Object.fromEntries(AREAS.map(a=>[a.id,a]));
+const DESC={
+ focus:'One task fills the screen. Do it or skip it, and the next one appears. Everything else is a quiet list underneath.',
+ assist:'A short morning briefing written like a message. Act from the cards, or just type what you want done.',
+ bento:'A home screen of five tiles, one per area, each with its main number and next step. Tap a tile to go in.',
+ note:'One calm page for the day, like a notebook. Tick things off; the next step is highlighted.'
+};
+
+/* shared state: done[area] = Set of task index; order[area] = array of indexes */
+const done={},order={};
+AREAS.forEach(a=>{done[a.id]=new Set();order[a.id]=a.tasks.map((_,i)=>i)});
+const open=a=>order[a].filter(i=>!done[a].has(i));
+const nextOf=a=>open(a)[0];
+let style='focus',area='today',bArea=null;
+
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),2200)}
+function finish(a,i,how){
+  done[a].add(i);
+  const n=nextOf(a);
+  toast(how==='skip'?'Skipped. Next one is up.':(n===undefined?'All done here.':'Done. Next: '+A[a].tasks[n].t));
+  render();
+}
+function focusOn(a,i){order[a]=[i,...order[a].filter(x=>x!==i)];render()}
+function undoAll(a){done[a].clear();render()}
+
+/* ---------- 1. Focus ---------- */
+function rFocus(){
+  const a=A[area],n=nextOf(area),rest=open(area).slice(1),fin=[...done[area]];
+  const tabs=AREAS.map(x=>`<button data-area="${x.id}" aria-current="${x.id===area}">${ic(x.id)}${x.name}<span class="n">${open(x.id).length||''}</span></button>`).join('');
+  const t=n!==undefined?a.tasks[n]:null;
+  const card=t?`<div class="f-card ${t.hot?'hot':''}">
+      <div class="f-tag">${t.hot?'Someone replied':'Up next'}${t.from?' · '+A[t.from].name:''}</div>
+      <h2>${t.t}</h2><p>${t.s}</p>
+      <div class="f-acts"><button class="f-pri" data-do="${n}">${t.btn}</button><button class="f-sec" data-done="${n}">Mark done</button><button class="f-ghost" data-skip="${n}">Skip</button><span class="f-kbd">${open(area).length} left</span></div>
+    </div>`:
+    `<div class="f-card f-alldone"><h2>All caught up</h2><p style="margin:0 auto 18px">Nothing else needs you in ${a.name} today.</p><button class="f-pri" data-reset>Start over (preview)</button></div>`;
+  const rows=rest.map(i=>{const x=a.tasks[i];return `<button class="f-row ${x.hot?'hot':''}" data-focus="${i}"><span class="dot"></span><div><div class="t">${x.t}</div><div class="s">${x.s}</div></div><span class="go">${x.btn} →</span></button>`}).join('');
+  const drows=fin.map(i=>`<div class="f-row done"><span class="dot"></span><div><div class="t">${a.tasks[i].t}</div></div></div>`).join('');
+  return `<div class="s-focus">
+    <header class="f-top"><div class="f-brand">${BIZ}</div><nav class="f-nav" aria-label="Areas">${tabs}</nav></header>
+    <main class="f-main">
+      <p class="f-eye">${a.name}</p><h1>${a.head}</h1>
+      ${card}
+      ${rows?`<section class="f-then"><h3>Then</h3>${rows}</section>`:''}
+      ${drows?`<section class="f-then"><h3>Done</h3>${drows}</section>`:''}
+      <section class="f-stats" aria-label="Numbers">${a.stats.map(s=>`<div class="f-stat"><div class="k">${s[0]}</div><div class="v">${area==='today'&&s[0]==='Done today'?done.today.size+' of 5':s[1]}</div><div class="d">${s[2]}</div></div>`).join('')}</section>
+    </main></div>`;
+}
+
+/* ---------- 2. Assistant ---------- */
+const chat=[];
+function rAssist(){
+  const a=A[area],n=nextOf(area),t=n!==undefined?a.tasks[n]:null,rest=open(area).slice(1),fin=[...done[area]];
+  const chips=AREAS.map(x=>`<button data-area="${x.id}" aria-current="${x.id===area}">${x.name}</button>`).join('');
+  const stats=a.stats.map(s=>`<b>${s[1]}</b> ${s[0].toLowerCase()}${s[2]?' ('+s[2]+')':''}`).join(', ');
+  const hello=area==='today'?'Good morning.':a.name+'.';
+  return `<div class="s-assist"><div class="a-wrap">
+    <header class="a-top"><div class="a-brand"><span class="a-mark">j</span>${BIZ}</div><nav class="a-chips" aria-label="Areas">${chips}</nav></header>
+    <h1 class="a-hello">${hello}</h1><p class="a-sub">${a.head}</p>
+    <div class="a-msg"><span class="a-mark">j</span><div class="a-body">
+      ${t?`<p>${t.hot?'Someone wrote back, so this comes first:':'Here’s the most useful thing to do now:'}</p>
+      <div class="a-next ${t.hot?'hot':''}"><div class="lab">${t.hot?'Reply waiting':'Start here'}</div><h3>${t.t}</h3><p>${t.s}</p>
+      <div class="a-btns"><button class="a-pri" data-do="${n}">${t.btn}</button><button class="a-sec" data-skip="${n}">Not now</button></div></div>`
+      :`<p>You’re all caught up in ${a.name}. <button class="a-sec" data-reset>Start over (preview)</button></p>`}
+    </div></div>
+    ${rest.length||fin.length?`<div class="a-msg"><span class="a-mark">j</span><div class="a-body"><p>After that${rest.length?', '+rest.length+' more':''}:</p>
+      <ul class="a-list">${rest.map(i=>`<li><div><div class="t">${a.tasks[i].t}</div><div class="s">${a.tasks[i].s}</div></div><button data-focus="${i}">${a.tasks[i].btn}</button></li>`).join('')}
+      ${fin.map(i=>`<li class="done"><div><div class="t">${a.tasks[i].t}</div></div></li>`).join('')}</ul></div></div>`:''}
+    <div class="a-msg"><span class="a-mark">j</span><div class="a-body"><p>This week: ${stats}.</p></div></div>
+    ${chat.map(m=>m.me?`<div class="a-msg a-you"><div class="a-bub">${m.text}</div></div>`:`<div class="a-msg"><span class="a-mark">j</span><div class="a-body"><p>${m.text}</p></div></div>`).join('')}
+  </div>
+  <div class="a-compose"><form id="a-form">
+    <div class="a-sugg">${['Write all 4 emails for me','Why these shops?','Remind me tomorrow at 9','What should I post this week?'].map(s=>`<button type="button" data-say="${s}">${s}</button>`).join('')}</div>
+    <div class="a-field"><input id="a-in" placeholder="Ask anything, or tell me what to do" aria-label="Message" autocomplete="off"><button>Send</button></div>
+  </form></div></div>`;
+}
+function say(text){
+  if(!text.trim())return;
+  chat.push({me:1,text:text.replace(/</g,'&lt;')});
+  chat.push({text:'Sure. In the real app I’d do that now and show you the result here before anything goes out.'});
+  render();
+  requestAnimationFrame(()=>window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}));
+}
+
+/* ---------- 3. Bento ---------- */
+function rBento(){
+  if(bArea)return rBentoArea(bArea);
+  const td=A.today,n=nextOf('today'),t=n!==undefined?td.tasks[n]:null;
+  const mini=td.tasks.map((x,i)=>i===n?'':`<li class="${done.today.has(i)?'done':''}"><span>${x.t}</span><span>${A[x.from].name}</span></li>`).join('');
+  const ring=(()=>{const d=done.today.size,c=2*Math.PI*14;return `<svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--line)" stroke-width="4"/><circle cx="18" cy="18" r="14" fill="none" stroke="var(--ink)" stroke-width="4" stroke-dasharray="${c*d/5} ${c}" transform="rotate(-90 18 18)" stroke-linecap="round"/></svg>${d} of 5 done`})();
+  const tiles=AREAS.slice(1).map(x=>{const nx=nextOf(x.id);return `<button class="b-tile" data-barea="${x.id}" style="background:var(--t-${x.id})">
+     <span class="nm">${ic(x.id)}${x.name}</span>
+     <span class="big">${x.stats[0][1]}</span><span class="k">${x.stats[0][0]}${x.stats[0][2]?' · '+x.stats[0][2]:''}</span>
+     <span class="nx"><span>${nx!==undefined?x.tasks[nx].t:'All caught up'}</span><span>${open(x.id).length} →</span></span></button>`}).join('');
+  return `<div class="s-bento"><div class="b-wrap">
+    <div class="b-head"><h1>${BIZ}</h1><p>Wednesday, 4 November</p></div>
+    <div class="b-grid">
+      <div class="b-tile b-today">
+        <span class="nm">${ic('today')}Today</span>
+        <h2>${td.head}</h2>
+        ${t?`<div class="b-first ${t.hot?'hot':''}"><div class="lab">${t.hot?'Someone replied':'Start here'}</div><h3>${t.t}</h3><p>${t.s}</p><button data-tdo="${n}">${t.btn}</button></div>`:`<div class="b-first"><h3>All caught up</h3><p>Nice work. New tasks arrive tomorrow morning.</p><button data-treset>Start over (preview)</button></div>`}
+        <ul class="b-mini">${mini}</ul>
+        <div class="b-ring" style="margin-top:auto">${ring}</div>
+      </div>
+      ${tiles}
+    </div></div></div>`;
+}
+function rBentoArea(id){
+  const a=A[id],n=nextOf(id),t=n!==undefined?a.tasks[n]:null,rest=open(id).slice(1),fin=[...done[id]];
+  return `<div class="s-bento"><div class="b-wrap">
+    <button class="b-back" data-bhome>← All areas</button>
+    <div class="b-head"><h1>${a.name}</h1><p>${a.head}</p></div>
+    <div class="b-area">
+      <div class="b-tile" style="background:var(--t-${id})">
+        ${t?`<div class="b-first ${t.hot?'hot':''}" style="margin:0"><div class="lab">${t.hot?'Someone replied':'Start here'}</div><h3>${t.t}</h3><p>${t.s}</p><button data-do="${n}">${t.btn}</button></div>`:`<div class="b-first" style="margin:0"><h3>All caught up</h3><p>Nothing left here today.</p><button data-reset>Start over (preview)</button></div>`}
+      </div>
+      <div class="b-list">${rest.map(i=>`<button class="b-item" data-focus="${i}"><div><div class="t">${a.tasks[i].t}</div><div class="s">${a.tasks[i].s}</div></div><span class="go">${a.tasks[i].btn} →</span></button>`).join('')}
+        ${fin.map(i=>`<div class="b-item done"><div><div class="t">${a.tasks[i].t}</div></div></div>`).join('')}</div>
+    </div>
+    <div class="b-stats">${a.stats.map(s=>`<div class="b-tile"><span class="k">${s[0]}</span><span class="big">${s[1]}</span><span class="k">${s[2]}</span></div>`).join('')}</div>
+  </div></div>`;
+}
+
+/* ---------- 4. Notebook ---------- */
+function rNote(){
+  const side=AREAS.map(x=>`<a href="#n-${x.id}" data-jump="${x.id}"><span>${x.name}</span><span class="c">${open(x.id).length}</span></a>`).join('');
+  const secs=AREAS.map(x=>{const n=nextOf(x.id);return `<section class="n-sec" id="n-${x.id}">
+     <h2>${x.name}</h2><p class="sub">${x.head}</p>
+     ${x.tasks.map((t,i)=>{const d=done[x.id].has(i);return `<label class="n-item ${d?'done':''}"><input type="checkbox" id="n-${x.id}-${i}" data-tick="${x.id}:${i}" ${d?'checked':''}><div>
+        <span class="t">${i===n?`<mark>${t.t}</mark>`:t.t}${t.hot&&!d?'<span class="hot">replied</span>':''}</span>
+        <span class="s">${t.s}</span>
+        ${i===n?`<button class="n-do" data-ndo="${x.id}:${i}">${t.btn} →</button>`:''}
+      </div></label>`}).join('')}
+     <div class="n-nums">${x.stats.map(s=>`<span>${s[0]}: <b>${x.id==='today'&&s[0]==='Done today'?done.today.size+' of 5':s[1]}</b>${s[2]?' '+s[2]:''}</span>`).join('')}</div>
+   </section>`}).join('');
+  return `<div class="s-note"><div class="n-app">
+    <aside class="n-side"><div class="br">${BIZ}</div>${side}<p class="hint">Tick a box when it’s done.<br>The highlighted line is next.</p></aside>
+    <article class="n-doc">
+      <p class="n-date">Wednesday · 4 November</p>
+      <h1>Good morning.</h1>
+      <p class="n-lede"><b>Maya at Fern &amp; Fig</b> wrote back about wholesale prices, so start there. After that, 4 emails to gift shops are waiting for your OK and a blog post is ready to publish. Visitors are up 12% this week.</p>
+      ${secs}
+    </article></div></div>`;
+}
+
+/* ---------- render + events ---------- */
+const R={focus:rFocus,assist:rAssist,bento:rBento,note:rNote};
+function render(){
+  document.getElementById('stage').innerHTML=R[style]();
+  document.querySelectorAll('.sw button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===style));
+  document.getElementById('sw-desc').textContent=DESC[style];
+  const f=document.getElementById('a-form');
+  if(f)f.addEventListener('submit',e=>{e.preventDefault();const i=document.getElementById('a-in');say(i.value);});
+}
+function setStyle(s){if(!R[s])s='focus';style=s;bArea=null;render();try{localStorage.setItem('fs-style',s)}catch(e){}}
+document.querySelector('.sw').addEventListener('click',e=>{const b=e.target.closest('button[data-s]');if(!b)return;location.hash=b.dataset.s;});
+window.addEventListener('hashchange',()=>{setStyle(location.hash.slice(1));window.scrollTo(0,0)});
+document.getElementById('stage').addEventListener('click',e=>{
+  const el=e.target.closest('[data-area],[data-do],[data-done],[data-skip],[data-focus],[data-reset],[data-barea],[data-bhome],[data-tdo],[data-treset],[data-say],[data-ndo],[data-jump]');
+  if(!el)return;
+  const d=el.dataset,cur=style==='bento'?(bArea||'today'):area;
+  if(d.area){area=d.area;render();return}
+  if(d.do!==undefined){finish(cur,+d.do,'do');return}
+  if(d.done!==undefined){finish(cur,+d.done,'do');return}
+  if(d.skip!==undefined){finish(cur,+d.skip,'skip');return}
+  if(d.focus!==undefined){focusOn(cur,+d.focus);window.scrollTo({top:0,behavior:'smooth'});return}
+  if(d.reset!==undefined){undoAll(cur);return}
+  if(d.barea){bArea=d.barea;render();window.scrollTo(0,0);return}
+  if(d.bhome!==undefined){bArea=null;render();return}
+  if(d.tdo!==undefined){finish('today',+d.tdo,'do');return}
+  if(d.treset!==undefined){undoAll('today');return}
+  if(d.say){say(d.say);return}
+  if(d.ndo){e.preventDefault();const [a,i]=d.ndo.split(':');finish(a,+i,'do');return}
+  if(d.jump){e.preventDefault();document.getElementById('n-'+d.jump).scrollIntoView({behavior:'smooth'});return}
+});
+document.getElementById('stage').addEventListener('change',e=>{
+  const t=e.target.dataset.tick;if(!t)return;const [a,i]=t.split(':');
+  if(e.target.checked)finish(a,+i,'do');else{done[a].delete(+i);render()}
+});
+let start=location.hash.slice(1);
+if(!R[start]){try{start=localStorage.getItem('fs-style')||'focus'}catch(e){start='focus'}}
+setStyle(start);
+</script>
