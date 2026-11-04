@@ -380,11 +380,9 @@ Rules:
               prompt: 'Check whether the business has a Google Business Profile (the listing that shows on Google Maps and in local search). Use the Google listing found for its website or name, and any link to the profile or an embedded Google map on the site. Pass if a profile exists; report its name, rating and number of reviews.',
               order: 1,
               weight: 3,
-              // Only for businesses customers visit or that serve an area
-              relevantFor: ['local', 'agency'],
               fixGuide: [
                 'Go to business.google.com → sign in with the Google account you use for the business → "Add your business"',
-                'Use your exact business name, pick the closest main category, and add your address (or the area you serve if customers don\'t visit you)',
+                'Use your exact business name, pick the closest main category, and add your address — or, if you\'re online only, hide the address and choose the area you serve',
                 'Verify the profile — Google offers a video, phone, text or postcard check; you can\'t edit the listing fully until it\'s verified',
                 'Fill in opening hours, phone, website, a short description and at least 5 photos of your place, team or work',
                 'Ask your last 5–10 happy customers for a review with your review link (Profile → "Ask for reviews")',

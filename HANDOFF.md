@@ -447,7 +447,7 @@ Three thin tools on the MCP server (`app/api/mcp/route.ts`, defined in `lib/mcp/
 ## 4g. Foundation: Google Business Profile check (4 Nov)
 
 - New check `google-business-profile` (weight 3) in Foundation under "Online Presence" (was "Social Media Presence") → "Google Business Profile".
-- **Based on the brand:** checks can now carry `relevantFor` (website types). This one is `['local', 'agency']`. `defForBrand(def, websiteType)` in `lib/modules/types.ts` drops checks that don't apply; used when seeding (onboarding, analyze route, admin add-missing-modules) and on the Growth Path / admin views. If a brand's type changes, the next analysis removes checks that no longer apply.
+- **Shown for every brand** (owner's call, 4 Nov; it was local / agency only at first). Checks can still carry `relevantFor` (website types) to limit them; `defForBrand(def, websiteType)` in `lib/modules/types.ts` drops checks that don't apply; used when seeding (onboarding, analyze route, admin add-missing-modules) and on the Growth Path / admin views. If a brand's type changes, the next analysis removes checks that no longer apply.
 - **How it checks** (`lib/modules/foundation/google-profile.ts`, no AI): DataForSEO Business Listings (`businessListings` in `dataforseo.ts`, by website domain, then by exact name; ~$0.01, shows in Usage as Foundation · "Google Business Profiles"), else a link on the site to the profile, a review link or an embedded Google map (`googleProfileLink` in the fetcher). Fails when not found or the listing isn't claimed; passes with a note to get more reviews under 5. "Check again" on the item uses the same lookup.
 - Not tried against the real Business Listings API yet (filter field names `domain` / `title`).
 

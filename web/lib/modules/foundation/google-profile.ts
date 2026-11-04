@@ -1,5 +1,4 @@
-// Foundation's "Google Business Profile" check, for brands customers visit or that serve an area
-// (website type local / agency, see the item's relevantFor). Looks the business up in Google's
+// Foundation's "Google Business Profile" check, for every brand. Looks the business up in Google's
 // business listings (DataForSEO, by website, then by name) and reads the site for a link to its
 // profile or an embedded Google map. No AI.
 
@@ -62,7 +61,7 @@ export async function checkGoogleProfile(data: FoundationFetchResult, brand: Fou
         ? 'An unclaimed profile can be edited by anyone and **you can’t reply to reviews** or fix your hours.'
         : few
           ? 'Profiles with **fewer than 5 reviews** rarely show in the top 3 on Google Maps.'
-          : 'Your business shows on Google Maps and in local search results.',
+          : 'Your business shows on Google Maps and next to your name in Google search.',
       unclaimed
         ? 'Claim it: open the listing on Google Maps → "Own this business?" → verify.'
         : few
@@ -83,13 +82,13 @@ export async function checkGoogleProfile(data: FoundationFetchResult, brand: Fou
     return result(false,
       `No link to a Google Business Profile or Google map was found on your site${e?.localBusinessSchema ? ' (it does have local business data for search engines)' : ''}.`,
       'No Google profile linked',
-      '**Most people find local businesses on Google Maps** — without a profile you don’t show there.',
+      '**People who search your name on Google** see a profile with your reviews, hours and links — without one they don’t.',
       'Search your business name on Google Maps; if it isn’t there, create a profile at business.google.com.')
   }
 
   return result(false,
     `No Google Business Profile found for **${host}**${name ? ` or "${name}"` : ''}.`,
     'Not on Google Maps',
-    '**Most people find local businesses on Google Maps** — without a profile you don’t show there or in the local map results.',
+    '**People who search your name on Google** see a profile with your reviews and links — without one you don’t show there or on Google Maps.',
     'Create a free profile at business.google.com and verify it.')
 }
