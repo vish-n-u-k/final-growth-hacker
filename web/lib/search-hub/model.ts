@@ -88,6 +88,31 @@ export const ENGINES = ['chat_gpt', 'perplexity', 'gemini', 'google_ai']
 export const ENGINE_NAME: Record<string, string> = { chat_gpt: 'ChatGPT', perplexity: 'Perplexity', gemini: 'Gemini', google_ai: 'Google' }
 
 const iso = (t: number) => new Date(t).toISOString()
+
+/** Edit distance between two short words (for brand typos). */
+function editDistance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    let prev = row[0]
+    row[0] = i
+    for (let j = 1; j <= b.length; j++) {
+      const cur = row[j]
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1))
+      prev = cur
+    }
+  }
+  return row[b.length]
+}
+/** The brand's name, a typo of it (1 letter off; 2 for names of 6+ letters when one is added or missing), or it with a few letters stuck on. */
+export function isBrandWord(w: string, brandWord: string): boolean {
+  if (w.length < 4) return false
+  if (w === brandWord || (w.startsWith(brandWord) && w.length - brandWord.length <= 3)) return true
+  const dist = editDistance(w, brandWord)
+  if (dist <= 1) return true
+  // Two letters off only for longer names, and only with a letter added or missing ("fraktok"),
+  // not two swapped letters, which is usually a different word ("fresco")
+  return dist === 2 && brandWord.length >= 6 && w.length !== brandWord.length
+}
 const STOP = new Set(['the', 'and', 'for', 'with', 'what', 'how', 'can', 'are', 'does', 'there', 'that', 'your', 'best', 'good', 'tool', 'tools', 'make', 'small'])
 const words = (t: string) => kwKey(t).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter(w => w.length > 2 && !STOP.has(w))
 
@@ -150,8 +175,12 @@ export function buildSeoGeo(d: SearchAgentData, brand: { name: string; domain: s
   }
   // Most seen first (Search Console impressions, else searches a month), then best position
   for (const list of realBy.values()) list.sort((a, b) => (b.impressions ?? b.volume ?? 0) - (a.impressions ?? a.volume ?? 0) || a.rank - b.rank)
-  const brandWords = new Set(words(brand.name).concat(words(brand.domain.split('.')[0])))
-  const branded = (k: string) => words(k).some(w => brandWords.has(w))
+  const brandWords = [...new Set(words(brand.name).concat(words(brand.domain.split('.')[0])))].filter(w => w.length >= 4)
+  // A search for the brand, typos included: "frektok", "fraktok" and "freekto" are people looking for Frekto
+  const branded = (k: string) => {
+    const ws = kwKey(k).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter(Boolean)
+    return ws.some(w => brandWords.some(b => isBrandWord(w, b))) || brandWords.some(b => kwKey(k).replace(/[^a-z0-9]/g, '').includes(b))
+  }
   const fmtDay = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
   const pages: PageView[] = (d.pages ?? []).map(p => {
@@ -173,7 +202,8 @@ export function buildSeoGeo(d: SearchAgentData, brand: { name: string; domain: s
     const pool = brandPage ? real : real.filter(r => !branded(r.keyword))
     const top = pool[0] ?? null
     const byName = !brandPage ? real.find(r => branded(r.keyword)) ?? null : null
-    const stand = found !== null ? { keyword: p.keyword, rank: found } : top ? { keyword: top.keyword, rank: top.rank } : byName ? { keyword: byName.keyword, rank: byName.rank } : { keyword: p.keyword, rank: null }
+    // Only searches for the brand name don't put a buyer page on page 1: it stands at "not found" for its search
+    const stand = found !== null ? { keyword: p.keyword, rank: found } : top ? { keyword: top.keyword, rank: top.rank } : { keyword: p.keyword, rank: null }
     const c = [...changes].reverse().find(x => x.area === 'seo' && x.path === p.path)
     let status: SeoStatus
     let why = kw.reason

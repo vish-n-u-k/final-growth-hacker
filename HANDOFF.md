@@ -426,6 +426,7 @@ Rebuilt from the owner's brief: show the keywords the site already uses, where i
   - `keywordVolumes` (Labs `keyword_overview`, one call, Usage "Keyword volumes") looks up searches a month for each page's target when it's new or changed (`page.volume` / `difficulty` / `volFor`).
   - **Change date:** "I changed something" has "When it went live" (up to a year back); `change_add` takes `at` (YYYY-MM-DD) and takes "before" from the last check on or before that day. Each "Needs a change" box links to it ("Made it on an earlier day?").
   - The weekly check switches on the first time the page is opened (`hubOnAt`, once; turning it off in Settings sticks).
+  - **Brand typos count as the brand** (`isBrandWord` in `model.ts`): the name, it with up to 3 letters stuck on, 1 letter off, or (names of 6+ letters) 2 off with a letter added or missing ("frektok", "fraktok", "freekto"; not "fresco"). A buyer page found only for the brand stands at "not found" for its search and is never told to aim at a brand search.
   - Keywords to add come from the Search Agent's keyword ideas (DataForSEO Labs around the starting keywords, kept when the fit check passes), placed on a page sharing 2+ words, else a new post.
 
 ## 4f. MCP data passthrough tools (29 Oct)
