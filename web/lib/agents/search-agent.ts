@@ -662,7 +662,7 @@ export async function runSearchResearch(brandId: string): Promise<{ ok: boolean;
     // Search & AI page: read the homepage and main pages (free), the search each one targets, and any
     // title / H1 changed since the last check (each becomes a test)
     let site: { pages: SitePage[]; changes: SiteChange[] } | null = null
-    await p.step('pages', async () => (site = await refreshSitePages(b, d)), r => ({
+    await p.step('pages', async () => (site = await refreshSitePages(b, d, meter)), r => ({
       detail: `${n(r.pages.length, 'page')}`,
       items: r.pages.filter(x => x.keyword).map(x => `${x.path} · ${x.keyword}`).slice(0, 5),
       note: r.changes.length ? `Changed since the last check: ${r.changes.map(c => `${c.what.toLowerCase()} on ${c.path}`).join(', ')}. Testing from today.` : undefined,

@@ -4,6 +4,7 @@
 
 ### New
 - **Search & AI: see where you stand on Google and in AI answers, and know when a change works.** Two tabs, colour-coded. **SEO** reads your homepage and main pages, finds the search each one targets, shows where it ranks, and writes a new title, H1 or headings when one needs a change. **GEO** shows whether ChatGPT, Perplexity, Gemini and Google's AI Overview name you for the questions your buyers ask, who they name instead, and what to do. Every change you make becomes a test with a "know by" date (6 weeks), and title or H1 changes are spotted by themselves. Checks run every week, or any time with "Recheck all keywords".
+- **Search & AI: answers from the first check.** Each page shows the searches Google really shows it for, with position, views and clicks, and gets a verdict right away: aim it at what it already gets, pick a search people actually make, or fine as it is. Brand-name pages like pricing and FAQ aren't flagged. You can now pick the date you made a change, so changes made weeks ago are judged from then. The weekly check turns on when you first open the page.
 
 ## 3 Nov 2026
 

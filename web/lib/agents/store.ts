@@ -304,6 +304,9 @@ export interface SitePage {
   keyword: string | null        // the search the page targets (AI, from its title / H1 / headings), null = none
   keywordBy?: 'auto' | 'user'   // 'user' = set by "I've made this change"; not re-guessed
   keyFor?: string               // the title|h1|h2s the keyword was worked out from
+  volume?: number               // searches a month for `keyword` (0 = too few to measure)
+  difficulty?: number | null
+  volFor?: string               // the keyword volume / difficulty were looked up for
   readAt: string
   // New wording suggested for the page (written on open), for this keyword and verdict
   sugg?: { for: string; at: string; items: { tag: 'Title' | 'H1' | 'H2' | 'Meta'; text: string }[] }
@@ -401,6 +404,7 @@ export interface SearchAgentData {
   rankHistory?: RankSnapshot[]    // one per research, oldest first (last 16 kept)
   pages?: SitePage[]              // homepage + main pages (Search & AI page)
   changes?: SiteChange[]          // changes being tested (newest last, last 40 kept)
+  hubOnAt?: string                // when the Search & AI page first switched the weekly check on
   answers: { at: string; items: AiAnswer[] } | null
   mentionHistory: { at: string; mentioned: number; asked: number }[]
   // Each buyer question's last result (questions rotate, so a gap "holds" when it was there the last

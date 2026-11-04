@@ -6,7 +6,8 @@ import * as cheerio from 'cheerio'
 import { fetchHtml } from '@/lib/lead-finder/reviews'
 import { callAI } from '@/lib/ai/client'
 import { parseJsonLoose, type BrandContext } from '@/lib/agents/context'
-import type { SearchAgentData, SiteChange, SitePage } from '@/lib/agents/store'
+import type { SearchAgentData, SiteChange, SitePage, UsageMeter } from '@/lib/agents/store'
+import { keywordVolumes } from '@/lib/agents/dataforseo'
 import { kwKey } from './verdict'
 
 export const MAX_PAGES = 10
@@ -99,7 +100,7 @@ const newId = () => Math.random().toString(36).slice(2, 10)
  * Reads the pages again. A title or H1 that changed since the last check starts a test for that
  * page's search (unless one is already running for it). Returns the pages and the new tests.
  */
-export async function refreshSitePages(b: BrandContext, d: SearchAgentData, now = new Date()): Promise<{ pages: SitePage[]; changes: SiteChange[] }> {
+export async function refreshSitePages(b: BrandContext, d: SearchAgentData, meter?: UsageMeter, now = new Date()): Promise<{ pages: SitePage[]; changes: SiteChange[] }> {
   const home = (b.websiteUrl || `https://${b.domain}`).replace(/\/+$/, '')
   const homeHtml = await fetchHtml(home)
   if (!homeHtml) throw new Error(`Couldn’t read ${b.domain}`)
@@ -113,9 +114,21 @@ export async function refreshSitePages(b: BrandContext, d: SearchAgentData, now 
     if (!html) return
     const read = readPage(u, html)
     const old = before.get(read.path)
-    pages.push({ ...read, keyword: old?.keyword ?? null, keywordBy: old?.keywordBy, keyFor: old?.keyFor, sugg: old?.sugg, readAt: at })
+    pages.push({ ...read, keyword: old?.keyword ?? null, keywordBy: old?.keywordBy, keyFor: old?.keyFor, sugg: old?.sugg, volume: old?.volume, difficulty: old?.difficulty, volFor: old?.volFor, readAt: at })
   })
   await pageKeywords(b, pages)
+  // Searches a month for each page's search (one DataForSEO call, only for new or changed searches)
+  const need = pages.filter(p => p.keyword && p.volFor !== p.keyword).map(p => p.keyword!)
+  if (need.length) {
+    const vols = await keywordVolumes(need, d.settings.country, meter).catch(() => null)
+    if (vols) for (const p of pages) {
+      if (!p.keyword || p.volFor === p.keyword) continue
+      const v = vols.get(p.keyword)
+      p.volume = v?.volume ?? 0
+      p.difficulty = v?.difficulty ?? null
+      p.volFor = p.keyword
+    }
+  }
 
   // A changed title or H1 is a test of that page's search
   const changes: SiteChange[] = []

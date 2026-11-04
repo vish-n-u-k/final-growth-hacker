@@ -140,7 +140,7 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
   const [tab, setTab] = useState<Tab>('seo')
   const [view, setView] = useState<View>({ v: 'list' })
   const [demo, setDemo] = useState(flags.demo)
-  const [form, setForm] = useState({ area: 'seo' as Tab, path: '', what: 'New title', to: '', question: '', geoWhat: '' })
+  const [form, setForm] = useState({ area: 'seo' as Tab, path: '', what: 'New title', to: '', question: '', geoWhat: '', date: '' })
 
   useEffect(() => { try { const t = localStorage.getItem('search-ai-tab'); if (t === 'seo' || t === 'geo') setTab(t) } catch { /* fine */ } }, [])
   const pickTab = (t: Tab) => { setTab(t); setView({ v: 'list' }); try { localStorage.setItem('search-ai-tab', t) } catch { /* fine */ } }
@@ -210,7 +210,7 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
   // ── SEO tab ─────────────────────────────────────────────────────────────────
 
   function seoTab() {
-    const withKw = m.pages.filter(p => p.keyword)
+    const withKw = m.pages.filter(p => p.keyword || p.stand.rank !== null)
     const groups: { c: string; title: string; st: SeoStatus[]; note?: string }[] = [
       { c: 'warn', title: 'Needs a change', st: ['change', 'refresh'], note: 'We write the new wording' },
       { c: 'test', title: 'Testing', st: ['test'], note: `${TEST_WEEKS} weeks per change` },
@@ -226,18 +226,19 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
         foot = firstFix ? <span className="btn btn-primary sa-sm">Fix this first →</span> : <span className="sa-act">{p.status === 'refresh' ? 'Update the page' : p.swap ? 'Change the keyword' : 'Reword the page'} →</span>
         firstFix = false
       } else if (p.status === 'working') foot = <span className="sa-ok">Keep it</span>
-      else foot = <span className="sa-mute">{p.keyword ? 'Too early to judge' : 'No search targeted (fine)'}</span>
+      else foot = <span className="sa-mute">{p.status === 'none' ? (p.keyword ? 'For people who know you (fine)' : 'No search targeted (fine)') : 'Too early to judge'}</span>
       return (
         <button key={p.path} type="button" className={`sa-card sa-c-${st.c}`} onClick={() => go({ v: 'page', path: p.path })}>
-          <span className="sa-card-top"><b>{pathName(p.path)}</b>{p.keyword && <Rank r={p.kw?.now ?? null} />}</span>
-          <span className="sa-card-kw">{p.keyword ?? (p.h1 || p.title)}</span>
+          <span className="sa-card-top"><b>{pathName(p.path)}</b>{(p.keyword || p.stand.rank !== null) && <Rank r={p.stand.rank} />}</span>
+          <span className="sa-card-kw">{p.keyword ? <>Aims at “{p.keyword}”</> : (p.h1 || p.title)}</span>
+          {p.stand.rank !== null && p.stand.keyword !== p.keyword && <span className="sa-card-kw sa-shows">Google shows it for “{p.stand.keyword}”</span>}
           {p.kw && p.kw.points.length > 0 && <Spark ranks={p.kw.points.map(x => x.rank)} />}
           <span className="sa-card-foot">{foot}</span>
         </button>
       )
     }
     if (!m.pages.length) return <p className="sa-empty">We couldn’t read your pages yet. Recheck, or check your website address in your brand settings.</p>
-    const counts = ZONES.map(z => ({ z, list: withKw.filter(p => zoneOf(p.kw?.now ?? null) === z.z) }))
+    const counts = ZONES.map(z => ({ z, list: withKw.filter(p => zoneOf(p.stand.rank) === z.z) }))
     return <>
       <Legend items={[['good', 'Working'], ['test', 'Testing'], ['warn', 'Needs a change'], ['wait', 'Waiting'], ['new', 'To add']]} />
 
@@ -250,7 +251,7 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
           <div key={o.z.z} className={`sa-zone sa-c-${o.z.c}`}>
             <div className="sa-zone-h"><b>{o.z.label}</b><span>{o.z.sub}</span></div>
             {o.list.length ? o.list.map(p => (
-              <button key={p.path} type="button" className="sa-chip" onClick={() => go({ v: 'page', path: p.path })}>{p.keyword}{p.kw?.now ? <em>#{p.kw.now}</em> : null}</button>
+              <button key={p.path} type="button" className="sa-chip" title={pathName(p.path)} onClick={() => go({ v: 'page', path: p.path })}>{p.stand.keyword || p.keyword}{p.stand.rank ? <em>#{p.stand.rank}</em> : null}</button>
             )) : <span className="sa-zone-empty">None</span>}
           </div>
         ))}</div>
@@ -269,7 +270,7 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
       {!m.pages.some(p => p.status === 'test') && <p className="sa-src"><button type="button" className="lfp-link" onClick={() => { setForm(f => ({ ...f, area: 'seo' })); go({ v: 'changed' }) }}>I changed something</button> · title and H1 changes are also spotted by themselves at each check.</p>}
 
       {m.adds.length > 0 && <section className="sa-sec">
-        <div className="sa-gh"><Pill c="new" label="Keywords to add" n={m.adds.length} /><span>No page targets these yet</span></div>
+        <div className="sa-gh"><Pill c="new" label="Keywords to add" n={m.adds.length} /><span>Searches your buyers make that no page aims at yet. From DataForSEO’s keyword ideas around your starting keywords, kept only when they fit your buyers.</span></div>
         <div className="sa-cards">{m.adds.map(a => (
           <div key={a.keyword} className="sa-card sa-c-new is-static">
             <span className="sa-card-top"><b>{a.keyword}</b><span className="sa-rk sa-c-new">+</span></span>
@@ -377,7 +378,7 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
       box = <div className="sa-call sa-c-warn">
         <h3>{isChange ? (p.swap ? 'Change the search this page targets' : 'Reword the page') : 'Update the page, keep the search'}</h3>
         <p>{p.why}</p>
-        {isChange && p.swap && <p className="sa-new">New search: <b>{p.swap.keyword}</b> · {fmt(p.swap.volume)} searches a month · {p.swap.difficulty ? `difficulty ${p.swap.difficulty}` : 'difficulty unknown'}{p.swap.rank ? ` · you already show at #${p.swap.rank}` : ''}</p>}
+        {isChange && p.swap && <p className="sa-new">Aim it at: <b>{p.swap.keyword}</b>{p.swap.rank ? ` · Google already shows you at #${p.swap.rank}` : ''}{p.swap.volume ? ` · ${fmt(p.swap.volume)} searches a month` : ''}{p.swap.difficulty ? ` · difficulty ${p.swap.difficulty}` : ''}</p>}
         {p.sugg ? <div className="sa-sugg">{p.sugg.items.map((s, i) => (
           <div key={i}><span>{s.tag}</span><b>{s.text}{s.tag !== 'H2' && <em>now: {s.tag === 'Title' ? p.title : s.tag === 'H1' ? p.h1 : p.meta}</em>}{s.tag === 'H2' && <em>new section</em>}</b>
             <button type="button" className="lfp-link" onClick={() => copy(s.text)}>Copy</button></div>
@@ -385,6 +386,7 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
         <p>Make the change on your site, then press the button. We start the clock and tell you by {knowFromToday} whether it worked.</p>
         <div className="sa-acts">
           <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => startTest({ area: 'seo', path: p.path, to: target, what: isChange ? 'New title and H1' : 'Updated page' })}>I’ve made this change</button>
+          <button type="button" className="lfp-link" onClick={() => { setForm(f => ({ ...f, area: 'seo', path: p.path, to: target ?? '', what: isChange ? 'New title and H1' : 'Rewrote the page', date: '' })); go({ v: 'changed' }) }}>Made it on an earlier day?</button>
           {!isChange && <button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => draftRewrite(p)}>{busy === 'write' || busy === 'rewrite' ? 'Writing…' : 'Draft the full rewrite'}</button>}
           <button type="button" className="lfp-link" onClick={() => go({ v: 'list' })}>Not now</button>
         </div>
@@ -395,7 +397,14 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
       {back}
       <h2 className="sa-h2">{pathName(p.path)}</h2>
       <div className="sa-gh"><Pill c={st.c} label={st.label} />{p.keyword && <Rank r={p.kw?.now ?? null} />}</div>
-      {p.keyword && <p className="sa-sub">Targets “{p.keyword}”{p.kw?.volume ? ` · ${fmt(p.kw.volume)} searches a month` : ''}{p.kw?.difficulty ? ` · difficulty ${p.kw.difficulty}` : ''} · <a href={p.url} target="_blank" rel="noopener noreferrer">open the page ↗</a></p>}
+      <p className="sa-sub">{p.keyword ? <>Aims at “{p.keyword}”{p.volume !== null ? ` · ${p.volume < 10 ? 'too few searches to measure' : `${fmt(p.volume)} searches a month`}` : ''}{p.difficulty ? ` · difficulty ${p.difficulty}` : ''} · </> : null}<a href={p.url} target="_blank" rel="noopener noreferrer">open the page ↗</a></p>
+      <div className="sa-real">
+        <h3 className="sa-real-h">Searches Google shows this page for</h3>
+        {p.real.length ? <ul>{p.real.map(r => (
+          <li key={r.keyword}><Rank r={r.rank} /><span>{r.keyword}</span><small>{[r.impressions !== null ? `seen ${fmt(r.impressions)}×` : null, r.clicks !== null ? `${fmt(r.clicks)} clicks` : null, r.impressions === null && r.volume ? `${fmt(r.volume)} searches a month` : null].filter(Boolean).join(' · ')}</small></li>
+        ))}</ul> : <p className="sa-empty">None yet. {m.source === 'gsc' ? 'Search Console hasn’t shown this page for any search 5+ times in the last 28 days.' : 'DataForSEO doesn’t list this page for any search.'}</p>}
+        {m.source === 'gsc' && p.real.length > 0 && <p className="sa-src">Last 28 days, from Search Console. “Seen” is how often it showed in results.</p>}
+      </div>
       <div className="sa-says">
         <div><span>Title</span><b><Hl text={p.title} keyword={p.keyword} /></b></div>
         <div><span>H1</span><b><Hl text={p.h1} keyword={p.keyword} /></b></div>
@@ -459,7 +468,7 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
         <div><b>1. Read your pages</b><p>Your homepage and up to 9 main pages (from your menu and sitemap): title, H1, headings and description. From those we work out which search each page targets. A title or H1 that changed since the last check becomes a test by itself.</p></div>
         <div><b>2. Check Google</b><p>Where each page ranks for its search ({flags.gsc ? 'from Search Console' : 'DataForSEO’s estimate until Search Console is connected'}), how many people search it and how hard it is.</p></div>
         <div><b>3. Ask AI</b><p>Buyer questions, twice each to ChatGPT, Perplexity and Gemini, plus Google’s AI Overview for your pages’ searches. Who gets named and which sites get cited.</p></div>
-        <div><b>4. Judge</b><p>Each page gets one status: working, testing, waiting, or needs a change (with new wording written for you). Each question: named, testing, or not named (with what to do).</p></div>
+        <div><b>4. Judge</b><p>From the first check, each page gets a status from what Google really shows it for and how many people search its target: working, needs a change (with new wording written for you), or waiting when it’s simply too new. Changes you make are tested for 6 weeks. Each question: named, testing, or not named (with what to do).</p></div>
       </div>
       <h3 className="sa-h3">When will I know if my change worked?</h3>
       <div className="sa-explain">
@@ -474,14 +483,17 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
 
   function changedView() {
     const pages = m.pages.filter(p => p.keyword)
+    const today = new Date(now).toISOString().slice(0, 10)
+    const yearAgo = new Date(now - 365 * 86_400_000).toISOString().slice(0, 10)
     const page = pages.find(p => p.path === form.path) ?? pages[0]
     return <div className="sa-open">{back}
       <h2 className="sa-h2">I changed something</h2>
       <p className="sa-sub">Title and H1 changes are also spotted by themselves at the next check. Tell us now to start the clock today, or for changes we can’t see (a new section, an FAQ, a listing on another site).</p>
       <form className="sa-form" onSubmit={e => {
         e.preventDefault()
-        if (form.area === 'seo') startTest({ area: 'seo', path: page?.path, to: form.to.trim() || page?.keyword, what: form.what })
-        else startTest({ area: 'geo', question: form.question || m.questions[0]?.question, what: form.geoWhat.trim() || 'Your change' })
+        const at = form.date || undefined
+        if (form.area === 'seo') startTest({ area: 'seo', path: page?.path, to: form.to.trim() || page?.keyword, what: form.what, at })
+        else startTest({ area: 'geo', question: form.question || m.questions[0]?.question, what: form.geoWhat.trim() || 'Your change', at })
       }}>
         <label htmlFor="sa-f-area">For<select id="sa-f-area" value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value as Tab }))}><option value="seo">Google (SEO)</option><option value="geo">AI answers (GEO)</option></select></label>
         {form.area === 'seo' ? <>
@@ -493,6 +505,8 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
           <label htmlFor="sa-f-q">Question<select id="sa-f-q" value={form.question || m.questions[0]?.question || ''} onChange={e => setForm(f => ({ ...f, question: e.target.value }))}>{m.questions.map(q => <option key={q.question} value={q.question}>{q.question}</option>)}</select></label>
           <label htmlFor="sa-f-gw">What you did<input id="sa-f-gw" value={form.geoWhat} placeholder="e.g. Added an FAQ to the homepage" onChange={e => setForm(f => ({ ...f, geoWhat: e.target.value }))} maxLength={80} /></label>
         </>}
+        <label htmlFor="sa-f-date">When it went live<input id="sa-f-date" type="date" value={form.date || today} max={today} min={yearAgo} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></label>
+        <p className="sa-src">Already made the change a while ago? Pick that day. We compare with the check before it, and the 6 weeks count from then.</p>
         <div className="sa-acts"><button type="submit" className="btn btn-primary" disabled={!!busy || (form.area === 'seo' ? !page : !m.questions.length)}>Start the test</button>
           <button type="button" className="lfp-link" onClick={() => go({ v: 'list' })}>Cancel</button></div>
       </form>

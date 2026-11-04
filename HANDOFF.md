@@ -420,6 +420,13 @@ Rebuilt from the owner's brief: show the keywords the site already uses, where i
 - Also: How this works (cadence + when you'll know), I changed something (form for SEO or GEO), Settings (weekly check, country, pages read, Search Console, questions → Search Agent, Demo).
 - The page gets the server's time (`now` prop) so progress bars and dates match on first render; dates are formatted in UTC.
 - Checked with made-up Frekto data in the preview harness (desktop + phone, light + dark). **Not run against real pages / DataForSEO / AI yet**; history and tests start with the first check after deploy.
+- **Judged from the first check (4 Nov, after the owner's first real run showed every page "Not found / too early to judge"):**
+  - Each page lists the searches Google really shows it for (`PageView.real`: Search Console rows grouped by their page URL, else DataForSEO's; impressions, clicks, position). "Where you stand" places a page by its target if found, else its best real search (`stand`); a page aimed at a buyer's search ignores searches for the brand name.
+  - Target not found → judged now: Google shows it for another buyer's search → **Needs a change** (aim at what it already gets, swap = that search); brand-name page (e.g. pricing, FAQ) found by name → Working, else "for people who know you (fine)"; nobody searches the target (`page.volume` < 20) → Needs a change; else Waiting with the date it'll be judged. The 6-week wait now only applies to changes being tested.
+  - `keywordVolumes` (Labs `keyword_overview`, one call, Usage "Keyword volumes") looks up searches a month for each page's target when it's new or changed (`page.volume` / `difficulty` / `volFor`).
+  - **Change date:** "I changed something" has "When it went live" (up to a year back); `change_add` takes `at` (YYYY-MM-DD) and takes "before" from the last check on or before that day. Each "Needs a change" box links to it ("Made it on an earlier day?").
+  - The weekly check switches on the first time the page is opened (`hubOnAt`, once; turning it off in Settings sticks).
+  - Keywords to add come from the Search Agent's keyword ideas (DataForSEO Labs around the starting keywords, kept when the fit check passes), placed on a page sharing 2+ words, else a new post.
 
 ## 4f. MCP data passthrough tools (29 Oct)
 

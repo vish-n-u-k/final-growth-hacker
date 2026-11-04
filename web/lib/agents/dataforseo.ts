@@ -38,6 +38,7 @@ function apiLabel(path: string): string {
   if (path.includes('/ranked_keywords/')) return 'Site rankings'
   if (path.includes('/competitors_domain/')) return 'Similar sites'
   if (path.includes('/bulk_traffic_estimation/')) return 'Site size (visits)'
+  if (path.includes('/keyword_overview/')) return 'Keyword volumes'
   if (path.includes('/dataforseo_labs/')) return 'Keyword ideas'
   if (path.includes('/backlinks/')) return 'Backlinks'
   if (path.includes('/trustpilot/')) return 'Trustpilot reviews'
@@ -182,6 +183,29 @@ export async function keywordIdeas(seeds: string[], country: string, meter?: Usa
     ideas = toIdeas(ok.flatMap(x => x.value.items ?? [])).filter(i => !seen.has(i.keyword) && !!seen.add(i.keyword))
   }
   return ideas.sort((x, y) => y.volume - x.volume).slice(0, limit)
+}
+
+/**
+ * Searches a month and difficulty for exact keywords (Labs keyword_overview, one call for all).
+ * A keyword Labs has no data for is left out: too few searches to measure.
+ */
+export async function keywordVolumes(keywords: string[], country: string, meter?: UsageMeter): Promise<Map<string, { volume: number; difficulty: number | null }>> {
+  const out = new Map<string, { volume: number; difficulty: number | null }>()
+  const list = [...new Set(keywords.map(k => k.toLowerCase().trim()).filter(Boolean))]
+  if (!list.length) return out
+  if (agentsDemo()) {
+    list.forEach((k, i) => out.set(k, { volume: [480, 210, 0, 30, 1300, 90, 880, 590, 320, 70][i % 10], difficulty: [24, 12, null, 2, 45, 8, 40, 35, 30, 5][i % 10] }))
+    return out
+  }
+  const r = await post<{ items?: { keyword?: string; keyword_info?: { search_volume?: number | null }; keyword_properties?: { keyword_difficulty?: number | null } }[] | null }>(
+    '/dataforseo_labs/google/keyword_overview/live',
+    { location_code: locationOf(country), language_code: languageOf(country), keywords: list.slice(0, 100) },
+    meter,
+  )
+  for (const i of r.items ?? []) {
+    if (i.keyword) out.set(i.keyword.toLowerCase(), { volume: i.keyword_info?.search_volume ?? 0, difficulty: i.keyword_properties?.keyword_difficulty || null })
+  }
+  return out
 }
 
 // ── Where the site ranks ──────────────────────────────────────────────────────

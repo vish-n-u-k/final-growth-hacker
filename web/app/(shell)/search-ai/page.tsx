@@ -6,7 +6,7 @@ import { getSessionUser, getBrandForUser } from '@/lib/server-session'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES, searchDataReady } from '@/lib/agents/dataforseo'
 import { agentsDemo, demoForced, withDemo } from '@/lib/agents/demo'
-import { readDemoSwitch, readSearchData } from '@/lib/agents/store'
+import { readDemoSwitch, readSearchData, updateSearchData } from '@/lib/agents/store'
 import { searchFallback, tidySearchData } from '@/lib/agents/search-agent'
 import { readSiteChecks } from '@/lib/search-hub/site'
 import SearchHubPage from '@/components/search-hub/SearchHubPage'
@@ -29,7 +29,11 @@ export default async function SearchAiRoute() {
 async function SearchAi(brandId: string) {
   const b = await loadBrandContext(brandId)
   if (!b) redirect('/onboarding')
-  const saved = await readSearchData(brandId).catch(() => null)
+  let saved = await readSearchData(brandId).catch(() => null)
+  // The first visit turns the weekly check on, once (turning it off in Settings then sticks)
+  if (!saved?.hubOnAt && !saved?.settings.enabled) {
+    saved = await updateSearchData(brandId, searchFallback(b), d => { d.settings.enabled = true; d.hubOnAt = new Date().toISOString() }).catch(() => saved)
+  }
   const [data, site, [gsc]] = await Promise.all([
     saved ? tidySearchData(brandId, b, saved).catch(() => saved) : Promise.resolve(searchFallback(b)()),
     readSiteChecks(brandId).catch(() => ({ seo: null, geo: null, aiChecks: [] })),

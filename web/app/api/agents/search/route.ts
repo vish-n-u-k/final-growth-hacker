@@ -4,7 +4,7 @@ import { demoForced, withDemo } from '@/lib/agents/demo'
 import { loadBrandContext } from '@/lib/agents/context'
 import { LOCATION_CODES } from '@/lib/agents/dataforseo'
 import { runSearchResearch, runSearchWrite, searchFallback, setTopicStatus, refreshToTopic, ideaToTopic, tidySearchData } from '@/lib/agents/search-agent'
-import { readSearchData, updateSearchData, type AgentTask, type SearchSettings, type Topic } from '@/lib/agents/store'
+import { readSearchData, updateSearchData, type AgentTask, type SearchAgentData, type SearchSettings, type Topic } from '@/lib/agents/store'
 import { readDemoSwitch, saveDemoSwitch } from '@/lib/agents/store'
 import { runLinkOpportunities, sendLinkPitch, updateLink } from '@/lib/agents/link-opportunities'
 import { taskToPitch, writeDescription } from '@/lib/agents/task-help'
@@ -47,7 +47,7 @@ async function post(req: NextRequest) {
   const body = await req.json().catch(() => ({})) as {
     op?: string; on?: boolean; settings?: Partial<SearchSettings>; keyword?: string; status?: string; key?: string
     id?: string; email?: string; subject?: string; body?: string; to?: string
-    area?: string; path?: string; question?: string; what?: string
+    area?: string; path?: string; question?: string; what?: string; at?: string
     inputs?: { example?: unknown; number?: unknown; opinion?: unknown }
   }
   // What only the business knows, typed before writing (each optional, kept short)
@@ -200,7 +200,17 @@ async function post(req: NextRequest) {
       // "I've made this change": starts the 6-week clock. A page that switches to a new search keeps it.
       const area: 'seo' | 'geo' = body.area === 'geo' ? 'geo' : 'seo'
       const what = String(body.what ?? '').trim().slice(0, 80) || 'Your change'
-      const at = new Date().toISOString()
+      // The day the change went live: today, or a date the user picks (up to a year back, not in the future)
+      let atMs = Date.now()
+      if (typeof body.at === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.at)) {
+        const picked = Date.parse(`${body.at}T12:00:00Z`)
+        if (Number.isNaN(picked) || picked > Date.now() + 86_400_000) return NextResponse.json({ error: 'Pick a date that isn’t in the future.' }, { status: 400 })
+        if (picked < Date.now() - 366 * 86_400_000) return NextResponse.json({ error: 'Pick a date within the last year.' }, { status: 400 })
+        atMs = Math.min(picked, Date.now())
+      }
+      const at = new Date(atMs).toISOString()
+      // The last check on or before that day: where it stood before the change
+      const before = (d: SearchAgentData) => [...(d.rankHistory ?? [])].reverse().find(s => Date.parse(s.at) <= atMs + 86_400_000)
       let error: string | null = null
       const data = await updateSearchData(brandId, fallback, d => {
         const model = buildSeoGeo(d, b)
@@ -212,18 +222,24 @@ async function post(req: NextRequest) {
           page.sugg = undefined
           ensureTracked(d)
           if (!d.tracked!.some(t => t.keyword === to)) d.tracked!.push({ keyword: to, addedAt: at, by: 'user', status: 'active' })
-          const rank = d.ranks?.rows.find(r => kwKey(r.keyword) === to)?.rank ?? model.pages.find(x => x.path === page.path)?.kw?.now ?? null
+          const snap = before(d)
+          const rank = snap && to in snap.rows ? snap.rows[to].rank
+            : d.ranks?.rows.find(r => kwKey(r.keyword) === to)?.rank ?? model.pages.find(x => x.path === page.path)?.stand.rank ?? null
           for (const c of d.changes ?? []) if (c.status === 'testing' && c.area === 'seo' && c.path === page.path) c.status = 'stopped'
           d.changes = [...(d.changes ?? []), { id: newId(), area, path: page.path, keyword: to, what, at, by: 'user' as const, before: rank, status: 'testing' as const }].slice(-40)
         } else {
           const q = model.questions.find(x => x.question === body.question)
           if (!q) { error = 'That question isn’t in this week’s answers.'; return }
           for (const c of d.changes ?? []) if (c.status === 'testing' && c.area === 'geo' && c.question === q.question) c.status = 'stopped'
-          d.changes = [...(d.changes ?? []), { id: newId(), area, question: q.question, what, at, by: 'user' as const, before: q.samples ? Math.round((100 * q.hits) / q.samples) : 0, status: 'testing' as const }].slice(-40)
+          const qs = before(d)?.questions?.[q.question]
+          const pct = qs?.samples ? Math.round((100 * qs.hits) / qs.samples) : q.samples ? Math.round((100 * q.hits) / q.samples) : 0
+          d.changes = [...(d.changes ?? []), { id: newId(), area, question: q.question, what, at, by: 'user' as const, before: pct, status: 'testing' as const }].slice(-40)
         }
       })
       if (error) return NextResponse.json({ error, data })
-      return NextResponse.json({ data, message: `Testing from today. You’ll know by ${new Date(Date.now() + 42 * 86_400_000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}.` })
+      const fmt = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+      const knowBy = atMs + 42 * 86_400_000
+      return NextResponse.json({ data, message: `Testing since ${fmt(atMs)}. ${knowBy <= Date.now() ? 'Six weeks have passed, so the answer shows on the page now.' : `You’ll know by ${fmt(knowBy)}.`}` })
     }
     case 'change_stop': {
       const data = await updateSearchData(brandId, fallback, d => {

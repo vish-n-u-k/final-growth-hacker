@@ -54,6 +54,12 @@ export interface PageView {
   test: TestView | null
   swap: Swap | null             // change: the search to target instead
   sugg: SitePage['sugg'] | null // new wording, when written for this keyword and status
+  // The searches Google really shows this page for (Search Console, else DataForSEO), best first
+  real: { keyword: string; rank: number; impressions: number | null; clicks: number | null; volume: number | null }[]
+  // Where the page stands: its target search if found, else the best search it really shows for
+  stand: { keyword: string; rank: number | null }
+  volume: number | null         // searches a month for the target (0 = too few to measure)
+  difficulty: number | null
 }
 export interface QuestionView {
   question: string
@@ -134,27 +140,78 @@ export function buildSeoGeo(d: SearchAgentData, brand: { name: string; domain: s
   const history = d.rankHistory ?? []
 
   // ── SEO ──
+  // Every search the site shows up for, by the page Google shows for it
+  const pathOf = (u: string) => { try { return new URL(u).pathname.replace(/\/+$/, '') || '/' } catch { return '' } }
+  const realBy = new Map<string, PageView['real']>()
+  for (const r of d.ranks?.rows ?? []) {
+    const path = pathOf(r.url)
+    if (!path) continue
+    realBy.set(path, [...(realBy.get(path) ?? []), { keyword: kwKey(r.keyword), rank: r.rank, impressions: r.impressions ?? null, clicks: r.clicks ?? null, volume: r.volume || null }])
+  }
+  // Most seen first (Search Console impressions, else searches a month), then best position
+  for (const list of realBy.values()) list.sort((a, b) => (b.impressions ?? b.volume ?? 0) - (a.impressions ?? a.volume ?? 0) || a.rank - b.rank)
+  const brandWords = new Set(words(brand.name).concat(words(brand.domain.split('.')[0])))
+  const branded = (k: string) => words(k).some(w => brandWords.has(w))
+  const fmtDay = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+
   const pages: PageView[] = (d.pages ?? []).map(p => {
-    const base = { path: p.path, url: p.url, title: p.title, h1: p.h1, h2s: p.h2s, meta: p.meta, keyword: p.keyword, sugg: null as SitePage['sugg'] | null, swap: null as Swap | null }
-    if (!p.keyword) return { ...base, kw: null, status: 'none' as const, why: 'This page doesn’t aim at a search, and that’s fine for it.', test: null }
+    const real = (realBy.get(p.path) ?? []).slice(0, 5)
+    const base = { path: p.path, url: p.url, title: p.title, h1: p.h1, h2s: p.h2s, meta: p.meta, keyword: p.keyword, sugg: null as SitePage['sugg'] | null, swap: null as Swap | null, real }
+    if (!p.keyword) {
+      const top = real[0]
+      return { ...base, kw: null, status: 'none' as const, test: null, volume: null, difficulty: null,
+        stand: { keyword: top?.keyword ?? '', rank: top?.rank ?? null },
+        why: top ? `This page doesn’t aim at one search. Google shows it for “${top.keyword}” (#${top.rank}).` : 'This page doesn’t aim at a search, and that’s fine for it.' }
+    }
     const t = tracked.get(p.keyword) ?? { keyword: p.keyword, addedAt: p.readAt, by: 'auto' as const, status: 'active' as const }
     const kw = judgeKeyword(t, d, nowDate)
+    const volume = kw.volume ?? (p.volFor === p.keyword ? p.volume ?? null : null)
+    const difficulty = kw.difficulty ?? (p.volFor === p.keyword ? p.difficulty ?? null : null)
+    const found = kw.now ?? real.find(r => r.keyword === p.keyword)?.rank ?? null
+    // A page aimed at a buyer's search is judged on buyers' searches, not on people typing the brand name
+    const brandPage = branded(p.keyword)
+    const pool = brandPage ? real : real.filter(r => !branded(r.keyword))
+    const top = pool[0] ?? null
+    const byName = !brandPage ? real.find(r => branded(r.keyword)) ?? null : null
+    const stand = found !== null ? { keyword: p.keyword, rank: found } : top ? { keyword: top.keyword, rank: top.rank } : byName ? { keyword: byName.keyword, rank: byName.rank } : { keyword: p.keyword, rank: null }
     const c = [...changes].reverse().find(x => x.area === 'seo' && x.path === p.path)
     let status: SeoStatus
     let why = kw.reason
     let test: TestView | null = null
+    let swap: Swap | null = null
+    const vol = volume === null ? '' : volume < 10 ? ` Almost nobody searches “${p.keyword}”.` : ` “${p.keyword}” gets about ${volume.toLocaleString('en-US')} searches a month.`
     if (c) {
-      const r = testView(c, kw.now, c.before, m => (m >= 5 || (kw.now !== null && kw.now <= 10) ? 'done' : m >= 1 ? 'more' : 'no'), nowMs)
+      const r = testView(c, found, c.before, m => (m >= 5 || (found !== null && found <= 10) ? 'done' : m >= 1 ? 'more' : 'no'), nowMs)
       test = r.view
-      if (r.verdict === 'running') { status = 'test'; why = `Testing ${c.what.toLowerCase()} since ${new Date(c.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })}.` }
-      else if (r.verdict === 'working') { status = 'working'; why = `${c.what} worked: ${c.before === null ? 'not found' : `#${c.before}`} → ${kw.now === null ? 'not found' : `#${kw.now}`}.` }
-      else { status = 'change'; why = `${c.what} didn’t move it (${c.before === null ? 'not found' : `#${c.before}`} → ${kw.now === null ? 'not found' : `#${kw.now}`}) after ${TEST_WEEKS} weeks. Try different wording, or a closer search.` }
+      if (r.verdict === 'running') { status = 'test'; why = `Testing ${c.what.toLowerCase()} since ${fmtDay(c.at)}.` }
+      else if (r.verdict === 'working') { status = 'working'; why = `${c.what} worked: ${c.before === null ? 'not found' : `#${c.before}`} → ${found === null ? 'not found' : `#${found}`}.` }
+      else { status = 'change'; why = `${c.what} didn’t move it (${c.before === null ? 'not found' : `#${c.before}`} → ${found === null ? 'not found' : `#${found}`}) after ${TEST_WEEKS} weeks. Try different wording, or a closer search.` }
+    } else if (found === null) {
+      // Judged on the first check: what Google really shows the page for, and whether anyone searches the target
+      if (brandPage && top && top.rank <= 10) {
+        status = 'working'
+        why = `People find this page by your name: #${top.rank} for “${top.keyword}”. That’s what this page is for.`
+      } else if (brandPage) {
+        status = 'none'
+        why = `This page is for people who already know ${brand.name}: they reach it from your site or by searching your name. Nothing to change.`
+      } else if (top) {
+        status = 'change'
+        why = `Google shows this page for “${top.keyword}” (#${top.rank}${top.impressions ? `, seen ${top.impressions.toLocaleString('en-US')} times in 28 days` : ''}), not for “${p.keyword}”.${vol} Aim the title and H1 at what it already gets, or reword them so they clearly say “${p.keyword}”.`
+        swap = { keyword: top.keyword, volume: top.volume ?? 0, difficulty: null, rank: top.rank }
+      } else if (volume !== null && volume < 20) {
+        status = 'change'
+        why = `Google doesn’t show this page for any buyer’s search yet${byName ? ` (only for your name: “${byName.keyword}”, #${byName.rank})` : ''}, and almost nobody searches “${p.keyword}” (${volume < 10 ? 'too few to measure' : `${volume} a month`}). Aim it at a search people make.`
+      } else {
+        status = 'wait'
+        const from = new Date(Date.parse(t.addedAt) + TEST_WEEKS * WEEK).toISOString()
+        why = `Google doesn’t show this page for any buyer’s search yet${byName ? ` (only for your name: “${byName.keyword}”, #${byName.rank})` : ''}.${vol} New pages and new wording take 4 to 8 weeks to show up; we judge it from ${fmtDay(from)}.`
+      }
     } else {
       status = kw.verdict === 'keep' ? 'working' : kw.verdict === 'wait' ? 'wait' : kw.verdict === 'refresh' ? 'refresh' : 'change'
     }
-    const swap = status === 'change' ? (kw.swap ?? findSwap(p.keyword, kw.difficulty, d.ideas?.rows ?? [], d.ranks?.rows ?? [], activeTracked)) : null
+    if (status === 'change' && !swap) swap = kw.swap ?? findSwap(p.keyword, difficulty, d.ideas?.rows ?? [], d.ranks?.rows ?? [], activeTracked)
     const sugg = p.sugg && p.sugg.for === `${status}:${swap?.keyword ?? p.keyword}` ? p.sugg : null
-    return { ...base, kw, status, why, test, swap, sugg }
+    return { ...base, kw, status, why, test, swap, sugg, stand, volume, difficulty }
   })
 
   // Keywords to add: good-fit ideas no page targets yet; next to a page that shares a word, else a new post
