@@ -35,10 +35,10 @@ const SEO_STATUS: Record<SeoStatus, { label: string; c: string }> = {
 }
 const GEO_STATUS: Record<GeoStatus, { label: string; c: string }> = { missing: { label: 'Not named', c: 'warn' }, test: { label: 'Testing', c: 'test' }, named: { label: 'Named', c: 'good' } }
 const ZONES: { z: Zone; label: string; sub: string; c: string }[] = [
-  { z: 'p1', label: 'Page 1', sub: '#1–10', c: 'good' },
-  { z: 'close', label: 'Close', sub: '#11–30', c: 'amber' },
-  { z: 'far', label: 'Far back', sub: '#31–100', c: 'orange' },
-  { z: 'none', label: 'Not found', sub: 'not in top 100', c: 'wait' },
+  { z: 'p1', label: 'Page 1', sub: 'You show up in Google’s first 10 results', c: 'good' },
+  { z: 'close', label: 'Close', sub: 'You show up at results 11–30 (page 2–3)', c: 'amber' },
+  { z: 'far', label: 'Far back', sub: 'You show up at results 31–100 (hardly anyone sees it)', c: 'orange' },
+  { z: 'none', label: 'Not found', sub: 'You don’t show up in Google’s top 100', c: 'wait' },
 ]
 const zoneC = (r: number | null) => ZONES.find(z => z.z === zoneOf(r))!.c
 
@@ -49,7 +49,7 @@ function Pill({ c, label, n }: { c: string; label: string; n?: number | string }
   return <span className={`sa-pill sa-c-${c}`}>{label}{n !== undefined && <b>{n}</b>}</span>
 }
 function Rank({ r }: { r: number | null }) {
-  return <span className={`sa-rk sa-c-${zoneC(r)}`}>{r === null ? '—' : `#${r}`}</span>
+  return <span className={`sa-rk sa-c-${zoneC(r)}`} title={r === null ? 'Not in Google’s top 100' : `Result #${r} on Google`}>{r === null ? 'Not found' : `#${r}`}</span>
 }
 function TestBar({ t }: { t: TestView }) {
   return <span className="sa-tb"><i><em style={{ width: `${t.progress * 100}%` }} /></i><span>Know by <b>{day(t.knowBy)}</b></span></span>
@@ -247,7 +247,7 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
       return (
         <button key={p.path} type="button" className={`sa-card sa-c-${st.c}`} onClick={() => go({ v: 'page', path: p.path })}>
           <span className="sa-card-top"><b>{pathName(p.path)}</b>{(p.keyword || p.stand.rank !== null) && <Rank r={p.stand.rank} />}</span>
-          <span className="sa-card-kw">{p.keyword ? <>Aims at “{p.keyword}”</> : (p.h1 || p.title)}</span>
+          <span className="sa-card-kw">{p.keyword ? <>Keyword: “{p.keyword}”</> : (p.h1 || p.title)}</span>
           {p.stand.rank !== null && p.stand.keyword !== p.keyword && <span className="sa-card-kw sa-shows">Google shows it for “{p.stand.keyword}”</span>}
           {p.hard && p.status !== 'working' && <span className="sa-card-kw sa-hard">Too competitive{p.difficulty ? `: difficulty ${p.difficulty}` : ''}</span>}
           {p.kw && p.kw.points.length > 0 && <Spark ranks={p.kw.points.map(x => x.rank)} />}
@@ -262,15 +262,17 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
 
       <section className="sa-sec">
         <h2 className="sa-h">Where you stand on Google</h2>
-        {withKw.length > 0 && <div className="sa-zbar" role="img" aria-label="Your pages by Google position">
-          {counts.filter(o => o.list.length).map(o => <span key={o.z.z} className={`sa-c-${o.z.c}`} style={{ flex: o.list.length }}>{o.list.length}</span>)}
+        <p className="sa-lead">We found {withKw.length} keyword{withKw.length === 1 ? '' : 's'} on your pages. When someone searches each one on Google, this is where your site shows up.</p>
+        {withKw.length > 0 && <div className="sa-zbar" role="img" aria-label="Your keywords by where you show up on Google">
+          {counts.filter(o => o.list.length).map(o => <span key={o.z.z} className={`sa-c-${o.z.c}`} style={{ flex: o.list.length }}>{o.list.length} {o.z.label.toLowerCase()}</span>)}
         </div>}
         <div className="sa-zones">{counts.map(o => (
           <div key={o.z.z} className={`sa-zone sa-c-${o.z.c}`}>
-            <div className="sa-zone-h"><b>{o.z.label}</b><span>{o.z.sub}</span></div>
+            <div className="sa-zone-h"><b>{o.z.label}</b><span className="sa-zone-n">{o.list.length} keyword{o.list.length === 1 ? '' : 's'}</span></div>
+            <span className="sa-zone-sub">{o.z.sub}</span>
             {o.list.length ? o.list.map(p => (
               <button key={p.path} type="button" className="sa-chip" title={pathName(p.path)} onClick={() => go({ v: 'page', path: p.path })}>{p.stand.keyword || p.keyword}{p.stand.rank ? <em>#{p.stand.rank}</em> : null}</button>
-            )) : <span className="sa-zone-empty">None</span>}
+            )) : <span className="sa-zone-empty">No keywords here</span>}
           </div>
         ))}</div>
         <p className="sa-src">{m.source === 'gsc' ? 'Positions from Google Search Console.' : <>Positions are DataForSEO’s estimate. <a href="/dashboard/keywords">Connect Search Console</a> for real ones.</>}</p>
@@ -427,10 +429,10 @@ export default function SearchHubPage({ initial, brandName, domain, site, countr
       {back}
       <h2 className="sa-h2">{pathName(p.path)}</h2>
       <div className="sa-gh"><Pill c={st.c} label={st.label} />{p.keyword && <Rank r={p.kw?.now ?? null} />}</div>
-      <p className="sa-sub">{p.keyword ? <>Aims at “{p.keyword}”{p.volume !== null ? ` · ${p.volume < 10 ? 'too few searches to measure' : `${fmt(p.volume)} searches a month`}` : ''}{p.difficulty ? ` · difficulty ${p.difficulty}${p.hard ? ' (too competitive for now)' : ''}` : ''} · </> : null}<a href={p.url} target="_blank" rel="noopener noreferrer">open the page ↗</a></p>
+      <p className="sa-sub">{p.keyword ? <>Keyword: “{p.keyword}”{p.volume !== null ? ` · ${p.volume < 10 ? 'too few searches to measure' : `${fmt(p.volume)} searches a month`}` : ''}{p.difficulty ? ` · difficulty ${p.difficulty}${p.hard ? ' (too competitive for now)' : ''}` : ''} · </> : null}<a href={p.url} target="_blank" rel="noopener noreferrer">open the page ↗</a></p>
       {p.keyword && p.since && !p.test && <div className="sa-since"><DateEdit label="Aiming at this since" at={p.since} max={now} busy={!!busy} onSave={d => call('kw_since', { keyword: p.keyword, at: d }, 'date')} /></div>}
       <div className="sa-real">
-        <h3 className="sa-real-h">Searches Google shows this page for</h3>
+        <h3 className="sa-real-h">Other keywords Google shows this page for</h3>
         {p.real.length ? <ul>{p.real.map(r => (
           <li key={r.keyword}><Rank r={r.rank} /><span>{r.keyword}</span><small>{[r.impressions !== null ? `seen ${fmt(r.impressions)}×` : null, r.clicks !== null ? `${fmt(r.clicks)} clicks` : null, r.impressions === null && r.volume ? `${fmt(r.volume)} searches a month` : null].filter(Boolean).join(' · ')}</small></li>
         ))}</ul> : <p className="sa-empty">None yet. {m.source === 'gsc' ? 'Search Console hasn’t shown this page for any search 5+ times in the last 28 days.' : 'DataForSEO doesn’t list this page for any search.'}</p>}

@@ -9784,3 +9784,7 @@ html.light .sa { --sa-good: #15803d; --sa-good-s: #e7f4ec; --sa-test: #2563eb; -
 .sa-alt input { accent-color: var(--sa-good); }
 .sa-alt b { font-weight: 600; color: var(--text); }
 .sa-alt span { font-size: 13px; color: var(--text-faint); }
+.sa-lead { margin: -4px 0 10px; max-width: 70ch; font-size: 14px; color: var(--text-dim); }
+.sa-zbar span { padding: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sa-zone-h .sa-zone-n { font-size: 12.5px; font-weight: 600; color: var(--c); }
+.sa-zone-sub { margin: -4px 0 4px; font-size: 12.5px; line-height: 1.35; color: var(--text-dim); }
