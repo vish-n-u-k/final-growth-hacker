@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ask: the whole flow, v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Storyboard: step bar on top, the app in a window (no sidebar), "how it works" on the right.
+     App look: paper background, ink text, one blue for the thing to do, red only for replies and drops. */
+  :root {
+    --page: #ecebe6; --bg: #f7f7f5; --card: #ffffff; --ink: #111111; --sub: #5f5f5a; --faint: #9a9a93; --line: #e6e5e0;
+    --blue: #3355ff; --blue-soft: #eef1ff; --blue-ink: #2238c4; --red: #e5484d; --red-soft: #fdecec; --grey: #d9d8d2; --grey2: #b4b3ac;
+    --font: 'Geist', system-ui, sans-serif; --mono: 'Geist Mono', ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) { :root {
+    --page: #08080a; --bg: #0e0e10; --card: #17171a; --ink: #f2f2f0; --sub: #a6a6a0; --faint: #6e6e69; --line: #2a2a2e;
+    --blue: #7b93ff; --blue-soft: #1b2142; --blue-ink: #a9b8ff; --red: #ff6b6b; --red-soft: #3a1d1f; --grey: #34343a; --grey2: #55555c; color-scheme: dark } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--page); color: var(--ink); font: 400 15px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+  button, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+  .mono { font-family: var(--mono); }
+
+  /* ---- storyboard chrome (not the app) ---- */
+  .story { position: sticky; top: 0; z-index: 20; background: var(--page); border-bottom: 1px solid var(--line);
+    padding: max(12px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px)); }
+  .story-in { max-width: 1320px; margin: 0 auto; display: flex; align-items: center; gap: 12px; }
+  .stepbar { display: flex; align-items: center; gap: 6px; padding: 2px 0; overflow-x: auto; scrollbar-width: none; flex: 1; }
+  .stepbar::-webkit-scrollbar { display: none; }
+  .st { display: flex; align-items: center; gap: 7px; padding: 6px 12px 6px 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13px; cursor: pointer; white-space: nowrap; color: var(--sub); }
+  .st b { width: 20px; height: 20px; border-radius: 50%; background: var(--bg); display: grid; place-items: center; font: 500 11px var(--mono); color: var(--faint); }
+  .st[aria-current="step"] { background: var(--ink); color: var(--card); border-color: var(--ink); }
+  .st[aria-current="step"] b { background: var(--card); color: var(--ink); }
+  .st.key { border-color: var(--blue); }
+  .nb { height: 32px; width: 34px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); cursor: pointer; }
+  .stage { max-width: 1320px; margin: 0 auto; padding: 18px max(16px, env(safe-area-inset-right, 0px)) 60px max(16px, env(safe-area-inset-left, 0px)); display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+  @media (max-width: 1000px) { .stage { grid-template-columns: 1fr; } }
+  .how { position: sticky; top: 72px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 18px 18px 8px; }
+  @media (max-width: 1000px) { .how { position: static; } }
+  .how .k { font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+  .how h2 { margin: 4px 0 2px; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+  .how p.s { margin: 0; color: var(--sub); font-size: 14px; }
+  .how ol, .how ul { margin: 12px 0 0; padding: 0; list-style: none; counter-reset: h; }
+  .how li { padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; color: var(--sub); }
+  .how ol li { counter-increment: h; padding-left: 28px; position: relative; }
+  .how ol li::before { content: counter(h); position: absolute; left: 0; top: 11px; width: 19px; height: 19px; border-radius: 6px; background: var(--blue-soft); color: var(--blue-ink); font: 500 11px/19px var(--mono); text-align: center; }
+  .how li b { color: var(--ink); font-weight: 600; }
+  .how code { font: 12px var(--mono); background: var(--bg); padding: 1px 5px; border-radius: 5px; }
+
+  /* ---- the app window ---- */
+  .win { position: relative; background: var(--bg); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.08); height: 760px; display: flex; flex-direction: column; }
+  @media (max-width: 700px) { .win { height: auto; min-height: 720px; } }
+  .chrome { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px; border-bottom: 1px solid var(--line); flex: none; }
+  .chrome i { width: 10px; height: 10px; border-radius: 50%; background: var(--grey); }
+  .url { margin-left: 10px; padding: 2px 12px; border-radius: 7px; background: var(--card); font: 12px var(--mono); color: var(--faint); }
+  .scroll { flex: 1; overflow: auto; position: relative; }
+  .appbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 22px; }
+  .mark { display: flex; align-items: center; gap: 9px; font-weight: 600; letter-spacing: -.01em; }
+  .mark i { width: 22px; height: 22px; border-radius: 7px; background: var(--ink); position: relative; }
+  .mark i::after { content: ''; position: absolute; inset: 6px; border-radius: 50%; background: var(--blue); }
+  .who { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--sub); }
+  .who .pill { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); }
+  .who .av { width: 26px; height: 26px; border-radius: 50%; background: var(--grey); }
+  .col { max-width: 720px; margin: 0 auto; padding: 8px 22px 120px; }
+  .fade { animation: up .3s ease both; }
+  @keyframes up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+  h1 { margin: 0; font-size: 34px; line-height: 1.12; font-weight: 600; letter-spacing: -.025em; text-wrap: balance; }
+  .lede { margin: 8px 0 0; color: var(--sub); font-size: 16px; }
+  .k { font: 500 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }
+  .btn { height: 42px; padding: 0 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-weight: 500; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  .btn.do { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn.do:hover { filter: brightness(1.08); }
+  .btn.ink { background: var(--ink); border-color: var(--ink); color: var(--card); }
+  .tl { border: 0; background: none; padding: 0; color: var(--sub); cursor: pointer; font-size: 14px; text-decoration: underline; text-decoration-color: var(--grey); text-underline-offset: 3px; }
+
+  /* onboarding */
+  .ob { max-width: 440px; margin: 0 auto; padding: 8vh 22px 40px; }
+  .field { display: flex; gap: 8px; margin-top: 24px; padding: 6px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+  .field input { flex: 1; min-width: 0; border: 0; outline: none; background: none; padding: 0 10px; font-size: 16px; }
+  .conn { margin-top: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+  .crow { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-top: 1px solid var(--line); }
+  .crow:first-child { border-top: 0; }
+  .crow-main { flex: 1; min-width: 0; }
+  .crow-main b { display: block; font-weight: 500; }
+  .crow-main span { font-size: 13px; color: var(--faint); }
+  .lg { width: 32px; height: 32px; border-radius: 9px; background: var(--bg); display: grid; place-items: center; font: 600 13px var(--mono); color: var(--sub); flex: none; }
+  .cbtn { height: 32px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); font-size: 13px; cursor: pointer; }
+  .cbtn.on { border-color: transparent; color: var(--blue-ink); background: var(--blue-soft); }
+  .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 22px; }
+  .ticks { list-style: none; margin: 24px 0 0; padding: 0; }
+  .ticks li { display: flex; align-items: center; gap: 10px; padding: 7px 0; color: var(--faint); }
+  .ticks li.on { color: var(--ink); } .ticks li.done { color: var(--sub); }
+  .ticks li small { margin-left: auto; font: 12px var(--mono); color: var(--faint); }
+  .tk { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; }
+  .on .tk { border-color: var(--grey2); border-top-color: var(--blue); animation: spin .8s linear infinite; }
+  .done .tk { border-color: var(--ink); background: var(--ink); }
+  .done .tk::after { content: ''; width: 6px; height: 3px; border-left: 1.5px solid var(--card); border-bottom: 1.5px solid var(--card); transform: rotate(-45deg) translate(1px, -1px); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .learned { margin-top: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); padding: 4px 16px; }
+  .lr { display: grid; grid-template-columns: 100px 1fr; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
+  .lr:first-child { border-top: 0; }
+  .lr span { color: var(--faint); font-size: 13px; }
+
+  /* ask box */
+  .ask { display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 18px; border: 1px solid var(--line); border-radius: 20px; background: var(--card); box-shadow: 0 1px 0 rgba(0,0,0,.02), 0 10px 30px rgba(0,0,0,.05); }
+  .ask:focus-within { border-color: var(--grey2); }
+  .ask input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 16px; height: 40px; }
+  .ask input::placeholder { color: var(--faint); }
+  .send { width: 40px; height: 40px; flex: none; border-radius: 13px; border: 0; background: var(--ink); color: var(--card); display: grid; place-items: center; cursor: pointer; }
+  .dock { position: sticky; bottom: 0; padding: 18px 22px max(18px, env(safe-area-inset-bottom, 0px)); background: linear-gradient(to bottom, transparent, var(--bg) 30%); }
+  .dock .ask { max-width: 676px; margin: 0 auto; }
+
+  /* home */
+  .hello { padding-top: 7vh; text-align: center; }
+  .hello .ask { margin-top: 26px; text-align: left; }
+  .sec { margin-top: 34px; }
+  .sec-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 760px) { .cards { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 460px) { .cards { grid-template-columns: 1fr; } }
+  .cd { display: flex; flex-direction: column; gap: 6px; padding: 14px 15px; min-height: 118px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); text-align: left; cursor: pointer; transition: transform .15s, border-color .15s; }
+  .cd:hover { transform: translateY(-1px); border-color: var(--grey2); }
+  .cd .n { font-size: 26px; font-weight: 600; letter-spacing: -.02em; line-height: 1; margin-top: auto; }
+  .cd .n small { font-size: 12.5px; font-weight: 400; color: var(--faint); letter-spacing: 0; margin-left: 5px; }
+  .cd .t { font-size: 14px; font-weight: 500; line-height: 1.3; }
+  .cd .pin { font: 11px var(--mono); color: var(--blue-ink); }
+  .cd.pinned { border-color: var(--blue); }
+  .tries { display: flex; flex-wrap: wrap; gap: 8px; }
+  .try { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 999px; border: 1px dashed var(--grey2); background: none; font-size: 14px; color: var(--sub); cursor: pointer; }
+  .try:hover { border-style: solid; color: var(--ink); }
+  .try svg { color: var(--blue); }
+  .reply { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 24px; padding: 14px 16px; border: 0; border-radius: 16px; background: var(--red-soft); text-align: left; cursor: pointer; }
+  .reply i { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
+  .reply b { display: block; font-weight: 600; }
+  .reply span.s { font-size: 14px; color: var(--sub); }
+  .reply .go { margin-left: auto; font-size: 14px; color: var(--sub); white-space: nowrap; }
+
+  /* thread + answers */
+  .q-me { margin-top: 30px; font-size: 26px; line-height: 1.2; font-weight: 600; letter-spacing: -.02em; text-wrap: balance; }
+  .q-me.small { font-size: 18px; color: var(--sub); font-weight: 500; }
+  .work { margin-top: 16px; border-left: 2px solid var(--line); padding-left: 14px; }
+  .ph { display: grid; grid-template-columns: 74px 1fr; gap: 10px; padding: 5px 0; font-size: 14px; color: var(--faint); align-items: baseline; }
+  .ph .l { font: 500 11px var(--mono); letter-spacing: .05em; text-transform: uppercase; }
+  .ph.on { color: var(--ink); } .ph.on .l { color: var(--blue); } .ph.done { color: var(--sub); }
+  .srcs { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+  .src { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; background: var(--card); border: 1px solid var(--line); font-size: 12.5px; color: var(--sub); }
+  .src i { width: 6px; height: 6px; border-radius: 50%; background: var(--grey2); }
+  .src.ok i { background: var(--blue); }
+  .src.miss { border-style: dashed; color: var(--faint); }
+  .ans { margin-top: 16px; }
+  .say { font-size: 18px; line-height: 1.55; max-width: 62ch; }
+  .say b { font-weight: 600; }
+  .say.dim { color: var(--sub); }
+  .pic { margin-top: 18px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); }
+  .pic-h { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; font-size: 13px; color: var(--faint); }
+  .pic-h b { color: var(--ink); font-weight: 500; font-size: 14px; }
+  .pic svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .pic svg text { font-family: var(--mono); }
+  .key { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 13px; color: var(--sub); }
+  .key i { display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: 3px; }
+  .finds { margin: 16px 0 0; padding: 0; list-style: none; counter-reset: f; }
+  .finds li { counter-increment: f; display: grid; grid-template-columns: 24px 1fr; gap: 8px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14.5px; color: var(--sub); }
+  .finds li::before { content: counter(f); font: 500 12px/22px var(--mono); color: var(--faint); }
+  .finds li b { color: var(--ink); font-weight: 500; }
+  .todo { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 18px; padding: 16px 18px; border-radius: 16px; background: var(--blue-soft); }
+  .todo-t { flex: 1 1 240px; min-width: 0; }
+  .todo-t b { display: block; font-weight: 600; font-size: 16px; }
+  .todo-t span { font-size: 14px; color: var(--sub); }
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  @media (max-width: 520px) { .tiles { grid-template-columns: 1fr; } }
+  .tile { padding: 14px; border-radius: 12px; background: var(--bg); }
+  .tile b { display: block; font-size: 26px; font-weight: 600; letter-spacing: -.02em; line-height: 1.1; }
+  .tile span { font-size: 13px; color: var(--sub); }
+  .tile.miss { background: none; border: 1px dashed var(--grey2); }
+  .tile.miss b { color: var(--faint); }
+  .after { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+  .chip { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font-size: 13.5px; color: var(--sub); cursor: pointer; }
+  .chip:hover { color: var(--ink); border-color: var(--grey2); }
+  .chip.pin { color: var(--blue-ink); border-color: var(--blue); }
+  .chip.pinned { background: var(--blue-soft); border-color: transparent; color: var(--blue-ink); cursor: default; }
+  details.got { margin-top: 12px; font-size: 13.5px; color: var(--faint); }
+  details.got summary { cursor: pointer; list-style: none; display: inline-flex; gap: 6px; }
+  details.got summary::-webkit-details-marker { display: none; }
+  details.got summary::before { content: '+'; font-family: var(--mono); }
+  details.got[open] summary::before { content: '−'; }
+  .gotb { margin-top: 8px; padding: 12px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--line); font: 12.5px/1.8 var(--mono); color: var(--sub); }
+  .ask-back { margin-top: 18px; }
+  .ask-back p { margin: 0 0 10px; font-size: 16px; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { padding: 9px 15px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-size: 14.5px; cursor: pointer; }
+  .opt:hover { border-color: var(--ink); }
+  .opt.chosen { background: var(--ink); color: var(--card); border-color: var(--ink); }
+  .earlier { margin-top: 26px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); font-size: 14px; color: var(--sub); }
+  .earlier b { color: var(--ink); font-weight: 500; display: block; }
+  .toast { position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%); background: var(--ink); color: var(--card); padding: 9px 14px; border-radius: 10px; font-size: 13.5px; z-index: 9; animation: up .25s ease both; white-space: nowrap; }
+
+  /* sheet (the work, done in place) */
+  .veil { position: absolute; inset: 36px 0 0; background: rgba(10,10,12,.28); z-index: 5; animation: fi .2s ease both; }
+  @keyframes fi { from { opacity: 0; } }
+  .sheet { position: absolute; top: 36px; right: 0; bottom: 0; width: min(560px, 100%); background: var(--bg); border-left: 1px solid var(--line); z-index: 6; overflow: auto; padding: 18px 24px 40px; animation: sl .28s cubic-bezier(.2,.8,.2,1) both; }
+  @keyframes sl { from { transform: translateX(40px); opacity: 0; } }
+  .sheet-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; font-size: 13px; color: var(--faint); }
+  .x { width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); cursor: pointer; }
+  .facts { margin-top: 14px; font-size: 14px; }
+  .fact { display: grid; grid-template-columns: 70px 1fr; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .fact span { color: var(--faint); font-size: 13px; }
+  .mail { margin-top: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); padding: 14px 16px; }
+  .mail .to { font-size: 13px; color: var(--faint); }
+  .mail .subj { font-weight: 600; margin: 6px 0 8px; }
+  .mail textarea { width: 100%; min-height: 160px; border: 0; outline: none; resize: vertical; background: none; font-size: 14.5px; line-height: 1.55; padding: 0; }
+  .acts { display: flex; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+  .acts .c { margin-left: auto; font-size: 12.5px; color: var(--faint); }
+  .brief { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); font-size: 14.5px; }
+  .brief ol { margin: 6px 0 0; padding-left: 18px; color: var(--sub); }
+  .brief li { margin: 6px 0; }
+  .brief pre { margin: 10px 0 0; padding: 10px 12px; background: var(--bg); border-radius: 9px; font: 12.5px var(--mono); white-space: pre-wrap; }
+  .done-c { text-align: center; padding: 70px 10px; }
+  .done-c .ok { width: 44px; height: 44px; margin: 0 auto 14px; border-radius: 50%; background: var(--ink); color: var(--card); display: grid; place-items: center; }
+</style>
+</head>
+<body>
+
+<div class="story"><div class="story-in">
+  <nav class="stepbar" id="stepbar" aria-label="Steps"></nav>
+  <button class="nb" id="prev" aria-label="Previous step">←</button><button class="nb" id="nextb" aria-label="Next step">→</button>
+</div></div>
+
+<div class="stage">
+  <div class="win" id="win">
+    <div class="chrome"><i></i><i></i><i></i><span class="url" id="url">growjin.com</span></div>
+    <div class="scroll" id="scroll"></div>
+  </div>
+  <aside class="how" id="how" aria-live="polite"></aside>
+</div>
+
+<script>
+const I = {
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/>',
+  check: '<path d="M5 12l5 5 9-10"/>',
+  pin: '<path d="M9 4h6l-1 6 3 3H7l3-3-1-6zM12 13v7"/>',
+};
+const ic = (k, s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${I[k]}</svg>`;
+const askBox = (ph = 'Ask anything about your business…', val = '') => `<form class="ask" data-ask><input aria-label="Ask a question" placeholder="${ph}" value="${val}" autocomplete="off"><button class="send" aria-label="Ask">${ic('arrow', 18)}</button></form>`;
+const appbar = () => `<div class="appbar"><span class="mark"><i></i>Ask</span><span class="who"><span class="pill">frekto.ai</span><span class="av"></span></span></div>`;
+
+/* ---------- ready-made cards (filled at 04:00) ---------- */
+const CARDS = [
+  ['email', 'Who should I email today?', '5', 'ready for your OK'],
+  ['google', 'Why am I not on Google?', '38', 'of 412 pages on Google'],
+  ['post', 'What should I post this week?', '3', 'posts drafted'],
+  ['talk', 'Where should I talk about Frekto?', '3', 'threads worth a reply'],
+  ['keys', 'Which search words can I win?', '7', 'easy buyer searches'],
+  ['track', 'Am I on track?', '+28%', 'seen on Google'],
+];
+
+/* ---------- your own questions: each one goes through Understand → Look → Check → Answer ---------- */
+const FREE = {
+  drop: {
+    q: 'Why did my visits drop on Tuesday?',
+    phases: [
+      ['Understand', 'Why visits fell on <b>Tue 28 Oct</b>, compared with the days around it'],
+      ['Look', srcs([['Google Analytics', 'visits by day and source'], ['Search Console', 'clicks and positions by day'], ['Your site', 'changes from the daily check']])],
+      ['Check', 'Google clicks fell; Instagram and direct didn’t. Homepage title changed Mon 27 Oct'],
+      ['Answer', 'Drawing a line chart with 3 findings'],
+    ],
+    say: 'Visits fell <b>40% on Tuesday</b> because <b>Google sent fewer people</b>. Your homepage title changed the day before, and Google dropped you for “ai post maker”. It’s already coming back.',
+    pic: () => `<div class="pic-h"><b>Visits a day, last 14 days</b><span>GA · Search Console</span></div>${lineChart()}<div class="key"><span><i style="background:var(--blue)"></i>From Google</span><span><i style="background:var(--grey2)"></i>Everything else</span><span><i style="background:var(--red)"></i>Tuesday</span></div>`,
+    finds: ['<b>Google clicks went 31 → 12</b> on Tuesday. Instagram and direct visits didn’t change.',
+      '<b>Your homepage title changed</b> on Mon 27 Oct: “AI Social Media Post Maker” became “Frekto · Posts that sell”.',
+      '<b>“ai post maker” went from #8 to #19</b> that day. It’s #11 now.'],
+    todo: ['Put your main words back in the title', 'It’s recovering, but faster with the old title.', 'Get the fix', 'fix'],
+    follow: ['Did it hurt sign-ups?', 'Which pages lost the most?'],
+    got: ['Understood as: visits, Tue 28 Oct vs 14 days around it', 'get_ga_analytics(daily, by source, 14 d)', 'get_gsc_data(daily clicks + positions, 14 d)', 'site check history: 1 change on 27 Oct', '4 lookups · 2 from saved data · 7 s · $0.03'],
+  },
+  compare: {
+    q: 'How do I compare with Predis.ai?',
+    phases: [
+      ['Understand', 'Frekto vs <b>Predis.ai</b> (from your competitors) on Google and in AI answers'],
+      ['Look', srcs([['DataForSEO', 'links and search words'], ['AI answers', 'last week’s research']])],
+      ['Check', 'Gap is biggest on links; AI answers is the one you can close soonest'],
+      ['Answer', 'Drawing a side-by-side comparison'],
+    ],
+    say: 'Predis.ai is far ahead, as expected for an older site. The gap you can close first is <b>AI answers</b>: ChatGPT names Predis in <b>7 of 10</b> answers and you in <b>none</b>.',
+    pic: () => `<div class="pic-h"><b>Frekto vs Predis.ai</b><span>DataForSEO · AI answers</span></div>${compare()}`,
+    finds: ['<b>AI tools mostly cite 5 list articles</b> that name Predis and not you.', '<b>3 of those 5</b> accept new tools.', 'Links and search words take months; don’t chase them this week.'],
+    todo: ['Get onto the 3 lists AI reads', 'Pitches are written for each author.', 'See the pitches', 'tool'],
+    follow: ['Which lists exactly?', 'Compare with Later too'],
+    got: ['Understood as: Frekto vs predis.ai, search + AI', 'dataforseo(backlinks/summary × 2)', 'dataforseo(labs/ranked_keywords × 2)', 'saved: Search Agent AI answers, week of 27 Oct', '5 lookups · 1 from saved data · 9 s · $0.06'],
+  },
+  emails: {
+    q: 'How are my emails doing?',
+    clarify: ['Which emails do you mean?', ['Emails to leads', 'Gmail campaigns', 'Both']],
+    phases: [
+      ['Understand', '<b>Both</b> kinds of email, last 14 days, sent by GrowJin'],
+      ['Look', srcs([['Lead Finder', '46 emails sent'], ['Gmail', 'replies to those threads']])],
+      ['Check', 'Group replies by the kind of business'],
+      ['Answer', 'Drawing reply rates by kind of business'],
+    ],
+    say: '<b>46 sent</b> in two weeks, <b>4 replies</b> (9%). <b>Salons reply most</b>; Etsy shops haven’t replied at all.',
+    pic: () => `<div class="pic-h"><b>Replies by kind of business</b><span>Last 14 days</span></div>${hbars([['Hair and beauty salons', 3, 12], ['Cafés', 1, 14], ['Etsy shops', 0, 20]])}`,
+    finds: ['<b>2 of the 4 replies</b> want a call.', 'Emails under 60 words got all 4 replies.', 'Etsy shops: emails go to a shared inbox; try a message on their Etsy page instead.'],
+    todo: ['Find 10 more salons', 'They reply 1 in 4 times. Lead Finder can look only for salons.', 'Find salons', 'tool'],
+    follow: ['Show me the replies', 'What did the salon emails say?'],
+    got: ['Asked back: which emails → Both', 'saved: Lead Finder leads (sent, last 14 d)', 'saved: reply check from the daily run', '2 lookups · all from saved data · 3 s · $0.01'],
+  },
+  sales: {
+    q: 'How many sales came from Instagram?',
+    phases: [
+      ['Understand', 'Paid customers who first came from <b>Instagram</b>'],
+      ['Look', srcs([['Google Analytics', 'visits'], ['PostHog', 'sign-ups'], ['Payments', 'not connected', 'miss']])],
+      ['Check', 'No payment data, so sales can’t be counted. Showing what can be'],
+      ['Answer', 'Saying what’s missing'],
+    ],
+    say: 'I can’t see your sales yet, so I won’t guess. Here’s what I <b>can</b> see from Instagram this month.',
+    pic: () => `<div class="pic-h"><b>From Instagram, last 28 days</b><span>GA · PostHog</span></div><div class="tiles"><div class="tile"><b>140</b><span>visits</span></div><div class="tile"><b>6</b><span>sign-ups</span></div><div class="tile miss"><b>?</b><span>paid · needs Stripe</span></div></div>`,
+    finds: ['Instagram brings <b>1 in 3 visits</b>.', 'Its visitors sign up at <b>4%</b>; Google’s at 2%.'],
+    todo: ['Connect Stripe', 'Then I can answer this, and keep it updated every morning.', 'Connect', 'tool'],
+    follow: ['Which Instagram posts brought sign-ups?'],
+    got: ['Understood as: paid customers, source = Instagram', 'get_ga_analytics(source = instagram, 28 d)', 'get_posthog_users(first source = instagram)', 'payments: not connected → answer limited', '2 lookups · 4 s · $0.02'],
+  },
+};
+function srcs(list) { return `<span class="srcs">${list.map(([n, d, m]) => `<span class="src ${m ? 'miss' : 'ok'}" title="${d}"><i></i>${n}${m ? ' · ' + d : ''}</span>`).join('')}</span>`; }
+const FOLLOW = {
+  q: 'Did it hurt sign-ups?',
+  say: 'A little. <b>2 fewer sign-ups</b> that week than usual, both from Google. Instagram sign-ups didn’t change.',
+  pic: () => `<div class="tiles"><div class="tile"><b>9</b><span>sign-ups that week</span></div><div class="tile"><b>11</b><span>usual week</span></div><div class="tile"><b>−2</b><span>all from Google</span></div></div>`,
+  got: ['Kept from the last answer: dates, Google drop', 'get_posthog_users(sign-ups by week, by source)', '1 lookup · 2 s · $0.01'],
+};
+
+/* ---------- pictures ---------- */
+function lineChart() {
+  const g = [30, 28, 32, 35, 31, 29, 27, 31, 12, 14, 22, 28, 30, 31], o = [32, 30, 33, 35, 35, 32, 32, 33, 26, 27, 30, 32, 33, 35];
+  const W = 640, H = 200, L = 30, B = 24, mx = 40;
+  const x = i => L + i * (W - L - 8) / 13, y = v => H - B - v / mx * (H - B - 8);
+  const line = (a, c) => `<polyline points="${a.map((v, i) => x(i) + ',' + y(v)).join(' ')}" fill="none" stroke="${c}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>`;
+  let s = `<rect x="${x(8) - 14}" y="0" width="28" height="${H - B}" rx="6" fill="var(--red-soft)"/>`;
+  [0, 20, 40].forEach(v => s += `<line x1="${L}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 8}" y="${y(v) + 4}" font-size="10.5" text-anchor="end" fill="var(--faint)">${v}</text>`);
+  [['20 Oct', 0], ['27', 7], ['Tue 28', 8], ['2 Nov', 13]].forEach(([t, i]) => s += `<text x="${x(i)}" y="${H - 5}" font-size="10.5" text-anchor="middle" fill="${i === 8 ? 'var(--red)' : 'var(--faint)'}">${t}</text>`);
+  s += line(o, 'var(--grey2)') + line(g, 'var(--blue)') + `<circle cx="${x(8)}" cy="${y(12)}" r="4.5" fill="var(--red)"/><text x="${x(8) + 10}" y="${y(12) + 4}" font-size="11.5" fill="var(--ink)">12 from Google</text>`;
+  s += `<line x1="${x(7)}" x2="${x(7)}" y1="8" y2="${H - B}" stroke="var(--ink)" stroke-dasharray="3 4"/><text x="${x(7) - 6}" y="16" font-size="10.5" text-anchor="end" fill="var(--sub)">title changed</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Google visits drop from 31 to 12 on Tuesday 28 October, other visits steady">${s}</svg>`;
+}
+function compare() {
+  const rows = [['Sites linking to you', 6, 1240], ['Search words you rank for', 42, 3100], ['AI answers naming you', 0, 7, ' of 10'], ['Visits from Google a month', 300, 48000]];
+  return rows.map(([l, a, b, suf = '']) => {
+    const max = Math.max(a, b), wa = Math.max(1.5, a / max * 100), wb = b / max * 100;
+    const f = n => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace('.0', '') + 'k' : n;
+    return `<div style="padding:9px 0;border-top:1px solid var(--line)"><div style="font-size:13.5px;color:var(--sub);margin-bottom:6px">${l}</div>
+      <div style="display:grid;grid-template-columns:70px 1fr 56px;gap:8px;align-items:center;font-size:12.5px"><span>Frekto</span><span style="height:8px;border-radius:4px;background:var(--bg)"><span style="display:block;height:100%;width:${wa}%;border-radius:4px;background:var(--blue)"></span></span><b class="mono" style="font-weight:500">${f(a)}${suf}</b>
+      <span style="color:var(--faint)">Predis.ai</span><span style="height:8px;border-radius:4px;background:var(--bg)"><span style="display:block;height:100%;width:${wb}%;border-radius:4px;background:var(--grey2)"></span></span><span class="mono" style="color:var(--faint)">${f(b)}${suf}</span></div></div>`;
+  }).join('');
+}
+function hbars(rows) {
+  return rows.map(([l, r, s]) => `<div style="display:grid;grid-template-columns:minmax(0,1fr) 90px;gap:4px 12px;padding:9px 0;border-top:1px solid var(--line);font-size:14px"><span>${l}</span><span class="mono" style="text-align:right;color:var(--sub)">${r} of ${s}</span>
+    <span style="grid-column:1/3;height:8px;border-radius:4px;background:var(--bg)"><span style="display:block;height:100%;width:${Math.max(1.5, r / s * 100)}%;border-radius:4px;background:${r / s > .2 ? 'var(--blue)' : 'var(--grey2)'}"></span></span></div>`).join('');
+}
+
+/* ---------- steps ---------- */
+const STEPS = [
+  { id: 'site', label: 'Add your site', url: 'growjin.com/start' },
+  { id: 'connect', label: 'Connect', url: 'growjin.com/start' },
+  { id: 'first', label: 'First look', url: 'growjin.com/start' },
+  { id: 'home', label: 'Home', url: 'growjin.com' },
+  { id: 'card', label: 'A ready answer', url: 'growjin.com/ask/email' },
+  { id: 'own', label: 'Your own question', url: 'growjin.com/ask', key: true },
+  { id: 'follow', label: 'Follow up & pin', url: 'growjin.com/ask', key: true },
+  { id: 'morning', label: 'Next morning', url: 'growjin.com' },
+];
+const HOW = {
+  site: ['Add your site', 'One field. We read the site and write the brand profile ourselves.', 'ul', [
+    'Same as onboarding step 1 today. The brand form from step 2 becomes the short “what we learned” check in step 3.']],
+  connect: ['Connect', 'Optional. Each connection lets Ask answer more.', 'ul', [
+    '<b>Search Console</b> → anything about Google.', '<b>Gmail</b> → sending, and replies.', '<b>Google Analytics</b> → visitors.', '<b>Stripe</b> → sales. Not in the app yet; step 6 shows what happens without it.',
+    'Nothing here blocks the next step.']],
+  first: ['First look', 'Runs once, 1–2 minutes, while they watch.', 'ul', [
+    'Uses what exists: brand profile, ideal customer card, competitors, a Search Console read, a first Lead Finder search, Search Agent research.',
+    'Then fills every ready-made card.', 'One check: “what we learned”. A wrong profile makes every answer wrong.']],
+  home: ['Home', 'One ask box. Two ways in.', 'ul', [
+    '<b>Ready answers</b> (the cards): filled at 04:00 by the daily run and saved. Opening one is instant and costs nothing.',
+    '<b>Your own question</b> (the box, or the dashed examples): answered live. Step 6 shows how.',
+    'No menu. Tools open as a panel from an answer, so the person never leaves the conversation.']],
+  card: ['A ready answer', 'Same shape every time.', 'ul', [
+    'One sentence, one picture, one blue next step.', 'The blue button opens the work as a panel on the right: here the existing Lead Finder email screen.',
+    'Approve opens the next one. When all are done, the panel closes and the card’s number drops.']],
+  own: ['Your own question', 'How a question that isn’t a card gets answered.', 'ol', [
+    '<b>Understand.</b> Claude says back what it thinks you mean, with dates and names filled in. If a gap would change the answer, it asks one question with buttons (try “How are my emails doing?”). Otherwise it assumes and says so.',
+    '<b>Look.</b> It picks sources from what we already have: saved data first (free), then live calls through the MCP tools (GA, Search Console, PostHog, Gmail records, Lead Finder, DataForSEO, the daily site check). Capped at about $0.10 and 30 seconds a question.',
+    '<b>Check.</b> Every number in the answer has to come from something it fetched. A source that isn’t connected is shown as missing, and it says so instead of guessing (try the Instagram sales question).',
+    '<b>Answer.</b> Claude doesn’t write a page. It fills a fixed answer form: one sentence, one picture from a small set (line, bars, comparison, tiles, list), up to 3 findings, and one next step from actions the app can do. The page draws it, so it looks the same as a ready answer.',
+    '“How I got this” shows the sources, lookups, time and cost.']],
+  follow: ['Follow up & pin', 'Turning a one-off question into a daily card.', 'ul', [
+    '<b>Follow-ups</b> keep the thread: dates and data from the last answer are reused, so they’re faster and cheaper.',
+    '<b>Pin to home</b> saves the question and how it was answered. The 04:00 run repeats the lookups and rewrites the sentence. It becomes a card like the others.',
+    'Questions many people type become built-in cards for everyone.']],
+  morning: ['Next morning', 'Why people come back.', 'ul', [
+    'Replies are on top in red.', 'The pinned question is now a card with today’s number.', 'Everything else is in the same place as yesterday, so numbers can be compared.']],
+};
+
+let cur = 0, free = 'drop', chosen = null, leadI = 0, timers = [], pinned = false;
+const conn = { gsc: true, gmail: false, ga: false };
+const clear = () => { timers.forEach(clearTimeout); timers = []; };
+const later = (f, ms) => timers.push(setTimeout(f, ms));
+const $ = id => document.getElementById(id);
+
+function go(i) { clear(); cur = Math.max(0, Math.min(STEPS.length - 1, i)); closeSheet(); render(); $('scroll').scrollTop = 0; }
+function render() {
+  const s = STEPS[cur];
+  $('stepbar').innerHTML = STEPS.map((x, i) => `<button class="st${x.key ? ' key' : ''}" data-step="${i}" ${i === cur ? 'aria-current="step"' : ''}><b>${i + 1}</b>${x.label}</button>`).join('');
+  document.querySelector('[aria-current="step"]').scrollIntoView({ block: 'nearest', inline: 'center' });
+  $('url').textContent = s.url;
+  const [h, sub, kind, items] = HOW[s.id];
+  $('how').innerHTML = `<span class="k">How it works · step ${cur + 1}</span><h2>${h}</h2><p class="s">${sub}</p><${kind}>${items.map(t => `<li>${t}</li>`).join('')}</${kind}>`;
+  $('scroll').innerHTML = V[s.id]();
+  A[s.id] && A[s.id]();
+}
+function toast(t) { const d = document.createElement('div'); d.className = 'toast'; d.textContent = t; $('win').appendChild(d); setTimeout(() => d.remove(), 1800); }
+
+/* ---------- views ---------- */
+const homeBody = (morning) => `<div class="col"><div class="hello fade"><h1>${morning ? 'Good morning.' : 'What do you want to know?'}</h1><p class="lede">${morning ? 'Here’s what changed overnight.' : 'Ask anything about Frekto, or start with what’s ready.'}</p>
+  ${morning ? `<button class="reply" data-reply><i></i><span><b>2 people replied</b><span class="s">Bloom Salon wants a call · Kofi Corner asked the price</span></span><span class="go">Open →</span></button>` : ''}
+  <div style="margin-top:${morning ? 16 : 26}px">${askBox()}</div></div>
+  <div class="sec"><div class="sec-h"><span class="k">Ready this morning · 04:00</span>${morning ? '<span class="k" style="color:var(--blue-ink)">1 pinned</span>' : ''}</div><div class="cards">
+    ${morning ? `<button class="cd pinned" data-free="drop"><span class="pin">${ic('pin', 12)} Pinned by you</span><span class="t">Visits from Google</span><span class="n">31<small>yesterday · back to normal</small></span></button>` : ''}
+    ${CARDS.slice(0, morning ? 5 : 6).map(([k, t, n, l]) => `<button class="cd" data-card="${k}"><span class="t">${t}</span><span class="n">${morning && k === 'email' ? '4' : n}<small>${l}</small></span></button>`).join('')}</div></div>
+  ${morning ? '' : `<div class="sec"><div class="sec-h"><span class="k">Or ask your own</span></div><div class="tries">${Object.entries(FREE).map(([k, f]) => `<button class="try" data-free="${k}">${ic('spark', 14)}${f.q}</button>`).join('')}</div></div>`}</div>`;
+
+const V = {
+  site: () => `<div class="ob fade"><span class="k">Step 1 of 3</span><h1 style="margin-top:8px">Let’s see how you can grow.</h1><p class="lede">Start with your website. We’ll read it and do the rest.</p>
+    <form class="field" data-site><input aria-label="Your website" value="frekto.ai"><button class="btn ink">Start</button></form></div>`,
+  connect: () => `<div class="ob fade"><span class="k">Step 2 of 3</span><h1 style="margin-top:8px">Connect what you have</h1><p class="lede">Each one lets you ask more. All optional.</p>
+    <div class="conn">${[['gsc', 'G', 'Search Console', 'How you show up on Google'], ['gmail', 'M', 'Gmail', 'Send emails, see replies'], ['ga', 'A', 'Google Analytics', 'Who visits your site']].map(([k, l, n, d]) => `<div class="crow"><span class="lg">${l}</span><span class="crow-main"><b>${n}</b><span>${d}</span></span><button class="cbtn ${conn[k] ? 'on' : ''}" data-conn="${k}">${conn[k] ? 'Connected' : 'Connect'}</button></div>`).join('')}</div>
+    <div class="foot"><button class="tl" data-next>Skip</button><button class="btn ink" data-next>Continue</button></div></div>`,
+  first: () => `<div class="ob fade" style="max-width:500px"><span class="k">Step 3 of 3 · frekto.ai</span><h1 style="margin-top:8px">Taking a first look</h1>
+    <ul class="ticks" id="ticks">${[['Reading frekto.ai', ''], ['Working out who buys from you', ''], ['Finding competitors', ''], ['Checking Google', 'search console'], ['Finding first leads', 'lead finder'], ['Getting answers ready', '']].map(([t, s]) => `<li><span class="tk"></span>${t}<small>${s}</small></li>`).join('')}</ul><div id="learned"></div></div>`,
+  home: () => appbar() + homeBody(false),
+  card: () => appbar() + `<div class="col fade"><button class="tl" data-step="3">← Home</button>
+    <div class="q-me">Who should I email today?</div>
+    <div class="ans"><span class="k">Ready since 04:00</span><p class="say" style="margin-top:6px"><b>5 small businesses</b> look like your best customers. Start with <b>Bloom Salon</b>: they post on Instagram but stopped 3 months ago.</p>
+    <div class="pic"><div class="pic-h"><b>Ready for your OK</b><span>Lead Finder</span></div>${[['Bloom Salon', 'Hair salon · last post 94 days ago'], ['Paper & Wick', 'Etsy candles · posts monthly'], ['Kofi Corner', 'Café · quiet since June'], ['Tidy Paws', 'Dog groomer · Facebook only'], ['Loom Studio', 'Weaving classes']].map(([a, b]) => `<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line);font-size:14px"><span>${a}</span><span style="color:var(--faint)">${b}</span></div>`).join('')}</div>
+    <div class="todo"><div class="todo-t"><b>Review Bloom Salon’s email</b><span>Written and ready. Approve, change or skip.</span></div><button class="btn do" data-sheet="lead">Review</button></div></div></div>
+    <div class="dock">${askBox('Ask a follow-up…')}</div>`,
+  own: () => appbar() + `<div class="col"><button class="tl" data-step="3">← Home</button>
+    <div class="sec-h" style="margin-top:18px"><span class="k">Try a question that isn’t a card</span></div>
+    <div class="tries">${Object.entries(FREE).map(([k, f]) => `<button class="try" data-free="${k}" style="${k === free ? 'border-style:solid;color:var(--ink);border-color:var(--ink)' : ''}">${ic('spark', 14)}${f.q}</button>`).join('')}</div>
+    <div id="thread"></div></div><div class="dock">${askBox('Ask anything…')}</div>`,
+  follow: () => appbar() + `<div class="col"><button class="tl" data-step="3">← Home</button>
+    <div class="earlier"><span class="k">Earlier in this thread</span><b style="margin-top:4px">Why did my visits drop on Tuesday?</b>Visits fell 40% on Tuesday because Google sent fewer people…</div>
+    <div class="q-me">Did it hurt sign-ups?</div><div id="thread"></div></div><div class="dock">${askBox('Ask a follow-up…')}</div>`,
+  morning: () => appbar() + homeBody(true),
+};
+
+/* ---------- running a question ---------- */
+function runFree(key, box, fast) {
+  const f = FREE[key];
+  box.innerHTML = `<div class="q-me">${f.q}</div><div id="body-${key}"></div>`;
+  const body = $('body-' + key);
+  if (f.clarify && !chosen) {
+    body.innerHTML = `<div class="work"><div class="ph done"><span class="l">Understand</span><span>“My emails” could mean two things</span></div></div>
+      <div class="ask-back fade"><p>${f.clarify[0]}</p><div class="opts">${f.clarify[1].map(o => `<button class="opt" data-clar="${o}">${o}</button>`).join('')}</div></div>`;
+    return;
+  }
+  body.innerHTML = (f.clarify ? `<div class="ask-back"><p style="color:var(--sub);font-size:14px">${f.clarify[0]}</p><div class="opts"><button class="opt chosen">${chosen}</button></div></div>` : '') +
+    `<div class="work">${f.phases.map(([l, t]) => `<div class="ph"><span class="l">${l}</span><span>${t}</span></div>`).join('')}</div><div id="ans-${key}"></div>`;
+  const ph = [...body.querySelectorAll('.ph')]; let i = 0;
+  const step = () => {
+    ph.forEach((p, j) => p.className = 'ph ' + (j < i ? 'done' : j === i ? 'on' : ''));
+    if (i++ < ph.length) later(step, fast ? 60 : 750); else later(() => { $('ans-' + key).innerHTML = answer(f, key); }, fast ? 0 : 250);
+  };
+  step();
+}
+function answer(f, key) {
+  return `<div class="ans fade"><p class="say">${f.say}</p><div class="pic">${f.pic()}</div>
+    ${f.finds ? `<ol class="finds">${f.finds.map(x => `<li><span>${x}</span></li>`).join('')}</ol>` : ''}
+    ${f.todo ? `<div class="todo"><div class="todo-t"><b>${f.todo[0]}</b><span>${f.todo[1]}</span></div><button class="btn do" data-sheet="${f.todo[3]}" data-title="${f.todo[0]}">${f.todo[2]}</button></div>` : ''}
+    <div class="after">${(f.follow || []).map(x => `<button class="chip" ${x === 'Did it hurt sign-ups?' ? 'data-step="6"' : ''}>${x}</button>`).join('')}<button class="chip ${pinned && key === 'drop' ? 'pinned' : 'pin'}" data-pin="${key}">${ic('pin', 12)} ${pinned && key === 'drop' ? 'Pinned to home' : 'Pin to home'}</button></div>
+    <details class="got"><summary>How I got this</summary><div class="gotb">${f.got.join('<br>')}</div></details></div>`;
+}
+const A = {
+  first() {
+    const lis = [...document.querySelectorAll('#ticks li')]; let i = 0;
+    const t = () => { lis.forEach((li, j) => li.className = j < i ? 'done' : j === i ? 'on' : ''); if (i++ < lis.length) later(t, 600); else later(() => {
+      $('learned').innerHTML = `<div class="learned fade"><div class="lr"><span>Frekto is</span>An AI post maker for small businesses</div><div class="lr"><span>Who buys</span>Shops, cafés and salons that post on Instagram themselves</div><div class="lr"><span>Competitors</span>Predis.ai, Later, Buffer</div></div><div class="foot"><button class="tl">Change something</button><button class="btn ink" data-next>Looks right</button></div>`;
+    }, 200); };
+    t();
+  },
+  own() { runFree(free, $('thread')); },
+  follow() {
+    const box = $('thread');
+    box.innerHTML = `<div class="work">${[['Understand', 'Sign-ups in the week of the drop, vs a usual week. <b>Kept from before:</b> Tue 28 Oct, Google'], ['Look', srcs([['PostHog', 'sign-ups by week and source']])], ['Answer', 'Tiles']].map(([l, t]) => `<div class="ph"><span class="l">${l}</span><span>${t}</span></div>`).join('')}</div><div id="fans"></div>`;
+    const ph = [...box.querySelectorAll('.ph')]; let i = 0;
+    const s = () => { ph.forEach((p, j) => p.className = 'ph ' + (j < i ? 'done' : j === i ? 'on' : '')); if (i++ < ph.length) later(s, 550); else later(() => {
+      $('fans').innerHTML = `<div class="ans fade"><p class="say">${FOLLOW.say}</p><div class="pic">${FOLLOW.pic()}</div>
+        <div class="after"><button class="chip ${pinned ? 'pinned' : 'pin'}" data-pin="drop">${ic('pin', 12)} ${pinned ? 'Pinned to home' : 'Pin “visits from Google” to home'}</button></div>
+        <details class="got"><summary>How I got this</summary><div class="gotb">${FOLLOW.got.join('<br>')}</div></details></div>`;
+    }, 200); };
+    s();
+  },
+};
+
+/* ---------- the panel on the right (work done in place) ---------- */
+const LEADS = [
+  ['Bloom Salon', 'Hair salon, Leeds', '3 people', 'Instagram · last post 94 days ago', 'amy@bloomsalon.co.uk', 'Three posts from your last cut?', 'Hi Amy,\n\nI saw Bloom’s Instagram went quiet in August. Your before / after photos got great comments.\n\nFrekto turns one photo into a week of posts in about 10 minutes. Want three made from your last cut, free?\n\nVishnu'],
+  ['Paper & Wick', 'Candle shop on Etsy', '1 person', 'Instagram · once a month', 'hello@paperandwick.com', 'Three posts from your Ember candle?', 'Hi Paper & Wick team,\n\nYour autumn candles look lovely, but they only reach Instagram once a month.\n\nFrekto makes a week of posts from your Etsy photos. Want three made from your Ember candle, free?\n\nVishnu'],
+];
+function sheetHTML(kind, title) {
+  const top = (t) => `<div class="sheet-top"><span class="k">${t}</span><button class="x" data-close aria-label="Close">✕</button></div>`;
+  if (kind === 'lead') {
+    if (leadI >= LEADS.length) return top('Lead Finder') + `<div class="done-c fade"><div class="ok">${ic('check', 20)}</div><h1 style="font-size:26px">All caught up</h1><p class="lede">2 approved. They go out within your daily limit, with follow-ups.</p><div style="margin-top:20px"><button class="btn" data-close>Back to the answer</button></div></div>`;
+    const [n, s, z, so, to, sj, m] = LEADS[leadI];
+    return top(`Lead Finder · ${leadI + 1} of 5`) + `<div class="fade"><h1 style="font-size:26px">${n}</h1><div class="facts"><div class="fact"><span>Sells</span>${s}</div><div class="fact"><span>Size</span>${z}</div><div class="fact"><span>Social</span>${so}</div></div>
+      <div class="mail"><div class="to">To ${to}</div><div class="subj">${sj}</div><textarea aria-label="Email">${m}</textarea></div>
+      <div class="acts"><button class="btn do" data-approve>Approve and send</button><button class="tl" data-approve>Skip</button><span class="c">Follow-ups go out by themselves</span></div></div>`;
+  }
+  if (kind === 'fix') return top('Fix for your site') + `<div class="fade"><h1 style="font-size:26px">Put your main words back in the title</h1><p class="lede">Give this to whoever runs your site. 5 minutes.</p>
+    <div class="brief"><b>Change the homepage title</b><ol><li>From: Frekto · Posts that sell</li><li>To: Frekto · AI Social Media Post Maker for Small Businesses</li><li>Keep one heading on the page.</li></ol><pre>&lt;title&gt;Frekto · AI Social Media Post Maker for Small Businesses&lt;/title&gt;</pre></div>
+    <div class="acts"><button class="btn do" data-close data-toast="Brief copied">Copy the brief</button><span class="c">We’ll check it tomorrow at 04:00</span></div></div>`;
+  return top('Opens from the answer') + `<div class="fade"><h1 style="font-size:26px">${title}</h1><p class="lede">The existing tool screen opens here, at this exact item.</p>
+    <div style="margin-top:18px;height:280px;border:1px dashed var(--grey2);border-radius:14px;display:grid;place-items:center;color:var(--faint);font-size:14px">tool screen</div>
+    <div class="acts"><button class="btn do" data-close>Done</button></div></div>`;
+}
+function openSheet(kind, title) { closeSheet(); const w = $('win'); w.insertAdjacentHTML('beforeend', `<div class="veil" data-close></div><aside class="sheet" id="sheet" data-kind="${kind}" data-title="${title || ''}">${sheetHTML(kind, title)}</aside>`); }
+function closeSheet() { document.querySelectorAll('.veil,.sheet').forEach(e => e.remove()); }
+
+/* ---------- events ---------- */
+function match(t) {
+  t = t.toLowerCase();
+  if (/predis|compare|competitor|vs/.test(t)) return 'compare';
+  if (/email|repl|campaign/.test(t)) return 'emails';
+  if (/sale|bought|revenue|paid|instagram/.test(t)) return 'sales';
+  return 'drop';
+}
+document.addEventListener('click', e => {
+  const t = e.target;
+  const st = t.closest('[data-step]'); if (st) { e.preventDefault(); return go(+st.dataset.step); }
+  if (t.closest('[data-next]')) { e.preventDefault(); return go(cur + 1); }
+  const c = t.closest('[data-conn]'); if (c) { conn[c.dataset.conn] = true; return render(); }
+  const f = t.closest('[data-free]'); if (f) { free = f.dataset.free; chosen = null; return go(5); }
+  const cd = t.closest('[data-card]'); if (cd) return go(4);
+  if (t.closest('[data-reply]')) return openSheetReply();
+  const cl = t.closest('[data-clar]'); if (cl) { chosen = cl.dataset.clar; return runFree(free, $('thread')); }
+  const sh = t.closest('[data-sheet]'); if (sh) { if (sh.dataset.sheet === 'lead') leadI = 0; return openSheet(sh.dataset.sheet, sh.dataset.title); }
+  if (t.closest('[data-approve]')) { leadI++; $('sheet').innerHTML = sheetHTML('lead'); return; }
+  const p = t.closest('[data-pin]'); if (p && !p.classList.contains('pinned')) { pinned = true; p.classList.replace('pin', 'pinned'); p.innerHTML = ic('pin', 12) + ' Pinned to home'; return toast('Pinned. It’ll be a card tomorrow at 04:00'); }
+  const cz = t.closest('[data-close]'); if (cz) { const msg = cz.dataset.toast; closeSheet(); if (msg) toast(msg); }
+});
+function openSheetReply() {
+  closeSheet();
+  $('win').insertAdjacentHTML('beforeend', `<div class="veil" data-close></div><aside class="sheet"><div class="sheet-top"><span class="k">Email · reply</span><button class="x" data-close aria-label="Close">✕</button></div><div class="fade"><h1 style="font-size:26px">Bloom Salon</h1><p class="lede">Wants a call</p>
+    <div class="mail" style="border-left:3px solid var(--red)"><div class="to">Amy · today 08:12</div><div style="margin-top:6px">Sounds good, can we talk Thursday?</div></div>
+    <div class="mail"><div class="to">Your reply</div><textarea aria-label="Reply">Hi Amy,\n\nThursday works. Would 10:00 or 14:00 suit you? I’ll bring three posts made from your photos.\n\nVishnu</textarea></div>
+    <div class="acts"><button class="btn do" data-close data-toast="Sent from your Gmail">Send reply</button><span class="c">Kofi Corner is next</span></div></div></aside>`);
+}
+document.addEventListener('submit', e => {
+  e.preventDefault();
+  if (e.target.matches('[data-site]')) return go(1);
+  if (e.target.matches('[data-ask]')) { const v = e.target.querySelector('input').value.trim(); if (!v) return; free = match(v); chosen = null; go(5); if (v !== FREE[free].q) { const q = document.querySelector('#thread .q-me'); if (q) q.textContent = v; } }
+});
+$('prev').onclick = () => go(cur - 1);
+$('nextb').onclick = () => go(cur + 1);
+render();
+</script>
+</body>
+</html>
