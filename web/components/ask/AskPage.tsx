@@ -174,7 +174,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
 
       <main className="ask-col">
         {view.kind === 'card' && (openCard
-          ? <AnswerView a={openCard} eyebrow={`Ready since ${timeOf(openCard.at)}`} others={cards.filter(c => c.id !== openCard.id)} onBack={() => go({ kind: 'home' })} onOpen={id => go({ kind: 'card', id })} />
+          ? <AnswerView a={openCard} eyebrow={`Ready since ${timeOf(openCard.at)}`} others={[...cards.slice(cards.indexOf(openCard) + 1), ...cards.slice(0, cards.indexOf(openCard))].slice(0, 3)} onBack={() => go({ kind: 'home' })} onOpen={id => go({ kind: 'card', id })} />
           : <Waiting busy={busy} error={error} onBack={() => go({ kind: 'home' })} />)}
 
         {view.kind === 'live' && live && (
@@ -226,7 +226,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
               {error && <p className="ask-err">{error}</p>}
               <div className="ask-cards">
                 {busy && !cards.length
-                  ? [0, 1, 2].map(i => <div key={i} className="ask-card ask-skel" aria-hidden="true" />)
+                  ? [0, 1, 2, 3, 4, 5].map(i => <div key={i} className="ask-card ask-skel" aria-hidden="true" />)
                   : cards.map(c => (
                     <button key={c.id} type="button" className={`ask-card${c.id === 'replies' && c.state === 'ok' ? ' is-reply' : ''}${c.state !== 'ok' ? ' is-quiet' : ''}`} onClick={() => go({ kind: 'card', id: c.id as CardId })}>
                       <span className="ask-card-t">{c.question}</span>

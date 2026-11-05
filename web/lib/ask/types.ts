@@ -1,7 +1,9 @@
 // Ask (md_files/ASK_PLAN.md): every answer, ready-made or typed, has this one shape.
 // The page draws it (components/ask), so all answers look the same.
 
-export type CardId = 'replies' | 'email' | 'google'
+/** The ready answers, in the order they show on the home page. */
+export const CARD_IDS = ['replies', 'email', 'google', 'post', 'talk', 'keys', 'track'] as const
+export type CardId = (typeof CARD_IDS)[number]
 
 /** One picture per answer, from a small set. */
 export type Picture =

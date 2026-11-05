@@ -446,7 +446,19 @@ A new page with one ask box and no sidebar, in its own look (Geist, paper and in
 - `dispatch()` moved from `app/api/mcp/route.ts` to `lib/mcp/dispatch.ts` (the MCP server and Ask share it). Sonnet 5 prices ($2 / $10) are in `lib/ai/pricing.ts`; usage shows as "Ask: your own questions".
 - **Tested** with a scripted Claude (normal answer, wrong number and retry, asking back, a card question, a text-only reply, a refusal, the turn cap) and the page with a faked stream (desktop, phone).
 - **Not run against the real API yet:** the strict tool schemas haven't been sent to Anthropic, so check one real question first. Full build passes.
-- Still to do from phase 2: the other cards (post, talk, keys, track).
+- Still to do from phase 2: the other cards (post, talk, keys, track). **Done 5 Nov, see 4g-3.**
+
+## 4g-3. Ask: four more ready answers (5 Nov)
+
+Seven cards now (`CARD_IDS` in `lib/ask/types.ts`, the order they show in). The four new ones are pure functions in `lib/ask/cards.ts`, so the preview harness can run them on made-up data:
+- **What should I write this week?** (`postCard`): the Search Agent's open topics, drafted ones first, then by searches a month. Next step: check the draft or write it, on `/agents/search`.
+- **Where should I talk about {brand}?** (`talkCard`): Lead Finder's Reddit / Hacker News posts that are `ready`, best score first, with the subreddit. Next step opens that post (`/leads?lead=<id>`).
+- **Which search words can I win?** (`keysCard`): the Search Agent's keyword ideas marked picked or fit, difficulty 1–29, by searches a month (bars). Next step: `/agents/search?tab=rank` (the Search Agent page now opens a tab from `?tab=`).
+- **Am I on track?** (`trackCard` + `trackFetch`): Search Console impressions and clicks for the last 7 days vs the 7 before, both ending 2 days ago (it runs behind), plus emails sent and replies in the last 7 days. Down week on week → next step is the Google answer. Without Search Console it shows emails only, with the Google tile marked missing.
+- `open_ready_answer` in the engine knows all seven, so typed questions like "am I on track" open the card for free.
+- On the home page an odd last card takes the whole row; "Ask next" shows the next three cards.
+- Checked in the preview harness (full, week down, empty). Full build passes. Not run on real data yet.
+
 
 ## 5. What we are doing right now: making the tools calm
 

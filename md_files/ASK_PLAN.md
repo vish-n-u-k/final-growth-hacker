@@ -79,7 +79,7 @@ Everything is on `/ask`, not in the sidebar, for early-access users only.
 
 ## Open decisions
 
-Decided 5 Nov: Sonnet for your own questions, 20 a day per brand. Phase 2's engine is built (HANDOFF.md 4g-2); the four other cards are still to do.
+Decided 5 Nov: Sonnet for your own questions, 20 a day per brand. Phase 2 is built: the engine (HANDOFF.md 4g-2) and the four other cards (4g-3).
 
 
 1. Model for your own questions: Sonnet first, Opus 5.5 if answers are weak.

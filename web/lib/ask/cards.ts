@@ -1,5 +1,5 @@
-// Ask's ready answers (md_files/ASK_PLAN.md, phase 1): three questions worked out from data we
-// already have, saved per brand in signal_snapshots, so opening the page costs nothing.
+// Ask's ready answers (md_files/ASK_PLAN.md): seven questions worked out from data we already
+// have, saved per brand in signal_snapshots, so opening the page costs nothing.
 // The sentences are written here from the numbers, not by AI: free, the same every day, and a
 // number can't come out wrong.
 
@@ -8,11 +8,11 @@ import { db } from '@/lib/db'
 import { brands, brandIntegrations } from '@/lib/db/schema'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { agentsDemo, withDemo } from '@/lib/agents/demo'
-import { readDemoSwitch, readLeadData, type Lead } from '@/lib/agents/store'
+import { readDemoSwitch, readLeadData, readSearchData, type Lead, type SearchAgentData } from '@/lib/agents/store'
 import { listConversations, type Conversation } from '@/lib/gmail/conversations'
 import { fetchGscPageTraffic } from '@/lib/modules/seo/keyword-fetchers'
 import { getSitemap } from '@/lib/modules/content-audit/fetcher'
-import type { Answer, AskCards, CardId } from './types'
+import { CARD_IDS, type Answer, type AskCards, type CardId } from './types'
 
 const KEY = 'ask:cards'
 const key = () => (agentsDemo() ? `${KEY}:demo` : KEY)
@@ -130,12 +130,18 @@ const section = (u: string) => {
   try { const p = new URL(u).pathname.split('/').filter(Boolean); return p.length > 1 ? `/${p[0]}/` : 'Main pages' } catch { return 'Main pages' }
 }
 
-async function googleCard(brandId: string, websiteUrl: string, at: string): Promise<Answer> {
-  const base = { id: 'google' as const, question: 'Why am I not on Google?', at }
+/** The brand's Search Console key, or null when it isn't connected. */
+async function gscKey(brandId: string): Promise<{ client_email: string; private_key: string } | null> {
   const [integ] = await db.select({ metadata: brandIntegrations.metadata }).from(brandIntegrations)
     .where(and(eq(brandIntegrations.brandId, brandId), eq(brandIntegrations.provider, 'gsc_api'), eq(brandIntegrations.status, 'connected'))).limit(1)
   const meta = (integ?.metadata as Record<string, string> | null) ?? {}
-  if (!meta.client_email || !meta.private_key) {
+  return meta.client_email && meta.private_key ? { client_email: meta.client_email, private_key: meta.private_key } : null
+}
+
+async function googleCard(brandId: string, websiteUrl: string, at: string): Promise<Answer> {
+  const base = { id: 'google' as const, question: 'Why am I not on Google?', at }
+  const meta = await gscKey(brandId)
+  if (!meta) {
     return {
       ...base, number: '—', numberLabel: 'connect Search Console', state: 'connect',
       say: 'Connect Google Search Console and this shows how many of your pages turn up on Google, and which ones don’t.',
@@ -209,7 +215,7 @@ export function googleAnswer({ at, origin, websiteUrl, listed: listedRaw, rows }
     ? `**None of your ${plural(listed.length, 'page')}** showed up in a Google search in the last ${GOOGLE_DAYS} days.`
     : `**${listedShown} of your ${plural(listed.length, 'page')}** showed up in a Google search in the last ${GOOGLE_DAYS} days${share < 0.5 && big ? `. Most of the rest are ${big[0] === 'Main pages' ? 'main pages' : `under **${big[0]}**`}.` : '.'}`
   return {
-    ...base, number: String(listedShown), numberLabel: `of ${listed.length.toLocaleString('en')} pages on Google`, state: 'ok', say,
+    ...base, number: String(listedShown), numberLabel: `of ${listed.length.toLocaleString('en')} ${listed.length === 1 ? 'page' : 'pages'} on Google`, state: 'ok', say,
     picture: { kind: 'bars', rows: [
       { label: 'In your sitemap', value: listed.length },
       { label: 'Showed up in a search', value: listedShown },
@@ -227,20 +233,209 @@ export function googleAnswer({ at, origin, websiteUrl, listed: listedRaw, rows }
   }
 }
 
+
+// ── What should I write this week? ───────────────────────────────────────────
+// The Search Agent's posts to write: drafted ones first (only a check is left), then the rest.
+
+const TOPIC_OPEN = ['drafted', 'writing', 'picked']
+const level = (d: number | null) => (d == null || d === 0 ? 'difficulty unknown' : d < 15 ? 'easy' : d < 30 ? 'fairly easy' : d < 50 ? 'medium' : 'hard')
+const perMonth = (n: number) => `${n.toLocaleString('en')} a month`
+
+export function postCard(search: SearchAgentData | null, at: string): Answer {
+  const base = { id: 'post' as const, question: 'What should I write this week?', at, source: search?.lastResearchAt ? `Search Agent · research ${ago(search.lastResearchAt)}` : 'Search Agent' }
+  const open = (search?.topics ?? []).filter(t => TOPIC_OPEN.includes(t.status))
+    .sort((a, b) => TOPIC_OPEN.indexOf(a.status) - TOPIC_OPEN.indexOf(b.status) || b.volume - a.volume)
+  if (!open.length) {
+    const never = !search?.lastResearchAt
+    return {
+      ...base, number: '0', numberLabel: 'posts to write', state: 'empty',
+      say: never ? 'The Search Agent hasn’t researched your market yet. It finds what your buyers search for and drafts posts for you.'
+        : 'Nothing to write right now. The Search Agent picks new posts with its weekly research.',
+      picture: null, pictureTitle: '', finds: [],
+      next: never ? { title: 'Start the Search Agent', why: 'The first research takes a few minutes.', label: 'Open the Search Agent', href: '/agents/search' } : null,
+      then: [],
+    }
+  }
+  const top = open[0]
+  const drafted = open.filter(t => t.status === 'drafted').length
+  return {
+    ...base, number: String(open.length), numberLabel: open.length === 1 ? 'post to write' : 'posts to write', state: 'ok',
+    say: `${drafted ? `**${plural(drafted, 'draft')}** ${drafted === 1 ? 'is' : 'are'} ready to check` : `**${plural(open.length, 'post')}** to write`}. Start with **“${top.keyword}”**${top.kind === 'improve' ? ' (a rewrite of a page you have)' : ''}: searched ${top.volume.toLocaleString('en')} times a month, ${level(top.difficulty)}.`,
+    picture: { kind: 'list', rows: open.slice(0, 5).map(t => ({ name: t.keyword, note: `${perMonth(t.volume)} · ${level(t.difficulty)}${t.status === 'drafted' ? ' · drafted' : t.kind === 'improve' ? ' · rewrite' : ''}` })) },
+    pictureTitle: 'Posts to write',
+    finds: top.why ? [cut(top.why, 160)] : [],
+    next: {
+      title: top.status === 'drafted' ? `Check the draft for “${top.keyword}”` : `Write about “${top.keyword}”`,
+      why: top.status === 'drafted' ? 'It’s written. Read it, add what only you know, then publish.' : 'The Search Agent drafts it for you after three short questions.',
+      label: top.status === 'drafted' ? 'Check the draft' : 'Write it', href: '/agents/search',
+    },
+    then: open.length > 1 ? [{ title: `${open.length - 1} more after this one`, why: open.slice(1, 3).map(t => `“${t.keyword}”`).join(', ') }] : [],
+  }
+}
+
+// ── Where should I talk about {brand}? ───────────────────────────────────────
+// Reddit and Hacker News posts Lead Finder found asking for a tool like yours, waiting for a reply.
+
+const where = (l: Lead) => {
+  if (l.source === 'forum') return 'Hacker News'
+  const sub = /reddit\.com\/(r\/[^/]+)/i.exec(l.url)?.[1]
+  return sub ?? 'Reddit'
+}
+
+export function talkCard(leads: Lead[], brandName: string, at: string): Answer {
+  const posts = leads.filter(isPost)
+  const ready = posts.filter(l => l.status === 'ready').sort((a, b) => b.score - a.score)
+  const posted = posts.filter(l => l.status === 'posted').length
+  const base = { id: 'talk' as const, question: `Where should I talk about ${brandName}?`, at, source: 'Lead Finder · Reddit and Hacker News' }
+  if (!ready.length) {
+    return {
+      ...base, number: '0', numberLabel: 'threads to reply to', state: 'empty',
+      say: posts.length ? `No new threads waiting.${posted ? ` You’ve replied to ${plural(posted, 'thread')} so far.` : ''}`
+        : 'No threads yet. Lead Finder looks for Reddit and Hacker News posts asking for a tool like yours.',
+      picture: null, pictureTitle: '', finds: [],
+      next: posts.length ? null : { title: 'Turn on Reddit in Lead Finder', why: 'In Lead Finder’s Settings.', label: 'Open Lead Finder', href: '/leads' },
+      then: [],
+    }
+  }
+  const top = ready[0]
+  return {
+    ...base, number: String(ready.length), numberLabel: ready.length === 1 ? 'thread to reply to' : 'threads to reply to', state: 'ok',
+    say: `**${plural(ready.length, 'thread')}** ${ready.length === 1 ? 'asks' : 'ask'} for a tool like yours. Start with **${where(top)}**: “${cut(top.title, 80)}”${/[?!…]$/.test(cut(top.title, 80)) ? '' : '.'}`,
+    picture: { kind: 'list', rows: ready.slice(0, 5).map(l => ({ name: cut(l.title, 70), note: where(l) })) },
+    pictureTitle: 'Worth a reply',
+    finds: [
+      'Answer the question fully first; mention your product only where it really helps, and say you built it.',
+      ...(posted ? [`You’ve replied to **${plural(posted, 'thread')}** so far.`] : []),
+    ],
+    next: { title: 'Read the reply for this thread', why: 'It’s written when you open it. You post it yourself, from your own account.', label: 'Open the thread', href: `/leads?lead=${encodeURIComponent(top.id)}` },
+    then: ready.length > 1 ? [{ title: `${ready.length - 1} more after this one`, why: 'In Lead Finder, Join conversations' }] : [],
+  }
+}
+
+// ── Which search words can I win? ────────────────────────────────────────────
+// Keyword ideas from the Search Agent's last research that fit your buyers and are easy (< 30).
+
+export function keysCard(search: SearchAgentData | null, at: string): Answer {
+  const rows = search?.ideas?.rows ?? []
+  const base = { id: 'keys' as const, question: 'Which search words can I win?', at, source: search?.ideas?.at ? `Search Agent keyword research · ${ago(search.ideas.at)}` : 'Search Agent keyword research' }
+  const win = rows.filter(r => (r.verdict === 'picked' || r.verdict === 'fit') && r.difficulty != null && r.difficulty > 0 && r.difficulty < 30 && r.volume > 0)
+    .sort((a, b) => b.volume - a.volume)
+  if (!win.length) {
+    return {
+      ...base, number: '0', numberLabel: 'easy buyer searches', state: 'empty',
+      say: rows.length ? 'None of the search words found so far are both right for your buyers and easy to win. The next research looks again.'
+        : 'The Search Agent hasn’t looked at search words yet. Its first research finds what your buyers type into Google.',
+      picture: null, pictureTitle: '', finds: [],
+      next: { title: rows.length ? 'See every search word checked' : 'Start the Search Agent', why: rows.length ? 'And why each one was or wasn’t picked.' : 'The first research takes a few minutes.', label: 'Open Keywords', href: '/agents/search?tab=rank' },
+      then: [],
+    }
+  }
+  const total = win.reduce((n, r) => n + r.volume, 0)
+  const hard = rows.filter(r => r.verdict === 'hard').length
+  const top = win[0]
+  return {
+    ...base, number: String(win.length), numberLabel: 'easy buyer searches', state: 'ok',
+    say: `**${plural(win.length, 'buyer search', 'buyer searches')}** ${win.length === 1 ? 'is' : 'are'} easy enough to win now, about **${perMonth(total)}** together. The biggest is **“${top.keyword}”**.`,
+    picture: { kind: 'bars', rows: win.slice(0, 6).map((r, i) => ({ label: `${r.keyword} · ${level(r.difficulty)}`, value: r.volume, strong: i === 0 })) },
+    pictureTitle: 'Searches a month',
+    finds: [
+      ...(top.cpc ? [`Advertisers pay about **$${top.cpc.toFixed(2)} a click** for “${top.keyword}”, a sign of real buyers.`] : []),
+      ...(hard ? [`${plural(hard, 'bigger search word')} ${hard === 1 ? 'is' : 'are'} too hard for a new site for now.`] : []),
+    ],
+    next: { title: `Write about “${top.keyword}”`, why: 'One page per search word. The Search Agent drafts it.', label: 'Open Keywords', href: '/agents/search?tab=rank' },
+    then: win.length > 1 ? [{ title: `Then “${win[1].keyword}”`, why: perMonth(win[1].volume) }] : [],
+  }
+}
+
+// ── Am I on track? ───────────────────────────────────────────────────────────
+// This week against last week: how often Google showed the site, clicks, emails sent and replies.
+// Search Console runs ~2 days behind, so both weeks end 2 days ago.
+
+export interface Week { impressions: number; clicks: number }
+const pct = (now: number, before: number) => (before ? Math.round(((now - before) / before) * 100) : null)
+const signed = (n: number | null) => (n == null ? '' : n > 0 ? `+${n}%` : `${n}%`)
+
+export function trackCard(gsc: { now: Week; before: Week } | 'connect' | 'failed', leads: Lead[], convs: Conversation[], at: string): Answer {
+  const weekAgo = Date.now() - 7 * 86_400_000
+  const sent = leads.filter(l => l.sentAt && Date.parse(l.sentAt) >= weekAgo).length
+  const replied = convs.filter(c => c.status === 'replied' && c.repliedAt && Date.parse(c.repliedAt) >= weekAgo).length
+  const base = { id: 'track' as const, question: 'Am I on track?', at }
+  const mail = [{ value: String(sent), label: 'emails sent' }, { value: String(replied), label: replied === 1 ? 'reply' : 'replies' }]
+  if (gsc === 'connect' || gsc === 'failed') {
+    return {
+      ...base, number: String(sent), numberLabel: 'emails sent this week', state: 'ok',
+      say: `This week: **${plural(sent, 'email')}** sent and **${plural(replied, 'reply', 'replies')}**. ${gsc === 'connect' ? 'Connect Search Console to see how you’re doing on Google too.' : 'Search Console didn’t answer, so Google isn’t included.'}`,
+      picture: { kind: 'tiles', items: [...mail, { value: '?', label: 'seen on Google · needs Search Console', missing: true }] },
+      pictureTitle: 'Last 7 days', finds: [],
+      next: { title: gsc === 'connect' ? 'Connect Search Console' : 'Check the Search Console connection', why: 'On the Analytics page, Website tab.', label: gsc === 'connect' ? 'Connect' : 'Check', href: '/analytics' },
+      then: [], source: 'Emails GrowJin sent · last 7 days',
+    }
+  }
+  const { now, before } = gsc
+  const ch = pct(now.impressions, before.impressions)
+  const up = ch == null ? now.impressions > 0 : ch >= 0
+  const say = ch == null
+    ? `Google showed you **${plural(now.impressions, 'time')}** this week, the first week with data. ${plural(sent, 'email')} went out.`
+    : up
+      ? `**Yes.** Google showed you **${plural(now.impressions, 'time')}** this week, ${ch === 0 ? 'the same as' : `up ${ch}% on`} last week. ${plural(sent, 'email')} went out and ${plural(replied, 'person', 'people')} replied.`
+      : `**Not yet.** Google showed you **${plural(now.impressions, 'time')}** this week, down ${Math.abs(ch)}% on last week. ${plural(sent, 'email')} went out and ${plural(replied, 'person', 'people')} replied.`
+  const cch = pct(now.clicks, before.clicks)
+  return {
+    ...base, number: ch == null ? now.impressions.toLocaleString('en') : signed(ch), numberLabel: ch == null ? 'times seen on Google' : 'seen on Google vs last week', state: 'ok', say,
+    picture: { kind: 'tiles', items: [
+      { value: now.impressions.toLocaleString('en'), label: `seen on Google${ch == null ? '' : ` · ${signed(ch)}`}` },
+      { value: now.clicks.toLocaleString('en'), label: `clicks from Google${cch == null ? '' : ` · ${signed(cch)}`}` },
+      { value: String(sent), label: `emails sent · ${replied} ${replied === 1 ? 'reply' : 'replies'}` },
+    ] },
+    pictureTitle: 'Last 7 days',
+    finds: [
+      ...(now.clicks < before.clicks ? [`Clicks went from ${before.clicks} to ${now.clicks}; they often lag behind being seen.`] : []),
+      ...(!sent ? ['No emails went out this week.'] : []),
+    ],
+    next: up
+      ? (sent ? null : { title: 'Send a few emails', why: 'Leads are waiting for your OK in Lead Finder.', label: 'Open Lead Finder', href: '/leads' })
+      : { title: 'See which pages Google left out', why: 'The “Why am I not on Google?” answer shows where.', label: 'Open the answer', href: '/ask?q=google' },
+    then: [], source: 'Google Search Console (ends 2 days ago, it runs behind) · emails GrowJin sent',
+  }
+}
+
+async function trackFetch(brandId: string, websiteUrl: string): Promise<{ now: Week; before: Week } | 'connect' | 'failed'> {
+  const meta = await gscKey(brandId)
+  if (!meta) return 'connect'
+  const sum = (rows: { clicks: number; impressions: number }[] | null): Week =>
+    (rows ?? []).reduce((w, r) => ({ impressions: w.impressions + Math.round(r.impressions), clicks: w.clicks + Math.round(r.clicks) }), { impressions: 0, clicks: 0 })
+  try {
+    const [now, before] = await Promise.all([
+      fetchGscPageTraffic(meta.client_email, meta.private_key, websiteUrl, 7, 2),
+      fetchGscPageTraffic(meta.client_email, meta.private_key, websiteUrl, 7, 9),
+    ])
+    return { now: sum(now), before: sum(before) }
+  } catch (e) {
+    console.error('[ask] search console (track)', e)
+    return 'failed'
+  }
+}
+
 // ── Fill, save, read ─────────────────────────────────────────────────────────
 
-const ORDER: CardId[] = ['replies', 'email', 'google']
+const ORDER: readonly CardId[] = CARD_IDS
 
 /** Works every card out again and saves them. Runs with the brand's demo switch. */
 export async function fillCards(brandId: string): Promise<AskCards> {
   return withDemo(await readDemoSwitch(brandId), async () => {
     const at = new Date().toISOString()
-    const [brand] = await db.select({ websiteUrl: brands.websiteUrl }).from(brands).where(eq(brands.id, brandId)).limit(1)
-    const [convs, lead] = await Promise.all([listConversations(brandId).catch(() => []), readLeadData(brandId)])
+    const [brand] = await db.select({ name: brands.name, websiteUrl: brands.websiteUrl }).from(brands).where(eq(brands.id, brandId)).limit(1)
+    const [convs, lead, search] = await Promise.all([listConversations(brandId).catch(() => []), readLeadData(brandId), readSearchData(brandId)])
+    const leads = lead?.leads ?? []
+    const site = brand?.websiteUrl ?? ''
     const settled = await Promise.allSettled([
       Promise.resolve(repliesCard(convs, at)),
-      Promise.resolve(emailCard(lead?.leads ?? [], lead?.lastRunAt, at)),
-      googleCard(brandId, brand?.websiteUrl ?? '', at),
+      Promise.resolve(emailCard(leads, lead?.lastRunAt, at)),
+      googleCard(brandId, site, at),
+      Promise.resolve(postCard(search, at)),
+      Promise.resolve(talkCard(leads, brand?.name ?? 'your business', at)),
+      Promise.resolve(keysCard(search, at)),
+      trackFetch(brandId, site).then(g => trackCard(g, leads, convs, at)),
     ])
     const cards = settled.flatMap(r => (r.status === 'fulfilled' ? [r.value] : (console.error('[ask] card failed', r.reason), [])))
     const out: AskCards = { at, cards: cards.sort((a, b) => ORDER.indexOf(a.id as CardId) - ORDER.indexOf(b.id as CardId)) }

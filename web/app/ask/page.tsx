@@ -5,14 +5,14 @@ import { db } from '@/lib/db'
 import { brands } from '@/lib/db/schema'
 import { hasEarlyAccess } from '@/lib/early-access'
 import { savedCards, STALE_MS } from '@/lib/ask/cards'
-import type { CardId } from '@/lib/ask/types'
+import { CARD_IDS, type CardId } from '@/lib/ask/types'
 import AskPage from '@/components/ask/AskPage'
 
 export const dynamic = 'force-dynamic'
 
-const IDS: CardId[] = ['replies', 'email', 'google']
+const IDS: readonly string[] = CARD_IDS
 
-// Ask, phase 1 (md_files/ASK_PLAN.md): three ready answers. Early access only, not in the sidebar.
+// Ask (md_files/ASK_PLAN.md): the ready answers and questions of your own. Early access only, not in the sidebar.
 export default async function Ask({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()

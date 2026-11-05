@@ -21,7 +21,7 @@ import { withDemo } from '@/lib/agents/demo'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { listConversations } from '@/lib/gmail/conversations'
 import { savedCards } from './cards'
-import type { Answer, AskEvent, CardId, NextStep, Picture } from './types'
+import { CARD_IDS, type Answer, type AskEvent, type CardId, type NextStep, type Picture } from './types'
 
 const MODEL = 'claude-sonnet-5-5'
 export const DAILY_LIMIT = Number(process.env.ASK_DAILY_LIMIT) || 20
@@ -58,7 +58,7 @@ const SYSTEM = `You answer one question a small-business owner asks about their 
 
 How to work:
 1. In your first turn, call \`understood\` with one short line saying what you take the question to mean (with dates and names filled in), together with the data tools you need. Call tools in parallel when you can.
-2. If the question is the same as one of the ready answers (did anyone reply / who should I email today / why am I not on Google), call \`open_ready_answer\` instead and nothing else.
+2. If the question is the same as one of the ready answers (did anyone reply / who should I email today / why am I not on Google / what should I write / where should I talk about it / which search words can I win / am I on track), call \`open_ready_answer\` instead and nothing else.
 3. If a missing detail would change the answer a lot (for example "my emails" could mean two different things), call \`ask_back\` with one short question and 2–4 short options. Otherwise make a sensible assumption and say it in \`understood\`.
 4. Use as few lookups as you need. Saved data (ready_answers, outreach, get_* tools) is free; dataforseo costs money, so use it only when the question needs data about other sites or Google results.
 5. Finish by calling \`give_answer\`. That is the only way to answer: don't write the answer as text.
@@ -95,8 +95,8 @@ const ASK_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'open_ready_answer',
-    description: 'The question is the same as one of the ready answers: replies (did anyone reply), email (who should I email today), google (why am I not on Google / pages on Google). Opens that answer instead.',
-    input_schema: { type: 'object', additionalProperties: false, required: ['id'], properties: { id: { type: 'string', enum: ['replies', 'email', 'google'] } } },
+    description: 'The question is the same as one of the ready answers: replies (did anyone reply), email (who should I email today), google (why am I not on Google / pages on Google), post (what should I write this week), talk (where should I talk about the product / Reddit threads), keys (which search words can I win), track (am I on track this week). Opens that answer instead.',
+    input_schema: { type: 'object', additionalProperties: false, required: ['id'], properties: { id: { type: 'string', enum: [...CARD_IDS] } } },
     strict: true,
   },
   {
@@ -110,7 +110,7 @@ const ASK_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'ready_answers',
-    description: 'This morning’s ready answers: replies to emails sent from GrowJin (last 14 days), Lead Finder emails waiting for an OK, and how many sitemap pages showed up in Google searches (last 28 days). Free.',
+    description: 'This morning’s ready answers: replies to emails sent from GrowJin (last 14 days), Lead Finder emails waiting for an OK, sitemap pages that showed up in Google searches (last 28 days), posts to write, Reddit / Hacker News threads to reply to, easy search words, and this week vs last on Google. Free.',
     input_schema: { type: 'object', additionalProperties: false, required: [], properties: {} },
     strict: true,
   },
@@ -399,7 +399,7 @@ export async function answerLoop({ question, intro, clarified, brandId, emit, cr
         const card = calls.find(c => c.name === 'open_ready_answer')
         if (card) {
           const id = (card.input as { id?: string }).id as CardId
-          emit({ t: 'card', id: ['replies', 'email', 'google'].includes(id) ? id : 'google' })
+          emit({ t: 'card', id: CARD_IDS.includes(id) ? id : 'google' })
           await refund()   // free: nothing was looked up
           return
         }

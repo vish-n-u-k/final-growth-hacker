@@ -89,6 +89,11 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   // Demo data stands in for DataForSEO, so research works without it
   const dataReady = flags.dataforseo || demo
   const [tab, setTab] = useState<TabKey>('todo')
+  // ?tab=rank (from Ask's "Which search words can I win?") opens that tab
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab')
+    if (t === 'todo' || t === 'done' || t === 'rank' || t === 'ai') setTab(t)
+  }, [])
   const [panel, setPanel] = useState(false)
   const [q, setQ] = useState('')
   const [openKey, setOpenKey] = useState<string | null>(null)
