@@ -410,6 +410,21 @@ Three thin tools on the MCP server (`app/api/mcp/route.ts`, defined in `lib/mcp/
 - `limit`: default 10, hard max 50 (`lib/mcp/tools/limit.ts`). DataForSEO dollars and Hunter credits show in Settings → Usage as "Claude (MCP)".
 - Checked against mocked APIs, and (29 Oct) live through the deployed tool with the inputs the new code builds: `meta_ads` primary + fallback and `b2b_database` worked. **Blocked:** `linkedin_company` (approve its permissions in Apify Console), `linkedin_people` (Apify 402: the account had $0.21 of monthly usage left; the new limit-sized caps should get small runs through, else upgrade the plan), `producthunt` (the old deployed tool waited 60 s and the MCP client timed out; the new 45 s wait fixes that). Re-test those after deploying. `dataforseo` / `hunter` still untested live.
 
+## 4g. Ask (`/ask`), phase 1 (5 Nov)
+
+A new page with one ask box and no sidebar, in its own look (Geist, paper and ink, one blue, red only for replies). Plan and phases: `md_files/ASK_PLAN.md`. Approved preview: `design-previews/seo-ask/ask-app-flow-v2.html`.
+- **Early access only, not in the sidebar.** Open it at `/ask`; anyone else is sent to `/dashboard`. The API uses `agentAccess()`.
+- **Three ready answers** (`lib/ask/cards.ts`):
+  - **Did anyone reply?** Inbox threads with a reply in the last 14 days (`listConversations`, which now has `repliedAt`).
+  - **Who should I email today?** Lead Finder leads that are `ready`, best score first.
+  - **Why am I not on Google?** Pages in the sitemap vs pages that showed up in a Google search in the last 28 days. The Search Console API has no "indexed" count, so it says "showed up in a search".
+- Every answer has one shape (`lib/ask/types.ts`): a sentence (`**bold**`), one picture (list / bars / tiles / line, `components/ask/AskPicture.tsx`), up to 3 findings, one blue next step, two quiet ones, the source.
+- **Sentences are written in code from the numbers, not by AI**, so they're free and can't misstate a number.
+- **Saved per brand** in `signal_snapshots` `ask:cards` (`:demo` in demo mode). Filled by `/api/cron/ask` at 04:45 for early-access brands, and again when the page is opened and they're older than 20 h. "Check again" refills them.
+- **Next steps link to existing pages:** `/leads?lead=<id>` now opens that lead, and `/gmail-hub?tab=inbox` opens the Inbox.
+- Checked with made-up data in the preview harness (desktop, phone, dark). **Not run against real Search Console, sitemaps or lead data yet.**
+- Next: phase 2, your own questions (see the plan).
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

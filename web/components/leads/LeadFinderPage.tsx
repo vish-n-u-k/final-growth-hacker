@@ -193,6 +193,14 @@ export default function LeadFinderPage({ initial, flags, competitors = [] }: { i
   }
   const back = () => { setView('list'); setOpenId(null); window.scrollTo({ top: 0 }) }
 
+  // ?lead=<id> (from Ask's "Who should I email today?") opens that lead once, on arrival
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('lead')
+    const l = id ? initial.leads.find(x => x.id === id) : null
+    if (l) openLead(l)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   /** One lead finished: open the next in this tab, or go back to the list when none is left. */
   function finish(l: Lead, msg: string, undo?: () => void) {
     const next = todoIn(laneOf(l)).find(x => x.id !== l.id)
