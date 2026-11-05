@@ -18,8 +18,18 @@ export interface NextStep {
   external?: boolean   // opens another site (Search Console)
 }
 
+/** How a typed question was answered (shown under "How I got this"). */
+export interface AnswerHow {
+  understood: string
+  steps: string[]          // one line per lookup
+  lookups: number
+  seconds: number
+  usd: number
+  unchecked: string[]      // numbers in the answer that weren't found in the data fetched
+}
+
 export interface Answer {
-  id: CardId
+  id: CardId | 'live'
   question: string
   // The card on the home page: a big number and a short label
   number: string
@@ -35,9 +45,21 @@ export interface Answer {
   then: { title: string; why: string }[]   // up to 2 quiet steps after the main one
   source: string
   at: string           // when it was worked out (ISO)
+  how?: AnswerHow      // typed questions only
 }
 
 export interface AskCards {
   at: string
   cards: Answer[]
 }
+
+/** What the page hears while a typed question is answered (one JSON object per line). */
+export type AskEvent =
+  | { t: 'understand'; text: string }
+  | { t: 'look'; text: string }
+  | { t: 'check'; text: string }
+  | { t: 'answer'; answer: Answer }
+  | { t: 'card'; id: CardId }                       // the question is one of the ready answers
+  | { t: 'ask_back'; question: string; options: string[] }
+  | { t: 'left'; left: number }                      // typed questions left today
+  | { t: 'error'; text: string }

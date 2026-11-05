@@ -31,9 +31,11 @@ const FEATURE_TOOL: Record<string, string> = {
   'outreach-parse': 'Email Outreach',
   'item-draft': 'Roadmap',
   'item-classify-export': 'Roadmap',
+  'ask': 'Ask',
 }
 
 const FEATURE_NAME: Record<string, string> = {
+  'ask': 'Ask: your own questions',
   'lead-agent': 'Lead Agent: scoring and writing',
   'search-agent': 'Search Agent: research and drafts',
   'lead-finder': 'Competitor Leads: scoring reviews',

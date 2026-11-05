@@ -425,6 +425,29 @@ A new page with one ask box and no sidebar, in its own look (Geist, paper and in
 - Checked with made-up data in the preview harness (desktop, phone, dark). **Not run against real Search Console, sitemaps or lead data yet.**
 - Next: phase 2, your own questions (see the plan).
 
+## 4g-2. Ask, phase 2: your own questions (5 Nov)
+
+- **Typed questions are answered live** by Claude Sonnet 5.5 (`claude-sonnet-5-5`, effort `medium`) in `lib/ask/engine.ts`.
+- **Streaming:** `POST /api/ask/question` streams progress as one JSON line per event (`AskEvent`: understand / look / check / answer / card / ask_back / left / error). The page shows those as Understand / Look / Check / Answer lines.
+- **Tools:** the read-only MCP tools (`READ_TOOLS`) plus four Ask tools:
+  - `ready_answers`: this morning's cards
+  - `outreach`: leads and email threads
+  - `understood`: the one line on what it took the question to mean
+  - `open_ready_answer`: the question is a card, so the card opens for free
+  - `ask_back`: one question with 2–4 buttons, when a missing detail would change the answer
+  - The answer is always the `give_answer` form (strict schema), the same shape as a card.
+- **Next step:** the model picks an action id (`ACTIONS`: leads, inbox, campaigns, search_agent, analytics, social, roadmap, reminders, settings, search_console), never a URL.
+- **Number check** (`uncheckedNumbers`): every number above 10 in the sentence and findings must appear (within 1%) in the data fetched. Percentages, years and small counts are skipped.
+  - If one doesn't match, Claude is asked once to fix it.
+  - Anything still unmatched shows under "How I got this" as not checked.
+- **Caps per question:** 8 turns, 60 s, $0.25 AI, $0.10 DataForSEO. Near a cap it's told to answer; further lookups are turned away (the tool list never changes, so the cache holds).
+- **Daily limit:** 20 typed questions per brand (`ASK_DAILY_LIMIT`), kept in `signal_snapshots` `ask:usage`. Opening a card, asking back and failures don't count.
+- **No server-side refusal fallback:** SDK 0.104.1 only types the list form of `fallbacks`, and Sonnet 5.5 needs `"default"`. A refusal shows "Ask couldn't answer this one."
+- `dispatch()` moved from `app/api/mcp/route.ts` to `lib/mcp/dispatch.ts` (the MCP server and Ask share it). Sonnet 5 prices ($2 / $10) are in `lib/ai/pricing.ts`; usage shows as "Ask: your own questions".
+- **Tested** with a scripted Claude (normal answer, wrong number and retry, asking back, a card question, a text-only reply, a refusal, the turn cap) and the page with a faked stream (desktop, phone).
+- **Not run against the real API yet:** the strict tool schemas haven't been sent to Anthropic, so check one real question first. Full build passes.
+- Still to do from phase 2: the other cards (post, talk, keys, track).
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

@@ -243,7 +243,7 @@ export async function fillCards(brandId: string): Promise<AskCards> {
       googleCard(brandId, brand?.websiteUrl ?? '', at),
     ])
     const cards = settled.flatMap(r => (r.status === 'fulfilled' ? [r.value] : (console.error('[ask] card failed', r.reason), [])))
-    const out: AskCards = { at, cards: cards.sort((a, b) => ORDER.indexOf(a.id) - ORDER.indexOf(b.id)) }
+    const out: AskCards = { at, cards: cards.sort((a, b) => ORDER.indexOf(a.id as CardId) - ORDER.indexOf(b.id as CardId)) }
     await saveSnapshot(brandId, key(), out)
     return out
   })

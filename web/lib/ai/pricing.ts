@@ -6,6 +6,7 @@ const RATES: { match: RegExp; input: number; output: number }[] = [
   { match: /opus-5-5/, input: 4, output: 20 },
   { match: /opus-4-[5-9]|opus-[5-9]/, input: 5, output: 25 },
   { match: /opus/, input: 15, output: 75 },
+  { match: /sonnet-5/, input: 2, output: 10 },
   { match: /sonnet/, input: 3, output: 15 },
 ]
 
