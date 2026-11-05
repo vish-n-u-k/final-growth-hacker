@@ -72,7 +72,7 @@ export function repliesCard(convs: Conversation[], at: string): Answer {
     next: {
       title: `Answer ${who(a)}`,
       why: a.note ? `They wrote: “${cut(a.note, 90)}”` : `Re: ${a.subject}`,
-      label: 'Open the reply', href: '/gmail-hub?tab=inbox',
+      label: 'Open the reply', href: '/gmail-hub?tab=inbox', panel: { kind: 'reply', threadId: a.threadId },
     },
     then: replied.length > 1 ? [{ title: replied.length === 2 ? who(b) : `${who(b)} and ${replied.length - 2} more`, why: 'In the Inbox, replies first' }] : [],
   }
@@ -110,7 +110,7 @@ export function emailCard(leads: Lead[], lastRunAt: string | undefined, at: stri
     next: {
       title: `Review ${nameOf(top)}’s email`,
       why: top.draft ? 'Written and ready. Approve, change or skip.' : 'It’s written when you open it. Approve, change or skip.',
-      label: 'Review the email', href: `/leads?lead=${encodeURIComponent(top.id)}`,
+      label: 'Review the email', href: `/leads?lead=${encodeURIComponent(top.id)}`, panel: { kind: 'lead', id: top.id, lane: 'email' },
     },
     then: [
       ...(ready.length > 1 ? [{ title: `${ready.length - 1} more after ${nameOf(top)}`, why: 'Each one opens after the last' }] : []),
@@ -189,7 +189,19 @@ export function googleAnswer({ at, origin, websiteUrl, listed: listedRaw, rows }
       say: `**${plural(shown.size, 'page')}** showed up in a Google search in the last ${GOOGLE_DAYS} days. We couldn’t find a sitemap at ${origin}/sitemap.xml, so Google has to find your pages through links.`,
       picture: { kind: 'bars', rows: [{ label: 'Showed up in a search', value: shown.size }, { label: 'Got a click', value: clicked, strong: true }] },
       pictureTitle: `Your pages on Google, last ${GOOGLE_DAYS} days`, finds: [],
-      next: { title: 'Add a sitemap', why: 'A list of your pages for Google, usually one setting in your site builder.', label: 'Open Search Console', ...gscLink },
+      next: {
+        title: 'Add a sitemap', why: 'A list of your pages for Google, usually one setting in your site builder.', label: 'Get the fix', ...gscLink,
+        panel: {
+          kind: 'brief', title: 'Add a sitemap', intro: 'Give this to whoever runs your website. It takes about 15 minutes.',
+          steps: [
+            `Make a sitemap at ${origin}/sitemap.xml listing every page you want on Google. Most site builders have a setting for it (WordPress, Webflow, Shopify and Wix make one for you).`,
+            'Leave out login, account and thank-you pages.',
+            `Add the line “Sitemap: ${origin}/sitemap.xml” to ${origin}/robots.txt.`,
+            'In Search Console, open Sitemaps and submit it.',
+          ],
+          link: { label: 'Open Search Console', href: gscLink.href },
+        },
+      },
       then: [], source,
     }
   }
@@ -223,9 +235,38 @@ export function googleAnswer({ at, origin, websiteUrl, listed: listedRaw, rows }
     ] },
     pictureTitle: `Your pages on Google, last ${GOOGLE_DAYS} days`,
     finds: finds.slice(0, 3),
-    next: notShown
-      ? { title: 'See why Google left pages out', why: `Search Console’s Pages report gives the reason for each of the ${plural(notShown, 'page')}.`, label: 'Open Search Console', ...gscLink }
-      : null,
+    next: !notShown ? null : bigNoted
+      ? {
+        title: `Hide the ${plural(big[1], 'page')} under ${big[0]} from Google`, why: 'If they’re made automatically with little text, they slow Google down on the rest of your site.', label: 'Get the fix', ...gscLink,
+        panel: {
+          kind: 'brief', title: `Hide the pages under ${big[0]} from Google`,
+          intro: `Only do this if the pages under ${big[0]} are made automatically with little text (one per post, user or item). They stay live for visitors; Google just stops listing them, and spends its visits on your real pages. Give this to whoever runs your website.`,
+          steps: [
+            `Add a noindex tag to every page under ${big[0]} (in the page’s <head>, see below).`,
+            `Take those pages out of your sitemap. If one page lists the best of them, keep that one in.`,
+            `Don’t block ${big[0]} in robots.txt yet: Google has to read each page once to see the noindex.`,
+            'Check one of the pages afterwards: its source should show the noindex tag, and your homepage’s should not.',
+            'In Search Console, resubmit your sitemap. Google drops the pages over the next few weeks.',
+          ],
+          code: '<meta name="robots" content="noindex, follow">',
+          link: { label: 'Open Search Console', href: gscLink.href },
+        },
+      }
+      : {
+        title: 'Help Google find your other pages', why: `${plural(notShown, 'page')} in your sitemap haven’t shown up in a search yet.`, label: 'Get the fix', ...gscLink,
+        panel: {
+          kind: 'brief', title: 'Help Google find your other pages',
+          intro: 'Google finds pages through links. Pages nothing links to look unimportant, so they wait longest.',
+          steps: [
+            'Link to these pages from your homepage or from related pages that do show up, with words that describe them (not “read more”).',
+            'Give every blog post at least two links from other posts.',
+            'In Search Console, use URL Inspection and “Request indexing” on the five that matter most (about ten a day are allowed).',
+            'If a page has little text, add to it first: thin pages are often read and then left out.',
+          ],
+          code: listed.filter(u => !shown.has(u)).slice(0, 12).join('\n'),
+          link: { label: 'Open Search Console', href: gscLink.href },
+        },
+      },
     // The other sections with pages not showing (the biggest is already a finding when it stood out)
     then: gaps.filter(([s]) => !(bigNoted && s === big[0])).slice(0, 2)
       .map(([s, n]) => ({ title: `${s}: ${plural(n, 'page')} not showing yet`, why: 'Link to them from pages that do show up' })),
@@ -307,7 +348,7 @@ export function talkCard(leads: Lead[], brandName: string, at: string): Answer {
       'Answer the question fully first; mention your product only where it really helps, and say you built it.',
       ...(posted ? [`You’ve replied to **${plural(posted, 'thread')}** so far.`] : []),
     ],
-    next: { title: 'Read the reply for this thread', why: 'It’s written when you open it. You post it yourself, from your own account.', label: 'Open the thread', href: `/leads?lead=${encodeURIComponent(top.id)}` },
+    next: { title: 'Read the reply for this thread', why: 'It’s written when you open it. You post it yourself, from your own account.', label: 'Open the thread', href: `/leads?lead=${encodeURIComponent(top.id)}`, panel: { kind: 'lead', id: top.id, lane: 'talk' } },
     then: ready.length > 1 ? [{ title: `${ready.length - 1} more after this one`, why: 'In Lead Finder, Join conversations' }] : [],
   }
 }

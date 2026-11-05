@@ -12,12 +12,19 @@ export type Picture =
   | { kind: 'tiles'; items: { value: string; label: string; missing?: boolean }[] }
   | { kind: 'line'; points: { label: string; value: number }[] }
 
+/** Work that opens in a panel on the Ask page instead of another page (phase 3). */
+export type Panel =
+  | { kind: 'lead'; id: string; lane: 'email' | 'talk' }   // a lead's email, or a post's reply / a page's message
+  | { kind: 'reply'; threadId: string }                     // someone replied: read it and answer
+  | { kind: 'brief'; title: string; intro: string; steps: string[]; code?: string; link?: { label: string; href: string } }
+
 export interface NextStep {
   title: string
   why: string
   label: string        // the button
-  href: string
+  href: string         // where the work lives (used when there's no panel, and as "Open in …")
   external?: boolean   // opens another site (Search Console)
+  panel?: Panel        // open the work here instead
 }
 
 /** How a typed question was answered (shown under "How I got this"). */

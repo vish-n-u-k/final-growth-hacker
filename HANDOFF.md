@@ -460,6 +460,29 @@ Seven cards now (`CARD_IDS` in `lib/ask/types.ts`, the order they show in). The 
 - Checked in the preview harness (full, week down, empty). Full build passes. Not run on real data yet.
 
 
+## 4g-4. Ask, phase 3: the work in a panel (5 Nov)
+
+An answer's blue button can open the work in a panel on the right of the Ask page (full screen on phones) instead of going to another page. `NextStep.panel` (`Panel` in `lib/ask/types.ts`), drawn by `components/ask/AskPanel.tsx`, `ask-sheet` / `ask-mail` / `ask-brief` CSS.
+- **No new API:** each panel calls what the tool's own page calls, so it saves exactly the same.
+  - **Lead** (`{ kind: 'lead', id, lane }`, from "Who should I email today?" and "Where should I talk about…?"):
+    - Reads `/api/agents/lead` and writes the email (op `email`) or the reply / page message (op `reply`) on open, as Lead Finder does.
+    - Approve and send (op `approve`, with the edited subject and body) or Skip (op `skip`).
+    - Posts and seller pages instead get Copy, Open the post / their page, and "I posted it" / "I sent it" (op `save` then `posted`).
+    - Finishing one opens the next in that lane, best score first; when none are left it says "All caught up".
+  - **Reply** (`{ kind: 'reply', threadId }`, from "Did anyone reply?"):
+    - The last 3 messages from `/api/gmail/conversations/[threadId]`.
+    - Your answer goes out through `/api/gmail/send-email` in the same thread (`threadId`, "Re:" subject).
+    - A Lead Finder reply is then marked answered (op `handled`). "No reply needed" does the same without sending. Open in Gmail is there too.
+    - The queue is the replies of the last 14 days.
+  - **Brief** (`{ kind: 'brief', … }`, from "Why am I not on Google?"): a fix written in code from the card's data, with Copy the fix and Open Search Console:
+    - hide a big section's pages with noindex (when one section holds most of the missing pages)
+    - otherwise, link to the missing pages and request indexing (lists up to 12 of them)
+    - or, with no sitemap, add one
+- Closing a panel after doing something refreshes the cards. Esc and the dimmed page close it.
+- Typed answers (the engine) don't open panels; their next step is still a link.
+- Checked with faked APIs in the preview harness: write, approve, next, skip, all caught up, copy, posted, reply sent in-thread and marked handled, phone width. Full build passes. **Not tried with real Gmail or leads yet.**
+- Next: phase 4, follow-ups and pins (see the plan).
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

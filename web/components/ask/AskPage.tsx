@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import type { Answer, AskCards, AskEvent, CardId } from '@/lib/ask/types'
+import type { Answer, AskCards, AskEvent, CardId, Panel } from '@/lib/ask/types'
 import AskPicture from './AskPicture'
+import AskPanel from './AskPanel'
 
 // Ask (md_files/ASK_PLAN.md): a home page with one ask box and the ready answers. A card opens its
 // saved answer; a typed question is answered live (phase 2) and drawn in the same shape: a
@@ -58,6 +59,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
   const [live, setLive] = useState<Live | null>(null)
   const [left, setLeft] = useState<number | null>(null)
   const abort = useRef<AbortController | null>(null)
+  const [panel, setPanel] = useState<Panel | null>(null)
 
   const load = useCallback(async (refresh: boolean) => {
     setBusy(true); setError('')
@@ -174,7 +176,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
 
       <main className="ask-col">
         {view.kind === 'card' && (openCard
-          ? <AnswerView a={openCard} eyebrow={`Ready since ${timeOf(openCard.at)}`} others={[...cards.slice(cards.indexOf(openCard) + 1), ...cards.slice(0, cards.indexOf(openCard))].slice(0, 3)} onBack={() => go({ kind: 'home' })} onOpen={id => go({ kind: 'card', id })} />
+          ? <AnswerView onPanel={setPanel} a={openCard} eyebrow={`Ready since ${timeOf(openCard.at)}`} others={[...cards.slice(cards.indexOf(openCard) + 1), ...cards.slice(0, cards.indexOf(openCard))].slice(0, 3)} onBack={() => go({ kind: 'home' })} onOpen={id => go({ kind: 'card', id })} />
           : <Waiting busy={busy} error={error} onBack={() => go({ kind: 'home' })} />)}
 
         {view.kind === 'live' && live && (
@@ -199,7 +201,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
                 <button type="button" className="ask-tl" onClick={() => run(live.question)}>Try again</button>
               </div>
             )}
-            {live.answer && <AnswerBody a={live.answer} />}
+            {live.answer && <AnswerBody a={live.answer} onPanel={setPanel} />}
             {!live.running && (
               <div className="ask-again">
                 {box('Ask something else…')}
@@ -250,6 +252,8 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
           </>
         )}
       </main>
+
+      {panel && <AskPanel panel={panel} onClose={changed => { setPanel(null); if (changed) load(true) }} />}
     </div>
   )
 }
@@ -282,13 +286,13 @@ function Waiting({ busy, error, onBack }: { busy: boolean; error: string; onBack
   )
 }
 
-function AnswerView({ a, eyebrow, others, onBack, onOpen }: { a: Answer; eyebrow: string; others: Answer[]; onBack: () => void; onOpen: (id: CardId) => void }) {
+function AnswerView({ a, eyebrow, others, onBack, onOpen, onPanel }: { a: Answer; eyebrow: string; others: Answer[]; onBack: () => void; onOpen: (id: CardId) => void; onPanel: (p: Panel) => void }) {
   return (
     <article className="ask-ans">
       <button type="button" className="ask-tl" onClick={onBack}>← Home</button>
       <span className="ask-k ask-ready">{eyebrow}</span>
       <h1>{a.question}</h1>
-      <AnswerBody a={a} />
+      <AnswerBody a={a} onPanel={onPanel} />
       {others.length > 0 && (
         <div className="ask-more">
           <span className="ask-k">Ask next</span>
@@ -300,7 +304,7 @@ function AnswerView({ a, eyebrow, others, onBack, onOpen }: { a: Answer; eyebrow
 }
 
 /** The answer's shape, the same for ready and typed answers. */
-function AnswerBody({ a }: { a: Answer }) {
+function AnswerBody({ a, onPanel }: { a: Answer; onPanel: (p: Panel) => void }) {
   return (
     <div className="ask-body">
       <p className="ask-say"><Rich text={a.say} /></p>
@@ -322,9 +326,11 @@ function AnswerBody({ a }: { a: Answer }) {
             <b>{a.next.title}</b>
             <span>{a.next.why}</span>
           </div>
-          {a.next.external
-            ? <a className="ask-btn" href={a.next.href} target="_blank" rel="noreferrer">{a.next.label}</a>
-            : <Link className="ask-btn" href={a.next.href}>{a.next.label}</Link>}
+          {a.next.panel
+            ? <button type="button" className="ask-btn" onClick={() => onPanel(a.next!.panel!)}>{a.next.label}</button>
+            : a.next.external
+              ? <a className="ask-btn" href={a.next.href} target="_blank" rel="noreferrer">{a.next.label}</a>
+              : <Link className="ask-btn" href={a.next.href}>{a.next.label}</Link>}
         </div>
       )}
 
