@@ -75,7 +75,7 @@ Everything is on `/ask`, not in the sidebar, for early-access users only.
 2. **Your own questions:** the engine, "How I got this", asking back, missing data. Then the other cards.
 3. **Side panel:** lead email, reply, fix brief. Built 5 Nov (HANDOFF.md 4g-4).
 4. **Follow-ups and pins.** Built 6 Nov (HANDOFF.md 4g-5).
-5. **`/ask` becomes home:** new onboarding; Today and Growth Path go behind it.
+5. **`/ask` becomes home:** new onboarding; Today and Growth Path go behind it. Built 6 Nov (HANDOFF.md 4g-6): Today and Growth Path hidden behind one switch, onboarding form kept.
 
 ## Open decisions
 

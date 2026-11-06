@@ -4,6 +4,8 @@ Last updated 2 Nov 2026. Read this first. It covers what the app is, how the cod
 
 ## 1. What the app is
 
+> **6 Nov:** for early-access users, **Ask (`/ask`) is now the home page** and Today and Growth Path are hidden (section 4g-6). Set `NEXT_PUBLIC_ASK_HOME=off` to bring them back.
+
 **GrowJin** helps a small business grow. A user adds their brand (website, audience, competitors). GrowJin then tells them what to fix and does a lot of the outreach work for them. The test brand we use in demos is **Frekto**, an AI social media post maker.
 
 The app has three parts, which match the left sidebar (`web/components/AppSidebar.tsx`):
@@ -507,7 +509,22 @@ An answer's blue button can open the work in a panel on the right of the Ask pag
   - Under a typed answer: "Pin to home", then "Ask a follow-up…" and a "New question" link. "Try again" on a failed follow-up retries it as a follow-up.
   - Pinned cards come first on the home page (blue border, "Pinned", their number or their sentence) and open at `/ask?pin=<id>` with "Unpin".
 - Tested: the loop with a scripted Claude (reusing earlier data, a retry without it, lookups returned), and the page with faked APIs (follow-up sends the thread id, pin, pinned card, pin view, unpin). Full build passes. **Not run against the real API yet.**
-- Next: phase 5, `/ask` becomes home (new onboarding; Today and Growth Path go behind it).
+- Next: phase 5, `/ask` becomes home (new onboarding; Today and Growth Path go behind it). **Done 6 Nov, see 4g-6.**
+
+## 4g-6. Ask, phase 5: Ask is home; Today and Growth Path hidden (6 Nov)
+
+The owner's call: remove Today and Growth Path, "if needed we can always add it back". Nothing was deleted; one switch hides them.
+- **The switch:** `askIsHome(earlyAccess)` in `lib/features.ts`. It's on for early-access users, the same people who can open `/ask`. **`NEXT_PUBLIC_ASK_HOME=off` brings Today and Growth Path back for everyone.**
+- **When it's on:**
+  - `/start` (where login, the auth callback and the root `/` land) sends people to `/ask`. Onboarding and sign-up now go to `/start` (they went to `/dashboard`), so new users land on Ask too.
+  - `/today`, `/dashboard` and `/dashboard/[moduleId]` call `sendToAskIfHome()` (`lib/ask/home.ts`) first and redirect to `/ask`. So the many old links to `/dashboard` (back buttons, ProGate, settings logo…) now lead to Ask. `/dashboard/meta-ads` and `/dashboard/keywords` are tools and still work.
+  - Sidebar (`AppSidebar.tsx`): "Ask" first (icon `ask` in `ToolIcon.tsx`), then the tool groups; Today and Growth Path hidden; the logo goes to `/ask`.
+  - Ask's top-right link is "Tools →" (`/tools`), no longer "GrowJin →" to Growth Path. On the very first visit (no cards yet) the line under the title says "Taking a first look at {site}. This takes about a minute."
+  - Typed answers can no longer point to "your roadmap" (the `roadmap` action was removed from `ACTIONS` in the engine).
+- **Everyone else** (not early access) sees the app as before.
+- **Not done from the plan:** onboarding's step 2 (the prefilled brand form) is unchanged; it already reads as "what we learned" and saves the profile every answer depends on. The roadmap modules are no longer analysed from a page visit, since nobody opens Growth Path; the agents and Ask don't depend on them.
+- Checked: the sidebar in the preview harness with Ask on and off. The redirects need a login and the database, so they're untested here. Full build passes.
+
 
 
 ## 5. What we are doing right now: making the tools calm

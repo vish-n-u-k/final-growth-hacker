@@ -204,7 +204,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
         <span className="ask-mark"><i aria-hidden="true" />Ask</span>
         <span className="ask-who">
           <span className="ask-pill">{site}</span>
-          <Link href="/dashboard" className="ask-out">GrowJin →</Link>
+          <Link href="/tools" className="ask-out">Tools →</Link>
         </span>
       </header>
 
@@ -273,7 +273,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
           <>
             <section className="ask-hello">
               <h1>What do you want to know?</h1>
-              <p className="ask-lede">About {brandName}{data?.at ? <>, checked {dayOf(data.at)}</> : null}.</p>
+              <p className="ask-lede">{!data && busy ? <>Taking a first look at {site}. This takes about a minute.</> : <>About {brandName}{data?.at ? <>, checked {dayOf(data.at)}</> : null}.</>}</p>
               {box('Ask anything about your business…')}
               {leftLine}
             </section>

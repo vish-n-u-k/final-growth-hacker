@@ -3,6 +3,8 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { modules } from '@/lib/db/schema'
 import { getSessionUser, getBrandForUser, getAccessCached } from '@/lib/server-session'
+import { hasEarlyAccess } from '@/lib/early-access'
+import { askIsHome } from '@/lib/features'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +16,8 @@ export default async function Start() {
   if (!user) redirect('/login')
   const brand = await getBrandForUser(user.id)
   if (!brand) redirect('/onboarding')
+  // Ask is home for early-access users (lib/features.ts)
+  if (askIsHome(await hasEarlyAccess(user.email))) redirect('/ask')
   const [[mod], access] = await Promise.all([
     db.select({ id: modules.id }).from(modules).where(eq(modules.brandId, brand.id)).limit(1),
     getAccessCached(brand.id, user.email),

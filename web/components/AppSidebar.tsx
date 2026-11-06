@@ -4,7 +4,7 @@ import Link, { useLinkStatus } from 'next/link'
 import ArrowIcon from '@/components/ArrowIcon'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { isComingSoon } from '@/lib/features'
+import { askIsHome, isComingSoon } from '@/lib/features'
 import InstallAppButton from '@/components/InstallAppButton'
 import ThemeToggle from '@/components/ThemeToggle'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -172,10 +172,19 @@ export default function AppSidebar({
   // above the roadmap.
   const todayItem = allItems.find(i => i.href === '/today')
   const notToday = (i: NavItem) => i.href !== '/today'
-  const groups: (NavGroup & { pro?: boolean })[] = [
+  const allGroups: (NavGroup & { pro?: boolean })[] = [
     ...(todayItem ? [{ label: '', items: [todayItem] }] : []),
     ...baseGroups.map(g => ({ ...g, items: g.items.filter(i => !isSoon(i.href) && notToday(i)) })).filter(g => g.items.length > 0),
   ]
+  // Ask is home for early access (lib/features.ts): Ask first, Today and Growth Path hidden
+  const askHome = askIsHome(earlyAccess)
+  const home = askHome ? '/ask' : '/dashboard'
+  const groups: (NavGroup & { pro?: boolean })[] = askHome
+    ? [
+        { label: '', items: [{ href: '/ask', label: 'Ask', icon: 'ask' }] },
+        ...allGroups.map(g => ({ ...g, items: g.items.filter(i => i.href !== '/dashboard' && i.href !== '/today') })).filter(g => g.items.length > 0),
+      ]
+    : allGroups
   const actualPath = usePathname()
   // The link just clicked counts as active straight away, so the menu reacts before the page arrives.
   const [pendingHref, setPendingHref] = useState<string | null>(null)
@@ -233,7 +242,7 @@ export default function AppSidebar({
     <>
     {/* Settings has its own section menu and a back arrow on phones, so the GrowJin bar is left out there. */}
     {!pathname.startsWith('/settings') && <header className="app-mobilebar">
-      <Link href="/dashboard" className="app-mobilebar-brand app-brand-link" aria-label="GrowJin: go to Growth Path">
+      <Link href={home} className="app-mobilebar-brand app-brand-link" aria-label={askHome ? 'GrowJin: go to Ask' : 'GrowJin: go to Growth Path'}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/growjinlogo.svg" alt="" width={24} height={24} className="app-sidebar-logo" />
         GrowJin
@@ -252,7 +261,7 @@ export default function AppSidebar({
     <div className={`app-drawer-backdrop${open ? ' open' : ''}`} onClick={() => setOpen(false)} aria-hidden="true" />
     <nav id="app-sidebar" className={`app-sidebar${open ? ' open' : ''}`} aria-label="Main">
       <div className="app-sidebar-brand">
-        <Link href="/dashboard" className="app-brand-link" onClick={closeOnNav} aria-label="GrowJin: go to Growth Path">
+        <Link href={home} className="app-brand-link" onClick={closeOnNav} aria-label={askHome ? 'GrowJin: go to Ask' : 'GrowJin: go to Growth Path'}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/growjinlogo.svg" alt="" width={24} height={24} className="app-sidebar-logo" />
           GrowJin

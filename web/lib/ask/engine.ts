@@ -48,7 +48,6 @@ const ACTIONS: Record<string, { label: string; href: string; external?: boolean 
   search_agent: { label: 'Open the Search Agent', href: '/agents/search' },
   analytics: { label: 'Open Analytics', href: '/analytics' },
   social: { label: 'Open Social Studio', href: '/social' },
-  roadmap: { label: 'Open your roadmap', href: '/dashboard' },
   reminders: { label: 'Open Reminders', href: '/reminders' },
   settings: { label: 'Open Settings', href: '/settings' },
   search_console: { label: 'Open Search Console', href: 'https://search.google.com/search-console', external: true },

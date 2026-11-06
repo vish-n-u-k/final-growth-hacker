@@ -176,7 +176,7 @@ export default function OnboardingPage() {
       return
     }
 
-    router.push(`/dashboard`)
+    router.push('/start')   // /start picks the home page (Ask for early access, else Growth Path)
   }
 
   return (

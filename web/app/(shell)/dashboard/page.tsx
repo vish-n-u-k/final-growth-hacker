@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { sendToAskIfHome } from '@/lib/ask/home'
 import { after } from 'next/server'
 import { moduleScore } from '@/lib/modules/score'
 import { getSessionUser, getBrandForUser, getAccessCached } from '@/lib/server-session'
@@ -16,6 +17,7 @@ import { type DBItemState } from '@/components/ModuleDashboard'
 import type { DBItemFull } from '@/lib/modules/types'
 
 export default async function DashboardPage() {
+  await sendToAskIfHome()   // Ask is home for early access (lib/features.ts askIsHome)
   const user = await getSessionUser()
   if (!user) redirect('/login')
 
