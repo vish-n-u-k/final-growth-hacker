@@ -38,7 +38,7 @@ export interface AnswerHow {
 }
 
 export interface Answer {
-  id: CardId | 'live'
+  id: CardId | 'live' | `pin:${string}`
   question: string
   // The card on the home page: a big number and a short label
   number: string
@@ -60,6 +60,7 @@ export interface Answer {
 export interface AskCards {
   at: string
   cards: Answer[]
+  pins?: Answer[]      // pinned questions of your own (phase 4), refreshed each morning
 }
 
 /** What the page hears while a typed question is answered (one JSON object per line). */
@@ -71,4 +72,5 @@ export type AskEvent =
   | { t: 'card'; id: CardId }                       // the question is one of the ready answers
   | { t: 'ask_back'; question: string; options: string[] }
   | { t: 'left'; left: number }                      // typed questions left today
+  | { t: 'thread'; id: string }                      // the conversation this answer belongs to (for follow-ups and pins)
   | { t: 'error'; text: string }

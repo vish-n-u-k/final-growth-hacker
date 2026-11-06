@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { brands } from '@/lib/db/schema'
 import { getEarlyAccessEmails } from '@/lib/early-access'
 import { fillCards } from '@/lib/ask/cards'
+import { refreshPins } from '@/lib/ask/pins'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
     if (Date.now() - started > TIME_BUDGET) break
     try {
       await fillCards(b.id)
+      await refreshPins(b.id)
       results.push({ brandId: b.id })
     } catch (e) {
       results.push({ brandId: b.id, error: e instanceof Error ? e.message : 'failed' })

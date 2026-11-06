@@ -42,7 +42,7 @@ interface Live {
   error?: string
 }
 
-type View = { kind: 'home' } | { kind: 'card'; id: CardId } | { kind: 'live' }
+type View = { kind: 'home' } | { kind: 'card'; id: CardId } | { kind: 'pin'; id: string } | { kind: 'live' }
 
 export default function AskPage({ brandName, site, initial, stale, initialOpen }: {
   brandName: string
@@ -56,7 +56,16 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
   const [error, setError] = useState('')
   const [view, setView] = useState<View>(initialOpen ? { kind: 'card', id: initialOpen } : { kind: 'home' })
   const [typed, setTyped] = useState('')
-  const [live, setLive] = useState<Live | null>(null)
+  // A conversation: each typed question and its answer; follow-ups add to it (phase 4)
+  const [turns, setTurns] = useState<Live[]>([])
+  const [threadId, setThreadId] = useState<string | null>(null)
+  const [pinned, setPinned] = useState<string[]>([])   // questions pinned from this conversation
+  const [pinError, setPinError] = useState('')
+  const live = turns.length ? turns[turns.length - 1] : null
+  const setLive = (f: (l: Live | null) => Live | null) => setTurns(ts => {
+    const last = f(ts.length ? ts[ts.length - 1] : null)
+    return last ? [...ts.slice(0, -1), last] : ts.slice(0, -1)
+  })
   const [left, setLeft] = useState<number | null>(null)
   const abort = useRef<AbortController | null>(null)
   const [panel, setPanel] = useState<Panel | null>(null)
@@ -84,14 +93,15 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
   const go = useCallback((v: View) => {
     setView(v)
     if (v.kind !== 'live') abort.current?.abort()
-    window.history.pushState(null, '', v.kind === 'card' ? `/ask?q=${v.id}` : '/ask')
+    window.history.pushState(null, '', v.kind === 'card' ? `/ask?q=${v.id}` : v.kind === 'pin' ? `/ask?pin=${v.id}` : '/ask')
     window.scrollTo({ top: 0 })
   }, [])
   useEffect(() => {
     const onPop = () => {
       abort.current?.abort()
-      const q = new URLSearchParams(window.location.search).get('q') as CardId | null
-      setView(q ? { kind: 'card', id: q } : { kind: 'home' })
+      const sp = new URLSearchParams(window.location.search)
+      const q = sp.get('q') as CardId | null, pin = sp.get('pin')
+      setView(q ? { kind: 'card', id: q } : pin ? { kind: 'pin', id: pin } : { kind: 'home' })
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
@@ -99,14 +109,19 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
 
   const cards = data?.cards ?? []
 
-  async function run(question: string, clarify?: { asked: string; chosen: string }) {
+  /** Asks a question. `follow`: a follow-up in the same conversation; `clarify`: their answer to a question back. */
+  async function run(question: string, clarify?: { asked: string; chosen: string }, follow = false) {
     abort.current?.abort()
     const ctl = new AbortController(); abort.current = ctl
-    setLive({ question, steps: [], running: true, chosen: clarify?.chosen })
-    if (!clarify) go({ kind: 'live' })
+    const turn: Live = { question, steps: [], running: true, chosen: clarify?.chosen }
+    const thread = follow || clarify ? threadId : null
+    if (follow) setTurns(ts => [...ts, turn])
+    else if (clarify) setLive(() => turn)
+    else { setTurns([turn]); setThreadId(null); setPinned([]); setPinError(''); go({ kind: 'live' }) }
     const apply = (e: AskEvent) => {
       if (e.t === 'left') return setLeft(e.left)
-      if (e.t === 'card') { setLive(null); return go({ kind: 'card', id: e.id }) }
+      if (e.t === 'thread') return setThreadId(e.id)
+      if (e.t === 'card') { setLive(() => null); return go({ kind: 'card', id: e.id }) }
       setLive(l => {
         if (!l) return l
         if (e.t === 'understand' || e.t === 'look' || e.t === 'check') return { ...l, steps: [...l.steps, { kind: e.t, text: e.text }] }
@@ -118,7 +133,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
     try {
       const r = await fetch('/api/ask/question', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, clarify }), signal: ctl.signal,
+        body: JSON.stringify({ question, clarify, threadId: thread ?? undefined }), signal: ctl.signal,
       })
       if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({})))?.error ?? 'Ask couldn’t answer right now.')
       const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = ''
@@ -139,19 +154,36 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
     }
   }
 
-  function ask(e: React.FormEvent) {
+  async function pin() {
+    if (!threadId || !live?.answer) return
+    setPinError('')
+    const r = await fetch('/api/ask/pins', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ threadId }) })
+    const j = await r.json().catch(() => ({})) as { ok?: boolean; error?: string; pins?: Answer[] }
+    if (j.pins) setData(d => (d ? { ...d, pins: j.pins } : d))
+    if (!r.ok || !j.ok) return setPinError(j.error ?? 'Couldn’t pin it. Try again.')
+    setPinned(p => [...p, live.question])
+  }
+  async function unpin(id: string) {
+    const r = await fetch('/api/ask/pins', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+    const j = await r.json().catch(() => ({})) as { pins?: Answer[] }
+    if (j.pins) setData(d => (d ? { ...d, pins: j.pins } : d))
+    go({ kind: 'home' })
+  }
+
+  function ask(e: React.FormEvent, follow = false) {
     e.preventDefault()
     const t = typed.trim()
     if (!t) return
     setTyped('')
+    if (follow) return run(t, undefined, true)
     // Exactly a ready answer's question: open it (free)
     const card = cards.find(c => c.question.toLowerCase().replace(/\W/g, '') === t.toLowerCase().replace(/\W/g, ''))
     if (card) go({ kind: 'card', id: card.id as CardId })
     else run(t)
   }
 
-  const box = (placeholder: string) => (
-    <form className="ask-box" onSubmit={ask}>
+  const box = (placeholder: string, follow = false) => (
+    <form className="ask-box" onSubmit={e => ask(e, follow)}>
       <input aria-label="Ask a question" placeholder={placeholder} value={typed} onChange={e => setTyped(e.target.value)} autoComplete="off" maxLength={300} />
       <button type="submit" className="ask-send" aria-label="Ask" disabled={left === 0}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
@@ -163,6 +195,8 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
     : null
 
   const openCard = view.kind === 'card' ? cards.find(c => c.id === view.id) ?? null : null
+  const pins = data?.pins ?? []
+  const openPin = view.kind === 'pin' ? pins.find(p => p.id === `pin:${view.id}`) ?? null : null
 
   return (
     <div className="ask">
@@ -179,9 +213,22 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
           ? <AnswerView onPanel={setPanel} a={openCard} eyebrow={`Ready since ${timeOf(openCard.at)}`} others={[...cards.slice(cards.indexOf(openCard) + 1), ...cards.slice(0, cards.indexOf(openCard))].slice(0, 3)} onBack={() => go({ kind: 'home' })} onOpen={id => go({ kind: 'card', id })} />
           : <Waiting busy={busy} error={error} onBack={() => go({ kind: 'home' })} />)}
 
+        {view.kind === 'pin' && (openPin
+          ? <AnswerView onPanel={setPanel} a={openPin} eyebrow={`Pinned by you · updated ${dayOf(openPin.at)}`} others={cards.slice(0, 3)} onBack={() => go({ kind: 'home' })} onOpen={id => go({ kind: 'card', id })}
+              extra={<button type="button" className="ask-tl" onClick={() => unpin(view.id)}>Unpin</button>} />
+          : <Waiting busy={busy} error={error || 'This pin was removed.'} onBack={() => go({ kind: 'home' })} />)}
+
         {view.kind === 'live' && live && (
           <div className="ask-ans">
             <button type="button" className="ask-tl" onClick={() => go({ kind: 'home' })}>← Home</button>
+            {/* Earlier questions in this conversation, short */}
+            {turns.slice(0, -1).map((t, i) => (
+              <div key={i} className="ask-earlier">
+                <span className="ask-k">{i === 0 ? 'You asked' : 'Then'}</span>
+                <b>{t.question}</b>
+                {t.answer ? <p><Rich text={t.answer.say} /></p> : t.error ? <p>{t.error}</p> : null}
+              </div>
+            ))}
             <h1 className="ask-q">{live.question}</h1>
             <Work live={live} />
             {live.askBack && (
@@ -198,14 +245,25 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
             {live.error && (
               <div className="ask-failed">
                 <p>{live.error}</p>
-                <button type="button" className="ask-tl" onClick={() => run(live.question)}>Try again</button>
+                <button type="button" className="ask-tl" onClick={() => { if (turns.length > 1) { setTurns(ts => ts.slice(0, -1)); run(live.question, undefined, true) } else run(live.question) }}>Try again</button>
               </div>
             )}
             {live.answer && <AnswerBody a={live.answer} onPanel={setPanel} />}
+            {live.answer && threadId && (
+              <div className="ask-pinrow">
+                {pinned.includes(live.question)
+                  ? <span className="ask-chip is-pinned">Pinned to home · updates every morning</span>
+                  : <button type="button" className="ask-chip is-pin" onClick={pin}>Pin to home</button>}
+                {pinError && <span className="ask-err-inline">{pinError}</span>}
+              </div>
+            )}
             {!live.running && (
               <div className="ask-again">
-                {box('Ask something else…')}
-                {leftLine}
+                {box(live.answer ? 'Ask a follow-up…' : 'Ask something else…', !!live.answer)}
+                <div className="ask-again-line">
+                  {leftLine}
+                  {live.answer && <button type="button" className="ask-tl" onClick={() => go({ kind: 'home' })}>New question</button>}
+                </div>
               </div>
             )}
           </div>
@@ -227,6 +285,15 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
               </div>
               {error && <p className="ask-err">{error}</p>}
               <div className="ask-cards">
+                {pins.map(p => (
+                  <button key={p.id} type="button" className="ask-card is-pinned" onClick={() => go({ kind: 'pin', id: p.id.slice(4) })}>
+                    <span className="ask-card-pin">Pinned</span>
+                    <span className="ask-card-t">{p.question}</span>
+                    {p.number
+                      ? <span className="ask-card-n">{p.number}<small>{p.numberLabel}</small></span>
+                      : <span className="ask-card-s"><Rich text={p.say} /></span>}
+                  </button>
+                ))}
                 {busy && !cards.length
                   ? [0, 1, 2, 3, 4, 5].map(i => <div key={i} className="ask-card ask-skel" aria-hidden="true" />)
                   : cards.map(c => (
@@ -286,13 +353,14 @@ function Waiting({ busy, error, onBack }: { busy: boolean; error: string; onBack
   )
 }
 
-function AnswerView({ a, eyebrow, others, onBack, onOpen, onPanel }: { a: Answer; eyebrow: string; others: Answer[]; onBack: () => void; onOpen: (id: CardId) => void; onPanel: (p: Panel) => void }) {
+function AnswerView({ a, eyebrow, others, onBack, onOpen, onPanel, extra }: { a: Answer; eyebrow: string; others: Answer[]; onBack: () => void; onOpen: (id: CardId) => void; onPanel: (p: Panel) => void; extra?: React.ReactNode }) {
   return (
     <article className="ask-ans">
       <button type="button" className="ask-tl" onClick={onBack}>← Home</button>
       <span className="ask-k ask-ready">{eyebrow}</span>
       <h1>{a.question}</h1>
       <AnswerBody a={a} onPanel={onPanel} />
+      {extra && <div className="ask-pinrow">{extra}</div>}
       {others.length > 0 && (
         <div className="ask-more">
           <span className="ask-k">Ask next</span>

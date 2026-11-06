@@ -481,7 +481,34 @@ An answer's blue button can open the work in a panel on the right of the Ask pag
 - Closing a panel after doing something refreshes the cards. Esc and the dimmed page close it.
 - Typed answers (the engine) don't open panels; their next step is still a link.
 - Checked with faked APIs in the preview harness: write, approve, next, skip, all caught up, copy, posted, reply sent in-thread and marked handled, phone width. Full build passes. **Not tried with real Gmail or leads yet.**
-- Next: phase 4, follow-ups and pins (see the plan).
+- Next: phase 4, follow-ups and pins (see the plan). **Done 6 Nov, see 4g-5.**
+
+## 4g-5. Ask, phase 4: follow-ups and pins (6 Nov)
+
+- **Conversations** (`lib/ask/engine.ts`): every typed question is a turn in a thread, saved in `signal_snapshots` `ask:threads` (`:demo` in demo mode).
+  - The last 5 threads are kept, 6 turns each.
+  - Each turn keeps the answer, its lookups (`Lookup`: tool + input) and the data fetched (up to 8,000 characters).
+- **Follow-ups:**
+  - `POST /api/ask/question` takes `threadId`. The stream starts with `{ t: 'thread', id }`.
+  - A follow-up's prompt gets the earlier questions, what each was taken to mean, the answers and findings, plus up to 16,000 characters of their data, with "reuse it instead of looking it up again".
+  - That data is passed to `answerLoop` as `known`, so its numbers pass the number check.
+  - Follow-ups count toward the 20 a day.
+- **The answer form** has a headline `number` / `number_label` (empty when there's no single number), used on a pinned card.
+- **Pins** (`lib/ask/pins.ts`, `signal_snapshots` `ask:pins`, up to 5):
+  - "Pin to home" (`POST /api/ask/pins { threadId }`) pins the newest answer with the question, what it meant, and every lookup in the conversation, so a follow-up that reused earlier data still has something to fetch.
+  - A pinned follow-up is titled with what it meant ("Sign-ups the week of the drop", not "Did it hurt sign-ups?").
+  - `DELETE { id }` unpins.
+- **Pin refresh** (`refreshPins`):
+  - It repeats the saved lookups (`repeatLookups`), then one `answerLoop` with that data as `known` and no further lookups, to write today's answer.
+  - When: in `/api/cron/ask` after the cards; on page open when a pin is older than 20 h (`/api/ask/cards` GET); and on "Check again" (all pins).
+  - It doesn't count toward the daily limit. A failed refresh keeps the old answer.
+- **Page:**
+  - Earlier turns show short above the newest answer (`ask-earlier`).
+  - Under a typed answer: "Pin to home", then "Ask a follow-up…" and a "New question" link. "Try again" on a failed follow-up retries it as a follow-up.
+  - Pinned cards come first on the home page (blue border, "Pinned", their number or their sentence) and open at `/ask?pin=<id>` with "Unpin".
+- Tested: the loop with a scripted Claude (reusing earlier data, a retry without it, lookups returned), and the page with faked APIs (follow-up sends the thread id, pin, pinned card, pin view, unpin). Full build passes. **Not run against the real API yet.**
+- Next: phase 5, `/ask` becomes home (new onboarding; Today and Growth Path go behind it).
+
 
 ## 5. What we are doing right now: making the tools calm
 

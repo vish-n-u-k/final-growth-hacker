@@ -9811,3 +9811,21 @@ html:not(.light) .ask {
 .ask-done p { margin: 8px 0 20px; color: var(--ask-sub); }
 .ask-btn-quiet { background: var(--ask-card) !important; color: var(--ask-ink) !important; border: 1px solid var(--ask-line) !important; cursor: pointer; font: inherit; }
 @media (max-width: 640px) { .ask-sheet { border-left: 0; } .ask-sheet-in { padding-left: 18px; padding-right: 18px; } }
+
+/* Ask, phase 4: a conversation (follow-ups) and pins */
+.ask-earlier { margin-top: 18px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--ask-line); background: var(--ask-card); font-size: 14.5px; }
+.ask-earlier > b { display: block; margin-top: 2px; font-weight: 500; }
+.ask-earlier p b { font-weight: 600; color: var(--ask-ink); }
+.ask-earlier p { margin: 4px 0 0; color: var(--ask-sub); }
+.ask-earlier + .ask-q { margin-top: 24px !important; }
+.ask-pinrow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 16px; }
+.ask-chip.is-pin { color: var(--ask-blue); border-color: var(--ask-blue); }
+.ask-chip.is-pinned { cursor: default; background: var(--ask-blue-soft); border-color: transparent; color: var(--ask-ink); }
+.ask-err-inline { font-size: 13.5px; color: var(--ask-red); }
+.ask-again-line { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+.ask-again-line .ask-miss { margin: 8px 0 0; }
+.ask-again-line .ask-tl { margin-top: 8px; margin-left: auto; }
+.ask-card.is-pinned { border-color: var(--ask-blue); }
+.ask-card-pin { font: 500 10.5px var(--font-mono), ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--ask-blue); }
+.ask-card-s { margin-top: auto; font-size: 13.5px; line-height: 1.4; color: var(--ask-sub); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ask-card-s b { color: var(--ask-ink); font-weight: 600; }

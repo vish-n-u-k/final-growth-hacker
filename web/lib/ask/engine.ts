@@ -17,7 +17,7 @@ import { anthropicCostUsd } from '@/lib/ai/pricing'
 import { logAnthropicUsage, withAIContext } from '@/lib/ai/client'
 import { loadBrandContext } from '@/lib/agents/context'
 import { readDemoSwitch, readLeadData } from '@/lib/agents/store'
-import { withDemo } from '@/lib/agents/demo'
+import { agentsDemo, withDemo } from '@/lib/agents/demo'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { listConversations } from '@/lib/gmail/conversations'
 import { savedCards } from './cards'
@@ -126,9 +126,11 @@ const ASK_TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       additionalProperties: false,
-      required: ['understood', 'say', 'picture', 'finds', 'next', 'then', 'source'],
+      required: ['understood', 'number', 'number_label', 'say', 'picture', 'finds', 'next', 'then', 'source'],
       properties: {
         understood: { type: 'string', description: 'What you took the question to mean, one short line.' },
+        number: { type: 'string', description: 'The one number that answers it, as shown on a card, e.g. "412", "+18%", "6 of 22". Empty string if there is no single number.' },
+        number_label: { type: 'string', description: 'A few words after that number, e.g. "visits last week". Empty string if no number.' },
         say: { type: 'string', description: 'One or two short sentences. **double stars** around the 1–3 key words or numbers.' },
         picture: {
           type: 'object', additionalProperties: false, required: ['kind', 'title', 'rows'],
@@ -256,7 +258,7 @@ export function uncheckedNumbers(texts: string[], data: string): string[] {
 
 interface FormRow { label: string; value: number | null; text: string | null; strong: boolean; missing: boolean }
 interface Form {
-  understood: string; say: string
+  understood: string; number?: string; number_label?: string; say: string
   picture: { kind: 'list' | 'bars' | 'tiles' | 'line' | 'none'; title: string; rows: FormRow[] }
   finds: string[]; next: { action: string; title: string; why: string }; then: { title: string; why: string }[]; source: string
 }
@@ -273,12 +275,12 @@ function toPicture(p: Form['picture'] | undefined): Picture | null {
   return { kind: 'line', points: rows.slice(0, 31).map(r => ({ label: clip(r.label, 12), value: num(r.value) })) }
 }
 
-function toAnswer(question: string, f: Form, how: Answer['how']): Answer {
+export function toAnswer(question: string, f: Form, how: Answer['how']): Answer {
   const act = ACTIONS[f.next?.action ?? '']
   const next: NextStep | null = act && f.next?.title ? { title: clip(f.next.title, 80), why: clip(f.next.why, 160), label: act.label, href: act.href, external: act.external } : null
   const picture = toPicture(f.picture)
   return {
-    id: 'live', question, number: '', numberLabel: '', state: 'ok',
+    id: 'live', question, number: clip(f.number, 14), numberLabel: clip(f.number_label, 40), state: 'ok',
     say: clip(f.say, 400) || 'I couldn’t find an answer in your data.',
     picture, pictureTitle: picture ? clip(f.picture.title, 70) : '',
     finds: (Array.isArray(f.finds) ? f.finds : []).map(x => clip(x, 220)).filter(Boolean).slice(0, 3),
@@ -311,7 +313,59 @@ async function connections(brandId: string): Promise<string> {
   return names.map(([k, n]) => `${n}: ${have.has(k) ? 'connected' : 'NOT connected'}`).join('\n') + '\nPayments (Stripe): NOT connected (not available yet)'
 }
 
-export interface AskInput { question: string; clarify?: { asked: string; chosen: string } }
+/** What Claude is told about the business before any question (also used to refresh pins). */
+export async function brandIntro(brandId: string): Promise<string> {
+  const b = await loadBrandContext(brandId)
+  return [
+    `Business: ${b?.name ?? 'unknown'} (${b?.websiteUrl ?? ''})`,
+    b?.usp ? `What it does: ${b.usp}` : '', b?.targetAudience ? `Who it's for: ${b.targetAudience}` : '',
+    b?.competitors?.length ? `Competitors: ${b.competitors.map(c => c.name || c.domain).join(', ')}` : '',
+    `Today: ${today()}`, '', 'Data sources:', await connections(brandId),
+  ].filter(x => x !== '').join('\n')
+}
+
+/** Runs saved lookups again (a pin's morning refresh). Returns the data as Claude would see it. */
+export async function repeatLookups(brandId: string, lookups: Lookup[]): Promise<string> {
+  const out = await Promise.all(lookups.slice(0, 8).map(async l => {
+    try { return asText((await runTool(brandId, l.name, l.input)).result) } catch { return '' }
+  }))
+  return out.filter(Boolean).join('\n')
+}
+
+// ── Threads: follow-ups see the earlier questions, answers and data ────────────
+
+const THREAD_KEY = 'ask:threads'
+const threadKey = () => (agentsDemo() ? `${THREAD_KEY}:demo` : THREAD_KEY)
+const MAX_THREADS = 5
+const MAX_TURNS_KEPT = 6
+const TURN_DATA_CHARS = 8000
+const KNOWN_CHARS = 16000
+
+export interface Turn { question: string; answer: Answer; lookups: Lookup[]; data: string; at: string }
+export interface Thread { id: string; at: string; turns: Turn[] }
+
+export async function readThread(brandId: string, id: string): Promise<Thread | null> {
+  const all = (await getSnapshot<{ threads: Thread[] }>(brandId, threadKey()))?.threads ?? []
+  return all.find(t => t.id === id) ?? null
+}
+async function saveTurn(brandId: string, id: string, turn: Turn) {
+  const all = (await getSnapshot<{ threads: Thread[] }>(brandId, threadKey()))?.threads ?? []
+  const t = all.find(x => x.id === id) ?? { id, at: turn.at, turns: [] }
+  t.turns = [...t.turns, { ...turn, data: turn.data.slice(0, TURN_DATA_CHARS) }].slice(-MAX_TURNS_KEPT)
+  t.at = turn.at
+  await saveSnapshot(brandId, threadKey(), { threads: [t, ...all.filter(x => x.id !== id)].slice(0, MAX_THREADS) })
+}
+function history(t: Thread): { text: string; known: string } {
+  const lines = t.turns.map(x => [
+    `Q: ${x.question}`, x.answer.how?.understood ? `Understood as: ${x.answer.how.understood}` : '',
+    `Answer: ${x.answer.say.replace(/\*\*/g, '')}`, ...x.answer.finds.map(f => `- ${f.replace(/\*\*/g, '')}`),
+  ].filter(Boolean).join('\n'))
+  let known = ''
+  for (const x of [...t.turns].reverse()) { if (known.length + x.data.length > KNOWN_CHARS) break; known = `${x.data}\n${known}` }
+  return { text: lines.join('\n\n'), known }
+}
+
+export interface AskInput { question: string; clarify?: { asked: string; chosen: string }; threadId?: string }
 
 /** Answers one typed question, calling `emit` with progress. Counts toward the daily limit. */
 export async function askQuestion(brandId: string, input: AskInput, emit: (e: AskEvent) => void): Promise<void> {
@@ -322,22 +376,24 @@ export async function askQuestion(brandId: string, input: AskInput, emit: (e: As
 
   const demo = await readDemoSwitch(brandId)
   return withDemo(demo, () => withAIContext({ brandId, moduleType: 'ask' }, async () => {
-    const b = await loadBrandContext(brandId)
+    const prior = input.threadId ? await readThread(brandId, input.threadId) : null
+    const threadId = prior?.id ?? crypto.randomUUID()
+    emit({ t: 'thread', id: threadId })
+    const h = prior?.turns.length ? history(prior) : null
     const intro = [
-      `Business: ${b?.name ?? 'unknown'} (${b?.websiteUrl ?? ''})`,
-      b?.usp ? `What it does: ${b.usp}` : '', b?.targetAudience ? `Who it's for: ${b.targetAudience}` : '',
-      b?.competitors?.length ? `Competitors: ${b.competitors.map(c => c.name || c.domain).join(', ')}` : '',
-      `Today: ${today()}`, '', 'Data sources:', await connections(brandId), '',
+      await brandIntro(brandId), '',
+      h ? `This is a follow-up. Earlier in this conversation:\n${h.text}\n\nThe data fetched for those answers is below: reuse it instead of looking it up again, and answer the new question in that context.\n${h.known}\n` : '',
       `Question: ${question}`,
       input.clarify ? `\nYou asked them: "${clip(input.clarify.asked, 200)}". They chose: "${clip(input.clarify.chosen, 120)}". Don't ask again.` : '',
     ].filter(x => x !== '').join('\n')
 
-    await answerLoop({
-      question, intro, clarified: !!input.clarify, emit, brandId,
+    const out = await answerLoop({
+      question, intro, clarified: !!input.clarify, emit, brandId, known: h?.known,
       create: p => new Anthropic().messages.create(p),
       runTool: (name, inp) => runTool(brandId, name, inp),
       refund: async () => { emit({ t: 'left', left: await addQuestion(brandId, -1) }) },
     })
+    if (out) await saveTurn(brandId, threadId, { question, answer: out.answer, lookups: out.lookups, data: out.data, at: new Date().toISOString() }).catch(e => console.error('[ask] save thread', e))
   }))
 }
 
@@ -351,15 +407,23 @@ export interface LoopDeps {
   runTool: (name: string, input: Record<string, unknown>) => Promise<{ result: unknown; usd: number }>
   /** The question didn't count (opened a ready answer, asked back, or failed). */
   refund: () => Promise<void>
+  /** Data fetched earlier (a follow-up's thread, a pin's fresh lookups): reusable, and its numbers pass the check. */
+  known?: string
 }
 
+export interface Lookup { name: string; input: Record<string, unknown> }
+/** An answer and what was looked up for it (saved with the thread, repeated for a pin). */
+export interface LoopOut { answer: Answer; lookups: Lookup[]; data: string }
+
 /** Claude's turns and tool calls for one question, until an answer, a question back or an error. */
-export async function answerLoop({ question, intro, clarified, brandId, emit, create, runTool: run, refund }: LoopDeps): Promise<void> {
+export async function answerLoop({ question, intro, clarified, brandId, emit, create, runTool: run, refund, known }: LoopDeps): Promise<LoopOut | null> {
     const started = Date.now()
     const messages: Anthropic.MessageParam[] = [{ role: 'user', content: intro }]
     let aiUsd = 0, toolUsd = 0, turns = 0, retried = false, understood = ''
     const steps: string[] = []
-    let data = question
+    let data = known ? `${question}\n${known}` : question
+    let fresh = ''
+    const lookups: Lookup[] = []
 
     const finish = async (form: Form) => {
       if (!retried) emit({ t: 'check', text: 'Checking every number against the data' })
@@ -385,7 +449,7 @@ export async function answerLoop({ question, intro, clarified, brandId, emit, cr
         logAnthropicUsage('ask', res, brandId)
         messages.push({ role: 'assistant', content: res.content as unknown as Anthropic.ContentBlockParam[] })
 
-        if (res.stop_reason === 'refusal') { emit({ t: 'error', text: 'Ask couldn’t answer this one. Try asking it another way.' }); await refund(); return }
+        if (res.stop_reason === 'refusal') { emit({ t: 'error', text: 'Ask couldn’t answer this one. Try asking it another way.' }); await refund(); return null }
         if (res.stop_reason === 'pause_turn') continue
         const calls = res.content.filter((c): c is Anthropic.ToolUseBlock => c.type === 'tool_use')
 
@@ -401,7 +465,7 @@ export async function answerLoop({ question, intro, clarified, brandId, emit, cr
           const id = (card.input as { id?: string }).id as CardId
           emit({ t: 'card', id: CARD_IDS.includes(id) ? id : 'google' })
           await refund()   // free: nothing was looked up
-          return
+          return null
         }
         const back = calls.find(c => c.name === 'ask_back')
         if (back) {
@@ -410,7 +474,7 @@ export async function answerLoop({ question, intro, clarified, brandId, emit, cr
           if (options.length >= 2 && !clarified) {
             emit({ t: 'ask_back', question: clip(x.question, 160), options })
             await refund()   // the follow-up with their choice counts instead
-            return
+            return null
           }
         }
 
@@ -431,8 +495,9 @@ export async function answerLoop({ question, intro, clarified, brandId, emit, cr
           }
           understood = clip(form.understood, 200) || understood
           const how = { understood, steps: [...new Set(steps)], lookups: steps.length, seconds: Math.round((Date.now() - started) / 1000), usd: Math.round((aiUsd + toolUsd) * 1000) / 1000, unchecked }
-          emit({ t: 'answer', answer: toAnswer(question, form, how) })
-          return
+          const answer = toAnswer(question, form, how)
+          emit({ t: 'answer', answer })
+          return { answer, lookups, data: fresh }
         }
 
         // Data tools (and the understood line), run in parallel
@@ -454,6 +519,8 @@ export async function answerLoop({ question, intro, clarified, brandId, emit, cr
             toolUsd += r.usd
             const text = asText(r.result)
             data += `\n${text}`
+            fresh += `\n${text}`
+            lookups.push({ name: c.name, input: inp })
             return { c, text, error: false }
           } catch (e) {
             return { c, text: `Failed: ${e instanceof Error ? e.message : 'error'}`, error: true }
@@ -467,5 +534,6 @@ export async function answerLoop({ question, intro, clarified, brandId, emit, cr
       console.error('[ask] question failed', e)
       emit({ t: 'error', text: e instanceof Anthropic.APIError && e.status === 429 ? 'Ask is busy right now. Try again in a minute.' : 'Ask couldn’t finish this answer. Try again, or ask it another way.' })
       await refund()
+      return null
     }
 }

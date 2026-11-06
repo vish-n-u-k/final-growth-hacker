@@ -74,7 +74,7 @@ Everything is on `/ask`, not in the sidebar, for early-access users only.
 1. **Cards only:** email, replies, Google. Answer form, pictures, saved per brand, next step links to the existing page.
 2. **Your own questions:** the engine, "How I got this", asking back, missing data. Then the other cards.
 3. **Side panel:** lead email, reply, fix brief. Built 5 Nov (HANDOFF.md 4g-4).
-4. **Follow-ups and pins.**
+4. **Follow-ups and pins.** Built 6 Nov (HANDOFF.md 4g-5).
 5. **`/ask` becomes home:** new onboarding; Today and Growth Path go behind it.
 
 ## Open decisions
