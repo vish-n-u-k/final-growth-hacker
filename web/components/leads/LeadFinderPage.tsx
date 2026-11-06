@@ -19,6 +19,7 @@ import { Card, DemoSwitch, LiveProgress, Pager, Tabs, Tag, usePages } from '@/co
 import { WaitPanel } from '@/components/ui/loading'
 import { Day, fmtAgo, fmtDate, initials, useAgentApi } from '@/components/agents/shared'
 import OwnListFlow from '@/components/agents/OwnListFlow'
+import { MultiPick, NumberSelect } from '@/components/leads/MultiPick'
 import { leadsCsv, leadsToExport } from '@/lib/leads/export-csv'
 import {
   FINDER_SOURCE, avOf, firstOf, isForum, isPage, isPost, nameOf, pageName, pageUrl, tabOf, validEmail, where,
@@ -549,6 +550,12 @@ function SearchProgress({ job, onStop }: { job: EngineStatus; onStop: () => void
   </>
 }
 
+const INDUSTRIES = ['SaaS', 'E-commerce', 'Agencies', 'Local services', 'Creators', 'Health & fitness', 'Beauty & wellness', 'Food & drink', 'Education', 'Professional services', 'Real estate']
+const LOCATIONS = ['Anywhere', 'US', 'UK', 'Canada', 'Australia', 'Ireland', 'Europe', 'Germany', 'France', 'Netherlands', 'India']
+const SIZES = ['Solo founder', '1-10', '11-50', '51-200', 'Early stage', 'Growing']
+const ROLES = ['Founder', 'Co-founder', 'CEO', 'Owner', 'Head of Marketing', 'Marketing manager', 'Growth lead', 'Social media manager']
+const FOLLOW_DAYS = ['2', '3', '5', '7', '10', '14']
+
 const EMPTY: EngineInputs = { brief: '', industry: '', location: '', companySize: '', contactRole: '', leadCount: 10 }
 
 /** Lead Finder's Settings: who to look for (brief + five filters), and sending. */
@@ -573,11 +580,11 @@ function SearchSettings({ initial, saving, onSave, onCancel }: {
           placeholder="e.g. Small SaaS with a real product, not test apps. Ideally they already post on social media but it isn’t working well. If they have no social, the product has to look legit. Skip founders juggling many projects." />
       </label>
       <div className="lfp-grid">
-        <label className="lfp-field">Industry<input id="lfp-industry" value={e.industry} onChange={ev => set('industry', ev.target.value)} placeholder="e.g. small SaaS / app companies" /></label>
-        <label className="lfp-field">Location<input id="lfp-location" value={e.location} onChange={ev => set('location', ev.target.value)} placeholder="e.g. UK, Ireland, Netherlands" /></label>
-        <label className="lfp-field">Company size<input id="lfp-size" value={e.companySize} onChange={ev => set('companySize', ev.target.value)} placeholder="e.g. 1–10, early stage" /></label>
-        <label className="lfp-field">Who to contact<input id="lfp-role" value={e.contactRole} onChange={ev => set('contactRole', ev.target.value)} placeholder="e.g. Founder/CEO, Head of Marketing" /></label>
-        <label className="lfp-field">Leads per search<input id="lfp-count" type="number" min={1} max={50} value={e.leadCount} onChange={ev => set('leadCount', Math.max(1, Math.min(50, Number(ev.target.value) || 10)))} /></label>
+        <MultiPick label="Industry" value={e.industry} onChange={v => set('industry', v)} options={INDUSTRIES} otherHint="Other industry" />
+        <MultiPick label="Location" value={e.location} onChange={v => set('location', v)} options={LOCATIONS} otherHint="Other country or city" />
+        <MultiPick label="Company size" value={e.companySize} onChange={v => set('companySize', v)} options={SIZES} otherHint="Other" />
+        <MultiPick label="Who to contact" value={e.contactRole} onChange={v => set('contactRole', v)} options={ROLES} otherHint="Other role" />
+        <NumberSelect label="Leads per search" value={e.leadCount} options={[5, 10, 15, 20, 30, 50]} onChange={n => set('leadCount', n)} />
       </div>
       <h3 className="lfp-form-h">Also</h3>
       <label className="tu-chk"><input type="checkbox" checked={reddit} onChange={ev => setReddit(ev.target.checked)} />
@@ -585,8 +592,8 @@ function SearchSettings({ initial, saving, onSave, onCancel }: {
       <label className="tu-chk"><input type="checkbox" checked={enabled} onChange={ev => setEnabled(ev.target.checked)} />
         <span>Check replies and send follow-ups every morning<small>Follow-ups stop when someone replies. Nothing new is sent without you.</small></span></label>
       <div className="lfp-grid">
-        <label className="lfp-field">Most new emails a day<input id="lfp-limit" type="number" min={1} max={30} value={limit} onChange={ev => setLimit(Math.max(1, Math.min(30, Number(ev.target.value) || 1)))} /></label>
-        <label className="lfp-field">Follow up after (days)<input id="lfp-days" value={days} onChange={ev => setDays(ev.target.value)} placeholder="3, 7" /></label>
+        <NumberSelect label="Most new emails a day" value={limit} options={[5, 10, 15, 20, 25, 30]} onChange={setLimit} />
+        <MultiPick label="Follow up after (days)" value={days} onChange={setDays} options={FOLLOW_DAYS} otherHint="Other day" />
       </div>
       <div className="tu-panel-acts">
         <button className="btn btn-ghost" type="button" onClick={onCancel}>Cancel</button>

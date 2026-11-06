@@ -1,5 +1,10 @@
 # What's new in GrowJin
 
+## 6 Nov 2026
+
+### Improved
+- **Lead Finder: quicker Settings.** Industry, location, company size, who to contact and follow-up days are now options you tick (pick as many as you like, or add your own). Leads per search and emails a day are dropdowns.
+
 ## 3 Nov 2026
 
 ### New
