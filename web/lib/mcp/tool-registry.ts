@@ -3,7 +3,7 @@ export interface MCPTool {
   description: string
   inputSchema: {
     type: 'object'
-    properties: Record<string, { type: string; description: string }>
+    properties: Record<string, { type: string; description: string; items?: { type: string } }>
     required?: string[]
   }
 }
@@ -464,6 +464,65 @@ export const TOOLS: MCPTool[] = [
         input: { type: 'object', description: 'The actor\'s input object, with the field names shown for each alias in this tool\'s description.' },
         limit: { type: 'number', description: 'Max results. Default 10, hard max 50.' },
         run_id: { type: 'string', description: 'To fetch an earlier run that was still RUNNING: its run_id. Leave actor and input out.' },
+      },
+    },
+  },
+  {
+    name: 'get_lead_settings',
+    description:
+      'Who the user wants as leads, as saved in GrowJin\'s Lead Finder: brand (name, website, what it sells, competitors to never contact), the Lead Finder brief and filters (industry, location, company size, who to contact, leads per search), the ideal-customer card (kind of business, who, how they market, kinds of business to search, good fit / not a fit, example customers), sending settings, how many leads are on the board by status, already_known (domains already on the board, so you don\'t spend on them again) and the last search. Call this FIRST when the user asks you to find leads, then search with dataforseo / hunter / apify, check people with check_contacts, and add the good ones with save_leads. include_playbook: true also returns GrowJin\'s Lead Engine instructions (the step-by-step method and rating scale the app\'s own search follows); use them when finding leads so results match the app.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        include_playbook: { type: 'boolean', description: 'true to also get the Lead Engine instructions (long). Use when you are about to search for leads.' },
+      },
+    },
+  },
+  {
+    name: 'check_contacts',
+    description:
+      'Checks people or companies against GrowJin before you contact or save them: for each email or domain says new, already_a_lead (on the Lead Finder board, any status, including ones the user skipped), emailed / scheduled (GrowJin sent or will send them an email in the last 2 years: when and the subject), opted_out (asked not to be emailed) or bounced. A domain matches any address at that domain. Only contact or save "new" ones unless the user says otherwise. Up to 200 emails and 200 domains per call. Free.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        emails: { type: 'array', items: { type: 'string' }, description: 'Email addresses to check.' },
+        domains: { type: 'array', items: { type: 'string' }, description: 'Company domains or website URLs to check, e.g. "bloomsalon.com".' },
+      },
+    },
+  },
+  {
+    name: 'save_leads',
+    description:
+      'Adds leads you found to the user\'s Lead Finder board in GrowJin (Contact directly tab), where they open each one, GrowJin writes the email (or an Instagram / Facebook message when there is no email), and once they approve it GrowJin sends it from their Gmail within the daily limit, with follow-ups that stop when they reply. Repeats, people already emailed and opted out are left out (returned under skipped). Leads rated below Neutral go to "Checked but not kept" (kept_aside). Up to 50 per call. Each lead: company, website, what_it_does (≤ 6 words), location, company_size (≤ 4 words), contact_name, contact_title, email, email_status (verified, found, guessed, generic or none), linkedin, socials ([{ platform, url, activity }], activity ≤ 6 words, e.g. "last post 3 months ago"), signals (object, up to 3 short facts), rating (Very Likely, Likely, Leaning Likely, Uncertain (High), Neutral, Uncertain (Low), Leaning Unlikely, Unlikely, Very Unlikely), why (≤ 15 words, why they would buy), sources ({ discovered_via: "how you found them, a few words" }), not_checked (short nouns). Keep the text short: users find long lead text hard to read. Do not draft the email here; GrowJin writes it when the user opens the lead. Only save when the user asks you to (e.g. "add them to GrowJin").',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        leads: { type: 'array', items: { type: 'object' }, description: 'The leads, in the format above.' },
+        dropped: { type: 'array', items: { type: 'object' }, description: 'Optional. Companies you checked and rejected: [{ company, reason }]. Shown under "Checked but not kept".' },
+      },
+      required: ['leads'],
+    },
+  },
+  {
+    name: 'gmail_status',
+    description:
+      'Whether the user\'s Gmail is connected to GrowJin and Claude may send from it: connected, address (the Gmail address emails go from), can_send (connected with send permission), sending_allowed (the user switched on "Let Claude send email" in GrowJin Settings → Connect Claude), daily_limit, sent_today, left_today, ready_to_send, and problem (what to tell the user when something is missing). Call before send_email, and when the user asks whether email is set up.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'send_email',
+    description:
+      'Sends email from the user\'s connected Gmail through GrowJin. Works only when gmail_status says ready_to_send (Gmail connected with send permission AND the user switched on "Let Claude send email" in GrowJin Settings); otherwise nothing is sent and the answer says what is missing. ALWAYS show the user the exact recipient, subject and body first and send only after they say yes in this conversation. Never send to addresses check_contacts reports as opted_out or bounced (GrowJin refuses those anyway); check new people with check_contacts first. One email (to, subject, body) or several with emails (up to 20; within the daily limit). body: plain text (blank line = new paragraph) or simple HTML. To reply in a thread give thread_id (and in_reply_to, the Message-ID header) and the same subject. follow_up_days (optional) adds a follow-up reminder in GrowJin. A first email to someone already on the Lead Finder board is sent as that lead (an opt-out line is added; its automatic follow-ups and reply check take over). Sent emails show in Email Outreach and count as contacted. Returns per email sent / not_sent with the reason, and thread_id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        to: { type: 'string', description: 'Recipient: "jane@example.com" or "Jane Doe <jane@example.com>".' },
+        subject: { type: 'string', description: 'Subject line.' },
+        body: { type: 'string', description: 'The email: plain text or simple HTML.' },
+        thread_id: { type: 'string', description: 'Optional. Gmail thread id, to reply in that thread.' },
+        in_reply_to: { type: 'string', description: 'Optional. The Message-ID header of the email being replied to.' },
+        follow_up_days: { type: 'number', description: 'Optional. Add a GrowJin reminder to follow up after this many days.' },
+        emails: { type: 'array', items: { type: 'object' }, description: 'Optional. Several emails at once, each { to, subject, body, thread_id?, in_reply_to?, follow_up_days? } (up to 20). Leave the top-level fields out when using this.' },
       },
     },
   },

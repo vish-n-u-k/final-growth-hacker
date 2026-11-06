@@ -417,6 +417,15 @@ The owner does growth work outside GrowJin (blogs that need indexing, community 
 - **Tools** (`lib/mcp/tools/work_log.ts`, in `tool-registry.ts` and `app/api/mcp/route.ts`): `log_work` (one entry or `entries`, up to 100; a url already logged isn't added again, returned as `already_logged`), `list_work` (kind, status, from / to, search, `due`, limit ≤ 500; counts by kind and status), `update_work` (only the fields given; `add_note` appends a dated line), `delete_work`.
 - Tested against a local Postgres (adding, batch dedupe, filters, due, updates, brand separation, missing table). Not tried through a live MCP client yet.
 
+## 4i. MCP: leads and Gmail tools (6 Nov)
+
+So lead-finding can be done in a Claude conversation with the raw `dataforseo` / `hunter` / `apify` tools, and the results land in the app.
+- **`get_lead_settings`** (`lib/mcp/tools/leads.ts`): brand + competitors, the Lead Finder brief and filters, the ideal-customer card, sending settings, lead counts by status, `already_known` domains, last search. `include_playbook: true` adds `ENGINE_PROMPT`.
+- **`check_contacts`**: per email / domain: new, already_a_lead (any status), emailed / scheduled (`outreach_emails`, 2 years), opted_out / bounced (`email_suppressions`). Up to 200 each.
+- **`save_leads`**: the Lead Engine's answer format, through `addEngineLeads` in `lib/leads/engine.ts` (split out of `saveAnswer`, same dedupe, rating, facts; `foundVia` "Found with Claude"; doesn't touch Last search). Returns added / kept_aside / skipped. All three respect the brand's demo switch.
+- **`gmail_status`** / **`send_email`** (`lib/mcp/tools/gmail.ts`): sends only when Gmail is connected with send scope **and** the user switched on "Let Claude send email" (Settings → Connect Claude, `ClaudeSendEmail` in `SettingsPage.tsx`, `/api/mcp/gmail-send`, snapshot `mcp:gmail-send` in `lib/mcp/gmail-permission.ts`, off by default, daily limit 10 / 25 / 50, counted from `outreach_emails` rows with `source: 'claude'` since 00:00 UTC). Up to 20 per call; suppressed addresses refused. A first email to a lead on the board marks that lead sent (opt-out line added, `sentLog`, `nextFollowUpAt`) so the Lead Agent's follow-ups and reply check take over; otherwise `follow_up_days` adds a reminder. The tool description tells Claude to show each email and get a yes first.
+- Tested against a local Postgres with Gmail mocked (dedupe, verdicts, permission off/on, suppression, lead marked sent, limit count). Not tried through a live MCP client or real Gmail yet. The Settings switch wasn't checked in the browser.
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

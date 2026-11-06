@@ -42,7 +42,7 @@ const MIN_COMPANY_SCORE = 6
 // Hacker News launches are often developer tools, so they need a clearer fit
 const MIN_LAUNCH_SCORE = 7
 const MAX_NEW_PER_RUN = 12
-const OPT_OUT = 'If this isn\'t relevant, just reply "no" and I won\'t email again.'
+export const OPT_OUT = 'If this isn\'t relevant, just reply "no" and I won\'t email again.'
 
 // New finds per source per run, and Hunter email lookups per run. Kept at 3 while testing, to save
 // DataForSEO money, Hunter credits and AI tokens; AGENTS_LEADS_PER_SOURCE raises it (up to 10).

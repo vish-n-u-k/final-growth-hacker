@@ -17,7 +17,7 @@ import { anthropicCostUsd } from '@/lib/ai/pricing'
 import { logAnthropicUsage, withAIContext } from '@/lib/ai/client'
 import { domainOf, idOf, loadBrandContext, parseJsonLoose } from '@/lib/agents/context'
 import { leadFallback } from '@/lib/agents/lead-agent'
-import { readLeadData, updateLeadData, type EngineInputs, type EngineRunInfo, type Lead, type MaybeLead } from '@/lib/agents/store'
+import { readLeadData, updateLeadData, type EngineInputs, type EngineRunInfo, type Lead, type LeadAgentData, type MaybeLead } from '@/lib/agents/store'
 import { alreadyContacted } from '@/lib/leads/contacted'
 import { ENGINE_PROMPT } from './engine-prompt'
 
@@ -331,7 +331,7 @@ export async function advanceEngine(brandId: string, stepMs = STEP_MS): Promise<
 
 // ── Saving the answer ─────────────────────────────────────────────────────────
 
-interface EngineLead {
+export interface EngineLead {
   company?: string; what_it_does?: string; website?: string; location?: string; company_size?: string
   contact_name?: string; contact_title?: string; email?: string; email_status?: string; linkedin?: string
   socials?: { platform?: string; url?: string; activity?: string }[]
@@ -375,25 +375,55 @@ const EMAIL_VIA: Record<string, string> = {
 }
 
 async function saveAnswer(brandId: string, job: EngineJob, a: EngineAnswer): Promise<number> {
+  const r = await addEngineLeads(brandId, a.leads, a.dropped ?? [], {
+    finish: d => {
+      d.lastRunAt = new Date().toISOString()
+      d.lastRunSummary = clip(str(a.summary), 300)
+      d.lastError = null
+    },
+    run: added => runInfo(job, 'done', a, added),
+  })
+  return r?.added.length ?? 0
+}
+
+export interface AddLeadsResult {
+  added: { id: string; company: string; status: Lead['status'] }[]
+  keptAside: { company: string; reason: string }[]     // below Neutral: in "Checked but not kept"
+  skipped: { company: string; reason: string }[]       // not saved at all
+}
+
+/**
+ * Saves leads in the Lead Engine's answer format to the Lead Agent's list (Lead Finder's board):
+ * repeats, people already emailed and opted out are left out, Neutral or better go to the list,
+ * the rest (and `dropped`) to "Checked but not kept". Used by the engine and the MCP save_leads tool.
+ */
+export async function addEngineLeads(
+  brandId: string,
+  leads: EngineLead[],
+  dropped: { company?: string; reason?: string }[],
+  opts: { foundVia?: string; finish?: (d: LeadAgentData) => void; run?: (added: number) => EngineRunInfo } = {},
+): Promise<AddLeadsResult | null> {
   const b = await loadBrandContext(brandId)
-  if (!b) return 0
+  if (!b) return null
   const now = new Date().toISOString()
   const data = (await readLeadData(brandId)) ?? leadFallback(b)()
   const have = new Set([...data.leads.map(l => l.id), ...data.leads.filter(l => l.website).map(l => domainOf(l.website))])
-  const emails = a.leads.map(l => str(l.email).toLowerCase()).filter(validEmail)
+  const emails = leads.map(l => str(l.email).toLowerCase()).filter(validEmail)
   const contacted = await alreadyContacted(brandId, emails).catch(() => new Set<string>())
 
   const fresh: Lead[] = []
   const maybe: MaybeLead[] = []
-  for (const l of a.leads) {
+  const skipped: AddLeadsResult['skipped'] = []
+  const keptAside: AddLeadsResult['keptAside'] = []
+  for (const l of leads) {
     const company = clip(str(l.company), 80)
     const site = str(l.website)
     const domain = site ? domainOf(site) : ''
-    if (!company && !domain) continue
+    if (!company && !domain) { skipped.push({ company: '', reason: 'No company name or website' }); continue }
     const id = idOf(domain ? `https://${domain}` : `engine:${company.toLowerCase()}`)
-    if (have.has(id) || (domain && have.has(domain))) continue
+    if (have.has(id) || (domain && have.has(domain))) { skipped.push({ company: company || domain, reason: 'Already in your leads' }); continue }
     const email = str(l.email).toLowerCase()
-    if (validEmail(email) && contacted.has(email)) continue
+    if (validEmail(email) && contacted.has(email)) { skipped.push({ company: company || domain, reason: 'Already emailed, already a lead, or opted out' }); continue }
     have.add(id); if (domain) have.add(domain)
 
     const rating = clip(str(l.rating), 40) || 'Uncertain (Low)'
@@ -407,6 +437,7 @@ async function saveAnswer(brandId: string, job: EngineJob, a: EngineAnswer): Pro
 
     if (score < KEEP_FROM) {
       maybe.push({ id, source: 'company', title: company || domain, url, snippet, website: domain || undefined, name: str(l.contact_name) || undefined, email: validEmail(email) ? email : undefined, why, reason: `Rated ${rating}`, score, at: now })
+      keptAside.push({ company: company || domain, reason: `Rated ${rating}` })
       continue
     }
     const status = str(l.email_status).toLowerCase()
@@ -430,12 +461,12 @@ async function saveAnswer(brandId: string, job: EngineJob, a: EngineAnswer): Pro
       ...(hasEmail ? { email, emailVerified: status === 'verified', emailVia: EMAIL_VIA[status] ?? EMAIL_VIA.found } : {}),
       ...(!hasEmail && page ? { dm: { platform: /instagram/i.test(str(page.platform)) ? 'Instagram' : 'Facebook', url: str(page.url) } } : {}),
       ...(str(l.linkedin) ? { linkedinUrl: str(l.linkedin) } : {}),
-      foundVia: short(str(sources.discovered_via) || 'Lead Finder search', 90),
+      foundVia: short(str(sources.discovered_via) || opts.foundVia || 'Lead Finder search', 90),
       facts: facts.length ? facts : undefined,
       notChecked: Array.isArray(l.not_checked) ? l.not_checked.map(str).filter(Boolean).slice(0, 8) : undefined,
     })
   }
-  for (const d of a.dropped ?? []) {
+  for (const d of dropped) {
     const name = clip(str(d.company), 80)
     if (!name) continue
     maybe.push({ id: idOf(`engine-dropped:${name.toLowerCase()}`), source: 'company', title: name, url: `https://www.google.com/search?q=${encodeURIComponent(name)}`, snippet: '', why: '', reason: clip(str(d.reason) || 'Dropped', 120), score: 3, at: now })
@@ -447,12 +478,10 @@ async function saveAnswer(brandId: string, job: EngineJob, a: EngineAnswer): Pro
     d.leads = [...fresh.filter(l => !ids.has(l.id)), ...d.leads]
     const mids = new Set(maybe.map(m => m.id))
     d.maybe = [...maybe, ...(d.maybe ?? []).filter(m => !mids.has(m.id))].slice(0, 60)
-    d.lastRunAt = now
-    d.lastRunSummary = clip(str(a.summary), 300)
-    d.lastError = null
-    d.engineRun = runInfo(job, 'done', a, fresh.length)
+    opts.finish?.(d)
+    if (opts.run) d.engineRun = opts.run(fresh.length)
   })
-  return fresh.length
+  return { added: fresh.map(l => ({ id: l.id, company: l.title, status: l.status })), keptAside, skipped }
 }
 
 function runInfo(job: EngineJob, status: EngineRunInfo['status'], a: EngineAnswer | null, added: number): EngineRunInfo {
