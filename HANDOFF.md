@@ -527,6 +527,26 @@ The owner's call: remove Today and Growth Path, "if needed we can always add it 
 
 
 
+## 4g-7. Ask: GrowJin logo, showing what's happening, related next questions (6 Nov)
+
+The owner asked for these after trying Ask.
+- **Logo:** Ask's header shows the GrowJin logo (`/growjinlogo.svg`) and "GrowJin" instead of its own "Ask" mark; clicking it goes to Ask's home.
+- **Card progress:**
+  - `/api/ask/cards?stream=1` (GET or POST) answers one JSON line per event (`FillEvent`): each step as it starts and ends, with a short result, then `{ t: 'done', data }`.
+  - The steps are "Reading your emails, leads and research", one per card (`STEP_TEXT` in `cards.ts`, run side by side via `fillCards(brandId, onStep)`) and one per pinned question being updated (`refreshPins(…, { onStep })`).
+  - The page shows them in a box (`FillProgress`, `ask-fill` / `ask-fs`): a spinner, then a tick or red ring per step, with a running timer and "N of M done". It's used on the first look, "Check again" and a card opened before it's ready.
+  - Without `?stream=1` the route still answers plain JSON (the cron doesn't use it).
+- **Typed question progress:**
+  - The engine sends `{ t: 'think', text }` before each Claude turn: "Working out what you're asking and what to look up", "Reading what came back", "Fixing numbers that didn't match the data" or "Writing the answer with what was found".
+  - The page shows it as the last "Thinking" line (replaced by the next one), above a "Working on it · N s" timer, which adds "bigger questions take up to a minute" after 25 s.
+  - Look lines add the period when the lookup has one (" · last 7 days").
+- **Related next questions** (`Answer.suggested`):
+  - Typed answers: `give_answer` has `follow_ups`, 2–3 questions about that answer. Clicking one asks it as a follow-up in the same conversation.
+  - Cards: `related()` in `cards.ts` picks 2–3 questions from the card and its state (for example, a down week suggests "Which pages lost visitors this week?").
+  - Clicking a suggestion that is a card's question opens that card (free); anything else is asked as a typed question.
+  - "Ask next" under a card now shows these; the old "next three cards" is only the fallback.
+- Checked in the preview harness with slow streaming stand-ins for both routes (steps and ticks, thinking line and timer, suggestions, follow-up sends the thread id). Full build passes. Not run against real data yet.
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

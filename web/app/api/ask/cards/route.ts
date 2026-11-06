@@ -1,23 +1,48 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { agentAccess } from '@/lib/agents/access'
-import { readCards } from '@/lib/ask/cards'
+import { readCards, type OnStep } from '@/lib/ask/cards'
 import { refreshPins } from '@/lib/ask/pins'
+import type { FillEvent } from '@/lib/ask/types'
 
 // Ask's ready answers (lib/ask/cards.ts). GET: the saved cards, worked out again when older than a
 // day, plus the pinned questions (refreshed when older than a day). POST: both now ("Check again").
+// With ?stream=1 the answer is one JSON object per line (FillEvent): each step as it starts and
+// ends, then { t: 'done', data }, so the page can show what's happening.
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 120
 
-export async function GET() {
-  const a = await agentAccess()
-  if (a.error) return a.error
-  const [cards, pins] = await Promise.all([readCards(a.brandId), refreshPins(a.brandId)])
-  return NextResponse.json({ ...cards, pins })
+async function both(brandId: string, refresh: boolean, onStep?: OnStep) {
+  const [cards, pins] = await Promise.all([readCards(brandId, { refresh, onStep }), refreshPins(brandId, { force: refresh, onStep })])
+  return { ...cards, pins }
 }
 
-export async function POST() {
+function answer(req: NextRequest, brandId: string, refresh: boolean) {
+  if (req.nextUrl.searchParams.get('stream') !== '1') return both(brandId, refresh).then(d => NextResponse.json(d))
+  const enc = new TextEncoder()
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (e: FillEvent) => { try { controller.enqueue(enc.encode(`${JSON.stringify(e)}\n`)) } catch { /* closed */ } }
+      try {
+        send({ t: 'done', data: await both(brandId, refresh, e => send({ t: 'step', ...e })) })
+      } catch (e) {
+        console.error('[ask] cards', e)
+        send({ t: 'error', text: 'Couldn’t check your data just now. Try again.' })
+      } finally {
+        try { controller.close() } catch { /* closed */ }
+      }
+    },
+  })
+  return new Response(stream, { headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' } })
+}
+
+export async function GET(req: NextRequest) {
   const a = await agentAccess()
   if (a.error) return a.error
-  const [cards, pins] = await Promise.all([readCards(a.brandId, { refresh: true }), refreshPins(a.brandId, { force: true })])
-  return NextResponse.json({ ...cards, pins })
+  return answer(req, a.brandId, false)
+}
+
+export async function POST(req: NextRequest) {
+  const a = await agentAccess()
+  if (a.error) return a.error
+  return answer(req, a.brandId, true)
 }

@@ -461,22 +461,72 @@ async function trackFetch(brandId: string, websiteUrl: string): Promise<{ now: W
 
 const ORDER: readonly CardId[] = CARD_IDS
 
+/** Progress while the cards are worked out: a step starts ('on') and ends ('done' / 'failed'). */
+export type OnStep = (e: { id: string; text: string; state: 'on' | 'done' | 'failed'; result?: string }) => void
+
+// What each card does, in plain words, for the progress list
+const STEP_TEXT: Record<CardId, string> = {
+  replies: 'Checking which of your emails got replies',
+  email: 'Looking at the leads Lead Finder found',
+  google: 'Asking Search Console which pages showed up, and reading your sitemap',
+  post: 'Reading the Search Agent’s posts to write',
+  talk: 'Looking for Reddit and Hacker News threads to join',
+  keys: 'Reading the Search Agent’s keyword research',
+  track: 'Comparing this week with last week on Google',
+}
+
+/** Questions to ask next from a card: about its own answer, or another card's question (which opens that card). */
+function related(a: Answer, brandName: string): string[] {
+  const talk = `Where should I talk about ${brandName}?`
+  const r: Record<CardId, string[]> = {
+    replies: a.state === 'ok'
+      ? ['What do the people who replied have in common?', 'How many emails went out this week?', 'Who should I email today?']
+      : ['How are my emails doing?', 'Who should I email today?'],
+    email: a.state === 'ok'
+      ? ['Which kinds of business reply most?', 'How many leads did I skip, and why?', 'Did anyone reply?']
+      : ['How are my emails doing?', talk],
+    google: ['Which pages bring the most visitors?', 'Which search words can I win?', 'Am I on track?'],
+    post: ['Which of my posts bring the most visitors?', 'Which search words can I win?'],
+    talk: ['Where do my visitors come from?', 'Who should I email today?'],
+    keys: ['Which search words do I already show up for?', 'What should I write this week?'],
+    track: /^-/.test(a.number) || /Not yet/.test(a.say)
+      ? ['Which pages lost visitors this week?', 'Why am I not on Google?', 'Where do my visitors come from?']
+      : ['Which pages bring the most visitors?', 'Where do my visitors come from?', 'Why am I not on Google?'],
+  }
+  return r[a.id as CardId] ?? []
+}
+
 /** Works every card out again and saves them. Runs with the brand's demo switch. */
-export async function fillCards(brandId: string): Promise<AskCards> {
+export async function fillCards(brandId: string, onStep: OnStep = () => {}): Promise<AskCards> {
   return withDemo(await readDemoSwitch(brandId), async () => {
     const at = new Date().toISOString()
     const [brand] = await db.select({ name: brands.name, websiteUrl: brands.websiteUrl }).from(brands).where(eq(brands.id, brandId)).limit(1)
+    onStep({ id: 'read', text: 'Reading your emails, leads and research', state: 'on' })
     const [convs, lead, search] = await Promise.all([listConversations(brandId).catch(() => []), readLeadData(brandId), readSearchData(brandId)])
+    onStep({ id: 'read', text: 'Reading your emails, leads and research', state: 'done', result: `${convs.length} email threads · ${(lead?.leads ?? []).length} leads` })
     const leads = lead?.leads ?? []
     const site = brand?.websiteUrl ?? ''
+    const name = brand?.name ?? 'your business'
+    // Each card is its own step, worked out side by side
+    const step = async (id: CardId, work: () => Answer | Promise<Answer>): Promise<Answer> => {
+      onStep({ id, text: STEP_TEXT[id], state: 'on' })
+      try {
+        const a = await work()
+        onStep({ id, text: STEP_TEXT[id], state: 'done', result: a.number && a.number !== '—' ? `${a.number} ${a.numberLabel}` : a.numberLabel })
+        return { ...a, suggested: related(a, name) }
+      } catch (e) {
+        onStep({ id, text: STEP_TEXT[id], state: 'failed', result: 'Couldn’t check this one' })
+        throw e
+      }
+    }
     const settled = await Promise.allSettled([
-      Promise.resolve(repliesCard(convs, at)),
-      Promise.resolve(emailCard(leads, lead?.lastRunAt, at)),
-      googleCard(brandId, site, at),
-      Promise.resolve(postCard(search, at)),
-      Promise.resolve(talkCard(leads, brand?.name ?? 'your business', at)),
-      Promise.resolve(keysCard(search, at)),
-      trackFetch(brandId, site).then(g => trackCard(g, leads, convs, at)),
+      step('replies', () => repliesCard(convs, at)),
+      step('email', () => emailCard(leads, lead?.lastRunAt, at)),
+      step('google', () => googleCard(brandId, site, at)),
+      step('post', () => postCard(search, at)),
+      step('talk', () => talkCard(leads, name, at)),
+      step('keys', () => keysCard(search, at)),
+      step('track', () => trackFetch(brandId, site).then(g => trackCard(g, leads, convs, at))),
     ])
     const cards = settled.flatMap(r => (r.status === 'fulfilled' ? [r.value] : (console.error('[ask] card failed', r.reason), [])))
     const out: AskCards = { at, cards: cards.sort((a, b) => ORDER.indexOf(a.id as CardId) - ORDER.indexOf(b.id as CardId)) }
@@ -486,10 +536,10 @@ export async function fillCards(brandId: string): Promise<AskCards> {
 }
 
 /** The saved cards, worked out again when missing or older than STALE_MS. */
-export async function readCards(brandId: string, opts: { refresh?: boolean } = {}): Promise<AskCards> {
+export async function readCards(brandId: string, opts: { refresh?: boolean; onStep?: OnStep } = {}): Promise<AskCards> {
   const saved = await withDemo(await readDemoSwitch(brandId), () => getSnapshot<AskCards>(brandId, key()))
   if (!opts.refresh && saved?.at && Date.now() - Date.parse(saved.at) < STALE_MS) return saved
-  return fillCards(brandId)
+  return fillCards(brandId, opts.onStep)
 }
 
 /** The saved cards as they are, without working anything out (null when there are none yet). */

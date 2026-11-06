@@ -55,6 +55,7 @@ export interface Answer {
   source: string
   at: string           // when it was worked out (ISO)
   how?: AnswerHow      // typed questions only
+  suggested?: string[] // questions to ask next, about this answer (a card's question opens that card)
 }
 
 export interface AskCards {
@@ -68,9 +69,16 @@ export type AskEvent =
   | { t: 'understand'; text: string }
   | { t: 'look'; text: string }
   | { t: 'check'; text: string }
+  | { t: 'think'; text: string }                      // what Claude is doing between lookups (replaces the last one)
   | { t: 'answer'; answer: Answer }
   | { t: 'card'; id: CardId }                       // the question is one of the ready answers
   | { t: 'ask_back'; question: string; options: string[] }
   | { t: 'left'; left: number }                      // typed questions left today
   | { t: 'thread'; id: string }                      // the conversation this answer belongs to (for follow-ups and pins)
+  | { t: 'error'; text: string }
+
+/** Progress while the ready answers are worked out (one JSON object per line, ?stream=1). */
+export type FillEvent =
+  | { t: 'step'; id: string; text: string; state: 'on' | 'done' | 'failed'; result?: string }
+  | { t: 'done'; data: AskCards }
   | { t: 'error'; text: string }

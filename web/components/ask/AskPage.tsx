@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import type { Answer, AskCards, AskEvent, CardId, Panel } from '@/lib/ask/types'
+import type { Answer, AskCards, AskEvent, CardId, FillEvent, Panel } from '@/lib/ask/types'
 import AskPicture from './AskPicture'
 import AskPanel from './AskPanel'
 
@@ -40,6 +40,23 @@ interface Live {
   askBack?: { question: string; options: string[] }
   chosen?: string
   error?: string
+  thinking?: string    // what Claude is doing right now, between lookups
+  started: number      // for the timer
+}
+
+type FillStep = { id: string; text: string; state: 'on' | 'done' | 'failed'; result?: string }
+const norm = (q: string) => q.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+/** Seconds since `start`, ticking while `on`. */
+function useElapsed(start: number | null, on: boolean): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!on) return
+    setNow(Date.now())
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [on, start])
+  return start ? Math.max(0, Math.round((now - start) / 1000)) : 0
 }
 
 type View = { kind: 'home' } | { kind: 'card'; id: CardId } | { kind: 'pin'; id: string } | { kind: 'live' }
@@ -70,12 +87,31 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
   const abort = useRef<AbortController | null>(null)
   const [panel, setPanel] = useState<Panel | null>(null)
 
+  // What's being checked while the ready answers are worked out (streamed from /api/ask/cards?stream=1)
+  const [fill, setFill] = useState<FillStep[]>([])
+  const [fillStart, setFillStart] = useState<number | null>(null)
   const load = useCallback(async (refresh: boolean) => {
-    setBusy(true); setError('')
+    setBusy(true); setError(''); setFill([]); setFillStart(Date.now())
     try {
-      const r = await fetch('/api/ask/cards', { method: refresh ? 'POST' : 'GET' })
-      if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? 'Something went wrong')
-      setData(await r.json())
+      const r = await fetch('/api/ask/cards?stream=1', { method: refresh ? 'POST' : 'GET' })
+      if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({})))?.error ?? 'Something went wrong')
+      const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = ''; let got = false
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+        let nl: number
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1)
+          if (!line) continue
+          let e: FillEvent
+          try { e = JSON.parse(line) } catch { continue }
+          if (e.t === 'step') { const st = e; setFill(f => (f.some(x => x.id === st.id) ? f.map(x => (x.id === st.id ? st : x)) : [...f, st])) }
+          else if (e.t === 'done') { setData(e.data); got = true }
+          else throw new Error(e.text)
+        }
+      }
+      if (!got) throw new Error('Checking stopped before it finished. Try again.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong')
     } finally {
@@ -113,7 +149,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
   async function run(question: string, clarify?: { asked: string; chosen: string }, follow = false) {
     abort.current?.abort()
     const ctl = new AbortController(); abort.current = ctl
-    const turn: Live = { question, steps: [], running: true, chosen: clarify?.chosen }
+    const turn: Live = { question, steps: [], running: true, chosen: clarify?.chosen, started: Date.now() }
     const thread = follow || clarify ? threadId : null
     if (follow) setTurns(ts => [...ts, turn])
     else if (clarify) setLive(() => turn)
@@ -124,7 +160,8 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
       if (e.t === 'card') { setLive(() => null); return go({ kind: 'card', id: e.id }) }
       setLive(l => {
         if (!l) return l
-        if (e.t === 'understand' || e.t === 'look' || e.t === 'check') return { ...l, steps: [...l.steps, { kind: e.t, text: e.text }] }
+        if (e.t === 'think') return { ...l, thinking: e.text }
+        if (e.t === 'understand' || e.t === 'look' || e.t === 'check') return { ...l, thinking: undefined, steps: [...l.steps, { kind: e.t, text: e.text }] }
         if (e.t === 'answer') return { ...l, running: false, answer: e.answer }
         if (e.t === 'ask_back') return { ...l, running: false, askBack: { question: e.question, options: e.options } }
         return { ...l, running: false, error: e.text }
@@ -152,6 +189,13 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
       if (ctl.signal.aborted) return
       setLive(l => (l ? { ...l, running: false, error: e instanceof Error ? e.message : 'Ask couldn’t answer right now.' } : l))
     }
+  }
+
+  /** A suggested question: a ready answer's opens that card; anything else is asked (as a follow-up from a typed answer). */
+  function askNext(q: string, follow: boolean) {
+    const card = cards.find(c => norm(c.question) === norm(q))
+    if (card) return go({ kind: 'card', id: card.id as CardId })
+    run(q, undefined, follow)
   }
 
   async function pin() {
@@ -201,7 +245,9 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
   return (
     <div className="ask">
       <header className="ask-bar">
-        <span className="ask-mark"><i aria-hidden="true" />Ask</span>
+        <button type="button" className="ask-mark" onClick={() => go({ kind: 'home' })} aria-label="GrowJin: Ask home">
+          <img src="/growjinlogo.svg" alt="" width={24} height={24} />GrowJin
+        </button>
         <span className="ask-who">
           <span className="ask-pill">{site}</span>
           <Link href="/tools" className="ask-out">Tools →</Link>
@@ -210,11 +256,11 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
 
       <main className="ask-col">
         {view.kind === 'card' && (openCard
-          ? <AnswerView onPanel={setPanel} a={openCard} eyebrow={`Ready since ${timeOf(openCard.at)}`} others={[...cards.slice(cards.indexOf(openCard) + 1), ...cards.slice(0, cards.indexOf(openCard))].slice(0, 3)} onBack={() => go({ kind: 'home' })} onOpen={id => go({ kind: 'card', id })} />
-          : <Waiting busy={busy} error={error} onBack={() => go({ kind: 'home' })} />)}
+          ? <AnswerView onPanel={setPanel} onAsk={q => askNext(q, false)} a={openCard} eyebrow={`Ready since ${timeOf(openCard.at)}`} others={[...cards.slice(cards.indexOf(openCard) + 1), ...cards.slice(0, cards.indexOf(openCard))].slice(0, 3)} onBack={() => go({ kind: 'home' })} onOpen={id => go({ kind: 'card', id })} />
+          : <Waiting busy={busy} error={error} onBack={() => go({ kind: 'home' })} fill={fill} start={fillStart} />)}
 
         {view.kind === 'pin' && (openPin
-          ? <AnswerView onPanel={setPanel} a={openPin} eyebrow={`Pinned by you · updated ${dayOf(openPin.at)}`} others={cards.slice(0, 3)} onBack={() => go({ kind: 'home' })} onOpen={id => go({ kind: 'card', id })}
+          ? <AnswerView onPanel={setPanel} onAsk={q => askNext(q, false)} a={openPin} eyebrow={`Pinned by you · updated ${dayOf(openPin.at)}`} others={cards.slice(0, 3)} onBack={() => go({ kind: 'home' })} onOpen={id => go({ kind: 'card', id })}
               extra={<button type="button" className="ask-tl" onClick={() => unpin(view.id)}>Unpin</button>} />
           : <Waiting busy={busy} error={error || 'This pin was removed.'} onBack={() => go({ kind: 'home' })} />)}
 
@@ -248,7 +294,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
                 <button type="button" className="ask-tl" onClick={() => { if (turns.length > 1) { setTurns(ts => ts.slice(0, -1)); run(live.question, undefined, true) } else run(live.question) }}>Try again</button>
               </div>
             )}
-            {live.answer && <AnswerBody a={live.answer} onPanel={setPanel} />}
+            {live.answer && <AnswerBody a={live.answer} onPanel={setPanel} onAsk={q => askNext(q, true)} disabled={left === 0} />}
             {live.answer && threadId && (
               <div className="ask-pinrow">
                 {pinned.includes(live.question)
@@ -280,10 +326,11 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
 
             <section className="ask-sec">
               <div className="ask-sec-h">
-                <span className="ask-k">{busy ? 'Checking…' : data?.at ? `Ready since ${timeOf(data.at)}` : 'Ready answers'}</span>
+                <span className="ask-k">{!busy && data?.at ? `Ready since ${timeOf(data.at)}` : 'Ready answers'}</span>
                 {!busy && data && <button type="button" className="ask-tl" onClick={() => load(true)}>Check again</button>}
               </div>
               {error && <p className="ask-err">{error}</p>}
+              {busy && <FillProgress steps={fill} start={fillStart} first={!cards.length} />}
               <div className="ask-cards">
                 {pins.map(p => (
                   <button key={p.id} type="button" className="ask-card is-pinned" onClick={() => go({ kind: 'pin', id: p.id.slice(4) })}>
@@ -295,7 +342,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
                   </button>
                 ))}
                 {busy && !cards.length
-                  ? [0, 1, 2, 3, 4, 5].map(i => <div key={i} className="ask-card ask-skel" aria-hidden="true" />)
+                  ? null
                   : cards.map(c => (
                     <button key={c.id} type="button" className={`ask-card${c.id === 'replies' && c.state === 'ok' ? ' is-reply' : ''}${c.state !== 'ok' ? ' is-quiet' : ''}`} onClick={() => go({ kind: 'card', id: c.id as CardId })}>
                       <span className="ask-card-t">{c.question}</span>
@@ -325,16 +372,35 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen }
   )
 }
 
-const LABEL: Record<Step['kind'] | 'answer', string> = { understand: 'Understand', look: 'Look', check: 'Check', answer: 'Answer' }
+const LABEL: Record<Step['kind'] | 'answer' | 'think', string> = { understand: 'Understand', look: 'Look', check: 'Check', answer: 'Answer', think: 'Thinking' }
+
+/** The ready answers being worked out: each check, as it starts and ends. */
+function FillProgress({ steps, start, first }: { steps: FillStep[]; start: number | null; first: boolean }) {
+  const secs = useElapsed(start, true)
+  const done = steps.filter(s => s.state !== 'on').length
+  return (
+    <div className="ask-fill" aria-live="polite">
+      <div className="ask-timer">{first ? 'Taking a first look' : 'Checking your data again'} · {secs} s{steps.length ? ` · ${done} of ${steps.length} done` : ''}</div>
+      {!steps.length && <div className="ask-fs is-on"><i aria-hidden="true" /><span>Starting…</span></div>}
+      {steps.map(s => (
+        <div key={s.id} className={`ask-fs is-${s.state}`}>
+          <i aria-hidden="true" /><span>{s.text}</span>{s.result && <small>{s.result}</small>}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 /** What Ask is doing, one line per step; the last one is "on" while it works. */
 function Work({ live }: { live: Live }) {
-  const lines: { kind: Step['kind'] | 'answer'; text: string }[] = [...live.steps]
-  if (live.running && !lines.length) lines.push({ kind: 'understand', text: 'Working out what you mean…' })
+  const secs = useElapsed(live.started, live.running)
+  const lines: { kind: Step['kind'] | 'answer' | 'think'; text: string }[] = [...live.steps]
+  if (live.running) lines.push({ kind: 'think', text: live.thinking ?? 'Working out what you’re asking' })
   if (live.answer) lines.push({ kind: 'answer', text: live.answer.picture ? 'Drawing the answer' : 'Writing the answer' })
   if (!lines.length) return null
   return (
     <div className="ask-work" aria-live="polite">
+      {live.running && <div className="ask-timer">Working on it · {secs} s{secs > 25 ? ' · bigger questions take up to a minute' : ''}</div>}
       {lines.map((l, i) => (
         <div key={i} className={`ask-ph${live.running && i === lines.length - 1 ? ' is-on' : ''}`}>
           <span className="ask-ph-l">{LABEL[l.kind]}</span><span>{l.text}</span>
@@ -344,24 +410,24 @@ function Work({ live }: { live: Live }) {
   )
 }
 
-function Waiting({ busy, error, onBack }: { busy: boolean; error: string; onBack: () => void }) {
+function Waiting({ busy, error, onBack, fill = [], start = null }: { busy: boolean; error: string; onBack: () => void; fill?: FillStep[]; start?: number | null }) {
   return (
     <div className="ask-ans">
       <button type="button" className="ask-tl" onClick={onBack}>← Home</button>
-      <p className="ask-say ask-dim">{error || (busy ? 'Checking your data…' : 'This answer isn’t ready.')}</p>
+      {busy && !error ? <FillProgress steps={fill} start={start} first /> : <p className="ask-say ask-dim">{error || 'This answer isn’t ready.'}</p>}
     </div>
   )
 }
 
-function AnswerView({ a, eyebrow, others, onBack, onOpen, onPanel, extra }: { a: Answer; eyebrow: string; others: Answer[]; onBack: () => void; onOpen: (id: CardId) => void; onPanel: (p: Panel) => void; extra?: React.ReactNode }) {
+function AnswerView({ a, eyebrow, others, onBack, onOpen, onPanel, onAsk, extra }: { a: Answer; eyebrow: string; others: Answer[]; onBack: () => void; onOpen: (id: CardId) => void; onPanel: (p: Panel) => void; onAsk: (q: string) => void; extra?: React.ReactNode }) {
   return (
     <article className="ask-ans">
       <button type="button" className="ask-tl" onClick={onBack}>← Home</button>
       <span className="ask-k ask-ready">{eyebrow}</span>
       <h1>{a.question}</h1>
-      <AnswerBody a={a} onPanel={onPanel} />
+      <AnswerBody a={a} onPanel={onPanel} onAsk={onAsk} />
       {extra && <div className="ask-pinrow">{extra}</div>}
-      {others.length > 0 && (
+      {!a.suggested?.length && others.length > 0 && (
         <div className="ask-more">
           <span className="ask-k">Ask next</span>
           <div className="ask-chips">{others.map(o => <button key={o.id} type="button" className="ask-chip" onClick={() => onOpen(o.id as CardId)}>{o.question}</button>)}</div>
@@ -372,7 +438,7 @@ function AnswerView({ a, eyebrow, others, onBack, onOpen, onPanel, extra }: { a:
 }
 
 /** The answer's shape, the same for ready and typed answers. */
-function AnswerBody({ a, onPanel }: { a: Answer; onPanel: (p: Panel) => void }) {
+function AnswerBody({ a, onPanel, onAsk, disabled }: { a: Answer; onPanel: (p: Panel) => void; onAsk?: (q: string) => void; disabled?: boolean }) {
   return (
     <div className="ask-body">
       <p className="ask-say"><Rich text={a.say} /></p>
@@ -423,6 +489,16 @@ function AnswerBody({ a, onPanel }: { a: Answer; onPanel: (p: Panel) => void }) 
             {a.how.unchecked.length > 0 && <p className="is-warn"><span>Not checked</span>{a.how.unchecked.join(', ')} couldn’t be matched to the data</p>}
           </div>
         </details>
+      )}
+
+      {/* Questions about this answer: one click to dig in */}
+      {onAsk && !!a.suggested?.length && (
+        <div className="ask-more">
+          <span className="ask-k">Ask next</span>
+          <div className="ask-chips">
+            {a.suggested.map(q => <button key={q} type="button" className="ask-chip" disabled={disabled} onClick={() => onAsk(q)}>{q}</button>)}
+          </div>
+        </div>
       )}
     </div>
   )

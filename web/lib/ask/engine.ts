@@ -70,6 +70,7 @@ Rules for the answer:
 - Up to 3 findings, each one short sentence with its number.
 - One next step the person can do now, pointing at one of the app's places (action ids in the tool), or none if nothing fits. Up to 2 smaller steps after it.
 - \`source\`: where the data came from and the period, in a few words.
+- \`follow_ups\`: 2–3 natural next questions about this answer, so the owner can dig in with one click.
 - Never name tools, APIs or field names in what the person reads.`
 
 const ROW_SCHEMA = {
@@ -125,7 +126,7 @@ const ASK_TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object',
       additionalProperties: false,
-      required: ['understood', 'number', 'number_label', 'say', 'picture', 'finds', 'next', 'then', 'source'],
+      required: ['understood', 'number', 'number_label', 'say', 'picture', 'finds', 'next', 'then', 'source', 'follow_ups'],
       properties: {
         understood: { type: 'string', description: 'What you took the question to mean, one short line.' },
         number: { type: 'string', description: 'The one number that answers it, as shown on a card, e.g. "412", "+18%", "6 of 22". Empty string if there is no single number.' },
@@ -153,6 +154,7 @@ const ASK_TOOLS: Anthropic.Tool[] = [
           items: { type: 'object', additionalProperties: false, required: ['title', 'why'], properties: { title: { type: 'string' }, why: { type: 'string' } } },
         },
         source: { type: 'string', description: 'Where the data came from and the period, e.g. "Google Analytics, last 7 days".' },
+        follow_ups: { type: 'array', items: { type: 'string' }, description: '2–3 short questions the owner would likely ask next about THIS answer (under 70 characters each, in their words, e.g. "Which pages lost the most visits?"). Not ones this answer already covers.' },
       },
     },
     strict: true,
@@ -180,7 +182,20 @@ const LOOK: Record<string, string> = {
   get_posthog_segments: 'PostHog segments', get_posthog_users: 'PostHog users', get_posthog_power_users: 'PostHog: most active users',
   get_posthog_churned_users: 'PostHog: users who stopped', get_posthog_pro_users: 'PostHog: paying users', get_blog_post: 'Your blog posts',
 }
+/** "last 7 days", "2026-10-01 to 2026-10-31"… from a lookup's input, when it has a period. */
+function periodOf(input: Record<string, unknown>): string {
+  const d = Number(input.days ?? input.period_days ?? input.lookback_days)
+  if (Number.isFinite(d) && d > 0) return ` · last ${d} days`
+  const from = input.start_date ?? input.date_from ?? input.from, to = input.end_date ?? input.date_to ?? input.to
+  if (typeof from === 'string' && typeof to === 'string') return ` · ${from} to ${to}`
+  return ''
+}
+
 function lookLine(name: string, input: Record<string, unknown>): string {
+  return lookName(name, input) + periodOf(input)
+}
+
+function lookName(name: string, input: Record<string, unknown>): string {
   if (name === 'dataforseo') {
     const ep = String(input.endpoint ?? '')
     const task = (Array.isArray(input.payload) ? input.payload[0] : input.payload) as Record<string, unknown> | undefined
@@ -260,6 +275,7 @@ interface Form {
   understood: string; number?: string; number_label?: string; say: string
   picture: { kind: 'list' | 'bars' | 'tiles' | 'line' | 'none'; title: string; rows: FormRow[] }
   finds: string[]; next: { action: string; title: string; why: string }; then: { title: string; why: string }[]; source: string
+  follow_ups?: string[]
 }
 
 const clip = (t: unknown, n: number) => String(t ?? '').replace(/\s+/g, ' ').trim().slice(0, n)
@@ -285,6 +301,7 @@ export function toAnswer(question: string, f: Form, how: Answer['how']): Answer 
     finds: (Array.isArray(f.finds) ? f.finds : []).map(x => clip(x, 220)).filter(Boolean).slice(0, 3),
     next, then: (Array.isArray(f.then) ? f.then : []).map(t => ({ title: clip(t?.title, 80), why: clip(t?.why, 120) })).filter(t => t.title).slice(0, 2),
     source: clip(f.source, 140), at: new Date().toISOString(), how,
+    suggested: (Array.isArray(f.follow_ups) ? f.follow_ups : []).map(x => clip(x, 90)).filter(x => x.length > 5).slice(0, 3),
   }
 }
 
@@ -434,6 +451,7 @@ export async function answerLoop({ question, intro, clarified, brandId, emit, cr
       while (true) {
         const wrapUp = turns >= MAX_TURNS - 1 || Date.now() - started > MAX_MS || aiUsd >= AI_CAP_USD || toolUsd >= TOOL_CAP_USD
         if (wrapUp && turns >= MAX_TURNS + 1) throw new Error('no answer')
+        emit({ t: 'think', text: turns === 0 ? 'Working out what you’re asking and what to look up' : wrapUp ? 'Writing the answer with what was found' : retried && !lookups.length ? 'Fixing numbers that didn’t match the data' : 'Reading what came back' })
         const res = await create({
           model: MODEL,
           max_tokens: 8000,

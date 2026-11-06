@@ -9,7 +9,7 @@ import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { agentsDemo, withDemo } from '@/lib/agents/demo'
 import { readDemoSwitch } from '@/lib/agents/store'
 import { withAIContext } from '@/lib/ai/client'
-import { STALE_MS } from './cards'
+import { STALE_MS, type OnStep } from './cards'
 import { answerLoop, brandIntro, readThread, repeatLookups, type Lookup } from './engine'
 import type { Answer } from './types'
 
@@ -72,13 +72,15 @@ export async function removePin(brandId: string, id: string): Promise<Answer[]> 
 }
 
 /** Works out each pin's answer again from fresh data (those older than STALE_MS, or all when `force`). */
-export async function refreshPins(brandId: string, opts: { force?: boolean } = {}): Promise<Answer[]> {
+export async function refreshPins(brandId: string, opts: { force?: boolean; onStep?: OnStep } = {}): Promise<Answer[]> {
   return withDemo(await readDemoSwitch(brandId), () => withAIContext({ brandId, moduleType: 'ask' }, async () => {
     const pins = await read(brandId)
     const due = pins.filter(p => opts.force || Date.now() - Date.parse(p.at) >= STALE_MS)
     if (!due.length) return pins.map(p => ({ ...p.answer, at: p.at }))
     const intro = await brandIntro(brandId)
     for (const p of due) {
+      const text = `Updating your pinned question: “${p.question}”`
+      opts.onStep?.({ id: `pin:${p.id}`, text, state: 'on' })
       try {
         const data = await repeatLookups(brandId, p.lookups)
         const out = await answerLoop({
@@ -95,9 +97,11 @@ export async function refreshPins(brandId: string, opts: { force?: boolean } = {
         })
         if (out) { p.answer = { ...out.answer, id: `pin:${p.id}`, question: p.question }; p.at = new Date().toISOString(); delete p.error }
         else p.error = 'Couldn’t update this morning'
+        opts.onStep?.({ id: `pin:${p.id}`, text, state: out ? 'done' : 'failed', result: out ? (out.answer.number ? `${out.answer.number} ${out.answer.numberLabel}` : 'updated') : 'kept yesterday’s answer' })
       } catch (e) {
         console.error('[ask] pin refresh', p.id, e)
         p.error = 'Couldn’t update this morning'
+        opts.onStep?.({ id: `pin:${p.id}`, text, state: 'failed', result: 'kept yesterday’s answer' })
       }
     }
     await save(brandId, pins)

@@ -9829,3 +9829,19 @@ html:not(.light) .ask {
 .ask-card-pin { font: 500 10.5px var(--font-mono), ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; color: var(--ask-blue); }
 .ask-card-s { margin-top: auto; font-size: 13.5px; line-height: 1.4; color: var(--ask-sub); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .ask-card-s b { color: var(--ask-ink); font-weight: 600; }
+
+/* Ask: what's happening while it works, and the GrowJin logo */
+.ask header.ask-bar .ask-mark { border: 0; background: none; padding: 0; cursor: pointer; font: inherit; font-weight: 600; font-size: 16px; color: var(--ask-ink); letter-spacing: -.01em; }
+.ask-mark img { display: block; width: 24px; height: 24px; border-radius: 7px; }
+.ask-timer { margin-bottom: 6px; font: 500 11px var(--font-mono), ui-monospace, monospace; letter-spacing: .05em; text-transform: uppercase; color: var(--ask-faint); }
+.ask-ph-l { white-space: nowrap; }
+.ask-fill { margin: 0 0 14px; padding: 14px 16px; border: 1px solid var(--ask-line); border-radius: 16px; background: var(--ask-card); }
+.ask-fs { display: grid; grid-template-columns: 18px 1fr auto; gap: 10px; align-items: baseline; padding: 6px 0; font-size: 14px; color: var(--ask-sub); animation: ask-up .25s ease both; }
+.ask-fs i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--ask-line); transform: translateY(1px); }
+.ask-fs.is-on { color: var(--ask-ink); }
+.ask-fs.is-on i { border-color: var(--ask-grey2); border-top-color: var(--ask-blue); animation: ask-spin .8s linear infinite; }
+.ask-fs.is-done i { border-color: var(--ask-ink); background: var(--ask-ink); }
+.ask-fs.is-failed i { border-color: var(--ask-red); }
+.ask-fs small { font-size: 12.5px; color: var(--ask-faint); text-align: right; }
+.ask-chip:disabled { opacity: .5; cursor: default; }
+@media (max-width: 520px) { .ask-fs { grid-template-columns: 18px 1fr; } .ask-fs small { grid-column: 2; text-align: left; } }
