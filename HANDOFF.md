@@ -83,6 +83,7 @@ What each tool does today:
 
 - **Work and push on `dev`.** Push to **`main` only when the owner says so.**
   - `main` was last brought up to `dev` on 3 Nov 2026 (Search Console numbers fix on the Analytics Website tab).
+  - 6 Nov: only the work log commit (4h) was cherry-picked to `main`; the Search & AI and Foundation work (4–5 Nov) is still on `dev` only.
 - **Release notes:** add what users will notice to `CHANGELOG.md` (newest first: New / Improved / Fixed). Frekto (GitHub: this repo) turns GitHub releases and merged pull requests into update posts. Direct pushes to `main` don't show up there.
 - Don't open pull requests unless asked.
 - Commit message footer used so far:
@@ -453,7 +454,7 @@ Three thin tools on the MCP server (`app/api/mcp/route.ts`, defined in `lib/mcp/
 - **How it checks** (`lib/modules/foundation/google-profile.ts`, no AI): DataForSEO Business Listings (`businessListings` in `dataforseo.ts`, by website domain, then by exact name; ~$0.01, shows in Usage as Foundation · "Google Business Profiles"), else a link on the site to the profile, a review link or an embedded Google map (`googleProfileLink` in the fetcher). Fails when not found or the listing isn't claimed; passes with a note to get more reviews under 5. "Check again" on the item uses the same lookup.
 - Not tried against the real Business Listings API yet (filter field names `domain` / `title`).
 
-## 4g. Work log MCP tools (6 Nov)
+## 4h. Work log MCP tools (6 Nov)
 
 The owner does growth work outside GrowJin (blogs that need indexing, community notes, leads emailed) and wants it kept somewhere to ask for later. **Backend + MCP only, no UI, and nothing else in the app reads it** (not Today, the agents, dedupe or scores). Claude logs only when the owner tells it to.
 - **Table** `work_log` (`web/drizzle/work_log.sql`, **run it in Supabase**; until then the tools answer "The work log table is missing…"): kind (blog / community / outreach / listing / social / other, free word allowed), title, url, done_on, how, status (done / waiting / follow_up), next_check, notes.
