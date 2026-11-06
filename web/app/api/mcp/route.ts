@@ -22,6 +22,7 @@ import { getPosthogProUsers } from '@/lib/mcp/tools/get_posthog_pro_users'
 import { dataforseo } from '@/lib/mcp/tools/dataforseo'
 import { hunter } from '@/lib/mcp/tools/hunter'
 import { apify } from '@/lib/mcp/tools/apify'
+import { logWork, listWork, updateWork, deleteWork } from '@/lib/mcp/tools/work_log'
 import { getTodayTasks, buildTodayPrompt } from '@/lib/daily/today-tasks'
 import { resolveSignal } from '@/lib/signals'
 import { getBlogPost, markBlogPublished } from '@/lib/mcp/tools/blog_posts'
@@ -202,6 +203,18 @@ async function dispatch(
 
     case 'apify':
       return apify(brandId, { actor: args['actor'], input: args['input'], limit: args['limit'], run_id: args['run_id'] })
+
+    case 'log_work':
+      return logWork(brandId, args)
+
+    case 'list_work':
+      return listWork(brandId, args)
+
+    case 'update_work':
+      return updateWork(brandId, args)
+
+    case 'delete_work':
+      return deleteWork(brandId, args)
 
     default:
       throw new Error(`Unknown tool: ${name}`)

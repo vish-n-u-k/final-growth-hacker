@@ -453,6 +453,13 @@ Three thin tools on the MCP server (`app/api/mcp/route.ts`, defined in `lib/mcp/
 - **How it checks** (`lib/modules/foundation/google-profile.ts`, no AI): DataForSEO Business Listings (`businessListings` in `dataforseo.ts`, by website domain, then by exact name; ~$0.01, shows in Usage as Foundation · "Google Business Profiles"), else a link on the site to the profile, a review link or an embedded Google map (`googleProfileLink` in the fetcher). Fails when not found or the listing isn't claimed; passes with a note to get more reviews under 5. "Check again" on the item uses the same lookup.
 - Not tried against the real Business Listings API yet (filter field names `domain` / `title`).
 
+## 4g. Work log MCP tools (6 Nov)
+
+The owner does growth work outside GrowJin (blogs that need indexing, community notes, leads emailed) and wants it kept somewhere to ask for later. **Backend + MCP only, no UI, and nothing else in the app reads it** (not Today, the agents, dedupe or scores). Claude logs only when the owner tells it to.
+- **Table** `work_log` (`web/drizzle/work_log.sql`, **run it in Supabase**; until then the tools answer "The work log table is missing…"): kind (blog / community / outreach / listing / social / other, free word allowed), title, url, done_on, how, status (done / waiting / follow_up), next_check, notes.
+- **Tools** (`lib/mcp/tools/work_log.ts`, in `tool-registry.ts` and `app/api/mcp/route.ts`): `log_work` (one entry or `entries`, up to 100; a url already logged isn't added again, returned as `already_logged`), `list_work` (kind, status, from / to, search, `due`, limit ≤ 500; counts by kind and status), `update_work` (only the fields given; `add_note` appends a dated line), `delete_work`.
+- Tested against a local Postgres (adding, batch dedupe, filters, due, updates, brand separation, missing table). Not tried through a live MCP client yet.
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

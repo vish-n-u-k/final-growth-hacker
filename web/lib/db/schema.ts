@@ -753,3 +753,28 @@ export const adLaunches = pgTable(
     uniq: unique('ad_launches_unique').on(table.platform, table.campaignId),
   }),
 )
+
+// ── Work log (drizzle/work_log.sql) ───────────────────────────────────────────
+// Growth work the owner did outside GrowJin (blogs published, community posts,
+// leads emailed…), saved through the MCP tools log_work / list_work / update_work /
+// delete_work when they tell Claude about it. Nothing else in the app reads this.
+export const workLog = pgTable(
+  'work_log',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    brandId: uuid('brand_id').notNull().references(() => brands.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),             // blog | community | outreach | listing | social | other (free word allowed)
+    title: text('title').notNull(),           // what was done
+    url: text('url'),
+    doneOn: text('done_on').notNull(),        // YYYY-MM-DD
+    how: text('how'),                         // how it was done
+    status: text('status').notNull().default('done'), // done | waiting | follow_up
+    nextCheck: text('next_check'),            // YYYY-MM-DD, optional
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    brandDoneIdx: index('work_log_brand_done_idx').on(table.brandId, table.doneOn),
+  }),
+)
