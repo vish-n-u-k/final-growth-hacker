@@ -14,6 +14,7 @@ import { fetchGscPageTraffic, fetchGscTopQueries } from '@/lib/modules/seo/keywo
 import { getSitemap } from '@/lib/modules/content-audit/fetcher'
 import { CARD_IDS, type Answer, type AskCards, type CardId } from './types'
 import { norm, section } from './urls'
+import { indexInfo, readAsks, sortPages, type Asks, type IndexInfo } from './indexing'
 import { linkingSites, readHomepageCheck, visibilityAnswer } from './visibility'
 
 const KEY = 'ask:cards'
@@ -142,11 +143,14 @@ export interface GoogleData {
   listed: string[]
   rows: { page: string; clicks: number; impressions: number }[]
   queries: { query: string; clicks: number; impressions: number }[] | null   // last 90 days, null when unread
+  lastmod: Record<string, string | null>   // the sitemap's dates, by the sitemap's own address
+  index: IndexInfo | null                  // what Google says about the pages not showing (URL Inspection), the site's first day on Google
+  asks: Asks                               // pages the owner asked Google to index ("Done, I asked Google")
 }
 
 export async function googleData(brandId: string, websiteUrl: string): Promise<GoogleData> {
   const origin = (() => { try { return new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).origin } catch { return '' } })()
-  const base = { origin, websiteUrl, listed: [], rows: [], queries: null }
+  const base = { origin, websiteUrl, listed: [], rows: [], queries: null, lastmod: {}, index: null, asks: {} }
   const meta = await gscKey(brandId)
   if (!meta) return { ...base, state: 'connect' }
   let failed = false
@@ -157,7 +161,13 @@ export async function googleData(brandId: string, websiteUrl: string): Promise<G
     fetchGscTopQueries(meta.client_email, meta.private_key, websiteUrl, 250).catch(() => null),
   ])
   if (failed) return { ...base, state: 'failed' }
-  return { ...base, state: 'ok', listed: [...sitemap.keys()], rows: rows ?? [], queries }
+  const listed = [...sitemap.keys()]
+  const lastmod = Object.fromEntries(sitemap)
+  const shown = new Set((rows ?? []).filter(r => r.impressions > 0).map(r => norm(r.page)))
+  const asks = await readAsks(brandId).catch(() => ({}))
+  const index = await indexInfo(brandId, meta, websiteUrl, listed.filter(u => !shown.has(norm(u))), lastmod, asks)
+    .catch(e => { console.error('[ask] url inspection', e); return null })
+  return { ...base, state: 'ok', listed, rows: rows ?? [], queries, lastmod, index, asks }
 }
 
 function googleFromData(d: GoogleData, at: string): Answer {
@@ -180,12 +190,13 @@ function googleFromData(d: GoogleData, at: string): Answer {
       then: [], source: 'Google Search Console',
     }
   }
-  return googleAnswer({ at, origin: d.origin, websiteUrl: d.websiteUrl, listed: d.listed, rows: d.rows })
+  return googleAnswer({ at, origin: d.origin, websiteUrl: d.websiteUrl, listed: d.listed, rows: d.rows, lastmod: d.lastmod, index: d.index, asks: d.asks })
 }
 
 /** The Google answer from the sitemap's pages and Search Console's rows (no fetching here). */
-export function googleAnswer({ at, origin, websiteUrl, listed: listedRaw, rows }: {
+export function googleAnswer({ at, origin, websiteUrl, listed: listedRaw, rows, lastmod = {}, index = null, asks = {}, now = Date.now() }: {
   at: string; origin: string; websiteUrl: string; listed: string[]; rows: { page: string; clicks: number; impressions: number }[]
+  lastmod?: Record<string, string | null>; index?: IndexInfo | null; asks?: Asks; now?: number
 }): Answer {
   const base = { id: 'google' as const, question: 'Why am I not on Google?', at }
   const shown = new Map(rows.filter(r => r.impressions > 0).map(r => [norm(r.page), r]))
@@ -226,46 +237,76 @@ export function googleAnswer({ at, origin, websiteUrl, listed: listedRaw, rows }
   const notShown = listed.length - listedShown
   const [big] = gaps
   const bigShare = big && notShown ? big[1] / notShown : 0
-  const finds: string[] = []
   const bigNoted = !!big && big[0] !== 'Main pages' && big[1] >= 20 && bigShare >= 0.5
-  if (bigNoted) {
-    finds.push(`**${plural(big[1], 'page')} under ${big[0]}** haven’t shown up at all. If they’re made automatically with little text, they can slow Google down on the rest of your site.`)
-  }
-  if (clicked) finds.push(`**${plural(clicked, 'page')}** got at least one click from Google.`)
   const extra = shown.size - listedShown
+
+  // Each page that hasn't shown up, sorted by what Google says about it, its age, the site's age and
+  // whether the owner already asked Google (lib/ask/indexing.ts)
+  const rawOf = new Map(listedRaw.map(u => [norm(u), u]))
+  const sorted = sortPages({ notShown: listed.filter(u => !shown.has(u)).map(u => rawOf.get(u) ?? u), shown: new Set(shown.keys()), lastmod, info: index, asks, now })
+  const c = sorted.counts
+  const checked = !!index && Object.keys(index.pages).length > 0
+  const nudge = c.todo + c.improve
+  const sitemapMissing = index?.sitemaps != null && !index.sitemaps.length
+  const firstDay = index?.firstSeen ? new Date(index.firstSeen).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''
+  const siteLine = !sorted.newSite ? ''
+    : sorted.siteDays != null
+      ? `**New sites usually take 1–3 months** to be picked up fully. Yours first showed up in a search on ${firstDay}. Asking Google about your main pages speeds it up.`
+      : '**Nothing has shown up in a search yet.** That’s normal in the first few weeks of a new site; asking Google about your main pages speeds it up.'
+
+  const finds: string[] = []
+  if (siteLine) finds.push(siteLine)
+  if (bigNoted) finds.push(`**${plural(big[1], 'page')} under ${big[0]}** haven’t shown up at all. If they’re made automatically with little text, they can slow Google down on the rest of your site.`)
+  if (sorted.askedIn) finds.push(`**${plural(sorted.askedIn, 'page')} you asked Google for** ${sorted.askedIn === 1 ? 'is' : 'are'} on Google now.`)
+  if (sitemapMissing) finds.push('Your sitemap isn’t submitted in Search Console, so Google may not know all your pages.')
+  if (c.improve) finds.push(`**${plural(c.improve, 'page')}** Google read and left out, or still out weeks after you asked. Usually too little text.`)
+  if (c.blocked) finds.push(`**${plural(c.blocked, 'page')}** ${c.blocked === 1 ? 'is' : 'are'} blocked from Google (a noindex tag, a redirect or a missing page).`)
+  if (clicked) finds.push(`**${plural(clicked, 'page')}** got at least one click from Google.`)
   if (extra > 0) finds.push(`${plural(extra, 'page')} showed up that ${extra === 1 ? 'isn’t' : 'aren’t'} in your sitemap.`)
 
   const share = listed.length ? listedShown / listed.length : 0
-  const say = !listedShown
+  const rest = checked && notShown
+    ? ` Of the other ${notShown.toLocaleString('en')}: ${[
+      nudge && `**${nudge.toLocaleString('en')} need${nudge === 1 ? 's' : ''} a nudge**`,
+      c.wait && `${c.wait.toLocaleString('en')} ${c.wait === 1 ? 'is' : 'are'} new or waiting on your request`,
+      c.indexed && `${c.indexed.toLocaleString('en')} ${c.indexed === 1 ? 'is' : 'are'} on Google but not searched for yet`,
+      c.blocked && `${c.blocked.toLocaleString('en')} ${c.blocked === 1 ? 'is' : 'are'} blocked`,
+    ].filter(Boolean).join(', ')}.`
+    : share < 0.5 && big ? ` Most of the rest are ${big[0] === 'Main pages' ? 'main pages' : `under **${big[0]}**`}.` : ''
+  const newLead = !sorted.newSite ? ''
+    : sorted.siteDays != null ? `**Your site is new to Google** (first in a search ${plural(sorted.siteDays, 'day')} ago), so part of this is just time. ` : '**Your site is new to Google**, so part of this is just time. '
+  const say = newLead + (!listedShown
     ? `**None of your ${plural(listed.length, 'page')}** showed up in a Google search in the last ${GOOGLE_DAYS} days.`
-    : `**${listedShown} of your ${plural(listed.length, 'page')}** showed up in a Google search in the last ${GOOGLE_DAYS} days${share < 0.5 && big ? `. Most of the rest are ${big[0] === 'Main pages' ? 'main pages' : `under **${big[0]}**`}.` : '.'}`
-  return {
-    ...base, number: String(listedShown), numberLabel: `of ${listed.length.toLocaleString('en')} ${listed.length === 1 ? 'page' : 'pages'} on Google`, state: 'ok', say,
-    picture: { kind: 'bars', rows: [
-      { label: 'In your sitemap', value: listed.length },
-      { label: 'Showed up in a search', value: listedShown },
-      { label: 'Got a click', value: clicked, strong: true },
-    ] },
-    pictureTitle: `Your pages on Google, last ${GOOGLE_DAYS} days`,
-    finds: finds.slice(0, 3),
-    next: !notShown ? null : bigNoted
-      ? {
-        title: `Hide the ${plural(big[1], 'page')} under ${big[0]} from Google`, why: 'If they’re made automatically with little text, they slow Google down on the rest of your site.', label: 'Get the fix', ...gscLink,
-        panel: {
-          kind: 'brief', title: `Hide the pages under ${big[0]} from Google`,
-          intro: `Only do this if the pages under ${big[0]} are made automatically with little text (one per post, user or item). They stay live for visitors; Google just stops listing them, and spends its visits on your real pages. Give this to whoever runs your website.`,
-          steps: [
-            `Add a noindex tag to every page under ${big[0]} (in the page’s <head>, see below).`,
-            `Take those pages out of your sitemap. If one page lists the best of them, keep that one in.`,
-            `Don’t block ${big[0]} in robots.txt yet: Google has to read each page once to see the noindex.`,
-            'Check one of the pages afterwards: its source should show the noindex tag, and your homepage’s should not.',
-            'In Search Console, resubmit your sitemap. Google drops the pages over the next few weeks.',
-          ],
-          code: '<meta name="robots" content="noindex, follow">',
-          link: { label: 'Open Search Console', href: gscLink.href },
-        },
-      }
-      : {
+    : `**${listedShown} of your ${plural(listed.length, 'page')}** showed up in a Google search in the last ${GOOGLE_DAYS} days.`) + rest
+
+  const property = index?.property ?? (origin ? `${origin}/` : websiteUrl)
+  const indexPanel = (lede: string) => ({
+    kind: 'index' as const, property, lede: `${sorted.newSite ? 'Your site is new to Google, so some pages just need time. ' : ''}${lede}`,
+    rows: sorted.rows.slice(0, 80),
+  })
+  const askLede = 'Google allows about 10 requests a day, so start at the top. For each page: open it in Search Console, click Request indexing, then press Done here. We check every morning and tell you when it’s in.'
+
+  const hideNext = bigNoted ? {
+    title: `Hide the ${plural(big[1], 'page')} under ${big[0]} from Google`, why: 'If they’re made automatically with little text, they slow Google down on the rest of your site.', label: 'Get the fix', ...gscLink,
+    panel: {
+      kind: 'brief' as const, title: `Hide the pages under ${big[0]} from Google`,
+      intro: `Only do this if the pages under ${big[0]} are made automatically with little text (one per post, user or item). They stay live for visitors; Google just stops listing them, and spends its visits on your real pages. Give this to whoever runs your website.`,
+      steps: [
+        `Add a noindex tag to every page under ${big[0]} (in the page’s <head>, see below).`,
+        `Take those pages out of your sitemap. If one page lists the best of them, keep that one in.`,
+        `Don’t block ${big[0]} in robots.txt yet: Google has to read each page once to see the noindex.`,
+        'Check one of the pages afterwards: its source should show the noindex tag, and your homepage’s should not.',
+        'In Search Console, resubmit your sitemap. Google drops the pages over the next few weeks.',
+      ],
+      code: '<meta name="robots" content="noindex, follow">',
+      link: { label: 'Open Search Console', href: gscLink.href },
+    },
+  } : null
+
+  const next: Answer['next'] = !notShown ? null
+    : hideNext ? hideNext
+      : !checked ? {
+        // URL Inspection didn't answer: the general fix
         title: 'Help Google find your other pages', why: `${plural(notShown, 'page')} in your sitemap haven’t shown up in a search yet.`, label: 'Get the fix', ...gscLink,
         panel: {
           kind: 'brief', title: 'Help Google find your other pages',
@@ -276,14 +317,47 @@ export function googleAnswer({ at, origin, websiteUrl, listed: listedRaw, rows }
             'In Search Console, use URL Inspection and “Request indexing” on the five that matter most (about ten a day are allowed).',
             'If a page has little text, add to it first: thin pages are often read and then left out.',
           ],
-          code: listed.filter(u => !shown.has(u)).slice(0, 12).join('\n'),
+          code: listed.filter(u => !shown.has(u)).slice(0, 12).map(u => rawOf.get(u) ?? u).join('\n'),
           link: { label: 'Open Search Console', href: gscLink.href },
         },
-      },
+      }
+        : c.todo ? { title: `Ask Google to look at ${plural(c.todo, 'page')}`, why: 'Open each in Search Console, click Request indexing, then mark it done here. We keep track.', label: 'Start', ...gscLink, panel: indexPanel(askLede) }
+          : c.improve ? { title: `Improve ${plural(c.improve, 'page')} Google left out`, why: 'Add more of your own words and link to them, then ask Google again.', label: 'See the pages', ...gscLink, panel: indexPanel('Asking again won’t help until the page changes. Add more of your own text, link to it from a page that shows up, then ask Google and press Done here.') }
+            : c.blocked ? { title: `Unblock ${plural(c.blocked, 'page')}`, why: 'Something on the page tells Google to skip it.', label: 'See the pages', ...gscLink, panel: indexPanel('Each page says what’s stopping Google. Some may be on purpose (like a thank-you page): then take them out of your sitemap.') }
+              : c.wait ? { title: 'Give it time', why: `${plural(c.wait, 'page')} ${c.wait === 1 ? 'is' : 'are'} new or waiting on your request. Nothing to do; we check every morning.`, label: 'See each page', ...gscLink, panel: indexPanel('Nothing to do for these yet. New pages and pages you asked about usually get in within 2 weeks.') }
+                : { title: 'Help people find pages Google already has', why: `${plural(c.indexed, 'page')} ${c.indexed === 1 ? 'is' : 'are'} on Google, but nobody searched words ${c.indexed === 1 ? 'it answers' : 'they answer'} yet.`, label: 'See the pages', ...gscLink, panel: indexPanel('Google has these. To get them seen: make each title say what people search, and link to them from pages that do show up.') }
+
+  const then: Answer['then'] = checked
+    ? [
+      ...(sitemapMissing ? [{ title: 'Submit your sitemap in Search Console', why: `Sitemaps → add ${origin}/sitemap.xml` }] : []),
+      ...(hideNext && nudge ? [{ title: `Ask Google to look at ${plural(nudge, 'page')}`, why: 'After hiding the thin pages' }] : []),
+      ...(c.wait ? [{ title: `${plural(c.wait, 'page')}: give it time`, why: 'New, or you already asked Google' }] : []),
+      { title: 'Link to new pages from pages that show up', why: 'Google visits linked pages sooner' },
+    ].slice(0, 2)
     // The other sections with pages not showing (the biggest is already a finding when it stood out)
-    then: gaps.filter(([s]) => !(bigNoted && s === big[0])).slice(0, 2)
-      .map(([s, n]) => ({ title: `${s}: ${plural(n, 'page')} not showing yet`, why: 'Link to them from pages that do show up' })),
-    source,
+    : gaps.filter(([s]) => !(bigNoted && s === big[0])).slice(0, 2).map(([s, n]) => ({ title: `${s}: ${plural(n, 'page')} not showing yet`, why: 'Link to them from pages that do show up' }))
+
+  return {
+    ...base, number: String(listedShown), numberLabel: `of ${listed.length.toLocaleString('en')} ${listed.length === 1 ? 'page' : 'pages'} on Google`, state: 'ok', say,
+    picture: { kind: 'bars', rows: checked
+      ? [
+        { label: 'In your sitemap', value: listed.length },
+        { label: 'Showed up in a search', value: listedShown },
+        ...(c.indexed ? [{ label: 'On Google, not searched for yet', value: c.indexed }] : []),
+        ...(c.wait ? [{ label: 'New, or waiting on your request', value: c.wait }] : []),
+        { label: 'Need a nudge', value: nudge, strong: true },
+        ...(c.blocked ? [{ label: 'Blocked', value: c.blocked }] : []),
+      ]
+      : [
+        { label: 'In your sitemap', value: listed.length },
+        { label: 'Showed up in a search', value: listedShown },
+        { label: 'Got a click', value: clicked, strong: true },
+      ] },
+    pictureTitle: `Your pages on Google, last ${GOOGLE_DAYS} days`,
+    finds: finds.slice(0, 3),
+    next,
+    then,
+    source: checked ? `${source} · Google’s own check of ${plural(Object.keys(index!.pages).length, 'page')}` : source,
   }
 }
 

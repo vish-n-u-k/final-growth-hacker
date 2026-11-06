@@ -12,6 +12,7 @@ import { brandedQueryMatcher } from '@/lib/modules/seo/keyword-fetchers'
 import { fetchPage } from '@/lib/modules/brand-audit/fetcher'
 import type { GoogleData } from './cards'
 import { norm, section } from './urls'
+import { NEW_SITE_DAYS } from './indexing'
 import type { Answer, NextStep, Picture } from './types'
 
 type State = 'good' | 'warn' | 'bad' | 'unknown'
@@ -46,12 +47,14 @@ export function visibilityChecks(v: VisibilityInput): Check[] {
   const listed = [...new Set(g.listed.map(norm))]
   const listedShown = listed.filter(u => shown.has(u)).length
   const share = pct(listedShown, listed.length)
+  const newSite = !!g.index && !g.index.oldest && (g.index.firstSeen ? Date.now() - Date.parse(g.index.firstSeen) < NEW_SITE_DAYS * 86_400_000 : !shown.size)
 
   checks.push({
     id: 'pages', group: 'Google', label: 'Pages on Google', weight: 3,
     value: !gscOn ? 'Connect Search Console' : listed.length ? `${listedShown} of ${plural(listed.length, 'page')} showed up in a search` : `${plural(shown.size, 'page')} showed up in a search`,
-    state: !gscOn ? 'unknown' : !listed.length ? (shown.size ? 'warn' : 'bad') : share >= 60 ? 'good' : share >= 25 ? 'warn' : 'bad',
-    why: 'Google has to keep a page before anyone can find it. A page it skips can never show up in a search.',
+    // A site Google first saw under 3 months ago is still being picked up: "needs work", not "fix this"
+    state: !gscOn ? 'unknown' : !listed.length ? (shown.size ? 'warn' : 'bad') : share >= 60 ? 'good' : share >= 25 || newSite ? 'warn' : 'bad',
+    why: `Google has to keep a page before anyone can find it. A page it skips can never show up in a search.${newSite ? ' Your site is new to Google, so part of this is just time.' : ''}`,
   })
 
   const missing = new Map<string, number>()

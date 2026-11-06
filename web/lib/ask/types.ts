@@ -19,6 +19,19 @@ export type Panel =
   | { kind: 'lead'; id: string; lane: 'email' | 'talk' }   // a lead's email, or a post's reply / a page's message
   | { kind: 'reply'; threadId: string }                     // someone replied: read it and answer
   | { kind: 'brief'; title: string; intro: string; steps: string[]; code?: string; link?: { label: string; href: string } }
+  // Pages not on Google yet, one by one: ask Google to index each, then mark it done (tracked)
+  | { kind: 'index'; property: string; lede: string; rows: IndexRow[] }
+
+/** One sitemap page that hasn't shown up in a search, and what to do with it. */
+export interface IndexRow {
+  url: string
+  path: string
+  // todo: ask Google · improve: add to it first · blocked: something tells Google to skip it
+  // wait: new, or already asked (give it time) · indexed: Google has it, nobody searched for it yet
+  group: 'todo' | 'improve' | 'blocked' | 'wait' | 'indexed'
+  note: string
+  askedAt?: string
+}
 
 export interface NextStep {
   title: string

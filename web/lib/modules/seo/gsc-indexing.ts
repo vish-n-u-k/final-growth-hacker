@@ -31,7 +31,7 @@ export type GscIndexingResult =
 
 const MAX_PAGES = 8
 
-async function gscFetch<T>(token: string, url: string, init?: RequestInit): Promise<T> {
+export async function gscFetch<T>(token: string, url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -70,7 +70,7 @@ function inProperty(property: string, url: string): boolean {
   } catch { return false }
 }
 
-async function inspect(token: string, property: string, url: string): Promise<InspectedUrl | null> {
+export async function inspect(token: string, property: string, url: string): Promise<InspectedUrl | null> {
   try {
     const data = await gscFetch<{ inspectionResult?: { indexStatusResult?: Record<string, string> } }>(
       token,
@@ -93,7 +93,7 @@ async function inspect(token: string, property: string, url: string): Promise<In
   }
 }
 
-async function listSitemaps(token: string, property: string): Promise<SubmittedSitemap[] | null> {
+export async function listSitemaps(token: string, property: string): Promise<SubmittedSitemap[] | null> {
   try {
     const data = await gscFetch<{ sitemap?: {
       path: string; lastSubmitted?: string; lastDownloaded?: string; isPending?: boolean

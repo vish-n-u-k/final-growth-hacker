@@ -259,7 +259,7 @@ type GscApiRow = { keys: string[]; impressions: number; clicks: number; position
 
 // Tries URL-prefix property first, then domain property — GSC has two formats.
 // rows = null when neither answered with data (errors says why).
-async function searchAnalytics(
+export async function searchAnalytics(
   clientEmail: string,
   privateKey: string,
   siteUrl: string,

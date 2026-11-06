@@ -558,6 +558,37 @@ A ready answer (`seen`, second on the home page) that scores how findable the si
 - Without Search Console and AI answers, it says there isn't enough to score yet and asks to connect Search Console.
 - Checked in the preview harness (full and empty). Full build passes. Not run on real data yet.
 
+## 4g-9. Ask: "Why am I not on Google?" knows why, page by page, and keeps track (6 Nov)
+
+The owner's ask: not just counts, but *why* each page is missing (a new site may just need time), and a way to ask Google to index a page, press Done, and have it tracked.
+- **`lib/ask/indexing.ts`:**
+  - `indexInfo()` fetches and caches in `ask:index`:
+    - Google's own verdict per missing page: URL Inspection, up to 20 per fill, each kept 3 days, pages you asked about checked first.
+    - The site's first day in a search: Search Console by date over 16 months, weekly.
+    - The submitted sitemaps.
+  - `sortPages()` (pure) puts each missing page in one group:
+    - **todo**: unknown to Google, discovered but not visited, or just not in.
+    - **improve**: Google read it and left it out, or it's still out 21+ days after you asked.
+    - **blocked**: noindex, robots, redirect, 404, a copy of another page…
+    - **wait**: added under 14 days ago (sitemap `lastmod`), or asked under 21 days ago.
+    - **indexed**: Google has it, nobody searched for it yet.
+- **New site:** first in a search under 90 days ago. The sentence leads with "Your site is new to Google (first in a search N days ago), so part of this is just time." The visibility score's "Pages on Google" check is "needs work" rather than "fix this".
+- **Card:**
+  - The sentence splits the rest: need a nudge / new or waiting / on Google but not searched / blocked.
+  - Bars show the same split.
+  - Findings, most important first: the new site, thin sections, asked pages now in, sitemap not submitted, left out, blocked.
+  - Next step opens the new **index panel** (`Panel kind 'index'`, `IndexPanel` in `AskPanel.tsx`, `ask-ix-*` CSS):
+    - Groups Ask Google / Improve first / Blocked / Give it time / On Google, not searched.
+    - Each row: the page, why in plain words, **Open in Search Console** (its URL Inspection page), and **Done, I asked Google**.
+    - "N asked today · Google allows about 10 a day".
+  - The thin-section "hide these pages" fix still comes first when it applies.
+  - Falls back to the old brief if URL Inspection didn't answer.
+- **Tracking:** `/api/ask/indexing` GET / POST `{ url, asked }` saves the asks in `ask:index-asks` (`:demo` in demo mode). The next morning's fill:
+  - inspects those pages first;
+  - says "N pages you asked Google for are on Google now";
+  - moves pages still out after 21 days to Improve first.
+- Uses the `webmasters.readonly` key already connected (URL Inspection works with read-only). Checked with made-up data in the preview harness: an old site with every group, a new site, Done / Undo, phone width. Full build passes. **Not run against a real Search Console property yet.**
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

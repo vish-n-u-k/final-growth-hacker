@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Lead } from '@/lib/agents/store'
 import type { Conversation } from '@/lib/gmail/conversations'
-import type { Panel } from '@/lib/ask/types'
+import type { IndexRow, Panel } from '@/lib/ask/types'
+import { norm } from '@/lib/ask/urls'
 
 // Ask, phase 3 (md_files/ASK_PLAN.md): the work an answer points to, done in a panel on the Ask
 // page. Each panel uses the same API as the tool's own page (Lead Finder: /api/agents/lead; the
@@ -28,6 +29,7 @@ export default function AskPanel({ panel, onClose }: { panel: Panel; onClose: (c
       <div className="ask-veil" onClick={close} aria-hidden="true" />
       <aside className="ask-sheet" role="dialog" aria-modal="true" aria-label="Do it here" tabIndex={-1} ref={ref}>
         {panel.kind === 'brief' && <BriefPanel p={panel} onClose={close} />}
+        {panel.kind === 'index' && <IndexPanel p={panel} onClose={close} />}
         {panel.kind === 'lead' && <LeadPanel start={panel.id} lane={panel.lane} onChange={() => { changed.current = true }} onClose={close} />}
         {panel.kind === 'reply' && <ReplyPanel start={panel.threadId} onChange={() => { changed.current = true }} onClose={close} />}
       </aside>
@@ -81,6 +83,89 @@ function BriefPanel({ p, onClose }: { p: Extract<Panel, { kind: 'brief' }>; onCl
     </div>
   )
 }
+
+// ── Pages not on Google yet: ask Google, one by one, and keep track ───────────
+
+const GROUPS: { id: IndexRow['group']; title: string; sub: string }[] = [
+  { id: 'todo', title: 'Ask Google', sub: 'Open it, click Request indexing, then press Done.' },
+  { id: 'improve', title: 'Improve first, then ask', sub: 'Asking again won’t help until the page changes.' },
+  { id: 'blocked', title: 'Blocked', sub: 'Something tells Google to skip these.' },
+  { id: 'wait', title: 'Give it time', sub: 'New, or you already asked. Nothing to do yet.' },
+  { id: 'indexed', title: 'On Google, not searched for yet', sub: 'Google has these. Link to them and make the titles say what people search.' },
+]
+const dayOf = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+const isToday = (iso: string) => new Date(iso).toDateString() === new Date().toDateString()
+const SHOW = 10
+
+function IndexPanel({ p, onClose }: { p: Extract<Panel, { kind: 'index' }>; onClose: () => void }) {
+  // What the owner asked Google, read fresh (the card is from this morning)
+  const [asks, setAsks] = useState<Record<string, { at: string }> | null>(null)
+  const [busy, setBusy] = useState('')
+  const [open, setOpen] = useState<Record<string, boolean>>({})
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    fetch('/api/ask/indexing').then(r => r.json()).then(d => setAsks(d.asks ?? {})).catch(() => setAsks({}))
+  }, [])
+  const askedAt = (r: IndexRow) => (asks ? asks[norm(r.url)]?.at : r.askedAt)
+  async function mark(r: IndexRow, asked: boolean) {
+    setBusy(r.url); setErr('')
+    try {
+      const res = await fetch('/api/ask/indexing', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: r.url, asked }) })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error)
+      setAsks(d.asks ?? {})
+    } catch { setErr('Couldn’t save that. Try again.') } finally { setBusy('') }
+  }
+  const today = Object.values(asks ?? {}).filter(a => isToday(a.at)).length
+  // One blue button on the screen: the first page still to ask about
+  const first = p.rows.find(r => (r.group === 'todo' || r.group === 'improve') && !askedAt(r))
+
+  return (
+    <div className="ask-sheet-in">
+      <Top label="Get your pages on Google" onClose={onClose} />
+      <h2 className="ask-sheet-h">Your pages, one by one</h2>
+      <p className="ask-sheet-lede">{p.lede}</p>
+      {today > 0 && <p className="ask-ix-today" role="status">{today} asked today · Google allows about 10 a day</p>}
+      {GROUPS.map(g => {
+        const rows = p.rows.filter(r => r.group === g.id)
+        if (!rows.length) return null
+        const shown = open[g.id] ? rows : rows.slice(0, SHOW)
+        const body = (
+          <>
+            <ul className="ask-ix">
+              {shown.map(r => {
+                const at = askedAt(r)
+                const canAsk = g.id === 'todo' || g.id === 'improve' || (g.id === 'wait' && !!at)
+                return (
+                  <li key={r.url} className={`ask-ix-row${at && canAsk ? ' is-asked' : ''}`}>
+                    <div className="ask-ix-what">
+                      <b title={r.url}>{r.path}</b>
+                      <span>{at && g.id !== 'wait' && g.id !== 'indexed' && isToday(at) ? 'Asked today. We check every morning and move it when it’s in.' : r.note}</span>
+                    </div>
+                    <div className="ask-ix-acts">
+                      <a className="ask-tl" href={inspectHref(p.property, r.url)} target="_blank" rel="noreferrer">Open in Search Console</a>
+                      {canAsk && (at
+                        ? <span className="ask-ix-done">✓ Asked {isToday(at) ? 'today' : dayOf(at)} · <button type="button" onClick={() => mark(r, false)} disabled={busy === r.url}>Undo</button></span>
+                        : <button type="button" className={`ask-btn${r === first ? '' : ' ask-btn-quiet'}`} onClick={() => mark(r, true)} disabled={busy === r.url}>Done, I asked Google</button>)}
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+            {rows.length > shown.length && <button type="button" className="ask-ix-more" onClick={() => setOpen(o => ({ ...o, [g.id]: true }))}>Show {rows.length - shown.length} more</button>}
+          </>
+        )
+        return g.id === 'indexed' || (g.id === 'wait' && p.rows.some(r => r.group !== 'wait' && r.group !== 'indexed'))
+          ? <details key={g.id} className="ask-ix-g"><summary><span className="ask-k">{g.title} · {rows.length}</span><small>{g.sub}</small></summary>{body}</details>
+          : <section key={g.id} className="ask-ix-g"><div className="ask-ix-h"><span className="ask-k">{g.title} · {rows.length}</span><small>{g.sub}</small></div>{body}</section>
+      })}
+      {err && <p className="ask-said" role="alert">{err}</p>}
+    </div>
+  )
+}
+
+const inspectHref = (property: string, url: string) =>
+  `https://search.google.com/search-console/inspect?resource_id=${encodeURIComponent(property)}&id=${encodeURIComponent(url)}`
 
 // ── A lead: an email to approve, or a reply / message to post by hand ─────────
 
