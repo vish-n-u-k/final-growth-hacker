@@ -10,9 +10,11 @@ import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { agentsDemo, withDemo } from '@/lib/agents/demo'
 import { readDemoSwitch, readLeadData, readSearchData, type Lead, type SearchAgentData } from '@/lib/agents/store'
 import { listConversations, type Conversation } from '@/lib/gmail/conversations'
-import { fetchGscPageTraffic } from '@/lib/modules/seo/keyword-fetchers'
+import { fetchGscPageTraffic, fetchGscTopQueries } from '@/lib/modules/seo/keyword-fetchers'
 import { getSitemap } from '@/lib/modules/content-audit/fetcher'
 import { CARD_IDS, type Answer, type AskCards, type CardId } from './types'
+import { norm, section } from './urls'
+import { linkingSites, readHomepageCheck, visibilityAnswer } from './visibility'
 
 const KEY = 'ask:cards'
 const key = () => (agentsDemo() ? `${KEY}:demo` : KEY)
@@ -123,12 +125,6 @@ export function emailCard(leads: Lead[], lastRunAt: string | undefined, at: stri
 // The Search Console API has no "pages indexed" count (that report is only on the website), so this
 // compares the pages in the sitemap with the pages that showed up in a Google search.
 
-const norm = (u: string) => {
-  try { const x = new URL(u); x.hash = ''; x.search = ''; x.hostname = x.hostname.replace(/^www\./, ''); if (x.pathname !== '/' && x.pathname.endsWith('/')) x.pathname = x.pathname.slice(0, -1); return x.href } catch { return u }
-}
-const section = (u: string) => {
-  try { const p = new URL(u).pathname.split('/').filter(Boolean); return p.length > 1 ? `/${p[0]}/` : 'Main pages' } catch { return 'Main pages' }
-}
 
 /** The brand's Search Console key, or null when it isn't connected. */
 async function gscKey(brandId: string): Promise<{ client_email: string; private_key: string } | null> {
@@ -138,10 +134,35 @@ async function gscKey(brandId: string): Promise<{ client_email: string; private_
   return meta.client_email && meta.private_key ? { client_email: meta.client_email, private_key: meta.private_key } : null
 }
 
-async function googleCard(brandId: string, websiteUrl: string, at: string): Promise<Answer> {
-  const base = { id: 'google' as const, question: 'Why am I not on Google?', at }
+/** What Google knows about the site: Search Console's pages (and searches) and the sitemap. Fetched once, used by two cards. */
+export interface GoogleData {
+  state: 'connect' | 'failed' | 'ok'
+  origin: string
+  websiteUrl: string
+  listed: string[]
+  rows: { page: string; clicks: number; impressions: number }[]
+  queries: { query: string; clicks: number; impressions: number }[] | null   // last 90 days, null when unread
+}
+
+export async function googleData(brandId: string, websiteUrl: string): Promise<GoogleData> {
+  const origin = (() => { try { return new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).origin } catch { return '' } })()
+  const base = { origin, websiteUrl, listed: [], rows: [], queries: null }
   const meta = await gscKey(brandId)
-  if (!meta) {
+  if (!meta) return { ...base, state: 'connect' }
+  let failed = false
+  const [rows, sitemap, queries] = await Promise.all([
+    // Throws when Search Console refuses the key; null when it has no data for the site
+    fetchGscPageTraffic(meta.client_email, meta.private_key, websiteUrl, GOOGLE_DAYS).catch(e => { failed = true; console.error('[ask] search console', e); return null }),
+    origin ? getSitemap(origin).catch(() => new Map<string, string | null>()) : Promise.resolve(new Map<string, string | null>()),
+    fetchGscTopQueries(meta.client_email, meta.private_key, websiteUrl, 250).catch(() => null),
+  ])
+  if (failed) return { ...base, state: 'failed' }
+  return { ...base, state: 'ok', listed: [...sitemap.keys()], rows: rows ?? [], queries }
+}
+
+function googleFromData(d: GoogleData, at: string): Answer {
+  const base = { id: 'google' as const, question: 'Why am I not on Google?', at }
+  if (d.state === 'connect') {
     return {
       ...base, number: '—', numberLabel: 'connect Search Console', state: 'connect',
       say: 'Connect Google Search Console and this shows how many of your pages turn up on Google, and which ones don’t.',
@@ -150,15 +171,7 @@ async function googleCard(brandId: string, websiteUrl: string, at: string): Prom
       then: [], source: 'Google Search Console',
     }
   }
-
-  const origin = (() => { try { return new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`).origin } catch { return '' } })()
-  let failed = false
-  const [rows, sitemap] = await Promise.all([
-    // Throws when Search Console refuses the key; null when it has no data for the site
-    fetchGscPageTraffic(meta.client_email, meta.private_key, websiteUrl, GOOGLE_DAYS).catch(e => { failed = true; console.error('[ask] search console', e); return null }),
-    origin ? getSitemap(origin).catch(() => new Map<string, string | null>()) : Promise.resolve(new Map<string, string | null>()),
-  ])
-  if (failed) {
+  if (d.state === 'failed') {
     return {
       ...base, number: '—', numberLabel: 'Search Console didn’t answer', state: 'connect',
       say: 'Search Console didn’t let us read your data this time. The connection may need checking.',
@@ -167,7 +180,7 @@ async function googleCard(brandId: string, websiteUrl: string, at: string): Prom
       then: [], source: 'Google Search Console',
     }
   }
-  return googleAnswer({ at, origin, websiteUrl, listed: [...sitemap.keys()], rows: rows ?? [] })
+  return googleAnswer({ at, origin: d.origin, websiteUrl: d.websiteUrl, listed: d.listed, rows: d.rows })
 }
 
 /** The Google answer from the sitemap's pages and Search Console's rows (no fetching here). */
@@ -467,6 +480,7 @@ export type OnStep = (e: { id: string; text: string; state: 'on' | 'done' | 'fai
 // What each card does, in plain words, for the progress list
 const STEP_TEXT: Record<CardId, string> = {
   replies: 'Checking which of your emails got replies',
+  seen: 'Scoring how visible you are on Google and in AI answers',
   email: 'Looking at the leads Lead Finder found',
   google: 'Asking Search Console which pages showed up, and reading your sitemap',
   post: 'Reading the Search Agent’s posts to write',
@@ -479,6 +493,7 @@ const STEP_TEXT: Record<CardId, string> = {
 function related(a: Answer, brandName: string): string[] {
   const talk = `Where should I talk about ${brandName}?`
   const r: Record<CardId, string[]> = {
+    seen: a.suggested ?? [],
     replies: a.state === 'ok'
       ? ['What do the people who replied have in common?', 'How many emails went out this week?', 'Who should I email today?']
       : ['How are my emails doing?', 'Who should I email today?'],
@@ -500,13 +515,14 @@ function related(a: Answer, brandName: string): string[] {
 export async function fillCards(brandId: string, onStep: OnStep = () => {}): Promise<AskCards> {
   return withDemo(await readDemoSwitch(brandId), async () => {
     const at = new Date().toISOString()
-    const [brand] = await db.select({ name: brands.name, websiteUrl: brands.websiteUrl }).from(brands).where(eq(brands.id, brandId)).limit(1)
+    const [brand] = await db.select({ name: brands.name, websiteUrl: brands.websiteUrl, keywords: brands.keywords }).from(brands).where(eq(brands.id, brandId)).limit(1)
     onStep({ id: 'read', text: 'Reading your emails, leads and research', state: 'on' })
     const [convs, lead, search] = await Promise.all([listConversations(brandId).catch(() => []), readLeadData(brandId), readSearchData(brandId)])
     onStep({ id: 'read', text: 'Reading your emails, leads and research', state: 'done', result: `${convs.length} email threads · ${(lead?.leads ?? []).length} leads` })
     const leads = lead?.leads ?? []
     const site = brand?.websiteUrl ?? ''
     const name = brand?.name ?? 'your business'
+    const google = googleData(brandId, site)   // shared by the Google and visibility cards
     // Each card is its own step, worked out side by side
     const step = async (id: CardId, work: () => Answer | Promise<Answer>): Promise<Answer> => {
       onStep({ id, text: STEP_TEXT[id], state: 'on' })
@@ -522,7 +538,17 @@ export async function fillCards(brandId: string, onStep: OnStep = () => {}): Pro
     const settled = await Promise.allSettled([
       step('replies', () => repliesCard(convs, at)),
       step('email', () => emailCard(leads, lead?.lastRunAt, at)),
-      step('google', () => googleCard(brandId, site, at)),
+      step('google', async () => googleFromData(await google, at)),
+      step('seen', async () => {
+        const gd = await google
+        const domain = (() => { try { return new URL(gd.origin || 'https://x').hostname.replace(/^www\./, '') } catch { return '' } })()
+        const [homepage, links] = await Promise.all([readHomepageCheck(gd.origin), linkingSites(brandId, domain)])
+        return visibilityAnswer({
+          at, brandName: name, google: gd, googleAnswer: gd.state === 'ok' ? googleFromData(gd, at) : null, homepage,
+          mainWords: search?.settings.seeds?.length ? search.settings.seeds : (brand?.keywords ?? '').split(',').map(k => k.trim()).filter(Boolean),
+          search, leads, links,
+        })
+      }),
       step('post', () => postCard(search, at)),
       step('talk', () => talkCard(leads, name, at)),
       step('keys', () => keysCard(search, at)),

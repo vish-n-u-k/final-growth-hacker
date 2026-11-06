@@ -31,6 +31,32 @@ export default function AskPicture({ p }: { p: Picture }) {
       </div>
     )
   }
+  if (p.kind === 'checks') {
+    // The visibility checklist, grouped (Google, AI answers): mark, check, its number, and why it matters
+    const groups = [...new Set(p.rows.map(r => r.group))]
+    const MARK = { good: '✓', warn: '~', bad: '✕', unknown: '?' } as const
+    const SAY = { good: 'Good', warn: 'Needs work', bad: 'Fix this', unknown: 'Not known yet' } as const
+    return (
+      <div className="ask-checks">
+        {groups.map(g => (
+          <div key={g} className="ask-checks-g">
+            <span className="ask-k">{g}</span>
+            {p.rows.filter(r => r.group === g).map(r => (
+              <details key={r.label} className={`ask-check is-${r.state}`}>
+                <summary>
+                  <i aria-label={SAY[r.state]} title={SAY[r.state]}>{MARK[r.state]}</i>
+                  <b>{r.label}</b>
+                  <span>{r.value}</span>
+                </summary>
+                <p>{r.why}</p>
+              </details>
+            ))}
+          </div>
+        ))}
+        <p className="ask-checks-key">✓ good · ~ needs work · ✕ fix this · ? not known yet</p>
+      </div>
+    )
+  }
   // line
   const W = 640, H = 180, L = 34, B = 22
   const vals = p.points.map(x => x.value)

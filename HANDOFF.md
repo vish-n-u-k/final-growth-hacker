@@ -547,6 +547,17 @@ The owner asked for these after trying Ask.
   - "Ask next" under a card now shows these; the old "next three cards" is only the fallback.
 - Checked in the preview harness with slow streaming stand-ins for both routes (steps and ticks, thinking line and timer, suggestions, follow-up sends the thread id). Full build passes. Not run against real data yet.
 
+## 4g-8. Ask: "What's my Google and AI visibility score?" card (6 Nov)
+
+A ready answer (`seen`, second on the home page) that scores how findable the site is, out of 100, from the SEO playbook checks. Code: `lib/ask/visibility.ts` (`visibilityChecks`, `visibilityAnswer`); URL helpers moved to `lib/ask/urls.ts`.
+- **Nine checks, two groups**, each good (1) / needs work (0.5) / fix this (0) / not known (left out), weighted:
+  - Google: pages Google shows (3), thin auto-made pages (2), leaks such as search or filter pages in the sitemap (1), sitemap (1), home page title / H1 / description (2), searches by people who don't know you yet (2), sites linking to you (2).
+  - AI answers: named in AI answers (3), helpful replies on Reddit / HN (1).
+- Data: the Google card's data (fetched once, with `fetchGscTopQueries` 250 rows), the home page read with cheerio (`readHomepageCheck`), DataForSEO referring domains (`linkingSites`, cached weekly in `ask:links`, Usage as "Ask"), Search Agent AI answers, Lead Finder posts.
+- **Picture** `checks`: grouped list, each line opens to "why it matters". Sentence names the score, the Google and AI parts, and what to fix first. Next step is the fix for the worst weighted check (brief panel, or the Search Agent / another card).
+- Without Search Console and AI answers, it says there isn't enough to score yet and asks to connect Search Console.
+- Checked in the preview harness (full and empty). Full build passes. Not run on real data yet.
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

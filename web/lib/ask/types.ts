@@ -2,7 +2,7 @@
 // The page draws it (components/ask), so all answers look the same.
 
 /** The ready answers, in the order they show on the home page. */
-export const CARD_IDS = ['replies', 'email', 'google', 'post', 'talk', 'keys', 'track'] as const
+export const CARD_IDS = ['replies', 'seen', 'email', 'google', 'post', 'talk', 'keys', 'track'] as const
 export type CardId = (typeof CARD_IDS)[number]
 
 /** One picture per answer, from a small set. */
@@ -11,6 +11,8 @@ export type Picture =
   | { kind: 'bars'; rows: { label: string; value: number; strong?: boolean }[] }
   | { kind: 'tiles'; items: { value: string; label: string; missing?: boolean }[] }
   | { kind: 'line'; points: { label: string; value: number }[] }
+  // A checklist (the visibility score): each check with its number, how it's doing, and why it matters
+  | { kind: 'checks'; rows: { group: string; label: string; value: string; state: 'good' | 'warn' | 'bad' | 'unknown'; why: string }[] }
 
 /** Work that opens in a panel on the Ask page instead of another page (phase 3). */
 export type Panel =

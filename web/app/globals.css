@@ -9845,3 +9845,19 @@ html:not(.light) .ask {
 .ask-fs small { font-size: 12.5px; color: var(--ask-faint); text-align: right; }
 .ask-chip:disabled { opacity: .5; cursor: default; }
 @media (max-width: 520px) { .ask-fs { grid-template-columns: 18px 1fr; } .ask-fs small { grid-column: 2; text-align: left; } }
+
+/* Ask: the visibility checklist */
+.ask-checks-g + .ask-checks-g { margin-top: 16px; }
+.ask-checks-g > .ask-k { display: block; margin-bottom: 4px; }
+.ask-check { border-top: 1px solid var(--ask-line); }
+.ask-check summary { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1.1fr); gap: 10px; align-items: baseline; padding: 9px 0; list-style: none; cursor: pointer; font-size: 14px; }
+.ask-check summary::-webkit-details-marker { display: none; }
+.ask-check summary b { font-weight: 500; }
+.ask-check summary span { color: var(--ask-sub); text-align: right; font-size: 13.5px; }
+.ask-check i { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; font-style: normal; font-size: 11px; font-weight: 700; transform: translateY(2px); background: var(--ask-page); color: var(--ask-faint); border: 1px solid var(--ask-line); }
+.ask-check.is-good i { background: var(--ask-ink); color: var(--ask-card); border-color: var(--ask-ink); }
+.ask-check.is-warn i { color: var(--ask-ink); border-color: var(--ask-grey2); }
+.ask-check.is-bad i { color: var(--ask-red); border-color: var(--ask-red); }
+.ask-check p { margin: 0 0 10px 32px; font-size: 13.5px; color: var(--ask-sub); }
+.ask-checks-key { margin: 12px 0 0; font-size: 12.5px; color: var(--ask-faint); }
+@media (max-width: 560px) { .ask-check summary { grid-template-columns: 22px 1fr; } .ask-check summary span { grid-column: 2; text-align: left; } }
