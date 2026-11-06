@@ -3,6 +3,8 @@
 ## 6 Nov 2026
 
 ### New
+- **Find leads with Claude, approve them in GrowJin.** With GrowJin connected, ask Claude to find leads. It uses your Lead Finder brief and ideal customer, skips anyone you've already emailed, who's already a lead or who opted out, and adds the good ones to Lead Finder. There you approve each email as usual, and follow-ups go out by themselves.
+- **Claude can send email from your Gmail.** Switch on "Let Claude send email" in Settings → Connect Claude and pick a daily limit (10, 25 or 50). Claude shows you each email before sending. People who opted out or bounced are never emailed, and sent emails show in Email Outreach. Off until you switch it on.
 - **Work log in Claude.** Doing growth work outside GrowJin, like publishing blogs, posting in communities or emailing leads? Tell Claude (with GrowJin connected) and it saves it: what you did, the link, when and how. Ask later, for example "which blogs did I publish this month?" or "what's due for a follow-up?", and it shows you. It's only in Claude; nothing changes in the app.
 
 ## 5 Nov 2026

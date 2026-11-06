@@ -23,6 +23,8 @@ import { dataforseo } from '@/lib/mcp/tools/dataforseo'
 import { hunter } from '@/lib/mcp/tools/hunter'
 import { apify } from '@/lib/mcp/tools/apify'
 import { logWork, listWork, updateWork, deleteWork } from '@/lib/mcp/tools/work_log'
+import { getLeadSettings, checkContacts, saveLeads } from '@/lib/mcp/tools/leads'
+import { gmailStatus, sendEmail } from '@/lib/mcp/tools/gmail'
 import { getTodayTasks, buildTodayPrompt } from '@/lib/daily/today-tasks'
 import { resolveSignal } from '@/lib/signals'
 import { getBlogPost, markBlogPublished } from '@/lib/mcp/tools/blog_posts'
@@ -203,6 +205,21 @@ async function dispatch(
 
     case 'apify':
       return apify(brandId, { actor: args['actor'], input: args['input'], limit: args['limit'], run_id: args['run_id'] })
+
+    case 'get_lead_settings':
+      return getLeadSettings(brandId, args)
+
+    case 'check_contacts':
+      return checkContacts(brandId, args)
+
+    case 'save_leads':
+      return saveLeads(brandId, args)
+
+    case 'gmail_status':
+      return gmailStatus(brandId)
+
+    case 'send_email':
+      return sendEmail(brandId, args)
 
     case 'log_work':
       return logWork(brandId, args)
