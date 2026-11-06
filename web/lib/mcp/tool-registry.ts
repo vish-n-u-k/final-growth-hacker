@@ -467,4 +467,72 @@ export const TOOLS: MCPTool[] = [
       },
     },
   },
+  {
+    name: 'log_work',
+    description:
+      'Saves growth work the user did OUTSIDE GrowJin (blogs published, posts that need indexing, community posts and replies, leads or people emailed, directory listings, social posts…) to their work log, so they can ask for it later. Call it when the user tells you they did something and wants it kept ("log this", "save that I posted…", "I sent these leads"); do not log on your own. Log one entry with the fields directly, or many at once with entries (up to 100, e.g. a list of blog URLs). Each entry: kind (blog, community, outreach, listing, social or other; another short word is fine), title (what was done, e.g. "Published: 10 Instagram caption ideas for bakeries", "Replied on r/smallbusiness about scheduling posts", "Emailed Bloom Salon"), url (the blog post, the thread, the person\'s site or email), done_on (YYYY-MM-DD, default today), how (one line on how it was done, e.g. "wrote by hand, posted from Webflow", "sent from my Gmail"), status (done, waiting or follow_up; default done), next_check (YYYY-MM-DD to check on it again, e.g. indexing or a follow-up), notes. Ask for a missing title only if there is no url either; fill the rest from what the user said and leave unknown fields out. An entry whose url is already logged is not added again (returned under already_logged). Returns the saved entries with their ids. Confirm briefly what was saved.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        entries: { type: 'array', description: 'Several entries at once, each an object with the fields below. Leave out to log one entry from the top-level fields.' },
+        kind: { type: 'string', description: 'blog, community, outreach, listing, social or other.' },
+        title: { type: 'string', description: 'What was done, in a few words.' },
+        url: { type: 'string', description: 'Optional. Link to the result, or the person\'s email / site for outreach.' },
+        done_on: { type: 'string', description: 'Optional. YYYY-MM-DD. Defaults to today.' },
+        how: { type: 'string', description: 'Optional. One line on how it was done.' },
+        status: { type: 'string', description: 'Optional. done (default), waiting (e.g. waiting to be indexed or for a reply) or follow_up.' },
+        next_check: { type: 'string', description: 'Optional. YYYY-MM-DD to check on it again.' },
+        notes: { type: 'string', description: 'Optional. Anything else worth keeping.' },
+      },
+    },
+  },
+  {
+    name: 'list_work',
+    description:
+      'Shows the user\'s work log: growth work they did outside GrowJin and asked you to save with log_work. Use when they ask what they did ("what blogs did I publish this month?", "which posts still need indexing?", "who did I email last week?", "what is due for a follow-up?"). Filters: kind, status, from / to (YYYY-MM-DD on done_on), search (text in title, url, how or notes), due=true (not done and next_check is today or earlier). Returns total, counts by kind and status, and the entries newest first (limit default 50, max 500). To check whether logged blog posts are indexed, list them and then use get_gsc_data.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        kind: { type: 'string', description: 'Optional. blog, community, outreach, listing, social or other.' },
+        status: { type: 'string', description: 'Optional. done, waiting or follow_up.' },
+        from: { type: 'string', description: 'Optional. YYYY-MM-DD, earliest done_on.' },
+        to: { type: 'string', description: 'Optional. YYYY-MM-DD, latest done_on.' },
+        search: { type: 'string', description: 'Optional. Text to look for in title, url, how or notes.' },
+        due: { type: 'boolean', description: 'Optional. true = only entries not done whose next_check is today or earlier.' },
+        limit: { type: 'number', description: 'Optional. Max entries. Default 50, max 500.' },
+      },
+    },
+  },
+  {
+    name: 'update_work',
+    description:
+      'Changes one entry in the user\'s work log (from list_work or log_work), e.g. mark a blog post as indexed (status done, add_note "indexed"), record a reply, or set a new next_check. Pass only the fields to change; add_note adds a dated line to the notes instead of replacing them. Pass url, how, next_check or notes as an empty string to clear them.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The entry id.' },
+        kind: { type: 'string', description: 'Optional. New kind.' },
+        title: { type: 'string', description: 'Optional. New title.' },
+        url: { type: 'string', description: 'Optional. New url.' },
+        done_on: { type: 'string', description: 'Optional. YYYY-MM-DD.' },
+        how: { type: 'string', description: 'Optional. New how line.' },
+        status: { type: 'string', description: 'Optional. done, waiting or follow_up.' },
+        next_check: { type: 'string', description: 'Optional. YYYY-MM-DD, or empty to clear.' },
+        notes: { type: 'string', description: 'Optional. Replaces the notes.' },
+        add_note: { type: 'string', description: 'Optional. Adds a dated line to the notes.' },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'delete_work',
+    description: 'Removes one entry from the user\'s work log, e.g. one logged by mistake. Only when the user asks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: 'The entry id.' },
+      },
+      required: ['id'],
+    },
+  },
 ]

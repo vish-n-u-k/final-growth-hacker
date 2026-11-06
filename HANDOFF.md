@@ -410,6 +410,13 @@ Three thin tools on the MCP server (`app/api/mcp/route.ts`, defined in `lib/mcp/
 - `limit`: default 10, hard max 50 (`lib/mcp/tools/limit.ts`). DataForSEO dollars and Hunter credits show in Settings → Usage as "Claude (MCP)".
 - Checked against mocked APIs, and (29 Oct) live through the deployed tool with the inputs the new code builds: `meta_ads` primary + fallback and `b2b_database` worked. **Blocked:** `linkedin_company` (approve its permissions in Apify Console), `linkedin_people` (Apify 402: the account had $0.21 of monthly usage left; the new limit-sized caps should get small runs through, else upgrade the plan), `producthunt` (the old deployed tool waited 60 s and the MCP client timed out; the new 45 s wait fixes that). Re-test those after deploying. `dataforseo` / `hunter` still untested live.
 
+## 4h. Work log MCP tools (6 Nov)
+
+The owner does growth work outside GrowJin (blogs that need indexing, community notes, leads emailed) and wants it kept somewhere to ask for later. **Backend + MCP only, no UI, and nothing else in the app reads it** (not Today, the agents, dedupe or scores). Claude logs only when the owner tells it to.
+- **Table** `work_log` (`web/drizzle/work_log.sql`, **run it in Supabase**; until then the tools answer "The work log table is missing…"): kind (blog / community / outreach / listing / social / other, free word allowed), title, url, done_on, how, status (done / waiting / follow_up), next_check, notes.
+- **Tools** (`lib/mcp/tools/work_log.ts`, in `tool-registry.ts` and `app/api/mcp/route.ts`): `log_work` (one entry or `entries`, up to 100; a url already logged isn't added again, returned as `already_logged`), `list_work` (kind, status, from / to, search, `due`, limit ≤ 500; counts by kind and status), `update_work` (only the fields given; `add_note` appends a dated line), `delete_work`.
+- Tested against a local Postgres (adding, batch dedupe, filters, due, updates, brand separation, missing table). Not tried through a live MCP client yet.
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

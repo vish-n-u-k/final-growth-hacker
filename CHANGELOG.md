@@ -2,6 +2,9 @@
 
 ## 6 Nov 2026
 
+### New
+- **Work log in Claude.** Doing growth work outside GrowJin, like publishing blogs, posting in communities or emailing leads? Tell Claude (with GrowJin connected) and it saves it: what you did, the link, when and how. Ask later, for example "which blogs did I publish this month?" or "what's due for a follow-up?", and it shows you. It's only in Claude; nothing changes in the app.
+
 ### Improved
 - **Lead Finder: quicker Settings.** Industry, location, company size, who to contact and follow-up days are now options you tick (pick as many as you like, or add your own). Leads per search and emails a day are dropdowns.
 
