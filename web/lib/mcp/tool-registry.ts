@@ -272,7 +272,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_gsc_data',
     description:
-      'Use this for SEARCH ENGINE and SEO questions — e.g. "what keywords am I ranking for?", "what is my average position?", "which queries have high impressions but low CTR?", "what pages get the most clicks from Google?". Returns Google Search Console data: top queries with clicks, impressions, CTR, and position, plus top pages by search clicks. Do NOT use this for website traffic or app usage — use get_ga_analytics or get_posthog_analytics for those. If GSC is not connected, returns a message explaining how to connect it.',
+      'Use this for SEARCH ENGINE and SEO questions — e.g. "what keywords am I ranking for?", "what is my average position?", "which queries have high impressions but low CTR?", "what pages get the most clicks from Google?". Returns Google Search Console data for the property that covers the brand\'s site (URL-prefix or domain property): totals (clicks, impressions, CTR, average position) for the period, top queries with clicks, impressions, CTR and position, and top pages. The period ends 2 days ago (Search Console\'s data lags). If something is wrong (no property the service account can see, Google refusing), error says what and how to fix it. Do NOT use this for website traffic or app usage — use get_ga_analytics or get_posthog_analytics for those. If GSC is not connected, returns a message explaining how to connect it.',
     inputSchema: {
       type: 'object',
       properties: {

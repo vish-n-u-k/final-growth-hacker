@@ -1,96 +1,47 @@
-import { db } from '@/lib/db'
-import { brandIntegrations } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { NOT_CONNECTED, posthogConn, phQuery, num } from './posthog-common'
 
-const NOT_CONNECTED = {
-  connected: false,
-  message: 'PostHog is not connected. Go to Settings → Integrations → PostHog to add your Personal API Key and Project ID.',
-}
-
-async function phQuery(host: string, projectId: string, apiKey: string, query: string) {
-  try {
-    const res = await fetch(`${host}/api/projects/${projectId}/query`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: { kind: 'HogQLQuery', query } }),
-      signal: AbortSignal.timeout(12000),
-    })
-    if (!res.ok) return null
-    return await res.json() as { results?: unknown[][] }
-  } catch { return null }
-}
+// Every count reads a bounded window: the old "not seen before" subqueries scanned all of history
+// and timed out, which came back as null.
+const CHURN_LOOKBACK_DAYS = 60
 
 export async function getPosthogSegments(brandId: string) {
-  const [integration] = await db
-    .select()
-    .from(brandIntegrations)
-    .where(and(
-      eq(brandIntegrations.brandId, brandId),
-      eq(brandIntegrations.provider, 'posthog'),
-      eq(brandIntegrations.status, 'connected'),
-    ))
-    .limit(1)
+  const c = await posthogConn(brandId)
+  if (!c) return NOT_CONNECTED
+  // Counted like the app's own user counts (the "Count unique users only" setting)
+  const f = c.filter
+  const personAnd = f.personWhereClause ? ` AND ${f.personWhereClause.replace(/^WHERE\s+/i, '')}` : ''
 
-  if (!integration?.apiKey) return NOT_CONNECTED
-
-  const meta = (integration.metadata as Record<string, string> | null) ?? {}
-  const projectId = meta['project_id']
-  const host = (meta['posthog_host'] ?? 'https://us.posthog.com').replace(/\/$/, '')
-
-  if (!projectId) return NOT_CONNECTED
-
-  const [
-    newThisWeekData,
-    newLastWeekData,
-    churnedData,
-    powerUsersData,
-    totalActiveData,
-  ] = await Promise.all([
-    // New users this week (first seen in last 7 days)
-    phQuery(host, projectId, integration.apiKey,
-      `SELECT count(DISTINCT person_id) FROM events
-       WHERE timestamp > now() - interval 7 day
-       AND person_id NOT IN (
-         SELECT DISTINCT person_id FROM events WHERE timestamp <= now() - interval 7 day
-       )`),
-
-    // New users last week (first seen 8-14 days ago)
-    phQuery(host, projectId, integration.apiKey,
-      `SELECT count(DISTINCT person_id) FROM events
-       WHERE timestamp > now() - interval 14 day
-       AND timestamp <= now() - interval 7 day
-       AND person_id NOT IN (
-         SELECT DISTINCT person_id FROM events WHERE timestamp <= now() - interval 14 day
-       )`),
-
-    // Churned users — active before 14 days ago but not seen since
-    phQuery(host, projectId, integration.apiKey,
-      `SELECT count(DISTINCT person_id) FROM events
-       WHERE timestamp < now() - interval 14 day
-       AND person_id NOT IN (
-         SELECT DISTINCT person_id FROM events WHERE timestamp >= now() - interval 14 day
-       )`),
-
-    // Power users — active on 5+ distinct days in the last 7 days
-    phQuery(host, projectId, integration.apiKey,
-      `SELECT count(*) FROM (
-         SELECT person_id, count(DISTINCT toDate(timestamp)) as active_days
-         FROM events
-         WHERE timestamp > now() - interval 7 day
-         GROUP BY person_id
-         HAVING active_days >= 5
-       )`),
-
-    // Total active last 30 days
-    phQuery(host, projectId, integration.apiKey,
-      `SELECT count(DISTINCT person_id) FROM events WHERE timestamp > now() - interval 30 day`),
+  const [newThisWeekData, newLastWeekData, churnedData, powerUsersData, totalActiveData] = await Promise.all([
+    // New users: people PostHog first created in the last 7 days / 8-14 days ago
+    phQuery(c, `SELECT count() FROM persons WHERE created_at > now() - interval 7 day${personAnd}`),
+    phQuery(c, `SELECT count() FROM persons WHERE created_at > now() - interval 14 day AND created_at <= now() - interval 7 day${personAnd}`),
+    // Churned: active 15-60 days ago, not seen in the last 14 days
+    phQuery(c, `SELECT count() FROM (
+       SELECT person_id, max(timestamp) AS last_seen FROM events
+       WHERE timestamp > now() - interval ${CHURN_LOOKBACK_DAYS} day ${f.personSubqueryAndClause}
+       GROUP BY person_id
+       HAVING last_seen < now() - interval 14 day
+     )`),
+    // Power users: active on 5+ distinct days in the last 7 days
+    phQuery(c, `SELECT count() FROM (
+       SELECT person_id, count(DISTINCT toDate(timestamp)) AS active_days FROM events
+       WHERE timestamp > now() - interval 7 day ${f.personSubqueryAndClause}
+       GROUP BY person_id
+       HAVING active_days >= 5
+     )`),
+    phQuery(c, `SELECT count(DISTINCT ${f.eventDistinctCol}) FROM events WHERE ${f.eventPersonWherePrefix}timestamp > now() - interval 30 day`),
   ])
 
-  const newThisWeek = (newThisWeekData?.results?.[0]?.[0] as number) ?? null
-  const newLastWeek = (newLastWeekData?.results?.[0]?.[0] as number) ?? null
-  const churned = (churnedData?.results?.[0]?.[0] as number) ?? null
-  const powerUsers = (powerUsersData?.results?.[0]?.[0] as number) ?? null
-  const totalActive30d = (totalActiveData?.results?.[0]?.[0] as number) ?? null
+  const newThisWeek = num(newThisWeekData)
+  const newLastWeek = num(newLastWeekData)
+  const churned = num(churnedData)
+  const powerUsers = num(powerUsersData)
+  const totalActive30d = num(totalActiveData)
+
+  const errors: Record<string, string> = {}
+  for (const [k, r] of Object.entries({ newUsersThisWeek: newThisWeekData, newUsersLastWeek: newLastWeekData, churnedUsers: churnedData, powerUsers: powerUsersData, totalActive30d: totalActiveData })) {
+    if (!r.ok) errors[k] = r.error
+  }
 
   const weekOverWeekGrowth =
     newThisWeek !== null && newLastWeek !== null && newLastWeek > 0
@@ -107,6 +58,11 @@ export async function getPosthogSegments(brandId: string) {
       powerUsers,
       totalActive30d,
     },
+    definitions: {
+      newUsers: 'People PostHog first saw (created) in that week',
+      churnedUsers: `Active ${CHURN_LOOKBACK_DAYS}-15 days ago, not seen in the last 14 days`,
+      powerUsers: 'Active on 5 or more of the last 7 days',
+    },
     interpretation: {
       growthTrend: weekOverWeekGrowth === null ? 'unknown'
         : weekOverWeekGrowth > 10 ? 'strong growth'
@@ -117,5 +73,6 @@ export async function getPosthogSegments(brandId: string) {
         ? Math.round((churned / totalActive30d) * 100)
         : null,
     },
+    ...(Object.keys(errors).length ? { errors } : {}),
   }
 }

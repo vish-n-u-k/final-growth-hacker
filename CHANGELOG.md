@@ -1,5 +1,12 @@
 # What's new in GrowJin
 
+## 7 Nov 2026
+
+### Fixed
+- **Claude can read your Search Console data again.** It now finds your site's property in Search Console (including domain properties) and shows totals, top searches and top pages. When something's wrong, Claude tells you what instead of showing nothing.
+- **Claude sees all your competitors.** The ones Competitor Analysis suggested now show up too, not only the ones you typed in.
+- **Claude's PostHog answers are complete.** User lists find people by the email property your app uses, longer periods like 30 days work, and segments (new, churned and power users) come back with numbers. If PostHog has a problem, Claude says what it is.
+
 ## 6 Nov 2026
 
 ### New

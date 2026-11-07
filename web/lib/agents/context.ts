@@ -23,6 +23,28 @@ export interface BrandContext {
 export const domainOf = (url: string | null | undefined): string =>
   (url ?? '').replace(/^https?:\/\//i, '').replace(/^www\./i, '').split(/[/?#]/)[0].toLowerCase()
 
+/**
+ * Competitors set up on the Competitor Analysis and GEO modules. Competitor Analysis only saves
+ * competitors the user typed in to the competitors table; a list it suggested (and GEO's) lives in
+ * the module's setup (competitor_urls, names in achievable_competitors). Read with the table, so
+ * the agents and MCP always know the rivals the modules compare against.
+ */
+export async function moduleCompetitors(brandId: string): Promise<{ url: string; name: string | null; why: string | null; module: string }[]> {
+  const setups = await db.select({ type: modules.type, requirements: modules.requirements })
+    .from(modules).where(and(eq(modules.brandId, brandId), inArray(modules.type, ['competitor-analysis', 'geo']))).catch(() => [])
+  const out: { url: string; name: string | null; why: string | null; module: string }[] = []
+  for (const type of ['competitor-analysis', 'geo']) {
+    const req = (setups.find(m => m.type === type)?.requirements as Record<string, string> | null) ?? {}
+    let named: { name?: string; url?: string; why?: string }[] = []
+    try { named = JSON.parse(req.achievable_competitors || '[]') } catch { /* no names cached */ }
+    for (const url of (req.competitor_urls ?? '').split(/[,\n]/).map(u => u.trim()).filter(Boolean)) {
+      const a = named.find(x => x.url && domainOf(x.url) === domainOf(url))
+      out.push({ url, name: a?.name ?? null, why: a?.why ?? null, module: type })
+    }
+  }
+  return out
+}
+
 export async function loadBrandContext(brandId: string): Promise<BrandContext | null> {
   const [brand] = await db.select().from(brands).where(eq(brands.id, brandId)).limit(1)
   if (!brand) return null
@@ -30,19 +52,7 @@ export async function loadBrandContext(brandId: string): Promise<BrandContext | 
     .from(brainContext).where(eq(brainContext.brandId, brandId)).limit(1).catch(() => [])
   const comps: { name: string | null; url: string }[] = await db.select({ name: competitors.name, url: competitors.url })
     .from(competitors).where(eq(competitors.brandId, brandId)).catch(() => [])
-  // Competitor Analysis only saves competitors the user typed in to the table above; a list it
-  // suggested (and GEO's) lives in the module's setup. Read those too, so the agents always know
-  // the rivals the modules compare against.
-  const setups = await db.select({ type: modules.type, requirements: modules.requirements })
-    .from(modules).where(and(eq(modules.brandId, brandId), inArray(modules.type, ['competitor-analysis', 'geo']))).catch(() => [])
-  for (const type of ['competitor-analysis', 'geo']) {
-    const req = (setups.find(m => m.type === type)?.requirements as Record<string, string> | null) ?? {}
-    let named: { name?: string; url?: string }[] = []
-    try { named = JSON.parse(req.achievable_competitors || '[]') } catch { /* no names cached */ }
-    for (const url of (req.competitor_urls ?? '').split(/[,\n]/).map(u => u.trim()).filter(Boolean)) {
-      comps.push({ url, name: named.find(a => a.url && domainOf(a.url) === domainOf(url))?.name ?? null })
-    }
-  }
+  comps.push(...(await moduleCompetitors(brandId)))
   const own = domainOf(brand.websiteUrl)
   const seen = new Set<string>()
   const list: BrandContext['competitors'] = []

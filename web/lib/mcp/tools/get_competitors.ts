@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { competitors, modules, moduleItems, moduleCategories } from '@/lib/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
+import { domainOf, moduleCompetitors } from '@/lib/agents/context'
 
 export async function getCompetitors(brandId: string) {
   // Get all competitors from registry
@@ -10,7 +11,19 @@ export async function getCompetitors(brandId: string) {
     .where(eq(competitors.brandId, brandId))
     .orderBy(competitors.discoveredAt)
 
-  if (competitorRows.length === 0) {
+  // Competitors the modules compare against but never wrote to the table (a list Competitor
+  // Analysis suggested, GEO's set): added after the table's rows, one per domain
+  const fromModules = await moduleCompetitors(brandId).catch(() => [] as Awaited<ReturnType<typeof moduleCompetitors>>)
+  const seen = new Set(competitorRows.map(c => domainOf(c.url)).filter(Boolean))
+  const extra: typeof fromModules = []
+  for (const c of fromModules) {
+    const d = domainOf(c.url)
+    if (!d || seen.has(d)) continue
+    seen.add(d)
+    extra.push(c)
+  }
+
+  if (competitorRows.length === 0 && extra.length === 0) {
     return {
       competitors: [],
       message: 'No competitors have been identified yet. Run the Competitor Analysis module to discover and analyse your competitors.',
@@ -57,8 +70,9 @@ export async function getCompetitors(brandId: string) {
       }))
   }
 
+  const label = (url: string) => { const d = domainOf(url).split('.')[0] ?? ''; return d ? d.charAt(0).toUpperCase() + d.slice(1) : url }
   return {
-    competitors: competitorRows.map(c => ({
+    competitors: [...competitorRows.map(c => ({
       url: c.url,
       name: c.name ?? null,
       type: c.type ?? null,
@@ -66,7 +80,15 @@ export async function getCompetitors(brandId: string) {
       primaryStrength: c.primaryStrength ?? null,
       discoveredIn: c.discoveredIn ?? 'unknown',
       lastAnalyzedAt: c.lastAnalyzedAt?.toISOString() ?? null,
-    })),
+    })), ...extra.map(c => ({
+      url: c.url,
+      name: c.name ?? label(c.url),
+      type: null,
+      marketPosition: null,
+      primaryStrength: c.why ?? null,
+      discoveredIn: c.module === 'geo' ? 'geo module setup' : 'competitor analysis (suggested)',
+      lastAnalyzedAt: null,
+    }))],
     aiFindings,
   }
 }
