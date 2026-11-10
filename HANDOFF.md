@@ -485,6 +485,10 @@ The owner ran 100 growth questions through the MCP (`Growjin_MCP_dry_run_Frekto.
 - **False passes:** old audits saved Core Web Vitals as `info` (= passed) when Lighthouse never ran, and `seo-audit.ts` still saved "Cannot check…" findings as `info`. Those findings are now `skip` ("Couldn't check…"), and `isNotChecked` (`lib/modules/types.ts`) also matches the old wording, so the score leaves them out. MCP `get_module_detail` gives each item a `status` (passed / failed / not_checked / …) and recomputes the score; `get_growth_overview` recomputes every module's score from items. The saved `modules.score` only changes at the next tick or analysis.
 - Tested with stubbed Search Agent data. Not tried against the live MCP yet: rerun the spreadsheet after deploying.
 
+## 4k. PostHog segments on one basis (10 Nov)
+
+Live check after the 7 Nov fixes: GSC (`sc-domain:frekto.ai`), competitors and PostHog lists work. Segments mixed bases (churned / power counted every PostHog person, active counted unique emails: 134 churned vs 27 active, churn risk 496%). Now every segment counts `filter.eventDistinctCol` (the app's "Count unique users only" setting); new users = first seen that week within 180 days (was `persons.created_at`, gave 0 last week); churn risk = churned / everyone active 15-60 days ago; `definitions.counted` says what's counted. Competitors only show GEO's 3 for Frekto: Competitor Analysis saves its suggested list (`competitor_urls`) only on runs since that code; re-run it.
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

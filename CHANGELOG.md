@@ -2,6 +2,11 @@
 
 ## 10 Nov 2026
 
+### Fixed
+- **Claude's growth numbers add up.** New, churned and power users are now counted the same way as your active users, so churn can no longer be bigger than your user base.
+
+## 10 Nov 2026
+
 ### New
 - **Ask Claude about your Search Agent.** With GrowJin connected, Claude can now read the Search Agent's latest research: whether ChatGPT, Perplexity, Gemini and Google AI Overviews mention you, who they recommend instead, which sites they cite, your rankings and keyword ideas, posts to write, to-dos and sites to pitch.
 
