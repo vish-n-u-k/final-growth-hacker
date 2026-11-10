@@ -188,4 +188,9 @@ export function isDynamicIdea(def: ModuleDefinition | undefined, slugOrCategory:
   return (def.categories as DynamicModuleCategoryDefinition[]).some(c => c.insight && (slugOrCategory === c.slug || slugOrCategory.startsWith(`${c.slug}-`)))
 }
 
-export const isNotChecked = (detail: string | null | undefined): boolean => !!detail && detail.startsWith(NOT_CHECKED_PREFIX)
+// Wording older analyses saved for checks that never ran (often marked as passed back then):
+// "Cannot check H1 count — none found", Core Web Vitals that "require Lighthouse CLI"…
+const LEGACY_NOT_CHECKED = /^Cannot (check|compare)\b|\b(requires?|needs?) (the )?Lighthouse\b|\bLighthouse (CLI )?(is )?(not|un)\s?(available|installed)/i
+
+export const isNotChecked = (detail: string | null | undefined): boolean =>
+  !!detail && (detail.startsWith(NOT_CHECKED_PREFIX) || LEGACY_NOT_CHECKED.test(detail))

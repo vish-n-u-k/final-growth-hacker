@@ -12,6 +12,7 @@ import { getGaAnalytics } from '@/lib/mcp/tools/get_ga_analytics'
 import { getGscData } from '@/lib/mcp/tools/get_gsc_data'
 import { getPosthogAnalytics } from '@/lib/mcp/tools/get_posthog_analytics'
 import { getCompetitors } from '@/lib/mcp/tools/get_competitors'
+import { getSearchAgent, SEARCH_SECTIONS, type SearchSection } from '@/lib/mcp/tools/search_agent'
 import { getGaConversions } from '@/lib/mcp/tools/get_ga_conversions'
 import { getPosthogSegments } from '@/lib/mcp/tools/get_posthog_segments'
 import { getKeywordTrends } from '@/lib/mcp/tools/get_keyword_trends'
@@ -172,6 +173,15 @@ async function dispatch(
 
     case 'get_competitors':
       return getCompetitors(brandId)
+
+    case 'get_search_agent': {
+      const section = String(args['section'] ?? 'overview') as SearchSection
+      return getSearchAgent(
+        brandId,
+        SEARCH_SECTIONS.includes(section) ? section : 'overview',
+        args['limit'] ? parseInt(String(args['limit']), 10) : 20,
+      )
+    }
 
     case 'get_ga_conversions':
       return getGaConversions(brandId, args['period'] ? String(args['period']) : '30d')

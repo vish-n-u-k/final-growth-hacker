@@ -21,7 +21,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_module_detail',
     description:
-      'Use this when a user asks for specific recommendations or advice about their website or marketing — e.g. "what should my H1 say?", "what should I write for my meta description?", "what CTA should I use?", "how should I structure my homepage?", "what should my page title be?", "give me a suggestion for my about page". Returns all checklist items for a module, grouped by category. Each item includes AI-generated findings (aiDetail), a plain-English explanation (aiNarrative), and a specific recommended action or copy suggestion (aiAction). Use module_type="seo" for on-page SEO questions (H1, meta description, title tags, headings, URLs), module_type="foundation" for core brand/website questions, module_type="social-media" for social content questions.',
+      'Use this when a user asks for specific recommendations or advice about their website or marketing — e.g. "what should my H1 say?", "what should I write for my meta description?", "what CTA should I use?", "how should I structure my homepage?", "what should my page title be?", "give me a suggestion for my about page". Returns all checklist items for a module, grouped by category. Each item includes AI-generated findings (aiDetail), a plain-English explanation (aiNarrative), and a specific recommended action or copy suggestion (aiAction). Each item has a status: passed, failed, not_checked (the check could not run, so it is neither a pass nor counted in the score), done_by_user, skipped or not_analysed. The score is recomputed from the items. Use module_type="seo" for on-page SEO questions (H1, meta description, title tags, headings, URLs), module_type="foundation" for core brand/website questions, module_type="social-media" for social content questions.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -272,7 +272,7 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_gsc_data',
     description:
-      'Use this for SEARCH ENGINE and SEO questions — e.g. "what keywords am I ranking for?", "what is my average position?", "which queries have high impressions but low CTR?", "what pages get the most clicks from Google?". Returns Google Search Console data: top queries with clicks, impressions, CTR, and position, plus top pages by search clicks. Do NOT use this for website traffic or app usage — use get_ga_analytics or get_posthog_analytics for those. If GSC is not connected, returns a message explaining how to connect it.',
+      'Use this for SEARCH ENGINE and SEO questions — e.g. "what keywords am I ranking for?", "what is my average position?", "which queries have high impressions but low CTR?", "what pages get the most clicks from Google?". Tries the URL-prefix and domain (sc-domain:) forms of the property. Returns Google Search Console data: top queries with clicks, impressions, CTR, and position, plus top pages by search clicks. Do NOT use this for website traffic or app usage — use get_ga_analytics or get_posthog_analytics for those. If GSC is not connected, returns a message explaining how to connect it.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -340,10 +340,28 @@ export const TOOLS: MCPTool[] = [
   {
     name: 'get_competitors',
     description:
-      'Returns all known competitors for this brand — URL, name, type (direct/indirect/aspirational), market position, and primary strength. Also returns AI findings from the Competitor Analysis and Competitor Audit modules about what competitors are doing better. If no competitors exist yet, returns a message to run the Competitor Analysis module first.',
+      'Returns all known competitors for this brand (typed in by the user or suggested in the Competitor Analysis / GEO setup; discoveredIn says which) — URL, name, type (direct/indirect/aspirational), market position, and primary strength. Also returns AI findings from the Competitor Analysis and Competitor Audit modules about what competitors are doing better. If no competitors exist yet, returns a message to run the Competitor Analysis module first.',
     inputSchema: {
       type: 'object',
       properties: {},
+    },
+  },
+  {
+    name: 'get_search_agent',
+    description:
+      'Reads the Search Agent\'s saved results (its weekly research; nothing is run or charged). Use for AI-visibility and SEO-opportunity questions: "does ChatGPT / Perplexity / Gemini / Google AI Overviews mention us?", "which competitors do AI answers recommend instead?", "which sites does AI cite?", "how does AI describe us?", "what should I write next?", "which sites could link to us?". Sections: overview (default: a short summary of everything), ai_answers (every answer: engine, named or not, brands and other products named, cited pages; mention history; most-cited sites and how often you were left out), keywords (where you rank, rank changes, keyword ideas with why each was or was not picked), topics (posts to write or pages to rewrite, with blog_id for get_blog_post), tasks (open to-dos: fix how AI describes you, get listed on…, refresh a page), links (sites to pitch with the drafted pitch and status). If the agent has not run yet, says so.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        section: {
+          type: 'string',
+          description: 'Which part to return: overview, ai_answers, keywords, topics, tasks or links. Defaults to "overview".',
+        },
+        limit: {
+          type: 'string',
+          description: 'Max rows per list. Defaults to "20", max 100.',
+        },
+      },
     },
   },
   {

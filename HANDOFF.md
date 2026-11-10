@@ -426,6 +426,15 @@ So lead-finding can be done in a Claude conversation with the raw `dataforseo` /
 - **`gmail_status`** / **`send_email`** (`lib/mcp/tools/gmail.ts`): sends only when Gmail is connected with send scope **and** the user switched on "Let Claude send email" (Settings → Connect Claude, `ClaudeSendEmail` in `SettingsPage.tsx`, `/api/mcp/gmail-send`, snapshot `mcp:gmail-send` in `lib/mcp/gmail-permission.ts`, off by default, daily limit 10 / 25 / 50, counted from `outreach_emails` rows with `source: 'claude'` since 00:00 UTC). Up to 20 per call; suppressed addresses refused. A first email to a lead on the board marks that lead sent (opt-out line added, `sentLog`, `nextFollowUpAt`) so the Lead Agent's follow-ups and reply check take over; otherwise `follow_up_days` adds a reminder. The tool description tells Claude to show each email and get a yes first.
 - Tested against a local Postgres with Gmail mocked (dedupe, verdicts, permission off/on, suppression, lead marked sent, limit count). Not tried through a live MCP client or real Gmail yet. The Settings switch wasn't checked in the browser.
 
+## 4j. MCP fixes from the Frekto dry run (10 Nov)
+
+The owner ran 100 growth questions through the MCP (`Growjin_MCP_dry_run_Frekto.xlsx`, 6 Nov): 12 fully answered. The four cheap fixes:
+- **`get_gsc_data`** tried only the brand URL as the property, swallowing errors. Now it tries `https://host`, `https://host/`, `https://www.host/`, `http://host/`, then `sc-domain:host`, keeps the first with rows, and when all are refused returns `error` + `service_account` + `tried` (per form, Google's message). Empty data gets a `note`.
+- **`get_competitors`** only read the `competitors` table; it now also reads `competitor_urls` from the competitor-analysis and GEO setups (same as `loadBrandContext`), `discoveredIn: '<type> module setup'`.
+- **New `get_search_agent`** (`lib/mcp/tools/search_agent.ts`): read-only, sections overview / ai_answers / keywords / topics / tasks / links, respects demo, runs `tidySearchFor` first. `get_module_detail("search…")` hints at it.
+- **False passes:** old audits saved Core Web Vitals as `info` (= passed) when Lighthouse never ran, and `seo-audit.ts` still saved "Cannot check…" findings as `info`. Those findings are now `skip` ("Couldn't check…"), and `isNotChecked` (`lib/modules/types.ts`) also matches the old wording, so the score leaves them out. MCP `get_module_detail` gives each item a `status` (passed / failed / not_checked / …) and recomputes the score; `get_growth_overview` recomputes every module's score from items. The saved `modules.score` only changes at the next tick or analysis.
+- Tested with mocked DB / Google (GSC fallback and all-refused) and stubbed Search Agent data. Not tried against the live MCP yet: rerun the spreadsheet after deploying.
+
 ## 5. What we are doing right now: making the tools calm
 
 **Problem.** In a demo, people were confused about what to do. The tool pages are too noisy:

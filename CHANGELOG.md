@@ -1,5 +1,15 @@
 # What's new in GrowJin
 
+## 10 Nov 2026
+
+### New
+- **Ask Claude about your Search Agent.** With GrowJin connected, Claude can now read the Search Agent's latest research: whether ChatGPT, Perplexity, Gemini and Google AI Overviews mention you, who they recommend instead, which sites they cite, your rankings and keyword ideas, posts to write, to-dos and sites to pitch.
+
+### Fixed
+- **Claude now sees your Search Console data.** It came back empty for sites added to Search Console as a domain property. If Google still refuses, Claude now tells you why (usually the Service Account isn't added as a user on the property).
+- **Claude now sees your competitors**, including the ones GrowJin suggested in Competitor Analysis. Before, it said you had none.
+- **No more false passes in audits.** Checks that couldn't run (for example speed checks in older audits, or title checks when the page has no title) were sometimes counted as passed. They now show as "Not checked" and are left out of the score, so the score may drop a little.
+
 ## 6 Nov 2026
 
 ### New

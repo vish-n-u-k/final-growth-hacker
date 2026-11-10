@@ -31,10 +31,11 @@ async function getToken(email: string, key: string): Promise<string | null> {
 
 type GscRow = { keys: string[]; clicks: number; impressions: number; ctr: number; position: number }
 
-async function gscQuery(token: string, siteUrl: string, body: object): Promise<GscRow[]> {
+type GscAnswer = { ok: true; rows: GscRow[] } | { ok: false; status: number; message: string }
+
+async function gscQuery(token: string, siteId: string, body: object): Promise<GscAnswer> {
   try {
-    const encodedSite = encodeURIComponent(siteUrl)
-    const res = await fetch(`https://searchconsole.googleapis.com/webmasters/v3/sites/${encodedSite}/searchAnalytics/query`, {
+    const res = await fetch(`https://searchconsole.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteId)}/searchAnalytics/query`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -42,11 +43,34 @@ async function gscQuery(token: string, siteUrl: string, body: object): Promise<G
     })
     if (!res.ok) {
       const e = await res.json().catch(() => ({})) as { error?: { message: string } }
-      console.error('[gsc-mcp]', res.status, e?.error?.message)
-      return []
+      console.error('[gsc-mcp]', siteId, res.status, e?.error?.message)
+      return { ok: false, status: res.status, message: e?.error?.message ?? `HTTP ${res.status}` }
     }
-    return ((await res.json()) as { rows?: GscRow[] }).rows ?? []
-  } catch (e) { console.error('[gsc-mcp]', e); return [] }
+    return { ok: true, rows: ((await res.json()) as { rows?: GscRow[] }).rows ?? [] }
+  } catch (e) {
+    console.error('[gsc-mcp]', siteId, e)
+    return { ok: false, status: 0, message: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+/**
+ * Search Console properties are either URL-prefix ("https://frekto.ai/") or domain
+ * ("sc-domain:frekto.ai"). The brand's website URL alone often isn't the property's exact name,
+ * so try each form (as the app's own Analytics does) and keep the first that has data.
+ */
+function propertyCandidates(websiteUrl: string): string[] {
+  const url = /^https?:\/\//i.test(websiteUrl) ? websiteUrl : `https://${websiteUrl}`
+  let host = ''
+  try { host = new URL(url).hostname } catch { return [websiteUrl] }
+  const bare = host.replace(/^www\./i, '')
+  const list = [
+    url,
+    `https://${host}/`,
+    `https://www.${bare}/`,
+    `http://${host}/`,
+    `sc-domain:${bare}`,
+  ]
+  return [...new Set(list)]
 }
 
 export async function getGscData(brandId: string, days = 28, limit = 20) {
@@ -70,26 +94,47 @@ export async function getGscData(brandId: string, days = 28, limit = 20) {
   const token = await getToken(meta.client_email, meta.private_key)
   if (!token) return { connected: true, error: 'GSC authentication failed. Check your Service Account credentials.' }
 
-  const siteUrl = brand?.websiteUrl ?? ''
+  const websiteUrl = brand?.websiteUrl ?? ''
+  if (!websiteUrl) return { connected: true, error: 'The brand has no website URL, so there is no Search Console property to read.' }
   const endDate = new Date().toISOString().slice(0, 10)
   const startDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
+  const queryBody = {
+    startDate,
+    endDate,
+    dimensions: ['query'],
+    rowLimit: limit,
+    orderBy: [{ fieldName: 'impressions', sortOrder: 'DESCENDING' }],
+  }
 
-  const [queryRows, pageRows] = await Promise.all([
-    gscQuery(token, siteUrl, {
-      startDate,
-      endDate,
-      dimensions: ['query'],
-      rowLimit: limit,
-      orderBy: [{ fieldName: 'impressions', sortOrder: 'DESCENDING' }],
-    }),
-    gscQuery(token, siteUrl, {
-      startDate,
-      endDate,
-      dimensions: ['page'],
-      rowLimit: limit,
-      orderBy: [{ fieldName: 'clicks', sortOrder: 'DESCENDING' }],
-    }),
-  ])
+  // Find the property: the first form that answers with rows, else the first that answers at all
+  const tried: { property: string; result: string }[] = []
+  let siteUrl = ''
+  let queryRows: GscRow[] = []
+  for (const property of propertyCandidates(websiteUrl)) {
+    const r = await gscQuery(token, property, queryBody)
+    if (!r.ok) { tried.push({ property, result: `${r.status || 'error'}: ${r.message}` }); continue }
+    tried.push({ property, result: `${r.rows.length} rows` })
+    if (!siteUrl) { siteUrl = property; queryRows = r.rows }
+    if (r.rows.length) { siteUrl = property; queryRows = r.rows; break }
+  }
+
+  if (!siteUrl) {
+    return {
+      connected: true,
+      error: 'Search Console refused every property form for this site. Most likely the Service Account email has not been added as a user on the property in Search Console (Settings → Users and permissions), or the property is under a different address.',
+      service_account: meta.client_email,
+      tried,
+    }
+  }
+
+  const pageAnswer = await gscQuery(token, siteUrl, {
+    startDate,
+    endDate,
+    dimensions: ['page'],
+    rowLimit: limit,
+    orderBy: [{ fieldName: 'clicks', sortOrder: 'DESCENDING' }],
+  })
+  const pageRows = pageAnswer.ok ? pageAnswer.rows : []
 
   const topQueries = queryRows.map(r => ({
     query: r.keys[0],
@@ -113,5 +158,8 @@ export async function getGscData(brandId: string, days = 28, limit = 20) {
     days,
     topQueries,
     topPages,
+    ...(topQueries.length === 0 && topPages.length === 0
+      ? { note: `Search Console answered but has no data for ${siteUrl} in the last ${days} days (new site, or very few impressions).`, tried }
+      : {}),
   }
 }
