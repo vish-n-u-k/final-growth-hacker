@@ -2,15 +2,15 @@
 
 ## 10 Nov 2026
 
-### Fixed
-- **Claude's growth numbers add up.** New, churned and power users are now counted the same way as your active users, so churn can no longer be bigger than your user base.
-
-## 10 Nov 2026
-
 ### New
+- **Ask Claude "are we on track for 500?"** With GrowJin connected, Claude now knows your goal (500 sign-ups by default; you can change the number, what counts, like active or paying, and add a deadline). It tells you where you stand, how many you add a week, whether that's speeding up or slowing down, when you'll reach the goal and whether you're on track.
+- **Ask Claude how yesterday went.** Visits, new visitors, Google clicks and sign-ups against your 7- and 30-day averages, which channel grew and which went quiet, and any day that's far from normal. Your own visits to /admin pages are left out.
+- **Weekly review in Claude.** One question gets the week side by side: goal pace, numbers this week vs last, channels, work you logged, emails sent and changes being tested, so Claude can say what moved you forward and what barely mattered.
 - **Ask Claude about your Search Agent.** With GrowJin connected, Claude can now read the Search Agent's latest research: whether ChatGPT, Perplexity, Gemini and Google AI Overviews mention you, who they recommend instead, which sites they cite, your rankings and keyword ideas, posts to write, to-dos and sites to pitch.
 
 ### Fixed
+- **Claude's growth numbers add up.** New, churned and power users are now counted the same way as your active users, so churn can no longer be bigger than your user base.
+- **Daily history wasn't being saved.** Claude said "No history yet" for every brand. GrowJin now repairs this on its own, fills in yesterday when it's missing, and says plainly when something is wrong.
 - **No more false passes in audits.** Checks that couldn't run (for example speed checks in older audits, or title checks when the page has no title) were sometimes counted as passed. They now show as "Not checked" and are left out of the score, so the score may drop a little.
 
 ## 7 Nov 2026

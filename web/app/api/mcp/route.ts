@@ -31,6 +31,8 @@ import { resolveSignal } from '@/lib/signals'
 import { getBlogPost, markBlogPublished } from '@/lib/mcp/tools/blog_posts'
 import { logActivity, touchMcp } from '@/lib/activity'
 import { getGoalProgress, setGoal } from '@/lib/mcp/tools/goal'
+import { getDailyNumbers } from '@/lib/mcp/tools/daily_numbers'
+import { getWeeklyReview } from '@/lib/mcp/tools/weekly_review'
 import { createSocialPost, getSocialPostStatus, scheduleSocialPost } from '@/lib/frekto/posts'
 import { saveProof } from '@/lib/proofs'
 
@@ -98,6 +100,12 @@ async function dispatch(
 
     case 'get_goal_progress':
       return getGoalProgress(brandId)
+
+    case 'get_weekly_review':
+      return getWeeklyReview(brandId)
+
+    case 'get_daily_numbers':
+      return getDailyNumbers(brandId)
 
     case 'set_goal':
       return setGoal(brandId, args)

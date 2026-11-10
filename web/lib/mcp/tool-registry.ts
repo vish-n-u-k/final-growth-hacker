@@ -126,6 +126,18 @@ export const TOOLS: MCPTool[] = [
     inputSchema: { type: 'object', properties: {} },
   },
   {
+    name: 'get_weekly_review',
+    description:
+      'Use for the weekly or monthly look back: "what moved us towards 500 this week, and what barely mattered?", "what should we double down on, what should we drop?", "where did our time go?". One answer with: goal pace (this week, last full week, per week over 4 weeks, trend, on track), visits / new visitors / sign-ups / Google clicks this week vs last, channels that moved or went quiet, unusual days, work done (work log, emails sent, GrowJin tasks ticked), Search & AI changes being tested, and module score changes. You make the call from it; say when the numbers are too small to tell.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'get_daily_numbers',
+    description:
+      'Use for day-level questions: "how did we do yesterday / today?", "today vs the 7- and 30-day average?", "which channel moved the needle in the last 24 hours, which went quiet?", "any spike or drop to look at?". Day by day from GA4 (visits, new visitors, per channel; visits landing on /admin are left out as your own team), Search Console (Google clicks and impressions, 2-3 days behind) and PostHog (sign-ups = people first seen that day, active people). For each: yesterday vs the 7- and 30-day averages, today so far, the last 14 days; channels this week vs last week with moved_most and went_quiet; and unusual days (far outside the 28 days before). Sources that aren\'t connected or fail are listed in not_available with the reason.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
     name: 'set_goal',
     description:
       'Saves the growth goal that get_goal_progress measures. Only call it when the user tells you the goal or confirms a change. Fields (all optional, only the ones given change): target (number, e.g. 500), counts ("signed_up" = everyone in PostHog, as Road to 500 shows; "active_weekly" = active in the last 7 days; "paying" = people whose PostHog property plan_property equals plan_value), deadline (YYYY-MM-DD, or "" to remove), plan_property (default "plan"), plan_value (default "pro").',

@@ -8,12 +8,12 @@ import { pickProperty } from '@/lib/modules/seo/gsc-indexing'
 // site (a URL-prefix property, or a domain property sc-domain:example.com), the same way the
 // integration health check does, and reports Google's own error instead of empty lists.
 
-const NOT_CONNECTED = {
+const NOT_CONNECTED: { connected: false; message: string } = {
   connected: false,
   message: 'Google Search Console API is not connected. Go to Settings → Integrations → Google Search Console API to add your Service Account credentials.',
 }
 
-type GscRow = { keys?: string[]; clicks: number; impressions: number; ctr: number; position: number }
+export type GscRow = { keys?: string[]; clicks: number; impressions: number; ctr: number; position: number }
 type SiteEntry = { siteUrl: string; permissionLevel: string }
 
 /** The brand's home page as URL variants (as given, https, with and without www) to match a property. */
@@ -33,7 +33,7 @@ async function googleError(res: Response): Promise<string> {
   return `Google answered ${res.status}: ${e?.error?.message ?? res.statusText}`
 }
 
-async function gscQuery(token: string, property: string, body: object): Promise<{ rows: GscRow[]; error?: string }> {
+export async function gscQuery(token: string, property: string, body: object): Promise<{ rows: GscRow[]; error?: string }> {
   try {
     const res = await fetch(`https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`, {
       method: 'POST',
@@ -51,7 +51,12 @@ async function gscQuery(token: string, property: string, body: object): Promise<
 const round1 = (n: number) => Math.round(n * 10) / 10
 const ctrPct = (n: number) => Math.round(n * 1000) / 10
 
-export async function getGscData(brandId: string, days = 28, limit = 20) {
+export type GscConn =
+  | { ok: true; token: string; property: string; clientEmail: string }
+  | { ok: false; answer: typeof NOT_CONNECTED | { connected: true; error: string; properties_it_can_see?: string[] } }
+
+/** The token and the property for the brand's site, or the answer to give when there isn't one. */
+export async function connectGsc(brandId: string): Promise<GscConn> {
   const [[brand], [integration]] = await Promise.all([
     db.select({ websiteUrl: brands.websiteUrl }).from(brands).where(eq(brands.id, brandId)).limit(1),
     db.select()
@@ -64,34 +69,44 @@ export async function getGscData(brandId: string, days = 28, limit = 20) {
       .limit(1),
   ])
 
-  if (!integration) return NOT_CONNECTED
+  if (!integration) return { ok: false, answer: NOT_CONNECTED }
   const meta = (integration.metadata as Record<string, string> | null) ?? {}
-  if (!meta.client_email || !meta.private_key) return NOT_CONNECTED
-
-  const span = [7, 28, 90].includes(days) ? days : Math.min(Math.max(1, Math.round(days) || 28), 480)
-  const rowLimit = Math.min(Math.max(1, Math.round(limit) || 20), 100)
+  if (!meta.client_email || !meta.private_key) return { ok: false, answer: NOT_CONNECTED }
 
   const token = await getServiceToken(meta.client_email, meta.private_key, 'https://www.googleapis.com/auth/webmasters.readonly')
-  if (!token) return { connected: true, error: 'Google rejected the Search Console service account key. Re-check the email and private key in Settings → Integrations.' }
+  if (!token) return { ok: false, answer: { connected: true, error: 'Google rejected the Search Console service account key. Re-check the email and private key in Settings → Integrations.' } }
 
   // Which property to read
   let entries: SiteEntry[] = []
   try {
     const res = await fetch('https://www.googleapis.com/webmasters/v3/sites', { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000) })
-    if (!res.ok) return { connected: true, error: `Could not list Search Console properties. ${await googleError(res)}` }
+    if (!res.ok) return { ok: false, answer: { connected: true, error: `Could not list Search Console properties. ${await googleError(res)}` } }
     entries = ((await res.json()) as { siteEntry?: SiteEntry[] }).siteEntry ?? []
   } catch (e) {
-    return { connected: true, error: `Could not reach Search Console (${e instanceof Error ? e.message : 'failed'}).` }
+    return { ok: false, answer: { connected: true, error: `Could not reach Search Console (${e instanceof Error ? e.message : 'failed'}).` } }
   }
   const websiteUrl = brand?.websiteUrl ?? ''
   const property = homeVariants(websiteUrl).map(u => pickProperty(entries, u)).find(Boolean) ?? null
   if (!property) {
     return {
-      connected: true,
-      error: `The service account (${meta.client_email}) can't see a Search Console property for ${websiteUrl || 'this site'}. In Search Console → Settings → Users and permissions, add it as a user on that property.`,
-      properties_it_can_see: entries.map(e => e.siteUrl),
+      ok: false,
+      answer: {
+        connected: true,
+        error: `The service account (${meta.client_email}) can't see a Search Console property for ${websiteUrl || 'this site'}. In Search Console → Settings → Users and permissions, add it as a user on that property.`,
+        properties_it_can_see: entries.map(e => e.siteUrl),
+      },
     }
   }
+  return { ok: true, token, property, clientEmail: meta.client_email }
+}
+
+export async function getGscData(brandId: string, days = 28, limit = 20) {
+  const span = [7, 28, 90].includes(days) ? days : Math.min(Math.max(1, Math.round(days) || 28), 480)
+  const rowLimit = Math.min(Math.max(1, Math.round(limit) || 20), 100)
+
+  const conn = await connectGsc(brandId)
+  if (!conn.ok) return conn.answer
+  const { token, property } = conn
 
   // Search Console's data runs about 2 days behind, so the window ends 2 days ago
   const day = (ago: number) => new Date(Date.now() - ago * 86_400_000).toISOString().slice(0, 10)
