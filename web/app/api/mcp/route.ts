@@ -30,6 +30,7 @@ import { getTodayTasks, buildTodayPrompt } from '@/lib/daily/today-tasks'
 import { resolveSignal } from '@/lib/signals'
 import { getBlogPost, markBlogPublished } from '@/lib/mcp/tools/blog_posts'
 import { logActivity, touchMcp } from '@/lib/activity'
+import { getGoalProgress, setGoal } from '@/lib/mcp/tools/goal'
 import { createSocialPost, getSocialPostStatus, scheduleSocialPost } from '@/lib/frekto/posts'
 import { saveProof } from '@/lib/proofs'
 
@@ -94,6 +95,12 @@ async function dispatch(
 
     case 'skip_item':
       return skipItem(brandId, String(args['item_id'] ?? ''), args['reason'] ? String(args['reason']) : undefined)
+
+    case 'get_goal_progress':
+      return getGoalProgress(brandId)
+
+    case 'set_goal':
+      return setGoal(brandId, args)
 
     case 'get_growth_history':
       return getGrowthHistory(brandId, Math.min(Math.max(parseInt(String(args['days'] ?? '30'), 10) || 30, 1), 365))

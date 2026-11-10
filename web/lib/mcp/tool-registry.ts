@@ -120,9 +120,30 @@ export const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: 'get_goal_progress',
+    description:
+      'Use first for "where do we stand?", "are we on track for 500?", "is growth speeding up or flattening?", "how many users did we add this week / since yesterday?", "when will we reach the goal?". Returns the goal (default: 500 people who signed up, the Road to 500), today\'s count from PostHog, percent done, the Road to 500 stage, the change per week over the last 4 full weeks vs the 4 before (speeding up / steady / slowing down), the date the goal is reached at that pace, and with a deadline: weeks left, needed per week and on_track. Also 13 weeks of totals and changes, and new people in the last 24 hours. If the goal was never set, says so: ask the user what counts (signed up, active this week, or paying) and save it with set_goal.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'set_goal',
+    description:
+      'Saves the growth goal that get_goal_progress measures. Only call it when the user tells you the goal or confirms a change. Fields (all optional, only the ones given change): target (number, e.g. 500), counts ("signed_up" = everyone in PostHog, as Road to 500 shows; "active_weekly" = active in the last 7 days; "paying" = people whose PostHog property plan_property equals plan_value), deadline (YYYY-MM-DD, or "" to remove), plan_property (default "plan"), plan_value (default "pro").',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        target: { type: 'string', description: 'The number to reach, e.g. "500".' },
+        counts: { type: 'string', description: 'What counts: signed_up, active_weekly or paying.' },
+        deadline: { type: 'string', description: 'YYYY-MM-DD, or empty to remove the deadline.' },
+        plan_property: { type: 'string', description: 'For counts=paying: the PostHog person property holding the plan, e.g. "plan".' },
+        plan_value: { type: 'string', description: 'For counts=paying: the value that means paying, e.g. "pro".' },
+      },
+    },
+  },
+  {
     name: 'get_growth_history',
     description:
-      'Use this for progress-over-time questions — e.g. "how have I improved?", "what changed this month?", "is my score going up?", "am I still stuck on traffic?". Returns one snapshot per day (overall score, each module score, growth bottleneck stage, traffic and app-user numbers, tasks completed) plus a first-vs-latest summary of what changed. History starts from when daily snapshots began, so early on there may be only a few days.',
+      'Use this for progress-over-time questions — e.g. "how have I improved?", "what changed this month?", "is my score going up?", "am I still stuck on traffic?". Returns one snapshot per day (overall score, each module score, growth bottleneck stage, traffic and app-user numbers, tasks completed) plus a first-vs-latest summary of what changed. History starts from when daily snapshots began, so early on there may be only a few days. If the nightly save missed yesterday it is saved on the spot, and the answer says why history is short (history.problem). For the user count against the goal use get_goal_progress.',
     inputSchema: {
       type: 'object',
       properties: {

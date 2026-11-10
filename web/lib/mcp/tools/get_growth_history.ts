@@ -1,11 +1,26 @@
-import { getBrandHistory } from '@/lib/history'
+import { ensureRecentHistory, getBrandHistory } from '@/lib/history'
 
 // Day-by-day history plus a first-vs-latest summary, so Claude can say
 // "SEO went from 40 to 72 this month" or "you moved from awareness to conversion".
 export async function getGrowthHistory(brandId: string, days: number) {
-  const rows = await getBrandHistory(brandId, days).catch(() => [])
+  // Saves yesterday if the nightly run missed it, and says why history is short or empty
+  const status = await ensureRecentHistory(brandId)
+  let rows: Awaited<ReturnType<typeof getBrandHistory>> = []
+  let readError: string | null = null
+  try { rows = await getBrandHistory(brandId, days) } catch (e) { readError = e instanceof Error ? e.message : String(e) }
+  const history = { days_saved: status.rows, first_day: status.firstDate, last_day: status.lastDate, ...(status.problem ? { problem: status.problem } : {}) }
   if (rows.length === 0) {
-    return { message: 'No history yet. GrowJin records one snapshot per day, starting from the first nightly run after this feature went live.' }
+    return {
+      message: readError ? `History couldn't be read: ${readError}` : status.problem ?? 'No history yet.',
+      history,
+    }
+  }
+  if (rows.length === 1) {
+    return {
+      message: 'Only one day saved so far, so there is no change to compare yet. Each night adds a day.',
+      history,
+      days: rows,
+    }
   }
 
   const first = rows[0]
@@ -18,6 +33,7 @@ export async function getGrowthHistory(brandId: string, days: number) {
   const sum = (pick: (r: (typeof rows)[number]) => number) => rows.reduce((s, r) => s + pick(r), 0)
 
   return {
+    history,
     from: first.date,
     to: last.date,
     change: {
