@@ -7,6 +7,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { logAnthropicUsage } from '@/lib/ai/client'
 import { saveProof } from '@/lib/proofs'
 import { getAllItems } from '@/lib/modules/types'
+import { checkGoogleProfile, GBP_SLUG } from '@/lib/modules/foundation/google-profile'
 import { FOUNDATION_MODULE } from '@/lib/modules/foundation/definition'
 import { fetchFoundationData } from '@/lib/modules/foundation/fetcher'
 import { refreshModuleScore } from '@/lib/modules/score'
@@ -55,6 +56,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ canVerify: false, reason: 'Could not reach the site' })
   }
 
+  // Google Business Profile: a real lookup in Google's listings, not a guess from the page
+  let result: { detail: string; verified: boolean }
+  if (itemDef.slug === GBP_SLUG) {
+    const r = await checkGoogleProfile(data, { id: brand.id, name: brand.name, websiteType: brand.websiteType })
+    result = { detail: r.detail, verified: r.verified }
+  } else {
   // Run a targeted single-item Claude check
   const message = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -85,11 +92,11 @@ No markdown, no extra text.`,
   const raw = message.content[0].type === 'text' ? message.content[0].text : '{}'
   const clean = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim()
 
-  let result: { detail: string; verified: boolean }
   try {
     result = JSON.parse(clean)
   } catch {
     return NextResponse.json({ canVerify: false, reason: 'Verification returned invalid response' })
+  }
   }
 
   // Update the item in DB

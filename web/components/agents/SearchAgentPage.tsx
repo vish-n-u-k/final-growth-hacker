@@ -492,6 +492,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   // ── Rankings and AI answers ────────────────────────────────────────────────
 
   const change = new Map(data.rankChanges.map(c => [c.keyword, c]))
+  const fromGsc = data.ranks?.source === 'gsc'
   const rankRows = useShowAll(data.ranks?.rows.slice(0, 30) ?? [], tab)
   const [ideaQ, setIdeaQ] = useState('')
   const ideaAll = data.ideas?.rows ?? []
@@ -530,7 +531,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       {data.ranks && data.ranks.rows.length > 0 ? (
         <div className="tu-tbl">
           <table>
-            <thead><tr><th>Keyword</th><th>Your rank</th><th>Since last week</th><th>Searches</th><th>Page</th></tr></thead>
+            <thead><tr><th>Keyword</th><th>{fromGsc ? 'Avg. position' : 'Your rank'}</th><th>Since last week</th><th>{fromGsc ? 'Shown (28 days)' : 'Searches'}</th><th>Page</th></tr></thead>
             <tbody>
               {rankRows.items.map(r => {
                 const c = change.get(r.keyword)
@@ -540,7 +541,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
                     <td><b>{r.keyword}</b></td>
                     <td className="tu-num">#{r.rank}</td>
                     <td className={moved ? (moved > 0 ? 'tu-up' : 'tu-down') : undefined}>{moved ? `${moved > 0 ? '▲' : '▼'} ${Math.abs(moved)}` : c && c.before === null ? 'New' : '—'}</td>
-                    <td className="tu-num">{r.volume.toLocaleString('en-US')}</td>
+                    <td className="tu-num">{(fromGsc ? r.impressions ?? 0 : r.volume).toLocaleString('en-US')}</td>
                     <td className="tu-faint">{r.url.replace(/^https?:\/\/(www\.)?/, '')}</td>
                   </tr>
                 )
@@ -550,7 +551,9 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
         </div>
       ) : <div className="tu-empty">{data.ranks ? 'Google doesn’t show your site for any tracked searches yet. Posts you publish show up here.' : 'Shown after the first research.'}</div>}
       {rankRows.toggle}
-      <p className="cl-muted tu-note">{data.ranks ? <>Checked <Day iso={data.ranks.at} />{s.enabled ? ', and every Monday' : ''}.</> : null}</p>
+      <p className="cl-muted tu-note">{data.ranks ? <>Checked <Day iso={data.ranks.at} />{s.enabled ? ', and every Monday' : ''}. {fromGsc
+        ? 'From Google Search Console: your average place among the normal results over the last 28 days.'
+        : 'DataForSEO’s estimate, refreshed every few weeks, so small moves may not be real. Connect Google Search Console in Settings → Integrations for real positions.'}</> : null}</p>
       {data.adsTips.length > 0 && <>
         <Sec label="Google Ads tips" count={data.adsTips.length} />
         {!flags.googleAds && !demo && <p className="cl-muted tu-note">Connect Google Ads in Settings → Integrations to also see wasted spend.</p>}
@@ -571,6 +574,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
   const last4 = data.mentionHistory.slice(-4)
   const asked4 = last4.reduce((t, h) => t + h.asked, 0)
   const avg = asked4 ? Math.round((100 * last4.reduce((t, h) => t + h.mentioned, 0)) / asked4) : null
+  const named = (a: AiAnswer) => [...a.brands, ...(a.others ?? [])]
   // The steadier, more useful part: which sites AI answers keep citing when they leave the brand out
   const cited = new Map<string, { n: number; url: string; title: string }>()
   for (const a of all.filter(x => !x.mentioned)) {
@@ -586,14 +590,15 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
     if (!a) return '—'
     const hits = a.hits ?? (a.mentioned ? 1 : 0), n = a.samples ?? 1
     const label = n > 1 ? `${hits} of ${n}` : a.mentioned ? 'Names you' : 'Not yet'
-    return <span title={a.brands.length ? `Named: ${a.brands.join(', ')}` : 'No tracked brand named'}><Tag tone={hits && a.mentioned ? 'ok' : undefined}>{label}{a.mentioned && a.position ? ` · #${a.position}` : ''}</Tag></span>
+    return <span title={named(a).length ? `Named: ${named(a).join(', ')}` : 'No other brand named'}><Tag tone={hits && a.mentioned ? 'ok' : undefined}>{label}{a.mentioned && a.position ? ` · #${a.position}` : ''}</Tag></span>
   }
   const aiTab = all.length ? (
     <>
       <p className="tu-lead">
         <b>{avg !== null ? `${brandName} is named in ${avg}% of AI answers` : `${brandName} AI answers`}</b>{' '}
-        <span className="cl-muted">· {last4.length > 1 ? `${last4.length}-week average` : 'first week, the average builds up weekly'} · asked <Day iso={data.answers?.at} /></span>
+        <span className="cl-muted">· {last4.length > 1 ? `${last4.length}-week average of ${asked4} answers` : `first week, ${asked4} answers, so a rough number`} · asked <Day iso={data.answers?.at} /></span>
       </p>
+      <p className="cl-muted tu-note">Asked through each assistant’s API (ChatGPT as gpt-4.1-mini with web search, Perplexity Sonar, Gemini 2.5 Flash). Answers in their apps can differ, so read this as a direction, not an exact score. The buyer questions take turns, a few each week.</p>
       {topCited.length > 0 && <>
         <Sec label="Sites AI answers cite when they leave you out" count={topCited.length} />
         <p className="cl-muted tu-note">These change less from week to week than who gets named. Getting mentioned on them is the surest way into the answers.</p>
@@ -614,7 +619,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
       </>}
       {data.description && (
         <div className={`ag-note ${data.description.issue ? 'ag-note-warn' : ''}`}>
-          <b>How ChatGPT describes {brandName}:</b> {data.description.text || '(nothing)'}{data.description.issue ? <><br /><b>Problem:</b> {data.description.issue}</> : null}
+          <b>How AI describes {brandName}:</b> {data.description.text || '(nothing)'}{data.description.issue ? <><br /><b>Problem:</b> {data.description.issue}</> : null}
         </div>
       )}
       {questions.length > 0 && <>
@@ -646,7 +651,7 @@ export default function SearchAgentPage({ initial, flags, drafts, brandName }: {
                 <tr key={o.question}>
                   <td><b>{o.question}</b></td>
                   <td>{o.mentioned ? <Tag tone="ok">Yes</Tag> : <Tag>Not yet</Tag>}</td>
-                  <td className="tu-faint">{o.brands.join(', ') || '—'}</td>
+                  <td className="tu-faint">{named(o).join(', ') || '—'}</td>
                 </tr>
               ))}
             </tbody>

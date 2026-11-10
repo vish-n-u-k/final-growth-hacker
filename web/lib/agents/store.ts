@@ -264,7 +264,70 @@ export interface Topic {
   inputs?: { example?: string; number?: string; opinion?: string }
 }
 
-export interface RankRow { keyword: string; volume: number; rank: number; url: string }
+// rank: place among Google's normal results. From Search Console, the average over 28 days, and
+// impressions = how often the site was shown for it then; from DataForSEO, an estimate.
+export interface RankRow { keyword: string; volume: number; rank: number; url: string; impressions?: number; clicks?: number }
+
+// Search & AI page (/search-ai): the keywords the brand is trying to win, judged every week from how
+// they do (lib/search-hub/verdict.ts). Starting keywords and blog topics are added by themselves.
+export interface TrackedKeyword {
+  keyword: string               // lower case
+  addedAt: string
+  by: 'auto' | 'user'
+  status: 'active' | 'dropped'
+  droppedAt?: string
+  swappedFrom?: string          // the keyword it replaced
+  swappedTo?: string            // dropped by a swap: the keyword that replaced it
+  heldUntil?: string            // "Keep it" on a suggested change: no new suggestion before this date
+}
+
+// One research's result for each tracked keyword. rank null = not found (outside Search Console's
+// data, or outside DataForSEO's list). ai: whether Google's AI Overview named the brand (when asked).
+export interface KeywordPoint { rank: number | null; url?: string; clicks?: number; impressions?: number; ai?: boolean }
+export interface RankSnapshot {
+  at: string
+  source: 'gsc' | 'labs'
+  clicks?: number               // Search Console only: clicks on every search, last 28 days
+  rows: Record<string, KeywordPoint>
+  // Buyer questions asked to ChatGPT, Perplexity and Gemini this check: answers that named the brand
+  questions?: Record<string, { hits: number; samples: number }>
+}
+
+// Search & AI page: the brand's homepage and main pages, read at every check (lib/search-hub/pages.ts)
+export interface SitePage {
+  path: string
+  url: string
+  title: string
+  h1: string
+  h2s: string[]
+  meta: string
+  keyword: string | null        // the search the page targets (AI, from its title / H1 / headings), null = none
+  keywordBy?: 'auto' | 'user'   // 'user' = set by "I've made this change"; not re-guessed
+  keyFor?: string               // the title|h1|h2s the keyword was worked out from
+  volume?: number               // searches a month for `keyword` (0 = too few to measure)
+  difficulty?: number | null
+  volFor?: string               // the keyword volume / difficulty were looked up for
+  // Easier versions of a search that's too hard for the site (Labs keyword_suggestions), for `altsFor`
+  alts?: { keyword: string; volume: number; difficulty: number | null }[]
+  altsFor?: string
+  readAt: string
+  // New wording suggested for the page (written on open), for this keyword and verdict
+  sugg?: { for: string; at: string; items: { tag: 'Title' | 'H1' | 'H2' | 'Meta'; text: string }[] }
+}
+
+// A change the brand made (found at a check, or told us): judged after 6 weeks
+export interface SiteChange {
+  id: string
+  area: 'seo' | 'geo'
+  path?: string                 // seo: the page
+  keyword?: string              // seo: the search it should move
+  question?: string             // geo: the buyer question
+  what: string                  // "New H1", "New title", "FAQ added"…
+  at: string
+  by: 'auto' | 'user'
+  before: number | null         // seo: Google position then (null = not found); geo: % of answers that named the brand
+  status: 'testing' | 'stopped'
+}
 
 // A keyword idea from the last research, with why it was or wasn't picked (Keywords tab)
 export type IdeaVerdict = 'picked' | 'fit' | 'broad' | 'hard' | 'off' | 'unknown' | 'small' | 'branded' | 'unchecked'
@@ -336,11 +399,21 @@ export interface LinkOpportunity {
 export interface SearchAgentData {
   settings: SearchSettings
   topics: Topic[]
-  ranks: { at: string; rows: RankRow[] } | null
+  // source: 'gsc' = Google Search Console (real), 'labs' (or missing) = DataForSEO's estimate
+  ranks: { at: string; rows: RankRow[]; source?: 'gsc' | 'labs' } | null
   ideas?: { at: string; rows: IdeaRow[] } | null   // keyword ideas from the last research
   rankChanges: RankChange[]
+  tracked?: TrackedKeyword[]      // keywords the Search & AI page follows week by week
+  rankHistory?: RankSnapshot[]    // one per research, oldest first (last 16 kept)
+  pages?: SitePage[]              // homepage + main pages (Search & AI page)
+  changes?: SiteChange[]          // changes being tested (newest last, last 40 kept)
+  hubOnAt?: string                // when the Search & AI page first switched the weekly check on
   answers: { at: string; items: AiAnswer[] } | null
   mentionHistory: { at: string; mentioned: number; asked: number }[]
+  // Each buyer question's last result (questions rotate, so a gap "holds" when it was there the last
+  // time that question was asked): gap = a rival was named and the brand never was
+  questionLog?: Record<string, { at: string; gap: boolean }>
+  questionRound?: number        // researches so far, for taking the buyer questions in turns
   description: { text: string; issue: string | null; at: string } | null
   tasks: AgentTask[]
   adsTips: AdsTip[]
@@ -482,7 +555,7 @@ export async function updateSearchData(brandId: string, fallback: () => SearchAg
 export interface UsageMeter { dataforseo: number; hunter: number; apis: Record<string, number>; hunterOut?: boolean }
 export const newMeter = (): UsageMeter => ({ dataforseo: 0, hunter: 0, apis: {} })
 
-export type UsageTool = 'Lead Agent' | 'Search Agent' | 'Competitor Leads' | 'Claude (MCP)'
+export type UsageTool = 'Lead Agent' | 'Search Agent' | 'Competitor Leads' | 'Claude (MCP)' | 'Foundation'
 export interface UsageMonth {
   dataforseo: number
   hunter: number
