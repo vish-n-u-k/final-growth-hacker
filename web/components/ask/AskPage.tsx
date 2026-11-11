@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import type { Answer, AskCards, AskEvent, CardId, FillEvent, Panel } from '@/lib/ask/types'
+import type { Answer, AskCards, AskEvent, CardId, FillEvent, Panel, Proposal } from '@/lib/ask/types'
 import AskPicture from './AskPicture'
 import AskPanel from './AskPanel'
+import { ProposalView, TaskView } from './TaskView'
 
 // Ask (md_files/ASK_PLAN.md): a home page with one ask box and the ready answers. A card opens its
 // saved answer; a typed question is answered live (phase 2) and drawn in the same shape: a
@@ -42,6 +43,8 @@ interface Live {
   error?: string
   thinking?: string    // what Claude is doing right now, between lookups
   started: number      // for the timer
+  task?: { kind: 'leads'; brief: string; error?: string }   // a job Claude started (lead search in the background)
+  proposal?: Proposal  // emails Claude wrote, waiting for the OK
 }
 
 type FillStep = { id: string; text: string; state: 'on' | 'done' | 'failed'; result?: string }
@@ -60,18 +63,6 @@ function useElapsed(start: number | null, on: boolean): number {
 }
 
 type View = { kind: 'home' } | { kind: 'card'; id: CardId } | { kind: 'pin'; id: string } | { kind: 'live' }
-
-/** "find me leads", "email my list", "write a post": the workspace to open instead of answering. */
-function jobOf(t: string): Panel | null {
-  const q = t.toLowerCase()
-  if (/^(find|get|search for|look for)\b.*\b(leads?|customers|prospects|businesses)\b/.test(q)) return { kind: 'leads', find: true }
-  if (/^(show|open|see)\b.*\bleads?\b/.test(q) || /^my leads\b/.test(q)) return { kind: 'leads' }
-  if (/^(email|send|write)\b.*\b(list|campaign|everyone)\b/.test(q)) return { kind: 'email', tab: 'list' }
-  if (/^(answer|reply to|open)\b.*\b(repl(y|ies)|emails?|inbox)\b/.test(q)) return { kind: 'email', tab: 'replies' }
-  if (/^(send|do)\b.*\bfollow[- ]?ups?\b/.test(q)) return { kind: 'email', tab: 'due' }
-  if (/^write\b.*\b(post|blog|article)\b/.test(q)) return { kind: 'write' }
-  return null
-}
 
 export default function AskPage({ brandName, site, initial, stale, initialOpen, backHref }: {
   brandName: string
@@ -177,6 +168,8 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
         if (e.t === 'understand' || e.t === 'look' || e.t === 'check') return { ...l, thinking: undefined, steps: [...l.steps, { kind: e.t, text: e.text }] }
         if (e.t === 'answer') return { ...l, running: false, answer: e.answer }
         if (e.t === 'ask_back') return { ...l, running: false, askBack: { question: e.question, options: e.options } }
+        if (e.t === 'task') return { ...l, running: false, thinking: undefined, task: { kind: e.kind, brief: e.brief, error: e.error } }
+        if (e.t === 'proposal') return { ...l, running: false, thinking: undefined, proposal: e.proposal }
         return { ...l, running: false, error: e.text }
       })
     }
@@ -197,7 +190,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
           if (line) { try { apply(JSON.parse(line) as AskEvent) } catch { /* a broken line */ } }
         }
       }
-      setLive(l => (l && l.running ? { ...l, running: false, error: l.answer || l.askBack ? undefined : 'Ask stopped before answering. Try again.' } : l))
+      setLive(l => (l && l.running ? { ...l, running: false, error: l.answer || l.askBack || l.task || l.proposal ? undefined : 'Ask stopped before answering. Try again.' } : l))
     } catch (e) {
       if (ctl.signal.aborted) return
       setLive(l => (l ? { ...l, running: false, error: e instanceof Error ? e.message : 'Ask couldn’t answer right now.' } : l))
@@ -233,9 +226,6 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
     if (!t) return
     setTyped('')
     if (follow) return run(t, undefined, true)
-    // A job, not a question: open its workspace (free)
-    const job = jobOf(t)
-    if (job) return setPanel(job)
     // Exactly a ready answer's question: open it (free)
     const card = cards.find(c => c.question.toLowerCase().replace(/\W/g, '') === t.toLowerCase().replace(/\W/g, ''))
     if (card) go({ kind: 'card', id: card.id as CardId })
@@ -313,6 +303,8 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
                 <button type="button" className="ask-tl" onClick={() => { if (turns.length > 1) { setTurns(ts => ts.slice(0, -1)); run(live.question, undefined, true) } else run(live.question) }}>Try again</button>
               </div>
             )}
+            {live.task && <TaskView brief={live.task.brief} error={live.task.error} />}
+            {live.proposal && <ProposalView proposal={live.proposal} />}
             {live.answer && <AnswerBody a={live.answer} onPanel={setPanel} onAsk={q => askNext(q, true)} disabled={left === 0} />}
             {live.answer && threadId && (
               <div className="ask-pinrow">

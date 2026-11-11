@@ -653,6 +653,19 @@ The owner's call: keep the app as it was, with Ask reachable on its own.
 - `/ask` (`app/ask/page.tsx`) no longer checks early access; `/api/ask/*` use the new `askAccess()` in `lib/agents/access.ts` (signed in, a brand, Pro when billing is on). The Ask header shows "Back to the app →" (`/dashboard`) when Ask isn't home, else "Settings".
 - Not changed: Lead Finder, the Lead Engine, Lead Finder's skip / posted ops and reminders keep their own rules (`agentAccess`, early access), so for users without early access the Leads workspace stays empty and "Find new leads" says AI Agents are coming soon. `/api/cron/ask` still fills cards each morning only for early-access brands; others get them when they open Ask.
 
+## 4g-12. Ask does what you ask: Claude starts jobs and proposes emails (11 Nov)
+
+The owner's call: Ask should behave like Claude with every tool, not fixed rules. Approved preview: `design-previews/seo-ask/ask-agent.html` (with "Download (CSV)" on the results).
+- **No fixed rules:** `jobOf` (the "find leads" keyword rule) is gone from `AskPage.tsx`; everything typed goes to the question engine (`lib/ask/engine.ts`), whose prompt now also covers jobs.
+- **Two new moves for Claude** (Ask tools, not MCP tools):
+  - `start_lead_search { brief, how_many }`: starts the Lead Engine with **this search's own brief** (`startEngine(brandId, { brief, leadCount, hold: true, ask })` in `lib/leads/engine.ts`; the saved brief only fills gaps, and no saved brief is needed). Refused in demo mode, and while another search runs. Emits `{ t: 'task' }`.
+  - `propose_emails { title, why, emails[] }`: emails it wrote (answers in a thread carry `thread_id` / `in_reply_to`), shown for approval. Emits `{ t: 'proposal' }` (`Proposal` in `lib/ask/types.ts`). Nothing is sent by Claude.
+- **Held results:** a search started from Ask keeps its Neutral-or-better leads in the job (`EngineJob.hold / found / foundAdded / summary`, in `statusOf`) instead of saving them. `addFoundLeads(brandId, picks)` saves the picked ones through `addEngineLeads` (`foundVia` "Found with Ask").
+- **`/api/ask/task`** (`askAccess`): GET status (advances a stalled search with `after()`, like `/api/leads/engine`), POST `{ op: 'stop' }`, `{ op: 'add', picks }`.
+- **Page** (`components/ask/TaskView.tsx`, `ask-task` / `ask-lead` / `ask-approve` CSS): `TaskView` polls every 3 s and shows the search's steps and cost, then the found leads with ticks: **Add N and write the emails** (adds, then `/api/ask/write` per lead with an email, then the emails for approval), **Just add them**, **Download (CSV)** (company, website, contact, email, socials, rating, why). `ProposalView`: edit each email, **Send N emails** (`send_email` as Ask) or Not now.
+- Lead Finder's own page still shows the latest search; a held Ask search shows there as done with nothing added.
+- Checked in the preview harness with Claude's stream, the task and sending stood in for: running, found, untick, CSV, add + write + send, a proposal from a typed request, phone. Full build passes. **Not run against the real API yet**: check that Claude picks `start_lead_search` for lead requests and that the Lead Engine follows a brief like "from X" (it can run any Apify actor by its full name).
+
 ## 4g. Foundation: Google Business Profile check (4 Nov)
 
 - New check `google-business-profile` (weight 3) in Foundation under "Online Presence" (was "Social Media Presence") → "Google Business Profile".

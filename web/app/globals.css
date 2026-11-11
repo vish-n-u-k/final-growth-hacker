@@ -9865,6 +9865,29 @@ html:not(.light) .ask {
 .ask-fs.is-failed i { border-color: var(--ask-red); }
 .ask-fs small { font-size: 12.5px; color: var(--ask-faint); text-align: right; }
 .ask-chip:disabled { opacity: .5; cursor: default; }
+/* Ask tasks and approvals (components/ask/TaskView.tsx) */
+.ask-task, .ask-proposal { margin-top: 18px; }
+.ask-task-box { padding: 16px 18px; border: 1px solid var(--ask-line); border-radius: 16px; background: var(--ask-card); }
+.ask-task-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.ask-task-h b { font-weight: 600; }
+.ask-task-h small { font-size: 12.5px; color: var(--ask-faint); }
+.ask-leads { margin-top: 14px; padding: 2px 16px; border: 1px solid var(--ask-line); border-radius: 16px; background: var(--ask-card); }
+.ask-lead { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--ask-line); cursor: pointer; }
+.ask-lead:first-child { border-top: 0; }
+.ask-lead input { width: 16px; height: 16px; flex: none; accent-color: var(--ask-ink); }
+.ask-lead > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ask-lead b { font-weight: 500; overflow-wrap: anywhere; }
+.ask-lead small { font-size: 13.5px; color: var(--ask-sub); }
+.ask-lead em { font-style: normal; font-size: 12.5px; color: var(--ask-faint); white-space: nowrap; }
+.ask-lead.is-added { opacity: .6; cursor: default; }
+.ask-approve { margin-top: 14px; padding: 16px 18px; border-radius: 16px; background: var(--ask-blue-soft); }
+.ask-approve > b { display: block; font-weight: 600; }
+.ask-approve > p { margin: 2px 0 0; font-size: 14px; color: var(--ask-sub); }
+.ask-approve .ask-acts .ask-btn { border: 0; cursor: pointer; font: inherit; font-size: 14px; font-weight: 500; }
+.ask-done-line { margin: 14px 0 0; padding: 12px 14px; border: 1px solid var(--ask-line); border-radius: 12px; background: var(--ask-card); font-size: 14px; }
+.ask-err-box { margin-top: 18px; padding: 14px 16px; border-radius: 14px; background: var(--ask-red-soft); font-size: 14px; }
+.ask-err-box p { margin: 0; }
+.ask-proposal .ask-mail { margin-top: 10px; }
 /* Ask workspaces: Leads, Email, Write (components/ask/Workspaces.tsx) */
 .ask-quiet { margin: 6px 0 0; font-size: 14px; color: var(--ask-sub); }
 .ask-quiet .ask-tl { font-size: 14px; }

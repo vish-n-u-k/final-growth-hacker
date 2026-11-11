@@ -18,6 +18,7 @@ import { logAnthropicUsage, withAIContext } from '@/lib/ai/client'
 import { loadBrandContext } from '@/lib/agents/context'
 import { readDemoSwitch } from '@/lib/agents/store'
 import { agentsDemo, withDemo } from '@/lib/agents/demo'
+import { startEngine } from '@/lib/leads/engine'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { savedCards } from './cards'
 import { CARD_IDS, type Answer, type AskEvent, type CardId, type NextStep, type Picture } from './types'
@@ -56,7 +57,7 @@ const ACTIONS: Record<string, { label: string; href: string; external?: boolean;
   search_console: { label: 'Open Search Console', href: 'https://search.google.com/search-console', external: true },
 }
 
-const SYSTEM = `You answer one question a small-business owner asks about their own business in GrowJin, a growth app. You have tools that read their data. Answer only from what the tools return.
+const SYSTEM = `You answer questions a small-business owner asks about their own business in GrowJin, a growth app, and start the jobs they ask for. You have tools that read their data. Answer only from what the tools return.
 
 How to work:
 1. In your first turn, call \`understood\` with one short line saying what you take the question to mean (with dates and names filled in), together with the data tools you need. Call tools in parallel when you can.
@@ -64,6 +65,10 @@ How to work:
 3. If a missing detail would change the answer a lot (for example "my emails" could mean two different things), call \`ask_back\` with one short question and 2–4 short options. Otherwise make a sensible assumption and say it in \`understood\`.
 4. Use as few lookups as you need. Saved data (ready_answers, list_leads, list_replies, get_* tools) is free; dataforseo costs money, so use it only when the question needs data about other sites or Google results.
 5. Finish by calling \`give_answer\`. That is the only way to answer: don't write the answer as text.
+6. When they ask you to DO something rather than answer:
+   - Find new leads, customers or prospects (from anywhere: X / Twitter, Etsy, LinkedIn, a city, a kind of business, a competitor's reviews): call \`start_lead_search\` with a clear brief and nothing else. It runs in the background with the search tools; the page shows its progress and they pick which leads to keep.
+   - Send emails (answer replies, follow up, email people they name or paste, email leads on their list): look up what you need, write each email, then call \`propose_emails\`. Never say emails were sent: they approve them on the page.
+   - Anything else your tools can't do: say so in \`give_answer\` and point to the right place.
 
 Rules for the answer:
 - One or two short sentences in \`say\`, plain words, no jargon. Wrap the 1–3 most important words or numbers in **double stars**.
@@ -108,6 +113,37 @@ const ASK_TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object', additionalProperties: false, required: ['question', 'options'],
       properties: { question: { type: 'string' }, options: { type: 'array', items: { type: 'string' } } },
+    },
+    strict: true,
+  },
+  {
+    name: 'start_lead_search',
+    description: 'Start a search for new leads in the background, when they ask you to find leads, customers or prospects. Write a clear brief: who to find (kind of business, size, place), where to look as they said it (e.g. "on X (Twitter)", "Etsy shops", "in Leeds", "people unhappy with <competitor>"), what makes one a good fit for this brand, and how to reach them. Call it alone, in your first turn after understood.',
+    input_schema: {
+      type: 'object', additionalProperties: false, required: ['brief', 'how_many'],
+      properties: {
+        brief: { type: 'string', description: 'The brief for this search, 2–5 sentences, in plain words.' },
+        how_many: { type: 'integer', description: 'How many leads to look for, 5–30. Default 10 unless they said.' },
+      },
+    },
+    strict: true,
+  },
+  {
+    name: 'propose_emails',
+    description: 'Show emails you wrote for them to approve and send from their Gmail (nothing is sent until they approve). Use after looking up who to write to. For an answer in an existing thread give thread_id and in_reply_to (from list_replies) and the subject with "Re: "; otherwise empty strings. Up to 20 emails, each under 90 words, plain and personal, signed with the brand name.',
+    input_schema: {
+      type: 'object', additionalProperties: false, required: ['title', 'why', 'emails'],
+      properties: {
+        title: { type: 'string', description: 'What these are, e.g. "Answers to 2 replies".' },
+        why: { type: 'string', description: 'One short line on why.' },
+        emails: {
+          type: 'array',
+          items: {
+            type: 'object', additionalProperties: false, required: ['to', 'subject', 'body', 'thread_id', 'in_reply_to'],
+            properties: { to: { type: 'string' }, subject: { type: 'string' }, body: { type: 'string' }, thread_id: { type: 'string' }, in_reply_to: { type: 'string' } },
+          },
+        },
+      },
     },
     strict: true,
   },
@@ -486,6 +522,33 @@ export async function answerLoop({ question, intro, clarified, brandId, emit, cr
           }
         }
 
+        // A job: hand it to the background search, the page follows it
+        const job = calls.find(c => c.name === 'start_lead_search')
+        if (job) {
+          const x = job.input as { brief?: string; how_many?: number }
+          const brief = clip(x.brief, 1500)
+          if (agentsDemo()) {
+            emit({ t: 'task', kind: 'leads', brief, error: 'Lead searches use real data. Turn Demo mode off in Settings first.' })
+            await refund(); return null
+          }
+          const r = await withDemo(false, () => startEngine(brandId, { brief, leadCount: Math.max(5, Math.min(30, Math.round(Number(x.how_many)) || 10)), hold: true, ask: question }))
+          emit({ t: 'task', kind: 'leads', brief, ...(r.error ? { error: r.error } : {}) })
+          if (r.error) await refund()
+          return null
+        }
+        const prop = calls.find(c => c.name === 'propose_emails')
+        if (prop) {
+          const x = prop.input as { title?: string; why?: string; emails?: { to?: string; subject?: string; body?: string; thread_id?: string; in_reply_to?: string }[] }
+          const emails = (Array.isArray(x.emails) ? x.emails : []).slice(0, 20).map(e => ({
+            to: clip(e.to, 200), subject: clip(e.subject, 200), body: String(e.body ?? '').slice(0, 4000),
+            ...(e.thread_id ? { thread_id: clip(e.thread_id, 64) } : {}), ...(e.in_reply_to ? { in_reply_to: clip(e.in_reply_to, 300) } : {}),
+          })).filter(e => e.to && e.body)
+          if (emails.length) {
+            emit({ t: 'proposal', proposal: { kind: 'send_emails', title: clip(x.title, 120) || 'Emails to send', why: clip(x.why, 200), emails } })
+            return null
+          }
+        }
+
         const given = calls.find(c => c.name === 'give_answer')
         if (given) {
           const { form, unchecked } = await finish(given.input as Form)
@@ -516,7 +579,7 @@ export async function answerLoop({ question, intro, clarified, brandId, emit, cr
             emit({ t: 'understand', text: understood })
             return { c, text: 'Noted.', error: false }
           }
-          if (c.name === 'ask_back' || c.name === 'open_ready_answer') return { c, text: 'Not available now: answer with what you can.', error: false }
+          if (c.name === 'ask_back' || c.name === 'open_ready_answer' || c.name === 'start_lead_search' || c.name === 'propose_emails') return { c, text: 'Not available now: answer with what you can.', error: false }
           if (wrapUp) return { c, text: 'No more lookups: call give_answer now with what you have.', error: true }
           if (!READ_TOOLS.includes(c.name) && c.name !== 'ready_answers' && c.name !== 'outreach') return { c, text: `Unknown tool ${c.name}.`, error: true }
           if (c.name === 'dataforseo' && toolUsd >= TOOL_CAP_USD) return { c, text: 'The budget for paid lookups on this question is used. Answer with what you have.', error: true }

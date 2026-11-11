@@ -53,11 +53,25 @@ export interface EngineJob {
   log: EngineLogLine[]
   added?: number
   error?: string
+  // Started from Ask with its own brief ("get me leads from X"): the leads wait for the owner's OK
+  // instead of going straight to the list (addFoundLeads saves the ones they pick)
+  ask?: string                     // what they typed
+  brief?: string                   // the brief for this search only
+  hold?: boolean
+  found?: EngineLead[]
+  foundAdded?: number[]            // indexes in `found` already added to the list
+  summary?: string
 }
 
 /** What the page sees of a search (no conversation). */
 export interface EngineStatus {
   id: string
+  brief?: string
+  ask?: string
+  hold?: boolean
+  found?: EngineLead[]
+  foundAdded?: number[]
+  summary?: string
   status: EngineJob['status']
   startedAt: string
   updatedAt: string
@@ -78,6 +92,7 @@ export function statusOf(job: EngineJob | null): EngineStatus | null {
   return {
     id: job.id, status: job.status, startedAt: job.startedAt, updatedAt: job.updatedAt, turns: job.turns, toolCalls: job.toolCalls,
     costUsd: Math.round((job.aiUsd + job.toolUsd) * 100) / 100, log: job.log.slice(-8), added: job.added, error: job.error, wrapUp: job.wrapUp,
+    ...(job.hold ? { hold: true, brief: job.brief, ask: job.ask, found: job.found, foundAdded: job.foundAdded ?? [], summary: job.summary } : {}),
   }
 }
 
@@ -86,26 +101,42 @@ const say = (job: EngineJob, text: string) => { job.log = [...job.log, { at: new
 // ── Starting ──────────────────────────────────────────────────────────────────
 
 /** Starts a search with the brief and filters saved in Settings. Returns the running job, or why not. */
-export async function startEngine(brandId: string): Promise<{ job?: EngineJob; error?: string }> {
+export interface StartOpts {
+  /** This search's own brief (from Ask), instead of only the one saved in Settings. */
+  brief?: string
+  leadCount?: number
+  /** Keep the leads for the owner's OK instead of saving them (Ask). */
+  hold?: boolean
+  /** What the owner typed, shown with the search. */
+  ask?: string
+}
+
+export async function startEngine(brandId: string, opts: StartOpts = {}): Promise<{ job?: EngineJob; error?: string }> {
   const b = await loadBrandContext(brandId)
   if (!b) return { error: 'Brand not found.' }
   const data = (await readLeadData(brandId)) ?? leadFallback(b)()
   const f: EngineInputs | null | undefined = data.settings.engine
-  if (!f || (!f.brief.trim() && !f.industry.trim())) return { error: 'Tell Lead Finder who you’re looking for first (Settings).' }
+  const own = opts.brief?.trim()
+  if (!own && (!f || (!f.brief.trim() && !f.industry.trim()))) return { error: 'Tell Lead Finder who you’re looking for first (Settings).' }
   if (!process.env.ANTHROPIC_API_KEY) return { error: 'The AI isn’t set up on this server (ANTHROPIC_API_KEY).' }
   const running = await readJob(brandId)
-  if (running?.status === 'running' && Date.now() - Date.parse(running.updatedAt) < 10 * 60_000) return { job: running }
+  if (running?.status === 'running' && Date.now() - Date.parse(running.updatedAt) < 10 * 60_000) {
+    return own ? { job: running, error: 'A lead search is already running. Wait for it to finish, or stop it first.' } : { job: running }
+  }
 
   // Domains already in the list (any status), so the search doesn't spend on them again
   const known = [...new Set(data.leads.map(l => l.website ? domainOf(l.website) : '').filter(Boolean))].slice(0, 300)
-  const leadCount = Math.max(1, Math.min(50, Math.round(f.leadCount) || 10))
+  const leadCount = Math.max(1, Math.min(50, Math.round(opts.leadCount ?? f?.leadCount ?? 10) || 10))
   const input = {
     brand: {
       name: b.name, website: b.websiteUrl, description: b.summary ?? b.usp ?? '', offer: b.usp ?? '',
       competitors: b.competitors.map(c => (c.domain ? `${c.name} (${c.domain})` : c.name)),
     },
-    filters: { industry: f.industry, location: f.location, company_size: f.companySize, contact_role: f.contactRole, lead_count: leadCount },
-    brief: f.brief,
+    filters: { industry: f?.industry ?? '', location: f?.location ?? '', company_size: f?.companySize ?? '', contact_role: f?.contactRole ?? '', lead_count: leadCount },
+    // A brief from Ask leads; the saved one only fills in what it doesn't say (and the filters may not apply)
+    brief: own
+      ? `${own}${f?.brief.trim() ? `\n\n(Their saved brief, only where it doesn't conflict with the above: ${f.brief.trim()}. The filters above are their saved defaults; ignore any that conflict with this search.)` : ''}`
+      : f!.brief,
     already_known: known,
     today: new Date().toISOString().slice(0, 10),
   }
@@ -113,6 +144,7 @@ export async function startEngine(brandId: string): Promise<{ job?: EngineJob; e
   const job: EngineJob = {
     id: idOf(`${brandId}:${now}`), status: 'running', startedAt: now, updatedAt: now, leadCount,
     turns: 0, toolCalls: 0, aiUsd: 0, toolUsd: 0, hunterCredits: 0, log: [],
+    ...(own ? { brief: own } : {}), ...(opts.hold ? { hold: true } : {}), ...(opts.ask ? { ask: opts.ask.slice(0, 300) } : {}),
     messages: [{ role: 'user', content: JSON.stringify(input, null, 2) }],
   }
   say(job, 'Reading your brief and working out what a good lead looks like')
@@ -307,6 +339,15 @@ export async function advanceEngine(brandId: string, stepMs = STEP_MS): Promise<
           await saveRun(brandId, job, null)
           break
         }
+        if (job.hold) {
+          // From Ask: the good ones wait for the owner's OK (addFoundLeads)
+          job.found = answer.leads.filter(l => scoreOf(l.rating) >= KEEP_FROM).slice(0, 50)
+          job.foundAdded = []
+          job.summary = clip(str(answer.summary), 400)
+          job.status = job.wrapUp === 'You stopped the search' ? 'stopped' : 'done'
+          say(job, job.found.length ? `Done: ${job.found.length} lead${job.found.length === 1 ? '' : 's'} found, waiting for your OK` : 'Done: no good leads this time')
+          continue
+        }
         say(job, 'Saving the leads to your list')
         job.added = await saveAnswer(brandId, job, answer)
         job.status = job.wrapUp === 'You stopped the search' ? 'stopped' : 'done'
@@ -372,6 +413,21 @@ const sentence = (s: string) => s.replace(/\s+/g, ' ').trim().match(/^.+?[.!?](?
 // How the email was found, in a few plain words (the tool details stay in the search's log)
 const EMAIL_VIA: Record<string, string> = {
   verified: 'Checked email', found: 'Found, not checked', guessed: 'Guessed from their email pattern', generic: 'Shared inbox',
+}
+
+/** Ask: the owner picked some of a held search's leads; they go to the list like any search's. */
+export async function addFoundLeads(brandId: string, picks: number[]): Promise<{ result?: AddLeadsResult; error?: string }> {
+  const job = await readJob(brandId)
+  if (!job?.hold || !job.found?.length) return { error: 'There are no found leads waiting.' }
+  const done = new Set(job.foundAdded ?? [])
+  const idx = [...new Set(picks)].filter(i => Number.isInteger(i) && i >= 0 && i < job.found!.length && !done.has(i))
+  if (!idx.length) return { error: 'Pick at least one lead that isn’t added yet.' }
+  const result = await addEngineLeads(brandId, idx.map(i => job.found![i]), [], { foundVia: 'Found with Ask' })
+  if (!result) return { error: 'Brand not found.' }
+  job.foundAdded = [...done, ...idx]
+  job.added = (job.added ?? 0) + result.added.length
+  await saveJob(brandId, job)
+  return { result }
 }
 
 async function saveAnswer(brandId: string, job: EngineJob, a: EngineAnswer): Promise<number> {

@@ -94,7 +94,17 @@ export type AskEvent =
   | { t: 'ask_back'; question: string; options: string[] }
   | { t: 'left'; left: number }                      // typed questions left today
   | { t: 'thread'; id: string }                      // the conversation this answer belongs to (for follow-ups and pins)
+  | { t: 'task'; kind: 'leads'; brief: string; error?: string }   // a job started in the background (the page polls /api/ask/task)
+  | { t: 'proposal'; proposal: Proposal }                         // something to send, waiting for the owner's OK
   | { t: 'error'; text: string }
+
+/** Emails Claude wrote, to send only when the owner approves them on the page (send_email). */
+export interface Proposal {
+  kind: 'send_emails'
+  title: string
+  why: string
+  emails: { to: string; subject: string; body: string; thread_id?: string; in_reply_to?: string }[]
+}
 
 /** Progress while the ready answers are worked out (one JSON object per line, ?stream=1). */
 export type FillEvent =
