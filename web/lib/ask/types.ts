@@ -23,6 +23,7 @@ export type Panel =
   | { kind: 'leads'; lane?: 'email' | 'talk'; find?: boolean }
   | { kind: 'email'; tab?: 'replies' | 'due' | 'list' }
   | { kind: 'write'; topic?: string }
+  | { kind: 'review' }                                               // Re-analyse website: Claude's review of the site
   | { kind: 'memory' }                                               // what Ask remembers: rules and noticed patterns
   // Pages not on Google yet, one by one: ask Google to index each, then mark it done (tracked)
   | { kind: 'index'; property: string; lede: string; rows: IndexRow[] }
@@ -114,3 +115,6 @@ export type FillEvent =
   | { t: 'step'; id: string; text: string; state: 'on' | 'done' | 'failed'; result?: string }
   | { t: 'done'; data: AskCards }
   | { t: 'error'; text: string }
+
+/** The admin queue's module name for an Ask website review (analysis_requests.module_id is then the brand id). */
+export const REVIEW_REQUEST_NAME = 'Website review (Ask)'

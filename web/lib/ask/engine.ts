@@ -20,6 +20,7 @@ import { readDemoSwitch } from '@/lib/agents/store'
 import { agentsDemo, withDemo } from '@/lib/agents/demo'
 import { startEngine } from '@/lib/leads/engine'
 import { addRule, memoryBlock } from './memory'
+import { reviewBrief } from './review'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { savedCards } from './cards'
 import { CARD_IDS, type Answer, type AskEvent, type CardId, type NextStep, type Picture } from './types'
@@ -55,6 +56,7 @@ const ACTIONS: Record<string, { label: string; href: string; external?: boolean;
   social: { label: 'Open Social Studio', href: '/social' },
   reminders: { label: 'Open Reminders', href: '/reminders' },
   settings: { label: 'Open Settings', href: '/settings' },
+  website_review: { label: 'Open the website review', href: '/ask', panel: { kind: 'review' } },
   search_console: { label: 'Open Search Console', href: 'https://search.google.com/search-console', external: true },
 }
 
@@ -69,6 +71,7 @@ How to work:
 6. When they ask you to DO something rather than answer:
    - Find new leads, customers or prospects (from anywhere: X / Twitter, Etsy, LinkedIn, a city, a kind of business, a competitor's reviews): call \`start_lead_search\` with a clear brief and nothing else. It runs in the background with the search tools; the page shows its progress and they pick which leads to keep.
    - Send emails (answer replies, follow up, email people they name or paste, email leads on their list): look up what you need, write each email, then call \`propose_emails\`. Never say emails were sent: they approve them on the page.
+   - Analyse, review or audit their website or app as a whole: answer in one sentence (from the latest website review in the intro if there is one) and set the next step's action to website_review, which opens the full review and lets them run a fresh one.
    - Anything else your tools can't do: say so in \`give_answer\` and point to the right place.
 7. When they state a lasting preference ("always…", "never…", "I prefer…", "only…") or correct how you did something in a way that should apply next time, call \`remember\` with one short rule in their words (alongside your other tools), then carry on. Don't save one-off details of this question. Follow the owner's standing rules in the intro: they win over everything else.
 
@@ -372,13 +375,14 @@ async function connections(brandId: string): Promise<string> {
 
 /** What Claude is told about the business before any question (also used to refresh pins). */
 export async function brandIntro(brandId: string): Promise<string> {
-  const [b, mem] = await Promise.all([loadBrandContext(brandId), memoryBlock(brandId)])
+  const [b, mem, rev] = await Promise.all([loadBrandContext(brandId), memoryBlock(brandId), reviewBrief(brandId).catch(() => '')])
   return [
     `Business: ${b?.name ?? 'unknown'} (${b?.websiteUrl ?? ''})`,
     b?.usp ? `What it does: ${b.usp}` : '', b?.targetAudience ? `Who it's for: ${b.targetAudience}` : '',
     b?.competitors?.length ? `Competitors: ${b.competitors.map(c => c.name || c.domain).join(', ')}` : '',
     `Today: ${today()}`, '', 'Data sources:', await connections(brandId),
     ...(mem.text ? ['', mem.text] : []),
+    ...(rev ? ['', rev] : []),
   ].filter(x => x !== '').join('\n')
 }
 

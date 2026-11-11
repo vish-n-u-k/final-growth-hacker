@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { analysisRequests } from '@/lib/db/schema'
 import type { AnalysisMode } from '@/lib/modules/analysis-mode'
+import { REVIEW_REQUEST_NAME } from '@/lib/ask/types'
 import { LoadingState, Spinner } from '@/components/ui/spinner'
 import AdminCosts from './AdminCosts'
 
@@ -173,11 +174,14 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
     setRunning(prev => ({ ...prev, [req.id]: true }))
     setErrors(prev => ({ ...prev, [req.id]: '' }))
     try {
-      const res = await fetch('/api/modules/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ moduleId: req.moduleId }),
-      })
+      // An Ask website review: moduleId is the brand id, and Ask runs it (Claude reads the site)
+      const res = req.moduleName === REVIEW_REQUEST_NAME
+        ? await fetch('/api/ask/review', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'run', brandId: req.moduleId }) })
+        : await fetch('/api/modules/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ moduleId: req.moduleId }),
+        })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
         setErrors(prev => ({ ...prev, [req.id]: (data as { error?: string }).error ?? 'Analysis failed.' }))
@@ -351,9 +355,9 @@ export default function AdminDashboard({ requests: initial, gmailAddress, gmailP
                       </td>
                       <td style={{ padding: '10px 12px' }}>
                         <span>{req.moduleName}</span>
-                        <a href={`/dashboard/${req.moduleId}`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 11, color: 'var(--green, #2fbf71)', textDecoration: 'none' }}>
+                        {req.moduleName !== REVIEW_REQUEST_NAME && <a href={`/dashboard/${req.moduleId}`} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: 11, color: 'var(--green, #2fbf71)', textDecoration: 'none' }}>
                           View module
-                        </a>
+                        </a>}
                       </td>
                       <td style={{ padding: '10px 12px', color: 'var(--text-dim, #8aa897)' }}>{timeAgo(req.requestedAt)}</td>
                       <td style={{ padding: '10px 12px' }}>

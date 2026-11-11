@@ -679,6 +679,29 @@ The owner's Claude chat knows how they work after a few conversations; Ask didn'
 - **API** `/api/ask/memory` (`askAccess`): GET `{ memory, offer }`; POST ops `add`, `edit`, `delete`, `import`, `offer { id, yes }`, `notice`.
 - Checked in the preview harness with the API faked (offer, remembered + Undo, add, paste, phone). Full build passes. **Not run against the real Claude API yet**: check that it calls `remember` only for real preferences.
 
+## 4g-14. Ask: Re-analyse website, and the API / queue switch on Ask (11 Nov)
+
+- **Re-analyse website** (header button, "Review" on phones; `Panel kind 'review'`, `components/ask/ReviewPanel.tsx`, `ask-rv-*` CSS; also `/ask?review=1`):
+  - `lib/ask/review.ts` `runReview`: Claude Opus 5.5 reviews the site the way it does in a chat ("analyse my app").
+    - It reads the home page and the pages a visitor goes to next with `read_page` (`readPage`, cheerio: status, load time, title, meta, headings, buttons, same-site links, structured data, images, text), at most 15 pages, and one or two competitors.
+    - It also uses `get_brand_info`, `get_competitors`, `get_gsc_data`, `get_ga_analytics`, `get_posthog_analytics`, `get_search_agent`, `get_growth_overview` and `dataforseo` (at most $0.15).
+    - It answers with `give_review`: headline, what a visitor understands, first impression, scores 1–10 per area (Message, Audience fit, Conversion, Trust, Pricing, Search & AI, Speed & mobile), what works, and 3–8 fixes (why, how, page, impact, effort), plus where the site and the brand profile differ.
+  - Caps: 14 turns, 4 minutes, $1.50 AI. Saved in `signal_snapshots` `ask:review`. Usage shows it as "Ask: website review".
+  - Typed questions get the latest headline and top 3 fixes in their intro (`reviewBrief`). "Analyse my website" in the ask box answers briefly and links to the review (action `website_review`).
+- **API**: `/api/ask/review`. GET returns `{ state, mode, admin }`. POST ops:
+  - `run` streams `ReviewEvent` lines.
+  - `run` with `brandId` is the admin running a queued request, and answers in plain JSON.
+  - `mode` is the switch, admin only.
+- **The switch** is the same `module_analysis_mode` the admin page's "Module runs" uses (`lib/modules/analysis-mode.ts`). Admins see it at the top of the review panel.
+  - In `queue` mode a non-admin's click adds an `analysis_requests` row (`moduleName` `REVIEW_REQUEST_NAME` "Website review (Ask)", `moduleId` = the brand id), emails the admin, and shows "Requested" until it's done.
+  - The admin queue's Run calls `/api/ask/review`. Done emails "Your website review is ready" with a link to `/ask?review=1`.
+  - Admins always run straight away.
+- Tested:
+  - `readPage` live on frekto.ai.
+  - The panel with the API faked (review, switch, re-run stream, queued request, phone).
+  - Full build passes.
+- **Not run end to end against the real Claude API yet.**
+
 ## 4g. Foundation: Google Business Profile check (4 Nov)
 
 - New check `google-business-profile` (weight 3) in Foundation under "Online Presence" (was "Social Media Presence") → "Google Business Profile".

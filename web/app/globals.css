@@ -9886,8 +9886,36 @@ html:not(.light) .ask {
 .ask-mem-add { display: flex; gap: 8px; margin-top: 12px; }
 .ask-mem-add .ask-btn { border: 0; cursor: pointer; font: inherit; font-size: 14px; font-weight: 500; }
 .ask-mem-link .ask-short { display: none; }
+/* Website review panel (ReviewPanel.tsx) */
+.ask-rv-mode { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0 0 18px; padding: 10px 14px; border: 1px dashed var(--ask-line); border-radius: 12px; font-size: 13.5px; color: var(--ask-sub); }
+.ask-rv-mode b { color: var(--ask-ink); font-weight: 500; }
+.ask-rv-mode .ask-tl { margin-left: auto; font-size: 13.5px; }
+.ask-rv-mode small { flex-basis: 100%; color: var(--ask-faint); font-size: 12px; }
+.ask-rv-p { margin: 10px 0 0; font-size: 14.5px; }
+.ask-rv-note { color: var(--ask-sub); }
+.ask-rv-scores { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+.ask-rv-scores li { display: grid; grid-template-columns: 120px 1fr 44px; align-items: center; gap: 4px 12px; font-size: 14px; }
+.ask-rv-scores small { grid-column: 1 / -1; color: var(--ask-faint); font-size: 12.5px; margin-top: -2px; }
+.ask-rv-scores b { font-weight: 500; text-align: right; }
+.ask-rv-bar { height: 6px; border-radius: 3px; background: var(--ask-line); overflow: hidden; }
+.ask-rv-bar i { display: block; height: 100%; background: var(--ask-grey2); border-radius: 3px; }
+.ask-rv-fixes { margin: 10px 0 0; padding: 0; list-style: none; counter-reset: rv; }
+.ask-rv-fixes li { counter-increment: rv; border-top: 1px solid var(--ask-line); }
+.ask-rv-fixes li:first-child { border-top: 0; }
+.ask-rv-fixes button { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 12px 0 12px 30px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; position: relative; }
+.ask-rv-fixes button::before { content: counter(rv); position: absolute; left: 0; top: 12px; width: 20px; height: 20px; border-radius: 50%; background: var(--ask-line); font-size: 12px; line-height: 20px; text-align: center; color: var(--ask-sub); }
+.ask-rv-fixes li:first-child button::before { background: var(--ask-blue); color: #fff; }
+.ask-rv-fixes button b { font-weight: 500; font-size: 14.5px; }
+.ask-rv-fixes button small { color: var(--ask-faint); font-size: 12.5px; }
+.ask-rv-body { padding: 0 0 14px 30px; }
+.ask-rv-body p { margin: 0 0 8px; font-size: 14px; white-space: pre-line; }
+.ask-rv-body .ask-k { display: block; margin-bottom: 2px; }
+.ask-rv-list { margin: 10px 0 0; padding-left: 18px; font-size: 14px; }
+.ask-rv-list li { margin-bottom: 4px; }
+.ask-rv-foot { margin-top: 14px; font-size: 12.5px; }
 @media (max-width: 520px) {
   .ask-mem-list li { flex-direction: column; align-items: flex-start; }
+  .ask-rv-scores li { grid-template-columns: 96px 1fr 40px; }
   .ask-mem-link .ask-long, .ask-who .ask-pill { display: none; }
   .ask-mem-link .ask-short { display: inline; }
 }

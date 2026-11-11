@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { analysisRequests, moduleItems, brands } from '@/lib/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { getValidAdminGmailToken } from '@/lib/gmail/admin-token'
+import { REVIEW_REQUEST_NAME } from '@/lib/ask/types'
 
 function buildNotificationEmail(opts: {
   moduleName: string
@@ -11,7 +12,7 @@ function buildNotificationEmail(opts: {
   brandWebsiteUrl: string
   brandLogoUrl: string | null
   completedAt: Date
-  aiPct: number
+  aiPct: number | null   // null: no score (an Ask website review)
   dashboardUrl: string
 }): string {
   const { moduleName, brandName, brandWebsiteUrl, brandLogoUrl, completedAt, aiPct, dashboardUrl } = opts
@@ -20,7 +21,7 @@ function buildNotificationEmail(opts: {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   })
 
-  const pctColor = aiPct >= 70 ? '#2fbf71' : aiPct >= 40 ? '#e7c873' : '#f87171'
+  const pctColor = aiPct === null ? '#2fbf71' : aiPct >= 70 ? '#2fbf71' : aiPct >= 40 ? '#e7c873' : '#f87171'
 
   const brandLogoHtml = brandLogoUrl
     ? `<img src="${brandLogoUrl}" alt="${brandName}" width="32" height="32" style="width:32px;height:32px;border-radius:6px;object-fit:contain;vertical-align:middle;margin-right:10px;" />`
@@ -78,8 +79,8 @@ function buildNotificationEmail(opts: {
                 <p style="margin:0;font-size:15px;font-weight:700;color:#0d1f14;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">${formattedDate}</p>
               </td>
               <td style="padding:20px 24px;width:33.3%;text-align:center;">
-                <p style="margin:0 0 4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#8a9e90;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">Your Score</p>
-                <p style="margin:0;font-size:22px;font-weight:700;color:${pctColor};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">${aiPct}%</p>
+                <p style="margin:0 0 4px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#8a9e90;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">${aiPct === null ? 'Status' : 'Your Score'}</p>
+                <p style="margin:0;font-size:22px;font-weight:700;color:${pctColor};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">${aiPct === null ? 'Ready' : `${aiPct}%`}</p>
               </td>
             </tr>
           </table>
@@ -177,11 +178,13 @@ export async function PATCH(req: NextRequest) {
 
     const totalWeight = items.reduce((s, i) => s + i.weight, 0)
     const verifiedWeight = items.filter(i => i.aiVerified).reduce((s, i) => s + i.weight, 0)
-    const aiPct = totalWeight > 0 ? Math.round((verifiedWeight / totalWeight) * 100) : 0
+    const review = request.moduleName === REVIEW_REQUEST_NAME
+    const aiPct = review ? null : totalWeight > 0 ? Math.round((verifiedWeight / totalWeight) * 100) : 0
 
-    const dashboardUrl = `https://app.growjin.com/dashboard/${request.moduleId}`
+    // An Ask website review opens on Ask; a module on its page
+    const dashboardUrl = review ? 'https://app.growjin.com/ask?review=1' : `https://app.growjin.com/dashboard/${request.moduleId}`
     const bodyHtml = buildNotificationEmail({
-      moduleName:      request.moduleName,
+      moduleName:      review ? 'website review' : request.moduleName,
       brandName:       request.brandName,
       brandWebsiteUrl: brand?.websiteUrl ?? request.websiteUrl,
       brandLogoUrl:    brand?.logoUrl ?? null,
@@ -192,7 +195,7 @@ export async function PATCH(req: NextRequest) {
 
     const message = [
       `To: ${request.userEmail}`,
-      `Subject: Your ${request.moduleName} analysis is ready`,
+      review ? 'Subject: Your website review is ready' : `Subject: Your ${request.moduleName} analysis is ready`,
       'MIME-Version: 1.0',
       'Content-Type: text/html; charset=utf-8',
       '',

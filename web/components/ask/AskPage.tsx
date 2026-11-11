@@ -92,6 +92,8 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
   const [left, setLeft] = useState<number | null>(null)
   const abort = useRef<AbortController | null>(null)
   const [panel, setPanel] = useState<Panel | null>(null)
+  // /ask?review=1 (the email when a queued website review is done) opens the review
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('review')) setPanel({ kind: 'review' }) }, [])
   // A pattern Ask noticed, offered once as a rule (lib/ask/memory.ts)
   const [offer, setOffer] = useState<{ id: string; text: string } | null>(null)
   useEffect(() => {
@@ -274,6 +276,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
           <img src="/growjinlogo.svg" alt="" width={24} height={24} />GrowJin
         </button>
         <span className="ask-who">
+          <button type="button" className="ask-out ask-mem-link" onClick={() => setPanel({ kind: 'review' })}><span className="ask-long">Re-analyse website</span><span className="ask-short">Review</span></button>
           <button type="button" className="ask-out ask-mem-link" onClick={() => setPanel({ kind: 'memory' })}><span className="ask-long">What Ask remembers</span><span className="ask-short">Memory</span></button>
           <span className="ask-pill">{site}</span>
           {backHref
