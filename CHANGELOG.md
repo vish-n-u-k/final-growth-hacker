@@ -3,6 +3,7 @@
 ## 11 Nov 2026
 
 ### New
+- **More things Claude can look up for you.** With GrowJin connected, Claude can now find the emails and social links a business lists on its own website (the cheapest way to get a lead's email), search X / Twitter posts, search Reddit, read a product's Capterra reviews (to learn what a competitor's users complain about) and read a Telegram channel. If the X search comes back empty, a second X source is tried by itself.
 - **Ask (new, in the sidebar).** One box: ask anything about your business, or say what you want done ("find me leads", "email my list", "write a post"). Ready answers wait for you each morning: who replied, who to email, why you're not on Google, your Google and AI visibility score, what to write, where to join conversations, the search words you can win, and whether you're on track.
 - **Do the work without leaving Ask.** Leads, Email and Write open right there: review and send a lead's email, find new leads, answer replies and send follow-ups (written for you), send one email to a pasted list, and check or write blog posts.
 - **Why each page isn't on Google.** The Google answer now says what Google itself thinks of every missing page (not found yet, left out, blocked, or just new) and whether your site is simply new. Open a page in Search Console, ask Google to index it, press Done, and GrowJin tells you when it's in.

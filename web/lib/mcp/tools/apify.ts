@@ -22,10 +22,12 @@ interface ActorConf {
   capUsd: number                    // most one run may ever charge, whatever the limit
   minMaxItems?: number              // some actors refuse a smaller max-results field / maxItems; the answer still has `limit` items
   minCapUsd?: number                // some actors refuse to start with a lower cost cap (their minimalMaxTotalChargeUsd); a cap is only a ceiling
+  prepare?: (input: Input) => Input // last fix-ups once defaults and the caller's input are merged
 }
 interface Alias extends ActorConf {
   fallback?: ActorConf & { input: (primary: Input, limit: number) => Input; note?: string }
   deprecated?: string
+  fallbackOnEmpty?: boolean         // also try the fallback when the primary finishes with no items
 }
 
 // Field names come from each actor's input schema (GET /v2/actor-builds/{build} → inputSchema).
@@ -83,6 +85,52 @@ const ALIASES: Record<string, Alias> = {
       note: 'Fallback actor reads daily leaderboards only (the startDate-endDate range, else yesterday); topics, categories and upvote filters are not applied.',
     },
   },
+  // X / Twitter posts by search phrase, handle or URL ($0.0004 a tweet). It has come back empty
+  // when the Apify plan or credit ran low, so an empty run also tries the second X scraper
+  // ($0.005 a tweet on the free plan, $0.0008 from Bronze; same input names).
+  x: {
+    id: 'apidojo~tweet-scraper', maxField: 'maxItems', priceUsd: 0.0004, capUsd: 0.1, minCapUsd: 0.05,
+    defaults: { sort: 'Latest' },
+    fallbackOnEmpty: true,
+    fallback: {
+      id: 'xtdata~twitter-x-scraper', maxField: 'maxItems', priceUsd: 0.005, capUsd: 0.4,
+      input: (p) => Object.fromEntries(Object.entries(p).filter(([k]) => ['startUrls', 'searchTerms', 'twitterHandles', 'sort', 'tweetLanguage', 'onlyVerifiedUsers', 'onlyTwitterBlue', 'onlyImage', 'onlyVideo', 'onlyQuote', 'start', 'end', 'includeSearchTerms'].includes(k))),
+      note: 'Second X scraper; it reads the same search terms, handles and URLs.',
+    },
+  },
+  // Emails, phone numbers and social links from a website's pages ($0.002 a page). limit = sites;
+  // each site is read up to 5 pages deep (home, contact, about…) and merged into one row.
+  contacts: {
+    id: 'vdrmota~contact-info-scraper', listField: 'startUrls', listOf: 'urls', priceUsd: 0.01, capUsd: 0.6,
+    defaults: { maxRequestsPerStartUrl: 5, maxDepth: 1, sameDomain: true, mergeContacts: true, proxyConfig: { useApifyProxy: true } },
+    // Plain domains become URLs
+    prepare: (i) => Array.isArray(i.startUrls)
+      ? { ...i, startUrls: i.startUrls.map(u => (u && typeof u === 'object' && typeof (u as { url?: unknown }).url === 'string' && !/^https?:\/\//.test((u as { url: string }).url) ? { ...u, url: `https://${(u as { url: string }).url}` } : u)) }
+      : i,
+  },
+  // Reddit posts ($0.004 each). Slow (it can take 10-20 minutes: call again with run_id).
+  // With search words, its example start URL is ignored; otherwise it scraped that instead of searching.
+  reddit: {
+    id: 'trudax~reddit-scraper-lite', maxField: 'maxItems', priceUsd: 0.004, capUsd: 0.25,
+    defaults: { searchPosts: true, searchComments: false, searchCommunities: false, searchUsers: false, skipComments: true, skipUserPosts: true, skipCommunity: true, sort: 'new' },
+    prepare: (i) => {
+      const searching = Array.isArray(i.searches) && i.searches.length > 0
+      const max = typeof i.maxItems === 'number' ? i.maxItems : 10
+      return { ...i, maxPostCount: max, ...(searching && !(Array.isArray(i.startUrls) && i.startUrls.length) ? { ignoreStartUrls: true, startUrls: [] } : {}) }
+    },
+  },
+  // Capterra reviews ($0.005 a review, $0.01 a product, $0.005 a start). limit = reviews per product.
+  // Reviewers are shown without names, so these aren't leads; use them to learn what users of a product complain about.
+  capterra: {
+    id: 'khadinakbar~capterra-reviews-scraper', maxField: 'maxReviewsPerProduct', listField: 'startUrls', listOf: 'urls', priceUsd: 0.005, capUsd: 0.45, minCapUsd: 0.05,
+    defaults: { sortReviewsBy: 'newest', maxProductsPerSearch: 1, includeReviews: true },
+  },
+  // Telegram channels: the channel's info (members, description) and its latest messages ($0.00025 a message).
+  // limit = messages; startUrls are t.me links, or pass usernames.
+  telegram: {
+    id: 'memo23~telegram-channel-scraper', maxField: 'maxItems', listField: 'startUrls', listOf: 'strings', priceUsd: 0.00025, capUsd: 0.05, minCapUsd: 0.02,
+    defaults: { includeChannelStats: true },
+  },
 }
 const OTHER_CAP_USD = 0.5   // actors called by ID; MCP_APIFY_CAP_DEFAULT overrides
 // Wait for the run this long: with the dataset read after it, the answer must beat the MCP client's 60 s timeout
@@ -108,7 +156,7 @@ function inputFor(conf: ActorConf, given: Input, limit: number): Input {
     })
   }
   if (conf.maxField) input[conf.maxField] = max
-  return input
+  return conf.prepare ? conf.prepare(input) : input
 }
 
 const RUNS_KEY = 'mcp:apify-runs'
@@ -152,6 +200,8 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<{ ok: true
 const FAILED = ['FAILED', 'ABORTED', 'TIMED-OUT', 'TIMING-OUT', 'ABORTING']
 
 /** The run's state: its dataset items once it succeeded, an error when it failed, else RUNNING. */
+const emptyRun = (res: { status?: string; total?: number; error?: string }) => res.status === 'SUCCEEDED' && !res.error && res.total === 0
+
 async function answer(run: Run, limit: number) {
   const status = run.status ?? 'UNKNOWN'
   const base = { run_id: run.id, status, cost_usd: run.usageTotalUsd ?? null }
@@ -209,9 +259,11 @@ export async function apify(brandId: string, args: { actor?: unknown; input?: un
     const alias = mine.alias ? ALIASES[mine.alias] : undefined
     const res = await answer(r.data.data, limit)
     // The primary failed after the first wait: now is when its fallback runs (once)
-    if (alias?.fallback && !mine.fellBack && 'error' in res && FAILED.includes(res.status)) {
+    const failed = 'error' in res && FAILED.includes(res.status)
+    if (alias?.fallback && !mine.fellBack && (failed || (alias.fallbackOnEmpty && emptyRun(res)))) {
       await saveRun(brandId, { ...mine, fellBack: true })
-      const fb = await tryFallback(brandId, mine.alias!, alias, { actor: mine.actor, input: mine.input ?? {}, error: res.error! }, limit)
+      const why = failed ? (res as { error: string }).error : 'The run finished with no items.'
+      const fb = await tryFallback(brandId, mine.alias!, alias, { actor: mine.actor, input: mine.input ?? {}, error: why }, limit)
       if ('run_id' in fb && fb.run_id) await saveRun(brandId, { ...mine, fellBack: true, fallbackRunId: fb.run_id })
       return fb
     }
@@ -246,9 +298,11 @@ export async function apify(brandId: string, args: { actor?: unknown; input?: un
     return { ...head, error: r.error }
   }
   const res = await answer(r.run, limit)
-  if (alias?.fallback && 'error' in res && FAILED.includes(res.status)) {
+  const failed = 'error' in res && FAILED.includes(res.status)
+  if (alias?.fallback && (failed || (alias.fallbackOnEmpty && emptyRun(res)))) {
     if (r.run.id) await saveRun(brandId, { id: r.run.id, actor, limit, at: new Date().toISOString(), alias: key, fellBack: true })
-    return { ...head, ...(await tryFallback(brandId, key, alias, { actor, input: given, error: res.error! }, limit)) }
+    const why = failed ? (res as { error: string }).error : 'The run finished with no items.'
+    return { ...head, ...(await tryFallback(brandId, key, alias, { actor, input: given, error: why }, limit)) }
   }
   return { ...head, actor_used: actor, limit_applied: limit, cost_cap_usd: cap, ...res }
 }
