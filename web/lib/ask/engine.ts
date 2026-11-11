@@ -16,10 +16,9 @@ import { dispatch } from '@/lib/mcp/dispatch'
 import { anthropicCostUsd } from '@/lib/ai/pricing'
 import { logAnthropicUsage, withAIContext } from '@/lib/ai/client'
 import { loadBrandContext } from '@/lib/agents/context'
-import { readDemoSwitch, readLeadData } from '@/lib/agents/store'
+import { readDemoSwitch } from '@/lib/agents/store'
 import { agentsDemo, withDemo } from '@/lib/agents/demo'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
-import { listConversations } from '@/lib/gmail/conversations'
 import { savedCards } from './cards'
 import { CARD_IDS, type Answer, type AskEvent, type CardId, type NextStep, type Picture } from './types'
 
@@ -38,6 +37,9 @@ const READ_TOOLS = [
   'get_pending_items', 'get_today_tasks', 'get_ga_analytics', 'get_ga_conversions', 'get_gsc_data',
   'get_keyword_trends', 'get_posthog_analytics', 'get_posthog_segments', 'get_posthog_users',
   'get_posthog_power_users', 'get_posthog_churned_users', 'get_posthog_pro_users', 'get_blog_post', 'dataforseo',
+  // Leads, email and the Search Agent: the same tools the Ask page uses
+  'list_leads', 'list_replies', 'get_lead_settings', 'check_contacts', 'gmail_status', 'get_search_agent',
+  'get_daily_numbers', 'get_goal_progress', 'get_weekly_review', 'list_work',
 ]
 
 // Where a next step can send the person: the model picks one of these ids, never a URL
@@ -59,7 +61,7 @@ How to work:
 1. In your first turn, call \`understood\` with one short line saying what you take the question to mean (with dates and names filled in), together with the data tools you need. Call tools in parallel when you can.
 2. If the question is the same as one of the ready answers (did anyone reply / what's my visibility score / who should I email today / why am I not on Google / what should I write / where should I talk about it / which search words can I win / am I on track), call \`open_ready_answer\` instead and nothing else.
 3. If a missing detail would change the answer a lot (for example "my emails" could mean two different things), call \`ask_back\` with one short question and 2–4 short options. Otherwise make a sensible assumption and say it in \`understood\`.
-4. Use as few lookups as you need. Saved data (ready_answers, outreach, get_* tools) is free; dataforseo costs money, so use it only when the question needs data about other sites or Google results.
+4. Use as few lookups as you need. Saved data (ready_answers, list_leads, list_replies, get_* tools) is free; dataforseo costs money, so use it only when the question needs data about other sites or Google results.
 5. Finish by calling \`give_answer\`. That is the only way to answer: don't write the answer as text.
 
 Rules for the answer:
@@ -111,12 +113,6 @@ const ASK_TOOLS: Anthropic.Tool[] = [
   {
     name: 'ready_answers',
     description: 'This morning’s ready answers: replies to emails sent from GrowJin (last 14 days), Lead Finder emails waiting for an OK, sitemap pages that showed up in Google searches (last 28 days), posts to write, Reddit / Hacker News threads to reply to, easy search words, and this week vs last on Google. Free.',
-    input_schema: { type: 'object', additionalProperties: false, required: [], properties: {} },
-    strict: true,
-  },
-  {
-    name: 'outreach',
-    description: 'Emails and leads: Lead Finder leads by status and source, and every email thread GrowJin sent with its status (replied, waiting, follow-up due…), reply type and dates. Free.',
     input_schema: { type: 'object', additionalProperties: false, required: [], properties: {} },
     strict: true,
   },
@@ -175,6 +171,9 @@ function tools(): Anthropic.Tool[] {
 
 const LOOK: Record<string, string> = {
   ready_answers: 'This morning’s ready answers', outreach: 'Your leads and emails',
+  list_leads: 'Your leads', list_replies: 'Replies to your emails', get_lead_settings: 'Who you’re looking for',
+  check_contacts: 'Who you’ve contacted', gmail_status: 'Your Gmail', get_search_agent: 'The Search Agent’s research',
+  get_daily_numbers: 'Your numbers by day', get_goal_progress: 'Your goal', get_weekly_review: 'Your week', list_work: 'Your work log',
   get_brand_info: 'Your brand profile', get_competitors: 'Your competitors', get_growth_overview: 'Your roadmap',
   get_module_detail: 'A roadmap module', get_growth_history: 'Your roadmap’s history', get_pending_items: 'Things waiting on you',
   get_today_tasks: 'Today’s tasks', get_ga_analytics: 'Google Analytics', get_ga_conversions: 'Google Analytics conversions',
@@ -210,26 +209,17 @@ function lookName(name: string, input: Record<string, unknown>): string {
   return LOOK[name] ?? name
 }
 
-async function outreachSummary(brandId: string) {
-  const [lead, convs] = await Promise.all([readLeadData(brandId), listConversations(brandId).catch(() => [])])
-  const leads = lead?.leads ?? []
-  const count = (f: (x: (typeof leads)[number]) => string) => leads.reduce<Record<string, number>>((m, l) => { const k = f(l); m[k] = (m[k] ?? 0) + 1; return m }, {})
-  return {
-    leads: { total: leads.length, by_status: count(l => l.status), by_source: count(l => l.source), last_search: lead?.lastRunAt ?? null },
-    email_threads: convs.slice(0, 80).map(c => ({
-      to: c.toName ?? c.toEmail, kind: c.source, status: c.status, reply_type: c.intent, reply: c.note?.slice(0, 160) ?? null,
-      sent: c.sentAt?.slice(0, 10) ?? null, replied: c.repliedAt?.slice(0, 10) ?? null,
-    })),
-    email_counts: convs.reduce<Record<string, number>>((m, c) => { m[c.status] = (m[c.status] ?? 0) + 1; return m }, {}),
-  }
-}
 
 async function runTool(brandId: string, name: string, input: Record<string, unknown>): Promise<{ result: unknown; usd: number }> {
   if (name === 'ready_answers') {
     const c = await savedCards(brandId)
     return { result: c ? { checked_at: c.at, answers: c.cards.map(a => ({ question: a.question, number: `${a.number} ${a.numberLabel}`, say: a.say.replace(/\*\*/g, ''), picture: a.picture, finds: a.finds })) } : { note: 'No ready answers yet.' }, usd: 0 }
   }
-  if (name === 'outreach') return { result: await outreachSummary(brandId), usd: 0 }
+  // Pins saved before the MCP tools existed may still repeat the old 'outreach' lookup
+  if (name === 'outreach') {
+    const [leads, replies] = await Promise.all([dispatch('list_leads', { status: 'all', limit: 60 }, brandId), dispatch('list_replies', { show: 'all', limit: 80 }, brandId)])
+    return { result: { leads, replies }, usd: 0 }
+  }
   const r = await dispatch(name, input, brandId) as { cost_usd?: number } | null
   return { result: r, usd: name === 'dataforseo' ? Number(r?.cost_usd) || 0 : 0 }
 }
