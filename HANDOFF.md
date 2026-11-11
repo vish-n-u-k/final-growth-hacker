@@ -84,7 +84,8 @@ What each tool does today:
 ## 3. Branch and working rules
 
 - **Work and push on `dev`.** Push to **`main` only when the owner says so.**
-  - `main` was last brought up to `dev` on 10 Nov 2026 (MCP Search Agent tool and audit false-pass fix; `main` and `dev` had split on 6 Nov and were joined again then).
+  - `main` and `dev` were both brought up to the Ask branch (`claude/understanding-session-7y3nz3`, sections 4g–4g-10) on 11 Nov 2026.
+  - Before that, `main` was last brought up to `dev` on 10 Nov 2026 (MCP Search Agent tool and audit false-pass fix; `main` and `dev` had split on 6 Nov and were joined again then).
   - 6 Nov: only the work log commit (4h) was cherry-picked to `main`; the Search & AI and Foundation work (4–5 Nov) is still on `dev` only.
 - **Release notes:** add what users will notice to `CHANGELOG.md` (newest first: New / Improved / Fixed). Frekto (GitHub: this repo) turns GitHub releases and merged pull requests into update posts. Direct pushes to `main` don't show up there.
 - Don't open pull requests unless asked.
