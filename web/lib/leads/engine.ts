@@ -20,6 +20,7 @@ import { leadFallback } from '@/lib/agents/lead-agent'
 import { readLeadData, updateLeadData, type EngineInputs, type EngineRunInfo, type Lead, type LeadAgentData, type MaybeLead } from '@/lib/agents/store'
 import { alreadyContacted } from '@/lib/leads/contacted'
 import { ENGINE_PROMPT } from './engine-prompt'
+import { memoryBlock } from '@/lib/ask/memory'
 
 const MODEL = 'claude-opus-5-5'
 const JOB_KEY = 'agent:lead-engine'
@@ -140,6 +141,9 @@ export async function startEngine(brandId: string, opts: StartOpts = {}): Promis
     already_known: known,
     today: new Date().toISOString().slice(0, 10),
   }
+  // The owner's rules and patterns about leads (Ask's memory) go with every search
+  const mem = await memoryBlock(brandId, ['leads']).catch(() => ({ text: '' }))
+  if (mem.text) input.brief = `${input.brief}\n\n${mem.text}`
   const now = new Date().toISOString()
   const job: EngineJob = {
     id: idOf(`${brandId}:${now}`), status: 'running', startedAt: now, updatedAt: now, leadCount,

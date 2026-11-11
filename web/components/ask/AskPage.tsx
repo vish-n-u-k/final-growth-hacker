@@ -45,6 +45,8 @@ interface Live {
   started: number      // for the timer
   task?: { kind: 'leads'; brief: string; error?: string }   // a job Claude started (lead search in the background)
   proposal?: Proposal  // emails Claude wrote, waiting for the OK
+  memory?: string[]    // what Ask remembers and used for this one
+  remembered?: { id: string; text: string; undone?: boolean }[]   // rules it saved during this one
 }
 
 type FillStep = { id: string; text: string; state: 'on' | 'done' | 'failed'; result?: string }
@@ -90,6 +92,20 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
   const [left, setLeft] = useState<number | null>(null)
   const abort = useRef<AbortController | null>(null)
   const [panel, setPanel] = useState<Panel | null>(null)
+  // A pattern Ask noticed, offered once as a rule (lib/ask/memory.ts)
+  const [offer, setOffer] = useState<{ id: string; text: string } | null>(null)
+  useEffect(() => {
+    fetch('/api/ask/memory').then(r => r.json()).then(j => setOffer(j?.offer ?? null)).catch(() => {})
+  }, [])
+  async function answerOffer(yes: boolean) {
+    if (!offer) return
+    const j = await fetch('/api/ask/memory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'offer', id: offer.id, yes }) }).then(r => r.json()).catch(() => null)
+    setOffer(j?.offer ?? null)
+  }
+  async function undoRemember(id: string) {
+    await fetch('/api/ask/memory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'delete', id }) }).catch(() => {})
+    setLive(l => (l ? { ...l, remembered: (l.remembered ?? []).map(r => (r.id === id ? { ...r, undone: true } : r)) } : l))
+  }
 
   // What's being checked while the ready answers are worked out (streamed from /api/ask/cards?stream=1)
   const [fill, setFill] = useState<FillStep[]>([])
@@ -168,6 +184,8 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
         if (e.t === 'understand' || e.t === 'look' || e.t === 'check') return { ...l, thinking: undefined, steps: [...l.steps, { kind: e.t, text: e.text }] }
         if (e.t === 'answer') return { ...l, running: false, answer: e.answer }
         if (e.t === 'ask_back') return { ...l, running: false, askBack: { question: e.question, options: e.options } }
+        if (e.t === 'memory') return { ...l, memory: e.items }
+        if (e.t === 'remembered') return { ...l, remembered: [...(l.remembered ?? []), { id: e.id, text: e.text }] }
         if (e.t === 'task') return { ...l, running: false, thinking: undefined, task: { kind: e.kind, brief: e.brief, error: e.error } }
         if (e.t === 'proposal') return { ...l, running: false, thinking: undefined, proposal: e.proposal }
         return { ...l, running: false, error: e.text }
@@ -256,6 +274,7 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
           <img src="/growjinlogo.svg" alt="" width={24} height={24} />GrowJin
         </button>
         <span className="ask-who">
+          <button type="button" className="ask-out ask-mem-link" onClick={() => setPanel({ kind: 'memory' })}><span className="ask-long">What Ask remembers</span><span className="ask-short">Memory</span></button>
           <span className="ask-pill">{site}</span>
           {backHref
             ? <Link href={backHref} className="ask-out">Back to the app →</Link>
@@ -286,6 +305,17 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
             ))}
             <h1 className="ask-q">{live.question}</h1>
             <Work live={live} />
+            {live.memory && live.memory.length > 0 && (
+              <details className="ask-mem-used">
+                <summary>Using {live.memory.length} {live.memory.length === 1 ? 'thing' : 'things'} I remember</summary>
+                <ul>{live.memory.map(m => <li key={m}>{m}</li>)}</ul>
+              </details>
+            )}
+            {(live.remembered ?? []).map(r => (
+              <p key={r.id} className="ask-mem-saved" role="status">
+                {r.undone ? <>Removed from memory: “{r.text}”</> : <>Saved to memory: “{r.text}” · <button type="button" className="ask-tl" onClick={() => undoRemember(r.id)}>Undo</button></>}
+              </p>
+            ))}
             {live.askBack && (
               <div className="ask-back">
                 <p>{live.askBack.question}</p>
@@ -339,6 +369,15 @@ export default function AskPage({ brandName, site, initial, stale, initialOpen, 
                 <button type="button" className={`ask-do${cardNum('replies') ? ' is-reply' : ''}`} onClick={() => setPanel({ kind: 'email' })}>Email{cardNum('replies') ? <small>{cardNum('replies')} {cardNum('replies') === 1 ? 'reply' : 'replies'}</small> : null}</button>
                 <button type="button" className="ask-do" onClick={() => setPanel({ kind: 'write' })}>Write{cardNum('post') ? <small>{cardNum('post')} to write</small> : null}</button>
               </div>
+              {offer && (
+                <div className="ask-offer">
+                  <span>I noticed: <b>{offer.text}</b> Make it a rule?</span>
+                  <span className="ask-offer-acts">
+                    <button type="button" className="ask-tl" onClick={() => answerOffer(true)}>Yes</button>
+                    <button type="button" className="ask-tl" onClick={() => answerOffer(false)}>No</button>
+                  </span>
+                </div>
+              )}
             </section>
 
             <section className="ask-sec">

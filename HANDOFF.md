@@ -667,6 +667,18 @@ The owner's call: Ask should behave like Claude with every tool, not fixed rules
 - Lead Finder's own page still shows the latest search; a held Ask search shows there as done with nothing added.
 - Checked in the preview harness with Claude's stream, the task and sending stood in for: running, found, untick, CSV, add + write + send, a proposal from a typed request, phone. Full build passes. **Not run against the real API yet**: check that Claude picks `start_lead_search` for lead requests and that the Lead Engine follows a brief like "from X" (it can run any Apify actor by its full name).
 
+## 4g-13. Ask remembers how you like things (11 Nov)
+
+The owner's Claude chat knows how they work after a few conversations; Ask didn't. Now it keeps a per-brand memory.
+- **Store** (`lib/ask/memory.ts`, `signal_snapshots` `ask:memory`, same in demo mode):
+  - **rules** (up to 30): what the owner said ("never agencies", "emails under 50 words"), added by them, saved by Ask, or pasted in. Always followed.
+  - **noticed** (up to 10): patterns from leads skipped / kept, emails sent (after edits) and replies over 45 days. `refreshNoticed` (Sonnet 5.5, feature `ask-memory`) runs every 3 days after the cards fill (not in demo), needs 5+ actions. A `strong` one is offered once on Ask's home ("Make it a rule?"); No adds it to `declined`.
+- **Saving from a question:** the engine has a `remember { rule, area }` tool (prompt rule 7: lasting preferences or corrections only). The page shows "Saved to memory: … · Undo".
+- **Used in prompts:** `memoryBlock(brandId, areas?)`. Every typed question (`brandIntro`), everything `lib/ask/write.ts` writes (area `emails`), and a Lead Engine search started from Ask or Lead Finder (appended to the brief, area `leads`). Rules win over noticed. Under an answer: "Using N things I remember" (event `memory`).
+- **Panel** "What Ask remembers" (header button; "Memory" on phones; `MemoryPanel.tsx`, `ask-mem-*` CSS): edit, delete, add rules; "Paste from your Claude chat's memory" (one rule per line); noticed patterns with Make it a rule / Remove / Look again now.
+- **API** `/api/ask/memory` (`askAccess`): GET `{ memory, offer }`; POST ops `add`, `edit`, `delete`, `import`, `offer { id, yes }`, `notice`.
+- Checked in the preview harness with the API faked (offer, remembered + Undo, add, paste, phone). Full build passes. **Not run against the real Claude API yet**: check that it calls `remember` only for real preferences.
+
 ## 4g. Foundation: Google Business Profile check (4 Nov)
 
 - New check `google-business-profile` (weight 3) in Foundation under "Online Presence" (was "Social Media Presence") → "Google Business Profile".

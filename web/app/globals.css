@@ -9865,6 +9865,32 @@ html:not(.light) .ask {
 .ask-fs.is-failed i { border-color: var(--ask-red); }
 .ask-fs small { font-size: 12.5px; color: var(--ask-faint); text-align: right; }
 .ask-chip:disabled { opacity: .5; cursor: default; }
+/* Ask memory (components/ask/MemoryPanel.tsx, lib/ask/memory.ts) */
+.ask-mem-link { border: 0; background: none; cursor: pointer; font: inherit; padding: 0; }
+.ask-mem-used { margin-top: 8px; font-size: 13px; color: var(--ask-sub); }
+.ask-mem-used summary { cursor: pointer; }
+.ask-mem-used ul { margin: 6px 0 0; padding-left: 18px; }
+.ask-mem-saved { margin: 8px 0 0; font-size: 13.5px; color: var(--ask-sub); }
+.ask-mem-saved .ask-tl { font-size: 13.5px; }
+.ask-offer { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 14px; padding: 10px 14px; border: 1px dashed var(--ask-grey2); border-radius: 14px; font-size: 14px; color: var(--ask-sub); text-align: left; }
+.ask-offer b { color: var(--ask-ink); font-weight: 500; }
+.ask-offer-acts { display: flex; gap: 14px; }
+.ask-mem-list { list-style: none; margin: 0; padding: 0; }
+.ask-mem-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--ask-line); }
+.ask-mem-list li > span:first-child { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ask-mem-list b { font-weight: 500; overflow-wrap: anywhere; }
+.ask-mem-list small { font-size: 12.5px; color: var(--ask-faint); }
+.ask-mem-acts { display: flex; gap: 12px; flex: none; }
+.ask-mem-acts .ask-tl { font-size: 13.5px; }
+.ask-mem-edit { flex-direction: row !important; align-items: center; gap: 10px !important; }
+.ask-mem-add { display: flex; gap: 8px; margin-top: 12px; }
+.ask-mem-add .ask-btn { border: 0; cursor: pointer; font: inherit; font-size: 14px; font-weight: 500; }
+.ask-mem-link .ask-short { display: none; }
+@media (max-width: 520px) {
+  .ask-mem-list li { flex-direction: column; align-items: flex-start; }
+  .ask-mem-link .ask-long, .ask-who .ask-pill { display: none; }
+  .ask-mem-link .ask-short { display: inline; }
+}
 /* Ask tasks and approvals (components/ask/TaskView.tsx) */
 .ask-task, .ask-proposal { margin-top: 18px; }
 .ask-task-box { padding: 16px 18px; border: 1px solid var(--ask-line); border-radius: 16px; background: var(--ask-card); }

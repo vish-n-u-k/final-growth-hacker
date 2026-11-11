@@ -19,6 +19,7 @@ import { loadBrandContext } from '@/lib/agents/context'
 import { readDemoSwitch } from '@/lib/agents/store'
 import { agentsDemo, withDemo } from '@/lib/agents/demo'
 import { startEngine } from '@/lib/leads/engine'
+import { addRule, memoryBlock } from './memory'
 import { getSnapshot, saveSnapshot } from '@/lib/signals'
 import { savedCards } from './cards'
 import { CARD_IDS, type Answer, type AskEvent, type CardId, type NextStep, type Picture } from './types'
@@ -69,6 +70,7 @@ How to work:
    - Find new leads, customers or prospects (from anywhere: X / Twitter, Etsy, LinkedIn, a city, a kind of business, a competitor's reviews): call \`start_lead_search\` with a clear brief and nothing else. It runs in the background with the search tools; the page shows its progress and they pick which leads to keep.
    - Send emails (answer replies, follow up, email people they name or paste, email leads on their list): look up what you need, write each email, then call \`propose_emails\`. Never say emails were sent: they approve them on the page.
    - Anything else your tools can't do: say so in \`give_answer\` and point to the right place.
+7. When they state a lasting preference ("always…", "never…", "I prefer…", "only…") or correct how you did something in a way that should apply next time, call \`remember\` with one short rule in their words (alongside your other tools), then carry on. Don't save one-off details of this question. Follow the owner's standing rules in the intro: they win over everything else.
 
 Rules for the answer:
 - One or two short sentences in \`say\`, plain words, no jargon. Wrap the 1–3 most important words or numbers in **double stars**.
@@ -113,6 +115,18 @@ const ASK_TOOLS: Anthropic.Tool[] = [
     input_schema: {
       type: 'object', additionalProperties: false, required: ['question', 'options'],
       properties: { question: { type: 'string' }, options: { type: 'array', items: { type: 'string' } } },
+    },
+    strict: true,
+  },
+  {
+    name: 'remember',
+    description: 'Save one short lasting rule about how the owner wants things done, when they state a preference or correct you (e.g. "Never suggest agencies as leads", "Emails under 50 words, signed Vishnu"). It is used in every future answer, search and email.',
+    input_schema: {
+      type: 'object', additionalProperties: false, required: ['rule', 'area'],
+      properties: {
+        rule: { type: 'string', description: 'The rule, one short line, in their words.' },
+        area: { type: 'string', enum: ['leads', 'emails', 'answers', 'general'] },
+      },
     },
     strict: true,
   },
@@ -358,12 +372,13 @@ async function connections(brandId: string): Promise<string> {
 
 /** What Claude is told about the business before any question (also used to refresh pins). */
 export async function brandIntro(brandId: string): Promise<string> {
-  const b = await loadBrandContext(brandId)
+  const [b, mem] = await Promise.all([loadBrandContext(brandId), memoryBlock(brandId)])
   return [
     `Business: ${b?.name ?? 'unknown'} (${b?.websiteUrl ?? ''})`,
     b?.usp ? `What it does: ${b.usp}` : '', b?.targetAudience ? `Who it's for: ${b.targetAudience}` : '',
     b?.competitors?.length ? `Competitors: ${b.competitors.map(c => c.name || c.domain).join(', ')}` : '',
     `Today: ${today()}`, '', 'Data sources:', await connections(brandId),
+    ...(mem.text ? ['', mem.text] : []),
   ].filter(x => x !== '').join('\n')
 }
 
@@ -422,6 +437,8 @@ export async function askQuestion(brandId: string, input: AskInput, emit: (e: As
     const prior = input.threadId ? await readThread(brandId, input.threadId) : null
     const threadId = prior?.id ?? crypto.randomUUID()
     emit({ t: 'thread', id: threadId })
+    const used = await memoryBlock(brandId).catch(() => ({ items: [] as string[] }))
+    if (used.items.length) emit({ t: 'memory', items: used.items })
     const h = prior?.turns.length ? history(prior) : null
     const intro = [
       await brandIntro(brandId), '',
@@ -578,6 +595,11 @@ export async function answerLoop({ question, intro, clarified, brandId, emit, cr
             understood = clip(inp.line, 200)
             emit({ t: 'understand', text: understood })
             return { c, text: 'Noted.', error: false }
+          }
+          if (c.name === 'remember') {
+            const item = await addRule(brandId, String(inp.rule ?? ''), 'ask', String(inp.area ?? 'general')).catch(() => null)
+            if (item) emit({ t: 'remembered', id: item.id, text: item.text })
+            return { c, text: item ? 'Saved.' : 'Not saved (too short).', error: false }
           }
           if (c.name === 'ask_back' || c.name === 'open_ready_answer' || c.name === 'start_lead_search' || c.name === 'propose_emails') return { c, text: 'Not available now: answer with what you can.', error: false }
           if (wrapUp) return { c, text: 'No more lookups: call give_answer now with what you have.', error: true }

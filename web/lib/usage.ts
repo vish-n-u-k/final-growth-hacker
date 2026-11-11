@@ -37,6 +37,7 @@ const FEATURE_TOOL: Record<string, string> = {
 const FEATURE_NAME: Record<string, string> = {
   'ask': 'Ask: your own questions',
   'ask-write': 'Ask: writing emails and replies',
+  'ask-memory': 'Ask: noticing how you work',
   'lead-agent': 'Lead Agent: scoring and writing',
   'search-agent': 'Search Agent: research and drafts',
   'lead-finder': 'Competitor Leads: scoring reviews',

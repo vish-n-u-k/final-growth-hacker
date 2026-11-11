@@ -8,6 +8,7 @@
 - **Do the work without leaving Ask.** Leads, Email and Write open right there: review and send a lead's email, find new leads, answer replies and send follow-ups (written for you), send one email to a pasted list, and check or write blog posts.
 - **Why each page isn't on Google.** The Google answer now says what Google itself thinks of every missing page (not found yet, left out, blocked, or just new) and whether your site is simply new. Open a page in Search Console, ask Google to index it, press Done, and GrowJin tells you when it's in.
 - **Ask does what you ask.** Type "get me leads from X" or "answer everyone who replied": Ask works out what you mean and does it. A lead search runs in the background with its steps shown, then you tick the leads you want and add them, have the emails written, or download them as a spreadsheet. Emails are written for you and only go out when you press Send.
+- **Ask remembers how you like things.** Say "never show me agencies" or "keep emails short" and Ask saves it as a rule (with Undo) and follows it in every answer, lead search and email it writes. Paste in what your Claude chat remembers about you, and see or edit everything under "What Ask remembers". Every few days Ask also notices patterns in what you add, skip and send, and offers a clear one as a rule.
 - **Claude can see your leads and replies.** With GrowJin connected, Claude can list the leads on your board and who replied to your emails, read a thread and answer in it.
 
 ## 10 Nov 2026

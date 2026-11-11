@@ -5,6 +5,7 @@ import type { LeadList, ThreadList, ToolLead, ToolThread } from '@/lib/mcp/tools
 import type { IndexRow, Panel } from '@/lib/ask/types'
 import { norm } from '@/lib/ask/urls'
 import { EmailWorkspace, LeadsWorkspace, WriteWorkspace } from './Workspaces'
+import { MemoryPanel } from './MemoryPanel'
 
 // Ask, phase 3 (md_files/ASK_PLAN.md): the work an answer points to, done in a panel on the Ask
 // page. Each panel uses the same API as the tool's own page (Lead Finder: /api/agents/lead; the
@@ -35,6 +36,7 @@ export default function AskPanel({ panel, onClose }: { panel: Panel; onClose: (c
         {panel.kind === 'leads' && <LeadsWorkspace lane={panel.lane} find={panel.find} onChange={() => { changed.current = true }} onClose={close} />}
         {panel.kind === 'email' && <EmailWorkspace tab={panel.tab} onChange={() => { changed.current = true }} onClose={close} />}
         {panel.kind === 'write' && <WriteWorkspace topic={panel.topic} onClose={close} />}
+        {panel.kind === 'memory' && <MemoryPanel onClose={close} />}
       </aside>
     </>
   )

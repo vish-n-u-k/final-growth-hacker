@@ -2,6 +2,7 @@ import { callAI } from '@/lib/ai/client'
 import { parseJsonLoose } from '@/lib/agents/context'
 import type { ToolLead, ToolThread } from '@/lib/mcp/tools/inbox'
 import { askTool } from './tools'
+import { memoryBlock } from './memory'
 
 // Ask writes what you send: the first email to a lead, a reply to a Reddit / HN post or a page
 // message, and an answer to someone who replied. Everything it knows comes from the MCP tools
@@ -17,7 +18,7 @@ interface LeadSettings {
 }
 
 async function brandLines(brandId: string): Promise<{ name: string; text: string }> {
-  const s = await askTool<LeadSettings>(brandId, 'get_lead_settings')
+  const [s, mem] = await Promise.all([askTool<LeadSettings>(brandId, 'get_lead_settings'), memoryBlock(brandId, ['emails'])])
   const b = s.brand ?? {}
   const name = b.name || 'us'
   const text = [
@@ -25,6 +26,7 @@ async function brandLines(brandId: string): Promise<{ name: string; text: string
     b.description && `What it does: ${b.description}`,
     b.offer && b.offer !== b.description && `Offer: ${b.offer}`,
     (s.ideal_customer?.who || s.customer) && `Who it's for: ${s.ideal_customer?.who || s.customer}`,
+    mem.text && `\n${mem.text}`,
   ].filter(Boolean).join('\n')
   return { name, text }
 }

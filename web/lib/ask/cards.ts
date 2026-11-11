@@ -14,6 +14,8 @@ import { readDemoSwitch, type IdeaRow } from '@/lib/agents/store'
 import { fetchGscPageTraffic, fetchGscTopQueries } from '@/lib/modules/seo/keyword-fetchers'
 import type { LeadList, ThreadList, ToolLead, ToolThread } from '@/lib/mcp/tools/inbox'
 import { askTool } from './tools'
+import { refreshNoticed } from './memory'
+import { withAIContext } from '@/lib/ai/client'
 import { getSitemap } from '@/lib/modules/content-audit/fetcher'
 import { CARD_IDS, type Answer, type AskCards, type CardId } from './types'
 import { norm, section } from './urls'
@@ -649,6 +651,8 @@ export async function fillCards(brandId: string, onStep: OnStep = () => {}): Pro
     const cards = settled.flatMap(r => (r.status === 'fulfilled' ? [r.value] : (console.error('[ask] card failed', r.reason), [])))
     const out: AskCards = { at, cards: cards.sort((a, b) => ORDER.indexOf(a.id as CardId) - ORDER.indexOf(b.id as CardId)) }
     await saveSnapshot(brandId, key(), out)
+    // What Ask notices about how they work (every few days; never from demo data)
+    if (!agentsDemo()) await withAIContext({ brandId, moduleType: 'ask-memory' }, () => refreshNoticed(brandId)).catch(e => console.error('[ask] noticing', e))
     return out
   })
 }

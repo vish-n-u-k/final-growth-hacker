@@ -23,6 +23,7 @@ export type Panel =
   | { kind: 'leads'; lane?: 'email' | 'talk'; find?: boolean }
   | { kind: 'email'; tab?: 'replies' | 'due' | 'list' }
   | { kind: 'write'; topic?: string }
+  | { kind: 'memory' }                                               // what Ask remembers: rules and noticed patterns
   // Pages not on Google yet, one by one: ask Google to index each, then mark it done (tracked)
   | { kind: 'index'; property: string; lede: string; rows: IndexRow[] }
 
@@ -94,6 +95,8 @@ export type AskEvent =
   | { t: 'ask_back'; question: string; options: string[] }
   | { t: 'left'; left: number }                      // typed questions left today
   | { t: 'thread'; id: string }                      // the conversation this answer belongs to (for follow-ups and pins)
+  | { t: 'memory'; items: string[] }                                // what Ask remembers and is using for this one
+  | { t: 'remembered'; id: string; text: string }                   // it saved a rule just now (the page offers Undo)
   | { t: 'task'; kind: 'leads'; brief: string; error?: string }   // a job started in the background (the page polls /api/ask/task)
   | { t: 'proposal'; proposal: Proposal }                         // something to send, waiting for the owner's OK
   | { t: 'error'; text: string }
