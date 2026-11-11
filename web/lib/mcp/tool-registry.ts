@@ -494,6 +494,43 @@ export const TOOLS: MCPTool[] = [
     },
   },
   {
+    name: 'ga4',
+    description: [
+      'Asks the brand\'s own Google Analytics 4 property anything, through the GA4 Data API with the service account connected in GrowJin. Use it when get_ga_analytics, get_ga_conversions or get_daily_numbers don\'t have the cut you need: any dimensions, metrics, date ranges, filters and ordering. Free (GA4 quota only). Read-only.',
+      'action "report" (default): request = a GA4 runReport body. metrics (required) and dimensions may be plain names, e.g. { "dimensions": ["sessionSource", "landingPage"], "metrics": ["sessions", "newUsers", "engagementRate"], "dateRanges": [{ "startDate": "28daysAgo", "endDate": "yesterday" }], "dimensionFilter": { "filter": { "fieldName": "sessionMedium", "stringFilter": { "value": "organic" } } }, "orderBys": [{ "metric": { "metricName": "sessions" }, "desc": true }], "limit": 50 }. Two dateRanges compare periods (each row gets dateRange). Default dates: last 28 days to yesterday. Rows come back as { dimension: value, metric: number }, plus totals and row_count.',
+      'action "realtime": request with metrics / dimensions for the last 30 minutes (e.g. activeUsers by country or unifiedScreenName).',
+      'action "metadata": every dimension and metric name this property has, custom ones included; search filters by name.',
+      'Common names: dimensions date, week, sessionDefaultChannelGroup, sessionSource, sessionMedium, sessionCampaignName, landingPage, pagePath, pageTitle, country, city, deviceCategory, browser, newVsReturning, eventName, firstUserSource; metrics sessions, totalUsers, newUsers, activeUsers, screenPageViews, engagedSessions, engagementRate, bounceRate, averageSessionDuration, userEngagementDuration, eventCount, keyEvents, conversions, totalRevenue. On error, Google\'s message comes back with what was sent.',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: 'report (default), realtime or metadata.' },
+        request: { type: 'object', description: 'The GA4 request body (runReport / runRealtimeReport): dimensions, metrics, dateRanges, dimensionFilter, metricFilter, orderBys, limit, offset, keepEmptyRows, metricAggregations.' },
+        limit: { type: 'number', description: 'Max rows (default 100, max 1000) when request.limit isn\'t set.' },
+        search: { type: 'string', description: 'For metadata: only names containing this word.' },
+      },
+    },
+  },
+  {
+    name: 'gsc',
+    description: [
+      'Asks the brand\'s own Google Search Console directly, with the service account connected in GrowJin (the property for the brand\'s site is picked automatically, domain properties included). Use it when get_gsc_data doesn\'t have the cut you need. Free. Read-only.',
+      'action "query" (default): request = a Search Analytics body, e.g. { "dimensions": ["query", "page"], "startDate": "2026-10-01", "endDate": "2026-10-31", "dimensionFilterGroups": [{ "filters": [{ "dimension": "query", "operator": "contains", "expression": "instagram" }] }], "rowLimit": 200 }. Dimensions: query, page, date, country, device, searchAppearance, hour. Filter operators: equals, notEquals, contains, notContains, includingRegex, excludingRegex. "type": web (default), image, video, news, discover, googleNews. "aggregationType": auto, byPage, byProperty. Default window: last 30 days ending 2 days ago (Search Console runs 2-3 days behind). Rows: the dimensions plus clicks, impressions, ctr_pct, position. Page on with startRow.',
+      'action "inspect" with url: Google\'s own verdict on one page (indexed or not and why, last crawl, Google\'s chosen canonical, robots, mobile usability, rich results).',
+      'action "sitemaps": submitted sitemaps with errors, warnings and when Google last read them. action "sites": every property the service account can see.',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', description: 'query (default), inspect, sitemaps or sites.' },
+        request: { type: 'object', description: 'For query: the Search Analytics body (dimensions, startDate, endDate, dimensionFilterGroups, type, aggregationType, rowLimit, startRow, dataState).' },
+        url: { type: 'string', description: 'For inspect: the full page URL.' },
+        limit: { type: 'number', description: 'Max rows (default 100, max 1000) when request.rowLimit isn\'t set.' },
+      },
+    },
+  },
+  {
     name: 'apify',
     description: [
       'Runs an Apify actor with GrowJin\'s account and returns its raw dataset items (no filtering). COSTS MONEY: actors bill per result or per run (cost_usd in the answer shows what it cost; cost_cap_usd is the most this run may charge, set from limit and the actor\'s price), so start with limit 3-5.',

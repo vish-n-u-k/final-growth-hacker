@@ -21,6 +21,7 @@ import { getPosthogPowerUsers } from '@/lib/mcp/tools/get_posthog_power_users'
 import { getPosthogChurnedUsers } from '@/lib/mcp/tools/get_posthog_churned_users'
 import { getPosthogProUsers } from '@/lib/mcp/tools/get_posthog_pro_users'
 import { dataforseo } from '@/lib/mcp/tools/dataforseo'
+import { ga4, gsc } from '@/lib/mcp/tools/google_raw'
 import { hunter } from '@/lib/mcp/tools/hunter'
 import { apify } from '@/lib/mcp/tools/apify'
 import { logWork, listWork, updateWork, deleteWork } from '@/lib/mcp/tools/work_log'
@@ -190,6 +191,12 @@ export async function dispatch(
         args['plan_value'] ? String(args['plan_value']) : 'pro',
         args['limit'] ? parseInt(String(args['limit']), 10) : 100,
       )
+
+    case 'ga4':
+      return ga4(brandId, args)
+
+    case 'gsc':
+      return gsc(brandId, args)
 
     case 'dataforseo':
       return dataforseo(brandId, String(args['endpoint'] ?? ''), args['payload'], args['limit'])

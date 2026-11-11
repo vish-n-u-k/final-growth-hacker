@@ -1143,6 +1143,8 @@ const MCP_TOOLS = [
   { name: 'get_pending_items', desc: 'All incomplete items sorted by priority — optionally scoped to a module' },
   { name: 'get_blog_post', desc: 'A blog post written in GrowJin, ready to add to your website' },
   { name: 'mark_blog_published', desc: 'Mark a blog post as live on your website' },
+  { name: 'ga4', desc: 'Ask your Google Analytics anything: any report, period or filter' },
+  { name: 'gsc', desc: 'Ask your Search Console anything: searches and pages, a page\'s index status, sitemaps' },
   { name: 'get_lead_settings', desc: 'Who Lead Finder looks for: your brief, ideal customer and sending settings' },
   { name: 'check_contacts', desc: 'Whether people or companies were already emailed, are already leads, or opted out' },
   { name: 'save_leads', desc: 'Add leads Claude found to Lead Finder, ready for you to approve' },
